@@ -1,7 +1,6 @@
 #include "catch.hpp"
 #include <string.h>
 #include <ftl/net/raw.hpp>
-#include <ftl/net/services.hpp>
 #include <iostream>
 
 
@@ -241,12 +240,12 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 	accept_connection();
 
 	SECTION("small valid message") {
-		send_json(ftl::net::SERVICE_CONFIGURE, "{message: \"Hello\"}");
+		send_json(1, "{message: \"Hello\"}");
 
 		bool msg = false;
 
 		sock->onMessage([&](int service, std::string &data) {
-			REQUIRE(service == ftl::net::SERVICE_CONFIGURE);
+			REQUIRE(service == 1);
 			REQUIRE(data == "{message: \"Hello\"}");
 			msg = true;	
 		});
@@ -256,12 +255,12 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 	}
 
 	SECTION("empty message") {
-		send_json(ftl::net::SERVICE_CONFIGURE, "");
+		send_json(1, "");
 
 		bool msg = false;
 
 		sock->onMessage([&](int service, std::string &data) {
-			REQUIRE(service == ftl::net::SERVICE_CONFIGURE);
+			REQUIRE(service == 1);
 			REQUIRE(data == "");
 			msg = true;	
 		});
@@ -271,13 +270,13 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 	}
 
 	SECTION("multiple valid messages") {
-		send_json(ftl::net::SERVICE_CONFIGURE, "{message: \"Hello\"}");
-		send_json(ftl::net::SERVICE_CONFIGURE, "{test: \"world\"}");
+		send_json(1, "{message: \"Hello\"}");
+		send_json(1, "{test: \"world\"}");
 
 		int msg = 0;
 
 		sock->onMessage([&](int service, std::string &data) {
-			REQUIRE(service == ftl::net::SERVICE_CONFIGURE);
+			REQUIRE(service == 1);
 			if (msg == 0) REQUIRE(data == "{message: \"Hello\"}");
 			else REQUIRE(data == "{test: \"world\"}");
 			msg++;	
@@ -288,7 +287,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 	}
 
 	SECTION("disconnected does not get message") {
-		send_json(ftl::net::SERVICE_CONFIGURE, "world");
+		send_json(1, "world");
 
 		bool msg = false;
 

@@ -1,5 +1,5 @@
-#ifndef _FTL_NET_HPP_
-#define _FTL_NET_HPP_
+#ifndef _FTL_NET_RAW_HPP_
+#define _FTL_NET_RAW_HPP_
 
 #include <functional>
 #include <sstream>
@@ -107,4 +107,4 @@ const int MAX_CONNECTIONS = 100; // TODO Is this a good number?
 } // net
 } // ftl
 
-#endif // _FTL_NET_HPP_
+#endif // _FTL_NET_RAW_HPP_
