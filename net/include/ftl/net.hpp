@@ -6,7 +6,7 @@
 namespace ftl {
 namespace net {
 
-raw::Socket *connect(const char *uri) { return raw::connect(uri); }
+inline raw::Socket *connect(const char *uri) { return raw::connect(uri); }
 
 }
 }

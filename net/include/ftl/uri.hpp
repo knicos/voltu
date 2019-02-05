@@ -86,6 +86,7 @@ namespace ftl {
 		std::string &getPath() { return m_path; };
 		std::string &getQuery() { return m_query; };
 		std::string &getBaseURI() { return m_base; };
+		std::string &getPathSegment(int n) { return m_pathseg[n]; };
 
 		private:
 		bool m_valid;
