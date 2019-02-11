@@ -1,0 +1,33 @@
+Here is the low-poly version of my HP notebook. 
+I modeled, textured and rigged this notebook in Blender 25.08.2013.
+
+https://3dhaupt.com/3d-models-electronics-computer-hp-notebook-low-poly-download/
+
+Test in Unity-3d:
+https://www.youtube.com/watch?v=EXpiMCLojYQ
+
+Sketchfab 3d-preview:
+
+https://sketchfab.com/models/4fa038c442b04a31b71e425e779c7192
+
+
+More details
+
+Animated Yes
+Rigged Yes
+VR / AR / Low-poly Yes
+Geometry Polygon mesh
+Polygons 161
+Vertices 300
+Textures Yes
+Materials Yes
+UV Mapping Yes
+Unwrapped UVs Non-overlapping
+Available formats
+Blender Lowpoly_Notebook (.blend) (2 files)
+Collada (.dae) 71.2 KB
+Autodesk FBX (.fbx) 63.1 KB
+DXF (.dxf) 48.7 KB
+Alias/WaveFront Material (.mtl) 589 Bytes
+OBJ (.obj) 36 KB
+Unity 3D Unity 5 (.unitypackage) 2.53 MB

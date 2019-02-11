@@ -1,0 +1,85 @@
+# Blender MTL File: 'Laptop_High-Polay_HP_BI_2_blend_Animation.blend'
+# Material Count: 8
+
+newmtl Display
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 1
+map_Kd textures\\Desktop.png
+
+newmtl KEY
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.324324 0.324324 0.324324
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures\Bake_Col_3.jpg
+map_Ks textures\\Bake_Col_3.jpg
+
+newmtl Material.006
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.324324 0.324324 0.324324
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures\Bake_Col_3.jpg
+map_Ks textures\\Bake_Col_3.jpg
+
+newmtl Material.006_NONE
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.324324 0.324324 0.324324
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures\\Bake_Col_3.jpg
+map_Ks textures\\Bake_Col_3.jpg
+
+newmtl Material.006_Untitled.004
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.324324 0.324324 0.324324
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd Laptop Done\textures\Bake_Ao.png
+map_Ks textures\\Bake_Col_3.jpg
+
+newmtl Material.010
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.500000 0.500000 0.500000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd Laptop Done\textures\Bake_Ao.png
+
+newmtl Material.011
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.500000 0.500000 0.500000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd Laptop Done\textures\Bake_Ao.png
+
+newmtl Material.011_NONE
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.500000 0.500000 0.500000
+Ni 1.000000
+d 1.000000
+illum 2
