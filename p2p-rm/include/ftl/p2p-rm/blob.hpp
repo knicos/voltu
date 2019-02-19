@@ -8,8 +8,19 @@
 namespace ftl {
 namespace rm {
 
+struct Header {
+	char magic[4];
+	uint32_t version;
+	size_t size;
+	uint32_t format;
+	uint32_t blobid;
+};
+
 /* NOT TO BE USED DIRECTLY */
 struct Blob {
+	Blob();
+	~Blob();
+
 	ftl::net::raw::Socket *socket_;
 	char *data_;
 	size_t size_;

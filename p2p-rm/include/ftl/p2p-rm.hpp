@@ -7,6 +7,8 @@ namespace ftl {
 namespace rm {
 
 	void reset();
+	void destroy() { reset(); }
+
 	ftl::rm::Blob *_lookupBlob(const char *uri);
 	ftl::rm::Blob *_createBlob(const char *uri, size_t size);
 	
