@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include <ftl/p2p-rm/remote_ptr.hpp>
+#include <ftl/p2p-rm/mapped_ptr.hpp>
 #include <memory.h>
 
 // Mock the BLOB
@@ -8,16 +8,10 @@ void ftl::rm::Blob::finished() {
 	is_finished = true;
 }
 
-static bool blob_size;
-static const int *blob_data;
-void ftl::rm::Blob::write(size_t offset, const char *data, size_t size) {
-	blob_size = size;
-	blob_data = (const int*)data;
-	memcpy(data_+offset,data,size);
-}
+static bool blob_sync = false;
 
-void ftl::rm::Blob::read(size_t offset, char *data, size_t size) {
-	memcpy(data,data_+offset,size);
+void ftl::rm::Blob::sync(size_t offset, size_t size) {
+	blob_sync = true;
 }
 
 SCENARIO( "Reading from a remote pointer", "[remote_ptr]" ) {
@@ -28,7 +22,7 @@ SCENARIO( "Reading from a remote pointer", "[remote_ptr]" ) {
 	((int*)(blob->data_))[1] = 66;
 	
 	GIVEN( "a valid POD const remote pointer" ) {
-		const ftl::remote_ptr<int> pa{blob,0};
+		const ftl::mapped_ptr<int> pa{blob,0};
 		REQUIRE( *pa == 55 );
 		REQUIRE( pa[0] == 55 );
 		REQUIRE( pa[1] == 66 );
@@ -43,7 +37,7 @@ SCENARIO( "Writing to a remote pointer", "[remote_ptr]" ) {
 	((int*)(blob->data_))[1] = 66;
 	
 	GIVEN( "a valid POD remote pointer" ) {
-		ftl::remote_ptr<int> pa{blob,0};
+		ftl::mapped_ptr<int> pa{blob,0};
 		is_finished = false;
 		*pa = 23;
 		REQUIRE( *pa == 23 );
@@ -54,7 +48,7 @@ SCENARIO( "Writing to a remote pointer", "[remote_ptr]" ) {
 	}
 	
 	GIVEN( "a persistent write_ref" ) {
-		ftl::remote_ptr<int> pa{blob,0};
+		ftl::mapped_ptr<int> pa{blob,0};
 		is_finished = false;
 		auto ra = *pa;
 		
@@ -74,7 +68,7 @@ SCENARIO( "Writing to readonly pointer fails", "[remote_ptr]" ) {
 	((int*)(blob->data_))[1] = 66;
 	
 	GIVEN( "a valid POD const remote pointer" ) {
-		const ftl::remote_ptr<int> pa{blob,0};
+		const ftl::mapped_ptr<int> pa{blob,0};
 		*pa = 23;
 		REQUIRE( *pa == 55 );
 	}

@@ -2,17 +2,18 @@
 
 #include <ftl/uri.hpp>
 #include <map>
+#include <string>
 
 static std::map<std::string, ftl::rm::Blob*> blobs;
 
 void ftl::rm::reset() {
 	for (auto x : blobs) {
-		delete x;
+		delete x.second;
 	}
 	blobs.clear();
 }
 
-ftl::rm::Blob *ftl::rm::_lookupBlob(const char *uri) {
+ftl::rm::Blob *ftl::rm::_lookup(const char *uri) {
 	URI u(uri);
 	if (!u.isValid()) return NULL;
 	if (u.getScheme() != ftl::URI::SCHEME_FTL) return NULL;
@@ -21,7 +22,8 @@ ftl::rm::Blob *ftl::rm::_lookupBlob(const char *uri) {
 	return blobs[u.getBaseURI()];
 }
 
-ftl::rm::Blob *ftl::rm::_createBlob(const char *uri, size_t size) {
+ftl::rm::Blob *ftl::rm::_create(const char *uri, char *addr, size_t size, size_t count,
+		ftl::rm::flags_t flags, const std::string &tname) {
 	URI u(uri);
 	if (!u.isValid()) return NULL;
 	if (u.getScheme() != ftl::URI::SCHEME_FTL) return NULL;
@@ -31,15 +33,12 @@ ftl::rm::Blob *ftl::rm::_createBlob(const char *uri, size_t size) {
 	
 	ftl::rm::Blob *b = new ftl::rm::Blob;
 
-	char *raw = new char[size+sizeof(ftl::rm::Header)];
-
-	b->raw_ = raw;
-	b->header_ = (ftl::rm::Header*)raw;
-	b->data_ = raw+sizeof(ftl::rm::Header);
+	b->data_ = addr;
 	b->size_ = size;
-	b->rawsize = size++sizeof(ftl::rm::Header);
-	b->socket_ = NULL;
+	b->uri_ = std::string(uri);
 	blobs[u.getBaseURI()] = b;
+
+	// TODO : Perhaps broadcast this new allocation?
 	return b;
 }
 
