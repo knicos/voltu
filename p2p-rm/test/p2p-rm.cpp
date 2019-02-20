@@ -1,9 +1,13 @@
 #include "catch.hpp"
 #include <ftl/p2p-rm.hpp>
+#include <vector>
 
 // --- Mock Socket Send
 
+static std::vector<uint32_t> msgs;
+
 int ftl::net::raw::Socket::send2(uint32_t service, const std::string &data1, const std::string &data2) {
+	msgs.push_back(service);
 	return 0;
 }
 
@@ -72,6 +76,13 @@ SCENARIO( "Getting a read_ref", "[get]" ) {
 		REQUIRE( r.is_valid() );
 		REQUIRE( r.pointer().is_local() );
 		REQUIRE( r == 89 );
+	}
+	
+	GIVEN( "a valid URI to remote memory" ) {
+		const auto r = ftl::rm::getReadable<int>("ftl://uti.fi/memory/remote0");
+		REQUIRE( r.is_valid() );
+		REQUIRE( !r.pointer().is_local() );
+		REQUIRE( r == 888 );
 	}
 }
 
