@@ -4,9 +4,12 @@
 #include "ftl/p2p-rm/mapped_ptr.hpp"
 #include "ftl/p2p-rm/internal.hpp"
 
+#include <ftl/uri.hpp>
+
 #include <type_traits>
 #include <memory>
 #include <vector>
+#include <map>
 
 namespace ftl {
 namespace net {
@@ -16,9 +19,13 @@ namespace net {
 
 namespace rm {
 
+class Blob;
+
+void _sync(const Blob &blob, size_t offset, size_t size);
+
 class Cluster {
 	public:
-	Cluster(const char *uri, std::shared_ptr<ftl::net::Listener> l);
+	Cluster(const ftl::URI &uri, std::shared_ptr<ftl::net::Listener> l);
 	~Cluster();
 	
 	void reset();
@@ -65,7 +72,7 @@ class Cluster {
 
 		if (addr == NULL) return ftl::null_ptr<T>;
 
-		return ftl::mapped_ptr<T>{_create(this, uri, (char*)addr, sizeof(T), size,
+		return ftl::mapped_ptr<T>{_create(uri, (char*)addr, sizeof(T), size,
 				static_cast<flags_t>(std::is_integral<T>::value * ftl::rm::FLAG_INTEGER |
 				std::is_signed<T>::value * ftl::rm::FLAG_SIGNED |
 				std::is_trivial<T>::value * ftl::rm::FLAG_TRIVIAL),
@@ -94,10 +101,14 @@ class Cluster {
 	void addPeer(const char *url);
 	
 	private:
-	std::string uri_;
 	std::string root_;
 	std::shared_ptr<ftl::net::Listener> listener_;
 	std::vector<std::shared_ptr<ftl::net::Socket>> peers_;
+	std::map<std::string, ftl::rm::Blob*> blobs_;
+
+	ftl::rm::Blob *_lookup(const char *uri);
+	Blob *_create(const char *uri, char *addr, size_t size, size_t count,
+		ftl::rm::flags_t flags, const std::string &tname);
 };
 
 };

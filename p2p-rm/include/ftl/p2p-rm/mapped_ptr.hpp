@@ -52,7 +52,9 @@ namespace ftl {
 		mapped_ptr<T> ptr_;
 		
 		// Constructor
-		read_ref(mapped_ptr<T> ptr) : ptr_(ptr), rlock_(ptr.blob->mutex_) {}
+		read_ref(mapped_ptr<T> ptr) : ptr_(ptr) {
+			if (ptr_.is_valid()) rlock_ = std::shared_lock<std::shared_mutex>(ptr.blob->mutex_);
+		}
 		
 		bool is_valid() const { return !ptr_.is_null(); }
 		mapped_ptr<T> pointer() const { return ptr_; }
