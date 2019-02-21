@@ -77,6 +77,30 @@ Blob *Cluster::_lookup(const char *uri) {
 
 	auto b = blobs_[u.getBaseURI()];
 	std::cout << "Blob Found for " << u.getBaseURI() << " = " << (b != nullptr) << std::endl;
+
+	if (b == nullptr) {
+		// Must do a p2p search for this URI...
+		int rpcid = rpcid_++;
+
+		for (auto p : peers_) {
+			p->send(P2P_FINDOWNER, ftl::net::rpc_pack(rpcid,uri));
+		}
+
+		int limit = 10;
+		while (limit >= 0 && !rpc_results_[rpcid] == nullptr) {
+			ftl::net::wait();
+			limit--;
+		}
+
+		if (rpc_results[rpcid]) {
+			// Unpack the data
+			auto res = rpc_results[rpcid];
+			
+		} else {
+			// No results;
+		}
+	}
+
 	return b;
 }
 
