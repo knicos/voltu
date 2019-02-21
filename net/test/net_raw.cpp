@@ -1,7 +1,28 @@
 #include "catch.hpp"
 #include <string.h>
-#include <ftl/net/raw.hpp>
+#include <ftl/net.hpp>
+#include <ftl/net/socket.hpp>
+#include <ftl/net/listener.hpp>
 #include <iostream>
+#include <memory>
+
+#ifndef WIN32
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
+#endif
+
+#ifdef WIN32
+#include <windows.h>
+#include <winsock.h>
+typedef int socklen_t;
+#define MSG_WAITALL 0
+#endif
 
 
 // ---- MOCK Server Code -------------------------------------------------------
@@ -14,7 +35,8 @@ static fd_set sfdread;
 static fd_set sfderror;
 static sockaddr_in slocalAddr;
 
-using ftl::net::raw::Socket;
+using ftl::net::Socket;
+using std::shared_ptr;
 
 void fin_server() {
 	if (!server) return;
@@ -147,6 +169,8 @@ void accept_connection() {
 	if (selres > 0 && FD_ISSET(ssock, &sfdread)) {
 		int rsize = sizeof(sockaddr_storage);
 		sockaddr_storage addr;
+		
+		std::cout << "Accepted connection!" << std::endl;
 
 		//Finally accept this client connection.
 		csock = accept(ssock, (sockaddr*)&addr, (socklen_t*)&rsize);
@@ -161,33 +185,33 @@ TEST_CASE("net::connect()", "[net]") {
 	init_server();
 	REQUIRE(ssock != INVALID_SOCKET);
 
-	Socket *sock = NULL;
+	shared_ptr<Socket> sock = nullptr;
 
 	SECTION("valid tcp connection using ipv4") {
-		sock = ftl::net::raw::connect("tcp://127.0.0.1:7077");
-		REQUIRE(sock != NULL);
+		sock = ftl::net::connect("tcp://127.0.0.1:7077");
+		REQUIRE(sock != nullptr);
 		accept_connection();
 	}
 
 	SECTION("valid tcp connection using hostname") {
-		sock = ftl::net::raw::connect("tcp://localhost:7077");
-		REQUIRE(sock != NULL);
+		sock = ftl::net::connect("tcp://localhost:7077");
+		REQUIRE(sock->isValid());
 		accept_connection();
 	}
 
 	SECTION("invalid protocol") {
-		sock = ftl::net::raw::connect("http://127.0.0.1:7077");
-		REQUIRE(sock == NULL);
+		sock = ftl::net::connect("http://127.0.0.1:7077");
+		REQUIRE(!sock->isValid());
 	}
 
 	SECTION("empty uri") {
-		sock = ftl::net::raw::connect("");
-		REQUIRE(sock == NULL);
+		sock = ftl::net::connect("");
+		REQUIRE(!sock->isValid());
 	}
 
 	SECTION("null uri") {
-		sock = ftl::net::raw::connect(NULL);
-		REQUIRE(sock == NULL);
+		sock = ftl::net::connect(NULL);
+		REQUIRE(!sock->isValid());
 	}
 
 	// Disabled due to long timeout
@@ -199,13 +223,13 @@ TEST_CASE("net::connect()", "[net]") {
 	}*/
 
 	SECTION("incorrect dns address") {
-		sock = ftl::net::raw::connect("tcp://xryyrrgrtgddgr.com:7077");
-		REQUIRE(sock != NULL);
+		sock = ftl::net::connect("tcp://xryyrrgrtgddgr.com:7077");
+		REQUIRE(sock->isValid());
 		REQUIRE(sock->isConnected() == false);
-		sock = NULL;
+		sock = nullptr;
 	}
 
-	if (sock) {
+	if (sock && sock->isValid()) {
 		REQUIRE(sock->isConnected());
 		REQUIRE(csock != INVALID_SOCKET);
 		sock->close();
@@ -216,26 +240,26 @@ TEST_CASE("net::connect()", "[net]") {
 TEST_CASE("net::listen()", "[net]") {
 
 	SECTION("tcp any interface") {
-		REQUIRE( ftl::net::raw::listen("tcp://*:7078") == 0);
+		REQUIRE( ftl::net::listen("tcp://*:7078")->isListening() );
 
 		SECTION("can connect to listening socket") {
-			Socket *sock = ftl::net::raw::connect("tcp://127.0.0.1:7078");
-			REQUIRE(sock != NULL);
+			shared_ptr<Socket> sock = ftl::net::connect("tcp://127.0.0.1:7078");
+			REQUIRE(sock->isValid());
 			REQUIRE(sock->isConnected());
-			ftl::net::raw::run(false);
+			ftl::net::wait();
 
 			// TODO Need way of knowing about connection
 		}
 
-		ftl::net::raw::stop();
+		ftl::net::stop();
 	}
 }
 
 TEST_CASE("Socket.onMessage()", "[net]") {
 	// Need a fake server...
 	init_server();
-	Socket *sock = ftl::net::raw::connect("tcp://127.0.0.1:7077");
-	REQUIRE(sock != NULL);
+	shared_ptr<Socket> sock = ftl::net::connect("tcp://127.0.0.1:7077");
+	REQUIRE(sock->isValid());
 	REQUIRE(sock->isConnected());
 	accept_connection();
 
@@ -250,7 +274,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 			msg = true;	
 		});
 
-		ftl::net::raw::run(false);
+		ftl::net::wait();
 		REQUIRE(msg);
 	}
 
@@ -265,7 +289,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 			msg = true;	
 		});
 
-		ftl::net::raw::run(false);
+		ftl::net::wait();
 		REQUIRE(msg);
 	}
 
@@ -282,7 +306,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 			msg++;	
 		});
 
-		ftl::net::raw::run(false);
+		ftl::net::wait();
 		REQUIRE(msg == 2);
 	}
 
@@ -297,7 +321,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 
 		sock->close();
 
-		ftl::net::raw::run(false);
+		ftl::net::wait();
 		REQUIRE(!msg);
 	}
 

@@ -22,7 +22,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 
 set(FTLSOURCE
-	src/raw.cpp
+	src/net.cpp
+	src/listener.cpp
+	src/socket.cpp
 )
 
 check_include_file("uriparser/Uri.h" HAVE_URI_H)

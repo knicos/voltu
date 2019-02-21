@@ -1,7 +1,9 @@
 add_executable(tests EXCLUDE_FROM_ALL
 	./tests.cpp
 	./net_raw.cpp
-	../src/raw.cpp
+	../src/net.cpp
+	../src/socket.cpp
+	../src/listener.cpp
 	./ice.cpp
 	../src/ice.cpp
 	./uri.cpp
