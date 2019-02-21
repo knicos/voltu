@@ -97,8 +97,12 @@ Listener::~Listener() {
 	close();
 }
 
+void Listener::connection(Socket &s) {
+	for (auto h : handler_connect_) h(s);
+}
+
 void Listener::close() {
-	//if (isConnected()) {
+	if (isListening()) {
 		#ifndef WIN32
 		::close(descriptor_);
 		#else
@@ -107,6 +111,6 @@ void Listener::close() {
 		descriptor_ = INVALID_SOCKET;
 
 		// Attempt auto reconnect?
-	//}
+	}
 }
 

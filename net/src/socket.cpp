@@ -108,6 +108,7 @@ static int wsConnect(URI &uri) {
 Socket::Socket(int s) : m_sock(s), m_pos(0) {
 	// TODO Get the remote address.
 	m_valid = true;
+	m_buffer = new char[BUFFER_SIZE];
 }
 
 Socket::Socket(const char *pUri) : m_uri(pUri), m_pos(0) {
@@ -209,6 +210,7 @@ Socket::~Socket() {
 	close();
 	
 	// Delete socket buffer
-	delete [] m_buffer;
+	if (m_buffer) delete [] m_buffer;
+	m_buffer = NULL;
 }
 

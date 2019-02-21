@@ -14,7 +14,7 @@ static std::vector<shared_ptr<ftl::net::Listener>> listeners;
 static fd_set sfdread;
 static fd_set sfderror;
 
-static int freeSocket() {
+/*static int freeSocket() {
 	int freeclient = -1;
 
 	//Find a free client slot and allocated it
@@ -37,7 +37,7 @@ static int freeSocket() {
 	}
 
 	return freeclient;
-}
+}*/
 
 static int setDescriptors() {
 	//Reset all file descriptors
@@ -79,29 +79,16 @@ shared_ptr<Listener> ftl::net::listen(const char *uri) {
 
 shared_ptr<Socket> ftl::net::connect(const char *uri) {
 	shared_ptr<Socket> s(new Socket(uri));
-	int fs = freeSocket();
-	if (fs >= 0) {
-		sockets[fs] = s;
-		return s;
-	} else {
-		return NULL;
-	}
+	sockets.push_back(s);
+	return s;
 }
 
 void ftl::net::stop() {
 	for (auto s : sockets) {
-		if (s != NULL) s->close();
+		s->close();
 	}
 	
 	sockets.clear();
-	
-	/*#ifndef WIN32
-	if (ssock != INVALID_SOCKET) close(ssock);
-	#else
-	if (ssock != INVALID_SOCKET) closesocket(ssock);
-	#endif
-
-	ssock = INVALID_SOCKET;*/
 	
 	for (auto l : listeners) {
 		l->close();
@@ -156,6 +143,9 @@ bool _run(bool blocking, bool nodelay) {
 							//sockets[freeclient] = sock;
 							
 							sockets.push_back(sock);
+							
+							// Call connection handlers
+							l->connection(*sock);
 							
 							// TODO Save the ip address
 							// deal with both IPv4 and IPv6:

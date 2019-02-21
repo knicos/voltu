@@ -6,6 +6,8 @@
 namespace ftl {
 namespace net {
 
+class Socket;
+
 typedef std::function<void(int, std::string&)> sockdatahandler_t;
 typedef std::function<void(int)> sockerrorhandler_t;
 typedef std::function<void()> sockconnecthandler_t;

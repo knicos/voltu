@@ -253,6 +253,25 @@ TEST_CASE("net::listen()", "[net]") {
 
 		ftl::net::stop();
 	}
+	
+	SECTION("on connection event") {
+		auto l = ftl::net::listen("tcp://*:7078");
+		REQUIRE( l->isListening() );
+		
+		bool connected = false;
+		
+		l->onConnection([&](Socket &s) {
+			REQUIRE( s.isConnected() );
+			connected = true;
+		});
+		
+		auto sock = ftl::net::connect("tcp://127.0.0.1:7078");
+		ftl::net::wait();
+		REQUIRE( connected );
+		std::cout << "PRE STOP" << std::endl;
+		ftl::net::stop();
+		std::cout << "POST STOP" << std::endl;
+	}
 }
 
 TEST_CASE("Socket.onMessage()", "[net]") {

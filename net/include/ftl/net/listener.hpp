@@ -10,6 +10,10 @@
 #include <winsock.h>
 #endif
 
+#include <ftl/net/handlers.hpp>
+
+#include <vector>
+
 namespace ftl {
 namespace net {
 
@@ -23,9 +27,13 @@ class Listener {
 	void close();
 	int _socket() { return descriptor_; }
 	
+	void connection(Socket &s);
+	void onConnection(connecthandler_t h) { handler_connect_.push_back(h); };
+	
 	private:
 	int descriptor_;
 	sockaddr_in slocalAddr;
+	std::vector<connecthandler_t> handler_connect_;
 };
 
 };
