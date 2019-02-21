@@ -23,7 +23,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 
 set(FTLSOURCE
-	src/blob.cpp
+	src/cluster.cpp
 	src/p2prm.cpp
 )
 add_library(ftl-p2prm ${FTLSOURCE})

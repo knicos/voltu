@@ -5,6 +5,7 @@ namespace ftl {
 namespace rm {
 
 class Blob;
+class Cluster;
 
 enum flags_t : uint32_t {
 	FLAG_INTEGER = 1,
@@ -13,7 +14,7 @@ enum flags_t : uint32_t {
 };
 
 ftl::rm::Blob *_lookup(const char *uri);
-ftl::rm::Blob *_create(const char *uri, char *addr, size_t size, size_t count, flags_t flags, const std::string &tname);
+ftl::rm::Blob *_create(Cluster *c, const char *uri, char *addr, size_t size, size_t count, flags_t flags, const std::string &tname);
 
 }; // namespace rm
 }; // namespace ftl

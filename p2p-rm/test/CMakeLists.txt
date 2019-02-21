@@ -9,7 +9,7 @@ add_executable(mapped_ptr EXCLUDE_FROM_ALL
 add_executable(p2p_rm EXCLUDE_FROM_ALL
 	./tests.cpp
 	../src/p2prm.cpp
-	../src/blob.cpp
+	../src/cluster.cpp
 	./p2p-rm.cpp
 )
 target_link_libraries(p2p_rm uriparser)
