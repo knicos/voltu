@@ -1,6 +1,7 @@
 #ifndef _FTL_NET_SOCKET_HPP_
 #define _FTL_NET_SOCKET_HPP_
 
+#include <glog/logging.h>
 #include <ftl/net.hpp>
 #include <ftl/net/handlers.hpp>
 #include <ftl/net/dispatcher.hpp>
@@ -46,13 +47,22 @@ class Socket {
 
 	bool isConnected() { return m_sock != INVALID_SOCKET; };
 	bool isValid() { return m_valid; };
+	std::string getURI() const { return m_uri; };
 	
+	/**
+	 * Bind a function to a RPC call name.
+	 */
 	template <typename F>
 	void bind(const std::string &name, F func) {
 		//disp_.enforce_unique_name(name);
 		disp_.bind(name, func, typename ftl::internal::func_kind_info<F>::result_kind(),
 		     typename ftl::internal::func_kind_info<F>::args_kind());
 	}
+	
+	/**
+	 * Bind a function to a raw message type.
+	 */
+	void bind(uint32_t service, std::function<void(std::shared_ptr<Socket>,const std::string&)> func);
 	
 	template <typename T, typename... ARGS>
 	T call(const std::string &name, ARGS... args) {
@@ -82,6 +92,8 @@ class Socket {
 		auto rpcid = rpcid__++;
 		auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 		
+		LOG(INFO) << "RPC call sent: " << name;
+		
 		std::stringstream buf;
 		msgpack::pack(buf, call_obj);
 		
@@ -101,16 +113,12 @@ class Socket {
 	bool data();
 	void error();
 
-	protected:
-
-	char m_addr[INET6_ADDRSTRLEN];
-
 	private:
-	const char *m_uri;
+	std::string m_uri;
 	int m_sock;
 	size_t m_pos;
 	char *m_buffer;
-	sockdatahandler_t m_handler;
+	sockdatahandler_t m_handlers;
 	bool m_valid;
 	std::map<int, std::function<void(msgpack::object&)>> callbacks_;
 	ftl::net::Dispatcher disp_;

@@ -27,7 +27,7 @@ class Listener {
 	void close();
 	int _socket() { return descriptor_; }
 	
-	void connection(std::shared_ptr<Socket> s);
+	void connection(std::shared_ptr<Socket> &s);
 	void onConnection(connecthandler_t h) { handler_connect_.push_back(h); };
 	
 	private:

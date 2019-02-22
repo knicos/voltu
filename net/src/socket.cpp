@@ -1,3 +1,5 @@
+#include <glog/logging.h>
+
 #include <ftl/uri.hpp>
 #include <ftl/net/socket.hpp>
 
@@ -61,7 +63,7 @@ static int tcpConnect(URI &uri) {
 		closesocket(csocket);
 		#endif
 
-		std::cerr << "Address not found : " << uri.getHost() << std::endl;
+		LOG(ERROR) << "Address not found : " << uri.getHost() << std::endl;
 
 		return INVALID_SOCKET;
 	}
@@ -87,7 +89,7 @@ static int tcpConnect(URI &uri) {
 			closesocket(csocket);
 			#endif
 
-			std::cerr << "Could not connect" << std::endl;
+			LOG(ERROR) << "Could not connect to " << uri.getBaseURI();
 
 			return INVALID_SOCKET;
 		}
@@ -108,9 +110,31 @@ static int wsConnect(URI &uri) {
 }
 
 Socket::Socket(int s) : m_sock(s), m_pos(0), disp_(this) {
-	// TODO Get the remote address.
 	m_valid = true;
 	m_buffer = new char[BUFFER_SIZE];
+	
+	sockaddr_storage addr;
+	int rsize = sizeof(sockaddr_storage);
+	if (getpeername(s, (sockaddr*)&addr, (socklen_t*)&rsize) == 0) {
+		char addrbuf[INET6_ADDRSTRLEN];
+		int port;
+		
+		if (addr.ss_family == AF_INET) {
+			struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+			//port = ntohs(s->sin_port);
+			inet_ntop(AF_INET, &s->sin_addr, addrbuf, INET6_ADDRSTRLEN);
+			port = s->sin_port;
+		} else { // AF_INET6
+			struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+			//port = ntohs(s->sin6_port);
+			inet_ntop(AF_INET6, &s->sin6_addr, addrbuf, INET6_ADDRSTRLEN);
+			port = s->sin6_port;
+		}
+		
+		m_uri = std::string("tcp://")+addrbuf;
+		m_uri += ":";
+		m_uri += std::to_string(port);
+	}
 }
 
 Socket::Socket(const char *pUri) : m_uri(pUri), m_pos(0), disp_(this) {
@@ -150,7 +174,7 @@ void Socket::error() {
 	uint32_t optlen = sizeof(err);
 	getsockopt(m_sock, SOL_SOCKET, SO_ERROR, &err, &optlen);
 
-	std::cerr << "GOT A SOCKET ERROR : " << err << std::endl;
+	LOG(ERROR) << "Socket: " << m_uri << " - error " << err;
 	//close();
 }
 
@@ -171,7 +195,7 @@ bool Socket::data() {
 	while (m_pos < len+4) {
 		if (len > MAX_MESSAGE) {
 			close();
-			std::cout << "Length is too big" << std::endl;
+			LOG(ERROR) << "Socket: " << m_uri << " - message attack";
 			return false; // Prevent DoS
 		}
 
@@ -188,10 +212,10 @@ bool Socket::data() {
 			}
 		} else if (rc == EWOULDBLOCK || rc == 0) {
 			// Data not yet available
-			std::cout << "No data to read" << std::endl;
+			//std::cout << "No data to read" << std::endl;
 			return false;
 		} else {
-			std::cout << "Socket error" << std::endl;
+			LOG(ERROR) << "Socket: " << m_uri << " - error " << rc;
 			// Close socket due to error
 			close();
 			return false;
@@ -220,8 +244,13 @@ bool Socket::data() {
 			//auto &&err = std::get<2>(the_result);
 			auto &&res = std::get<3>(the_result);
 
-			if (callbacks_.count(id) > 0) callbacks_[id](res);
-			else std::cout << "NO CALLBACK FOUND FOR RPC RESULT" << std::endl;
+			if (callbacks_.count(id) > 0) {
+				LOG(INFO) << "Received return RPC value";
+				callbacks_[id](res);
+				callbacks_.erase(id);
+			} else {
+				LOG(ERROR) << "Missing RPC callback for result";
+			}
 		} else {
 			if (m_handler) m_handler(service, d);
 		} 
@@ -248,7 +277,26 @@ int Socket::send(uint32_t service, const std::string &data) {
 	return 0;
 }
 
+int Socket::send2(uint32_t service, const std::string &data1, const std::string &data2) {
+	ftl::net::Header h;
+	h.size = data1.size()+4+data2.size();
+	h.service = service;
+	
+	iovec vec[3];
+	vec[0].iov_base = &h;
+	vec[0].iov_len = sizeof(h);
+	vec[1].iov_base = const_cast<char*>(data1.data());
+	vec[1].iov_len = data1.size();
+	vec[2].iov_base = const_cast<char*>(data2.data());
+	vec[2].iov_len = data2.size();
+	
+	::writev(m_sock, &vec[0], 3);
+	
+	return 0;
+}
+
 Socket::~Socket() {
+	std::cerr << "DESTROYING SOCKET" << std::endl;
 	close();
 	
 	// Delete socket buffer

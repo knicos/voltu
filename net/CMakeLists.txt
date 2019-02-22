@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.8.11)
 
 include (CheckIncludeFile)
 include (CheckFunctionExists)
-project (libftlnet)
+project (ftlnet)
 
 #find_package(PkgConfig)
 #pkg_check_modules(GTKMM gtkmm-3.0)
@@ -25,6 +25,7 @@ set(FTLSOURCE
 	src/net.cpp
 	src/listener.cpp
 	src/socket.cpp
+	src/dispatcher.cpp
 )
 
 check_include_file("uriparser/Uri.h" HAVE_URI_H)
@@ -33,8 +34,8 @@ if(NOT HAVE_URI_H)
 endif()
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
 
-add_library(libftlnet ${FTLSOURCE})
-target_include_directories(libftlnet PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(libftlnet pthread)
+add_library(ftlnet ${FTLSOURCE})
+target_include_directories(ftlnet PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(ftlnet pthread)
 
 ADD_SUBDIRECTORY(test)

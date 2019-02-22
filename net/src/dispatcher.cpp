@@ -1,3 +1,4 @@
+#include <glog/logging.h>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/net/socket.hpp>
 #include <iostream>
@@ -26,7 +27,7 @@ void ftl::net::Dispatcher::dispatch(const msgpack::object &msg) {
     case 4:
         dispatch_call(msg); break;
     default:
-    	std::cout << "Unrecognised msgpack : " << msg.via.array.size << std::endl;
+    	LOG(ERROR) << "Unrecognised msgpack : " << msg.via.array.size;
         return;
     }
 }
@@ -42,6 +43,8 @@ void ftl::net::Dispatcher::dispatch_call(const msgpack::object &msg) {
     auto &&id = std::get<1>(the_call);
     auto &&name = std::get<2>(the_call);
     auto &&args = std::get<3>(the_call);
+    
+    LOG(INFO) << "RPC call received: " << name;
 
     auto it_func = funcs_.find(name);
 

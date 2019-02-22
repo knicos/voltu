@@ -29,6 +29,8 @@ struct Blob {
 	mutable std::shared_mutex mutex_;
 };
 
+void _sync(const Blob &blob, size_t offset, size_t size);
+
 }
 }
 

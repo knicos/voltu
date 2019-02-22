@@ -102,7 +102,8 @@ namespace ftl {
 		write_ref &operator=(const T &value) {
 			//ptr_.blob->write(ptr_.offset, (char*)(&value), sizeof(T));
 			*((T*)&ptr_.blob->data_[ptr_.offset]) = value;
-			ptr_.blob->sync(ptr_.offset, sizeof(T));
+			//ptr_.blob->sync(ptr_.offset, sizeof(T));
+			ftl::rm::_sync(*ptr_.blob, ptr_.offset, sizeof(T));
 			return *this;
 		}
 		

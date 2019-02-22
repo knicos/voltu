@@ -19,13 +19,15 @@ using ftl::URI;
 using ftl::rm::Blob;
 using ftl::net::Socket;
 
+int Cluster::rpcid_ = 0;
+
 Cluster::Cluster(const URI &uri, shared_ptr<Listener> l) : listener_(l) {
-	auto me = this;
+	//auto me = this;
 	root_ = uri.getHost();
 
 	if (l != nullptr) {
-		l->onConnection([&](shared_ptr<Socket> s) {
-			me->addPeer(s);		
+		l->onConnection([&](shared_ptr<Socket> &s) {
+			addPeer(s);		
 		});
 	}
 }
@@ -41,31 +43,27 @@ void Cluster::reset() {
 	blobs_.clear();
 }
 
-void Cluster::addPeer(shared_ptr<Socket> p) {
-
+void Cluster::addPeer(shared_ptr<Socket> &p) {
+	LOG(INFO) << "Peer added: " << p->getURI();
+	//auto me = this;
+	peers_.push_back(p);
+	/*p->onMessage([&](int service, const std::string &data) {
+		std::cout << "MSG " << service << std::endl;
+	});*/
+	p->bind("getowner", [](const std::string &uri) -> std::string {
+		std::cout << "GETOWNER" << std::endl;
+		return "";
+	});
+	
+	// TODO Check ownership of my blobs.
+	for (auto b : blobs_) {
+		getOwner(b.first.c_str());
+	}
 }
 
-struct SyncHeader {
-	uint32_t blobid;
-	uint32_t offset;
-	uint32_t size;
-};
-
-void ftl::rm::_sync(const Blob &blob, size_t offset, size_t size) {
-	// Sanity check
-	if (offset + size > blob.size_) throw -1;
-
-	// TODO Delay send to collate many write operations?
-
-	if (blob.sockets_.size() > 0) {
-		SyncHeader header{blob.blobid_,static_cast<uint32_t>(offset),static_cast<uint32_t>(size)};
-	
-		for (auto s : blob.sockets_) {
-			// Send over network
-			s->send2(P2P_SYNC, std::string((const char*)&header,sizeof(header)),
-				std::string(&blob.data_[offset],size));
-		}
-	}
+void Cluster::addPeer(const char *url) {
+	auto sock = ftl::net::connect(url);
+	addPeer(sock);
 }
 
 Blob *Cluster::_lookup(const char *uri) {
@@ -73,35 +71,40 @@ Blob *Cluster::_lookup(const char *uri) {
 	if (!u.isValid()) return NULL;
 	if (u.getScheme() != ftl::URI::SCHEME_FTL) return NULL;
 	//if (u.getPathSegment(0) != "memory") return NULL;
-	if (u.getHost() != root_) { std::cerr << "Non matching host : " << u.getHost() << " - " << root_ << std::endl; return NULL; }
+	if (u.getHost() != root_) { LOG(ERROR) << "Non matching host : " << u.getHost() << " - " << root_ << std::endl; return NULL; }
 
 	auto b = blobs_[u.getBaseURI()];
 	std::cout << "Blob Found for " << u.getBaseURI() << " = " << (b != nullptr) << std::endl;
 
-	if (b == nullptr) {
-		// Must do a p2p search for this URI...
-		int rpcid = rpcid_++;
-
-		for (auto p : peers_) {
-			p->send(P2P_FINDOWNER, ftl::net::rpc_pack(rpcid,uri));
-		}
-
-		int limit = 10;
-		while (limit >= 0 && !rpc_results_[rpcid] == nullptr) {
-			ftl::net::wait();
-			limit--;
-		}
-
-		if (rpc_results[rpcid]) {
-			// Unpack the data
-			auto res = rpc_results[rpcid];
-			
-		} else {
-			// No results;
-		}
+	if (!b) {
+		// Whoops, need to map it first!
 	}
 
 	return b;
+}
+
+std::string Cluster::getOwner(const char *uri) {
+	std::string result;
+	int count = 0;
+
+	auto f = [&](msgpack::object &r) {
+		count--;
+		std::string res = r.as<std::string>();
+		if (res.size() > 0) result = res;
+	};
+
+	for (auto p : peers_) {
+		count++;
+		LOG(INFO) << "Request owner of " << uri << " from " << p->getURI();
+		p->async_call("getowner", f, std::string(uri));
+	}
+	
+	// TODO Limit in case of no return.
+	while (count > 0) {
+		ftl::net::wait();
+	}
+	
+	return result;
 }
 
 Blob *Cluster::_create(const char *uri, char *addr, size_t size, size_t count,
@@ -120,7 +123,16 @@ Blob *Cluster::_create(const char *uri, char *addr, size_t size, size_t count,
 	b->uri_ = std::string(uri);
 	blobs_[u.getBaseURI()] = b;
 
-	// TODO : Perhaps broadcast this new allocation?
+	std::string o = getOwner(uri);
+	if (o.size() == 0) {
+		// I am the owner!
+		std::cout << "I own " << uri << std::endl;
+	} else {
+		std::cout << "I do not own " << uri << std::endl;
+	}
+	
+	//std::cout << owners << std::endl;
+	
 	return b;
 }
 

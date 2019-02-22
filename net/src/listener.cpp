@@ -1,3 +1,5 @@
+#include <glog/logging.h>
+
 #include <ftl/uri.hpp>
 #include <ftl/net/listener.hpp>
 #include <iostream>
@@ -39,6 +41,10 @@ int tcpListen(URI &uri) {
 	if (ssock == INVALID_SOCKET) {
 		return INVALID_SOCKET;
 	}
+	
+	int enable = 1;
+	if (setsockopt(ssock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+		LOG(ERROR) << "setsockopt(SO_REUSEADDR) failed";
 
 	//Specify listen port and address
 	sockaddr_in slocalAddr;
@@ -55,6 +61,8 @@ int tcpListen(URI &uri) {
 		closesocket(ssock);
 		#endif
 		ssock = INVALID_SOCKET;
+		
+		LOG(ERROR) << "Could not bind to " << uri.getBaseURI();
 		return INVALID_SOCKET;
 	}
 
@@ -68,6 +76,8 @@ int tcpListen(URI &uri) {
 		closesocket(ssock);
 		#endif
 		ssock = INVALID_SOCKET;
+		
+		LOG(ERROR) << "Could not listen on " << uri.getBaseURI();
 		return INVALID_SOCKET;
 	}
 	
@@ -98,7 +108,7 @@ Listener::~Listener() {
 	close();
 }
 
-void Listener::connection(shared_ptr<Socket> s) {
+void Listener::connection(shared_ptr<Socket> &s) {
 	for (auto h : handler_connect_) h(s);
 }
 

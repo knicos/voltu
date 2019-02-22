@@ -1,17 +1,21 @@
 #include "catch.hpp"
 #include <ftl/p2p-rm/mapped_ptr.hpp>
+#include <ftl/net/socket.hpp>
 #include <memory.h>
 
+#include <iostream>
+
 // Mock the BLOB
-static bool is_finished = false;
-void ftl::rm::Blob::finished() {
-	is_finished = true;
-}
 
 static bool blob_sync = false;
 
 void ftl::rm::Blob::sync(size_t offset, size_t size) {
 	blob_sync = true;
+}
+
+int ftl::net::Socket::send2(uint32_t service, const std::string &data1, const std::string &data2) {
+	std::cout << "SEND2 (" << service << ")" << std::endl;
+	return 0;
 }
 
 SCENARIO( "Reading from a remote pointer", "[remote_ptr]" ) {
@@ -38,10 +42,8 @@ SCENARIO( "Writing to a remote pointer", "[remote_ptr]" ) {
 	
 	GIVEN( "a valid POD remote pointer" ) {
 		ftl::mapped_ptr<int> pa{blob,0};
-		is_finished = false;
 		*pa = 23;
 		REQUIRE( *pa == 23 );
-		REQUIRE( is_finished );
 		REQUIRE( pa[0] == 23 );
 		pa[1] = 25;
 		REQUIRE( pa[1] == 25 );
@@ -49,14 +51,11 @@ SCENARIO( "Writing to a remote pointer", "[remote_ptr]" ) {
 	
 	GIVEN( "a persistent write_ref" ) {
 		ftl::mapped_ptr<int> pa{blob,0};
-		is_finished = false;
 		auto ra = *pa;
 		
 		ra = 23;
 		REQUIRE( ra == 23 );
-		REQUIRE( !is_finished );
 		ra.reset();
-		REQUIRE( is_finished );
 	}
 }
 

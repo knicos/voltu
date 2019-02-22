@@ -120,7 +120,9 @@ bool _run(bool blocking, bool nodelay) {
 
 		//Some kind of error occured, it is usually possible to recover from this.
 		if (selres <= 0) {
-			return false;
+			//std::cout << "SELECT ERROR" << std::endl;
+			//return false;
+			continue;
 		}
 
 		//If connection request is waiting
@@ -139,13 +141,13 @@ bool _run(bool blocking, bool nodelay) {
 						int csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
 
 						if (csock != INVALID_SOCKET) {
-							shared_ptr<Socket> sock(new Socket(csock));
+							auto sock = make_shared<Socket>(csock);
 							//sockets[freeclient] = sock;
-							
-							sockets.push_back(sock);
 							
 							// Call connection handlers
 							l->connection(sock);
+							
+							sockets.push_back(std::move(sock));
 							
 							// TODO Save the ip address
 							// deal with both IPv4 and IPv6:

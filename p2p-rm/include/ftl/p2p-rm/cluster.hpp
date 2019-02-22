@@ -3,13 +3,17 @@
 
 #include "ftl/p2p-rm/mapped_ptr.hpp"
 #include "ftl/p2p-rm/internal.hpp"
+#include <ftl/p2p-rm/protocol.hpp>
 
 #include <ftl/uri.hpp>
+#include <ftl/net/socket.hpp>
 
 #include <type_traits>
 #include <memory>
 #include <vector>
 #include <map>
+#include <tuple>
+#include <msgpack.hpp>
 
 namespace ftl {
 namespace net {
@@ -20,8 +24,6 @@ namespace net {
 namespace rm {
 
 class Blob;
-
-void _sync(const Blob &blob, size_t offset, size_t size);
 
 class Cluster {
 	public:
@@ -93,18 +95,22 @@ class Cluster {
 	/**
 	 * Connect to a new peer node using the specified socket.
 	 */
-	void addPeer(std::shared_ptr<ftl::net::Socket> s);
+	void addPeer(std::shared_ptr<ftl::net::Socket> &s);
 
 	/**
 	 * Connect to a new peer using a URL string.
 	 */
 	void addPeer(const char *url);
 	
+	std::string getOwner(const char *uri);
+	
 	private:
+	static int rpcid_;
 	std::string root_;
 	std::shared_ptr<ftl::net::Listener> listener_;
 	std::vector<std::shared_ptr<ftl::net::Socket>> peers_;
 	std::map<std::string, ftl::rm::Blob*> blobs_;
+	std::map<int,std::vector<std::tuple<std::shared_ptr<ftl::net::Socket>,std::string>>> rpc_results_;
 
 	ftl::rm::Blob *_lookup(const char *uri);
 	Blob *_create(const char *uri, char *addr, size_t size, size_t count,

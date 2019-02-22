@@ -31,7 +31,7 @@ std::shared_ptr<Socket> connect(const char *uri);
  *
  * @param async Use a separate thread.
  */
-bool run(bool async);
+bool run(bool async=false);
 
 /**
  * Wait for a bunch of messages, but return once at least one has been

@@ -16,7 +16,7 @@ typedef std::function<void(int)> sockdisconnecthandler_t;
 
 typedef std::function<void(std::shared_ptr<Socket>, int, std::string&)> datahandler_t;
 typedef std::function<void(std::shared_ptr<Socket>, int)> errorhandler_t;
-typedef std::function<void(std::shared_ptr<Socket>)> connecthandler_t;
+typedef std::function<void(std::shared_ptr<Socket> &)> connecthandler_t;
 typedef std::function<void(std::shared_ptr<Socket>)> disconnecthandler_t;
 
 };
