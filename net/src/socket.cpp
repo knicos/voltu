@@ -25,6 +25,8 @@ using namespace ftl;
 using ftl::net::Socket;
 using namespace std;
 
+int Socket::rpcid__ = 0;
+
 static int tcpConnect(URI &uri) {
 	int rc;
 	sockaddr_in destAddr;
@@ -105,13 +107,13 @@ static int wsConnect(URI &uri) {
 	return 1;
 }
 
-Socket::Socket(int s) : m_sock(s), m_pos(0) {
+Socket::Socket(int s) : m_sock(s), m_pos(0), disp_(this) {
 	// TODO Get the remote address.
 	m_valid = true;
 	m_buffer = new char[BUFFER_SIZE];
 }
 
-Socket::Socket(const char *pUri) : m_uri(pUri), m_pos(0) {
+Socket::Socket(const char *pUri) : m_uri(pUri), m_pos(0), disp_(this) {
 	// Allocate buffer
 	m_buffer = new char[BUFFER_SIZE];
 	
@@ -169,6 +171,7 @@ bool Socket::data() {
 	while (m_pos < len+4) {
 		if (len > MAX_MESSAGE) {
 			close();
+			std::cout << "Length is too big" << std::endl;
 			return false; // Prevent DoS
 		}
 
@@ -185,8 +188,10 @@ bool Socket::data() {
 			}
 		} else if (rc == EWOULDBLOCK || rc == 0) {
 			// Data not yet available
+			std::cout << "No data to read" << std::endl;
 			return false;
 		} else {
+			std::cout << "Socket error" << std::endl;
 			// Close socket due to error
 			close();
 			return false;
@@ -194,16 +199,53 @@ bool Socket::data() {
 	}
 
 	// All data available
-	if (m_handler) {
+	//if (m_handler) {
 		uint32_t service = ((uint32_t*)m_buffer)[1];
 		auto d = std::string(m_buffer+8, len-4);
 		//std::cerr << "DATA : " << service << " -> " << d << std::endl;
-		m_handler(service, d); 
-	}
+		
+		if (service == FTL_PROTOCOL_RPC) {
+			dispatch(d);
+		} else if (service == FTL_PROTOCOL_RPCRETURN) {
+			auto unpacked = msgpack::unpack(d.data(), d.size());
+			Dispatcher::response_t the_result;
+			unpacked.get().convert(the_result);
+
+			// TODO: proper validation of protocol (and responding to it)
+			// auto &&type = std::get<0>(the_call);
+			// assert(type == 0);
+
+			// auto &&id = std::get<1>(the_call);
+			auto &&id = std::get<1>(the_result);
+			//auto &&err = std::get<2>(the_result);
+			auto &&res = std::get<3>(the_result);
+
+			if (callbacks_.count(id) > 0) callbacks_[id](res);
+			else std::cout << "NO CALLBACK FOUND FOR RPC RESULT" << std::endl;
+		} else {
+			if (m_handler) m_handler(service, d);
+		} 
+	//}
 
 	m_pos = 0;
 
 	return true;
+}
+
+int Socket::send(uint32_t service, const std::string &data) {
+	ftl::net::Header h;
+	h.size = data.size()+4;
+	h.service = service;
+	
+	iovec vec[2];
+	vec[0].iov_base = &h;
+	vec[0].iov_len = sizeof(h);
+	vec[1].iov_base = const_cast<char*>(data.data());
+	vec[1].iov_len = data.size();
+	
+	::writev(m_sock, &vec[0], 2);
+	
+	return 0;
 }
 
 Socket::~Socket() {

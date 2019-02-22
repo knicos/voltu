@@ -21,6 +21,11 @@
 namespace ftl {
 namespace net {
 
+struct Header {
+	uint32_t size;
+	uint32_t service;
+};
+
 class Socket {
 	public:
 	Socket(const char *uri);
@@ -49,13 +54,13 @@ class Socket {
 		     typename ftl::internal::func_kind_info<F>::args_kind());
 	}
 	
-	template <typename... ARGS>
-	msgpack::object_handle call(const std::string &name, ARGS... args) {
+	template <typename T, typename... ARGS>
+	T call(const std::string &name, ARGS... args) {
 		bool hasreturned = false;
-		msgpack::object_handle result;
-		async_call(name, [result,hasreturned](msgpack::object_handle r) {
+		T result;
+		async_call(name, [&result,&hasreturned](msgpack::object &r) {
 			hasreturned = true;
-			result = r;
+			result = r.as<T>();
 		}, std::forward<ARGS>(args)...);
 		
 		// Loop the network
@@ -71,7 +76,7 @@ class Socket {
 	template <typename... ARGS>
 	void async_call(
 			const std::string &name,
-			std::function<void(msgpack::object_handle)> cb,
+			std::function<void(msgpack::object&)> cb,
 			ARGS... args) {
 		auto args_obj = std::make_tuple(args...);
 		auto rpcid = rpcid__++;
@@ -107,7 +112,7 @@ class Socket {
 	char *m_buffer;
 	sockdatahandler_t m_handler;
 	bool m_valid;
-	std::map<int, std::function<void(msgpack::object_handle)>> callbacks_;
+	std::map<int, std::function<void(msgpack::object&)>> callbacks_;
 	ftl::net::Dispatcher disp_;
 	
 	static int rpcid__;

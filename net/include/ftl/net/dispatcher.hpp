@@ -33,9 +33,11 @@ namespace internal {
 }
 
 namespace net {
+class Socket;
 
 class Dispatcher {
 	public:
+	Dispatcher(Socket *s) : sock_(s) {}
 	
 	void dispatch(const std::string &msg);
 	
@@ -115,8 +117,12 @@ class Dispatcher {
 
     //! \brief This is the type of notification messages.
     using notification_t = std::tuple<int8_t, std::string, msgpack::object>;
+    
+    using response_t =
+        std::tuple<uint32_t, uint32_t, msgpack::object, msgpack::object>;
 	
 	private:
+	ftl::net::Socket *sock_;
 	std::unordered_map<std::string, adaptor_type> funcs_;
 	
 	static void enforce_arg_count(std::string const &func, std::size_t found,

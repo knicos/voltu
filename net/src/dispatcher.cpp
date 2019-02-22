@@ -1,6 +1,20 @@
 #include <ftl/net/dispatcher.hpp>
+#include <ftl/net/socket.hpp>
+#include <iostream>
+
+/*static std::string hexStr(const std::string &s)
+{
+	const char *data = s.data();
+	int len = s.size();
+    std::stringstream ss;
+    ss << std::hex;
+    for(int i=0;i<len;++i)
+        ss << std::setw(2) << std::setfill('0') << (int)data[i];
+    return ss.str();
+}*/
 
 void ftl::net::Dispatcher::dispatch(const std::string &msg) {
+	//std::cout << "Received dispatch : " << hexStr(msg) << std::endl;
     auto unpacked = msgpack::unpack(msg.data(), msg.size());
     dispatch(unpacked.get());
 }
@@ -8,10 +22,11 @@ void ftl::net::Dispatcher::dispatch(const std::string &msg) {
 void ftl::net::Dispatcher::dispatch(const msgpack::object &msg) {
     switch (msg.via.array.size) {
     case 3:
-        dispatch_notification(msg);
+        dispatch_notification(msg); break;
     case 4:
-        dispatch_call(msg);
+        dispatch_call(msg); break;
     default:
+    	std::cout << "Unrecognised msgpack : " << msg.via.array.size << std::endl;
         return;
     }
 }
@@ -24,7 +39,7 @@ void ftl::net::Dispatcher::dispatch_call(const msgpack::object &msg) {
     // auto &&type = std::get<0>(the_call);
     // assert(type == 0);
 
-   // auto &&id = std::get<1>(the_call);
+    auto &&id = std::get<1>(the_call);
     auto &&name = std::get<2>(the_call);
     auto &&args = std::get<3>(the_call);
 
@@ -32,8 +47,12 @@ void ftl::net::Dispatcher::dispatch_call(const msgpack::object &msg) {
 
     if (it_func != end(funcs_)) {
         try {
-            auto result = (it_func->second)(args);
-            // TODO SEND RESULTS
+            auto result = (it_func->second)(args)->get();
+			auto res_obj = std::make_tuple(1,id,msgpack::object(),result);
+			std::stringstream buf;
+			msgpack::pack(buf, res_obj);
+			
+			sock_->send(FTL_PROTOCOL_RPCRETURN, buf.str());
         } catch (...) {
 			throw;
 		}
@@ -50,6 +69,8 @@ void ftl::net::Dispatcher::dispatch_notification(msgpack::object const &msg) {
 
     auto &&name = std::get<1>(the_call);
     auto &&args = std::get<2>(the_call);
+    
+    std::cout << "RPC NOTIFY" << name << std::endl;
 
     auto it_func = funcs_.find(name);
 
