@@ -1,6 +1,7 @@
 #ifndef _FTL_NET_PROTOCOL_HPP_
 #define _FTL_NET_PROTOCOL_HPP_
 
+#define FTL_PROTOCOL_RPC		0x0100
 #define FTL_PROTOCOL_P2P		0x1000
 
 #endif // _FTL_NET_PROTOCOL_HPP_

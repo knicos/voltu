@@ -260,8 +260,8 @@ TEST_CASE("net::listen()", "[net]") {
 		
 		bool connected = false;
 		
-		l->onConnection([&](Socket &s) {
-			REQUIRE( s.isConnected() );
+		l->onConnection([&](shared_ptr<Socket> s) {
+			REQUIRE( s->isConnected() );
 			connected = true;
 		});
 		

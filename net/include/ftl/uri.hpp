@@ -78,15 +78,15 @@ namespace ftl {
 			SCHEME_OTHER
 		};
 
-		bool isValid() { return m_valid; };
-		std::string &getHost() { return m_host; };
-		int getPort() { return m_port; };
-		scheme_t getProtocol() { return m_proto; };
-		scheme_t getScheme() { return m_proto; };
-		std::string &getPath() { return m_path; };
-		std::string &getQuery() { return m_query; };
-		std::string &getBaseURI() { return m_base; };
-		std::string &getPathSegment(int n) { return m_pathseg[n]; };
+		bool isValid() const { return m_valid; };
+		const std::string &getHost() const { return m_host; };
+		int getPort() const { return m_port; };
+		scheme_t getProtocol() const { return m_proto; };
+		scheme_t getScheme() const { return m_proto; };
+		const std::string &getPath() const { return m_path; };
+		const std::string &getQuery() const { return m_query; };
+		const std::string &getBaseURI() const { return m_base; };
+		const std::string &getPathSegment(int n) const { return m_pathseg[n]; };
 
 		private:
 		bool m_valid;

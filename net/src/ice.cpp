@@ -25,7 +25,7 @@ struct Candidate {
 	uint16_t port;
 };
 
-int stun_internal(std::string &c, bool tcp, uint16_t lport, std::string &host, uint16_t port) {
+int stun_internal(std::string &c, bool tcp, uint16_t lport, const std::string &host, uint16_t port) {
 	int sockfd;
 	sockaddr_in servaddr;
 	sockaddr_in localaddr;

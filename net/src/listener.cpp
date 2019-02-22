@@ -22,6 +22,7 @@ typedef int socklen_t;
 
 using namespace ftl;
 using ftl::net::Listener;
+using std::shared_ptr;
 
 int tcpListen(URI &uri) {
 	int ssock;
@@ -97,7 +98,7 @@ Listener::~Listener() {
 	close();
 }
 
-void Listener::connection(Socket &s) {
+void Listener::connection(shared_ptr<Socket> s) {
 	for (auto h : handler_connect_) h(s);
 }
 

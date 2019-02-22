@@ -145,7 +145,7 @@ bool _run(bool blocking, bool nodelay) {
 							sockets.push_back(sock);
 							
 							// Call connection handlers
-							l->connection(*sock);
+							l->connection(sock);
 							
 							// TODO Save the ip address
 							// deal with both IPv4 and IPv6:
