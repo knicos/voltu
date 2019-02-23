@@ -57,7 +57,7 @@ static int setDescriptors() {
 
 	//Set the file descriptors for each client
 	for (auto s : sockets) {
-		if (s != nullptr && s->isConnected()) {
+		if (s != nullptr && s->isValid()) {
 			
 			if (s->_socket() > n) {
 				n = s->_socket();
@@ -78,7 +78,7 @@ shared_ptr<Listener> ftl::net::listen(const char *uri) {
 }
 
 shared_ptr<Socket> ftl::net::connect(const char *uri) {
-	shared_ptr<Socket> s(new Socket(uri));
+	shared_ptr<Socket> s(new Socket((uri == NULL) ? "" : uri));
 	sockets.push_back(s);
 	return s;
 }
@@ -142,12 +142,10 @@ bool _run(bool blocking, bool nodelay) {
 
 						if (csock != INVALID_SOCKET) {
 							auto sock = make_shared<Socket>(csock);
-							//sockets[freeclient] = sock;
+							sockets.push_back(sock);
 							
 							// Call connection handlers
 							l->connection(sock);
-							
-							sockets.push_back(std::move(sock));
 						}
 					//}
 				}
@@ -156,12 +154,12 @@ bool _run(bool blocking, bool nodelay) {
 
 		//Also check each clients socket to see if any messages or errors are waiting
 		for (auto s : sockets) {
-			if (s != NULL && s->isConnected()) {
+			if (s != NULL && s->isValid()) {
 				//If message received from this client then deal with it
 				if (FD_ISSET(s->_socket(), &sfdread)) {
 					repeat |= s->data();
-				//An error occured with this client.
-				} else if (FD_ISSET(s->_socket(), &sfderror)) {
+				}
+				if (FD_ISSET(s->_socket(), &sfderror)) {
 					s->error();
 				}
 			}

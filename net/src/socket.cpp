@@ -27,7 +27,7 @@ using namespace ftl;
 using ftl::net::Socket;
 using namespace std;
 
-static std::string hexStr(const std::string &s)
+/*static std::string hexStr(const std::string &s)
 {
 	const char *data = s.data();
 	int len = s.size();
@@ -36,7 +36,7 @@ static std::string hexStr(const std::string &s)
     for(int i=0;i<len;++i)
         ss << std::setw(2) << std::setfill('0') << (int)data[i];
     return ss.str();
-}
+}*/
 
 int Socket::rpcid__ = 0;
 
@@ -120,14 +120,39 @@ static int wsConnect(URI &uri) {
 	return 1;
 }
 
-Socket::Socket(int s) : m_sock(s), m_pos(0), disp_(this) {
-	m_valid = true;
-	m_buffer = new char[BUFFER_SIZE];
-	m_connected = false;
+Socket::Socket(int s) : sock_(s), pos_(0), disp_(this) {
+	valid_ = true;
+	buffer_ = new char[BUFFER_SIZE];
+	connected_ = false;
 	
+	_updateURI();
+}
+
+Socket::Socket(const char *pUri) : uri_(pUri), pos_(0), disp_(this) {
+	// Allocate buffer
+	buffer_ = new char[BUFFER_SIZE];
+	
+	URI uri(pUri);
+	
+	valid_ = false;
+	connected_ = false;
+	sock_ = INVALID_SOCKET;
+
+	if (uri.getProtocol() == URI::SCHEME_TCP) {
+		sock_ = tcpConnect(uri);
+		valid_ = true;
+	} else if (uri.getProtocol() == URI::SCHEME_WS) {
+		wsConnect(uri);
+		LOG(ERROR) << "Websocket currently unsupported";
+	} else {
+		LOG(ERROR) << "Unrecognised connection protocol: " << pUri;
+	}
+}
+
+void Socket::_updateURI() {
 	sockaddr_storage addr;
 	int rsize = sizeof(sockaddr_storage);
-	if (getpeername(s, (sockaddr*)&addr, (socklen_t*)&rsize) == 0) {
+	if (getpeername(sock_, (sockaddr*)&addr, (socklen_t*)&rsize) == 0) {
 		char addrbuf[INET6_ADDRSTRLEN];
 		int port;
 		
@@ -143,39 +168,23 @@ Socket::Socket(int s) : m_sock(s), m_pos(0), disp_(this) {
 			port = s->sin6_port;
 		}
 		
-		m_uri = std::string("tcp://")+addrbuf;
-		m_uri += ":";
-		m_uri += std::to_string(port);
-	}
-}
-
-Socket::Socket(const char *pUri) : m_uri(pUri), m_pos(0), disp_(this) {
-	// Allocate buffer
-	m_buffer = new char[BUFFER_SIZE];
-	
-	URI uri(pUri);
-	
-	m_valid = false;
-	m_connected = false;
-	m_sock = INVALID_SOCKET;
-
-	if (uri.getProtocol() == URI::SCHEME_TCP) {
-		m_sock = tcpConnect(uri);
-		m_valid = true;
-	} else if (uri.getProtocol() == URI::SCHEME_WS) {
-		wsConnect(uri);
-	} else {
+		// TODO verify tcp or udp etc.
+		
+		uri_ = std::string("tcp://")+addrbuf;
+		uri_ += ":";
+		uri_ += std::to_string(port);
 	}
 }
 
 int Socket::close() {
 	if (isConnected()) {
 		#ifndef WIN32
-		::close(m_sock);
+		::close(sock_);
 		#else
-		closesocket(m_sock);
+		closesocket(sock_);
 		#endif
-		m_sock = INVALID_SOCKET;
+		sock_ = INVALID_SOCKET;
+		connected_ = false;
 
 		// Attempt auto reconnect?
 	}
@@ -185,108 +194,117 @@ int Socket::close() {
 void Socket::error() {
 	int err;
 	uint32_t optlen = sizeof(err);
-	getsockopt(m_sock, SOL_SOCKET, SO_ERROR, &err, &optlen);
-	LOG(ERROR) << "Socket: " << m_uri << " - error " << err;
+	getsockopt(sock_, SOL_SOCKET, SO_ERROR, &err, &optlen);
+	LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
 }
 
 bool Socket::data() {
-	//std::cerr << "GOT SOCKET DATA" << std::endl;
-
 	//Read data from socket
 	size_t n = 0;
 	uint32_t len = 0;
 
-	if (m_pos < 4) {
-		n = 4 - m_pos;
+	if (pos_ < 4) {
+		n = 4 - pos_;
 	} else {
-		len = *(int*)m_buffer;
-		n = len+4-m_pos;
+		len = *(int*)buffer_;
+		n = len+4-pos_;
 	}
 
-	while (m_pos < len+4) {
+	while (pos_ < len+4) {
 		if (len > MAX_MESSAGE) {
 			close();
-			LOG(ERROR) << "Socket: " << m_uri << " - message attack";
-			return false; // Prevent DoS
+			LOG(ERROR) << "Socket: " << uri_ << " - message attack";
+			return false;
 		}
 
-		const int rc = recv(m_sock, m_buffer+m_pos, n, 0);
+		const int rc = recv(sock_, buffer_+pos_, n, 0);
 
 		if (rc > 0) {
-			m_pos += static_cast<size_t>(rc);
+			pos_ += static_cast<size_t>(rc);
 
-			if (m_pos < 4) {
-				n = 4 - m_pos;
+			if (pos_ < 4) {
+				n = 4 - pos_;
 			} else {
-				len = *(int*)m_buffer;
-				n = len+4-m_pos;
+				len = *(int*)buffer_;
+				n = len+4-pos_;
 			}
 		} else if (rc == EWOULDBLOCK || rc == 0) {
 			// Data not yet available
-			//std::cout << "No data to read" << std::endl;
 			return false;
 		} else {
-			LOG(ERROR) << "Socket: " << m_uri << " - error " << rc;
-			// Close socket due to error
+			LOG(ERROR) << "Socket: " << uri_ << " - error " << rc;
 			close();
 			return false;
 		}
 	}
 
-	// All data available
-	//if (m_handler) {
-		uint32_t service = ((uint32_t*)m_buffer)[1];
-		auto d = std::string(m_buffer+8, len-4);
-		//std::cerr << "DATA : " << service << " -> " << d << std::endl;
-		
-		if (service == FTL_PROTOCOL_HS1 && !m_connected) {
-			// TODO Verify data
-			std::string hs2("HELLO");
-			send(FTL_PROTOCOL_HS2, hs2);
-			LOG(INFO) << "Handshake confirmed from " << m_uri;
-			_connected();
-		} else if (service == FTL_PROTOCOL_HS2 && !m_connected) {
-			// TODO Verify data
-			LOG(INFO) << "Handshake finalised for " << m_uri;
-			_connected();
-		} else if (service == FTL_PROTOCOL_RPC) {
-			dispatch(d);
-		} else if (service == FTL_PROTOCOL_RPCRETURN) {
-			auto unpacked = msgpack::unpack(d.data(), d.size());
-			Dispatcher::response_t the_result;
-			unpacked.get().convert(the_result);
-
-			// TODO: proper validation of protocol (and responding to it)
-			// auto &&type = std::get<0>(the_call);
-			// assert(type == 0);
-
-			// auto &&id = std::get<1>(the_call);
-			auto &&id = std::get<1>(the_result);
-			//auto &&err = std::get<2>(the_result);
-			auto &&res = std::get<3>(the_result);
-			
-			std::cout << " ROSULT " << hexStr(d) << std::endl;
-			
-			if (callbacks_.count(id) > 0) {
-				LOG(INFO) << "Received return RPC value";
-				callbacks_[id](res);
-				callbacks_.erase(id);
-			} else {
-				LOG(ERROR) << "Missing RPC callback for result";
-			}
+	// Route the message...
+	uint32_t service = ((uint32_t*)buffer_)[1];
+	auto d = std::string(buffer_+8, len-4);
+	
+	if (service == FTL_PROTOCOL_HS1 && !connected_) {
+		handshake1(d);
+	} else if (service == FTL_PROTOCOL_HS2 && !connected_) {
+		handshake2(d);
+	} else if (service == FTL_PROTOCOL_RPC) {
+		dispatchRPC(d);
+	} else if (service == FTL_PROTOCOL_RPCRETURN) {
+		dispatchReturn(d);
+	} else {
+		// Lookup raw message handler
+		if (handlers_.count(service) > 0) {
+			handlers_[service](*this, d);
 		} else {
-			// Lookup raw message handler
-			if (handlers_.count(service) > 0) handlers_[service](*this, d);
-		} 
-	//}
+			LOG(ERROR) << "Unrecognised service request (" << service << ") from " << uri_;
+		}
+	} 
 
-	m_pos = 0;
+	pos_ = 0;
 
 	return true;
 }
 
+void Socket::handshake1(const std::string &d) {
+	// TODO Verify data
+	std::string hs2("HELLO");
+	send(FTL_PROTOCOL_HS2, hs2);
+	LOG(INFO) << "Handshake confirmed from " << uri_;
+	_connected();
+}
+
+void Socket::handshake2(const std::string &d) {
+	// TODO Verify data
+	LOG(INFO) << "Handshake finalised for " << uri_;
+	_connected();
+}
+
+void Socket::dispatchReturn(const std::string &d) {
+	auto unpacked = msgpack::unpack(d.data(), d.size());
+	Dispatcher::response_t the_result;
+	unpacked.get().convert(the_result);
+
+	if (std::get<0>(the_result) != 1) {
+		LOG(ERROR) << "Bad RPC return message";
+		return;
+	}
+
+	auto &&id = std::get<1>(the_result);
+	//auto &&err = std::get<2>(the_result);
+	auto &&res = std::get<3>(the_result);
+	
+	// TODO Handle error reporting...
+	
+	if (callbacks_.count(id) > 0) {
+		LOG(INFO) << "Received return RPC value";
+		callbacks_[id](res);
+		callbacks_.erase(id);
+	} else {
+		LOG(ERROR) << "Missing RPC callback for result";
+	}
+}
+
 void Socket::onConnect(std::function<void(Socket&)> f) {
-	if (m_connected) {
+	if (connected_) {
 		f(*this);
 	} else {
 		connect_handlers_.push_back(f);
@@ -294,11 +312,11 @@ void Socket::onConnect(std::function<void(Socket&)> f) {
 }
 
 void Socket::_connected() {
-	m_connected = true;
+	connected_ = true;
 	for (auto h : connect_handlers_) {
 		h(*this);
 	}
-	connect_handlers_.clear();
+	//connect_handlers_.clear();
 }
 
 void Socket::bind(uint32_t service, std::function<void(Socket&,
@@ -321,7 +339,7 @@ int Socket::send(uint32_t service, const std::string &data) {
 	vec[1].iov_base = const_cast<char*>(data.data());
 	vec[1].iov_len = data.size();
 	
-	::writev(m_sock, &vec[0], 2);
+	::writev(sock_, &vec[0], 2);
 	
 	return 0;
 }
@@ -339,7 +357,7 @@ int Socket::send2(uint32_t service, const std::string &data1, const std::string 
 	vec[2].iov_base = const_cast<char*>(data2.data());
 	vec[2].iov_len = data2.size();
 	
-	::writev(m_sock, &vec[0], 3);
+	::writev(sock_, &vec[0], 3);
 	
 	return 0;
 }
@@ -349,7 +367,7 @@ Socket::~Socket() {
 	close();
 	
 	// Delete socket buffer
-	if (m_buffer) delete [] m_buffer;
-	m_buffer = NULL;
+	if (buffer_) delete [] buffer_;
+	buffer_ = NULL;
 }
 

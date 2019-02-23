@@ -22,10 +22,12 @@
 namespace ftl {
 namespace net {
 
+#pragma pack(push,1)
 struct Header {
 	uint32_t size;
 	uint32_t service;
 };
+#pragma pack(pop)
 
 class Socket {
 	public:
@@ -36,27 +38,29 @@ class Socket {
 	int close();
 
 	int send(uint32_t service, const std::string &data);
-	int send(uint32_t service, std::stringstream &data) { return send(service, data.str()); };
+	int send(uint32_t service, std::stringstream &data) {
+		return send(service, data.str()); };
 	int send(uint32_t service, void *data, int length);
 	
-	int send2(uint32_t service, const std::string &data1, const std::string &data2);
+	int send2(uint32_t service, const std::string &data1,
+			const std::string &data2);
 
 	//friend bool ftl::net::run(bool);
 
-	int _socket() const { return m_sock; };
+	int _socket() const { return sock_; };
 
-	bool isConnected() const { return m_sock != INVALID_SOCKET; };
-	bool isValid() const { return m_valid; };
-	std::string getURI() const { return m_uri; };
+	bool isConnected() const { return sock_ != INVALID_SOCKET && connected_; };
+	bool isValid() const { return valid_ && sock_ != INVALID_SOCKET; };
+	std::string getURI() const { return uri_; };
 	
 	/**
 	 * Bind a function to a RPC call name.
 	 */
 	template <typename F>
 	void bind(const std::string &name, F func) {
-		//disp_.enforce_unique_name(name);
-		disp_.bind(name, func, typename ftl::internal::func_kind_info<F>::result_kind(),
-		     typename ftl::internal::func_kind_info<F>::args_kind());
+		disp_.bind(name, func,
+			typename ftl::internal::func_kind_info<F>::result_kind(),
+		    typename ftl::internal::func_kind_info<F>::args_kind());
 	}
 	
 	/**
@@ -96,7 +100,7 @@ class Socket {
 		auto rpcid = rpcid__++;
 		auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 		
-		LOG(INFO) << "RPC " << name << "() -> " << m_uri;
+		LOG(INFO) << "RPC " << name << "() -> " << uri_;
 		
 		std::stringstream buf;
 		msgpack::pack(buf, call_obj);
@@ -107,9 +111,16 @@ class Socket {
 		send(FTL_PROTOCOL_RPC, buf.str());
 	}
 	
-	void dispatch(const std::string &b) { disp_.dispatch(b); }
+	/**
+	 * Internal handlers for specific event types.
+	 * @{
+	 */
+	void dispatchRPC(const std::string &d) { disp_.dispatch(d); }
+	void dispatchReturn(const std::string &d);
+	void handshake1(const std::string &d);
+	void handshake2(const std::string &d);
+	/** @} */
 
-	//void onMessage(sockdatahandler_t handler) { m_handler = handler; }
 	void onError(sockerrorhandler_t handler) {}
 	void onConnect(std::function<void(Socket&)> f);
 	void onDisconnect(sockdisconnecthandler_t handler) {}
@@ -118,18 +129,19 @@ class Socket {
 	void error();
 
 	private:
-	std::string m_uri;
-	int m_sock;
-	size_t m_pos;
-	char *m_buffer;
+	std::string uri_;
+	int sock_;
+	size_t pos_;
+	char *buffer_;
 	std::map<uint32_t,std::function<void(Socket&,const std::string&)>> handlers_;
 	std::vector<std::function<void(Socket&)>> connect_handlers_;
-	bool m_valid;
-	bool m_connected;
+	bool valid_;
+	bool connected_;
 	std::map<int, std::function<void(msgpack::object&)>> callbacks_;
 	ftl::net::Dispatcher disp_;
 	
 	void _connected();
+	void _updateURI();
 	
 	static int rpcid__;
 

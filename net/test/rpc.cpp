@@ -78,7 +78,7 @@ TEST_CASE("Socket::bind()", "[rpc]") {
 		std::stringstream buf;
 		msgpack::pack(buf, call_obj);
 		
-		s->dispatch(buf.str());
+		s->dispatchRPC(buf.str());
 		REQUIRE( called );
 	}
 	
@@ -96,7 +96,7 @@ TEST_CASE("Socket::bind()", "[rpc]") {
 		std::stringstream buf;
 		msgpack::pack(buf, call_obj);
 		
-		s->dispatch(buf.str());
+		s->dispatchRPC(buf.str());
 		REQUIRE( called );
 	}
 	
@@ -115,7 +115,7 @@ TEST_CASE("Socket::bind()", "[rpc]") {
 		std::stringstream buf;
 		msgpack::pack(buf, call_obj);
 		
-		s->dispatch(buf.str());
+		s->dispatchRPC(buf.str());
 		REQUIRE( called );
 	}
 	
@@ -220,7 +220,6 @@ TEST_CASE("Socket::call+bind loop", "[rpc]") {
 		});
 		
 		int res = s->call<int>("test1", 5);
-		
 		REQUIRE( res == 10 );
 	}
 	

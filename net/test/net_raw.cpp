@@ -157,6 +157,18 @@ int setDescriptors() {
 	return n;
 }
 
+void mocksend(int sd, uint32_t  service, const std::string &data) {
+	//std::cout << "HEX SEND: " << hexStr(data) << std::endl;
+	char buf[8+data.size()];
+	ftl::net::Header *h = (ftl::net::Header*)&buf;
+	h->size = data.size()+4;
+	h->service = service;
+	std::memcpy(&buf[8],data.data(),data.size());
+	
+	//std::cout << "HEX SEND2: " << hexStr(fakedata[sd]) << std::endl;
+	::send(sd, buf, 8+data.size(), 0);
+}
+
 void accept_connection() {
 	int n = setDescriptors();
 
@@ -174,6 +186,7 @@ void accept_connection() {
 
 		//Finally accept this client connection.
 		csock = accept(ssock, (sockaddr*)&addr, (socklen_t*)&rsize);
+		mocksend(csock, FTL_PROTOCOL_HS1, "HELLO");
 	} else {
 
 	}
@@ -190,6 +203,7 @@ TEST_CASE("net::connect()", "[net]") {
 	SECTION("valid tcp connection using ipv4") {
 		sock = ftl::net::connect("tcp://127.0.0.1:7077");
 		REQUIRE(sock != nullptr);
+		REQUIRE(sock->isValid());
 		accept_connection();
 	}
 
@@ -212,6 +226,7 @@ TEST_CASE("net::connect()", "[net]") {
 	SECTION("null uri") {
 		sock = ftl::net::connect(NULL);
 		REQUIRE(!sock->isValid());
+		sock = nullptr;
 	}
 
 	// Disabled due to long timeout
@@ -224,12 +239,14 @@ TEST_CASE("net::connect()", "[net]") {
 
 	SECTION("incorrect dns address") {
 		sock = ftl::net::connect("tcp://xryyrrgrtgddgr.com:7077");
-		REQUIRE(sock->isValid());
+		REQUIRE(!sock->isValid());
 		REQUIRE(sock->isConnected() == false);
 		sock = nullptr;
 	}
 
 	if (sock && sock->isValid()) {
+		ftl::net::wait();
+		//sock->data();
 		REQUIRE(sock->isConnected());
 		REQUIRE(csock != INVALID_SOCKET);
 		sock->close();
@@ -243,10 +260,11 @@ TEST_CASE("net::listen()", "[net]") {
 		REQUIRE( ftl::net::listen("tcp://*:7078")->isListening() );
 
 		SECTION("can connect to listening socket") {
-			shared_ptr<Socket> sock = ftl::net::connect("tcp://127.0.0.1:7078");
+			auto sock = ftl::net::connect("tcp://127.0.0.1:7078");
 			REQUIRE(sock->isValid());
+			ftl::net::wait(); // Handshake 1
+			ftl::net::wait(); // Handshake 2
 			REQUIRE(sock->isConnected());
-			ftl::net::wait();
 
 			// TODO Need way of knowing about connection
 		}
@@ -261,6 +279,7 @@ TEST_CASE("net::listen()", "[net]") {
 		bool connected = false;
 		
 		l->onConnection([&](shared_ptr<Socket> s) {
+			ftl::net::wait(); // Wait for handshake
 			REQUIRE( s->isConnected() );
 			connected = true;
 		});
@@ -268,19 +287,18 @@ TEST_CASE("net::listen()", "[net]") {
 		auto sock = ftl::net::connect("tcp://127.0.0.1:7078");
 		ftl::net::wait();
 		REQUIRE( connected );
-		std::cout << "PRE STOP" << std::endl;
 		ftl::net::stop();
-		std::cout << "POST STOP" << std::endl;
 	}
 }
 
-TEST_CASE("Socket.onMessage()", "[net]") {
+TEST_CASE("Socket.bind(int)", "[net]") {
 	// Need a fake server...
 	init_server();
 	shared_ptr<Socket> sock = ftl::net::connect("tcp://127.0.0.1:7077");
 	REQUIRE(sock->isValid());
-	REQUIRE(sock->isConnected());
 	accept_connection();
+	ftl::net::wait(); // Wait for handshake
+	REQUIRE(sock->isConnected());
 
 	SECTION("small valid message") {
 		send_json(1, "{message: \"Hello\"}");
@@ -322,6 +340,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 			msg++;	
 		});
 
+		ftl::net::wait();
 		ftl::net::wait();
 		REQUIRE(msg == 2);
 	}
