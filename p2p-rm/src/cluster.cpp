@@ -10,16 +10,17 @@
 #include <map>
 #include <string>
 #include <iostream>
+#include <vector>
 
 using ftl::rm::Cluster;
 using ftl::net::Listener;
 using std::map;
+using std::vector;
 using std::shared_ptr;
+using std::string;
 using ftl::URI;
 using ftl::rm::Blob;
 using ftl::net::Socket;
-
-int Cluster::rpcid_ = 0;
 
 Cluster::Cluster(const URI &uri, shared_ptr<Listener> l) : listener_(l) {
 	//auto me = this;
@@ -27,7 +28,7 @@ Cluster::Cluster(const URI &uri, shared_ptr<Listener> l) : listener_(l) {
 
 	if (l != nullptr) {
 		l->onConnection([&](shared_ptr<Socket> &s) {
-			addPeer(s);		
+			addPeer(s, true);		
 		});
 	}
 }
@@ -43,21 +44,27 @@ void Cluster::reset() {
 	blobs_.clear();
 }
 
-void Cluster::addPeer(shared_ptr<Socket> &p) {
-	LOG(INFO) << "Peer added: " << p->getURI();
-	//auto me = this;
+void Cluster::_registerRPC(Socket &s) {
+	//s.bind("getowner", [this](const std::string &u) { getOwner(u.c_str()); });
+	s.bind("getowner", bind(&Cluster::getOwner));
+}
+
+void Cluster::addPeer(shared_ptr<Socket> &p, bool incoming) {
+	LOG(INFO) << ((incoming) ? "Incoming peer added: " : "Peer added: ") << p->getURI();
+
 	peers_.push_back(p);
-	/*p->onMessage([&](int service, const std::string &data) {
-		std::cout << "MSG " << service << std::endl;
-	});*/
-	p->bind("getowner", [](const std::string &uri) -> std::string {
-		std::cout << "GETOWNER" << std::endl;
-		return "";
-	});
+	_registerRPC(*p);
 	
-	// TODO Check ownership of my blobs.
-	for (auto b : blobs_) {
-		getOwner(b.first.c_str());
+	if (!incoming) {
+		p->onConnect([this](Socket &s) {
+			for (auto b : blobs_) {
+				auto o = s.call<string>("getowner", b.first);
+				if (o.size() > 0) {
+					b.second->owner_ = o;
+					LOG(INFO) << "Lost ownership of " << b.first.c_str() << " to " << o;
+				}
+			}
+		});
 	}
 }
 
@@ -77,34 +84,23 @@ Blob *Cluster::_lookup(const char *uri) {
 	std::cout << "Blob Found for " << u.getBaseURI() << " = " << (b != nullptr) << std::endl;
 
 	if (!b) {
-		// Whoops, need to map it first!
+		LOG(WARNING) << "Unmapped memory requested: " << uri;
 	}
 
 	return b;
 }
 
-std::string Cluster::getOwner(const char *uri) {
-	std::string result;
-	int count = 0;
-
-	auto f = [&](msgpack::object &r) {
-		count--;
-		std::string res = r.as<std::string>();
-		if (res.size() > 0) result = res;
-	};
-
-	for (auto p : peers_) {
-		count++;
-		LOG(INFO) << "Request owner of " << uri << " from " << p->getURI();
-		p->async_call("getowner", f, std::string(uri));
-	}
+std::string Cluster::getOwner(const std::string &uri) {
+	vector<string> results;
 	
-	// TODO Limit in case of no return.
-	while (count > 0) {
-		ftl::net::wait();
-	}
+	std::cout << "GETOWNER" << std::endl;
+	if (blobs_.count(uri) != 0) return blobs_[uri]->owner_;
+
+	broadcastCall("getowner", results, uri);
 	
-	return result;
+	// TODO Verify all results are equal or empty
+	if (results.size() == 0) return "";
+	return results[0];
 }
 
 Blob *Cluster::_create(const char *uri, char *addr, size_t size, size_t count,
@@ -121,14 +117,17 @@ Blob *Cluster::_create(const char *uri, char *addr, size_t size, size_t count,
 	b->data_ = addr;
 	b->size_ = size;
 	b->uri_ = std::string(uri);
+	b->owner_ = "";
 	blobs_[u.getBaseURI()] = b;
 
 	std::string o = getOwner(uri);
 	if (o.size() == 0) {
 		// I am the owner!
 		std::cout << "I own " << uri << std::endl;
+		b->owner_ = "me";
 	} else {
 		std::cout << "I do not own " << uri << std::endl;
+		b->owner_ = o;
 	}
 	
 	//std::cout << owners << std::endl;

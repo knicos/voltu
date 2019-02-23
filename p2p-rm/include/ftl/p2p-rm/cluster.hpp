@@ -95,17 +95,51 @@ class Cluster {
 	/**
 	 * Connect to a new peer node using the specified socket.
 	 */
-	void addPeer(std::shared_ptr<ftl::net::Socket> &s);
+	void addPeer(std::shared_ptr<ftl::net::Socket> &s, bool incoming=false);
 
 	/**
 	 * Connect to a new peer using a URL string.
 	 */
 	void addPeer(const char *url);
 	
-	std::string getOwner(const char *uri);
+	/**
+	 * Allow member functions to be used for RPC calls by binding with 'this'.
+	 */
+	template <typename R, typename C, typename ...Args>
+	auto bind(R(C::*f)(Args...)) {
+	  return [this,f](Args... args) -> R { return (this->*f)(std::forward<Args>(args)...); };
+	}
+	
+	std::string getOwner(const std::string &uri);
+	
+	/**
+	 * Make an RPC call to all connected peers and put into a results vector.
+	 * This function blocks until all peers have responded or an error /
+	 * timeout occurs. The return value indicates the number of failed peers, or
+	 * is 0 if all returned.
+	 */
+	template <typename T, typename... ARGS>
+	int broadcastCall(const std::string &name, std::vector<T> &results,
+			ARGS... args) {
+		int count = 0;
+		auto f = [&count,&results](msgpack::object &r) {
+			count--;
+			results.push_back(r.as<T>());
+		};
+
+		for (auto p : peers_) {
+			count++;
+			p->async_call(name, f, std::forward<ARGS>(args)...);
+		}
+		
+		// TODO Limit in case of no return.
+		while (count > 0) {
+			ftl::net::wait();
+		}
+		return count;
+	}
 	
 	private:
-	static int rpcid_;
 	std::string root_;
 	std::shared_ptr<ftl::net::Listener> listener_;
 	std::vector<std::shared_ptr<ftl::net::Socket>> peers_;
@@ -115,6 +149,7 @@ class Cluster {
 	ftl::rm::Blob *_lookup(const char *uri);
 	Blob *_create(const char *uri, char *addr, size_t size, size_t count,
 		ftl::rm::flags_t flags, const std::string &tname);
+	void _registerRPC(ftl::net::Socket &s);
 };
 
 };

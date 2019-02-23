@@ -22,6 +22,7 @@ SCENARIO( "Reading from a remote pointer", "[remote_ptr]" ) {
 	// Make a dummy blob
 	auto blob = new ftl::rm::Blob();
 	blob->data_ = (char*)(new int[5]);
+	blob->size_ = 5*sizeof(int);
 	((int*)(blob->data_))[0] = 55;
 	((int*)(blob->data_))[1] = 66;
 	
@@ -37,6 +38,7 @@ SCENARIO( "Writing to a remote pointer", "[remote_ptr]" ) {
 	// Make a dummy blob
 	auto blob = new ftl::rm::Blob();
 	blob->data_ = (char*)(new int[5]);
+	blob->size_ = 5*sizeof(int);
 	((int*)(blob->data_))[0] = 55;
 	((int*)(blob->data_))[1] = 66;
 	
@@ -63,6 +65,7 @@ SCENARIO( "Writing to readonly pointer fails", "[remote_ptr]" ) {
 	// Make a dummy blob
 	auto blob = new ftl::rm::Blob();
 	blob->data_ = (char*)(new int[5]);
+	blob->size_ = 5*sizeof(int);
 	((int*)(blob->data_))[0] = 55;
 	((int*)(blob->data_))[1] = 66;
 	

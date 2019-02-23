@@ -6,6 +6,7 @@ add_executable(mapped_ptr EXCLUDE_FROM_ALL
 	./mapped_ptr.cpp
 	../src/blob.cpp
 )
+target_link_libraries(mapped_ptr gflags glog)
 
 add_executable(p2p_rm EXCLUDE_FROM_ALL
 	./tests.cpp
@@ -15,7 +16,7 @@ add_executable(p2p_rm EXCLUDE_FROM_ALL
 	
 	./p2p-rm.cpp
 )
-target_link_libraries(p2p_rm uriparser)
+target_link_libraries(p2p_rm uriparser ftlnet gflags glog)
 
 add_executable(peer_test EXCLUDE_FROM_ALL
 	./peer.cpp

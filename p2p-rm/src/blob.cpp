@@ -2,6 +2,8 @@
 #include <ftl/net/socket.hpp>
 #include <ftl/p2p-rm/protocol.hpp>
 
+#include <iostream>
+
 struct SyncHeader {
 	uint32_t blobid;
 	uint32_t offset;
@@ -10,7 +12,10 @@ struct SyncHeader {
 
 void ftl::rm::_sync(const Blob &blob, size_t offset, size_t size) {
 	// Sanity check
-	if (offset + size > blob.size_) throw -1;
+	if (offset + size > blob.size_) {
+		LOG(ERROR) << "Memory overrun during sync";
+		return;
+	}
 
 	// TODO Delay send to collate many write operations?
 

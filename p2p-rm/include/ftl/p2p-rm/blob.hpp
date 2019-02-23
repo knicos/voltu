@@ -19,6 +19,7 @@ struct Blob {
 	char *data_;
 	size_t size_;
 	std::string uri_;
+	std::string owner_;
 	uint32_t blobid_;
 	
 	void finished();

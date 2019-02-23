@@ -7,7 +7,7 @@
 
 // --- Mock Socket Send
 
-static std::vector<uint32_t> msgs;
+/*static std::vector<uint32_t> msgs;
 
 int ftl::net::Socket::send2(uint32_t service, const std::string &data1, const std::string &data2) {
 	msgs.push_back(service);
@@ -29,12 +29,6 @@ int ftl::net::Socket::send(uint32_t service, const std::string &data) {
 	msgs.push_back(service);
 	std::cout << "SEND (" << service << ")" << std::endl;
 
-	/*if (service == P2P_RPC_CALL) {
-		// UNPACK
-		// PACK RETURN
-		message(P2P_RPC_RETURN, rdata);
-	}*/
-
 	return 0;
 }
 
@@ -44,7 +38,7 @@ bool ftl::net::wait() {
 
 std::shared_ptr<ftl::net::Socket> ftl::net::connect(const char *url) {
 	return nullptr;
-}
+}*/
 
 // --- End Mock Socket Send
 
@@ -103,7 +97,8 @@ SCENARIO( "Cluster::map()", "[map]" ) {
 SCENARIO( "Getting a read_ref", "[get]" ) {
 	auto cluster = ftl::rm::cluster("ftl://utu.fi", nullptr);
 	// Add fake peer
-	cluster->addPeer(std::shared_ptr<ftl::net::Socket>(new ftl::net::Socket(0)));
+	auto p = std::make_shared<ftl::net::Socket>(0);
+	cluster->addPeer(p);
 	
 	int data = 89;
 	int data2 = 99;
