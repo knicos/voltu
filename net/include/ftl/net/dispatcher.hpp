@@ -6,6 +6,7 @@
 #include <memory>
 #include <tuple>
 #include <functional>
+#include <iostream>
 
 namespace ftl {
 
@@ -104,6 +105,7 @@ class Dispatcher {
 		    args_type args_real;
 		    args.convert(args_real);
 		    auto z = std::make_unique<msgpack::zone>();
+		    std::cout << "CALL " << ftl::internal::call(func, args_real) << std::endl;
 		    auto result = msgpack::object(ftl::internal::call(func, args_real), *z);
 		    return std::make_unique<msgpack::object_handle>(result, std::move(z));
 		}));

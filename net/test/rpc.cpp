@@ -213,13 +213,26 @@ TEST_CASE("Socket::call+bind loop", "[rpc]") {
 		s->data();
 	};
 	
-	s->bind("test1", [](int a) -> int {
-		std::cout << "Bind test1 called" << std::endl;
-		return a*2;
-	});
+	SECTION( "Loop a numeric result" ) {
+		s->bind("test1", [](int a) -> int {
+			std::cout << "Bind test1 called" << std::endl;
+			return a*2;
+		});
+		
+		int res = s->call<int>("test1", 5);
+		
+		REQUIRE( res == 10 );
+	}
 	
-	int res = s->call<int>("test1", 5);
-	
-	REQUIRE( res == 10 );
+	SECTION( "Loop a string result" ) {
+		s->bind("test1", [](std::string a) -> std::string {
+			std::cout << "Test1 = " << a << std::endl;
+			return a + " world";
+		});
+		
+		auto res = s->call<std::string>("test1", "hello");
+		
+		REQUIRE( res == "hello world" );
+	}
 }
 

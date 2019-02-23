@@ -44,16 +44,18 @@ void ftl::net::Dispatcher::dispatch_call(const msgpack::object &msg) {
     auto &&name = std::get<2>(the_call);
     auto &&args = std::get<3>(the_call);
     
-    LOG(INFO) << "RPC call received: " << name;
+    LOG(INFO) << "RPC " << name << "() <- " << sock_->getURI();
 
     auto it_func = funcs_.find(name);
 
     if (it_func != end(funcs_)) {
         try {
-            auto result = (it_func->second)(args)->get();
-			auto res_obj = std::make_tuple(1,id,msgpack::object(),result);
+            auto result = (it_func->second)(args); //->get();
+            response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);
+			
+			//std::cout << " RESULT " << result.as<std::string>() << std::endl;
 			
 			sock_->send(FTL_PROTOCOL_RPCRETURN, buf.str());
         } catch (...) {

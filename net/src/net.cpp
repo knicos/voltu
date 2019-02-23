@@ -148,18 +148,6 @@ bool _run(bool blocking, bool nodelay) {
 							l->connection(sock);
 							
 							sockets.push_back(std::move(sock));
-							
-							// TODO Save the ip address
-							// deal with both IPv4 and IPv6:
-							/*if (addr.ss_family == AF_INET) {
-								struct sockaddr_in *s = (struct sockaddr_in *)&addr;
-								//port = ntohs(s->sin_port);
-								inet_ntop(AF_INET, &s->sin_addr, sock->m_addr, INET6_ADDRSTRLEN);
-							} else { // AF_INET6
-								struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
-								//port = ntohs(s->sin6_port);
-								inet_ntop(AF_INET6, &s->sin6_addr, sock->m_addr, INET6_ADDRSTRLEN);
-							}*/
 						}
 					//}
 				}

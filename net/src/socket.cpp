@@ -27,6 +27,17 @@ using namespace ftl;
 using ftl::net::Socket;
 using namespace std;
 
+static std::string hexStr(const std::string &s)
+{
+	const char *data = s.data();
+	int len = s.size();
+    std::stringstream ss;
+    ss << std::hex;
+    for(int i=0;i<len;++i)
+        ss << std::setw(2) << std::setfill('0') << (int)data[i];
+    return ss.str();
+}
+
 int Socket::rpcid__ = 0;
 
 static int tcpConnect(URI &uri) {
@@ -112,6 +123,7 @@ static int wsConnect(URI &uri) {
 Socket::Socket(int s) : m_sock(s), m_pos(0), disp_(this) {
 	m_valid = true;
 	m_buffer = new char[BUFFER_SIZE];
+	m_connected = false;
 	
 	sockaddr_storage addr;
 	int rsize = sizeof(sockaddr_storage);
@@ -144,6 +156,7 @@ Socket::Socket(const char *pUri) : m_uri(pUri), m_pos(0), disp_(this) {
 	URI uri(pUri);
 	
 	m_valid = false;
+	m_connected = false;
 	m_sock = INVALID_SOCKET;
 
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
@@ -173,9 +186,7 @@ void Socket::error() {
 	int err;
 	uint32_t optlen = sizeof(err);
 	getsockopt(m_sock, SOL_SOCKET, SO_ERROR, &err, &optlen);
-
 	LOG(ERROR) << "Socket: " << m_uri << " - error " << err;
-	//close();
 }
 
 bool Socket::data() {
@@ -228,7 +239,17 @@ bool Socket::data() {
 		auto d = std::string(m_buffer+8, len-4);
 		//std::cerr << "DATA : " << service << " -> " << d << std::endl;
 		
-		if (service == FTL_PROTOCOL_RPC) {
+		if (service == FTL_PROTOCOL_HS1 && !m_connected) {
+			// TODO Verify data
+			std::string hs2("HELLO");
+			send(FTL_PROTOCOL_HS2, hs2);
+			LOG(INFO) << "Handshake confirmed from " << m_uri;
+			_connected();
+		} else if (service == FTL_PROTOCOL_HS2 && !m_connected) {
+			// TODO Verify data
+			LOG(INFO) << "Handshake finalised for " << m_uri;
+			_connected();
+		} else if (service == FTL_PROTOCOL_RPC) {
 			dispatch(d);
 		} else if (service == FTL_PROTOCOL_RPCRETURN) {
 			auto unpacked = msgpack::unpack(d.data(), d.size());
@@ -243,7 +264,9 @@ bool Socket::data() {
 			auto &&id = std::get<1>(the_result);
 			//auto &&err = std::get<2>(the_result);
 			auto &&res = std::get<3>(the_result);
-
+			
+			std::cout << " ROSULT " << hexStr(d) << std::endl;
+			
 			if (callbacks_.count(id) > 0) {
 				LOG(INFO) << "Received return RPC value";
 				callbacks_[id](res);
@@ -252,13 +275,39 @@ bool Socket::data() {
 				LOG(ERROR) << "Missing RPC callback for result";
 			}
 		} else {
-			if (m_handler) m_handler(service, d);
+			// Lookup raw message handler
+			if (handlers_.count(service) > 0) handlers_[service](*this, d);
 		} 
 	//}
 
 	m_pos = 0;
 
 	return true;
+}
+
+void Socket::onConnect(std::function<void(Socket&)> f) {
+	if (m_connected) {
+		f(*this);
+	} else {
+		connect_handlers_.push_back(f);
+	}
+}
+
+void Socket::_connected() {
+	m_connected = true;
+	for (auto h : connect_handlers_) {
+		h(*this);
+	}
+	connect_handlers_.clear();
+}
+
+void Socket::bind(uint32_t service, std::function<void(Socket&,
+			const std::string&)> func) {
+	if (handlers_.count(service) == 0) {
+		handlers_[service] = func;
+	} else {
+		LOG(ERROR) << "Message service " << service << " already bound";
+	}
 }
 
 int Socket::send(uint32_t service, const std::string &data) {

@@ -2,6 +2,8 @@
 
 #include <ftl/uri.hpp>
 #include <ftl/net/listener.hpp>
+#include <ftl/net/socket.hpp>
+#include <ftl/net/protocol.hpp>
 #include <iostream>
 
 #ifndef WIN32
@@ -109,6 +111,9 @@ Listener::~Listener() {
 }
 
 void Listener::connection(shared_ptr<Socket> &s) {
+	std::string hs1("HELLO");
+	s->send(FTL_PROTOCOL_HS1, hs1);
+	LOG(INFO) << "Handshake initiated with " << s->getURI();
 	for (auto h : handler_connect_) h(s);
 }
 

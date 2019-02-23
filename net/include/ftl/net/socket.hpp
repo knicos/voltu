@@ -43,10 +43,10 @@ class Socket {
 
 	//friend bool ftl::net::run(bool);
 
-	int _socket() { return m_sock; };
+	int _socket() const { return m_sock; };
 
-	bool isConnected() { return m_sock != INVALID_SOCKET; };
-	bool isValid() { return m_valid; };
+	bool isConnected() const { return m_sock != INVALID_SOCKET; };
+	bool isValid() const { return m_valid; };
 	std::string getURI() const { return m_uri; };
 	
 	/**
@@ -62,8 +62,12 @@ class Socket {
 	/**
 	 * Bind a function to a raw message type.
 	 */
-	void bind(uint32_t service, std::function<void(std::shared_ptr<Socket>,const std::string&)> func);
+	void bind(uint32_t service, std::function<void(Socket&,
+			const std::string&)> func);
 	
+	/**
+	 * Remote Procedure Call.
+	 */
 	template <typename T, typename... ARGS>
 	T call(const std::string &name, ARGS... args) {
 		bool hasreturned = false;
@@ -92,7 +96,7 @@ class Socket {
 		auto rpcid = rpcid__++;
 		auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 		
-		LOG(INFO) << "RPC call sent: " << name;
+		LOG(INFO) << "RPC " << name << "() -> " << m_uri;
 		
 		std::stringstream buf;
 		msgpack::pack(buf, call_obj);
@@ -105,9 +109,9 @@ class Socket {
 	
 	void dispatch(const std::string &b) { disp_.dispatch(b); }
 
-	void onMessage(sockdatahandler_t handler) { m_handler = handler; }
+	//void onMessage(sockdatahandler_t handler) { m_handler = handler; }
 	void onError(sockerrorhandler_t handler) {}
-	void onConnect(sockconnecthandler_t handler) {}
+	void onConnect(std::function<void(Socket&)> f);
 	void onDisconnect(sockdisconnecthandler_t handler) {}
 	
 	bool data();
@@ -118,10 +122,14 @@ class Socket {
 	int m_sock;
 	size_t m_pos;
 	char *m_buffer;
-	sockdatahandler_t m_handlers;
+	std::map<uint32_t,std::function<void(Socket&,const std::string&)>> handlers_;
+	std::vector<std::function<void(Socket&)>> connect_handlers_;
 	bool m_valid;
+	bool m_connected;
 	std::map<int, std::function<void(msgpack::object&)>> callbacks_;
 	ftl::net::Dispatcher disp_;
+	
+	void _connected();
 	
 	static int rpcid__;
 

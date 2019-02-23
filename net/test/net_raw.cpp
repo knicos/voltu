@@ -287,8 +287,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 
 		bool msg = false;
 
-		sock->onMessage([&](int service, std::string &data) {
-			REQUIRE(service == 1);
+		sock->bind(1, [&](Socket &s, const std::string &data) {
 			REQUIRE(data == "{message: \"Hello\"}");
 			msg = true;	
 		});
@@ -302,8 +301,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 
 		bool msg = false;
 
-		sock->onMessage([&](int service, std::string &data) {
-			REQUIRE(service == 1);
+		sock->bind(1, [&](Socket &s, const std::string &data) {
 			REQUIRE(data == "");
 			msg = true;	
 		});
@@ -318,8 +316,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 
 		int msg = 0;
 
-		sock->onMessage([&](int service, std::string &data) {
-			REQUIRE(service == 1);
+		sock->bind(1, [&](Socket &s, const std::string &data) {
 			if (msg == 0) REQUIRE(data == "{message: \"Hello\"}");
 			else REQUIRE(data == "{test: \"world\"}");
 			msg++;	
@@ -334,7 +331,7 @@ TEST_CASE("Socket.onMessage()", "[net]") {
 
 		bool msg = false;
 
-		sock->onMessage([&](int service, std::string &data) {
+		sock->bind(1, [&](Socket &s, const std::string &data) {
 			msg = true;	
 		});
 
