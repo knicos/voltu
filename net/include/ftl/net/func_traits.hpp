@@ -64,11 +64,17 @@ template <typename R, typename... Args> struct func_traits<R (*)(Args...)> {
     using args_type = std::tuple<typename std::decay<Args>::type...>;
 };
 
+//template <typename T>
+//auto bindThis(F f, T t) { return [f,t]()t.f(42, std::forward<decltype(arg)>(arg)); }
+
 template <typename T>
 struct func_kind_info : func_kind_info<decltype(&T::operator())> {};
 
 template <typename C, typename R, typename... Args>
 struct func_kind_info<R (C::*)(Args...)> : func_kind_info<R (*)(Args...)> {};
+
+//template <typename R, typename... Args>
+//struct func_kind_info<std::_Bind<R(Args...)>> : func_kind_info<R(*)(Args...)> {};
 
 template <typename C, typename R, typename... Args>
 struct func_kind_info<R (C::*)(Args...) const>

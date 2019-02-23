@@ -22,13 +22,6 @@
 namespace ftl {
 namespace net {
 
-#pragma pack(push,1)
-struct Header {
-	uint32_t size;
-	uint32_t service;
-};
-#pragma pack(pop)
-
 class Socket {
 	public:
 	Socket(const char *uri);
@@ -139,6 +132,8 @@ class Socket {
 	bool connected_;
 	std::map<int, std::function<void(msgpack::object&)>> callbacks_;
 	ftl::net::Dispatcher disp_;
+	uint32_t version_;
+	std::string peerid_;
 	
 	void _connected();
 	void _updateURI();

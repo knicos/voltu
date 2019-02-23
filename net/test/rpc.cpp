@@ -48,6 +48,7 @@ extern ssize_t recv(int sd, void *buf, size_t n, int f) {
 }
 
 extern ssize_t writev(int sd, const struct iovec *v, int cnt) {
+	// TODO Use count incase more sources exist...
 	size_t len = v[0].iov_len+v[1].iov_len;
 	char buf[len];
 	std::memcpy(&buf[0],v[0].iov_base,v[0].iov_len);

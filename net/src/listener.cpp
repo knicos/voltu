@@ -111,8 +111,10 @@ Listener::~Listener() {
 }
 
 void Listener::connection(shared_ptr<Socket> &s) {
-	std::string hs1("HELLO");
-	s->send(FTL_PROTOCOL_HS1, hs1);
+	ftl::net::Handshake hs1;
+	hs1.magic = ftl::net::MAGIC;
+	hs1.version = ftl::net::version();
+	s->send(FTL_PROTOCOL_HS1, std::string((char*)&hs1, sizeof(hs1)));
 	LOG(INFO) << "Handshake initiated with " << s->getURI();
 	for (auto h : handler_connect_) h(s);
 }

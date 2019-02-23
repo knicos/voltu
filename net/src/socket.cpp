@@ -201,6 +201,7 @@ void Socket::error() {
 bool Socket::data() {
 	//Read data from socket
 	size_t n = 0;
+	int c = 0;
 	uint32_t len = 0;
 
 	if (pos_ < 4) {
@@ -230,17 +231,24 @@ bool Socket::data() {
 			}
 		} else if (rc == EWOULDBLOCK || rc == 0) {
 			// Data not yet available
+			if (c == 0) {
+				LOG(INFO) << "Socket disconnected " << uri_;
+				close();
+			}
 			return false;
 		} else {
 			LOG(ERROR) << "Socket: " << uri_ << " - error " << rc;
 			close();
 			return false;
 		}
+		c++;
 	}
 
 	// Route the message...
 	uint32_t service = ((uint32_t*)buffer_)[1];
 	auto d = std::string(buffer_+8, len-4);
+	
+	pos_ = 0; // DODGY, processing messages inside handlers is dangerous.
 	
 	if (service == FTL_PROTOCOL_HS1 && !connected_) {
 		handshake1(d);
@@ -257,23 +265,59 @@ bool Socket::data() {
 		} else {
 			LOG(ERROR) << "Unrecognised service request (" << service << ") from " << uri_;
 		}
-	} 
-
-	pos_ = 0;
+	}
 
 	return true;
 }
 
 void Socket::handshake1(const std::string &d) {
-	// TODO Verify data
-	std::string hs2("HELLO");
-	send(FTL_PROTOCOL_HS2, hs2);
-	LOG(INFO) << "Handshake confirmed from " << uri_;
+	ftl::net::Handshake *hs;
+	if (d.size() != sizeof(ftl::net::Handshake)) {
+		LOG(ERROR) << "Handshake failed for " << uri_;
+		close();
+		return;
+	}
+	
+	hs = (ftl::net::Handshake*)d.data();
+	if (hs->magic != ftl::net::MAGIC) {
+		LOG(ERROR) << "Handshake magic failed for " << uri_;
+		close();
+		return;
+	}
+	
+	version_ = (hs->version > ftl::net::version()) ?
+			ftl::net::version() :
+			hs->version;
+	peerid_ = std::string(&hs->peerid[0],16);
+	
+	ftl::net::Handshake hs2;
+	hs2.magic = ftl::net::MAGIC;
+	hs2.version = version_;
+	// TODO Set peerid;
+	send(FTL_PROTOCOL_HS2, std::string((char*)&hs2, sizeof(hs2)));
+	LOG(INFO) << "Handshake v" << version_ << " confirmed from " << uri_;
 	_connected();
 }
 
 void Socket::handshake2(const std::string &d) {
-	// TODO Verify data
+	ftl::net::Handshake *hs;
+	if (d.size() != sizeof(ftl::net::Handshake)) {
+		LOG(ERROR) << "Handshake failed for " << uri_;
+		close();
+		return;
+	}
+	
+	hs = (ftl::net::Handshake*)d.data();
+	if (hs->magic != ftl::net::MAGIC) {
+		LOG(ERROR) << "Handshake magic failed for " << uri_;
+		close();
+		return;
+	}
+	
+	version_ = (hs->version > ftl::net::version()) ?
+			ftl::net::version() :
+			hs->version;
+	peerid_ = std::string(&hs->peerid[0],16);
 	LOG(INFO) << "Handshake finalised for " << uri_;
 	_connected();
 }

@@ -119,9 +119,12 @@ bool _run(bool blocking, bool nodelay) {
 		active = blocking;
 
 		//Some kind of error occured, it is usually possible to recover from this.
-		if (selres <= 0) {
-			//std::cout << "SELECT ERROR" << std::endl;
+		if (selres < 0) {
+			std::cout << "SELECT ERROR " << selres << std::endl;
 			//return false;
+			continue;
+		} else if (selres == 0) {
+			// Timeout, nothing to do...
 			continue;
 		}
 

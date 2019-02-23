@@ -186,7 +186,11 @@ void accept_connection() {
 
 		//Finally accept this client connection.
 		csock = accept(ssock, (sockaddr*)&addr, (socklen_t*)&rsize);
-		mocksend(csock, FTL_PROTOCOL_HS1, "HELLO");
+		
+		ftl::net::Handshake hs1;
+		hs1.magic = ftl::net::MAGIC;
+		hs1.version = ftl::net::version();
+		mocksend(csock, FTL_PROTOCOL_HS1, std::string((char*)&hs1, sizeof(hs1)));
 	} else {
 
 	}
@@ -340,8 +344,8 @@ TEST_CASE("Socket.bind(int)", "[net]") {
 			msg++;	
 		});
 
-		ftl::net::wait();
-		ftl::net::wait();
+		ftl::net::wait(); // MSG 1
+		ftl::net::wait(); // MSG 2
 		REQUIRE(msg == 2);
 	}
 
