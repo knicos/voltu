@@ -14,6 +14,9 @@ namespace internal {
 template<typename T>
 using invoke = typename T::type;
 
+template <typename T, typename... ARGS>
+struct first_type { typedef T type; };
+
 template<typename T, T I>
 struct constant : std::integral_constant<T, I> {};
 

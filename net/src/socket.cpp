@@ -128,7 +128,7 @@ Socket::Socket(int s) : sock_(s), pos_(0), disp_(this) {
 	_updateURI();
 }
 
-Socket::Socket(const char *pUri) : uri_(pUri), pos_(0), disp_(this) {
+Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), disp_(this) {
 	// Allocate buffer
 	buffer_ = new char[BUFFER_SIZE];
 	
@@ -340,7 +340,7 @@ void Socket::dispatchReturn(const std::string &d) {
 	
 	if (callbacks_.count(id) > 0) {
 		LOG(INFO) << "Received return RPC value";
-		callbacks_[id](res);
+		(*callbacks_[id])(res);
 		callbacks_.erase(id);
 	} else {
 		LOG(ERROR) << "Missing RPC callback for result";

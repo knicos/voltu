@@ -15,7 +15,7 @@ set(ftl_VERSION_MAJOR "1")
 set(ftl_VERSION_MINOR "0")
 set(ftl_VERSION_PATCH "0")
 
-set(CMAKE_CXX_FLAGS "-pthread -fopenmp -std=c++14 -Wall -Wno-deprecated -Werror -Wno-psabi")
+set(CMAKE_CXX_FLAGS "-pthread -fopenmp -std=c++17 -Wall -Wno-deprecated -Werror -Wno-psabi")
 set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -pg -Wall -Werror")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
