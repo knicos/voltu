@@ -67,13 +67,39 @@ extern ssize_t recv(int sd, void *buf, size_t n, int f) {
 }
 
 extern ssize_t writev(int sd, const struct iovec *v, int cnt) {
-	// TODO Use count incase more sources exist...
-	size_t len = v[0].iov_len+v[1].iov_len;
-	char buf[len];
-	std::memcpy(&buf[0],v[0].iov_base,v[0].iov_len);
-	std::memcpy(&buf[v[0].iov_len],v[1].iov_base,v[1].iov_len);
+	size_t len = 0; //v[0].iov_len+v[1].iov_len;
+	char buf[1000];
+	char *bufp = &buf[0];
+	
+	for (auto i=0; i<cnt; i++) {
+		std::memcpy(bufp,v[i].iov_base,v[i].iov_len);
+		len += v[i].iov_len;
+		bufp += v[i].iov_len;
+	}
+	
 	fakedata[sd] = std::string(&buf[0], len);
-	return 0;
+	return len;
+}
+
+uint32_t get_service(int sd) {
+	auto h = (ftl::net::Header*)fakedata[sd].data();
+	return h->service;
+}
+
+size_t get_size(int sd) {
+	auto h = (ftl::net::Header*)fakedata[sd].data();
+	return h->size-4;
+}
+
+template <typename T>
+T get_value(int sd) {
+	auto h = (T*)(fakedata[sd].data()+sizeof(ftl::net::Header));
+	return *h;
+}
+
+template <>
+std::string get_value(int sd) {
+	return std::string((char*)(fakedata[sd].data()+sizeof(ftl::net::Header)),get_size(sd));
 }
 
 static std::function<void()> waithandler;
@@ -169,6 +195,83 @@ TEST_CASE("Socket receive RPC", "[rpc]") {
 		s.mock_data(); // Force it to read the fake send...
 		
 		REQUIRE( last_rpc == buf.str() );
+	}
+}
+
+TEST_CASE("Socket::operator>>()", "[io]") {
+	MockSocket s;
+	
+	SECTION("stream ints") {
+		int i[2];
+		i[0] = 99;
+		i[1] = 101;
+		fake_send(0, 100, std::string((char*)&i,2*sizeof(int)));
+		
+		i[0] = 0;
+		i[1] = 0;
+		s.mock_data(); // Force a message read, but no protocol...
+		
+		REQUIRE( s.size() == 2*sizeof(int) );
+		s >> i;
+		REQUIRE( i[0] == 99 );
+		REQUIRE( i[1] == 101 );
+	}
+}
+
+TEST_CASE("Socket::send()", "[io]") {
+	MockSocket s;
+	
+	SECTION("send an int") {
+		int i = 607;
+		s.send(100,i);
+		
+		REQUIRE( get_service(0) == 100 );
+		REQUIRE( get_size(0) == sizeof(int) );
+		REQUIRE( get_value<int>(0) == 607 );
+	}
+	
+	SECTION("send a string") {
+		std::string str("hello world");
+		s.send(100,str);
+		
+		REQUIRE( get_service(0) == 100 );
+		REQUIRE( get_size(0) == str.size() );
+		REQUIRE( get_value<std::string>(0) == "hello world" );
+	}
+	
+	SECTION("send const char* string") {
+		s.send(100,"hello world");
+		
+		REQUIRE( get_service(0) == 100 );
+		REQUIRE( get_size(0) == 11 );
+		REQUIRE( get_value<std::string>(0) == "hello world" );
+	}
+	
+	SECTION("send const char* array") {
+		s.send(100,"hello world",10);
+		
+		REQUIRE( get_service(0) == 100 );
+		REQUIRE( get_size(0) == 10 );
+		REQUIRE( get_value<std::string>(0) == "hello worl" );
+	}
+	
+	SECTION("send a tuple") {
+		auto tup = std::make_tuple(55,66,true,6.7);
+		s.send(100,tup);
+		
+		REQUIRE( get_service(0) == 100 );
+		REQUIRE( get_size(0) == sizeof(tup) );
+		REQUIRE( get_value<decltype(tup)>(0) == tup );
+	}
+	
+	SECTION("send multiple strings") {
+		std::string str("hello ");
+		std::string str2("world");
+		s.send(100,str,str2);
+		
+		REQUIRE( get_service(0) == 100 );
+		REQUIRE( get_size(0) == str.size()+str2.size() );
+		REQUIRE( get_value<std::string>(0) == "hello world" );
 	}
 }
 

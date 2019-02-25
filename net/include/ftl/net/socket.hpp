@@ -16,7 +16,11 @@
 #endif
 
 #include <sstream>
+#include <tuple>
 #include <type_traits>
+
+# define ENABLE_IF(...) \
+  typename std::enable_if<(__VA_ARGS__), bool>::type = true
 
 extern bool _run(bool blocking, bool nodelay);
 
@@ -72,42 +76,49 @@ class Socket {
 	void asyncCall(const std::string &name,
 			std::function<void(const T&)> cb,
 			ARGS... args);
-	// TODO use "call" instead of "acall" causes compiler to loop.
 	
 	/**
 	 * Blocking Remote Procedure Call.
 	 */
 	template <typename R, typename... ARGS>
 	R call(const std::string &name, ARGS... args);
-			
-	/**
-	 * Send data to given service number.
-	 */
-	int send(uint32_t service, const std::string &data);
+
+	template <typename... ARGS>
+	int send(uint32_t s, ARGS... args);
 	
-	/**
-	 * Send with two distinct data source. Avoids the need to memcpy them to a
-	 * single buffer.
-	 */
-	int send2(uint32_t service, const std::string &data1,
-			const std::string &data2);
+	void begin(uint32_t s);
 	
 	template <typename T>
-	int read(T *b, size_t count=1) {
-		static_assert(std::is_trivial<T>::value);
-		return read((char*)b, sizeof(T)*count);
-	}
+	Socket &operator<<(T &t);
 	
-	//template <>
+	void end();
+	
+	template <typename T>
+	int read(T *b, size_t count=1);
+
 	int read(char *b, size_t count);
 	int read(std::string &s, size_t count=0);
 	
 	template <typename T>
-	int read(T &b) {
-		return read(&b);
-	}
+	int read(std::vector<T> &b, size_t count=0);
+	
+	template <typename T>
+	int read(T &b);
+	
+	template <typename T>
+	Socket &operator>>(T &t);
+	
+	//SocketStream stream(uint32_t service);
 	
 	size_t size() const { return header_->size-4; }
+
+	void onError(std::function<void(Socket&, int err, const char *msg)> f) {}
+	void onConnect(std::function<void(Socket&)> f);
+	void onDisconnect(std::function<void(Socket&)> f) {}
+	
+	protected:
+	bool data();	// Process one message from socket
+	void error();	// Process one error from socket
 	
 	/**
 	 * Internal handlers for specific event types. This should be private but
@@ -117,29 +128,46 @@ class Socket {
 	void handshake1(const std::string &d);
 	void handshake2(const std::string &d);
 	/** @} */
-
-	//void onError(sockerrorhandler_t handler) {}
-	void onConnect(std::function<void(Socket&)> f);
-	//void onDisconnect(sockdisconnecthandler_t handler) {}
-	
-	protected:
-	bool data();	// Process one message from socket
-	void error();	// Process one error from socket
 	
 	private: // Functions
 	void _connected();
 	void _updateURI();
 	void _dispatchReturn(const std::string &d);
+	
+	int _send();
+	
+	template <typename... ARGS>
+	int _send(const std::string &t, ARGS... args);
+	
+	template <typename T, typename... ARGS>
+	int _send(const T *t, int s, ARGS... args);
+	
+	template <typename T, typename... ARGS>
+	int _send(const std::vector<T> &t, ARGS... args);
+	
+	template <typename... Types, typename... ARGS>
+	int _send(const std::tuple<Types...> &t, ARGS... args);
+	
+	template <typename T, typename... ARGS,
+			ENABLE_IF(std::is_trivial<T>::value && !std::is_pointer<T>::value)>
+	int _send(const T &t, ARGS... args);
 
 	private: // Data
 	bool valid_;
 	bool connected_;
 	int sock_;
+	
+	// Receive buffers
 	size_t pos_;
 	size_t gpos_;
 	char *buffer_;
 	ftl::net::Header *header_;
 	char *data_;
+	
+	// Send buffers
+	char *buffer_w_;
+	std::vector<iovec> send_vec_;
+	ftl::net::Header *header_w_;
 	
 	std::string uri_;
 	std::string peerid_;
@@ -156,6 +184,76 @@ class Socket {
 };
 
 // --- Inline Template Implementations -----------------------------------------
+
+template <typename... ARGS>
+int Socket::send(uint32_t s, ARGS... args) {
+	header_w_->service = s;
+	header_w_->size = 4;
+	send_vec_.push_back({header_w_,sizeof(ftl::net::Header)});
+	return _send(args...);
+}
+
+template <typename T>
+int Socket::read(T *b, size_t count) {
+	static_assert(std::is_trivial<T>::value, "Can only read trivial types");
+	return read((char*)b, sizeof(T)*count);
+}
+
+template <typename T>
+int Socket::read(std::vector<T> &b, size_t count) {
+	count = (count == 0) ? size()/sizeof(T) : count; // TODO Round this!
+	if (b.size() != count) b.resize(count);
+	return read((char*)b.data(), sizeof(T)*count);
+}
+
+template <typename T>
+int Socket::read(T &b) {
+	if (std::is_array<T>::value) return read(&b,std::extent<T>::value);
+	else return read(&b);
+}
+
+template <typename T>
+Socket &Socket::operator>>(T &t) {
+	if (std::is_array<T>::value) read(&t,std::extent<T>::value);
+	else read(&t);
+	return *this;
+}
+
+template <typename... ARGS>
+int Socket::_send(const std::string &t, ARGS... args) {
+	send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
+	header_w_->size += t.size();
+	return t.size()+_send(args...);
+}
+
+template <typename T, typename... ARGS>
+int Socket::_send(const T *t, int s, ARGS... args) {
+	send_vec_.push_back({const_cast<char*>(t),(size_t)s});
+	header_w_->size += s;
+	return s+_send(args...);
+}
+
+template <typename T, typename... ARGS>
+int Socket::_send(const std::vector<T> &t, ARGS... args) {
+	send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
+	header_w_->size += t.size();
+	return t.size()+_send(args...);
+}
+
+template <typename... Types, typename... ARGS>
+int Socket::_send(const std::tuple<Types...> &t, ARGS... args) {
+	send_vec_.push_back({const_cast<char*>((char*)&t),sizeof(t)});
+	header_w_->size += sizeof(t);
+	return sizeof(t)+_send(args...);
+}
+
+template <typename T, typename... ARGS,
+		ENABLE_IF(std::is_trivial<T>::value && !std::is_pointer<T>::value)>
+int Socket::_send(const T &t, ARGS... args) {
+	send_vec_.push_back({const_cast<T*>(&t),sizeof(T)});
+	header_w_->size += sizeof(T);
+	return sizeof(T)+_send(args...);
+}
 
 //template <typename T, typename... ARGS>
 template <typename R, typename... ARGS>

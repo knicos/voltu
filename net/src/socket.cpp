@@ -122,9 +122,13 @@ static int wsConnect(URI &uri) {
 
 Socket::Socket(int s) : sock_(s), pos_(0), proto_(nullptr) {
 	valid_ = true;
+	
 	buffer_ = new char[BUFFER_SIZE];
 	header_ = (Header*)buffer_;
 	data_ = buffer_+sizeof(Header);
+	buffer_w_ = new char[BUFFER_SIZE];
+	header_w_ = (Header*)buffer_w_;
+	
 	connected_ = false;
 	
 	_updateURI();
@@ -135,6 +139,8 @@ Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), proto_(nullptr) {
 	buffer_ = new char[BUFFER_SIZE];
 	header_ = (Header*)buffer_;
 	data_ = buffer_+sizeof(Header);
+	buffer_w_ = new char[BUFFER_SIZE];
+	header_w_ = (Header*)buffer_w_;
 	
 	URI uri(pUri);
 	
@@ -390,38 +396,10 @@ void Socket::_connected() {
 	//connect_handlers_.clear();
 }
 
-int Socket::send(uint32_t service, const std::string &data) {
-	ftl::net::Header h;
-	h.size = data.size()+4;
-	h.service = service;
-	
-	iovec vec[2];
-	vec[0].iov_base = &h;
-	vec[0].iov_len = sizeof(h);
-	vec[1].iov_base = const_cast<char*>(data.data());
-	vec[1].iov_len = data.size();
-	
-	::writev(sock_, &vec[0], 2);
-	
-	return 0;
-}
-
-int Socket::send2(uint32_t service, const std::string &data1, const std::string &data2) {
-	ftl::net::Header h;
-	h.size = data1.size()+4+data2.size();
-	h.service = service;
-	
-	iovec vec[3];
-	vec[0].iov_base = &h;
-	vec[0].iov_len = sizeof(h);
-	vec[1].iov_base = const_cast<char*>(data1.data());
-	vec[1].iov_len = data1.size();
-	vec[2].iov_base = const_cast<char*>(data2.data());
-	vec[2].iov_len = data2.size();
-	
-	::writev(sock_, &vec[0], 3);
-	
-	return 0;
+int Socket::_send() {
+	int c = ::writev(sock_, send_vec_.data(), send_vec_.size());
+	send_vec_.clear();
+	return c;
 }
 
 Socket::~Socket() {
@@ -431,5 +409,7 @@ Socket::~Socket() {
 	// Delete socket buffer
 	if (buffer_) delete [] buffer_;
 	buffer_ = NULL;
+	if (buffer_w_) delete [] buffer_w_;
+	buffer_w_ = NULL;
 }
 
