@@ -1,30 +1,24 @@
 #ifndef _FTL_NET_PROTOCOL_HPP_
 #define _FTL_NET_PROTOCOL_HPP_
 
+#include <ftl/net/func_traits.hpp>
+#include <ftl/net/dispatcher.hpp>
+#include <map>
+#include <string>
+
 #define FTL_PROTOCOL_HS1		0x0001		// Handshake step 1
 #define FTL_PROTOCOL_HS2		0x0002		// Handshake step 2
 
 #define FTL_PROTOCOL_RPC		0x0100
 #define FTL_PROTOCOL_RPCRETURN	0x0101
 
-#define FTL_PROTOCOL_P2P		0x1000
+#define FTL_PROTOCOL_FREE		0x1000		// Custom protocols above this
 
 namespace ftl {
 namespace net {
 
-static const uint32_t MAGIC = 0x23995621;
-
-static const uint8_t PATCH = 0;
-static const uint8_t MINOR = 0;
-static const uint8_t MAJOR = 1;
-
-inline uint32_t version(int maj, int min, int pat) {
-	return (maj << 16) | (min << 8) | pat;
-}
-
-inline uint32_t version() {
-	return version(MAJOR, MINOR, PATCH);
-}
+class Reader;
+class Socket;
 
 #pragma pack(push,1)
 
@@ -34,14 +28,69 @@ struct Header {
 };
 
 struct Handshake {
-	uint32_t magic;
-	uint32_t version;
-	char peerid[16];
+	uint64_t proto;			// The protocol the other party is expected to use.
+	char peerid[16];		// GUID for the origin peer.
+	char reserved_[32];		// RESERVED, must be 0.
 };
 
 #pragma pack(pop)
 
+/**
+ * Each instance of this Protocol class represents a specific protocol. A
+ * protocol is a set of RPC bindings and raw message handlers. A protocol is
+ * identified, selected and validated using an automatically generated hash of
+ * all its supported bindings. The choice of protocol for a socket is made
+ * during the initial connection handshake.
+ */
+class Protocol {
+	public:
+	friend class Socket;
+	
+	public:
+	Protocol(uint64_t id);
+	~Protocol();
+	
+	/**
+	 * Bind a function to an RPC call name.
+	 */
+	template <typename F>
+	void bind(const std::string &name, F func);
+	
+	/**
+	 * Bind a function to a raw message type.
+	 */
+	void bind(int service, std::function<void(uint32_t,Socket&)> func);
+			
+	// broadcast?
+	
+	uint64_t id() const { return id_; }
+	
+	static Protocol *find(uint64_t id);
+			
+	protected:
+	void dispatchRPC(Socket &, const std::string &d);
+	void dispatchReturn(Socket &, const std::string &d);
+	void dispatchRaw(uint32_t service, Socket &);
+	
+	void addSocket(std::shared_ptr<Socket> s);
+	void removeSocket(const Socket &s);
+	
+	private:
+	ftl::net::Dispatcher disp_;
+	std::map<uint32_t,std::function<void(uint32_t,Socket&)>> handlers_;
+	uint64_t id_;
+	
+	static std::map<uint64_t,Protocol*> protocols__;
+};
 
+// --- Template Implementations ------------------------------------------------
+
+template <typename F>
+void Protocol::bind(const std::string &name, F func) {
+	disp_.bind(name, func,
+		typename ftl::internal::func_kind_info<F>::result_kind(),
+	    typename ftl::internal::func_kind_info<F>::args_kind());
+}
 
 };
 };

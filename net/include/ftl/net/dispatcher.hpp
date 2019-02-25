@@ -6,7 +6,7 @@
 #include <memory>
 #include <tuple>
 #include <functional>
-#include <iostream>
+//#include <iostream>
 
 namespace ftl {
 
@@ -38,9 +38,9 @@ class Socket;
 
 class Dispatcher {
 	public:
-	Dispatcher(Socket *s) : sock_(s) {}
+	Dispatcher() {}
 	
-	void dispatch(const std::string &msg);
+	void dispatch(Socket &, const std::string &msg);
 	
 	template <typename F>
 	void bind(std::string const &name, F func,
@@ -123,7 +123,6 @@ class Dispatcher {
         std::tuple<uint32_t, uint32_t, msgpack::object, msgpack::object>;
 	
 	private:
-	ftl::net::Socket *sock_;
 	std::unordered_map<std::string, adaptor_type> funcs_;
 	
 	static void enforce_arg_count(std::string const &func, std::size_t found,
@@ -131,9 +130,9 @@ class Dispatcher {
 
     void enforce_unique_name(std::string const &func);
     
-    void dispatch(const msgpack::object &msg);
-	void dispatch_call(const msgpack::object &msg);
-	void dispatch_notification(msgpack::object const &msg);
+    void dispatch(Socket &, const msgpack::object &msg);
+	void dispatch_call(Socket &, const msgpack::object &msg);
+	void dispatch_notification(Socket &, msgpack::object const &msg);
 };
 
 }

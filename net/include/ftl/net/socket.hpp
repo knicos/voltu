@@ -3,8 +3,6 @@
 
 #include <glog/logging.h>
 #include <ftl/net.hpp>
-#include <ftl/net/handlers.hpp>
-#include <ftl/net/dispatcher.hpp>
 #include <ftl/net/protocol.hpp>
 
 #ifndef WIN32
@@ -19,6 +17,8 @@
 
 #include <sstream>
 #include <type_traits>
+
+extern bool _run(bool blocking, bool nodelay);
 
 namespace ftl {
 namespace net {
@@ -40,11 +40,16 @@ struct caller : virtual_caller {
  */
 class Socket {
 	public:
+	friend bool ::_run(bool blocking, bool nodelay);
+	public:
 	Socket(const char *uri);
 	Socket(int s);
 	~Socket();
 	
 	int close();
+	
+	void setProtocol(Protocol *p);
+	Protocol *protocol() const { return proto_; }
 
 	/**
 	 * Get the internal OS dependent socket.
@@ -59,18 +64,6 @@ class Socket {
 	 * the same as the initial connection string on the client.
 	 */
 	std::string getURI() const { return uri_; };
-	
-	/**
-	 * Bind a function to an RPC call name.
-	 */
-	template <typename F>
-	void bind(const std::string &name, F func);
-	
-	/**
-	 * Bind a function to a raw message type.
-	 */
-	void bind(uint32_t service, std::function<void(Socket&,
-			const std::string&)> func);
 			
 	/**
 	 * Non-blocking Remote Procedure Call using a callback function.
@@ -99,42 +92,60 @@ class Socket {
 	int send2(uint32_t service, const std::string &data1,
 			const std::string &data2);
 	
+	template <typename T>
+	int read(T *b, size_t count=1) {
+		static_assert(std::is_trivial<T>::value);
+		return read((char*)b, sizeof(T)*count);
+	}
+	
+	//template <>
+	int read(char *b, size_t count);
+	int read(std::string &s, size_t count=0);
+	
+	template <typename T>
+	int read(T &b) {
+		return read(&b);
+	}
+	
+	size_t size() const { return header_->size-4; }
+	
 	/**
 	 * Internal handlers for specific event types. This should be private but
 	 * is current here for testing purposes.
 	 * @{
 	 */
-	void dispatchRPC(const std::string &d) { disp_.dispatch(d); }
-	void dispatchReturn(const std::string &d);
 	void handshake1(const std::string &d);
 	void handshake2(const std::string &d);
 	/** @} */
 
-	void onError(sockerrorhandler_t handler) {}
+	//void onError(sockerrorhandler_t handler) {}
 	void onConnect(std::function<void(Socket&)> f);
-	void onDisconnect(sockdisconnecthandler_t handler) {}
+	//void onDisconnect(sockdisconnecthandler_t handler) {}
 	
-	bool data();
-	void error();
+	protected:
+	bool data();	// Process one message from socket
+	void error();	// Process one error from socket
 	
 	private: // Functions
 	void _connected();
 	void _updateURI();
+	void _dispatchReturn(const std::string &d);
 
 	private: // Data
 	bool valid_;
 	bool connected_;
-	uint32_t version_;
 	int sock_;
 	size_t pos_;
+	size_t gpos_;
 	char *buffer_;
+	ftl::net::Header *header_;
+	char *data_;
 	
 	std::string uri_;
 	std::string peerid_;
+
+	Protocol *proto_; 
 	
-	ftl::net::Dispatcher disp_;
-	
-	std::map<uint32_t,std::function<void(Socket&,const std::string&)>> handlers_;
 	std::vector<std::function<void(Socket&)>> connect_handlers_;
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 	
@@ -145,13 +156,6 @@ class Socket {
 };
 
 // --- Inline Template Implementations -----------------------------------------
-
-template <typename F>
-void Socket::bind(const std::string &name, F func) {
-	disp_.bind(name, func,
-		typename ftl::internal::func_kind_info<F>::result_kind(),
-	    typename ftl::internal::func_kind_info<F>::args_kind());
-}
 
 //template <typename T, typename... ARGS>
 template <typename R, typename... ARGS>

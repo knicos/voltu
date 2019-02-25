@@ -17,6 +17,8 @@
 namespace ftl {
 namespace net {
 
+class Protocol;
+
 class Listener {
 	public:
 	Listener(const char *uri);
@@ -27,11 +29,14 @@ class Listener {
 	void close();
 	int _socket() { return descriptor_; }
 	
+	void setProtocol(Protocol *p) { default_proto_ = p; }
+	
 	void connection(std::shared_ptr<Socket> &s);
 	void onConnection(connecthandler_t h) { handler_connect_.push_back(h); };
 	
 	private:
 	int descriptor_;
+	Protocol *default_proto_;
 	sockaddr_in slocalAddr;
 	std::vector<connecthandler_t> handler_connect_;
 };

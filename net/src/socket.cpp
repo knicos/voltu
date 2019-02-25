@@ -120,17 +120,21 @@ static int wsConnect(URI &uri) {
 	return 1;
 }
 
-Socket::Socket(int s) : sock_(s), pos_(0), disp_(this) {
+Socket::Socket(int s) : sock_(s), pos_(0), proto_(nullptr) {
 	valid_ = true;
 	buffer_ = new char[BUFFER_SIZE];
+	header_ = (Header*)buffer_;
+	data_ = buffer_+sizeof(Header);
 	connected_ = false;
 	
 	_updateURI();
 }
 
-Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), disp_(this) {
+Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), proto_(nullptr) {
 	// Allocate buffer
 	buffer_ = new char[BUFFER_SIZE];
+	header_ = (Header*)buffer_;
+	data_ = buffer_+sizeof(Header);
 	
 	URI uri(pUri);
 	
@@ -191,6 +195,17 @@ int Socket::close() {
 	return 0;
 }
 
+void Socket::setProtocol(Protocol *p) {
+	if (proto_ == p) return;
+	if (proto_ && proto_->id() == p->id()) return;
+	
+	proto_ = p;
+	ftl::net::Handshake hs1;
+	hs1.proto = p->id();
+	send(FTL_PROTOCOL_HS1, std::string((char*)&hs1, sizeof(hs1)));
+	LOG(INFO) << "Handshake initiated with " << uri_;
+}
+
 void Socket::error() {
 	int err;
 	uint32_t optlen = sizeof(err);
@@ -249,25 +264,38 @@ bool Socket::data() {
 	auto d = std::string(buffer_+8, len-4);
 	
 	pos_ = 0; // DODGY, processing messages inside handlers is dangerous.
+	gpos_ = 0;
 	
 	if (service == FTL_PROTOCOL_HS1 && !connected_) {
 		handshake1(d);
 	} else if (service == FTL_PROTOCOL_HS2 && !connected_) {
 		handshake2(d);
 	} else if (service == FTL_PROTOCOL_RPC) {
-		dispatchRPC(d);
+		if (proto_) proto_->dispatchRPC(*this, d);
+		else LOG(WARNING) << "No protocol set for socket " << uri_;
 	} else if (service == FTL_PROTOCOL_RPCRETURN) {
-		dispatchReturn(d);
+		_dispatchReturn(d);
 	} else {
-		// Lookup raw message handler
-		if (handlers_.count(service) > 0) {
-			handlers_[service](*this, d);
-		} else {
-			LOG(ERROR) << "Unrecognised service request (" << service << ") from " << uri_;
-		}
+		if (proto_) proto_->dispatchRaw(service, *this);
+		else LOG(WARNING) << "No protocol set for socket " << uri_;
 	}
 
 	return true;
+}
+
+int Socket::read(char *b, size_t count) {
+	if (count > size()) LOG(WARNING) << "Reading too much data for service " << header_->service;
+	count = (count > size() || count==0) ? size() : count;
+	// TODO, utilise recv directly here...
+	memcpy(b,data_+gpos_,count);
+	gpos_+=count;
+	return count;
+}
+
+int Socket::read(std::string &s, size_t count) {
+	count = (count > size() || count==0) ? size() : count;
+	s = std::string(data_+gpos_,count);
+	return count;
 }
 
 void Socket::handshake1(const std::string &d) {
@@ -279,23 +307,22 @@ void Socket::handshake1(const std::string &d) {
 	}
 	
 	hs = (ftl::net::Handshake*)d.data();
-	if (hs->magic != ftl::net::MAGIC) {
-		LOG(ERROR) << "Handshake magic failed for " << uri_;
+	auto proto = Protocol::find(hs->proto);
+	if (proto == NULL) {
+		LOG(ERROR) << "Protocol (" << hs->proto << ") not found during handshake for " << uri_;
 		close();
 		return;
+	} else {
+		proto_ = proto;
 	}
-	
-	version_ = (hs->version > ftl::net::version()) ?
-			ftl::net::version() :
-			hs->version;
 	peerid_ = std::string(&hs->peerid[0],16);
 	
 	ftl::net::Handshake hs2;
-	hs2.magic = ftl::net::MAGIC;
-	hs2.version = version_;
+	//hs2.magic = ftl::net::MAGIC;
+	//hs2.version = version_;
 	// TODO Set peerid;
 	send(FTL_PROTOCOL_HS2, std::string((char*)&hs2, sizeof(hs2)));
-	LOG(INFO) << "Handshake v" << version_ << " confirmed from " << uri_;
+	LOG(INFO) << "Handshake" << " confirmed from " << uri_;
 	_connected();
 }
 
@@ -308,7 +335,7 @@ void Socket::handshake2(const std::string &d) {
 	}
 	
 	hs = (ftl::net::Handshake*)d.data();
-	if (hs->magic != ftl::net::MAGIC) {
+	/*if (hs->magic != ftl::net::MAGIC) {
 		LOG(ERROR) << "Handshake magic failed for " << uri_;
 		close();
 		return;
@@ -316,13 +343,13 @@ void Socket::handshake2(const std::string &d) {
 	
 	version_ = (hs->version > ftl::net::version()) ?
 			ftl::net::version() :
-			hs->version;
+			hs->version;*/
 	peerid_ = std::string(&hs->peerid[0],16);
 	LOG(INFO) << "Handshake finalised for " << uri_;
 	_connected();
 }
 
-void Socket::dispatchReturn(const std::string &d) {
+void Socket::_dispatchReturn(const std::string &d) {
 	auto unpacked = msgpack::unpack(d.data(), d.size());
 	Dispatcher::response_t the_result;
 	unpacked.get().convert(the_result);
@@ -361,15 +388,6 @@ void Socket::_connected() {
 		h(*this);
 	}
 	//connect_handlers_.clear();
-}
-
-void Socket::bind(uint32_t service, std::function<void(Socket&,
-			const std::string&)> func) {
-	if (handlers_.count(service) == 0) {
-		handlers_[service] = func;
-	} else {
-		LOG(ERROR) << "Message service " << service << " already bound";
-	}
 }
 
 int Socket::send(uint32_t service, const std::string &data) {

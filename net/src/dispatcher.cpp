@@ -3,6 +3,8 @@
 #include <ftl/net/socket.hpp>
 #include <iostream>
 
+using ftl::net::Socket;
+
 /*static std::string hexStr(const std::string &s)
 {
 	const char *data = s.data();
@@ -14,25 +16,25 @@
     return ss.str();
 }*/
 
-void ftl::net::Dispatcher::dispatch(const std::string &msg) {
+void ftl::net::Dispatcher::dispatch(Socket &s, const std::string &msg) {
 	//std::cout << "Received dispatch : " << hexStr(msg) << std::endl;
     auto unpacked = msgpack::unpack(msg.data(), msg.size());
-    dispatch(unpacked.get());
+    dispatch(s, unpacked.get());
 }
 
-void ftl::net::Dispatcher::dispatch(const msgpack::object &msg) {
+void ftl::net::Dispatcher::dispatch(Socket &s, const msgpack::object &msg) {
     switch (msg.via.array.size) {
     case 3:
-        dispatch_notification(msg); break;
+        dispatch_notification(s, msg); break;
     case 4:
-        dispatch_call(msg); break;
+        dispatch_call(s, msg); break;
     default:
     	LOG(ERROR) << "Unrecognised msgpack : " << msg.via.array.size;
         return;
     }
 }
 
-void ftl::net::Dispatcher::dispatch_call(const msgpack::object &msg) {
+void ftl::net::Dispatcher::dispatch_call(Socket &s, const msgpack::object &msg) {
     call_t the_call;
     msg.convert(the_call);
 
@@ -44,7 +46,7 @@ void ftl::net::Dispatcher::dispatch_call(const msgpack::object &msg) {
     auto &&name = std::get<2>(the_call);
     auto &&args = std::get<3>(the_call);
     
-    LOG(INFO) << "RPC " << name << "() <- " << sock_->getURI();
+    LOG(INFO) << "RPC " << name << "() <- " << s.getURI();
 
     auto it_func = funcs_.find(name);
 
@@ -57,14 +59,14 @@ void ftl::net::Dispatcher::dispatch_call(const msgpack::object &msg) {
 			
 			//std::cout << " RESULT " << result.as<std::string>() << std::endl;
 			
-			sock_->send(FTL_PROTOCOL_RPCRETURN, buf.str());
+			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
         } catch (...) {
 			throw;
 		}
     }
 }
 
-void ftl::net::Dispatcher::dispatch_notification(msgpack::object const &msg) {
+void ftl::net::Dispatcher::dispatch_notification(Socket &s, msgpack::object const &msg) {
     notification_t the_call;
     msg.convert(the_call);
 
