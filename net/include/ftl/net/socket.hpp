@@ -17,6 +17,7 @@
 
 #include <sstream>
 #include <tuple>
+#include <vector>
 #include <type_traits>
 
 # define ENABLE_IF(...) \

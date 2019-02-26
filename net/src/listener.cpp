@@ -90,7 +90,7 @@ int wsListen(URI &uri) {
 	return INVALID_SOCKET;
 }
 
-Listener::Listener(const char *pUri) {
+Listener::Listener(const char *pUri) : default_proto_(NULL) {
 	URI uri(pUri);
 	
 	descriptor_ = INVALID_SOCKET;

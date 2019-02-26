@@ -22,6 +22,8 @@ typedef int socklen_t;
 #endif
 
 #include <iostream>
+#include <memory>
+#include <algorithm>
 
 using namespace ftl;
 using ftl::net::Socket;
@@ -187,7 +189,7 @@ void Socket::_updateURI() {
 }
 
 int Socket::close() {
-	if (isConnected()) {
+	if (sock_ != INVALID_SOCKET) {
 		#ifndef WIN32
 		::close(sock_);
 		#else
@@ -197,6 +199,9 @@ int Socket::close() {
 		connected_ = false;
 
 		// Attempt auto reconnect?
+		
+		//auto i = find(sockets.begin(),sockets.end(),this);
+		//sockets.erase(i);
 	}
 	return 0;
 }

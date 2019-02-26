@@ -165,6 +165,15 @@ bool _run(bool blocking, bool nodelay) {
 				if (FD_ISSET(s->_socket(), &sfderror)) {
 					s->error();
 				}
+			} else if (s != NULL) {
+				// Erase it
+				
+				for (auto i=sockets.begin(); i!=sockets.end(); i++) {
+					if ((*i) == s) {
+						std::cout << "REMOVING SOCKET" << std::endl;
+						sockets.erase(i); break;
+					}
+				}
 			}
 		}
 	}

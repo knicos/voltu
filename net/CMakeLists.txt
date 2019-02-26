@@ -4,6 +4,9 @@ include (CheckIncludeFile)
 include (CheckFunctionExists)
 project (ftlnet)
 
+include(CTest)
+enable_testing()
+
 #find_package(PkgConfig)
 #pkg_check_modules(GTKMM gtkmm-3.0)
 
