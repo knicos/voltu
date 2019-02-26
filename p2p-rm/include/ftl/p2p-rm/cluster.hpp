@@ -7,6 +7,7 @@
 
 #include <ftl/uri.hpp>
 #include <ftl/net/socket.hpp>
+#include <ftl/net/protocol.hpp>
 
 #include <type_traits>
 #include <memory>
@@ -25,9 +26,10 @@ namespace rm {
 
 class Blob;
 
-class Cluster {
+class Cluster : public ftl::net::Protocol {
 	public:
 	Cluster(const ftl::URI &uri, std::shared_ptr<ftl::net::Listener> l);
+	Cluster(const char *uri, std::shared_ptr<ftl::net::Listener> l);
 	~Cluster();
 	
 	void reset();
@@ -106,7 +108,7 @@ class Cluster {
 	 * Allow member functions to be used for RPC calls by binding with 'this'.
 	 */
 	template <typename R, typename C, typename ...Args>
-	auto bind(R(C::*f)(Args...)) {
+	auto member(R(C::*f)(Args...)) {
 	  return [this,f](Args... args) -> R { return (this->*f)(std::forward<Args>(args)...); };
 	}
 	
@@ -122,20 +124,17 @@ class Cluster {
 	int broadcastCall(const std::string &name, std::vector<T> &results,
 			ARGS... args) {
 		int count = 0;
-		auto f = [&count,&results](msgpack::object &r) {
+		auto f = [&count,&results](const T &r) {
 			count--;
-			results.push_back(r.as<T>());
+			results.push_back(r);
 		};
 
 		for (auto p : peers_) {
 			count++;
-			p->async_call(name, f, std::forward<ARGS>(args)...);
+			p->asyncCall<T>(name, f, std::forward<ARGS>(args)...);
 		}
 		
-		// TODO Limit in case of no return.
-		while (count > 0) {
-			ftl::net::wait();
-		}
+		ftl::net::wait([&count]() { return count == 0; }, 5.0);
 		return count;
 	}
 	

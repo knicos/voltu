@@ -5,7 +5,7 @@
 
 #include <iostream>
 
-// Mock the BLOB
+// --- Mocks -------------------------------------------------------------------
 
 static bool blob_sync = false;
 
@@ -13,10 +13,11 @@ void ftl::rm::Blob::sync(size_t offset, size_t size) {
 	blob_sync = true;
 }
 
-int ftl::net::Socket::send2(uint32_t service, const std::string &data1, const std::string &data2) {
-	std::cout << "SEND2 (" << service << ")" << std::endl;
+int ftl::net::Socket::_send() {
 	return 0;
 }
+
+// --- Tests -------------------------------------------------------------------
 
 SCENARIO( "Reading from a remote pointer", "[remote_ptr]" ) {
 	// Make a dummy blob

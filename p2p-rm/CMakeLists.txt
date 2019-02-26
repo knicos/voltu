@@ -4,6 +4,8 @@ include (CheckIncludeFile)
 include (CheckIncludeFileCXX)
 include (CheckFunctionExists)
 project (ftlp2prm)
+include(CTest)
+enable_testing()
 
 #find_package(PkgConfig)
 #pkg_check_modules(GTKMM gtkmm-3.0)

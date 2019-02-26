@@ -24,7 +24,7 @@ void ftl::rm::_sync(const Blob &blob, size_t offset, size_t size) {
 	
 		for (auto s : blob.sockets_) {
 			// Send over network
-			s->send2(P2P_SYNC, std::string((const char*)&header,sizeof(header)),
+			s->send(P2P_SYNC, std::string((const char*)&header,sizeof(header)),
 				std::string(&blob.data_[offset],size));
 		}
 	}

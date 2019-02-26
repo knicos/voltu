@@ -22,9 +22,24 @@ using ftl::URI;
 using ftl::rm::Blob;
 using ftl::net::Socket;
 
-Cluster::Cluster(const URI &uri, shared_ptr<Listener> l) : listener_(l) {
+Cluster::Cluster(const URI &uri, shared_ptr<Listener> l) : Protocol(uri.getBaseURI()), listener_(l) {
 	//auto me = this;
 	root_ = uri.getHost();
+
+	if (l != nullptr) {
+		l->onConnection([&](shared_ptr<Socket> &s) {
+			addPeer(s, true);		
+		});
+	}
+}
+
+Cluster::Cluster(const char *uri, shared_ptr<Listener> l) : Protocol(uri), listener_(l) {
+	URI u(uri);
+	if (!u.isValid()) return;
+	if (u.getScheme() != ftl::URI::SCHEME_FTL) return;
+	if (u.getPath().size() > 0) return;
+
+	root_ = u.getHost();
 
 	if (l != nullptr) {
 		l->onConnection([&](shared_ptr<Socket> &s) {
@@ -46,11 +61,13 @@ void Cluster::reset() {
 
 void Cluster::_registerRPC(Socket &s) {
 	//s.bind("getowner", [this](const std::string &u) { getOwner(u.c_str()); });
-	s.bind("getowner", bind(&Cluster::getOwner));
+	bind("getowner", member(&Cluster::getOwner));
 }
 
 void Cluster::addPeer(shared_ptr<Socket> &p, bool incoming) {
 	LOG(INFO) << ((incoming) ? "Incoming peer added: " : "Peer added: ") << p->getURI();
+
+	//p.setProtocol(this);
 
 	peers_.push_back(p);
 	_registerRPC(*p);
