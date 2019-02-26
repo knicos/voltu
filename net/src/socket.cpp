@@ -211,20 +211,23 @@ void Socket::setProtocol(Protocol *p) {
 		if (proto_ == p) return;
 		if (proto_ && proto_->id() == p->id()) return;
 		
+		if (remote_proto_ != "") {
+			Handshake hs1;
+			hs1.magic = ftl::net::MAGIC;
+			hs1.name_size = 0;
+			hs1.proto_size = p->id().size();
+			send(FTL_PROTOCOL_HS1, hs1, p->id());
+			LOG(INFO) << "Handshake initiated with " << uri_;
+		}
+		
 		proto_ = p;
-		Handshake hs1;
-		hs1.magic = ftl::net::MAGIC;
-		hs1.name_size = 0;
-		hs1.proto_size = p->id().size();
-		send(FTL_PROTOCOL_HS1, hs1, p->id());
-		LOG(INFO) << "Handshake initiated with " << uri_;
 	} else {
-		Handshake hs1;
+		/*Handshake hs1;
 		hs1.magic = ftl::net::MAGIC;
 		hs1.name_size = 0;
 		hs1.proto_size = 0;
 		send(FTL_PROTOCOL_HS1, hs1);
-		LOG(INFO) << "Handshake initiated with " << uri_;
+		LOG(INFO) << "Handshake initiated with " << uri_;*/
 	}
 }
 
@@ -331,14 +334,8 @@ void Socket::handshake1() {
 	if (header.proto_size > 0) read(protouri,header.proto_size);
 
 	if (protouri.size() > 0) {
-		auto proto = Protocol::find(protouri);
-		if (proto == NULL) {
-			LOG(ERROR) << "Protocol (" << protouri << ") not found during handshake for " << uri_;
-			close();
-			return;
-		} else {
-			proto_ = proto;
-		}
+		remote_proto_ = protouri;
+		// TODO Validate protocols with local protocol?
 	}
 
 	send(FTL_PROTOCOL_HS2); // TODO Counterpart protocol.

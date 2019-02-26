@@ -211,6 +211,7 @@ TEST_CASE("Net Integration", "[integrate]") {
 	l->onConnection([&s1](auto &s) { s1 = s; });
 	
 	shared_ptr<Socket> s2 = ftl::net::connect("tcp://localhost:9000");
+	s2->setProtocol(&p);
 	
 	REQUIRE( s2 != nullptr );
 	ftl::net::wait([&s2]() { return s2->isConnected(); });

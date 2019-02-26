@@ -172,6 +172,7 @@ class Socket {
 	
 	std::string uri_;
 	std::string peerid_;
+	std::string remote_proto_;
 
 	Protocol *proto_; 
 	
