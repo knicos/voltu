@@ -40,7 +40,7 @@ bool run(bool async=false);
  */
 bool wait();
 
-void wait(std::function<bool(void)>);
+void wait(std::function<bool(void)>, float t=3.0f);
 
 /**
  * Check and process any waiting messages, but do not block if there are none.

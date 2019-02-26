@@ -191,9 +191,9 @@ bool ftl::net::wait() {
 	return _run(false,false);
 }
 
-void ftl::net::wait(std::function<bool(void)> f) {
+void ftl::net::wait(std::function<bool(void)> f, float to) {
 	auto start = steady_clock::now();
-	while (!f() && duration<float>(steady_clock::now() - start).count() < 3.0)
+	while (!f() && duration<float>(steady_clock::now() - start).count() < to)
 		_run(false,false);
 }
 

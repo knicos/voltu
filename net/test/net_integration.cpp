@@ -178,7 +178,7 @@ TEST_CASE("net::listen()", "[net]") {
 		bool connected = false;
 		
 		l->onConnection([&](shared_ptr<Socket> s) {
-			ftl::net::wait(); // Wait for handshake
+			ftl::net::wait([&s]() { return s->isConnected(); });
 			REQUIRE( s->isConnected() );
 			connected = true;
 		});
@@ -212,11 +212,10 @@ TEST_CASE("Net Integration", "[integrate]") {
 	
 	shared_ptr<Socket> s2 = ftl::net::connect("tcp://localhost:9000");
 	
-	ftl::net::wait(); // TODO, make setProtocol block until handshake complete
-	ftl::net::wait();
-	REQUIRE( s1 != nullptr );
 	REQUIRE( s2 != nullptr );
-	
+	ftl::net::wait([&s2]() { return s2->isConnected(); });
+	REQUIRE( s1 != nullptr );	
+
 	REQUIRE( s1->isConnected() );
 	REQUIRE( s2->isConnected() );
 	

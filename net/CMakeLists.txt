@@ -29,6 +29,7 @@ set(FTLSOURCE
 	src/listener.cpp
 	src/socket.cpp
 	src/dispatcher.cpp
+	src/protocol.cpp
 )
 
 check_include_file("uriparser/Uri.h" HAVE_URI_H)
