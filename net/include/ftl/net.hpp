@@ -2,6 +2,7 @@
 #define _FTL_NET_HPP_
 
 #include <memory>
+#include <functional>
 
 namespace ftl {
 namespace net {
@@ -38,6 +39,8 @@ bool run(bool async=false);
  * processed.
  */
 bool wait();
+
+void wait(std::function<bool(void)>);
 
 /**
  * Check and process any waiting messages, but do not block if there are none.

@@ -6,14 +6,14 @@
 using ftl::net::Socket;
 using ftl::net::Protocol;
 
-std::map<uint64_t,Protocol*> Protocol::protocols__;
+std::map<std::string,Protocol*> Protocol::protocols__;
 
-Protocol *Protocol::find(uint64_t id) {
+Protocol *Protocol::find(const std::string &id) {
 	if (protocols__.count(id) > 0) return protocols__[id];
 	else return NULL;
 }
 
-Protocol::Protocol(uint64_t id) : id_(id) {
+Protocol::Protocol(const std::string &id) : id_(id) {
 	protocols__[id] = this;
 }
 

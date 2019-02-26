@@ -28,12 +28,14 @@ struct Header {
 };
 
 struct Handshake {
-	uint64_t proto;			// The protocol the other party is expected to use.
-	char peerid[16];		// GUID for the origin peer.
-	char reserved_[32];		// RESERVED, must be 0.
+	uint64_t magic;
+	uint32_t name_size;
+	uint32_t proto_size;
 };
 
 #pragma pack(pop)
+
+static const uint64_t MAGIC = 0x1099340053640912;
 
 /**
  * Each instance of this Protocol class represents a specific protocol. A
@@ -47,7 +49,7 @@ class Protocol {
 	friend class Socket;
 	
 	public:
-	Protocol(uint64_t id);
+	Protocol(const std::string &id);
 	~Protocol();
 	
 	/**
@@ -63,9 +65,9 @@ class Protocol {
 			
 	// broadcast?
 	
-	uint64_t id() const { return id_; }
+	const std::string &id() const { return id_; }
 	
-	static Protocol *find(uint64_t id);
+	static Protocol *find(const std::string &id);
 			
 	protected:
 	void dispatchRPC(Socket &, const std::string &d);
@@ -78,9 +80,9 @@ class Protocol {
 	private:
 	ftl::net::Dispatcher disp_;
 	std::map<uint32_t,std::function<void(uint32_t,Socket&)>> handlers_;
-	uint64_t id_;
+	std::string id_;
 	
-	static std::map<uint64_t,Protocol*> protocols__;
+	static std::map<std::string,Protocol*> protocols__;
 };
 
 // --- Template Implementations ------------------------------------------------

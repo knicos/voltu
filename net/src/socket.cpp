@@ -207,14 +207,25 @@ int Socket::close() {
 }
 
 void Socket::setProtocol(Protocol *p) {
-	if (proto_ == p) return;
-	if (proto_ && proto_->id() == p->id()) return;
-	
-	proto_ = p;
-	ftl::net::Handshake hs1;
-	hs1.proto = p->id();
-	send(FTL_PROTOCOL_HS1, std::string((char*)&hs1, sizeof(hs1)));
-	LOG(INFO) << "Handshake initiated with " << uri_;
+	if (p != NULL) {
+		if (proto_ == p) return;
+		if (proto_ && proto_->id() == p->id()) return;
+		
+		proto_ = p;
+		Handshake hs1;
+		hs1.magic = ftl::net::MAGIC;
+		hs1.name_size = 0;
+		hs1.proto_size = p->id().size();
+		send(FTL_PROTOCOL_HS1, hs1, p->id());
+		LOG(INFO) << "Handshake initiated with " << uri_;
+	} else {
+		Handshake hs1;
+		hs1.magic = ftl::net::MAGIC;
+		hs1.name_size = 0;
+		hs1.proto_size = 0;
+		send(FTL_PROTOCOL_HS1, hs1);
+		LOG(INFO) << "Handshake initiated with " << uri_;
+	}
 }
 
 void Socket::error() {
@@ -278,9 +289,9 @@ bool Socket::data() {
 	gpos_ = 0;
 	
 	if (service == FTL_PROTOCOL_HS1 && !connected_) {
-		handshake1(d);
+		handshake1();
 	} else if (service == FTL_PROTOCOL_HS2 && !connected_) {
-		handshake2(d);
+		handshake2();
 	} else if (service == FTL_PROTOCOL_RPC) {
 		if (proto_) proto_->dispatchRPC(*this, d);
 		else LOG(WARNING) << "No protocol set for socket " << uri_;
@@ -309,53 +320,33 @@ int Socket::read(std::string &s, size_t count) {
 	return count;
 }
 
-void Socket::handshake1(const std::string &d) {
-	ftl::net::Handshake *hs;
-	if (d.size() != sizeof(ftl::net::Handshake)) {
-		LOG(ERROR) << "Handshake failed for " << uri_;
-		close();
-		return;
+void Socket::handshake1() {
+	Handshake header;
+	read(header);
+
+	std::string peer;
+	if (header.name_size > 0) read(peer,header.name_size);
+
+	std::string protouri;
+	if (header.proto_size > 0) read(protouri,header.proto_size);
+
+	if (protouri.size() > 0) {
+		auto proto = Protocol::find(protouri);
+		if (proto == NULL) {
+			LOG(ERROR) << "Protocol (" << protouri << ") not found during handshake for " << uri_;
+			close();
+			return;
+		} else {
+			proto_ = proto;
+		}
 	}
-	
-	hs = (ftl::net::Handshake*)d.data();
-	auto proto = Protocol::find(hs->proto);
-	if (proto == NULL) {
-		LOG(ERROR) << "Protocol (" << hs->proto << ") not found during handshake for " << uri_;
-		close();
-		return;
-	} else {
-		proto_ = proto;
-	}
-	peerid_ = std::string(&hs->peerid[0],16);
-	
-	ftl::net::Handshake hs2;
-	//hs2.magic = ftl::net::MAGIC;
-	//hs2.version = version_;
-	// TODO Set peerid;
-	send(FTL_PROTOCOL_HS2, std::string((char*)&hs2, sizeof(hs2)));
-	LOG(INFO) << "Handshake" << " confirmed from " << uri_;
+
+	send(FTL_PROTOCOL_HS2); // TODO Counterpart protocol.
+	LOG(INFO) << "Handshake (" << protouri << ") confirmed from " << uri_;
 	_connected();
 }
 
-void Socket::handshake2(const std::string &d) {
-	ftl::net::Handshake *hs;
-	if (d.size() != sizeof(ftl::net::Handshake)) {
-		LOG(ERROR) << "Handshake failed for " << uri_;
-		close();
-		return;
-	}
-	
-	hs = (ftl::net::Handshake*)d.data();
-	/*if (hs->magic != ftl::net::MAGIC) {
-		LOG(ERROR) << "Handshake magic failed for " << uri_;
-		close();
-		return;
-	}
-	
-	version_ = (hs->version > ftl::net::version()) ?
-			ftl::net::version() :
-			hs->version;*/
-	peerid_ = std::string(&hs->peerid[0],16);
+void Socket::handshake2() {
 	LOG(INFO) << "Handshake finalised for " << uri_;
 	_connected();
 }

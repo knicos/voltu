@@ -113,6 +113,8 @@ Listener::~Listener() {
 void Listener::connection(shared_ptr<Socket> &s) {
 	if (default_proto_) {
 		s->setProtocol(default_proto_);
+	} else {
+		s->setProtocol(NULL);
 	}
 	for (auto h : handler_connect_) h(s);
 }

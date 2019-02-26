@@ -27,13 +27,13 @@ void ftl::net::Protocol::dispatchRaw(uint32_t service, Socket &s) {
 
 }
 
-ftl::net::Protocol::Protocol(uint64_t id) {
+ftl::net::Protocol::Protocol(const std::string &id) {
 }
 
 ftl::net::Protocol::~Protocol() {
 }
 
-ftl::net::Protocol *ftl::net::Protocol::find(uint64_t p) {
+ftl::net::Protocol *ftl::net::Protocol::find(const std::string &p) {
 	return NULL;
 }
 
@@ -168,7 +168,7 @@ TEST_CASE("Socket::call()", "[rpc]") {
 
 TEST_CASE("Socket receive RPC", "[rpc]") {
 	MockSocket s;
-	auto p = new Protocol(444);
+	auto p = new Protocol("ftl://utu.fi");
 	s.setProtocol(p);
 	
 	SECTION("no argument call") {		

@@ -162,8 +162,7 @@ TEST_CASE("net::listen()", "[net]") {
 		SECTION("can connect to listening socket") {
 			auto sock = ftl::net::connect("tcp://127.0.0.1:9001");
 			REQUIRE(sock->isValid());
-			ftl::net::wait(); // Handshake 1
-			ftl::net::wait(); // Handshake 2
+			ftl::net::wait([&sock]() { return sock->isConnected(); });
 			REQUIRE(sock->isConnected());
 
 			// TODO Need way of knowing about connection
@@ -194,7 +193,7 @@ TEST_CASE("net::listen()", "[net]") {
 TEST_CASE("Net Integration", "[integrate]") {
 	std::string data;
 	
-	Protocol p(143);
+	Protocol p("ftl://utu.fi");
 	
 	p.bind("add", [](int a, int b) {
 		return a + b;

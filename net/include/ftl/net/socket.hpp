@@ -126,8 +126,8 @@ class Socket {
 	 * is current here for testing purposes.
 	 * @{
 	 */
-	void handshake1(const std::string &d);
-	void handshake2(const std::string &d);
+	void handshake1();
+	void handshake2();
 	/** @} */
 	
 	private: // Functions

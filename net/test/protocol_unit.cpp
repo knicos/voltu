@@ -21,7 +21,7 @@ using ftl::net::Socket;
 
 class MockProtocol : public Protocol {
 	public:
-	MockProtocol() : Protocol(33) {}
+	MockProtocol() : Protocol("ftl://utu.fi") {}
 	void mock_dispatchRPC(Socket &s, const std::string &d) { dispatchRPC(s,d); }
 	void mock_dispatchReturn(Socket &s, const std::string &d) { dispatchReturn(s,d); }
 	void mock_dispatchRaw(uint32_t msg, Socket &s) { dispatchRaw(msg,s); }

@@ -4,8 +4,10 @@
 
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
+using namespace std::chrono;
 using ftl::net::Listener;
 using ftl::net::Socket;
 
@@ -187,6 +189,12 @@ bool ftl::net::check() {
 
 bool ftl::net::wait() {
 	return _run(false,false);
+}
+
+void ftl::net::wait(std::function<bool(void)> f) {
+	auto start = steady_clock::now();
+	while (!f() && duration<float>(steady_clock::now() - start).count() < 3.0)
+		_run(false,false);
 }
 
 bool ftl::net::run(bool async) {
