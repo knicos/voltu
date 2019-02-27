@@ -15,6 +15,7 @@
 #include <winsock.h>
 #endif
 
+#include <iostream>
 #include <sstream>
 #include <tuple>
 #include <vector>

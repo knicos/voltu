@@ -60,8 +60,9 @@ void ftl::net::Dispatcher::dispatch_call(Socket &s, const msgpack::object &msg) 
 			//std::cout << " RESULT " << result.as<std::string>() << std::endl;
 			
 			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
-        } catch (...) {
-			throw;
+        } catch (int e) {
+			//throw;
+			LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
 		}
     }
 }
@@ -76,16 +77,14 @@ void ftl::net::Dispatcher::dispatch_notification(Socket &s, msgpack::object cons
 
     auto &&name = std::get<1>(the_call);
     auto &&args = std::get<2>(the_call);
-    
-    std::cout << "RPC NOTIFY" << name << std::endl;
 
     auto it_func = funcs_.find(name);
 
     if (it_func != end(funcs_)) {
         try {
             auto result = (it_func->second)(args);
-        } catch (...) {
-			throw;
+        } catch (int e) {
+			throw e;
 		}
     }
 }
@@ -93,14 +92,15 @@ void ftl::net::Dispatcher::dispatch_notification(Socket &s, msgpack::object cons
 void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_t found,
                                    std::size_t expected) {
     if (found != expected) {
-        throw;
+    	LOG(FATAL) << "RPC argument missmatch - " << found << " != " << expected;
+        throw -1;
     }
 }
 
 void ftl::net::Dispatcher::enforce_unique_name(std::string const &func) {
     auto pos = funcs_.find(func);
     if (pos != end(funcs_)) {
-        throw;
+        throw -1;
     }
 }
 

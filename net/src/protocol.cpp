@@ -2,6 +2,7 @@
 #include <ftl/net/socket.hpp>
 #include <ftl/net/protocol.hpp>
 #include <functional>
+#include <iostream>
 
 using ftl::net::Socket;
 using ftl::net::Protocol;

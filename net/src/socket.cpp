@@ -396,7 +396,6 @@ int Socket::_send() {
 }
 
 Socket::~Socket() {
-	std::cerr << "DESTROYING SOCKET" << std::endl;
 	close();
 	
 	// Delete socket buffer
