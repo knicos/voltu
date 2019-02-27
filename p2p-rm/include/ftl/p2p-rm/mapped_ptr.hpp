@@ -23,6 +23,8 @@ namespace ftl {
 		T *get() { return blob->data_; }
 		size_t size() const { return blob->size_; }
 		
+		bool is_owner() const { return false; }
+		
 		write_ref<T> operator*();
 		write_ref<T> operator[](ptrdiff_t idx);
 		write_ref<T> writable() { return ftl::write_ref<T>(*this); }

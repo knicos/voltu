@@ -6,6 +6,7 @@
 #include <ftl/p2p-rm/protocol.hpp>
 
 #include <ftl/uri.hpp>
+#include <ftl/uuid.hpp>
 #include <ftl/net/socket.hpp>
 #include <ftl/net/protocol.hpp>
 
@@ -102,7 +103,7 @@ class Cluster : public ftl::net::Protocol {
 	/**
 	 * Connect to a new peer using a URL string.
 	 */
-	void addPeer(const char *url);
+	std::shared_ptr<ftl::net::Socket> addPeer(const char *url);
 	
 	/**
 	 * Allow member functions to be used for RPC calls by binding with 'this'.
@@ -145,10 +146,16 @@ class Cluster : public ftl::net::Protocol {
 	std::map<std::string, ftl::rm::Blob*> blobs_;
 	std::map<int,std::vector<std::tuple<std::shared_ptr<ftl::net::Socket>,std::string>>> rpc_results_;
 
+	// Cache of seen requests.
+	std::unordered_map<ftl::UUID,long int> requests_;
+
 	ftl::rm::Blob *_lookup(const char *uri);
 	Blob *_create(const char *uri, char *addr, size_t size, size_t count,
 		ftl::rm::flags_t flags, const std::string &tname);
 	void _registerRPC(ftl::net::Socket &s);
+	
+	private:
+	std::tuple<std::string,uint32_t> getOwner_RPC(const ftl::UUID &u, int ttl, const std::string &uri);
 };
 
 };

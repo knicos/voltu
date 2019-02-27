@@ -12,5 +12,19 @@
 #define P2P_PEERSEARCH			(FTL_PROTOCOL_FREE + 6)
 #define P2P_RPC_CALL			(FTL_PROTOCOL_FREE + 7)
 
+namespace ftl {
+namespace rm {
+	struct P2PQuery {
+		char guid[16];
+		uint8_t ttl;
+	};
+	
+	struct MemOwner {
+		char peer[16];
+		uint64_t age;
+	};
+};
+};
+
 #endif // _FTL_P2P_RM_PROTOCOL_HPP_
 

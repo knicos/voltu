@@ -1,3 +1,4 @@
+#include <glog/logging.h>
 #include "ftl/p2p-rm.hpp"
 #include "ftl/p2p-rm/blob.hpp"
 #include "ftl/p2p-rm/protocol.hpp"
@@ -11,16 +12,20 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <chrono>
 
 using ftl::rm::Cluster;
 using ftl::net::Listener;
 using std::map;
 using std::vector;
+using std::tuple;
 using std::shared_ptr;
 using std::string;
 using ftl::URI;
 using ftl::rm::Blob;
 using ftl::net::Socket;
+using ftl::UUID;
+using namespace std::chrono;
 
 Cluster::Cluster(const URI &uri, shared_ptr<Listener> l) : Protocol(uri.getBaseURI()), listener_(l) {
 	//auto me = this;
@@ -62,6 +67,12 @@ void Cluster::reset() {
 void Cluster::_registerRPC(Socket &s) {
 	//s.bind("getowner", [this](const std::string &u) { getOwner(u.c_str()); });
 	bind("getowner", member(&Cluster::getOwner));
+	
+	bind("nop", []() { return true; });
+	
+	bind(P2P_SYNC, [this](uint32_t msg, Socket &s) {
+		LOG(INFO) << "Receive blob sync";
+	});
 }
 
 void Cluster::addPeer(shared_ptr<Socket> &p, bool incoming) {
@@ -85,9 +96,10 @@ void Cluster::addPeer(shared_ptr<Socket> &p, bool incoming) {
 	}
 }
 
-void Cluster::addPeer(const char *url) {
+shared_ptr<Socket> Cluster::addPeer(const char *url) {
 	auto sock = ftl::net::connect(url);
 	addPeer(sock);
+	return sock;
 }
 
 Blob *Cluster::_lookup(const char *uri) {
@@ -107,17 +119,26 @@ Blob *Cluster::_lookup(const char *uri) {
 	return b;
 }
 
-std::string Cluster::getOwner(const std::string &uri) {
-	vector<string> results;
+tuple<string,uint32_t> Cluster::getOwner_RPC(const UUID &u, int ttl, const std::string &uri) {
+	if (requests_.count(u) > 0) return {"",0};
+	requests_[u] = duration_cast<seconds>(steady_clock::now().time_since_epoch()).count();
 	
 	std::cout << "GETOWNER" << std::endl;
-	if (blobs_.count(uri) != 0) return blobs_[uri]->owner_;
-
-	broadcastCall("getowner", results, uri);
+	if (blobs_.count(uri) != 0) return {blobs_[uri]->owner_,0};
+	
+	vector<tuple<string,uint32_t>> results;
+	broadcastCall("getowner", results, u, ttl-1, uri);
 	
 	// TODO Verify all results are equal or empty
-	if (results.size() == 0) return "";
+	if (results.size() == 0) return {"",0};
 	return results[0];
+}
+
+std::string Cluster::getOwner(const std::string &uri) {
+	UUID u;
+	int ttl = 10;
+
+	return std::get<0>(getOwner_RPC(u, ttl, uri));
 }
 
 Blob *Cluster::_create(const char *uri, char *addr, size_t size, size_t count,
