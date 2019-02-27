@@ -23,8 +23,6 @@ namespace ftl {
 		T *get() { return blob->data_; }
 		size_t size() const { return blob->size_; }
 		
-		bool is_owner() const { return false; }
-		
 		write_ref<T> operator*();
 		write_ref<T> operator[](ptrdiff_t idx);
 		write_ref<T> writable() { return ftl::write_ref<T>(*this); }
@@ -84,7 +82,10 @@ namespace ftl {
 		mapped_ptr<T> ptr_;
 		
 		// Constructor
-		write_ref(mapped_ptr<T> ptr) : ptr_(ptr), wlock_(ptr.blob->mutex_) {}
+		write_ref(mapped_ptr<T> ptr) : ptr_(ptr), wlock_(ptr.blob->mutex_) {
+			// Ensure ownership
+			ptr.blob->becomeOwner();
+		}
 		~write_ref() { ptr_.blob->finished(); }
 		
 		bool is_valid() const { return !ptr_.is_null(); }

@@ -11,6 +11,7 @@ namespace ftl {
 	class UUID {
 		public:
 		UUID() { uuid_generate(uuid_); };
+		UUID(int u) { memset(uuid_,u,16); };
 		UUID(const UUID &u) { memcpy(uuid_,u.uuid_,16); }
 		
 		bool operator==(const UUID &u) const { return memcmp(uuid_,u.uuid_,16) == 0; }
@@ -18,6 +19,12 @@ namespace ftl {
 		
 		std::string str() const { return std::string((char*)uuid_,16); };
 		const unsigned char *raw() const { return &uuid_[0]; }
+		
+		std::string to_string() const {
+			char b[37];
+			uuid_unparse(uuid_, b);
+			return std::string(b);
+		}
 		
 		MSGPACK_DEFINE(uuid_);
 		

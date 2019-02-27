@@ -14,8 +14,6 @@ SCENARIO( "Pre-connection ownership resolution", "[ownership]" ) {
 	l->setProtocol(&c1);
 	Cluster c2("ftl://utu.fi", l);
 	
-	auto s = c1.addPeer("tcp://localhost:9000");
-	
 	int data1 = 89;
 	int data2 = 99;
 	
@@ -24,10 +22,12 @@ SCENARIO( "Pre-connection ownership resolution", "[ownership]" ) {
 	REQUIRE( m1.is_valid() );
 	REQUIRE( m2.is_valid() );
 	
+	auto s = c1.addPeer("tcp://localhost:9000");
+	
 	ftl::net::wait([&s]() { return s->isConnected(); });
 	
-	REQUIRE( m2.is_owner() );
-	REQUIRE( !m1.is_owner() );
+	REQUIRE( Cluster::is_owner(m2) );
+	REQUIRE( !Cluster::is_owner(m1) );
 	
 	l->close();
 	ftl::net::stop();
@@ -52,8 +52,8 @@ SCENARIO( "Post-connection ownership resolution", "[ownership]" ) {
 	REQUIRE( m1.is_valid() );
 	REQUIRE( m2.is_valid() );
 	
-	REQUIRE( !m2.is_owner() );
-	REQUIRE( m1.is_owner() );
+	REQUIRE( !Cluster::is_owner(m2) );
+	REQUIRE( Cluster::is_owner(m1) );
 	
 	l->close();
 	ftl::net::stop();
@@ -77,13 +77,13 @@ SCENARIO( "Write change ownership", "[ownership]" ) {
 	REQUIRE( m1.is_valid() );
 	REQUIRE( m2.is_valid() );
 	
-	REQUIRE( !m2.is_owner() );
-	REQUIRE( m1.is_owner() );
+	REQUIRE( Cluster::is_owner(m1) );
+	REQUIRE( !Cluster::is_owner(m2) );
 	
 	*m2 = 676;
 	
-	REQUIRE( m2.is_owner() );
-	REQUIRE( !m1.is_owner() );
+	REQUIRE( Cluster::is_owner(m2) );
+	REQUIRE( !Cluster::is_owner(m1) );
 	
 	l->close();
 	ftl::net::stop();

@@ -35,6 +35,12 @@ class Cluster : public ftl::net::Protocol {
 	
 	void reset();
 	inline void destroy() { reset(); }
+	const UUID &id() const { return id_; }
+	
+	template <typename T>
+	static bool is_owner(const ftl::mapped_ptr<T> &p) {
+		return (p.blob) ? p.blob->cluster_->id() == p.blob->owner_ : false;
+	}
 	
 	/**
 	 * Obtain a remote pointer from a URI. A nullptr is returned if the URI is
@@ -113,7 +119,7 @@ class Cluster : public ftl::net::Protocol {
 	  return [this,f](Args... args) -> R { return (this->*f)(std::forward<Args>(args)...); };
 	}
 	
-	std::string getOwner(const std::string &uri);
+	ftl::UUID getOwner(const std::string &uri);
 	
 	/**
 	 * Make an RPC call to all connected peers and put into a results vector.
@@ -126,6 +132,7 @@ class Cluster : public ftl::net::Protocol {
 			ARGS... args) {
 		int count = 0;
 		auto f = [&count,&results](const T &r) {
+			std::cout << "broadcast return" << std::endl;
 			count--;
 			results.push_back(r);
 		};
@@ -140,6 +147,7 @@ class Cluster : public ftl::net::Protocol {
 	}
 	
 	private:
+	UUID id_;
 	std::string root_;
 	std::shared_ptr<ftl::net::Listener> listener_;
 	std::vector<std::shared_ptr<ftl::net::Socket>> peers_;
@@ -152,10 +160,10 @@ class Cluster : public ftl::net::Protocol {
 	ftl::rm::Blob *_lookup(const char *uri);
 	Blob *_create(const char *uri, char *addr, size_t size, size_t count,
 		ftl::rm::flags_t flags, const std::string &tname);
-	void _registerRPC(ftl::net::Socket &s);
+	void _registerRPC();
 	
 	private:
-	std::tuple<std::string,uint32_t> getOwner_RPC(const ftl::UUID &u, int ttl, const std::string &uri);
+	std::tuple<ftl::UUID,uint32_t> getOwner_RPC(const ftl::UUID &u, int ttl, const std::string &uri);
 };
 
 };

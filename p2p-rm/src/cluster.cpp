@@ -30,12 +30,16 @@ using namespace std::chrono;
 Cluster::Cluster(const URI &uri, shared_ptr<Listener> l) : Protocol(uri.getBaseURI()), listener_(l) {
 	//auto me = this;
 	root_ = uri.getHost();
+	
+	_registerRPC();
 
 	if (l != nullptr) {
 		l->onConnection([&](shared_ptr<Socket> &s) {
 			addPeer(s, true);		
 		});
 	}
+	
+	LOG(INFO) << "Cluster UUID = " << id_.to_string();
 }
 
 Cluster::Cluster(const char *uri, shared_ptr<Listener> l) : Protocol(uri), listener_(l) {
@@ -45,12 +49,17 @@ Cluster::Cluster(const char *uri, shared_ptr<Listener> l) : Protocol(uri), liste
 	if (u.getPath().size() > 0) return;
 
 	root_ = u.getHost();
+	
+	_registerRPC();
 
 	if (l != nullptr) {
+		l->setProtocol(this);
 		l->onConnection([&](shared_ptr<Socket> &s) {
 			addPeer(s, true);		
 		});
 	}
+	
+	LOG(INFO) << "Cluster UUID = " << id_.to_string();
 }
 
 Cluster::~Cluster() {
@@ -64,9 +73,9 @@ void Cluster::reset() {
 	blobs_.clear();
 }
 
-void Cluster::_registerRPC(Socket &s) {
-	//s.bind("getowner", [this](const std::string &u) { getOwner(u.c_str()); });
-	bind("getowner", member(&Cluster::getOwner));
+void Cluster::_registerRPC() {
+	bind("getowner", [this](const UUID &u, int ttl, const std::string &uri) { return getOwner_RPC(u,ttl,uri); });
+	//bind("getowner", member(&Cluster::getOwner_RPC));
 	
 	bind("nop", []() { return true; });
 	
@@ -81,15 +90,17 @@ void Cluster::addPeer(shared_ptr<Socket> &p, bool incoming) {
 	//p.setProtocol(this);
 
 	peers_.push_back(p);
-	_registerRPC(*p);
 	
 	if (!incoming) {
 		p->onConnect([this](Socket &s) {
+			UUID q;
+			int ttl = 10;
+			
 			for (auto b : blobs_) {
-				auto o = s.call<string>("getowner", b.first);
-				if (o.size() > 0) {
+				auto o = std::get<0>(s.call<tuple<UUID,uint32_t>>("getowner", q, ttl, b.first));
+				if (o != id() && o != UUID(0)) {
 					b.second->owner_ = o;
-					LOG(INFO) << "Lost ownership of " << b.first.c_str() << " to " << o;
+					LOG(INFO) << "Lost ownership of " << b.first.c_str() << " to " << o.to_string();
 				}
 			}
 		});
@@ -98,6 +109,7 @@ void Cluster::addPeer(shared_ptr<Socket> &p, bool incoming) {
 
 shared_ptr<Socket> Cluster::addPeer(const char *url) {
 	auto sock = ftl::net::connect(url);
+	sock->setProtocol(this);
 	addPeer(sock);
 	return sock;
 }
@@ -119,22 +131,23 @@ Blob *Cluster::_lookup(const char *uri) {
 	return b;
 }
 
-tuple<string,uint32_t> Cluster::getOwner_RPC(const UUID &u, int ttl, const std::string &uri) {
-	if (requests_.count(u) > 0) return {"",0};
+tuple<UUID,uint32_t> Cluster::getOwner_RPC(const UUID &u, int ttl, const std::string &uri) {
+	if (requests_.count(u) > 0) return {UUID(0),0};
 	requests_[u] = duration_cast<seconds>(steady_clock::now().time_since_epoch()).count();
 	
-	std::cout << "GETOWNER" << std::endl;
-	if (blobs_.count(uri) != 0) return {blobs_[uri]->owner_,0};
+	if (blobs_.count(uri) > 0) {
+		return {blobs_[uri]->owner_,0};
+	}
 	
-	vector<tuple<string,uint32_t>> results;
+	vector<tuple<UUID,uint32_t>> results;
 	broadcastCall("getowner", results, u, ttl-1, uri);
 	
 	// TODO Verify all results are equal or empty
-	if (results.size() == 0) return {"",0};
+	if (results.size() == 0) return {UUID(0),0};
 	return results[0];
 }
 
-std::string Cluster::getOwner(const std::string &uri) {
+UUID Cluster::getOwner(const std::string &uri) {
 	UUID u;
 	int ttl = 10;
 
@@ -148,25 +161,30 @@ Blob *Cluster::_create(const char *uri, char *addr, size_t size, size_t count,
 	if (u.getScheme() != ftl::URI::SCHEME_FTL) return NULL;
 	if (u.getHost() != root_) { std::cerr << "Non matching host : " << u.getHost() << " - " << root_ << std::endl; return NULL; }
 	
-	if (blobs_[u.getBaseURI()] != NULL) return NULL;
+	if (blobs_.count(u.getBaseURI()) > 0) {
+		LOG(WARNING) << "Mapping already exists for " << uri;
+		return blobs_[u.getBaseURI()];
+	}
 	
 	Blob *b = new Blob;
 
+	b->cluster_ = this;
 	b->data_ = addr;
 	b->size_ = size;
 	b->uri_ = std::string(uri);
-	b->owner_ = "";
-	blobs_[u.getBaseURI()] = b;
+	b->owner_ = id(); // I am initial owner by default...
 
-	std::string o = getOwner(uri);
-	if (o.size() == 0) {
+	UUID o = getOwner(uri);
+	if (o == id() || o == UUID(0)) {
 		// I am the owner!
-		std::cout << "I own " << uri << std::endl;
-		b->owner_ = "me";
+		//b->owner_ = "me";
 	} else {
-		std::cout << "I do not own " << uri << std::endl;
 		b->owner_ = o;
 	}
+	
+	LOG(INFO) << "Mapping address to " << uri;
+	
+	blobs_[u.getBaseURI()] = b;
 	
 	//std::cout << owners << std::endl;
 	

@@ -2,6 +2,7 @@
 #include <ftl/p2p-rm/blob.hpp>
 #include <ftl/net/socket.hpp>
 #include <ftl/p2p-rm/protocol.hpp>
+#include <ftl/p2p-rm/cluster.hpp>
 
 #include <iostream>
 
@@ -33,6 +34,12 @@ void ftl::rm::_sync(const Blob &blob, size_t offset, size_t size) {
 				array{&blob.data_[offset],size});
 		}
 	}
+}
+
+void ftl::rm::Blob::becomeOwner() {
+	if (cluster_->id() == owner_) return;
+	
+	std::cout << "NOT OWNED BUT WRITING" << std::endl;
 }
 
 void ftl::rm::Blob::finished() {

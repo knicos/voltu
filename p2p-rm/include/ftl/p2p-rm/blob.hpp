@@ -4,11 +4,14 @@
 #include <mutex>
 #include <shared_mutex>
 #include <ftl/net.hpp>
+#include <ftl/uuid.hpp>
 #include <string>
 #include <vector>
 
 namespace ftl {
 namespace rm {
+
+class Cluster;
 
 /* NOT TO BE USED DIRECTLY */
 struct Blob {
@@ -19,10 +22,12 @@ struct Blob {
 	char *data_;
 	size_t size_;
 	std::string uri_;
-	std::string owner_;
+	ftl::UUID owner_;
 	uint32_t blobid_;
+	Cluster *cluster_;
 	
 	void finished();
+	void becomeOwner();
 	//void write(size_t offset, const char *data, size_t size);
 	//void read(size_t offset, char *data, size_t size);
 	void sync(size_t offset, size_t size);
