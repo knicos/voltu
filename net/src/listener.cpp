@@ -83,6 +83,8 @@ int tcpListen(URI &uri) {
 		return INVALID_SOCKET;
 	}
 	
+	LOG(INFO) << "Listening on " << uri.getBaseURI();
+	
 	return ssock;
 }
 

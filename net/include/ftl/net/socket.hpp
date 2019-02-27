@@ -39,6 +39,8 @@ struct caller : virtual_caller {
 	std::function<void(const T&)> f_;
 };
 
+typedef std::tuple<const char*,size_t> array;
+
 /**
  * A single socket connection object, to be constructed using the connect()
  * function and not to be created directly.
@@ -140,8 +142,8 @@ class Socket {
 	template <typename... ARGS>
 	int _send(const std::string &t, ARGS... args);
 	
-	template <typename T, typename... ARGS>
-	int _send(const T *t, int s, ARGS... args);
+	template <typename... ARGS>
+	int _send(const array &b, ARGS... args);
 	
 	template <typename T, typename... ARGS>
 	int _send(const std::vector<T> &t, ARGS... args);
@@ -228,11 +230,11 @@ int Socket::_send(const std::string &t, ARGS... args) {
 	return t.size()+_send(args...);
 }
 
-template <typename T, typename... ARGS>
-int Socket::_send(const T *t, int s, ARGS... args) {
-	send_vec_.push_back({const_cast<char*>(t),(size_t)s});
-	header_w_->size += s;
-	return s+_send(args...);
+template <typename... ARGS>
+int Socket::_send(const ftl::net::array &b, ARGS... args) {
+	send_vec_.push_back({const_cast<char*>(std::get<0>(b)),std::get<1>(b)});
+	header_w_->size += std::get<1>(b);
+	return std::get<1>(b)+_send(args...);
 }
 
 template <typename T, typename... ARGS>

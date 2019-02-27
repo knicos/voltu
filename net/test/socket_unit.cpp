@@ -248,7 +248,7 @@ TEST_CASE("Socket::send()", "[io]") {
 	}
 	
 	SECTION("send const char* array") {
-		s.send(100,"hello world",10);
+		s.send(100,ftl::net::array{"hello world",10});
 		
 		REQUIRE( get_service(0) == 100 );
 		REQUIRE( get_size(0) == 10 );
