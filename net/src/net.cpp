@@ -11,7 +11,7 @@ using namespace std::chrono;
 using ftl::net::Listener;
 using ftl::net::Socket;
 
-static std::vector<shared_ptr<ftl::net::Socket>> sockets;
+ std::vector<shared_ptr<ftl::net::Socket>> sockets;
 static std::vector<shared_ptr<ftl::net::Listener>> listeners;
 static fd_set sfdread;
 static fd_set sfderror;

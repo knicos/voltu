@@ -55,14 +55,22 @@ void ftl::net::Dispatcher::dispatch_call(Socket &s, const msgpack::object &msg) 
             auto result = (it_func->second)(args); //->get();
             response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
 			std::stringstream buf;
-			msgpack::pack(buf, res_obj);
-			
-			//std::cout << " RESULT " << result.as<std::string>() << std::endl;
-			
+			msgpack::pack(buf, res_obj);			
 			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
-        } catch (int e) {
+		} catch (const std::exception &e) {
 			//throw;
-			LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+            response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
+			std::stringstream buf;
+			msgpack::pack(buf, res_obj);			
+			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
+		} catch (int e) {
+			//throw;
+			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+            response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
+			std::stringstream buf;
+			msgpack::pack(buf, res_obj);			
+			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
 		}
     }
 }

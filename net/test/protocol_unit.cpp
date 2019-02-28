@@ -1,18 +1,22 @@
 #include "catch.hpp"
 #include <ftl/net/protocol.hpp>
+#include <ftl/net/dispatcher.hpp>
 
 using ftl::net::Protocol;
+using ftl::net::Dispatcher;
 
 // --- Mock --------------------------------------------------------------------
 
 #define _FTL_NET_SOCKET_HPP_ // Prevent include
+
+static std::string last_send;
 
 namespace ftl {
 namespace net {
 class Socket {
 	public:
 	std::string getURI() { return "mock://"; }
-	int send(int msg, const std::string &d) { return 0; }
+	int send(int msg, const std::string &d) { last_send = d; return 0; }
 };
 };
 };
@@ -28,6 +32,13 @@ class MockProtocol : public Protocol {
 };
 
 // --- Support -----------------------------------------------------------------
+
+Dispatcher::response_t get_response() {
+	auto unpacked = msgpack::unpack(last_send.data(), last_send.size());
+	Dispatcher::response_t the_result;
+	unpacked.get().convert(the_result);
+	return the_result;
+}
 
 // --- Files to test -----------------------------------------------------------
 
@@ -64,11 +75,11 @@ TEST_CASE("Protocol::bind(int,...)", "[proto]") {
 	}
 }
 
-TEST_CASE("Protocol::bind(string,...)", "[proto]") {
+SCENARIO("Protocol::bind(string,...)", "[proto]") {
 	MockProtocol p;
 	Socket s;
 	
-	SECTION("no argument bind with valid dispatch") {
+	GIVEN("no arguments and no return") {
 		bool called = false;
 		
 		p.bind("test1", [&]() {
@@ -84,7 +95,7 @@ TEST_CASE("Protocol::bind(string,...)", "[proto]") {
 		REQUIRE( called );
 	}
 	
-	SECTION("multiple bindings") {
+	GIVEN("multiple no argument bindings") {
 		bool called1 = false;
 		bool called2 = false;
 		
@@ -105,7 +116,7 @@ TEST_CASE("Protocol::bind(string,...)", "[proto]") {
 		REQUIRE( called2 );
 	}
 	
-	SECTION("one argument bind with valid dispatch") {
+	GIVEN("one argument") {
 		bool called = false;
 		
 		p.bind("test1", [&](int a) {
@@ -122,7 +133,7 @@ TEST_CASE("Protocol::bind(string,...)", "[proto]") {
 		REQUIRE( called );
 	}
 	
-	SECTION("two argument bind fake dispatch") {
+	GIVEN("two arguments no return") {
 		bool called = false;
 		
 		p.bind("test1", [&](int a, float b) {
@@ -140,7 +151,7 @@ TEST_CASE("Protocol::bind(string,...)", "[proto]") {
 		REQUIRE( called );
 	}
 	
-	SECTION("non-void bind no arguments") {
+	GIVEN("integer return, no arguments") {
 		bool called = false;
 		
 		p.bind("test1", [&]() -> int {
@@ -156,7 +167,85 @@ TEST_CASE("Protocol::bind(string,...)", "[proto]") {
 		p.mock_dispatchRPC(s, buf.str());
 		REQUIRE( called );
 		
-		// TODO Require that a writev occurred with result value
+		auto [kind,id,err,res] = get_response();
+		REQUIRE( res.as<int>() == 55 );
+		REQUIRE( kind == 1 );
+		REQUIRE( id == 0 );
+		REQUIRE( err.type == 0 );
+	}
+	
+	GIVEN("integer return and one argument") {
+		bool called = false;
+		
+		p.bind("test1", [&](int a) -> int {
+			called = true;
+			return a+2;
+		});
+		
+		auto args_obj = std::make_tuple(12);
+		auto call_obj = std::make_tuple(0,0,"test1",args_obj);
+		std::stringstream buf;
+		msgpack::pack(buf, call_obj);
+		
+		p.mock_dispatchRPC(s, buf.str());
+		REQUIRE( called );
+		
+		auto [kind,id,err,res] = get_response();
+		REQUIRE( res.as<int>() == 14 );
+		REQUIRE( kind == 1 );
+		REQUIRE( id == 0 );
+		REQUIRE( err.type == 0 );
+	}
+	
+	GIVEN("an integer exception in bound function") {
+		bool called = false;
+		
+		p.bind("test1", [&](int a) {
+			called = true;
+			throw -1;
+		});
+		
+		auto args_obj = std::make_tuple(5);
+		auto call_obj = std::make_tuple(0,0,"test1",args_obj);
+		std::stringstream buf;
+		msgpack::pack(buf, call_obj);
+		
+		p.mock_dispatchRPC(s, buf.str());
+		REQUIRE( called );
+		
+		auto [kind,id,err,res] = get_response();
+		REQUIRE( res.type == 0 );
+		REQUIRE( kind == 1 );
+		REQUIRE( id == 0 );
+		REQUIRE( err.as<int>() == -1 );
+	}
+	
+	GIVEN("a custom std::exception in bound function") {
+		bool called = false;
+		
+		struct CustExcept : public std::exception {
+			const char *what() const noexcept { return "My exception"; }
+		};
+		
+		p.bind("test1", [&](int a) {
+			called = true;
+			throw CustExcept();
+		});
+		
+		auto args_obj = std::make_tuple(5);
+		auto call_obj = std::make_tuple(0,0,"test1",args_obj);
+		std::stringstream buf;
+		msgpack::pack(buf, call_obj);
+		
+		p.mock_dispatchRPC(s, buf.str());
+		REQUIRE( called );
+		
+		auto [kind,id,err,res] = get_response();
+		REQUIRE( res.type == 0 );
+		REQUIRE( kind == 1 );
+		REQUIRE( id == 0 );
+		REQUIRE( err.type == 5 );
+		REQUIRE( err.as<std::string>() == "My exception" );
 	}
 }
 

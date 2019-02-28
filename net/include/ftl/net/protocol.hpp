@@ -69,7 +69,7 @@ class Protocol {
 	
 	static Protocol *find(const std::string &id);
 			
-	protected:
+	//protected:
 	void dispatchRPC(Socket &, const std::string &d);
 	void dispatchReturn(Socket &, const std::string &d);
 	void dispatchRaw(uint32_t service, Socket &);
