@@ -13,7 +13,8 @@ using ftl::net::Socket;
 
 // --- Mock --------------------------------------------------------------------
 
-static std::string last_send;
+static std::vector<std::string> last_send;
+static int last_pos = 0;
 
 using ftl::net::Socket;
 
@@ -28,16 +29,21 @@ class MockSocket : public Socket {
 
 extern int select(int nfds, fd_set *readfds, fd_set *writefds,
                   fd_set *exceptfds, struct timeval *timeout) {
-    std::cout << "SELECT CALLED" << std::endl;
+   // std::cout << "SELECT CALLED" << std::endl;
+    FD_ZERO(exceptfds);
+    FD_ZERO(readfds);
+    if ((size_t)last_pos < last_send.size()) FD_SET(0, readfds);
 	return 1;      
 }
 
 extern ssize_t recv(int sd, void *buf, size_t n, int f) {	
-	std::cout << "Recv called : " << last_send.size() << std::endl;
-	int l = last_send.size();
+	if ((size_t)last_pos >= last_send.size()) return 0;
+	//std::cout << "Recv called : " << last_send[last_pos].size() << std::endl;
+	int l = last_send[last_pos].size();
 	if (l == 0) return 0;
-	std::memcpy(buf, last_send.c_str(), l);
-	last_send = "";
+	std::memcpy(buf, last_send[last_pos].c_str(), l);
+	//last_send.erase(last_send.begin());
+	last_pos++;
 	return l;
 }
 
@@ -52,7 +58,10 @@ extern ssize_t writev(int sd, const struct iovec *v, int cnt) {
 		bufp += v[i].iov_len;
 	}
 	
-	last_send = std::string(&buf[0], len);
+	//std::cout << "WRITEV " << len << std::endl;
+	
+	//if (last_send.size() != 0) std::cout << "ERROR MISSED MESSAGE " << last_send.size() << std::endl;
+	last_send.push_back(std::string(&buf[0], len));
 	return len;
 }
 
@@ -61,8 +70,8 @@ extern std::vector<std::shared_ptr<ftl::net::Socket>> sockets;
 // --- Support -----------------------------------------------------------------
 
 Dispatcher::response_t get_response() {
-	auto h = (ftl::net::Header*)last_send.data();
-	const char *data = last_send.data() + sizeof(ftl::net::Header);
+	auto h = (ftl::net::Header*)last_send[last_pos].data();
+	const char *data = last_send[last_pos].data() + sizeof(ftl::net::Header);
 	auto unpacked = msgpack::unpack(data, h->size-4);
 	Dispatcher::response_t the_result;
 	unpacked.get().convert(the_result);
@@ -91,6 +100,7 @@ SCENARIO("p2p::bind_find_one()", "[find_one]") {
 	Mock_p2p p;
 	std::shared_ptr<MockSocket> s = std::shared_ptr<MockSocket>(new MockSocket());
 	s->setProtocol(&p);
+	sockets.push_back(s);
 	p.addPeer(s);
 	
 	GIVEN("a query that expects a valid result") {
@@ -130,6 +140,71 @@ SCENARIO("p2p::bind_find_one()", "[find_one]") {
 		REQUIRE( err.type == 0 );
 	}
 	
+	last_pos = 0;
+	last_send.clear();
+	ftl::net::stop();
+}
+
+SCENARIO("p2p::bind_find_all()", "[find_one]") {
+	class Mock_p2p : public p2p {
+		public:
+		Mock_p2p() : p2p("mock://") {
+			bind_find_all("test", &Mock_p2p::test);
+		}
+		
+		std::optional<int> test(int a) {
+			if (a == 2) return 44;
+			else return {};
+		}
+	};
+	
+	Mock_p2p p,p2;
+	std::shared_ptr<MockSocket> s = std::shared_ptr<MockSocket>(new MockSocket());
+	s->setProtocol(&p);
+	sockets.push_back(s);
+	p.addPeer(s);
+	
+	GIVEN("a query that expects valid results") {
+		// Create a mock RPC message with expected result
+		ftl::UUID req;
+		int ttl = 10;
+		auto args_obj = std::make_tuple(req, ttl, 2);
+		auto call_obj = std::make_tuple(0,0,"test",args_obj);
+		std::stringstream buf;
+		msgpack::pack(buf, call_obj);
+		
+		s->mock_dispatchRPC(buf.str());
+		
+		// Make sure we get a response
+		auto [kind,id,err,res] = get_response();
+		auto vec = res.as<std::vector<int>>();
+		REQUIRE( vec.size() == 1 );
+		REQUIRE( vec[0] == 44 );
+		REQUIRE( kind == 1 );
+		REQUIRE( id == 0 );
+		REQUIRE( err.type == 0 );
+	}
+	
+	GIVEN("a query that expects no result") {
+		// Create a mock RPC message with expected result
+		ftl::UUID req;
+		int ttl = 10;
+		auto args_obj = std::make_tuple(req, ttl, 3);
+		auto call_obj = std::make_tuple(0,0,"test",args_obj);
+		std::stringstream buf;
+		msgpack::pack(buf, call_obj);
+		s->mock_dispatchRPC(buf.str());
+		
+		// Make sure we get a response
+		auto [kind,id,err,res] = get_response();
+		REQUIRE( res.as<std::vector<int>>().size() == 0 );
+		REQUIRE( kind == 1 );
+		REQUIRE( id == 0 );
+		REQUIRE( err.type == 0 );
+	}
+	
+	last_pos = 0;
+	last_send.clear();
 	ftl::net::stop();
 }
 
@@ -163,6 +238,43 @@ SCENARIO("p2p::find_one()", "[find_one]") {
 		REQUIRE( !res.has_value() );
 	}
 	
+	last_pos = 0;
+	last_send.clear();
+	ftl::net::stop();
+}
+
+SCENARIO("p2p::find_all()", "[find_one]") {
+	class Mock_p2p : public p2p {
+		public:
+		Mock_p2p() : p2p("mock://") {
+			bind_find_all("test", &Mock_p2p::test);
+		}
+		
+		std::optional<int> test(int a) {
+			if (a == 2) return 44;
+			else return {};
+		}
+	};
+	
+	Mock_p2p p;
+	std::shared_ptr<MockSocket> s = std::shared_ptr<MockSocket>(new MockSocket());
+	sockets.push_back(s);
+	s->setProtocol(&p);
+	p.addPeer(s);
+	
+	GIVEN("a query that expects a valid result") {
+		auto res = p.find_all<int>("test", 2);		
+		REQUIRE( res.size() == 1 );
+		REQUIRE( res[0] == 44 );
+	}
+	
+	GIVEN("a query that expects no result") {
+		auto res = p.find_all<int>("test", 3);		
+		REQUIRE( res.size() == 0 );
+	}
+	
+	last_pos = 0;
+	last_send.clear();
 	ftl::net::stop();
 }
 
