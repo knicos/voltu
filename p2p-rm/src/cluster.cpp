@@ -74,8 +74,7 @@ void Cluster::reset() {
 }
 
 void Cluster::_registerRPC() {
-	bind("getowner", [this](const UUID &u, int ttl, const std::string &uri) { return getOwner_RPC(u,ttl,uri); });
-	//bind("getowner", member(&Cluster::getOwner_RPC));
+	bind("getowner", member(&Cluster::getOwner_RPC));
 	
 	bind("nop", []() { return true; });
 	
@@ -90,6 +89,7 @@ void Cluster::addPeer(shared_ptr<Socket> &p, bool incoming) {
 	//p.setProtocol(this);
 
 	peers_.push_back(p);
+	//p2p::addPeer(p);
 	
 	if (!incoming) {
 		p->onConnect([this](Socket &s) {
@@ -119,7 +119,7 @@ Blob *Cluster::_lookup(const char *uri) {
 	if (!u.isValid()) return NULL;
 	if (u.getScheme() != ftl::URI::SCHEME_FTL) return NULL;
 	//if (u.getPathSegment(0) != "memory") return NULL;
-	if (u.getHost() != root_) { LOG(ERROR) << "Non matching host : " << u.getHost() << " - " << root_ << std::endl; return NULL; }
+	if (u.getHost() != root_) { LOG(ERROR) << "Non matching URI base : " << u.getHost() << " - " << root_ << std::endl; return NULL; }
 
 	auto b = blobs_[u.getBaseURI()];
 	std::cout << "Blob Found for " << u.getBaseURI() << " = " << (b != nullptr) << std::endl;

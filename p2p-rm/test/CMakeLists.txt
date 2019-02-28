@@ -3,7 +3,7 @@ add_executable(mapped_ptr_unit
 	./mapped_ptr_unit.cpp
 	../src/blob.cpp
 )
-target_link_libraries(mapped_ptr_unit gflags glog)
+target_link_libraries(mapped_ptr_unit gflags glog uuid)
 
 add_executable(cluster_unit
 	./tests.cpp
@@ -11,6 +11,12 @@ add_executable(cluster_unit
 	./cluster_unit.cpp
 )
 target_link_libraries(cluster_unit uriparser ftlnet gflags glog uuid)
+
+add_executable(p2p_unit
+	./tests.cpp
+	./p2p_unit.cpp
+)
+target_link_libraries(p2p_unit ftlnet uriparser gflags glog uuid)
 
 add_executable(p2p_integration
 	./tests.cpp
@@ -27,10 +33,11 @@ add_executable(peer_test
 	../src/cluster.cpp
 	../src/blob.cpp
 )
-target_link_libraries(peer_test uriparser ftlnet gflags glog)
+target_link_libraries(peer_test uriparser ftlnet gflags glog uuid)
 
 add_test(Mapped_ptrUnitTest mapped_ptr_unit)
 add_test(ClusterUnitTest cluster_unit)
+add_test(P2PUnitTest p2p_unit)
 
 add_custom_target(tests)
 add_dependencies(tests mapped_ptr_unit cluster_unit peer_test p2p_integration)
