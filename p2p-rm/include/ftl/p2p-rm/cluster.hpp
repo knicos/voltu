@@ -4,6 +4,7 @@
 #include "ftl/p2p-rm/mapped_ptr.hpp"
 #include "ftl/p2p-rm/internal.hpp"
 #include <ftl/p2p-rm/protocol.hpp>
+#include <ftl/p2p-rm/p2p.hpp>
 
 #include <ftl/uri.hpp>
 #include <ftl/uuid.hpp>
@@ -27,7 +28,7 @@ namespace rm {
 
 class Blob;
 
-class Cluster : public ftl::net::Protocol {
+class Cluster : public ftl::net::p2p {
 	public:
 	Cluster(const ftl::URI &uri, std::shared_ptr<ftl::net::Listener> l);
 	Cluster(const char *uri, std::shared_ptr<ftl::net::Listener> l);
@@ -114,48 +115,23 @@ class Cluster : public ftl::net::Protocol {
 	/**
 	 * Allow member functions to be used for RPC calls by binding with 'this'.
 	 */
-	template <typename R, typename C, typename ...Args>
-	auto member(R(C::*f)(Args...)) {
-	  return [this,f](Args... args) -> R { return (this->*f)(std::forward<Args>(args)...); };
-	}
+	/*template <typename R, typename C, typename ...Args>
+	void bind_member(const std::string &name, R(C::*f)(Args...)) {
+	  bind(name, [this,f](Args... args) -> R { return (this->*f)(std::forward<Args>(args)...); });
+	}*/
 	
-	ftl::UUID getOwner(const std::string &uri);
-	
-	/**
-	 * Make an RPC call to all connected peers and put into a results vector.
-	 * This function blocks until all peers have responded or an error /
-	 * timeout occurs. The return value indicates the number of failed peers, or
-	 * is 0 if all returned.
-	 */
-	template <typename T, typename... ARGS>
-	int broadcastCall(const std::string &name, std::vector<T> &results,
-			ARGS... args) {
-		int count = 0;
-		auto f = [&count,&results](const T &r) {
-			std::cout << "broadcast return" << std::endl;
-			count--;
-			results.push_back(r);
-		};
-
-		for (auto p : peers_) {
-			count++;
-			p->asyncCall<T>(name, f, std::forward<ARGS>(args)...);
-		}
-		
-		ftl::net::wait([&count]() { return count == 0; }, 5.0);
-		return count;
-	}
+	std::optional<ftl::UUID> getOwner(const std::string &uri);
 	
 	private:
 	UUID id_;
 	std::string root_;
 	std::shared_ptr<ftl::net::Listener> listener_;
-	std::vector<std::shared_ptr<ftl::net::Socket>> peers_;
+	//std::vector<std::shared_ptr<ftl::net::Socket>> peers_;
 	std::map<std::string, ftl::rm::Blob*> blobs_;
 	std::map<int,std::vector<std::tuple<std::shared_ptr<ftl::net::Socket>,std::string>>> rpc_results_;
 
 	// Cache of seen requests.
-	std::unordered_map<ftl::UUID,long int> requests_;
+	//std::unordered_map<ftl::UUID,long int> requests_;
 
 	ftl::rm::Blob *_lookup(const char *uri);
 	Blob *_create(const char *uri, char *addr, size_t size, size_t count,
@@ -163,7 +139,7 @@ class Cluster : public ftl::net::Protocol {
 	void _registerRPC();
 	
 	private:
-	std::tuple<ftl::UUID,uint32_t> getOwner_RPC(const ftl::UUID &u, int ttl, const std::string &uri);
+	//std::tuple<ftl::UUID,uint32_t> getOwner_RPC(const ftl::UUID &u, int ttl, const std::string &uri);
 };
 
 };

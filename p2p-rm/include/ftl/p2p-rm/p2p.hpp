@@ -9,6 +9,7 @@
 #include <vector>
 #include <memory>
 #include <ftl/net/protocol.hpp>
+#include <ftl/net/socket.hpp>
 #include <iostream>
 
 namespace ftl {
@@ -17,6 +18,7 @@ namespace net {
 class p2p : public ftl::net::Protocol {
 	public:
 	p2p(const char *uri) : Protocol(uri) {}
+	p2p(const std::string &uri) : Protocol(uri) {}
 	
 	void addPeer(std::shared_ptr<ftl::net::Socket> s) { peers_.push_back(s); };
 	
