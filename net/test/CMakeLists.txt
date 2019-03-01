@@ -19,6 +19,19 @@ add_executable(uri_unit
 target_include_directories(uri_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(uri_unit uriparser)
 
+add_executable(p2p_base_unit
+	./tests.cpp
+	./p2p_base_unit.cpp
+	../src/p2p.cpp
+	../src/socket.cpp
+	../src/dispatcher.cpp
+	../src/protocol.cpp
+	../src/net.cpp
+	../src/listener.cpp
+)
+target_include_directories(p2p_base_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(p2p_base_unit uriparser gflags glog uuid)
+
 add_executable(net_integration
 	./tests.cpp
 	./net_integration.cpp

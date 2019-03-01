@@ -8,6 +8,9 @@
 #include <msgpack.hpp>
 
 namespace ftl {
+	/**
+	 * C++ Wrapper for libuuid. The default constructor generates a new UUID.
+	 */
 	class UUID {
 		public:
 		UUID() { uuid_generate(uuid_); };
@@ -17,15 +20,22 @@ namespace ftl {
 		bool operator==(const UUID &u) const { return memcmp(uuid_,u.uuid_,16) == 0; }
 		bool operator!=(const UUID &u) const { return memcmp(uuid_,u.uuid_,16) != 0; }
 		
+		/**
+		 * Get a raw data string.
+		 */
 		std::string str() const { return std::string((char*)uuid_,16); };
 		const unsigned char *raw() const { return &uuid_[0]; }
 		
+		/**
+		 * Get a pretty string.
+		 */
 		std::string to_string() const {
 			char b[37];
 			uuid_unparse(uuid_, b);
 			return std::string(b);
 		}
 		
+		/* Allow the UUID to be packed into an RPC message. */
 		MSGPACK_DEFINE(uuid_);
 		
 		private:

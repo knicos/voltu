@@ -41,6 +41,10 @@ struct caller : virtual_caller {
 };
 
 typedef std::tuple<const char*,size_t> array;
+/*struct compress{};
+struct encrypt{};
+struct decompress{};
+struct decrypt{};*/
 
 /**
  * A single socket connection object, to be constructed using the connect()

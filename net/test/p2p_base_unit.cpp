@@ -80,14 +80,14 @@ Dispatcher::response_t get_response() {
 
 // --- Tests -------------------------------------------------------------------
 
-#include <ftl/p2p-rm/p2p.hpp>
+#include <ftl/net/p2p.hpp>
 
-using ftl::net::p2p;
+using ftl::net::P2P;
 
 SCENARIO("p2p::bind_find_one()", "[find_one]") {
-	class Mock_p2p : public p2p {
+	class Mock_p2p : public P2P {
 		public:
-		Mock_p2p() : p2p("mock://") {
+		Mock_p2p() : P2P("mock://") {
 			bind_find_one("test", &Mock_p2p::test);
 		}
 		
@@ -146,9 +146,9 @@ SCENARIO("p2p::bind_find_one()", "[find_one]") {
 }
 
 SCENARIO("p2p::bind_find_all()", "[find_one]") {
-	class Mock_p2p : public p2p {
+	class Mock_p2p : public P2P {
 		public:
-		Mock_p2p() : p2p("mock://") {
+		Mock_p2p() : P2P("mock://") {
 			bind_find_all("test", &Mock_p2p::test);
 		}
 		
@@ -209,9 +209,9 @@ SCENARIO("p2p::bind_find_all()", "[find_one]") {
 }
 
 SCENARIO("p2p::find_one()", "[find_one]") {
-	class Mock_p2p : public p2p {
+	class Mock_p2p : public P2P {
 		public:
-		Mock_p2p() : p2p("mock://") {
+		Mock_p2p() : P2P("mock://") {
 			bind_find_one("test", &Mock_p2p::test);
 		}
 		
@@ -244,9 +244,9 @@ SCENARIO("p2p::find_one()", "[find_one]") {
 }
 
 SCENARIO("p2p::find_all()", "[find_one]") {
-	class Mock_p2p : public p2p {
+	class Mock_p2p : public P2P {
 		public:
-		Mock_p2p() : p2p("mock://") {
+		Mock_p2p() : P2P("mock://") {
 			bind_find_all("test", &Mock_p2p::test);
 		}
 		
