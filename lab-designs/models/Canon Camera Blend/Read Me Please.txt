@@ -1,0 +1,14 @@
+Please read me first:
+
+Model is UV unwrapped with overlapping UVs and comes in 4 parts:
+
+Canon Camera part a 
+Canon Camera part b 
+Canon Camera part c 
+Canon Camera part d
+
+For best results, use smooth shading for all parts. 
+
+Enjoy!
+
+Neil Carpenter
