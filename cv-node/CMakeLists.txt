@@ -9,12 +9,14 @@ enable_testing()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
+find_package( glog REQUIRED )
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
 #find_package(PkgConfig)
 #pkg_check_modules(GTKMM gtkmm-3.0)
 
 # Need to include staged files and libs
+include_directories(${glog_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 
@@ -42,8 +44,8 @@ add_definitions(-DFTL_CONFIG_ROOT=${FTL_CONFIG_ROOT})
 add_definitions(-DFTL_CACHE_ROOT=${FTL_CACHE_ROOT})
 add_definitions(-DFTL_DATA_ROOT=${FTL_DATA_ROOT})
 
-set(CMAKE_CXX_FLAGS "-pthread -std=c++17 -Wall -Wno-deprecated -Werror -Wno-psabi")
-set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -pg -Wall -Werror")
+set(CMAKE_CXX_FLAGS "-pthread -std=c++17 -Wall")
+set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -pg -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 SET(CMAKE_USE_RELATIVE_PATHS ON)
