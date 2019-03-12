@@ -191,7 +191,7 @@ Calibrate::Calibrate(ftl::LocalSource *s, const std::string &cal) : local_(s) {
 
 bool Calibrate::recalibrate() {
 	bool r = _recalibrate(0);
-	if (local_->isStereo()) r |= _recalibrate(1);
+	if (local_->isStereo()) r &= _recalibrate(1);
 	
 	if (r) calibrated_ = true;
 	
@@ -335,14 +335,11 @@ bool Calibrate::_recalibrate(size_t cam) {
         //! [output_undistorted]
         //------------------------------ Show image and check for input commands -------------------
         //! [await_input]
-        /*imshow("Image View", view);
-        char key = (char)waitKey(s.inputCapture.isOpened() ? 50 : s.delay);
+        imshow("Image View", view);
+        char key = (char)waitKey(settings_.delay);
 
-        if( key  == ESC_KEY )
+        if( key  == 27 )
             break;
-
-        if( key == 'u' && mode == CALIBRATED )
-           s.showUndistorsed = !s.showUndistorsed;*/
 
         /*if( s.inputCapture.isOpened() && key == 'g' )
         {

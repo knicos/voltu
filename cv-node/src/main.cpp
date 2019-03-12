@@ -79,6 +79,7 @@ int main(int argc, char **argv) {
 		Mat l, r;
 		
 		calibrate.undistort(l,r);
+		//lsrc->get(l,r);
 		
 		// Feed into sync buffer and network forward
 		sync->feed(LEFT, l,lsrc->getTimestamp());
@@ -96,7 +97,7 @@ int main(int argc, char **argv) {
 		cv::imshow("Left",l);
 		if (lsrc->isStereo()) cv::imshow("Right",r);
 		
-		if(cv::waitKey(1) == 27){
+		if(cv::waitKey(10000) == 27){
             //exit if ESC is pressed
             break;
         }

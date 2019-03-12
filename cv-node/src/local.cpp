@@ -100,6 +100,10 @@ bool LocalSource::left(cv::Mat &l) {
 }
 
 bool LocalSource::right(cv::Mat &r) {
+	if (!camera_a_->grab()) {
+		LOG(ERROR) << "Unable to grab from camera A";
+		return false;
+	}
 	if (camera_b_ && !camera_b_->grab()) {
 		LOG(ERROR) << "Unable to grab from camera B";
 		return false;
