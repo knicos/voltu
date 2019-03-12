@@ -11,8 +11,8 @@ namespace cv {
 namespace ftl {
 class LocalSource {
 	public:
-	LocalSource();
-	LocalSource(const std::string &vid);
+	LocalSource(bool flip=false);
+	LocalSource(const std::string &vid, bool flip=false);
 	
 	bool left(cv::Mat &m);
 	bool right(cv::Mat &m);
@@ -29,6 +29,7 @@ class LocalSource {
 	double timestamp_;
 	bool stereo_;
 	//float fps_;
+	bool flip_;
 	cv::VideoCapture *camera_a_;
 	cv::VideoCapture *camera_b_;
 };

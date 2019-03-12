@@ -17,6 +17,7 @@ static string OPTION_calibration_config = FTL_CONFIG_ROOT "/calibration.xml";
 static string OPTION_config;
 static bool OPTION_display = false;
 static bool OPTION_calibrate = false;
+static bool OPTION_flip = false;
 
 void handle_options(char ***argv, int *argc) {
 	while (*argc > 0) {
@@ -39,6 +40,8 @@ void handle_options(char ***argv, int *argc) {
 			OPTION_config = cmd;
 		} else if (cmd.find("--display") == 0) {
 			OPTION_display = true;
+		} else if (cmd.find("--flip") == 0) {
+			OPTION_flip = true;
 		}
 		
 		(*argc)--;
@@ -59,10 +62,10 @@ int main(int argc, char **argv) {
 	
 	if (argc) {
 		// Load video file
-		lsrc = new LocalSource(argv[0]);
+		lsrc = new LocalSource(argv[0], OPTION_flip);
 	} else {
 		// Use cameras
-		lsrc = new LocalSource();
+		lsrc = new LocalSource(OPTION_flip);
 	}
 	
 	auto sync = new SyncSource(); // TODO Pass protocol object

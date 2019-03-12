@@ -186,28 +186,100 @@ Calibrate::Calibrate(ftl::LocalSource *s, const std::string &cal) : local_(s) {
     map1_.resize(2);
     map2_.resize(2);
     
+    // TODO Load existing calibration if available...
+    
     calibrated_ = false;
 }
 
 bool Calibrate::recalibrate() {
-	bool r = _recalibrate(0);
-	if (local_->isStereo()) r &= _recalibrate(1);
+	vector<vector<Point2f> > imagePoints[2];
+    Mat cameraMatrix[2], distCoeffs[2];
+    Size imageSize[2];
+    
+	bool r = _recalibrate(0, imagePoints[0], cameraMatrix[0], distCoeffs[0], imageSize[0]);
+	if (local_->isStereo()) r &= _recalibrate(1, imagePoints[1], cameraMatrix[1], distCoeffs[1], imageSize[1]);
 	
 	if (r) calibrated_ = true;
+	
+	if (r && local_->isStereo()) {
+		int nimages = static_cast<int>(imagePoints[0].size());
+		auto squareSize = settings_.squareSize;
+		vector<vector<Point3f>> objectPoints;
+		objectPoints.resize(nimages);
+
+		for(auto i = 0; i < nimages; i++ )
+		{
+		    for(auto j = 0; j < settings_.boardSize.height; j++ )
+		        for(auto  k = 0; k < settings_.boardSize.width; k++ )
+		            objectPoints[i].push_back(Point3f(k*squareSize, j*squareSize, 0));
+		}
+		
+		Mat R, T, E, F;
+		
+		LOG(INFO) << "Running stereo calibration...";
+    
+		double rms = stereoCalibrate(objectPoints, imagePoints[0], imagePoints[1],
+		                cameraMatrix[0], distCoeffs[0],
+		                cameraMatrix[1], distCoeffs[1],
+		                imageSize[0], R, T, E, F,
+		                CALIB_FIX_ASPECT_RATIO +
+		                CALIB_ZERO_TANGENT_DIST +
+		                CALIB_USE_INTRINSIC_GUESS +
+		                CALIB_SAME_FOCAL_LENGTH +
+		                CALIB_RATIONAL_MODEL +
+		                CALIB_FIX_K3 + CALIB_FIX_K4 + CALIB_FIX_K5,
+		                TermCriteria(TermCriteria::COUNT+TermCriteria::EPS, 100, 1e-5) );
+		LOG(INFO) << "... done with RMS error=" << rms;
+		
+		// save intrinsic parameters
+		FileStorage fs(FTL_CONFIG_ROOT "/intrinsics.yml", FileStorage::WRITE);
+		if( fs.isOpened() )
+		{
+		    fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
+		        "M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
+		    fs.release();
+		}
+		else
+		    cout << "Error: can not save the intrinsic parameters\n";
+
+		Mat R1, R2, P1, P2, Q;
+		Rect validRoi[2];
+
+		stereoRectify(cameraMatrix[0], distCoeffs[0],
+		              cameraMatrix[1], distCoeffs[1],
+		              imageSize[0], R, T, R1, R2, P1, P2, Q,
+		              CALIB_ZERO_DISPARITY, 1, imageSize[0], &validRoi[0], &validRoi[1]);
+
+		fs.open(FTL_CONFIG_ROOT "/extrinsics.yml", FileStorage::WRITE);
+		if( fs.isOpened() )
+		{
+		    fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
+		    fs.release();
+		}
+		else
+		    cout << "Error: can not save the extrinsic parameters\n";
+		    
+		    
+		//Precompute maps for cv::remap()
+    	initUndistortRectifyMap(cameraMatrix[0], distCoeffs[0], R1, P1, imageSize[0], CV_16SC2, map1_[0], map2_[0]);
+    	initUndistortRectifyMap(cameraMatrix[1], distCoeffs[1], R2, P2, imageSize[0], CV_16SC2, map1_[1], map2_[1]);
+
+	}
 	
 	return r;
 }
 
-bool Calibrate::_recalibrate(size_t cam) {
+bool Calibrate::_recalibrate(size_t cam, vector<vector<Point2f>> &imagePoints,
+		Mat &cameraMatrix, Mat &distCoeffs, Size &imageSize) {
 	// TODO WHAT IS WINSIZE!!
 	int winSize = 11; //parser.get<int>("winSize");
 
     float grid_width = settings_.squareSize * (settings_.boardSize.width - 1);
     bool release_object = false;
 
-    vector<vector<Point2f> > imagePoints;
-    Mat cameraMatrix, distCoeffs;
-    Size imageSize;
+    //vector<vector<Point2f> > imagePoints;
+    //Mat cameraMatrix, distCoeffs;
+    //Size imageSize;
     int mode = CAPTURING;
     clock_t prevTimestamp = 0;
     const Scalar RED(0,0,255), GREEN(0,255,0);
@@ -369,6 +441,7 @@ bool Calibrate::_recalibrate(size_t cam) {
             getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), imageSize,
             CV_16SC2, map1_[cam], map2_[cam]);
     }
+    
 	return true;
 }
 

@@ -13,10 +13,10 @@ using cv::Rect;
 using std::string;
 using namespace std::chrono;
 
-LocalSource::LocalSource() : timestamp_(0.0) {
+LocalSource::LocalSource(bool flip) : timestamp_(0.0), flip_(flip) {
 	// Use cameras
-	camera_a_ = new VideoCapture(0);
-	camera_b_ = new VideoCapture(1);
+	camera_a_ = new VideoCapture((flip) ? 1 : 0);
+	camera_b_ = new VideoCapture((flip) ? 0 : 1);
 
 	if (!camera_a_->isOpened()) {
 		delete camera_a_;
@@ -37,7 +37,7 @@ LocalSource::LocalSource() : timestamp_(0.0) {
 	}
 }
 
-LocalSource::LocalSource(const string &vid): timestamp_(0.0) {
+LocalSource::LocalSource(const string &vid, bool flip): timestamp_(0.0), flip_(flip) {
 	if (vid == "") {
 		LOG(FATAL) << "No video file specified";
 		camera_a_ = nullptr;
@@ -93,7 +93,11 @@ bool LocalSource::left(cv::Mat &l) {
 		}
 		
 		int resx = frame.cols / 2;
-		l = Mat(frame, Rect(0,0,resx,frame.rows));
+		if (flip_) {
+			l = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
+		} else {
+			l = Mat(frame, Rect(0,0,resx,frame.rows));
+		}
 	}
 	
 	return true;
@@ -127,7 +131,11 @@ bool LocalSource::right(cv::Mat &r) {
 		}
 		
 		int resx = frame.cols / 2;
-		r = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
+		if (flip_) {
+			r = Mat(frame, Rect(0,0,resx,frame.rows));
+		} else {
+			r = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
+		}
 	}
 	
 	return true;
@@ -166,8 +174,13 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 		}
 		
 		int resx = frame.cols / 2;
-		l = Mat(frame, Rect(0,0,resx,frame.rows));
-		r = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
+		if (flip_) {
+			r = Mat(frame, Rect(0,0,resx,frame.rows));
+			l = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
+		} else {
+			l = Mat(frame, Rect(0,0,resx,frame.rows));
+			r = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
+		}
 	}
 	
 	return true;
