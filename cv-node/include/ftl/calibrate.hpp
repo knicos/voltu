@@ -79,6 +79,7 @@ class Calibrate {
 	bool _recalibrate(std::vector<std::vector<cv::Point2f>> *imagePoints,
 		cv::Mat *cameraMatrix, cv::Mat *distCoeffs, cv::Size *imageSize);
 	cv::Mat _nextImage(size_t cam);
+	bool _loadCalibration();
 	
 	private:
 	ftl::LocalSource *local_;

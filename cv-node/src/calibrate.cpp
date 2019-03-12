@@ -188,7 +188,56 @@ Calibrate::Calibrate(ftl::LocalSource *s, const std::string &cal) : local_(s) {
     
     // TODO Load existing calibration if available...
     
-    calibrated_ = false;
+    calibrated_ = _loadCalibration();
+    
+    if (calibrated_) {
+    	LOG(INFO) << "Calibration loaded from file";
+    }
+}
+
+bool Calibrate::_loadCalibration() {
+	// Capture one frame to get size;
+	Mat l,r;
+	local_->get(l,r);
+	Size img_size = l.size();
+	float scale = 1.0f;
+
+    Rect roi1, roi2;
+    Mat Q;
+    // reading intrinsic parameters
+    FileStorage fs(FTL_CONFIG_ROOT "/intrinsics.yml", FileStorage::READ);
+    if(!fs.isOpened())
+    {
+        LOG(WARNING) << "Calibration file not found";
+        return false;
+    }
+
+    Mat M1, D1, M2, D2;
+    fs["M1"] >> M1;
+    fs["D1"] >> D1;
+    fs["M2"] >> M2;
+    fs["D2"] >> D2;
+
+    M1 *= scale;
+    M2 *= scale;
+
+    fs.open(FTL_CONFIG_ROOT "/extrinsics.yml", FileStorage::READ);
+    if(!fs.isOpened())
+    {
+        LOG(WARNING) << "Calibration file not found";
+        return false;
+    }
+
+    Mat R, T, R1, P1, R2, P2;
+    fs["R"] >> R;
+    fs["T"] >> T;
+
+    stereoRectify( M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2 );
+
+    Mat map11, map12, map21, map22;
+    initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2, map1_[0], map2_[0]);
+    initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_16SC2, map1_[1], map2_[1]);
+    return true;
 }
 
 bool Calibrate::recalibrate() {
