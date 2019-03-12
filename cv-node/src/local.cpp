@@ -13,22 +13,23 @@ using cv::Rect;
 using std::string;
 using namespace std::chrono;
 
-LocalSource::LocalSource(bool flip) : timestamp_(0.0), flip_(flip) {
+LocalSource::LocalSource(bool flip, bool nostereo) : timestamp_(0.0), flip_(flip), nostereo_(nostereo) {
 	// Use cameras
 	camera_a_ = new VideoCapture((flip) ? 1 : 0);
-	camera_b_ = new VideoCapture((flip) ? 0 : 1);
+	if (!nostereo) camera_b_ = new VideoCapture((flip) ? 0 : 1);
+	else camera_b_ = nullptr;
 
 	if (!camera_a_->isOpened()) {
 		delete camera_a_;
-		delete camera_b_;
+		if (camera_b_) delete camera_b_;
 		camera_a_ = nullptr;
 		camera_b_ = nullptr;
 		LOG(FATAL) << "No cameras found";
 		return;
 	}
 
-	if (!camera_b_->isOpened()) {
-		delete camera_b_;
+	if (!camera_b_ || !camera_b_->isOpened()) {
+		if (camera_b_) delete camera_b_;
 		camera_b_ = nullptr;
 		stereo_ = false;
 		LOG(WARNING) << "Not able to find second camera for stereo";
@@ -37,7 +38,7 @@ LocalSource::LocalSource(bool flip) : timestamp_(0.0), flip_(flip) {
 	}
 }
 
-LocalSource::LocalSource(const string &vid, bool flip): timestamp_(0.0), flip_(flip) {
+LocalSource::LocalSource(const string &vid, bool flip, bool nostereo): timestamp_(0.0), flip_(flip), nostereo_(nostereo) {
 	if (vid == "") {
 		LOG(FATAL) << "No video file specified";
 		camera_a_ = nullptr;
@@ -191,6 +192,6 @@ double LocalSource::getTimestamp() const {
 }
 	
 bool LocalSource::isStereo() const {
-	return stereo_;
+	return stereo_ && !nostereo_;
 }
 

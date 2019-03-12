@@ -321,15 +321,18 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
         //view = _nextImage(cam);
         LOG(INFO) << "Grabbing calibration image...";
         
-        if (view[0].empty() || view[1].empty() || imagePoints[0].size() >= (size_t)settings_.nrFrames) {
+        if (view[0].empty() || (local_->isStereo() && view[1].empty()) || imagePoints[0].size() >= (size_t)settings_.nrFrames) {
         	settings_.outputFileName = FTL_CONFIG_ROOT "/cam0.xml";
         	bool r = runCalibrationAndSave(settings_, imageSize[0],
         					cameraMatrix[0], distCoeffs[0], imagePoints[0],
         					grid_width, release_object);
-        	settings_.outputFileName = FTL_CONFIG_ROOT "/cam1.xml";
-        	r &= runCalibrationAndSave(settings_, imageSize[1],
-        					cameraMatrix[1], distCoeffs[1], imagePoints[1],
-        					grid_width, release_object);
+        					
+        	if (local_->isStereo()) {
+		    	settings_.outputFileName = FTL_CONFIG_ROOT "/cam1.xml";
+		    	r &= runCalibrationAndSave(settings_, imageSize[1],
+		    					cameraMatrix[1], distCoeffs[1], imagePoints[1],
+		    					grid_width, release_object);
+        	}
         					
         	if (!r && view[0].empty()) {
         		LOG(ERROR) << "Not enough frames to calibrate";
@@ -351,7 +354,7 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
         bool found1,found2;
 
 		found1 = findChessboardCorners( view[0], settings_.boardSize, pointBuf[0], chessBoardFlags);
-		found2 = findChessboardCorners( view[1], settings_.boardSize, pointBuf[1], chessBoardFlags);
+		found2 = !local_->isStereo() || findChessboardCorners( view[1], settings_.boardSize, pointBuf[1], chessBoardFlags);
       
         if (found1 && found2)                // If done with success,
         {
@@ -360,23 +363,25 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
                     cvtColor(view[0], viewGray, COLOR_BGR2GRAY);
                     cornerSubPix( viewGray, pointBuf[0], Size(winSize,winSize),
                         Size(-1,-1), TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001 ));
-                        
+                imagePoints[0].push_back(pointBuf[0]);
+                  
+                if (local_->isStereo()) {      
                     cvtColor(view[1], viewGray, COLOR_BGR2GRAY);
                     cornerSubPix( viewGray, pointBuf[1], Size(winSize,winSize),
                         Size(-1,-1), TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001 ));
-                
-                imagePoints[0].push_back(pointBuf[0]);
-                imagePoints[1].push_back(pointBuf[1]);
+					imagePoints[1].push_back(pointBuf[1]);
+                }
+
 
                 // Draw the corners.
                 drawChessboardCorners( view[0], settings_.boardSize, Mat(pointBuf[0]), found1 );
-                drawChessboardCorners( view[1], settings_.boardSize, Mat(pointBuf[1]), found2 );
+                if (local_->isStereo()) drawChessboardCorners( view[1], settings_.boardSize, Mat(pointBuf[1]), found2 );
         } else {
         	LOG(WARNING) << "No calibration pattern found";
         }
 
         imshow("Left", view[0]);
-        imshow("Right", view[1]);
+        if (local_->isStereo()) imshow("Right", view[1]);
         char key = (char)waitKey(settings_.delay);
 
         if( key  == 27 )

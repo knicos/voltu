@@ -20,6 +20,7 @@ static string OPTION_config;
 static bool OPTION_display = false;
 static bool OPTION_calibrate = false;
 static bool OPTION_flip = false;
+static bool OPTION_nostereo = false;
 
 void handle_options(char ***argv, int *argc) {
 	while (*argc > 0) {
@@ -44,6 +45,8 @@ void handle_options(char ***argv, int *argc) {
 			OPTION_display = true;
 		} else if (cmd.find("--flip") == 0) {
 			OPTION_flip = true;
+		} else if (cmd.find("--no-stereo") == 0) {
+			OPTION_nostereo = true;
 		}
 		
 		(*argc)--;
@@ -64,10 +67,10 @@ int main(int argc, char **argv) {
 	
 	if (argc) {
 		// Load video file
-		lsrc = new LocalSource(argv[0], OPTION_flip);
+		lsrc = new LocalSource(argv[0], OPTION_flip, OPTION_nostereo);
 	} else {
 		// Use cameras
-		lsrc = new LocalSource(OPTION_flip);
+		lsrc = new LocalSource(OPTION_flip, OPTION_nostereo);
 	}
 	
 	auto sync = new SyncSource(); // TODO Pass protocol object
@@ -108,7 +111,7 @@ int main(int argc, char **argv) {
 		cv::imshow("Left",l);
 		if (lsrc->isStereo()) cv::imshow("Right",r);
 		
-		if(cv::waitKey(10000) == 27){
+		if(cv::waitKey(100) == 27){
             //exit if ESC is pressed
             break;
         }
