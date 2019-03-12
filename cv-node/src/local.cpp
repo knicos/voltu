@@ -68,6 +68,67 @@ LocalSource::LocalSource(const string &vid): timestamp_(0.0) {
 	}
 }
 
+bool LocalSource::left(cv::Mat &l) {
+	if (!camera_a_) return false;
+	
+	if (!camera_a_->grab()) {
+		LOG(ERROR) << "Unable to grab from camera A";
+		return false;
+	}
+	
+	// Record timestamp
+	timestamp_ = duration_cast<duration<double>>(
+			high_resolution_clock::now().time_since_epoch()).count();
+
+	if (camera_b_ || !stereo_) {
+		if (!camera_a_->retrieve(l)) {
+			LOG(ERROR) << "Unable to read frame from camera A";
+			return false;
+		}
+	} else {
+		Mat frame;
+		if (!camera_a_->retrieve(frame)) {
+			LOG(ERROR) << "Unable to read frame from video";
+			return false;
+		}
+		
+		int resx = frame.cols / 2;
+		l = Mat(frame, Rect(0,0,resx,frame.rows));
+	}
+	
+	return true;
+}
+
+bool LocalSource::right(cv::Mat &r) {
+	if (camera_b_ && !camera_b_->grab()) {
+		LOG(ERROR) << "Unable to grab from camera B";
+		return false;
+	}
+	
+	// Record timestamp
+	timestamp_ = duration_cast<duration<double>>(
+			high_resolution_clock::now().time_since_epoch()).count();
+
+	if (camera_b_ || !stereo_) {
+		if (camera_b_ && !camera_b_->retrieve(r)) {
+			LOG(ERROR) << "Unable to read frame from camera B";
+			return false;
+		}
+	} else {
+		Mat frame;
+		if (!camera_a_) return false;
+		if (!camera_a_->retrieve(frame)) {
+			LOG(ERROR) << "Unable to read frame from video";
+			return false;
+		}
+		
+		int resx = frame.cols / 2;
+		r = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
+	}
+	
+	return true;
+}
+
 bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 	if (!camera_a_) return false;
 	
@@ -102,7 +163,7 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 		
 		int resx = frame.cols / 2;
 		l = Mat(frame, Rect(0,0,resx,frame.rows));
-		r = Mat(frame, Rect(resx,0,frame.cols,frame.rows));
+		r = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
 	}
 	
 	return true;

@@ -13,7 +13,7 @@ using cv::Mat;
 
 static vector<string> OPTION_peers;
 static vector<string> OPTION_channels;
-static string OPTION_calibration_config;
+static string OPTION_calibration_config = FTL_CONFIG_ROOT "/calibration.xml";
 static string OPTION_config;
 static bool OPTION_display = false;
 static bool OPTION_calibrate = false;
@@ -72,6 +72,8 @@ int main(int argc, char **argv) {
 	}
 	
 	Calibrate calibrate(lsrc, OPTION_calibration_config);
+	
+	if (!calibrate.isCalibrated()) calibrate.recalibrate();
 	
 	while (true) {
 		Mat l, r;

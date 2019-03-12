@@ -14,8 +14,8 @@ class LocalSource {
 	LocalSource();
 	LocalSource(const std::string &vid);
 	
-	//bool left(cv::Mat &m);
-	//bool right(cv::Mat &m);
+	bool left(cv::Mat &m);
+	bool right(cv::Mat &m);
 	bool get(cv::Mat &l, cv::Mat &r);
 	
 	//void setFramerate(float fps);

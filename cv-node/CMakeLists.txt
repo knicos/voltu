@@ -33,7 +33,7 @@ endif (WIN32)
 
 if (UNIX)
 	add_definitions(-DUNIX)
-	set(FTL_CONFIG_ROOT "$ENV{HOME}/.config/ftl")
+	set(FTL_CONFIG_ROOT "\"$ENV{HOME}/.config/ftl\"")
 	set(FTL_CACHE_ROOT "$ENV{HOME}/.cache/ftl")
 	set(FTL_DATA_ROOT "$ENV{HOME}/.local/share/ftl")
 endif (UNIX)
