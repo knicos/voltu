@@ -75,7 +75,6 @@ class Calibrate {
 	bool isCalibrated();
 	
 	private:
-	bool runCalibration(cv::Mat &img, cv::Mat &cam);
 	bool _recalibrate(std::vector<std::vector<cv::Point2f>> *imagePoints,
 		cv::Mat *cameraMatrix, cv::Mat *distCoeffs, cv::Size *imageSize);
 	cv::Mat _nextImage(size_t cam);
@@ -89,14 +88,6 @@ class Calibrate {
 	std::vector<cv::Mat> map2_;
 };
 };
-
-/*static inline void read(const cv::FileNode& node, ftl::Calibrate::Settings& x, const ftl::Calibrate::Settings& default_value = ftl::Calibrate::Settings())
-{
-    if(node.empty())
-        x = default_value;
-    else
-        x.read(node);
-}*/
 
 #endif // _FTL_CALIBRATION_HPP_
 

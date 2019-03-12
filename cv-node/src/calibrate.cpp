@@ -162,7 +162,7 @@ bool Calibrate::Settings::isListOfImages( const string& filename)
 
 enum { DETECTION = 0, CAPTURING = 1, CALIBRATED = 2 };
 
-bool runCalibrationAndSave(Calibrate::Settings& s, Size imageSize, Mat&  cameraMatrix, Mat& distCoeffs,
+bool runCalibration(Calibrate::Settings& s, Size imageSize, Mat&  cameraMatrix, Mat& distCoeffs,
                            vector<vector<Point2f> > imagePoints, float grid_width, bool release_object);
 
 
@@ -372,13 +372,13 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
         
         if (view[0].empty() || (local_->isStereo() && view[1].empty()) || imagePoints[0].size() >= (size_t)settings_.nrFrames) {
         	settings_.outputFileName = FTL_CONFIG_ROOT "/cam0.xml";
-        	bool r = runCalibrationAndSave(settings_, imageSize[0],
+        	bool r = runCalibration(settings_, imageSize[0],
         					cameraMatrix[0], distCoeffs[0], imagePoints[0],
         					grid_width, release_object);
         					
         	if (local_->isStereo()) {
 		    	settings_.outputFileName = FTL_CONFIG_ROOT "/cam1.xml";
-		    	r &= runCalibrationAndSave(settings_, imageSize[1],
+		    	r &= runCalibration(settings_, imageSize[1],
 		    					cameraMatrix[1], distCoeffs[1], imagePoints[1],
 		    					grid_width, release_object);
         	}
@@ -436,27 +436,6 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
         if( key  == 27 )
             break;
     }
-    
-    
-    /*for (auto cam=0; cam<2; cam++) {
-    Mat view, rview;
-
-    if (settings_.useFisheye)
-    {
-        Mat newCamMat;
-        fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix[cam], distCoeffs[cam], imageSize[cam],
-                                                            Matx33d::eye(), newCamMat, 1);
-        fisheye::initUndistortRectifyMap(cameraMatrix[cam], distCoeffs[cam], Matx33d::eye(), newCamMat, imageSize[cam],
-                                         CV_16SC2, map1_[cam], map2_[cam]);
-    }
-    else
-    {
-        initUndistortRectifyMap(
-            cameraMatrix[cam], distCoeffs[cam], Mat(),
-            getOptimalNewCameraMatrix(cameraMatrix[cam], distCoeffs[cam], imageSize[cam], 1, imageSize[cam], 0), imageSize[cam],
-            CV_16SC2, map1_[cam], map2_[cam]);
-    }
-    }*/
     
 	return true;
 }
@@ -537,7 +516,7 @@ static void calcBoardCornerPositions(Size boardSize, float squareSize, vector<Po
     }
 }
 //! [board_corners]
-static bool runCalibration( Calibrate::Settings& s, Size& imageSize, Mat& cameraMatrix, Mat& distCoeffs,
+static bool _runCalibration( Calibrate::Settings& s, Size& imageSize, Mat& cameraMatrix, Mat& distCoeffs,
                             vector<vector<Point2f> > imagePoints, vector<Mat>& rvecs, vector<Mat>& tvecs,
                             vector<float>& reprojErrs,  double& totalAvgErr, vector<Point3f>& newObjPoints,
                             float grid_width, bool release_object)
@@ -603,128 +582,8 @@ static bool runCalibration( Calibrate::Settings& s, Size& imageSize, Mat& camera
     return ok;
 }
 
-// Print camera parameters to the output file
-static void saveCameraParams( Calibrate::Settings& s, Size& imageSize, Mat& cameraMatrix, Mat& distCoeffs,
-                              const vector<Mat>& rvecs, const vector<Mat>& tvecs,
-                              const vector<float>& reprojErrs, const vector<vector<Point2f> >& imagePoints,
-                              double totalAvgErr, const vector<Point3f>& newObjPoints )
-{
-    FileStorage fs( s.outputFileName, FileStorage::WRITE );
-    
-    LOG(INFO) << "Saving calibration to " << s.outputFileName;
-
-    time_t tm;
-    time( &tm );
-    struct tm *t2 = localtime( &tm );
-    char buf[1024];
-    strftime( buf, sizeof(buf), "%c", t2 );
-
-    fs << "calibration_time" << buf;
-
-    if( !rvecs.empty() || !reprojErrs.empty() )
-        fs << "nr_of_frames" << (int)std::max(rvecs.size(), reprojErrs.size());
-    fs << "image_width" << imageSize.width;
-    fs << "image_height" << imageSize.height;
-    fs << "board_width" << s.boardSize.width;
-    fs << "board_height" << s.boardSize.height;
-    fs << "square_size" << s.squareSize;
-
-    if( s.flag & CALIB_FIX_ASPECT_RATIO )
-        fs << "fix_aspect_ratio" << s.aspectRatio;
-
-    if (s.flag)
-    {
-        std::stringstream flagsStringStream;
-        if (s.useFisheye)
-        {
-            flagsStringStream << "flags:"
-                << (s.flag & fisheye::CALIB_FIX_SKEW ? " +fix_skew" : "")
-                << (s.flag & fisheye::CALIB_FIX_K1 ? " +fix_k1" : "")
-                << (s.flag & fisheye::CALIB_FIX_K2 ? " +fix_k2" : "")
-                << (s.flag & fisheye::CALIB_FIX_K3 ? " +fix_k3" : "")
-                << (s.flag & fisheye::CALIB_FIX_K4 ? " +fix_k4" : "")
-                << (s.flag & fisheye::CALIB_RECOMPUTE_EXTRINSIC ? " +recompute_extrinsic" : "");
-        }
-        else
-        {
-            flagsStringStream << "flags:"
-                << (s.flag & CALIB_USE_INTRINSIC_GUESS ? " +use_intrinsic_guess" : "")
-                << (s.flag & CALIB_FIX_ASPECT_RATIO ? " +fix_aspectRatio" : "")
-                << (s.flag & CALIB_FIX_PRINCIPAL_POINT ? " +fix_principal_point" : "")
-                << (s.flag & CALIB_ZERO_TANGENT_DIST ? " +zero_tangent_dist" : "")
-                << (s.flag & CALIB_FIX_K1 ? " +fix_k1" : "")
-                << (s.flag & CALIB_FIX_K2 ? " +fix_k2" : "")
-                << (s.flag & CALIB_FIX_K3 ? " +fix_k3" : "")
-                << (s.flag & CALIB_FIX_K4 ? " +fix_k4" : "")
-                << (s.flag & CALIB_FIX_K5 ? " +fix_k5" : "");
-        }
-        fs.writeComment(flagsStringStream.str());
-    }
-
-    fs << "flags" << s.flag;
-
-    fs << "fisheye_model" << s.useFisheye;
-
-    fs << "camera_matrix" << cameraMatrix;
-    fs << "distortion_coefficients" << distCoeffs;
-
-    fs << "avg_reprojection_error" << totalAvgErr;
-    if (s.writeExtrinsics && !reprojErrs.empty())
-        fs << "per_view_reprojection_errors" << Mat(reprojErrs);
-
-    if(s.writeExtrinsics && !rvecs.empty() && !tvecs.empty() )
-    {
-        CV_Assert(rvecs[0].type() == tvecs[0].type());
-        Mat bigmat((int)rvecs.size(), 6, CV_MAKETYPE(rvecs[0].type(), 1));
-        bool needReshapeR = rvecs[0].depth() != 1 ? true : false;
-        bool needReshapeT = tvecs[0].depth() != 1 ? true : false;
-
-        for( size_t i = 0; i < rvecs.size(); i++ )
-        {
-            Mat r = bigmat(Range(int(i), int(i+1)), Range(0,3));
-            Mat t = bigmat(Range(int(i), int(i+1)), Range(3,6));
-
-            if(needReshapeR)
-                rvecs[i].reshape(1, 1).copyTo(r);
-            else
-            {
-                //*.t() is MatExpr (not Mat) so we can use assignment operator
-                CV_Assert(rvecs[i].rows == 3 && rvecs[i].cols == 1);
-                r = rvecs[i].t();
-            }
-
-            if(needReshapeT)
-                tvecs[i].reshape(1, 1).copyTo(t);
-            else
-            {
-                CV_Assert(tvecs[i].rows == 3 && tvecs[i].cols == 1);
-                t = tvecs[i].t();
-            }
-        }
-        fs.writeComment("a set of 6-tuples (rotation vector + translation vector) for each view");
-        fs << "extrinsic_parameters" << bigmat;
-    }
-
-    if(s.writePoints && !imagePoints.empty() )
-    {
-        Mat imagePtMat((int)imagePoints.size(), (int)imagePoints[0].size(), CV_32FC2);
-        for( size_t i = 0; i < imagePoints.size(); i++ )
-        {
-            Mat r = imagePtMat.row(int(i)).reshape(2, imagePtMat.cols);
-            Mat imgpti(imagePoints[i]);
-            imgpti.copyTo(r);
-        }
-        fs << "image_points" << imagePtMat;
-    }
-
-    if( s.writeGrid && !newObjPoints.empty() )
-    {
-        fs << "grid_points" << newObjPoints;
-    }
-}
-
 //! [run_and_save]
-bool runCalibrationAndSave(Calibrate::Settings& s, Size imageSize, Mat& cameraMatrix, Mat& distCoeffs,
+bool runCalibration(Calibrate::Settings& s, Size imageSize, Mat& cameraMatrix, Mat& distCoeffs,
                            vector<vector<Point2f> > imagePoints, float grid_width, bool release_object)
 {
     vector<Mat> rvecs, tvecs;
@@ -732,16 +591,11 @@ bool runCalibrationAndSave(Calibrate::Settings& s, Size imageSize, Mat& cameraMa
     double totalAvgErr = 0;
     vector<Point3f> newObjPoints;
 
-    bool ok = runCalibration(s, imageSize, cameraMatrix, distCoeffs, imagePoints, rvecs, tvecs, reprojErrs,
+    bool ok = _runCalibration(s, imageSize, cameraMatrix, distCoeffs, imagePoints, rvecs, tvecs, reprojErrs,
                              totalAvgErr, newObjPoints, grid_width, release_object);
-    cout << (ok ? "Calibration succeeded" : "Calibration failed")
-         << ". avg re projection error = " << totalAvgErr << endl;
-         
-	//return ok;
+    LOG(INFO) << (ok ? "Calibration succeeded" : "Calibration failed")
+         << ". avg re projection error = " << totalAvgErr;
 
-    if (ok)
-        saveCameraParams(s, imageSize, cameraMatrix, distCoeffs, rvecs, tvecs, reprojErrs, imagePoints,
-                         totalAvgErr, newObjPoints);
     return ok;
 }
 //! [run_and_save]
