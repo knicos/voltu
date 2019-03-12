@@ -9,14 +9,16 @@ enable_testing()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
+if (WIN32)
 find_package( glog REQUIRED )
+include_directories(${glog_DIR})
+endif (WIN32)
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
 #find_package(PkgConfig)
 #pkg_check_modules(GTKMM gtkmm-3.0)
 
 # Need to include staged files and libs
-include_directories(${glog_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 

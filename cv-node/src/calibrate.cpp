@@ -196,8 +196,10 @@ bool Calibrate::recalibrate() {
     Mat cameraMatrix[2], distCoeffs[2];
     Size imageSize[2];
     
-	bool r = _recalibrate(0, imagePoints[0], cameraMatrix[0], distCoeffs[0], imageSize[0]);
-	if (local_->isStereo()) r &= _recalibrate(1, imagePoints[1], cameraMatrix[1], distCoeffs[1], imageSize[1]);
+    // TODO Ensure both left+right use same frames
+    
+	bool r = _recalibrate(imagePoints, cameraMatrix, distCoeffs, imageSize);
+	//if (local_->isStereo()) r &= _recalibrate(1, imagePoints[1], cameraMatrix[1], distCoeffs[1], imageSize[1]);
 	
 	if (r) calibrated_ = true;
 	
@@ -264,13 +266,30 @@ bool Calibrate::recalibrate() {
     	initUndistortRectifyMap(cameraMatrix[0], distCoeffs[0], R1, P1, imageSize[0], CV_16SC2, map1_[0], map2_[0]);
     	initUndistortRectifyMap(cameraMatrix[1], distCoeffs[1], R2, P2, imageSize[0], CV_16SC2, map1_[1], map2_[1]);
 
+	} else {
+		int cam = 0;
+		if (settings_.useFisheye)
+		{
+		    Mat newCamMat;
+		    fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix[cam], distCoeffs[cam], imageSize[cam],
+		                                                        Matx33d::eye(), newCamMat, 1);
+		    fisheye::initUndistortRectifyMap(cameraMatrix[cam], distCoeffs[cam], Matx33d::eye(), newCamMat, imageSize[cam],
+		                                     CV_16SC2, map1_[cam], map2_[cam]);
+		}
+		else
+		{
+		    initUndistortRectifyMap(
+		        cameraMatrix[cam], distCoeffs[cam], Mat(),
+		        getOptimalNewCameraMatrix(cameraMatrix[cam], distCoeffs[cam], imageSize[cam], 1, imageSize[cam], 0), imageSize[cam],
+		        CV_16SC2, map1_[cam], map2_[cam]);
+		}
 	}
 	
 	return r;
 }
 
-bool Calibrate::_recalibrate(size_t cam, vector<vector<Point2f>> &imagePoints,
-		Mat &cameraMatrix, Mat &distCoeffs, Size &imageSize) {
+bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
+		Mat *cameraMatrix, Mat *distCoeffs, Size *imageSize) {
 	// TODO WHAT IS WINSIZE!!
 	int winSize = 11; //parser.get<int>("winSize");
 
@@ -284,163 +303,106 @@ bool Calibrate::_recalibrate(size_t cam, vector<vector<Point2f>> &imagePoints,
     clock_t prevTimestamp = 0;
     const Scalar RED(0,0,255), GREEN(0,255,0);
     
-    settings_.outputFileName = string(FTL_CONFIG_ROOT "/calib_cam") + std::to_string(cam) + ".yml";
+    int chessBoardFlags = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
 
+    if(!settings_.useFisheye) {
+        // fast check erroneously fails with high distortions like fisheye
+        chessBoardFlags |= CALIB_CB_FAST_CHECK;
+    }
+    
     //! [get_input]
     for(;;)
     {
-        Mat view;
+        Mat view[2];
         //bool blinkOutput = false;
 
-        view = _nextImage(cam);
+		local_->get(view[0],view[1]);
+
+        //view = _nextImage(cam);
         LOG(INFO) << "Grabbing calibration image...";
-
-        //-----  If no more image, or got enough, then stop calibration and show result -------------
-        if( mode == CAPTURING && imagePoints.size() >= (size_t)settings_.nrFrames )
-        {
-          if(runCalibrationAndSave(settings_, imageSize,  cameraMatrix, distCoeffs, imagePoints, grid_width,
-                                   release_object)) {
-              LOG(INFO) << "Calibration completed";
-              mode = CALIBRATED;
-        }  else
-              mode = DETECTION;
+        
+        if (view[0].empty() || view[1].empty() || imagePoints[0].size() >= (size_t)settings_.nrFrames) {
+        	settings_.outputFileName = FTL_CONFIG_ROOT "/cam0.xml";
+        	bool r = runCalibrationAndSave(settings_, imageSize[0],
+        					cameraMatrix[0], distCoeffs[0], imagePoints[0],
+        					grid_width, release_object);
+        	settings_.outputFileName = FTL_CONFIG_ROOT "/cam1.xml";
+        	r &= runCalibrationAndSave(settings_, imageSize[1],
+        					cameraMatrix[1], distCoeffs[1], imagePoints[1],
+        					grid_width, release_object);
+        					
+        	if (!r && view[0].empty()) {
+        		LOG(ERROR) << "Not enough frames to calibrate";
+        		return false;
+        	} else if (r) {
+        		LOG(INFO) << "Calibration successful";
+        		break;
+        	}
+            
         }
-        if(view.empty())          // If there are no more images stop the loop
-        {
-        	LOG(INFO) << "More calibration images are required";
-            // if calibration threshold was not reached yet, calibrate now
-            if( mode != CALIBRATED && !imagePoints.empty() )
-                runCalibrationAndSave(settings_, imageSize,  cameraMatrix, distCoeffs, imagePoints, grid_width,
-                                      release_object);
-            break;
-        }
-        //! [get_input]
 
-        imageSize = view.size();  // Format input image.
-        if( settings_.flipVertical )    flip( view, view, 0 );
+        imageSize[0] = view[0].size();  // Format input image.
+        imageSize[1] = view[1].size();
+        //if( settings_.flipVertical )    flip( view[cam], view[cam], 0 );
 
         //! [find_pattern]
-        vector<Point2f> pointBuf;
+        vector<Point2f> pointBuf[2];
 
-        bool found;
+        bool found1,found2;
 
-        int chessBoardFlags = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
-
-        if(!settings_.useFisheye) {
-            // fast check erroneously fails with high distortions like fisheye
-            chessBoardFlags |= CALIB_CB_FAST_CHECK;
-        }
-
-        switch( settings_.calibrationPattern ) // Find feature points on the input format
-        {
-        case Settings::CHESSBOARD:
-            found = findChessboardCorners( view, settings_.boardSize, pointBuf, chessBoardFlags);
-            break;
-        case Settings::CIRCLES_GRID:
-            found = findCirclesGrid( view, settings_.boardSize, pointBuf );
-            break;
-        case Settings::ASYMMETRIC_CIRCLES_GRID:
-            found = findCirclesGrid( view, settings_.boardSize, pointBuf, CALIB_CB_ASYMMETRIC_GRID );
-            break;
-        default:
-            found = false;
-            break;
-        }
-        //! [find_pattern]
-        //! [pattern_found]
-        if ( found)                // If done with success,
+		found1 = findChessboardCorners( view[0], settings_.boardSize, pointBuf[0], chessBoardFlags);
+		found2 = findChessboardCorners( view[1], settings_.boardSize, pointBuf[1], chessBoardFlags);
+      
+        if (found1 && found2)                // If done with success,
         {
               // improve the found corners' coordinate accuracy for chessboard
-                if( settings_.calibrationPattern == Settings::CHESSBOARD)
-                {
                     Mat viewGray;
-                    cvtColor(view, viewGray, COLOR_BGR2GRAY);
-                    cornerSubPix( viewGray, pointBuf, Size(winSize,winSize),
+                    cvtColor(view[0], viewGray, COLOR_BGR2GRAY);
+                    cornerSubPix( viewGray, pointBuf[0], Size(winSize,winSize),
                         Size(-1,-1), TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001 ));
-                }
-
-                if( mode == CAPTURING &&  // For camera only take new samples after delay time
-                    (clock() - prevTimestamp > settings_.delay*1e-3*CLOCKS_PER_SEC) )
-                {
-                    imagePoints.push_back(pointBuf);
-                    prevTimestamp = clock();
-                   // blinkOutput = s.inputCapture.isOpened();
-                }
+                        
+                    cvtColor(view[1], viewGray, COLOR_BGR2GRAY);
+                    cornerSubPix( viewGray, pointBuf[1], Size(winSize,winSize),
+                        Size(-1,-1), TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001 ));
+                
+                imagePoints[0].push_back(pointBuf[0]);
+                imagePoints[1].push_back(pointBuf[1]);
 
                 // Draw the corners.
-                drawChessboardCorners( view, settings_.boardSize, Mat(pointBuf), found );
+                drawChessboardCorners( view[0], settings_.boardSize, Mat(pointBuf[0]), found1 );
+                drawChessboardCorners( view[1], settings_.boardSize, Mat(pointBuf[1]), found2 );
         } else {
         	LOG(WARNING) << "No calibration pattern found";
         }
-        //! [pattern_found]
-        //----------------------------- Output Text ------------------------------------------------
-        //! [output_text]
-        /*string msg = (mode == CAPTURING) ? "100/100" :
-                      mode == CALIBRATED ? "Calibrated" : "Press 'g' to start";
-        int baseLine = 0;
-        Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
-        Point textOrigin(view.cols - 2*textSize.width - 10, view.rows - 2*baseLine - 10);
 
-        if( mode == CAPTURING )
-        {
-            if(s.showUndistorsed)
-                msg = format( "%d/%d Undist", (int)imagePoints.size(), s.nrFrames );
-            else
-                msg = format( "%d/%d", (int)imagePoints.size(), s.nrFrames );
-        }
-
-        putText( view, msg, textOrigin, 1, 1, mode == CALIBRATED ?  GREEN : RED);
-
-        if( blinkOutput )
-            bitwise_not(view, view);*/
-        //! [output_text]
-        //------------------------- Video capture  output  undistorted ------------------------------
-        //! [output_undistorted]
-        /*if( mode == CALIBRATED && settings_.showUndistorsed )
-        {
-            Mat temp = view.clone();
-            if (settings_.useFisheye)
-              cv::fisheye::undistortImage(temp, view, cameraMatrix, distCoeffs);
-            else
-              cv::undistort(temp, view, cameraMatrix, distCoeffs);
-        }*/
-        //! [output_undistorted]
-        //------------------------------ Show image and check for input commands -------------------
-        //! [await_input]
-        imshow("Image View", view);
+        imshow("Left", view[0]);
+        imshow("Right", view[1]);
         char key = (char)waitKey(settings_.delay);
 
         if( key  == 27 )
             break;
-
-        /*if( s.inputCapture.isOpened() && key == 'g' )
-        {
-            mode = CAPTURING;
-            imagePoints.clear();
-        }*/
-        //! [await_input]
-        if (mode == CALIBRATED) break;
     }
     
-    if (mode != CALIBRATED) return false;
     
+    /*for (auto cam=0; cam<2; cam++) {
     Mat view, rview;
 
     if (settings_.useFisheye)
     {
         Mat newCamMat;
-        fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize,
+        fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix[cam], distCoeffs[cam], imageSize[cam],
                                                             Matx33d::eye(), newCamMat, 1);
-        fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize,
+        fisheye::initUndistortRectifyMap(cameraMatrix[cam], distCoeffs[cam], Matx33d::eye(), newCamMat, imageSize[cam],
                                          CV_16SC2, map1_[cam], map2_[cam]);
     }
     else
     {
         initUndistortRectifyMap(
-            cameraMatrix, distCoeffs, Mat(),
-            getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), imageSize,
+            cameraMatrix[cam], distCoeffs[cam], Mat(),
+            getOptimalNewCameraMatrix(cameraMatrix[cam], distCoeffs[cam], imageSize[cam], 1, imageSize[cam], 0), imageSize[cam],
             CV_16SC2, map1_[cam], map2_[cam]);
     }
+    }*/
     
 	return true;
 }

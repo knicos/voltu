@@ -76,8 +76,8 @@ class Calibrate {
 	
 	private:
 	bool runCalibration(cv::Mat &img, cv::Mat &cam);
-	bool _recalibrate(size_t cam, std::vector<std::vector<cv::Point2f>> &imagePoints,
-		cv::Mat &cameraMatrix, cv::Mat &distCoeffs, cv::Size &imageSize);
+	bool _recalibrate(std::vector<std::vector<cv::Point2f>> *imagePoints,
+		cv::Mat *cameraMatrix, cv::Mat *distCoeffs, cv::Size *imageSize);
 	cv::Mat _nextImage(size_t cam);
 	
 	private:

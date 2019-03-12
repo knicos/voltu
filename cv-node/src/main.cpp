@@ -3,6 +3,8 @@
 #include <ftl/synched.hpp>
 #include <ftl/calibrate.hpp>
 
+#include <glog/logging.h>
+
 #include <string>
 #include <vector>
 
@@ -76,7 +78,13 @@ int main(int argc, char **argv) {
 	
 	Calibrate calibrate(lsrc, OPTION_calibration_config);
 	
-	if (!calibrate.isCalibrated()) calibrate.recalibrate();
+	if (OPTION_calibrate) {
+		calibrate.recalibrate();
+	}
+	
+	if (!calibrate.isCalibrated()) {
+		LOG(WARNING) << "Cameras are not calibrated!";
+	}
 	
 	while (true) {
 		Mat l, r;
