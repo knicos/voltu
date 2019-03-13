@@ -102,10 +102,10 @@ int main(int argc, char **argv) {
 	int wsize = 5;
 	Ptr<DisparityWLSFilter> wls_filter;
 
-	Ptr<StereoSGBM> left_matcher  = StereoSGBM::create(10,max_disp,wsize);
+	Ptr<StereoSGBM> left_matcher  = StereoSGBM::create(50,max_disp,wsize);
             left_matcher->setP1(24*wsize*wsize);
             left_matcher->setP2(96*wsize*wsize);
-            left_matcher->setPreFilterCap(31);
+            left_matcher->setPreFilterCap(63);
             left_matcher->setMode(StereoSGBM::MODE_SGBM_3WAY);
             wls_filter = createDisparityWLSFilter(left_matcher);
             Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);
@@ -141,9 +141,10 @@ int main(int argc, char **argv) {
 		// TODO Send RGB+D data somewhere
 
 		normalize(left_disp, left_disp, 0, 255, NORM_MINMAX, CV_8U);
+		//normalize(right_disp, right_disp, 0, 255, NORM_MINMAX, CV_8U);
 		
 		cv::imshow("Left",left_disp);
-		if (lsrc->isStereo()) cv::imshow("Right",r);
+		//if (lsrc->isStereo()) cv::imshow("Right",right_disp);
 		
 		if(cv::waitKey(20) == 27){
             //exit if ESC is pressed
