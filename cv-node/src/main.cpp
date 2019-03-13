@@ -21,6 +21,7 @@ static bool OPTION_display = false;
 static bool OPTION_calibrate = false;
 static bool OPTION_flip = false;
 static bool OPTION_nostereo = false;
+static bool OPTION_noextrinsics = false;
 
 void handle_options(char ***argv, int *argc) {
 	while (*argc > 0) {
@@ -47,6 +48,8 @@ void handle_options(char ***argv, int *argc) {
 			OPTION_flip = true;
 		} else if (cmd.find("--no-stereo") == 0) {
 			OPTION_nostereo = true;
+		} else if (cmd.find("--no-extrinsics") == 0) {
+			OPTION_noextrinsics = true;
 		}
 		
 		(*argc)--;

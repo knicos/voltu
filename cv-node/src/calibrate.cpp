@@ -291,7 +291,7 @@ bool Calibrate::recalibrate() {
 		    fs.release();
 		}
 		else
-		    cout << "Error: can not save the intrinsic parameters\n";
+		    LOG(ERROR) << "Error: can not save the intrinsic parameters";
 
 		Mat R1, R2, P1, P2, Q;
 		Rect validRoi[2];
@@ -308,7 +308,7 @@ bool Calibrate::recalibrate() {
 		    fs.release();
 		}
 		else
-		    cout << "Error: can not save the extrinsic parameters\n";
+		    LOG(ERROR) << "Error: can not save the extrinsic parameters";
 		    
 		    
 		//Precompute maps for cv::remap()
@@ -562,15 +562,15 @@ static bool _runCalibration( Calibrate::Settings& s, Size& imageSize, Mat& camer
                                 s.flag | CALIB_USE_LU);
     }
 
-    if (release_object) {
+    /*if (release_object) {
         cout << "New board corners: " << endl;
         cout << newObjPoints[0] << endl;
         cout << newObjPoints[s.boardSize.width - 1] << endl;
         cout << newObjPoints[s.boardSize.width * (s.boardSize.height - 1)] << endl;
         cout << newObjPoints.back() << endl;
-    }
+    }*/
 
-    cout << "Re-projection error reported by calibrateCamera: "<< rms << endl;
+    LOG(INFO) << "Re-projection error reported by calibrateCamera: "<< rms;
 
     bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
 
