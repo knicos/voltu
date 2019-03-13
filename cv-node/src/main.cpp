@@ -3,6 +3,12 @@
 #include <ftl/synched.hpp>
 #include <ftl/calibrate.hpp>
 
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/core/utility.hpp"
+#include "opencv2/ximgproc.hpp"
+
 #include <glog/logging.h>
 
 #include <string>
@@ -12,6 +18,9 @@ using namespace ftl;
 using std::string;
 using std::vector;
 using cv::Mat;
+
+using namespace cv;
+using namespace cv::ximgproc;
 
 static vector<string> OPTION_peers;
 static vector<string> OPTION_channels;
@@ -88,9 +97,25 @@ int main(int argc, char **argv) {
 	if (!calibrate.isCalibrated()) {
 		LOG(WARNING) << "Cameras are not calibrated!";
 	}
+
+	int max_disp = 256;
+	int wsize = 5;
+	Ptr<DisparityWLSFilter> wls_filter;
+
+	Ptr<StereoSGBM> left_matcher  = StereoSGBM::create(10,max_disp,wsize);
+            left_matcher->setP1(24*wsize*wsize);
+            left_matcher->setP2(96*wsize*wsize);
+            left_matcher->setPreFilterCap(31);
+            left_matcher->setMode(StereoSGBM::MODE_SGBM_3WAY);
+            wls_filter = createDisparityWLSFilter(left_matcher);
+            Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);
+	/*Ptr<StereoBM> left_matcher = StereoBM::create(max_disp,wsize);
+	//left_matcher->setPreFilterCap(63);
+            wls_filter = createDisparityWLSFilter(left_matcher);
+            Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
 	
 	while (true) {
-		Mat l, r;
+		Mat l, r, left_disp, right_disp;
 		
 		calibrate.undistort(l,r);
 		//lsrc->get(l,r);
@@ -106,9 +131,18 @@ int main(int argc, char **argv) {
 		
 		// TODO Pose and disparity etc here...
 		
-		// TODO Send RGB+D data somewhere
+        cvtColor(l,  l,  COLOR_BGR2GRAY);
+        cvtColor(r, r, COLOR_BGR2GRAY);
+        //matching_time = (double)getTickCount();
+        left_matcher-> compute(l, r,left_disp);
+        right_matcher->compute(r,l, right_disp);
+       // matching_time = ((double)getTickCount() - matching_time)/getTickFrequency();
 		
-		cv::imshow("Left",l);
+		// TODO Send RGB+D data somewhere
+
+		normalize(left_disp, left_disp, 0, 255, NORM_MINMAX, CV_8U);
+		
+		cv::imshow("Left",left_disp);
 		if (lsrc->isStereo()) cv::imshow("Right",r);
 		
 		if(cv::waitKey(20) == 27){
