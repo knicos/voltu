@@ -2,7 +2,7 @@
 <opencv_storage>
 <Settings>
   <!-- Number of inner corners per a item row and column. (square, circle) -->
-  <BoardSize_Width> 9</BoardSize_Width>
+  <BoardSize_Width>9</BoardSize_Width>
   <BoardSize_Height>6</BoardSize_Height>
   
   <!-- The size of a square in some user defined metric system (pixel, millimeter)-->
@@ -16,7 +16,7 @@
 		To use an input video  -> give the path of the input video, like "/tmp/x.avi"
 		To use an image list   -> give the path to the XML or YAML file containing the list of the images, like "/tmp/circles_list.xml"
 		-->
-  <Input>"images/CameraCalibration/VID5/VID5.xml"</Input>
+  <!--Input>"images/CameraCalibration/VID5/VID5.xml"</Input-->
   <!--  If true (non-zero) we flip the input images around the horizontal axis.-->
   <Input_FlipAroundHorizontalAxis>0</Input_FlipAroundHorizontalAxis>
   
@@ -34,7 +34,7 @@
   <Calibrate_FixPrincipalPointAtTheCenter> 1 </Calibrate_FixPrincipalPointAtTheCenter>
   
   <!-- The name of the output log file. -->
-  <Write_outputFileName>"out_camera_data.xml"</Write_outputFileName>
+  <!--Write_outputFileName>"out_camera_data.xml"</Write_outputFileName-->
   <!-- If true (non-zero) we write to the output file the feature points.-->
   <Write_DetectedFeaturePoints>1</Write_DetectedFeaturePoints>
   <!-- If true (non-zero) we write to the output file the extrinsic camera parameters.-->
@@ -42,7 +42,7 @@
   <!-- If true (non-zero) we write to the output file the refined 3D target grid points.-->
   <Write_gridPoints>1</Write_gridPoints>
   <!-- If true (non-zero) we show after calibration the undistorted images.-->
-  <Show_UndistortedImage>1</Show_UndistortedImage>
+  <!--Show_UndistortedImage>1</Show_UndistortedImage-->
   <!-- If true (non-zero) will be used fisheye camera model.-->
   <Calibrate_UseFisheyeModel>0</Calibrate_UseFisheyeModel>
   <!-- If true (non-zero) distortion coefficient k1 will be equals to zero.-->
