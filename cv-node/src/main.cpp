@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
 		cv::imshow("Left",l);
 		if (lsrc->isStereo()) cv::imshow("Right",r);
 		
-		if(cv::waitKey(100) == 27){
+		if(cv::waitKey(20) == 27){
             //exit if ESC is pressed
             break;
         }

@@ -349,7 +349,7 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
     //Mat cameraMatrix, distCoeffs;
     //Size imageSize;
     int mode = CAPTURING;
-    clock_t prevTimestamp = 0;
+    double prevTimestamp = 0.0;
     const Scalar RED(0,0,255), GREEN(0,255,0);
     
     int chessBoardFlags = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
@@ -405,8 +405,9 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 		found1 = findChessboardCorners( view[0], settings_.boardSize, pointBuf[0], chessBoardFlags);
 		found2 = !local_->isStereo() || findChessboardCorners( view[1], settings_.boardSize, pointBuf[1], chessBoardFlags);
       
-        if (found1 && found2)                // If done with success,
+        if (found1 && found2 && local_->getTimestamp()-prevTimestamp > 0.5)                // If done with success,
         {
+			prevTimestamp = local_->getTimestamp();
               // improve the found corners' coordinate accuracy for chessboard
                     Mat viewGray;
                     cvtColor(view[0], viewGray, COLOR_BGR2GRAY);
@@ -431,7 +432,7 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 
         imshow("Left", view[0]);
         if (local_->isStereo()) imshow("Right", view[1]);
-        char key = (char)waitKey(settings_.delay);
+        char key = (char)waitKey(50);
 
         if( key  == 27 )
             break;
