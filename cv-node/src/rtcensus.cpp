@@ -54,25 +54,29 @@ static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &cen
 	auto ds = d_stop - d_start;
 	vector<uint16_t> result(census_R.size()*ds, 0);
 
-	for (size_t d=0; d<ds; d++) {
-		const auto d_ = d * sign;
+
+
 		for (size_t v=2; v<h-2; v++) {
 		for (size_t u=2; u<w-2; u++) {
-			const size_t ix = d+v*w*ds+u*ds;
+			const size_t ix = v*w*ds+u*ds;
 			for (int n=-2; n<=2; n++) {
 			const auto u_ = u + n;
-			if (u_+d_ < 0 || u_+d_ >= w) continue;
+	
 			for (int m=-2; m<=2; m++) {
+			
+				for (size_t d=0; d<ds; d++) {
+				const auto d_ = d * sign;
+				if (u_+d_ < 0 || u_+d_ >= w) continue;
 				const auto v_ = (v + m)*w;
 				auto r = census_R[u_+v_];
 				auto l = census_L[v_+(u_+d_)];
-				result[ix] += bitset<64>(r^l).count(); //hamming(r,l);
-			}
+				result[ix+d] += bitset<64>(r^l).count(); //hamming(r,l);
+				}
 			}
 			
+			}
 		}
 		}
-	}
 
 	return result;
 }
