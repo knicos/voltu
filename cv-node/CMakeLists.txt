@@ -29,7 +29,8 @@ set(FTL_VERSION "${ftl_VERSION_MAJOR}.${ftl_VERSION_MINOR}.${ftl_VERSION_PATCH}"
 add_definitions(-DFTL_VERSION=${FTL_VERSION})
 
 if (WIN32)
-	set(FTL_CONFIG_ROOT "$ENV{USERPROFILE}/AppData/ftl")
+	set(FTL_CONFIG_ROOT "\"$ENV{USERPROFILE}/AppData/ftl\"")
+	message(STATUS "Config root is ${FTL_CONFIG_ROOT}")
 	set(FTL_CACHE_ROOT "$ENV{USERPROFILE}/AppData/ftl")
 	set(FTL_DATA_ROOT "$ENV{USERPROFILE}/AppData/ftl")
 	add_definitions(-DWIN32)
@@ -38,11 +39,12 @@ endif (WIN32)
 if (UNIX)
 	add_definitions(-DUNIX)
 	set(FTL_CONFIG_ROOT "\"$ENV{HOME}/.config/ftl\"")
+	message(STATUS "Config root is ${FTL_CONFIG_ROOT}")
 	set(FTL_CACHE_ROOT "$ENV{HOME}/.cache/ftl")
 	set(FTL_DATA_ROOT "$ENV{HOME}/.local/share/ftl")
 endif (UNIX)
 
-add_definitions(-DFTL_CONFIG_ROOT=${FTL_CONFIG_ROOT})
+add_definitions("-DFTL_CONFIG_ROOT=${FTL_CONFIG_ROOT}")
 add_definitions(-DFTL_CACHE_ROOT=${FTL_CACHE_ROOT})
 add_definitions(-DFTL_DATA_ROOT=${FTL_DATA_ROOT})
 

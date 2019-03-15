@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 		LOG(WARNING) << "Cameras are not calibrated!";
 	}
 
-	int max_disp = 208; //256;
+	int max_disp = 256; //208;
 	int wsize = 5;
 	float sigma = 1.5;
 	float lambda = 8000.0;
@@ -137,8 +137,8 @@ int main(int argc, char **argv) {
 		// TODO Pose and disparity etc here...
 		
 		// Downscale to half
-		cv::resize(l, l, cv::Size(l.cols * 0.75,l.rows * 0.75), 0, 0, INTER_LINEAR);
-		cv::resize(r, r, cv::Size(r.cols * 0.75,r.rows * 0.75), 0, 0, INTER_LINEAR);
+		//cv::resize(l, l, cv::Size(l.cols * 0.75,l.rows * 0.75), 0, 0, INTER_LINEAR);
+		//cv::resize(r, r, cv::Size(r.cols * 0.75,r.rows * 0.75), 0, 0, INTER_LINEAR);
 		
         cvtColor(l,  l,  COLOR_BGR2GRAY);
         cvtColor(r, r, COLOR_BGR2GRAY);
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
 		cv::imshow("Left",filtered_disp);
 		//if (lsrc->isStereo()) cv::imshow("Right",right_disp);
 		
-		if(cv::waitKey(20) == 27){
+		if(cv::waitKey(1) == 27){
             //exit if ESC is pressed
             break;
         }
