@@ -101,8 +101,10 @@ int main(int argc, char **argv) {
 		LOG(WARNING) << "Cameras are not calibrated!";
 	}
 
-	int max_disp = 256;
+	int max_disp = 208; //256;
 	int wsize = 5;
+	float sigma = 1.5;
+	float lambda = 8000.0;
 	Ptr<DisparityWLSFilter> wls_filter;
 
 	Ptr<StereoSGBM> left_matcher  = StereoSGBM::create(50,max_disp,wsize);
@@ -118,7 +120,7 @@ int main(int argc, char **argv) {
             Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
 	
 	while (true) {
-		Mat l, r, left_disp, right_disp;
+		Mat l, r, left_disp, right_disp, filtered_disp;
 		
 		calibrate.undistort(l,r);
 		//lsrc->get(l,r);
@@ -134,6 +136,10 @@ int main(int argc, char **argv) {
 		
 		// TODO Pose and disparity etc here...
 		
+		// Downscale to half
+		cv::resize(l, l, cv::Size(l.cols * 0.75,l.rows * 0.75), 0, 0, INTER_LINEAR);
+		cv::resize(r, r, cv::Size(r.cols * 0.75,r.rows * 0.75), 0, 0, INTER_LINEAR);
+		
         cvtColor(l,  l,  COLOR_BGR2GRAY);
         cvtColor(r, r, COLOR_BGR2GRAY);
         //matching_time = (double)getTickCount();
@@ -141,12 +147,18 @@ int main(int argc, char **argv) {
         right_matcher->compute(r,l, right_disp);
        // matching_time = ((double)getTickCount() - matching_time)/getTickFrequency();
 		
+		wls_filter->setLambda(lambda);
+        wls_filter->setSigmaColor(sigma);
+        //filtering_time = (double)getTickCount();
+        wls_filter->filter(left_disp,l,filtered_disp,right_disp);
+        //filtering_time = ((double)getTickCount() - filtering_time)/getTickFrequency();
+		
 		// TODO Send RGB+D data somewhere
 
-		normalize(left_disp, left_disp, 0, 255, NORM_MINMAX, CV_8U);
+		normalize(filtered_disp, filtered_disp, 0, 255, NORM_MINMAX, CV_8U);
 		//normalize(right_disp, right_disp, 0, 255, NORM_MINMAX, CV_8U);
 		
-		cv::imshow("Left",left_disp);
+		cv::imshow("Left",filtered_disp);
 		//if (lsrc->isStereo()) cv::imshow("Right",right_disp);
 		
 		if(cv::waitKey(20) == 27){
