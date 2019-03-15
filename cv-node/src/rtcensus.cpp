@@ -29,9 +29,6 @@ static vector<uint64_t> sparse_census_16x16(Mat &arr) {
 		auto u_ = u + n;
 		for (int m=-7; m<=7; m+=2) {
 			auto v_ = v + m;
-
-			//if (u_ < 0 || v_ < 0 || u_ >= arr.cols || v_ >= arr.rows) continue;
-
 			r <<= 1;
 			r |= XHI(arr.at<uint8_t>(v,u), arr.at<uint8_t>(v_,u_));
 		}
@@ -44,18 +41,9 @@ static vector<uint64_t> sparse_census_16x16(Mat &arr) {
 	return result;
 }
 
-static inline uint8_t hamming(uint64_t n1, uint64_t n2) { 
-    /*int x = n1 ^ n2; 
-    uint8_t setBits = 0; 
-  
-    while (x > 0) { 
-        setBits += x & 1; 
-        x >>= 1; 
-    } 
-  
-    return setBits; */
+/*static inline uint8_t hamming(uint64_t n1, uint64_t n2) { 
     return bitset<64>(n1^n2).count();
-}
+}*/
 
 static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &census_L, size_t w, size_t h, size_t d_start, size_t d_stop, int sign=1) {
 	// TODO Add asserts
@@ -159,19 +147,22 @@ void RTCensus::disparity(cv::Mat &l, cv::Mat &r, cv::Mat &disp, size_t num_disp,
 	size_t d_min = 0;
 	size_t d_max = num_disp;
 
+	auto start = std::chrono::high_resolution_clock::now();
 	auto census_R = sparse_census_16x16(r);
 	auto census_L = sparse_census_16x16(l);
-	LOG(INFO) << "Census done";
+	std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start;
+	LOG(INFO) << "Census in " << elapsed.count() << "s";
 
+	start = std::chrono::high_resolution_clock::now();
 	auto dsi_ca_R = dsi_ca(census_R, census_L, l.cols, l.rows, d_min, d_max);
 	auto dsi_ca_L = dsi_ca(census_L, census_R, l.cols, l.rows, d_min, d_max, -1);
-	LOG(INFO) << "DSI done";
+	elapsed = std::chrono::high_resolution_clock::now() - start;
+	LOG(INFO) << "DSI in " << elapsed.count() << "s";
 
 	auto disp_R = d_sub(dsi_ca_R, l.cols, l.rows, d_max-d_min);
 	auto disp_L = d_sub(dsi_ca_L, l.cols, l.rows, d_max-d_min);
 	LOG(INFO) << "Disp done";
 
-	//disp = disp_L;
 	disp = consistency(disp_R, disp_L);
 
 	// TODO confidence and texture filtering
