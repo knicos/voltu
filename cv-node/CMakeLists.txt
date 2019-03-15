@@ -51,7 +51,7 @@ add_definitions(-DFTL_DATA_ROOT=${FTL_DATA_ROOT})
 
 set(CMAKE_CXX_FLAGS "-pthread -std=c++17 -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -pg -Wall")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -msse3 -mfpmath=sse")
 
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 

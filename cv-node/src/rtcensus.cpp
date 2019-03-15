@@ -2,6 +2,7 @@
 #include <vector>
 #include <tuple>
 #include <bitset>
+#include <cmath>
 #include <glog/logging.h>
 
 using ftl::RTCensus;
@@ -69,6 +70,7 @@ static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &cen
 		const auto d_ = d * sign;
 		for (size_t v=2; v<h-2; v++) {
 		for (size_t u=2; u<w-2; u++) {
+			const size_t ix = d+v*w*ds+u*ds;
 			for (int n=-2; n<=2; n++) {
 			const auto u_ = u + n;
 			if (u_+d_ < 0 || u_+d_ >= w) continue;
@@ -76,7 +78,7 @@ static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &cen
 				const auto v_ = (v + m)*w;
 				auto r = census_R[u_+v_];
 				auto l = census_L[v_+(u_+d_)];
-				result[d+v*w*ds+u*ds] += hamming(r,l);
+				result[ix] += bitset<64>(r^l).count(); //hamming(r,l);
 			}
 			}
 			
@@ -133,6 +135,26 @@ static cv::Mat d_sub(vector<uint16_t> &dsi, size_t w, size_t h, size_t ds) {
 	return result;
 }
 
+static cv::Mat consistency(cv::Mat &d_sub_r, cv::Mat &d_sub_l) {
+	size_t w = d_sub_r.cols;
+	size_t h = d_sub_r.rows;
+	Mat result = Mat::zeros(Size(w,h), CV_64FC1);
+	
+	for (size_t v=0; v<h; v++) {
+	for (size_t u=0; u<w; u++) {
+		auto a = (int)(d_sub_l.at<double>(v,u));
+		if (u-a < 0) continue;
+		
+		auto b = d_sub_r.at<double>(v,u-a);
+		
+		if (std::abs(a-b) <= 1.0) result.at<double>(v,u) = std::abs((a+b)/2);
+		else result.at<double>(v,u) = 0.0;
+	}
+	}
+	
+	return result;
+}
+
 void RTCensus::disparity(cv::Mat &l, cv::Mat &r, cv::Mat &disp, size_t num_disp, float gamma, float tau) {
 	size_t d_min = 0;
 	size_t d_max = num_disp;
@@ -149,8 +171,8 @@ void RTCensus::disparity(cv::Mat &l, cv::Mat &r, cv::Mat &disp, size_t num_disp,
 	auto disp_L = d_sub(dsi_ca_L, l.cols, l.rows, d_max-d_min);
 	LOG(INFO) << "Disp done";
 
-	disp = disp_L;
-	//disp = consistency(disp_R, disp_L);
+	//disp = disp_L;
+	disp = consistency(disp_R, disp_L);
 
 	// TODO confidence and texture filtering
 }
