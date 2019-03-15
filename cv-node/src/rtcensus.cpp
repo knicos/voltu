@@ -1,78 +1,82 @@
 #include <ftl/rtcensus.hpp>
 #include <vector>
+#include <tuple>
+#include <bitset>
+#include <glog/logging.h>
 
 using ftl::RTCensus;
 using std::vector;
+using cv::Mat;
+using cv::Point;
+using cv::Size;
+using std::tuple;
+using std::get;
+using std::make_tuple;
+using std::bitset;
 
 #define XHI(P1,P2) ((P1 <= P2) ? 0 : 1)
 
-static vector<int64_t> sparse_census_16x16(Mat &arr) {
-	vector<int64_t> result;
-	result.resize(arr.cols*arr.rows);
-	
-	auto N = [-7,-5,-3,-1,1,3,5,7];
-	auto M = [-7,-5,-3,-1,1,3,5,7];
+static vector<uint64_t> sparse_census_16x16(Mat &arr) {
+	vector<uint64_t> result;
+	result.resize(arr.cols*arr.rows,0);
 
-	for (size_t v=0; v<arr.cols; v++) {
-	for (size_t u=0; u<arr.rows; u++) {
-		int64_t r = 0;
+	for (size_t v=7; v<arr.rows-7; v++) {
+	for (size_t u=7; u<arr.cols-7; u++) {
+		uint64_t r = 0;
 
-		for (auto n : N) {
-		for (auto m : M) {
-			auto u_ = u + n;
+		for (int n=-7; n<=7; n+=2) {
+		auto u_ = u + n;
+		for (int m=-7; m<=7; m+=2) {
 			auto v_ = v + m;
 
-			if (u_ < 0 || v_ < 0 || u_ >= arr.rows || v_ >= arr.cols) continue;
+			//if (u_ < 0 || v_ < 0 || u_ >= arr.cols || v_ >= arr.rows) continue;
 
-			r << 1;
+			r <<= 1;
 			r |= XHI(arr.at<uint8_t>(v,u), arr.at<uint8_t>(v_,u_));
 		}
 		}
 
-		result[v+u*arr.cols] = r;
+		result[u+v*arr.cols] = r;
 	}
 	}
 
 	return result;
 }
 
-static int hamming(int n1, int n2) { 
-    int x = n1 ^ n2; 
-    int setBits = 0; 
+static inline uint8_t hamming(uint64_t n1, uint64_t n2) { 
+    /*int x = n1 ^ n2; 
+    uint8_t setBits = 0; 
   
     while (x > 0) { 
         setBits += x & 1; 
         x >>= 1; 
     } 
   
-    return setBits; 
+    return setBits; */
+    return bitset<64>(n1^n2).count();
 }
 
-static vector<int64_t> dsi_ca(vector<int64_t> census_R, vector<int64_t> census_L, size_t w, size_t h, size_t d_start, size_t d_stop, int sign=1) {
+static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &census_L, size_t w, size_t h, size_t d_start, size_t d_stop, int sign=1) {
 	// TODO Add asserts
+	assert( census_R.size() == w*h);
+	assert( census_L.size() == w*h);
+	assert( d_stop-d_start > 0 );
 
 	auto ds = d_stop - d_start;
-	vector<int64_t> result;
-	result.resize(census_R.size()*ds);
-
-	//auto N = [-2,-1,0,1,2];
-	//auto M = [-2,-1,0,1,2];
+	vector<uint16_t> result(census_R.size()*ds, 0);
 
 	for (size_t d=0; d<ds; d++) {
-		for (size_t v=0; v<w; v++) {
-		for (size_t u=0; u<h; u++) {
+		const auto d_ = d * sign;
+		for (size_t v=2; v<h-2; v++) {
+		for (size_t u=2; u<w-2; u++) {
 			for (int n=-2; n<=2; n++) {
-			for (int n=-2; n<=2; n++) {
-				auto u_ = u + n;
-				auto v_ = v + m;
-				auto d_ = d * sign;
-
-				if (!(0<=(u_+d_) < h) continue;
-				if (!(0<=u_<h) || !(0<=v_<w)) continue;
-
-				auto r = census_R[v_+u_*w];
-				auto l = census_L[v_+(u_+d_)*w];
-				result[v+u*w+d*w*h];
+			const auto u_ = u + n;
+			if (u_+d_ < 0 || u_+d_ >= w) continue;
+			for (int m=-2; m<=2; m++) {
+				const auto v_ = (v + m)*w;
+				auto r = census_R[u_+v_];
+				auto l = census_L[v_+(u_+d_)];
+				result[d+v*w*ds+u*ds] += hamming(r,l);
 			}
 			}
 			
@@ -83,32 +87,46 @@ static vector<int64_t> dsi_ca(vector<int64_t> census_R, vector<int64_t> census_L
 	return result;
 }
 
-int64_t arrmin(vector<int64_t> a, size_t ix, size_t len) {
-	int64_t m = INT64_MAX;
-	for (size_t i=ix,i<ix+len; i++) {
-		if (a[i] < m) m = a[i];
+static size_t arrmin(vector<uint16_t> &a, size_t ix, size_t len) {
+	uint32_t m = UINT32_MAX;
+	size_t mi = 0;
+	for (size_t i=ix; i<ix+len; i++) {
+		if (a[i] < m) {
+			m = a[i];
+			mi = i;
+		}
 	}
-	return m;
+	return mi-ix;
 }
 
-cv::Mat d_sub(vector<int64_t> dsi, size_t w, size_t h, size_t ds) {
-	Mat result = Mat::zeros(Size(w,h), CV_64FC1);
+static inline double fit_parabola(tuple<size_t,uint16_t> p, tuple<size_t,uint16_t> pl, tuple<size_t,uint16_t> pr) {
+	double a = get<1>(pr) - get<1>(pl);
+	double b = 2 * (2 * get<1>(p) - get<1>(pl) - get<1>(pr));
+	return static_cast<double>(get<0>(p)) + (a / b);
+}
 
-	for (size_t v=0; v<w; v++) {
-	for (size_t u=0; u<h; u++) {
-		auto d_min = arrmin(dsi, v+u*w, ds);
-		decltype(d_min) d_sub;
+static cv::Mat d_sub(vector<uint16_t> &dsi, size_t w, size_t h, size_t ds) {
+	Mat result = Mat::zeros(Size(w,h), CV_64FC1);
+	
+	assert( dsi.size() == w*h*ds );
+
+	for (size_t v=0; v<h; v++) {
+	const size_t vwds = v * w * ds;
+	for (size_t u=0; u<w; u++) {
+		const size_t uds = u*ds;
+		auto d_min = arrmin(dsi, vwds+uds, ds);
+		double d_sub;
 
 		if (d_min == 0 || d_min == ds-1) d_sub = d_min;
 		else {
-			Point p(d_min, dsi[v+u*w+d_min*w*h]);
-			Point pl(d_min-1, dsi[v+u*w+(d_min-1)*w*h]);
-			Point pr(d_min+1, dsi[v+u*w+(d_min+1)*w*h]);
+			auto p = make_tuple(d_min, dsi[d_min+vwds+uds]);
+			auto pl = make_tuple(d_min-1, dsi[d_min-1+vwds+uds]);
+			auto pr = make_tuple(d_min+1, dsi[d_min+1+vwds+uds]);
 
 			d_sub = fit_parabola(p,pl,pr);
 		}
 
-		result.at<uint8_t>(v,u) = d_sub;
+		result.at<double>(v,u) = d_sub;
 	}
 	}
 
@@ -119,16 +137,20 @@ void RTCensus::disparity(cv::Mat &l, cv::Mat &r, cv::Mat &disp, size_t num_disp,
 	size_t d_min = 0;
 	size_t d_max = num_disp;
 
-	auto census_R = sparse_census_16x16(l);
-	auto census_L = sparse_census_16x16(r);
+	auto census_R = sparse_census_16x16(r);
+	auto census_L = sparse_census_16x16(l);
+	LOG(INFO) << "Census done";
 
 	auto dsi_ca_R = dsi_ca(census_R, census_L, l.cols, l.rows, d_min, d_max);
 	auto dsi_ca_L = dsi_ca(census_L, census_R, l.cols, l.rows, d_min, d_max, -1);
+	LOG(INFO) << "DSI done";
 
-	auto disp_R = d_sub(dsi_ca_R);
-	auto disp_L = d_sub(dsi_ca_L);
+	auto disp_R = d_sub(dsi_ca_R, l.cols, l.rows, d_max-d_min);
+	auto disp_L = d_sub(dsi_ca_L, l.cols, l.rows, d_max-d_min);
+	LOG(INFO) << "Disp done";
 
-	disp = consistency(disp_R, disp_L);
+	disp = disp_L;
+	//disp = consistency(disp_R, disp_L);
 
 	// TODO confidence and texture filtering
 }

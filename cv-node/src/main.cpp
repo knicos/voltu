@@ -2,6 +2,7 @@
 #include <ftl/local.hpp>
 #include <ftl/synched.hpp>
 #include <ftl/calibrate.hpp>
+#include <ftl/rtcensus.hpp>
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
@@ -101,7 +102,7 @@ int main(int argc, char **argv) {
 		LOG(WARNING) << "Cameras are not calibrated!";
 	}
 
-	int max_disp = 256; //208;
+	/*int max_disp = 256; //208;
 	int wsize = 5;
 	float sigma = 1.5;
 	float lambda = 8000.0;
@@ -113,11 +114,13 @@ int main(int argc, char **argv) {
             left_matcher->setPreFilterCap(63);
             left_matcher->setMode(StereoSGBM::MODE_SGBM_3WAY);
             wls_filter = createDisparityWLSFilter(left_matcher);
-            Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);
+            Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
 	/*Ptr<StereoBM> left_matcher = StereoBM::create(max_disp,wsize);
 	//left_matcher->setPreFilterCap(63);
             wls_filter = createDisparityWLSFilter(left_matcher);
             Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
+            
+    ftl::RTCensus rtc;
 	
 	while (true) {
 		Mat l, r, left_disp, right_disp, filtered_disp;
@@ -142,16 +145,18 @@ int main(int argc, char **argv) {
 		
         cvtColor(l,  l,  COLOR_BGR2GRAY);
         cvtColor(r, r, COLOR_BGR2GRAY);
-        //matching_time = (double)getTickCount();
-        left_matcher-> compute(l, r,left_disp);
+       
+        /*left_matcher-> compute(l, r,left_disp);
         right_matcher->compute(r,l, right_disp);
-       // matching_time = ((double)getTickCount() - matching_time)/getTickFrequency();
 		
 		wls_filter->setLambda(lambda);
         wls_filter->setSigmaColor(sigma);
         //filtering_time = (double)getTickCount();
         wls_filter->filter(left_disp,l,filtered_disp,right_disp);
-        //filtering_time = ((double)getTickCount() - filtering_time)/getTickFrequency();
+        //filtering_time = ((double)getTickCount() - filtering_time)/getTickFrequency();*/
+        
+        rtc.disparity(l,r,filtered_disp,200);
+		LOG(INFO) << "Disparity complete";
 		
 		// TODO Send RGB+D data somewhere
 
@@ -161,7 +166,7 @@ int main(int argc, char **argv) {
 		cv::imshow("Left",filtered_disp);
 		//if (lsrc->isStereo()) cv::imshow("Right",right_disp);
 		
-		if(cv::waitKey(1) == 27){
+		if(cv::waitKey(1000) == 27){
             //exit if ESC is pressed
             break;
         }

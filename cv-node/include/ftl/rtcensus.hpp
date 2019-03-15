@@ -1,6 +1,9 @@
 #ifndef _FTL_RTCENSUS_HPP_
 #define _FTL_RTCENSUS_HPP_
 
+#include <opencv2/core.hpp>
+#include <opencv2/opencv.hpp>
+
 namespace ftl {
 class RTCensus {
 	public:

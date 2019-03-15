@@ -60,6 +60,7 @@ set(CVNODESRC
 	src/calibrate.cpp
 	src/local.cpp
 	src/sync.cpp
+	src/rtcensus.cpp
 )
 
 add_executable(cv-node ${CVNODESRC})
