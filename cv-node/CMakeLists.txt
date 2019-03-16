@@ -8,6 +8,7 @@ include(CTest)
 enable_testing()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 if (WIN32)
 find_package( glog REQUIRED )
@@ -15,6 +16,8 @@ include_directories(${glog_DIR})
 endif (WIN32)
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
+find_package( LibSGM )
+find_package( CUDA )
 #find_package(PkgConfig)
 #pkg_check_modules(GTKMM gtkmm-3.0)
 
@@ -63,10 +66,16 @@ set(CVNODESRC
 	src/disparity.cpp
 	src/algorithms/rtcensus.cpp
 	src/algorithms/opencv_sgbm.cpp
+	src/algorithms/opencv_bm.cpp
 )
+
+if (LIBSGM_FOUND)
+	list(APPEND CVNODESRC "src/algorithms/fixstars_sgm.cpp")
+	message("Cuda libraries at ${CUDA_LIBRARIES}")
+endif (LIBSGM_FOUND)
 
 add_executable(cv-node ${CVNODESRC})
 target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(cv-node Threads::Threads ${OpenCV_LIBS} glog)
+target_link_libraries(cv-node Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog)
 
 

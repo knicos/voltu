@@ -34,7 +34,10 @@
 		"minimum": 0,
 		"maximum": 208,
 		"tau": 0.0,
-		"gamma": 0.0
+		"gamma": 0.0,
+		"window_size": 5,
+		"sigma": 1.5,
+		"lambda": 8000.0
 	}
 }
 

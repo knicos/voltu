@@ -7,10 +7,9 @@ using namespace cv;
 static ftl::Disparity::Register opencvsgbm("sgbm", OpenCVSGBM::create);
 
 OpenCVSGBM::OpenCVSGBM(nlohmann::json &config) : Disparity(config) {
-	int wsize = 5;
-	float sigma = 1.5;
-	float lambda = 8000.0;
-	
+	int wsize = config.value("windows_size", 5);
+	float sigma = config.value("sigma", 1.5);
+	float lambda = config.value("lambda", 8000.0);
 
 	left_matcher_  = StereoSGBM::create(min_disp_,max_disp_,wsize);
             left_matcher_->setP1(24*wsize*wsize);

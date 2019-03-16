@@ -23,12 +23,9 @@ using std::map;
 using cv::Mat;
 using json = nlohmann::json;
 using std::ifstream;
-
 using namespace cv;
-//using namespace cv::ximgproc;
 
-static string OPTION_calibration_config = FTL_CONFIG_ROOT "/calibration.xml";
-
+// Store loaded configuration
 static json config;
 
 /**
@@ -42,6 +39,9 @@ static bool findConfiguration(const string &file) {
 	return true;
 }
 
+/**
+ * Generate a map from command line option to value
+ */
 map<string,string> read_options(char ***argv, int *argc) {
 	map<string,string> opts;
 	
@@ -63,6 +63,10 @@ map<string,string> read_options(char ***argv, int *argc) {
 	return opts;
 }
 
+/**
+ * Put command line options into json config. If config element does not exist
+ * or is of a different type then report an error.
+ */
 static void process_options(const map<string,string> &opts) {
 	for (auto opt : opts) {
 		if (opt.first == "config") continue;
@@ -95,7 +99,6 @@ int main(int argc, char **argv) {
 	// TODO Initiate the network
 	
 	LocalSource *lsrc;
-	
 	if (argc) {
 		// Load video file
 		lsrc = new LocalSource(argv[0], config["source"]);
@@ -114,16 +117,9 @@ int main(int argc, char **argv) {
 	Calibrate calibrate(lsrc, config["calibration"]);
 	if (config["calibrate"]) calibrate.recalibrate();
 	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
-
-	/*Ptr<StereoBM> left_matcher = StereoBM::create(max_disp,wsize);
-	//left_matcher->setPreFilterCap(63);
-            wls_filter = createDisparityWLSFilter(left_matcher);
-            Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
     
     // Choose and configure disparity algorithm
     auto disparity = Disparity::create(config["disparity"]);
-    
-    //double fact = 4.051863857;
 	
 	Mat l, r, filtered_disp;
 	
