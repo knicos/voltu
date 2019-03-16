@@ -2,13 +2,12 @@
 #include <ftl/local.hpp>
 #include <ftl/synched.hpp>
 #include <ftl/calibrate.hpp>
-#include <ftl/rtcensus.hpp>
+#include <ftl/disparity.hpp>
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/core/utility.hpp"
-#include "opencv2/ximgproc.hpp"
 
 #include <glog/logging.h>
 
@@ -21,12 +20,13 @@ using std::vector;
 using cv::Mat;
 
 using namespace cv;
-using namespace cv::ximgproc;
+//using namespace cv::ximgproc;
 
 static vector<string> OPTION_peers;
 static vector<string> OPTION_channels;
 static string OPTION_calibration_config = FTL_CONFIG_ROOT "/calibration.xml";
 static string OPTION_config;
+static string OPTION_algorithm = "rtcensus";
 static bool OPTION_display = false;
 static bool OPTION_calibrate = false;
 static bool OPTION_flip = false;
@@ -52,6 +52,9 @@ void handle_options(char ***argv, int *argc) {
 		} else if (cmd.find("--config=") == 0) {
 			cmd = cmd.substr(cmd.find("=")+1);
 			OPTION_config = cmd;
+		} else if (cmd.find("--algorithm=") == 0) {
+			cmd = cmd.substr(cmd.find("=")+1);
+			OPTION_algorithm = cmd;
 		} else if (cmd.find("--display") == 0) {
 			OPTION_display = true;
 		} else if (cmd.find("--flip") == 0) {
@@ -92,41 +95,27 @@ int main(int argc, char **argv) {
 		sync->addChannel(c);
 	}
 	
+	// Perform or load calibration intrinsics + extrinsics
 	Calibrate calibrate(lsrc, OPTION_calibration_config);
-	
-	if (OPTION_calibrate) {
-		calibrate.recalibrate();
-	}
-	
-	if (!calibrate.isCalibrated()) {
-		LOG(WARNING) << "Cameras are not calibrated!";
-	}
+	if (OPTION_calibrate) calibrate.recalibrate();
+	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 
-	/*int max_disp = 256; //208;
-	int wsize = 5;
-	float sigma = 1.5;
-	float lambda = 8000.0;
-	Ptr<DisparityWLSFilter> wls_filter;
-
-	Ptr<StereoSGBM> left_matcher  = StereoSGBM::create(50,max_disp,wsize);
-            left_matcher->setP1(24*wsize*wsize);
-            left_matcher->setP2(96*wsize*wsize);
-            left_matcher->setPreFilterCap(63);
-            left_matcher->setMode(StereoSGBM::MODE_SGBM_3WAY);
-            wls_filter = createDisparityWLSFilter(left_matcher);
-            Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
 	/*Ptr<StereoBM> left_matcher = StereoBM::create(max_disp,wsize);
 	//left_matcher->setPreFilterCap(63);
             wls_filter = createDisparityWLSFilter(left_matcher);
             Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
-            
-    ftl::RTCensus rtc;
+    
+    // Choose and configure disparity algorithm
+    auto disparity = Disparity::create(OPTION_algorithm);
+    disparity->setMaxDisparity(208);
+    
+    //double fact = 4.051863857;
+	
+	Mat l, r, filtered_disp;
 	
 	while (true) {
-		Mat l, r, left_disp, right_disp, filtered_disp;
-		
+		// Read calibrated images.
 		calibrate.undistort(l,r);
-		//lsrc->get(l,r);
 		
 		// Feed into sync buffer and network forward
 		sync->feed(LEFT, l,lsrc->getTimestamp());
@@ -135,38 +124,27 @@ int main(int argc, char **argv) {
 		// Read back from buffer
 		sync->get(LEFT,l);
 		sync->get(RIGHT,r);
-		//double latency = sync->latency();
 		
-		// TODO Pose and disparity etc here...
-		
-		// Downscale to half
+		// Downscale
 		//cv::resize(l, l, cv::Size(l.cols * 0.75,l.rows * 0.75), 0, 0, INTER_LINEAR);
 		//cv::resize(r, r, cv::Size(r.cols * 0.75,r.rows * 0.75), 0, 0, INTER_LINEAR);
 		
+		// Black and white
         cvtColor(l,  l,  COLOR_BGR2GRAY);
         cvtColor(r, r, COLOR_BGR2GRAY);
-       
-        /*left_matcher-> compute(l, r,left_disp);
-        right_matcher->compute(r,l, right_disp);
-		
-		wls_filter->setLambda(lambda);
-        wls_filter->setSigmaColor(sigma);
-        //filtering_time = (double)getTickCount();
-        wls_filter->filter(left_disp,l,filtered_disp,right_disp);
-        //filtering_time = ((double)getTickCount() - filtering_time)/getTickFrequency();*/
         
-        rtc.disparity(l,r,filtered_disp,200);
-		LOG(INFO) << "Disparity complete";
+        disparity->compute(l,r,filtered_disp);
+		LOG(INFO) << "Disparity complete ";
 		
 		// TODO Send RGB+D data somewhere
+		
+		//left_disp = (fact * (double)l.cols * 0.1) / filtered_disp;
 
 		normalize(filtered_disp, filtered_disp, 0, 255, NORM_MINMAX, CV_8U);
-		//normalize(right_disp, right_disp, 0, 255, NORM_MINMAX, CV_8U);
 		
-		cv::imshow("Left",filtered_disp);
-		//if (lsrc->isStereo()) cv::imshow("Right",right_disp);
+		cv::imshow("Disparity",filtered_disp);
 		
-		if(cv::waitKey(1000) == 27){
+		if(cv::waitKey(10) == 27){
             //exit if ESC is pressed
             break;
         }

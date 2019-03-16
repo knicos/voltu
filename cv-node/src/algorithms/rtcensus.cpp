@@ -1,11 +1,11 @@
-#include <ftl/rtcensus.hpp>
+#include <ftl/algorithms/rtcensus.hpp>
 #include <vector>
 #include <tuple>
 #include <bitset>
 #include <cmath>
 #include <glog/logging.h>
 
-using ftl::RTCensus;
+using ftl::algorithms::RTCensus;
 using std::vector;
 using cv::Mat;
 using cv::Point;
@@ -15,9 +15,11 @@ using std::get;
 using std::make_tuple;
 using std::bitset;
 
+static ftl::Disparity::Register rtcensus("rtcensus", RTCensus::create);
+
 #define XHI(P1,P2) ((P1 <= P2) ? 0 : 1)
 
-static vector<uint64_t> sparse_census_16x16(Mat &arr) {
+static vector<uint64_t> sparse_census_16x16(const Mat &arr) {
 	vector<uint64_t> result;
 	result.resize(arr.cols*arr.rows,0);
 
@@ -45,14 +47,15 @@ static vector<uint64_t> sparse_census_16x16(Mat &arr) {
     return bitset<64>(n1^n2).count();
 }*/
 
-static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &census_L, size_t w, size_t h, size_t d_start, size_t d_stop, int sign=1) {
+static void dsi_ca(vector<uint16_t> &result, const vector<uint64_t> &census_R, const vector<uint64_t> &census_L, size_t w, size_t h, size_t d_start, size_t d_stop, int sign=1) {
 	// TODO Add asserts
 	assert( census_R.size() == w*h);
 	assert( census_L.size() == w*h);
 	assert( d_stop-d_start > 0 );
 
 	auto ds = d_stop - d_start;
-	vector<uint16_t> result(census_R.size()*ds, 0);
+	//vector<uint16_t> result(census_R.size()*ds, 0);
+	result.resize(census_R.size()*ds, 0);
 
 	const size_t eu = (sign>0) ? w-2-ds : w-2;
 
@@ -64,12 +67,12 @@ static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &cen
 			const auto u_ = u + n;
 	
 			for (int m=-2; m<=2; m++) {
-			
-				for (size_t d=0; d<ds; d++) {
-				const auto d_ = d * sign;
-				//if (u_+d_ < 0 || u_+d_ >= w) continue;
 				const auto v_ = (v + m)*w;
 				auto r = census_R[u_+v_];
+				
+				for (size_t d=0; d<ds; d++) {
+				const auto d_ = d * sign;
+				
 				auto l = census_L[v_+(u_+d_)];
 				result[ix+d] += bitset<64>(r^l).count(); //hamming(r,l);
 				}
@@ -79,7 +82,7 @@ static vector<uint16_t> dsi_ca(vector<uint64_t> &census_R, vector<uint64_t> &cen
 		}
 		}
 
-	return result;
+	//return result;
 }
 
 static size_t arrmin(vector<uint16_t> &a, size_t ix, size_t len) {
@@ -148,9 +151,11 @@ static cv::Mat consistency(cv::Mat &d_sub_r, cv::Mat &d_sub_l) {
 	return result;
 }
 
-void RTCensus::disparity(cv::Mat &l, cv::Mat &r, cv::Mat &disp, size_t num_disp, float gamma, float tau) {
-	size_t d_min = 0;
-	size_t d_max = num_disp;
+RTCensus::RTCensus() : gamma_(0.0f), tau_(0.0f) {}
+
+void RTCensus::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
+	size_t d_min = min_disp_;
+	size_t d_max = max_disp_;
 
 	auto start = std::chrono::high_resolution_clock::now();
 	auto census_R = sparse_census_16x16(r);
@@ -159,8 +164,9 @@ void RTCensus::disparity(cv::Mat &l, cv::Mat &r, cv::Mat &disp, size_t num_disp,
 	LOG(INFO) << "Census in " << elapsed.count() << "s";
 
 	start = std::chrono::high_resolution_clock::now();
-	auto dsi_ca_R = dsi_ca(census_R, census_L, l.cols, l.rows, d_min, d_max);
-	auto dsi_ca_L = dsi_ca(census_L, census_R, l.cols, l.rows, d_min, d_max, -1);
+	vector<uint16_t> dsi_ca_R,dsi_ca_L;
+	dsi_ca(dsi_ca_R,census_R, census_L, l.cols, l.rows, d_min, d_max);
+	dsi_ca(dsi_ca_L,census_L, census_R, l.cols, l.rows, d_min, d_max, -1);
 	elapsed = std::chrono::high_resolution_clock::now() - start;
 	LOG(INFO) << "DSI in " << elapsed.count() << "s";
 
