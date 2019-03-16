@@ -3,6 +3,7 @@
 #include <ftl/synched.hpp>
 #include <ftl/calibrate.hpp>
 #include <ftl/disparity.hpp>
+#include <nlohmann/json.hpp>
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
@@ -12,61 +13,71 @@
 #include <glog/logging.h>
 
 #include <string>
+#include <map>
 #include <vector>
 
 using namespace ftl;
 using std::string;
 using std::vector;
+using std::map;
 using cv::Mat;
+using json = nlohmann::json;
+using std::ifstream;
 
 using namespace cv;
 //using namespace cv::ximgproc;
 
-static vector<string> OPTION_peers;
-static vector<string> OPTION_channels;
 static string OPTION_calibration_config = FTL_CONFIG_ROOT "/calibration.xml";
-static string OPTION_config;
-static string OPTION_algorithm = "rtcensus";
-static bool OPTION_display = false;
-static bool OPTION_calibrate = false;
-static bool OPTION_flip = false;
-static bool OPTION_nostereo = false;
-static bool OPTION_noextrinsics = false;
 
-void handle_options(char ***argv, int *argc) {
+static json config;
+
+/**
+ * Find and load a JSON configuration file
+ */
+static bool findConfiguration(const string &file) {
+	// TODO Check other locations
+	ifstream i((file != "") ? file : FTL_CONFIG_ROOT "/config.json");
+	if (!i.is_open()) return false;
+	i >> config;
+	return true;
+}
+
+map<string,string> read_options(char ***argv, int *argc) {
+	map<string,string> opts;
+	
 	while (*argc > 0) {
 		string cmd((*argv)[0]);
 		if (cmd[0] != '-') break;
 		
-		if (cmd.find("--calibrate") == 0) {
-			OPTION_calibrate = true;
-		} else if (cmd.find("--peer=") == 0) {
-			cmd = cmd.substr(cmd.find("=")+1);
-			OPTION_peers.push_back(cmd);
-		} else if (cmd.find("--channel=") == 0) {
-			cmd = cmd.substr(cmd.find("=")+1);
-			OPTION_channels.push_back(cmd);
-		} else if (cmd.find("--calibration=") == 0) {
-			cmd = cmd.substr(cmd.find("=")+1);
-			OPTION_calibration_config = cmd;
-		} else if (cmd.find("--config=") == 0) {
-			cmd = cmd.substr(cmd.find("=")+1);
-			OPTION_config = cmd;
-		} else if (cmd.find("--algorithm=") == 0) {
-			cmd = cmd.substr(cmd.find("=")+1);
-			OPTION_algorithm = cmd;
-		} else if (cmd.find("--display") == 0) {
-			OPTION_display = true;
-		} else if (cmd.find("--flip") == 0) {
-			OPTION_flip = true;
-		} else if (cmd.find("--no-stereo") == 0) {
-			OPTION_nostereo = true;
-		} else if (cmd.find("--no-extrinsics") == 0) {
-			OPTION_noextrinsics = true;
+		size_t p;
+		if ((p = cmd.find("=")) == string::npos) {
+			opts[cmd.substr(2)] = "true";
+		} else {
+			opts[cmd.substr(2,p-2)] = cmd.substr(p+1);
 		}
 		
 		(*argc)--;
 		(*argv)++;
+	}
+	
+	return opts;
+}
+
+static void process_options(const map<string,string> &opts) {
+	for (auto opt : opts) {
+		if (opt.first == "config") continue;
+		
+		try {
+			auto ptr = json::json_pointer("/"+opt.first);
+			auto v = json::parse(opt.second);
+			if (v.type() != config.at(ptr).type()) {
+				LOG(ERROR) << "Incorrect type for argument " << opt.first;
+				continue;
+			}
+			config.at(ptr) = v;
+		} catch(...) {
+			LOG(ERROR) << "Unrecognised option: " << opt.first;
+		}
 	}
 }
 
@@ -75,7 +86,11 @@ int main(int argc, char **argv) {
 	argv++;
 	
 	// Process Arguments
-	handle_options(&argv, &argc);
+	auto options = read_options(&argv, &argc);
+	if (!findConfiguration(options["config"])) {
+		LOG(FATAL) << "Could not find any configuration!";
+	}
+	process_options(options);
 	
 	// TODO Initiate the network
 	
@@ -83,21 +98,21 @@ int main(int argc, char **argv) {
 	
 	if (argc) {
 		// Load video file
-		lsrc = new LocalSource(argv[0], OPTION_flip, OPTION_nostereo);
+		lsrc = new LocalSource(argv[0], config["source"]);
 	} else {
 		// Use cameras
-		lsrc = new LocalSource(OPTION_flip, OPTION_nostereo);
+		lsrc = new LocalSource(config["source"]);
 	}
 	
 	auto sync = new SyncSource(); // TODO Pass protocol object
 	// Add any remote channels
-	for (auto c : OPTION_channels) {
+	/*for (auto c : OPTION_channels) {
 		sync->addChannel(c);
-	}
+	}*/
 	
 	// Perform or load calibration intrinsics + extrinsics
 	Calibrate calibrate(lsrc, OPTION_calibration_config);
-	if (OPTION_calibrate) calibrate.recalibrate();
+	if (config["calibrate"]) calibrate.recalibrate();
 	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 
 	/*Ptr<StereoBM> left_matcher = StereoBM::create(max_disp,wsize);
@@ -106,8 +121,7 @@ int main(int argc, char **argv) {
             Ptr<StereoMatcher> right_matcher = createRightMatcher(left_matcher);*/
     
     // Choose and configure disparity algorithm
-    auto disparity = Disparity::create(OPTION_algorithm);
-    disparity->setMaxDisparity(208);
+    auto disparity = Disparity::create(config["disparity"]);
     
     //double fact = 4.051863857;
 	

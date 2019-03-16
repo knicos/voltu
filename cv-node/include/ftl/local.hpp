@@ -2,6 +2,7 @@
 #define _FTL_LOCAL_HPP_
 
 #include <string>
+#include <nlohmann/json.hpp>
 
 namespace cv {
 	class Mat;
@@ -11,8 +12,8 @@ namespace cv {
 namespace ftl {
 class LocalSource {
 	public:
-	LocalSource(bool flip=false, bool nostereo=false);
-	LocalSource(const std::string &vid, bool flip=false, bool nostereo=false);
+	LocalSource(nlohmann::json &config);
+	LocalSource(const std::string &vid, nlohmann::json &config);
 	
 	bool left(cv::Mat &m);
 	bool right(cv::Mat &m);

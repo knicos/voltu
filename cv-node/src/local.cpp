@@ -13,10 +13,11 @@ using cv::Rect;
 using std::string;
 using namespace std::chrono;
 
-LocalSource::LocalSource(bool flip, bool nostereo) : timestamp_(0.0), flip_(flip), nostereo_(nostereo) {
+LocalSource::LocalSource(nlohmann::json &config)
+		: timestamp_(0.0), flip_(config["flip"]), nostereo_(config["nostereo"]) {
 	// Use cameras
-	camera_a_ = new VideoCapture((flip) ? 1 : 0);
-	if (!nostereo) camera_b_ = new VideoCapture((flip) ? 0 : 1);
+	camera_a_ = new VideoCapture((flip_) ? 1 : 0);
+	if (!nostereo_) camera_b_ = new VideoCapture((flip_) ? 0 : 1);
 	else camera_b_ = nullptr;
 
 	if (!camera_a_->isOpened()) {
@@ -38,7 +39,8 @@ LocalSource::LocalSource(bool flip, bool nostereo) : timestamp_(0.0), flip_(flip
 	}
 }
 
-LocalSource::LocalSource(const string &vid, bool flip, bool nostereo): timestamp_(0.0), flip_(flip), nostereo_(nostereo) {
+LocalSource::LocalSource(const string &vid, nlohmann::json &config)
+		: timestamp_(0.0), flip_(config["flip"]), nostereo_(config["nostereo"]) {
 	if (vid == "") {
 		LOG(FATAL) << "No video file specified";
 		camera_a_ = nullptr;

@@ -1,0 +1,38 @@
+{
+	"source": {
+		"flip": false,
+		"nostereo": false
+	},
+	"calibrate": false,
+	"calibration": {
+		"board_size": [9,6],
+		"square_size": 50,
+		"frame_delay": 100,
+		"num_frames": 25,
+		"assume_zero_tangential_distortion": true,
+		"fix_principal_point_at_center": true,
+		"use_fisheye_model": false,
+		"fix_k1": false,
+		"fix_k2": false,
+		"fix_k3": false,
+		"fix_k4": true,
+		"fix_k5": true,
+		"save": true,
+		"use_intrinsics": true,
+		"use_extrinsics": true
+	},
+	"camera": {
+		"name": "Pansonic Lumix DMC-FZ300",
+		"focal_length": 25,
+		"sensor_width": 6.17,
+		"base_line": 0.1
+	},
+	"disparity": {
+		"algorithm": "rtcensus",
+		"minimum": 0,
+		"maximum": 208,
+		"tau": 0.0,
+		"gamma": 0.0
+	}
+}
+

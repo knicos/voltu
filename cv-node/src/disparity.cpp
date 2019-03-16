@@ -2,16 +2,19 @@
 
 using ftl::Disparity;
 
-std::map<std::string,std::function<Disparity*()>> Disparity::algorithms__;
+std::map<std::string,std::function<Disparity*(nlohmann::json&)>> Disparity::algorithms__;
 
-Disparity::Disparity() : min_disp_(0), max_disp_(208) {}
+Disparity::Disparity(nlohmann::json &config)
+	: 	config_(config),
+		min_disp_(config["minimum"]),
+		max_disp_(config["maximum"]) {}
 
-Disparity *Disparity::create(const std::string &n) {
-	if (algorithms__.count(n) != 1) return nullptr;
-	return algorithms__[n]();
+Disparity *Disparity::create(nlohmann::json &config) {
+	if (algorithms__.count(config["algorithm"]) != 1) return nullptr;
+	return algorithms__[config["algorithm"]](config);
 }
 
-void Disparity::_register(const std::string &n, std::function<Disparity*()> f) {
+void Disparity::_register(const std::string &n, std::function<Disparity*(nlohmann::json&)> f) {
 	algorithms__[n] = f;
 }
 

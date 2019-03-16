@@ -6,7 +6,7 @@ using namespace cv;
 
 static ftl::Disparity::Register opencvsgbm("sgbm", OpenCVSGBM::create);
 
-OpenCVSGBM::OpenCVSGBM() {
+OpenCVSGBM::OpenCVSGBM(nlohmann::json &config) : Disparity(config) {
 	int wsize = 5;
 	float sigma = 1.5;
 	float lambda = 8000.0;

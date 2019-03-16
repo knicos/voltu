@@ -151,7 +151,7 @@ static cv::Mat consistency(cv::Mat &d_sub_r, cv::Mat &d_sub_l) {
 	return result;
 }
 
-RTCensus::RTCensus() : gamma_(0.0f), tau_(0.0f) {}
+RTCensus::RTCensus(nlohmann::json &config) : Disparity(config), gamma_(0.0f), tau_(0.0f) {}
 
 void RTCensus::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	size_t d_min = min_disp_;

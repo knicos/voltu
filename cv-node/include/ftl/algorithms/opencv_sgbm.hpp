@@ -11,11 +11,11 @@ namespace ftl {
 namespace algorithms {
 class OpenCVSGBM : public ftl::Disparity {
 	public:
-	OpenCVSGBM();
+	OpenCVSGBM(nlohmann::json &config);
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create() { return new OpenCVSGBM(); }
+	static inline Disparity *create(nlohmann::json &config) { return new OpenCVSGBM(config); }
 	
 	private:
 	cv::Ptr<cv::StereoSGBM> left_matcher_;
