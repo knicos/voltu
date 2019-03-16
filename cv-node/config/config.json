@@ -10,6 +10,7 @@
 		"frame_delay": 100,
 		"num_frames": 25,
 		"assume_zero_tangential_distortion": true,
+		"fix_aspect_ratio": true,
 		"fix_principal_point_at_center": true,
 		"use_fisheye_model": false,
 		"fix_k1": false,
@@ -19,7 +20,8 @@
 		"fix_k5": true,
 		"save": true,
 		"use_intrinsics": true,
-		"use_extrinsics": true
+		"use_extrinsics": true,
+		"flip_vertical": false
 	},
 	"camera": {
 		"name": "Pansonic Lumix DMC-FZ300",

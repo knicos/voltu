@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
 	}*/
 	
 	// Perform or load calibration intrinsics + extrinsics
-	Calibrate calibrate(lsrc, OPTION_calibration_config);
+	Calibrate calibrate(lsrc, config["calibration"]);
 	if (config["calibrate"]) calibrate.recalibrate();
 	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 

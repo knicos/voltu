@@ -5,6 +5,7 @@
 #include <ftl/local.hpp>
 #include <string>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 namespace cv {
 class FileStorage;
@@ -21,7 +22,7 @@ class Calibrate {
 		enum InputType { INVALID, CAMERA, VIDEO_FILE, IMAGE_LIST };
 
 		void write(cv::FileStorage& fs) const;
-		void read(const cv::FileNode& node);
+		void read(const nlohmann::json& node);
 		void validate();
 		//Mat nextImage();
 
@@ -65,7 +66,7 @@ class Calibrate {
 
 	};
 	public:
-	Calibrate(ftl::LocalSource *s, const std::string &cal);
+	Calibrate(ftl::LocalSource *s, nlohmann::json &config);
 	
 	bool recalibrate();
 	

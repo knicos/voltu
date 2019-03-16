@@ -46,30 +46,30 @@ void Calibrate::Settings::write(FileStorage& fs) const                        //
               //<< "Input" << input
        << "}";
 }
-void Calibrate::Settings::read(const FileNode& node)                          //Read serialization for this class
+void Calibrate::Settings::read(const nlohmann::json& node)                          //Read serialization for this class
 {
-    node["BoardSize_Width" ] >> boardSize.width;
-    node["BoardSize_Height"] >> boardSize.height;
-    node["Calibrate_Pattern"] >> patternToUse;
-    node["Square_Size"]  >> squareSize;
-    node["Calibrate_NrOfFrameToUse"] >> nrFrames;
-    node["Calibrate_FixAspectRatio"] >> aspectRatio;
-    node["Write_DetectedFeaturePoints"] >> writePoints;
-    node["Write_extrinsicParameters"] >> writeExtrinsics;
-    node["Write_gridPoints"] >> writeGrid;
+    boardSize.width = node["board_size"][0];
+    boardSize.height = node["board_size"][1];
+    //node["Calibrate_Pattern"] >> patternToUse;
+    squareSize = node["square_size"];
+    nrFrames = node["num_frames"];
+    aspectRatio = node["fix_aspect_ratio"];
+    //node["Write_DetectedFeaturePoints"] >> writePoints;
+    //node["Write_extrinsicParameters"] >> writeExtrinsics;
+    //node["Write_gridPoints"] >> writeGrid;
     //node["Write_outputFileName"] >> outputFileName;
-    node["Calibrate_AssumeZeroTangentialDistortion"] >> calibZeroTangentDist;
-    node["Calibrate_FixPrincipalPointAtTheCenter"] >> calibFixPrincipalPoint;
-    node["Calibrate_UseFisheyeModel"] >> useFisheye;
-    node["Input_FlipAroundHorizontalAxis"] >> flipVertical;
+    calibZeroTangentDist = node["assume_zero_tangential_distortion"];
+    calibFixPrincipalPoint = node["fix_principal_point_at_center"];
+    useFisheye =  node["use_fisheye_model"];
+    flipVertical = node["flip_vertical"];
     //node["Show_UndistortedImage"] >> showUndistorsed;
     //node["Input"] >> input;
-    node["Input_Delay"] >> delay;
-    node["Fix_K1"] >> fixK1;
-    node["Fix_K2"] >> fixK2;
-    node["Fix_K3"] >> fixK3;
-    node["Fix_K4"] >> fixK4;
-    node["Fix_K5"] >> fixK5;
+    delay = node["frame_delay"];
+    fixK1 = node["fix_k1"];
+    fixK2 = node["fix_k2"];
+    fixK3 = node["fix_k3"];
+    fixK4 = node["fix_k4"];
+    fixK5 = node["fix_k5"];
 
     validate();
 }
@@ -112,7 +112,7 @@ void Calibrate::Settings::validate()
         if (calibFixPrincipalPoint) flag |= fisheye::CALIB_FIX_PRINCIPAL_POINT;
     }
 
-    calibrationPattern = NOT_EXISTING;
+    /*calibrationPattern = NOT_EXISTING;
     if (!patternToUse.compare("CHESSBOARD")) calibrationPattern = CHESSBOARD;
     if (!patternToUse.compare("CIRCLES_GRID")) calibrationPattern = CIRCLES_GRID;
     if (!patternToUse.compare("ASYMMETRIC_CIRCLES_GRID")) calibrationPattern = ASYMMETRIC_CIRCLES_GRID;
@@ -120,7 +120,7 @@ void Calibrate::Settings::validate()
     {
         LOG(ERROR) << " Camera calibration mode does not exist: " << patternToUse;
         goodInput = false;
-    }
+    }*/
     atImageList = 0;
 
 }
@@ -166,16 +166,16 @@ bool runCalibration(Calibrate::Settings& s, Size imageSize, Mat&  cameraMatrix, 
                            vector<vector<Point2f> > imagePoints, float grid_width, bool release_object);
 
 
-Calibrate::Calibrate(ftl::LocalSource *s, const std::string &cal) : local_(s) {
-    FileStorage fs(cal, FileStorage::READ); // Read the settings
+Calibrate::Calibrate(ftl::LocalSource *s, nlohmann::json &config) : local_(s) {
+    /*FileStorage fs(cal, FileStorage::READ); // Read the settings
     if (!fs.isOpened())
     {
         LOG(ERROR) << "Could not open the configuration file: \"" << cal << "\"";
         return;
-    }
+    }*/
     //fs["Settings"] >> settings_;
-    settings_.read(fs["Settings"]);
-    fs.release();
+    settings_.read(config);
+    //fs.release();
     
     if (!settings_.goodInput)
     {
@@ -534,7 +534,7 @@ static bool _runCalibration( Calibrate::Settings& s, Size& imageSize, Mat& camer
     }
 
     vector<vector<Point3f> > objectPoints(1);
-    calcBoardCornerPositions(s.boardSize, s.squareSize, objectPoints[0], s.calibrationPattern);
+    calcBoardCornerPositions(s.boardSize, s.squareSize, objectPoints[0], Calibrate::Settings::CHESSBOARD);
     objectPoints[0][s.boardSize.width - 1].x = objectPoints[0][0].x + grid_width;
     newObjPoints = objectPoints[0];
 
