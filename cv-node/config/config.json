@@ -1,7 +1,8 @@
 {
 	"source": {
 		"flip": false,
-		"nostereo": false
+		"nostereo": false,
+		"scale": 1.0
 	},
 	"calibrate": false,
 	"calibration": {
@@ -24,7 +25,7 @@
 		"flip_vertical": false
 	},
 	"camera": {
-		"name": "Pansonic Lumix DMC-FZ300",
+		"name": "Panasonic Lumix DMC-FZ300",
 		"focal_length": 25,
 		"sensor_width": 6.17,
 		"base_line": 0.1

@@ -203,7 +203,7 @@ bool Calibrate::_loadCalibration() {
 	float scale = 1.0f;
 
     Rect roi1, roi2;
-    Mat Q;
+    
     // reading intrinsic parameters
     FileStorage fs(FTL_CONFIG_ROOT "/intrinsics.yml", FileStorage::READ);
     if(!fs.isOpened())
@@ -231,8 +231,13 @@ bool Calibrate::_loadCalibration() {
     Mat R, T, R1, P1, R2, P2;
     fs["R"] >> R;
     fs["T"] >> T;
+    fs["R1"] >> R1;
+    fs["R2"] >> R2;
+    fs["P1"] >> P1;
+    fs["P2"] >> P2;
+    fs["Q"] >> Q_;
 
-    stereoRectify( M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2 );
+    stereoRectify( M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q_, CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2 );
 
     Mat map11, map12, map21, map22;
     initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2, map1_[0], map2_[0]);
@@ -293,18 +298,18 @@ bool Calibrate::recalibrate() {
 		else
 		    LOG(ERROR) << "Error: can not save the intrinsic parameters";
 
-		Mat R1, R2, P1, P2, Q;
+		Mat R1, R2, P1, P2;
 		Rect validRoi[2];
 
 		stereoRectify(cameraMatrix[0], distCoeffs[0],
 		              cameraMatrix[1], distCoeffs[1],
-		              imageSize[0], R, T, R1, R2, P1, P2, Q,
+		              imageSize[0], R, T, R1, R2, P1, P2, Q_,
 		              CALIB_ZERO_DISPARITY, 1, imageSize[0], &validRoi[0], &validRoi[1]);
 
 		fs.open(FTL_CONFIG_ROOT "/extrinsics.yml", FileStorage::WRITE);
 		if( fs.isOpened() )
 		{
-		    fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
+		    fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q_;
 		    fs.release();
 		}
 		else

@@ -32,6 +32,7 @@ class LocalSource {
 	//float fps_;
 	bool flip_;
 	bool nostereo_;
+	float downsize_;
 	cv::VideoCapture *camera_a_;
 	cv::VideoCapture *camera_b_;
 };

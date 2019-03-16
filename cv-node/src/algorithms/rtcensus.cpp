@@ -134,7 +134,7 @@ static cv::Mat d_sub(vector<uint16_t> &dsi, size_t w, size_t h, size_t ds) {
 static cv::Mat consistency(cv::Mat &d_sub_r, cv::Mat &d_sub_l) {
 	size_t w = d_sub_r.cols;
 	size_t h = d_sub_r.rows;
-	Mat result = Mat::zeros(Size(w,h), CV_64FC1);
+	Mat result = Mat::zeros(Size(w,h), CV_32FC1);
 	
 	for (size_t v=0; v<h; v++) {
 	for (size_t u=0; u<w; u++) {
@@ -143,8 +143,8 @@ static cv::Mat consistency(cv::Mat &d_sub_r, cv::Mat &d_sub_l) {
 		
 		auto b = d_sub_r.at<double>(v,u-a);
 		
-		if (std::abs(a-b) <= 1.0) result.at<double>(v,u) = std::abs((a+b)/2);
-		else result.at<double>(v,u) = 0.0;
+		if (std::abs(a-b) <= 1.0) result.at<float>(v,u) = std::abs((a+b)/2);
+		else result.at<float>(v,u) = 0.0f;
 	}
 	}
 	

@@ -14,7 +14,10 @@ using std::string;
 using namespace std::chrono;
 
 LocalSource::LocalSource(nlohmann::json &config)
-		: timestamp_(0.0), flip_(config["flip"]), nostereo_(config["nostereo"]) {
+	:	timestamp_(0.0),
+		flip_(config["flip"]),
+		nostereo_(config["nostereo"]),
+		downsize_(config.value("scale",1.0f)) {
 	// Use cameras
 	camera_a_ = new VideoCapture((flip_) ? 1 : 0);
 	if (!nostereo_) camera_b_ = new VideoCapture((flip_) ? 0 : 1);
@@ -40,7 +43,10 @@ LocalSource::LocalSource(nlohmann::json &config)
 }
 
 LocalSource::LocalSource(const string &vid, nlohmann::json &config)
-		: timestamp_(0.0), flip_(config["flip"]), nostereo_(config["nostereo"]) {
+	:	timestamp_(0.0),
+		flip_(config["flip"]),
+		nostereo_(config["nostereo"]),
+		downsize_(config.value("scale",1.0f)) {
 	if (vid == "") {
 		LOG(FATAL) << "No video file specified";
 		camera_a_ = nullptr;
@@ -184,6 +190,11 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 			l = Mat(frame, Rect(0,0,resx,frame.rows));
 			r = Mat(frame, Rect(resx,0,frame.cols-resx,frame.rows));
 		}
+	}
+	
+	if (downsize_ != 1.0f) {
+		cv::resize(l, l, cv::Size(l.cols * downsize_,l.rows * downsize_), 0, 0, cv::INTER_LINEAR);
+		cv::resize(r, r, cv::Size(r.cols * downsize_,r.rows * downsize_), 0, 0, cv::INTER_LINEAR);
 	}
 	
 	return true;

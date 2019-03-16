@@ -75,6 +75,8 @@ class Calibrate {
 	
 	bool isCalibrated();
 	
+	const cv::Mat &getQ() const { return Q_; }
+	
 	private:
 	bool _recalibrate(std::vector<std::vector<cv::Point2f>> *imagePoints,
 		cv::Mat *cameraMatrix, cv::Mat *distCoeffs, cv::Size *imageSize);
@@ -87,6 +89,7 @@ class Calibrate {
 	bool calibrated_;
 	std::vector<cv::Mat> map1_;
 	std::vector<cv::Mat> map2_;
+	cv::Mat Q_;
 };
 };
 
