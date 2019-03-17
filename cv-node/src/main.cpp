@@ -121,11 +121,12 @@ int main(int argc, char **argv) {
     // Choose and configure disparity algorithm
     auto disparity = Disparity::create(config["disparity"]);
 	
-	Mat l, r, disparity32F, lbw, rbw;
+	Mat l, r, disparity32F, depth32F, lbw, rbw;
 	
 	cv::viz::Viz3d myWindow("FTL");
 	
-	float fact = (float)(config["camera"]["focal_length"]) / (float)(config["camera"]["sensor_width"]);
+	float base_line = (float)config["camera"]["base_line"];
+	float focal = (float)(config["camera"]["focal_length"]) / (float)(config["camera"]["sensor_width"]);
 	Mat rot_vec = Mat::zeros(1,3,CV_32F);
 	
 	while (!myWindow.wasStopped()) {
@@ -145,52 +146,69 @@ int main(int argc, char **argv) {
         cvtColor(r, rbw, COLOR_BGR2GRAY);
         
         disparity->compute(lbw,rbw,disparity32F);
-		LOG(INFO) << "Disparity complete ";
+		//LOG(INFO) << "Disparity complete ";
 		
 		disparity32F.convertTo(disparity32F, CV_32F);
+		disparity32F += 10.0f;
+		Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
+		disparity32F = disparity32F(rect);
+		l = l(rect);
 		
 		// TODO Send RGB+D data somewhere
 		
 		// Convert disparity to depth
-		disparity32F = (fact * (float)l.cols * 0.1f) / disparity32F;
 
-		//normalize(filtered_disp, filtered_disp, 0, 255, NORM_MINMAX, CV_8U);
+		//normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
 		
 		//cv::imshow("Disparity",filtered_disp);
 		//Mat i3d;
 		//const Mat &Q = calibrate.getQ();
-		cv::Mat Q_32F;
-		calibrate.getQ().convertTo(Q_32F,CV_32F);
-		cv::Mat_<cv::Vec3f> XYZ(disparity32F.rows,disparity32F.cols);   // Output point cloud
-		reprojectImageTo3D(disparity32F, XYZ, Q_32F, true);
 		
-		//cv::imshow("Points",XYZ);
+
+		if (config["display"]["points"]) {
+			cv::Mat Q_32F; // = (Mat_<double>(4,4) << 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1); //(4,4,CV_32F);
+			calibrate.getQ().convertTo(Q_32F,CV_32F);
+			cv::Mat_<cv::Vec3f> XYZ(disparity32F.rows,disparity32F.cols);   // Output point cloud
+			reprojectImageTo3D(disparity32F, XYZ, Q_32F, false);
+			
+			//cv::imshow("Points",XYZ);
+			
+			cv::viz::WCloud cloud_widget = cv::viz::WCloud( XYZ, l );
+			cloud_widget.setRenderingProperty( cv::viz::POINT_SIZE, 2 );
+			
+			/* Rotation using rodrigues */
+		    /// Rotate around (1,1,1)
+		    rot_vec.at<float>(0,0) = 0.0f;
+		    rot_vec.at<float>(0,1) = 0.0f;
+		    rot_vec.at<float>(0,2) = CV_PI * 1.0f;
+
+		    Mat rot_mat;
+		    Rodrigues(rot_vec, rot_mat);
+
+		    /// Construct pose
+		    Affine3f pose(rot_mat, Vec3f(0, 20.0, 0));
+			myWindow.showWidget( "coosys", viz::WCoordinateSystem() );
+			myWindow.showWidget( "Depth", cloud_widget );
+			myWindow.setWidgetPose("Depth", pose);
+
+			myWindow.spinOnce( 30, true );
+		}
 		
-		cv::viz::WCloud cloud_widget = cv::viz::WCloud( XYZ, l );
-    	cloud_widget.setRenderingProperty( cv::viz::POINT_SIZE, 2 );
-    	
-    	/* Rotation using rodrigues */
-        /// Rotate around (1,1,1)
-        rot_vec.at<float>(0,0) = 0.0f;
-        rot_vec.at<float>(0,1) = 0.0f;
-        rot_vec.at<float>(0,2) = CV_PI * 1.0f;
-
-        Mat rot_mat;
-        Rodrigues(rot_vec, rot_mat);
-
-        /// Construct pose
-        Affine3f pose(rot_mat, Vec3f(0, 0, 0));
-
-		//myWindow.showWidget( "coosys", viz::WCoordinateSystem() );
-		myWindow.showWidget( "Depth", cloud_widget );
-		myWindow.setWidgetPose("Depth", pose);
-
-		myWindow.spinOnce( 30, true );
-		
-		//if(cv::waitKey(10) == 27){
-            //exit if ESC is pressed
-        //    break;
-        //}
+		if (config["display"]["depth"]) {
+			depth32F = (focal * (float)l.cols * base_line) / disparity32F;
+			cv::imshow("Depth", depth32F);
+			if(cv::waitKey(10) == 27){
+		        //exit if ESC is pressed
+		        break;
+		    }
+        } else if (config["display"]["disparity"]) {
+        	normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
+			cv::imshow("Disparity", disparity32F);
+			if(cv::waitKey(10) == 27){
+		        //exit if ESC is pressed
+		        break;
+		    }
+        }
 	}
 }
 

@@ -151,9 +151,25 @@ static cv::Mat consistency(cv::Mat &d_sub_r, cv::Mat &d_sub_l) {
 	return result;
 }
 
-RTCensus::RTCensus(nlohmann::json &config) : Disparity(config), gamma_(0.0f), tau_(0.0f) {}
+RTCensus::RTCensus(nlohmann::json &config)
+	:	Disparity(config),
+		gamma_(0.0f),
+		tau_(0.0f),
+		use_cuda_(config.value("use_cuda",true)) {}
 
 void RTCensus::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
+	#if defined HAVE_CUDA
+	if (use_cuda_) {
+		computeCUDA(l,r,disp);
+	} else {
+		computeCPU(l,r,disp);
+	}
+	#else // !HAVE_CUDA
+	computeCPU(l,r,disp);
+	#endif
+}
+
+void RTCensus::computeCPU(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	size_t d_min = min_disp_;
 	size_t d_max = max_disp_;
 
@@ -178,4 +194,33 @@ void RTCensus::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 
 	// TODO confidence and texture filtering
 }
+
+#if defined HAVE_CUDA
+
+using namespace cv::cuda;
+using namespace cv;
+
+namespace ftl { namespace gpu {
+void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<float> &disp, size_t num_disp, const int &s=0);
+}}
+
+void RTCensus::computeCUDA(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
+	if (disp_.empty()) disp_ = cuda::GpuMat(l.size(), CV_32FC1);
+	//if (filtered_.empty()) filtered_ = cuda::GpuMat(l.size(), CV_8U);
+	if (left_.empty()) left_ = cuda::GpuMat(l.size(), CV_8U);
+	if (right_.empty()) right_ = cuda::GpuMat(l.size(), CV_8U);
+	
+	left_.upload(l);
+	right_.upload(r);
+	
+	auto start = std::chrono::high_resolution_clock::now();
+	ftl::gpu::rtcensus_call(left_, right_, disp_, max_disp_);
+	std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start;
+	LOG(INFO) << "CUDA census in " << elapsed.count() << "s";
+	//filter_->apply(disp_, left_, filtered_);
+	
+	disp_.download(disp);
+}
+
+#endif
 

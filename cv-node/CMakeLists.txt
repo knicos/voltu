@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.1.0)
 include (CheckIncludeFile)
 include (CheckFunctionExists)
+include(CheckLanguage)
 
 project (cv-node)
 
@@ -20,6 +21,15 @@ find_package( LibSGM )
 find_package( CUDA )
 #find_package(PkgConfig)
 #pkg_check_modules(GTKMM gtkmm-3.0)
+
+if (CUDA_FOUND)
+check_language(CUDA)
+enable_language(CUDA)
+set(CMAKE_CUDA_FLAGS "-Xcompiler -Wall")
+set(CMAKE_CUDA_FLAGS_DEBUG "-g -DDEBUG -D_DEBUG -Wall")
+set(CMAKE_CUDA_FLAGS_RELEASE "")
+add_definitions(-DHAVE_CUDA)
+endif (CUDA_FOUND)
 
 # Need to include staged files and libs
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -52,7 +62,7 @@ add_definitions("-DFTL_CONFIG_ROOT=${FTL_CONFIG_ROOT}")
 add_definitions(-DFTL_CACHE_ROOT=${FTL_CACHE_ROOT})
 add_definitions(-DFTL_DATA_ROOT=${FTL_DATA_ROOT})
 
-set(CMAKE_CXX_FLAGS "-pthread -std=c++17 -Wall")
+set(CMAKE_CXX_FLAGS "-std=c++17 -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -pg -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -msse3 -mfpmath=sse")
 
@@ -74,7 +84,20 @@ if (LIBSGM_FOUND)
 	message("Cuda libraries at ${CUDA_LIBRARIES}")
 endif (LIBSGM_FOUND)
 
+if (CUDA_FOUND)
+	list(APPEND CVNODESRC "src/algorithms/opencv_cuda_bm.cpp" "src/algorithms/opencv_cuda_bp.cpp" "src/algorithms/rtcensus.cu")
+endif (CUDA_FOUND)
+
 add_executable(cv-node ${CVNODESRC})
+
+if (CUDA_FOUND)
+set_property(TARGET Threads::Threads
+                 PROPERTY INTERFACE_COMPILE_OPTIONS $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler -pthread>
+                                                    "$<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-pthread>")
+
+set_property(TARGET cv-node PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+endif (CUDA_FOUND)
+
 target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(cv-node Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog)
 

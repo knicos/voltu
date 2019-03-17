@@ -32,13 +32,21 @@
 	},
 	"disparity": {
 		"algorithm": "rtcensus",
-		"minimum": 0,
+		"use_cuda": true,
+		"minimum": 10,
 		"maximum": 208,
 		"tau": 0.0,
 		"gamma": 0.0,
 		"window_size": 5,
 		"sigma": 1.5,
 		"lambda": 8000.0
+	},
+	"display": {
+		"disparity": false,
+		"points": true,
+		"depth": false,
+		"left": false,
+		"right": false
 	}
 }
 

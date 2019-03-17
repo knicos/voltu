@@ -16,6 +16,7 @@ OpenCVSGBM::OpenCVSGBM(nlohmann::json &config) : Disparity(config) {
             left_matcher_->setP2(96*wsize*wsize);
             left_matcher_->setPreFilterCap(63);
             left_matcher_->setMode(StereoSGBM::MODE_SGBM_3WAY);
+            left_matcher_->setMinDisparity(config.value("minimum",0));
     wls_filter_ = createDisparityWLSFilter(left_matcher_);
     right_matcher_ = createRightMatcher(left_matcher_);
     
@@ -29,6 +30,9 @@ void OpenCVSGBM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	left_matcher_-> compute(l, r,left_disp);
     right_matcher_->compute(r,l, right_disp);
     wls_filter_->filter(left_disp,l,disp,right_disp);
+    
+    //float f = 255.0f / static_cast<float>(max_disp_);
+    //disp *= f;
 }
 
 

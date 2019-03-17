@@ -71,8 +71,10 @@ LocalSource::LocalSource(const string &vid, nlohmann::json &config)
 	}
 
 	if (frame.cols >= 2*frame.rows) {
+		LOG(INFO) << "Video size : " << frame.cols/2 << "x" << frame.rows;
 		stereo_ = true;
 	} else {
+		LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
 		stereo_ = false;
 	}
 }
