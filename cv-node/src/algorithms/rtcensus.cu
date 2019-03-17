@@ -79,7 +79,7 @@ __global__ void census_kernel(PtrStepSzb l, PtrStepSzb r, uint64_t *census) {
 	return;
 }
 	
-__global__ void disp_kernel(PtrStepSz<float> disp, size_t width, size_t height, uint64_t *census, size_t ds) {	
+__global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, uint64_t *census, size_t ds) {	
 	//extern __shared__ uint64_t census[];
 	
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
@@ -87,7 +87,7 @@ __global__ void disp_kernel(PtrStepSz<float> disp, size_t width, size_t height, 
 	size_t v_end = v_start + ROWSperTHREAD;
 	
 	if (v_end >= height) v_end = height;
-	if (u >= width-ds) return;
+	//if (u >= width-ds) return;
 	
 	for (size_t v=v_start; v<v_end; v++) {
 	//for (size_t u=7; u<width-7; u++) {
@@ -114,13 +114,15 @@ __global__ void disp_kernel(PtrStepSz<float> disp, size_t width, size_t height, 
 
 				for (int m=-2; m<=2; m++) {
 					const auto v_ = (v + m)*width;
-					//const auto d_ = d; // * sign;
-					auto l1 = census[(u_+v_)*2 + 1];
+
+					// Correct for disp_R
+					auto l1 = census[(u_+v_)*2+1];
 					auto r1 = census[(v_+(u_+d))*2];
-					auto l2 = census[(u_+ds+v_)*2];
-					auto r2 = census[(v_+(u_+ds-d))*2 + 1];
-					//auto l2 = census[((u_+ds+v_)*2)+1];
-					//auto r2 = census[(v_+(u_+ds-d))*2];
+					
+					// Correct for disp_L
+					auto l2 = census[(u_+v_)*2];
+					auto r2 = census[(v_+(u_-d))*2+1];
+					
 					hamming1 += __popcll(r1^l1);
 					hamming2 += __popcll(r2^l2);
 				}
@@ -147,17 +149,17 @@ __global__ void disp_kernel(PtrStepSz<float> disp, size_t width, size_t height, 
 		float d1 = (dix[0] == 0 || dix[0] == ds-1) ? (float)dix[0] : fit_parabola(dix[0], min_disp[0], min_before[0], min_after[0]);
 		float d2 = (dix[1] == 0 || dix[1] == ds-1) ? (float)dix[1] : fit_parabola(dix[1], min_disp[1], min_before[1], min_after[1]);
 	
-		if (abs(d1-d2) <= 1.0) disp(v,u) = abs((d1+d2)/2);
-		else disp(v,u) = 0.0f;
+		//if (abs(d1-d2) <= 1.0) disp(v,u) = abs((d1+d2)/2);
+		//else disp(v,u) = 0.0f;
 		
-		//disp(v,u) = d2;
+		//disp(v,u) = d1;
 	
-		//disp_l[v*width+u] = d2;
-		//disp_r[v*width+u] = d1;
+		disp_l[v*width+u] = d2;
+		disp_r[v*width+u] = d1;
 	}
 }
 
-/*__global__ void consistency_kernel(float *d_sub_l, float *d_sub_r, PtrStepSz<float> disp) {
+__global__ void consistency_kernel(float *d_sub_l, float *d_sub_r, PtrStepSz<float> disp) {
 	size_t w = disp.cols;
 	size_t h = disp.rows;
 	//Mat result = Mat::zeros(Size(w,h), CV_32FC1);
@@ -181,7 +183,7 @@ __global__ void disp_kernel(PtrStepSz<float> disp, size_t width, size_t height, 
 	//}
 	}
 
-}*/
+}
 
 /*__global__ void test_kernel(const PtrStepSzb l, const PtrStepSzb r, PtrStepSz<float> disp)
 {
@@ -203,12 +205,12 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	
 	// TODO, reduce allocations
 	uint64_t *census;
-	//float *disp_l;
-	//float *disp_r;
+	float *disp_l;
+	float *disp_r;
 	cudaMalloc(&census, sizeof(uint64_t)*l.cols*l.rows*2);
 	//cudaMemset(census, 0, sizeof(uint64_t)*l.cols*l.rows*2);
-	//cudaMalloc(&disp_l, sizeof(float)*l.cols*l.rows);
-	//cudaMalloc(&disp_r, sizeof(float)*l.cols*l.rows);
+	cudaMalloc(&disp_l, sizeof(float)*l.cols*l.rows);
+	cudaMalloc(&disp_r, sizeof(float)*l.cols*l.rows);
 	
 	//size_t smem_size = (2 * l.cols * l.rows) * sizeof(uint64_t);
 	
@@ -219,14 +221,14 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
 	//grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS - num_disp, BLOCK_W) - 1;
-	disp_kernel<<<grid, threads>>>(disp, l.cols, l.rows, census, num_disp);
+	disp_kernel<<<grid, threads>>>(disp_l, disp_r, l.cols, l.rows, census, num_disp);
 	cudaSafeCall( cudaGetLastError() );
 	
-	//consistency_kernel<<<grid, threads>>>(disp_l, disp_r, disp);
-	//cudaSafeCall( cudaGetLastError() );
+	consistency_kernel<<<grid, threads>>>(disp_l, disp_r, disp);
+	cudaSafeCall( cudaGetLastError() );
 	
-	//cudaFree(disp_r);
-	//cudaFree(disp_l);
+	cudaFree(disp_r);
+	cudaFree(disp_l);
 	cudaFree(census);
 	
 	//if (&stream == Stream::Null())

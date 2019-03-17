@@ -190,7 +190,7 @@ void RTCensus::computeCPU(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	auto disp_L = d_sub(dsi_ca_L, l.cols, l.rows, d_max-d_min);
 	LOG(INFO) << "Disp done";
 
-	disp = consistency(disp_R, disp_L);
+	disp = disp_R; //consistency(disp_R, disp_L);
 
 	// TODO confidence and texture filtering
 }
@@ -213,6 +213,7 @@ void RTCensus::computeCUDA(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	left_.upload(l);
 	right_.upload(r);
 	
+	LOG(INFO) << "Disparities = " << max_disp_;
 	auto start = std::chrono::high_resolution_clock::now();
 	ftl::gpu::rtcensus_call(left_, right_, disp_, max_disp_);
 	std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start;

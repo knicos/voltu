@@ -150,9 +150,9 @@ int main(int argc, char **argv) {
 		
 		disparity32F.convertTo(disparity32F, CV_32F);
 		disparity32F += 10.0f;
-		Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
-		disparity32F = disparity32F(rect);
-		l = l(rect);
+		//Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
+		//disparity32F = disparity32F(rect);
+		//l = l(rect);
 		
 		// TODO Send RGB+D data somewhere
 		
