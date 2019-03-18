@@ -1,3 +1,16 @@
+/* Created by Nicolas Pope and Sebastian Hahta
+ *
+ * Implementation of algorithm presented in article(s):
+ *
+ * [1] Humenberger, Engelke, Kubinger: A fast stereo matching algorithm suitable
+ *     for embedded real-time systems
+ * [2] Humenberger, Zinner, Kubinger: Performance Evaluation of Census-Based
+ *     Stereo Matching Algorithm on Embedded and Multi-Core Hardware
+ *
+ * Equation numbering uses [1] unless otherwise stated
+ */
+
+
 #include <ftl/algorithms/rtcensus.hpp>
 #include <vector>
 #include <tuple>
@@ -17,16 +30,20 @@ using std::bitset;
 
 static ftl::Disparity::Register rtcensus("rtcensus", RTCensus::create);
 
+/* (8) and (16) */
 #define XHI(P1,P2) ((P1 <= P2) ? 0 : 1)
 
+/* (14) and (15), based on (9) */
 static vector<uint64_t> sparse_census_16x16(const Mat &arr) {
 	vector<uint64_t> result;
 	result.resize(arr.cols*arr.rows,0);
 
+	/* Loops adapted to avoid edge out-of-bounds checks */
 	for (size_t v=7; v<arr.rows-7; v++) {
 	for (size_t u=7; u<arr.cols-7; u++) {
 		uint64_t r = 0;
 
+		/* 16x16 sparse kernel to 8x8 mask (64 bits) */
 		for (int n=-7; n<=7; n+=2) {
 		auto u_ = u + n;
 		for (int m=-7; m<=7; m+=2) {
@@ -43,48 +60,50 @@ static vector<uint64_t> sparse_census_16x16(const Mat &arr) {
 	return result;
 }
 
-/*static inline uint8_t hamming(uint64_t n1, uint64_t n2) { 
-    return bitset<64>(n1^n2).count();
-}*/
-
+/*
+ * (19) note: M and N not the same as in (17), see also (8) in [2].
+ * DSI: Disparity Space Image. LTR/RTL matching can be with sign +1/-1
+ */
 static void dsi_ca(vector<uint16_t> &result, const vector<uint64_t> &census_R, const vector<uint64_t> &census_L, size_t w, size_t h, size_t d_start, size_t d_stop, int sign=1) {
 	// TODO Add asserts
 	assert( census_R.size() == w*h);
 	assert( census_L.size() == w*h);
 	assert( d_stop-d_start > 0 );
 
-	auto ds = d_stop - d_start;
-	//vector<uint16_t> result(census_R.size()*ds, 0);
+	auto ds = d_stop - d_start;		// Number of disparities to check
 	result.resize(census_R.size()*ds, 0);
 
+	// Change bounds depending upon disparity direction
 	const size_t eu = (sign>0) ? w-2-ds : w-2;
 
+	// Adapt bounds to avoid out-of-bounds checks
+	for (size_t v=2; v<h-2; v++) {
+	for (size_t u=(sign>0)?2:ds+2; u<eu; u++) {
+		const size_t ix = v*w*ds+u*ds;
 
-		for (size_t v=2; v<h-2; v++) {
-		for (size_t u=(sign>0)?2:ds+2; u<eu; u++) {
-			const size_t ix = v*w*ds+u*ds;
-			for (int n=-2; n<=2; n++) {
-			const auto u_ = u + n;
-	
-			for (int m=-2; m<=2; m++) {
-				const auto v_ = (v + m)*w;
-				auto r = census_R[u_+v_];
-				
-				for (size_t d=0; d<ds; d++) {
-				const auto d_ = d * sign;
-				
-				auto l = census_L[v_+(u_+d_)];
-				result[ix+d] += bitset<64>(r^l).count(); //hamming(r,l);
-				}
-			}
+		// 5x5 window size
+		for (int n=-2; n<=2; n++) {
+		const auto u_ = u + n;
+		for (int m=-2; m<=2; m++) {
+			const auto v_ = (v + m)*w;
+			auto r = census_R[u_+v_];
 			
+			for (size_t d=0; d<ds; d++) {
+				const auto d_ = d * sign;
+				auto l = census_L[v_+(u_+d_)];
+				result[ix+d] += bitset<64>(r^l).count(); // Hamming distance
 			}
 		}
+		
 		}
-
-	//return result;
+	}
+	}
 }
 
+/*
+ * Find the minimum value in a sub array.
+ * TODO This can be removed entirely (see CUDA version)
+ */
 static size_t arrmin(vector<uint16_t> &a, size_t ix, size_t len) {
 	uint32_t m = UINT32_MAX;
 	size_t mi = 0;
@@ -97,6 +116,10 @@ static size_t arrmin(vector<uint16_t> &a, size_t ix, size_t len) {
 	return mi-ix;
 }
 
+/*
+ * WTA + subpixel disparity (parabilic fitting) (20)
+ * TODO remove need to pass tuples (see CUDA version)
+ */
 static inline double fit_parabola(tuple<size_t,uint16_t> p, tuple<size_t,uint16_t> pl, tuple<size_t,uint16_t> pr) {
 	double a = get<1>(pr) - get<1>(pl);
 	double b = 2 * (2 * get<1>(p) - get<1>(pl) - get<1>(pr));
@@ -117,6 +140,7 @@ static cv::Mat d_sub(vector<uint16_t> &dsi, size_t w, size_t h, size_t ds) {
 
 		if (d_min == 0 || d_min == ds-1) d_sub = d_min;
 		else {
+			// TODO Remove use of tuples
 			auto p = make_tuple(d_min, dsi[d_min+vwds+uds]);
 			auto pl = make_tuple(d_min-1, dsi[d_min-1+vwds+uds]);
 			auto pr = make_tuple(d_min+1, dsi[d_min+1+vwds+uds]);
@@ -128,9 +152,13 @@ static cv::Mat d_sub(vector<uint16_t> &dsi, size_t w, size_t h, size_t ds) {
 	}
 	}
 
+	// TODO Parameter pass not return
 	return result;
 }
 
+/*
+ * consistency between LR and RL disparity (23) and (24)
+ */
 static cv::Mat consistency(cv::Mat &d_sub_r, cv::Mat &d_sub_l) {
 	size_t w = d_sub_r.cols;
 	size_t h = d_sub_r.rows;
@@ -157,6 +185,9 @@ RTCensus::RTCensus(nlohmann::json &config)
 		tau_(0.0f),
 		use_cuda_(config.value("use_cuda",true)) {}
 
+/*
+ * Choose the implementation and perform disparity calculation.
+ */
 void RTCensus::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	#if defined HAVE_CUDA
 	if (use_cuda_) {
@@ -205,21 +236,21 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 }}
 
 void RTCensus::computeCUDA(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
+	// Initialise gpu memory here because we need image size
 	if (disp_.empty()) disp_ = cuda::GpuMat(l.size(), CV_32FC1);
-	//if (filtered_.empty()) filtered_ = cuda::GpuMat(l.size(), CV_8U);
 	if (left_.empty()) left_ = cuda::GpuMat(l.size(), CV_8U);
 	if (right_.empty()) right_ = cuda::GpuMat(l.size(), CV_8U);
 	
+	// Send images to GPU
 	left_.upload(l);
 	right_.upload(r);
-	
-	LOG(INFO) << "Disparities = " << max_disp_;
+
 	auto start = std::chrono::high_resolution_clock::now();
 	ftl::gpu::rtcensus_call(left_, right_, disp_, max_disp_);
 	std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start;
 	LOG(INFO) << "CUDA census in " << elapsed.count() << "s";
-	//filter_->apply(disp_, left_, filtered_);
 	
+	// Read disparity from GPU
 	disp_.download(disp);
 }
 
