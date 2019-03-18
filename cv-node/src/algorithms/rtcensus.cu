@@ -26,29 +26,43 @@ using namespace cv;
 namespace ftl {
 namespace gpu {
 
+// --- SUPPORT -----------------------------------------------------------------
+
+/*
+ * Sparse 16x16 census (so 8x8) creating a 64bit mask
+ * (14) & (15), based upon (9)
+ */
 __device__ uint64_t sparse_census(unsigned char *arr, size_t u, size_t v, size_t w) {
 	uint64_t r = 0;
 
 	unsigned char t = arr[v*w+u];
 
-	for (int n=-7; n<=7; n+=2) {
-	auto u_ = u + n;
 	for (int m=-7; m<=7; m+=2) {
-		auto v_ = v + m;
-		r <<= 1;
-		r |= XHI(t, arr[v_*w+u_]);
-	}
+		auto start_ix = (v + m)*w + u;
+		for (int n=-7; n<=7; n+=2) {
+			r <<= 1;
+			r |= XHI(t, arr[start_ix+n]);
+		}
 	}
 
 	return r;
 }
 
+/*
+ * Parabolic interpolation between matched disparities either side.
+ * Results in subpixel disparity. (20).
+ */
 __device__ float fit_parabola(size_t pi, uint16_t p, uint16_t pl, uint16_t pr) {
 	float a = pr - pl;
 	float b = 2 * (2 * p - pl - pr);
 	return static_cast<float>(pi) + (a / b);
 }
 
+// --- KERNELS -----------------------------------------------------------------
+
+/*
+ * Calculate census mask for left and right images together.
+ */
 __global__ void census_kernel(PtrStepSzb l, PtrStepSzb r, uint64_t *census) {	
 	//extern __shared__ uint64_t census[];
 	
@@ -62,23 +76,18 @@ __global__ void census_kernel(PtrStepSzb l, PtrStepSzb r, uint64_t *census) {
 	size_t width = l.cols;
 	
 	for (size_t v=v_start; v<v_end; v++) {
-	//for (size_t u=7; u<width-7; u++) {
 		size_t ix = (u + v*width) * 2;
 		uint64_t cenL = sparse_census(l.data, u, v, l.step);
 		uint64_t cenR = sparse_census(r.data, u, v, r.step);
 		
 		census[ix] = cenL;
 		census[ix + 1] = cenR;
-		
-		//disp(v,u) = (float)cenL;
-	//}
 	}
-	
-	//__syncthreads();
-	
-	return;
 }
-	
+
+/*
+ * Generate left and right disparity images from census data. (19)
+ */
 __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, uint64_t *census, size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 	
