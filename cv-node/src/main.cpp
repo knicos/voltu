@@ -124,6 +124,7 @@ int main(int argc, char **argv) {
 	Mat l, r, disparity32F, depth32F, lbw, rbw;
 	
 	cv::viz::Viz3d myWindow("FTL");
+	myWindow.setBackgroundColor(cv::viz::Color::white());
 	
 	float base_line = (float)config["camera"]["base_line"];
 	float focal = (float)(config["camera"]["focal_length"]) / (float)(config["camera"]["sensor_width"]);
@@ -150,9 +151,16 @@ int main(int argc, char **argv) {
 		
 		disparity32F.convertTo(disparity32F, CV_32F);
 		disparity32F += 10.0f;
-		//Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
-		//disparity32F = disparity32F(rect);
-		//l = l(rect);
+		
+		// Clip the left edge
+		Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
+		disparity32F = disparity32F(rect);
+		l = l(rect);
+		
+		// HACK to make bad pixels invisible.
+		normalize(disparity32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
+		r = Mat(l.size(), CV_8UC3, Vec3i(255,255,255));
+		l.copyTo(r,depth32F);
 		
 		// TODO Send RGB+D data somewhere
 		
@@ -173,7 +181,7 @@ int main(int argc, char **argv) {
 			
 			//cv::imshow("Points",XYZ);
 			
-			cv::viz::WCloud cloud_widget = cv::viz::WCloud( XYZ, l );
+			cv::viz::WCloud cloud_widget = cv::viz::WCloud( XYZ, r );
 			cloud_widget.setRenderingProperty( cv::viz::POINT_SIZE, 2 );
 			
 			/* Rotation using rodrigues */
@@ -196,6 +204,7 @@ int main(int argc, char **argv) {
 		
 		if (config["display"]["depth"]) {
 			depth32F = (focal * (float)l.cols * base_line) / disparity32F;
+			normalize(depth32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
 			cv::imshow("Depth", depth32F);
 			if(cv::waitKey(10) == 27){
 		        //exit if ESC is pressed

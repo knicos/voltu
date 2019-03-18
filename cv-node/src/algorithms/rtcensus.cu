@@ -16,10 +16,10 @@
 using namespace cv::cuda;
 using namespace cv;
 
-#define BLOCK_W 128
+#define BLOCK_W 60
 #define RADIUS 7
 #define RADIUS2 2
-#define ROWSperTHREAD 20
+#define ROWSperTHREAD 2
 
 #define XHI(P1,P2) ((P1 <= P2) ? 0 : 1)
 
@@ -80,28 +80,38 @@ __global__ void census_kernel(PtrStepSzb l, PtrStepSzb r, uint64_t *census) {
 }
 	
 __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, uint64_t *census, size_t ds) {	
-	//extern __shared__ uint64_t census[];
+	//extern __shared__ uint64_t cache[];
 	
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	size_t v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
 	size_t v_end = v_start + ROWSperTHREAD;
+
+	// Prepare the cache load
+	//const int cache_thread_width = (BLOCK_W+ds / BLOCK_W + RADIUS2*2 + 1)*2;
+	//uint64_t *cache_ptr = cache + (threadIdx.x * cache_thread_width);
 	
 	if (v_end >= height) v_end = height;
 	//if (u >= width-ds) return;
 	
 	for (size_t v=v_start; v<v_end; v++) {
-	//for (size_t u=7; u<width-7; u++) {
-	//const size_t eu = (sign>0) ? w-2-ds : w-2;
-
-	//for (size_t v=7; v<height-7; v++) {
-	//for (size_t u=7; u<width-7; u++) {
-		//const size_t ix = v*w*ds+u*ds;
+		/*const int cache_start = v*width*2 + cache_thread_width*blockIdx.x;
+		for (int i=0; i<cache_thread_width; i+=2) {
+			cache_ptr[i] = census[cache_start+i];
+			cache_ptr[i+1] = census[cache_start+i+1];
+		}
 		
-		uint16_t last_ham[2] = {65535,65535};
-		uint16_t min_disp[2] = {65535,65535};
-		uint16_t min_before[2] = {0,0};
-		uint16_t min_after[2] = {0,0};
-		size_t dix[2] = {0,0};
+		__syncthreads();*/
+		
+		uint16_t last_ham1 = 65535;
+		uint16_t last_ham2 = 65535;
+		uint16_t min_disp1 = 65535;
+		uint16_t min_disp2 = 65535;
+		uint16_t min_before1 = 0;
+		uint16_t min_before2 = 0;
+		uint16_t min_after1 = 0;
+		uint16_t min_after2 = 0;
+		int dix1 = 0;
+		int dix2 = 0;
 		
 		for (size_t d=0; d<ds; d++) {
 			uint16_t hamming1 = 0;
@@ -109,18 +119,18 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 			
 			//if (u+2+ds >= width) break;
 		
-			for (int n=-2; n<=2; n++) {
-				const auto u_ = u + n;
+			for (int m=-2; m<=2; m++) {
+				const auto v_ = (v + m)*width;
+				for (int n=-2; n<=2; n++) {
+					const auto u_ = u + n;
 
-				for (int m=-2; m<=2; m++) {
-					const auto v_ = (v + m)*width;
-
-					// Correct for disp_R
-					auto l1 = census[(u_+v_)*2+1];
-					auto r1 = census[(v_+(u_+d))*2];
+				
 					
-					// Correct for disp_L
+
 					auto l2 = census[(u_+v_)*2];
+					auto l1 = census[(u_+v_)*2+1];
+					
+					auto r1 = census[(v_+(u_+d))*2];
 					auto r2 = census[(v_+(u_-d))*2+1];
 					
 					hamming1 += __popcll(r1^l1);
@@ -128,31 +138,30 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 				}
 			}
 			
-			if (hamming1 < min_disp[0]) {
-				min_before[0] = last_ham[0];
-				min_disp[0] = hamming1;
-				dix[0] = d;
+			if (hamming1 < min_disp1) {
+				min_before1 = last_ham1;
+				min_disp1 = hamming1;
+				dix1 = d;
 			}
-			if (dix[0] == d) min_after[0] = hamming1;
-			last_ham[0] = hamming1;
+			if (dix1 == d) min_after1 = hamming1;
+			last_ham1 = hamming1;
 			
-			if (hamming2 < min_disp[1]) {
-				min_before[1] = last_ham[1];
-				min_disp[1] = hamming2;
-				dix[1] = d;
+			if (hamming2 < min_disp2) {
+				min_before2 = last_ham2;
+				min_disp2 = hamming2;
+				dix2 = d;
 			}
-			if (dix[1] == d) min_after[1] = hamming2;
-			last_ham[1] = hamming2;
+			if (dix2 == d) min_after2 = hamming2;
+			last_ham2 = hamming2;
 		
 		}
 		
-		float d1 = (dix[0] == 0 || dix[0] == ds-1) ? (float)dix[0] : fit_parabola(dix[0], min_disp[0], min_before[0], min_after[0]);
-		float d2 = (dix[1] == 0 || dix[1] == ds-1) ? (float)dix[1] : fit_parabola(dix[1], min_disp[1], min_before[1], min_after[1]);
+		//float d1 = (dix1 == 0 || dix1 == ds-1) ? (float)dix1 : fit_parabola(dix1, min_disp1, min_before1, min_after1);
+		//float d2 = (dix2 == 0 || dix2 == ds-1) ? (float)dix2 : fit_parabola(dix2, min_disp2, min_before2, min_after2);
 	
-		//if (abs(d1-d2) <= 1.0) disp(v,u) = abs((d1+d2)/2);
-		//else disp(v,u) = 0.0f;
-		
-		//disp(v,u) = d1;
+		float d1 = fit_parabola(dix1, min_disp1, min_before1, min_after1);
+		float d2 = fit_parabola(dix2, min_disp2, min_before2, min_after2);
+	
 	
 		disp_l[v*width+u] = d2;
 		disp_r[v*width+u] = d1;
@@ -184,17 +193,6 @@ __global__ void consistency_kernel(float *d_sub_l, float *d_sub_r, PtrStepSz<flo
 	}
 
 }
-
-/*__global__ void test_kernel(const PtrStepSzb l, const PtrStepSzb r, PtrStepSz<float> disp)
-{
-	int x = threadIdx.x + blockIdx.x * blockDim.x;
-	int y = threadIdx.y + blockIdx.y * blockDim.y;
-	if (x < l.cols && y < l.rows) {
-		const unsigned char lv = l(y, x);
-		const unsigned char rv = r(y, x);
-		disp(y, x) = (float)lv - (float)rv; //make_uchar1(v.z, v.y, v.x);
-	}
-}*/
 
 void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
 	dim3 grid(1,1,1);
