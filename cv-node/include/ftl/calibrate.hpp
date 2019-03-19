@@ -35,7 +35,7 @@ class Calibrate {
 		float squareSize;            // The size of a square in your defined unit (point, millimeter,etc).
 		int nrFrames;                // The number of frames to use from the input for calibration
 		float aspectRatio;           // The aspect ratio
-		int delay;                   // In case of a video input
+		float delay;                   // In case of a video input
 		bool writePoints;            // Write detected feature points
 		bool writeExtrinsics;        // Write extrinsic parameters
 		bool writeGrid;              // Write refined 3D target grid points

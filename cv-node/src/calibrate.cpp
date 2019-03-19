@@ -409,7 +409,7 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 		found1 = findChessboardCorners( view[0], settings_.boardSize, pointBuf[0], chessBoardFlags);
 		found2 = !local_->isStereo() || findChessboardCorners( view[1], settings_.boardSize, pointBuf[1], chessBoardFlags);
       
-        if (found1 && found2 && local_->getTimestamp()-prevTimestamp > 0.5)                // If done with success,
+        if (found1 && found2 && local_->getTimestamp()-prevTimestamp > settings_.delay)                // If done with success,
         {
 			prevTimestamp = local_->getTimestamp();
               // improve the found corners' coordinate accuracy for chessboard

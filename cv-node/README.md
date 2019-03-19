@@ -14,7 +14,8 @@ make
 `
 
 ## Install
-TODO. Currently, copy `<source_direction>/config/config.json` to `~/config/ftl`.
+TODO. Currently, copy `<source_direction>/config/config.json` to
+`~/.config/ftl/config.json` on Linux.
 
 ## Usage
 An optional command-line argument can be passed to specify a stereo video file
@@ -30,7 +31,9 @@ JSON config option at `{ "disparity": { "algorithm": "sgbm" }}`.
 ### Calibration
 Cameras can be calibrated by using argument `--calibrate`. You either
 need to provide a calibration video as an argument or do it live. A checkerboard
-grid pattern is required, the size can be configured in the json file.
+grid pattern is required, the size can be configured in the json file. After
+callibration the data is save and will be reloaded automatically next time you
+run `cv-node`.
 
 Note: best calibration is not too close or far from the cameras, the board must
 be fully visible in each camera and move to cover as much of the visual field

@@ -8,8 +8,8 @@
 	"calibration": {
 		"board_size": [9,6],
 		"square_size": 50,
-		"frame_delay": 100,
-		"num_frames": 25,
+		"frame_delay": 1.0,
+		"num_frames": 35,
 		"assume_zero_tangential_distortion": true,
 		"fix_aspect_ratio": true,
 		"fix_principal_point_at_center": true,
@@ -33,7 +33,7 @@
 	"disparity": {
 		"algorithm": "rtcensus",
 		"use_cuda": true,
-		"minimum": 10,
+		"minimum": 0,
 		"maximum": 208,
 		"tau": 0.0,
 		"gamma": 0.0,
