@@ -113,6 +113,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 		int dix1 = 0;
 		int dix2 = 0;
 		
+		// TODO Use prediction textures to narrow range
 		for (size_t d=0; d<ds; d++) {
 			uint16_t hamming1 = 0;
 			uint16_t hamming2 = 0;
@@ -159,6 +160,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 		//float d1 = (dix1 == 0 || dix1 == ds-1) ? (float)dix1 : fit_parabola(dix1, min_disp1, min_before1, min_after1);
 		//float d2 = (dix2 == 0 || dix2 == ds-1) ? (float)dix2 : fit_parabola(dix2, min_disp2, min_before2, min_after2);
 	
+		// TODO Allow for discontinuities with threshold
 		float d1 = fit_parabola(dix1, min_disp1, min_before1, min_after1);
 		float d2 = fit_parabola(dix2, min_disp2, min_before2, min_after2);
 	
@@ -186,6 +188,8 @@ __global__ void consistency_kernel(float *d_sub_l, float *d_sub_r, PtrStepSz<flo
 		if ((int)u-a < 0) continue;
 		
 		auto b = d_sub_r[v*w+u-a];
+		
+		// TODO, if rejected, use semantic info to borrow neighbour
 		
 		if (abs(a-b) <= 1.0) disp(v,u) = abs((a+b)/2);
 		else disp(v,u) = 0.0f;

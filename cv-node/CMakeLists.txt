@@ -11,8 +11,8 @@ enable_testing()
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
-if (WIN32)
 find_package( glog REQUIRED )
+if (WIN32)
 include_directories(${glog_DIR})
 endif (WIN32)
 find_package( OpenCV REQUIRED )
@@ -61,8 +61,8 @@ if (UNIX)
 endif (UNIX)
 
 add_definitions("-DFTL_CONFIG_ROOT=${FTL_CONFIG_ROOT}")
-add_definitions(-DFTL_CACHE_ROOT=${FTL_CACHE_ROOT})
-add_definitions(-DFTL_DATA_ROOT=${FTL_DATA_ROOT})
+add_definitions("-DFTL_CACHE_ROOT=${FTL_CACHE_ROOT}")
+add_definitions("-DFTL_DATA_ROOT=${FTL_DATA_ROOT}")
 
 set(CMAKE_CXX_FLAGS "-std=c++17 -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -pg -Wall")
@@ -83,7 +83,6 @@ set(CVNODESRC
 
 if (LIBSGM_FOUND)
 	list(APPEND CVNODESRC "src/algorithms/fixstars_sgm.cpp")
-	message("Cuda libraries at ${CUDA_LIBRARIES}")
 endif (LIBSGM_FOUND)
 
 if (CUDA_FOUND)
