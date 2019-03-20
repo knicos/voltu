@@ -32,16 +32,16 @@ namespace gpu {
  * Sparse 16x16 census (so 8x8) creating a 64bit mask
  * (14) & (15), based upon (9)
  */
-__device__ uint64_t sparse_census(unsigned char *arr, size_t u, size_t v, size_t w) {
+__device__ uint64_t sparse_census(cudaTextureObject_t tex, int u, int v) {
 	uint64_t r = 0;
 
-	unsigned char t = arr[v*w+u];
+	unsigned char t = tex2D<unsigned char>(tex, u,v);
 
 	for (int m=-7; m<=7; m+=2) {
-		auto start_ix = (v + m)*w + u;
+		//auto start_ix = (v + m)*w + u;
 		for (int n=-7; n<=7; n+=2) {
 			r <<= 1;
-			r |= XHI(t, arr[start_ix+n]);
+			r |= XHI(t, tex2D<unsigned char>(tex, u+n, v+m));
 		}
 	}
 
@@ -63,22 +63,20 @@ __device__ float fit_parabola(size_t pi, uint16_t p, uint16_t pl, uint16_t pr) {
 /*
  * Calculate census mask for left and right images together.
  */
-__global__ void census_kernel(PtrStepSzb l, PtrStepSzb r, uint64_t *census) {	
+__global__ void census_kernel(cudaTextureObject_t l, cudaTextureObject_t r, int w, int h, uint64_t *census) {	
 	//extern __shared__ uint64_t census[];
 	
-	size_t u = (blockIdx.x * BLOCK_W + threadIdx.x + RADIUS);
-	size_t v_start = blockIdx.y * ROWSperTHREAD + RADIUS;
-	size_t v_end = v_start + ROWSperTHREAD;
+	int u = (blockIdx.x * BLOCK_W + threadIdx.x + RADIUS);
+	int v_start = blockIdx.y * ROWSperTHREAD + RADIUS;
+	int v_end = v_start + ROWSperTHREAD;
 	
-	if (v_end >= l.rows) v_end = l.rows;
-	if (u >= l.cols) return;
+	if (v_end >= h) v_end = h;
+	if (u >= w) return;
 	
-	size_t width = l.cols;
-	
-	for (size_t v=v_start; v<v_end; v++) {
-		size_t ix = (u + v*width) * 2;
-		uint64_t cenL = sparse_census(l.data, u, v, l.step);
-		uint64_t cenR = sparse_census(r.data, u, v, r.step);
+	for (int v=v_start; v<v_end; v++) {
+		int ix = (u + v*w) * 2;
+		uint64_t cenL = sparse_census(l, u, v);
+		uint64_t cenR = sparse_census(r, u, v);
 		
 		census[ix] = cenL;
 		census[ix + 1] = cenR;
@@ -91,7 +89,7 @@ __global__ void census_kernel(PtrStepSzb l, PtrStepSzb r, uint64_t *census) {
 __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, uint64_t *census, size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
-	const int gamma = 100;
+	const int gamma = 5;
 	
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	size_t v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
@@ -235,9 +233,37 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	cudaMalloc(&disp_l, sizeof(float)*l.cols*l.rows);
 	cudaMalloc(&disp_r, sizeof(float)*l.cols*l.rows);
 	
+	// Make textures
+	cudaResourceDesc resDescL;
+	memset(&resDescL, 0, sizeof(resDescL));
+	resDescL.resType = cudaResourceTypePitch2D;
+	resDescL.res.pitch2D.devPtr = l.data;
+	resDescL.res.pitch2D.pitchInBytes = l.step;
+	resDescL.res.pitch2D.desc = cudaCreateChannelDesc<unsigned char>();
+	resDescL.res.pitch2D.width = l.cols;
+	resDescL.res.pitch2D.height = l.rows;
+	
+	cudaResourceDesc resDescR;
+	memset(&resDescR, 0, sizeof(resDescR));
+	resDescR.resType = cudaResourceTypePitch2D;
+	resDescR.res.pitch2D.devPtr = r.data;
+	resDescR.res.pitch2D.pitchInBytes = r.step;
+	resDescR.res.pitch2D.desc = cudaCreateChannelDesc<unsigned char>();
+	resDescR.res.pitch2D.width = r.cols;
+	resDescR.res.pitch2D.height = r.rows;
+	
+	cudaTextureDesc texDesc;
+	memset(&texDesc, 0, sizeof(texDesc));
+	texDesc.readMode = cudaReadModeElementType;
+  
+	cudaTextureObject_t texLeft = 0;
+	cudaCreateTextureObject(&texLeft, &resDescL, &texDesc, NULL);
+	cudaTextureObject_t texRight = 0;
+	cudaCreateTextureObject(&texRight, &resDescR, &texDesc, NULL);
+	
 	//size_t smem_size = (2 * l.cols * l.rows) * sizeof(uint64_t);
 	
-	census_kernel<<<grid, threads>>>(l, r, census);
+	census_kernel<<<grid, threads>>>(texLeft, texRight, l.cols, l.rows, census);
 	cudaSafeCall( cudaGetLastError() );
 	
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
@@ -250,12 +276,14 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	consistency_kernel<<<grid, threads>>>(disp_l, disp_r, disp);
 	cudaSafeCall( cudaGetLastError() );
 	
+	//if (&stream == Stream::Null())
+	cudaSafeCall( cudaDeviceSynchronize() );
+		
+	cudaSafeCall( cudaDestroyTextureObject (texLeft) );
+	cudaSafeCall( cudaDestroyTextureObject (texRight) );
 	cudaFree(disp_r);
 	cudaFree(disp_l);
 	cudaFree(census);
-	
-	//if (&stream == Stream::Null())
-		cudaSafeCall( cudaDeviceSynchronize() );
 }
 
 };

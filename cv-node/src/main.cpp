@@ -3,6 +3,7 @@
 #include <ftl/synched.hpp>
 #include <ftl/calibrate.hpp>
 #include <ftl/disparity.hpp>
+#include <ftl/middlebury.hpp>
 #include <nlohmann/json.hpp>
 
 #include "opencv2/imgproc.hpp"
@@ -85,23 +86,13 @@ static void process_options(const map<string,string> &opts) {
 	}
 }
 
-int main(int argc, char **argv) {
-	argc--;
-	argv++;
-	
-	// Process Arguments
-	auto options = read_options(&argv, &argc);
-	if (!findConfiguration(options["config"])) {
-		LOG(FATAL) << "Could not find any configuration!";
-	}
-	process_options(options);
-	
+static void run(const string &file) {
 	// TODO Initiate the network
 	
 	LocalSource *lsrc;
-	if (argc) {
+	if (file != "") {
 		// Load video file
-		lsrc = new LocalSource(argv[0], config["source"]);
+		lsrc = new LocalSource(file, config["source"]);
 	} else {
 		// Use cameras
 		lsrc = new LocalSource(config["source"]);
@@ -218,6 +209,24 @@ int main(int argc, char **argv) {
 		        break;
 		    }
         }
+	}
+}
+
+int main(int argc, char **argv) {
+	argc--;
+	argv++;
+	
+	// Process Arguments
+	auto options = read_options(&argv, &argc);
+	if (!findConfiguration(options["config"])) {
+		LOG(FATAL) << "Could not find any configuration!";
+	}
+	process_options(options);
+	
+	if (config["middlebury"]["dataset"] == "") {
+		run((argc > 0) ? argv[0] : "");
+	} else {
+		ftl::middlebury::test(config);
 	}
 }
 

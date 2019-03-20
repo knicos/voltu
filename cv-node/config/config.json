@@ -1,4 +1,9 @@
 {
+	"middlebury": {
+		"dataset": "",
+		"threshold": 10.0,
+		"scale": 0.25
+	},
 	"source": {
 		"flip": false,
 		"nostereo": false,

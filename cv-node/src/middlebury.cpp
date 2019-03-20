@@ -1,7 +1,15 @@
 #include <ftl/middlebury.hpp>
+#include <glog/logging.h>
+#include <ftl/disparity.hpp>
+
+#include <string>
+#include <algorithm>
 
 using cv::Mat;
 using cv::Size;
+using std::string;
+using std::min;
+using std::max;
 
 static void skip_comment(FILE *fp) {
     // skip comment lines in the headers of pnm files
@@ -30,7 +38,7 @@ static void read_header(FILE *fp, const char *imtype, char c1, char c2,
     char c;
   
 	if (getc(fp) != c1 || getc(fp) != c2)
-		throw CError("ReadFilePGM: wrong magic code for %s file", imtype);
+		LOG(FATAL) << "ReadFilePGM: wrong magic code for " << imtype << " file";
 	skip_space(fp);
 	skip_comment(fp);
 	skip_space(fp);
@@ -47,9 +55,9 @@ static void read_header(FILE *fp, const char *imtype, char c1, char c2,
         c = getc(fp);
     if (c != '\n') {
         if (c == ' ' || c == '\t' || c == '\r')
-            throw CError("newline expected in file after image height");
+            LOG(FATAL) << "newline expected in file after image height";
         else
-            throw CError("whitespace expected in file after image height");
+            LOG(FATAL) << "whitespace expected in file after image height";
   }
 }
 
@@ -62,12 +70,12 @@ static int littleendian() {
 
 // 1-band PFM image, see http://netpbm.sourceforge.net/doc/pfm.html
 // 3-band not yet supported
-void ftl::middlebury::readFilePFM(Mat &img, const char* filename)
+void ftl::middlebury::readFilePFM(Mat &img, const string &filename)
 {
     // Open the file and read the header
-    FILE *fp = fopen(filename, "rb");
+    FILE *fp = fopen(filename.c_str(), "rb");
     if (fp == 0)
-        throw CError("ReadFilePFM: could not open %s", filename);
+        LOG(FATAL) << "ReadFilePFM: could not open " << filename;
 
     int width, height, nBands;
     read_header(fp, "PFM", 'P', 'f', &width, &height, &nBands, 0);
@@ -83,16 +91,15 @@ void ftl::middlebury::readFilePFM(Mat &img, const char* filename)
         c = getc(fp);
     if (c != '\n') {
         if (c == ' ' || c == '\t' || c == '\r')
-            throw CError("newline expected in file after scale factor");
+            LOG(FATAL) << "newline expected in file after scale factor";
         else
-            throw CError("whitespace expected in file after scale factor");
+            LOG(FATAL) << "whitespace expected in file after scale factor";
     }
-
-    // Set the image shape
-    Size sh(width, height, 1);
     
     // Allocate the image if necessary
-    img.ReAllocate(sh);
+    img = Mat(height, width, CV_32FC1);
+    // Set the image shape
+    //Size sh = img.size();
 
     int littleEndianFile = (scalef < 0);
     int littleEndianMachine = littleendian();
@@ -102,12 +109,12 @@ void ftl::middlebury::readFilePFM(Mat &img, const char* filename)
 
     for (int y = height-1; y >= 0; y--) { // PFM stores rows top-to-bottom!!!!
 	int n = width;
-	float* ptr = (float *) img.PixelAddress(0, y, 0);
+	float* ptr = &img.at<float>(y, 0, 0);
 	if ((int)fread(ptr, sizeof(float), n, fp) != n)
-	    throw CError("ReadFilePFM(%s): file is too short", filename);
+	    LOG(FATAL) << "ReadFilePFM(" << filename << "): file is too short";
 	
 	if (needSwap) { // if endianness doesn't agree, swap bytes
-	    uchar* ptr = (uchar *) img.PixelAddress(0, y, 0);
+	    uchar* ptr = (uchar *)&img.at<uchar>(y, 0, 0);
 	    int x = 0;
 	    uchar tmp = 0;
 	    while (x < n) {
@@ -119,23 +126,23 @@ void ftl::middlebury::readFilePFM(Mat &img, const char* filename)
 	}
     }
     if (fclose(fp))
-        throw CError("ReadFilePGM(%s): error closing file", filename);
+        LOG(FATAL) << "ReadFilePGM(" << filename << "): error closing file";
 }
 
 // 1-band PFM image, see http://netpbm.sourceforge.net/doc/pfm.html
 // 3-band not yet supported
-void ftl::middlebury::writeFilePFM(const Mat &img, const char* filename, float scalefactor=1/255.0)
+void ftl::middlebury::writeFilePFM(const Mat &img, const char* filename, float scalefactor)
 {
     // Write a PFM file
-    CShape sh = img.Shape();
-    int nBands = sh.nBands;
+    Size sh = img.size();
+    int nBands = img.channels();
     if (nBands != 1)
-	throw CError("WriteFilePFM(%s): can only write 1-band image as pfm for now", filename);
+	LOG(FATAL) << "WriteFilePFM(" << filename << "): can only write 1-band image as pfm for now";
 	
     // Open the file
     FILE *stream = fopen(filename, "wb");
     if (stream == 0)
-        throw CError("WriteFilePFM: could not open %s", filename);
+        LOG(FATAL) << "WriteFilePFM: could not open " << filename;
 
     // sign of scalefact indicates endianness, see pfms specs
     if (littleendian())
@@ -147,14 +154,14 @@ void ftl::middlebury::writeFilePFM(const Mat &img, const char* filename, float s
     int n = sh.width;
     // write rows -- pfm stores rows in inverse order!
     for (int y = sh.height-1; y >= 0; y--) {
-	float* ptr = (float *)img.PixelAddress(0, y, 0);
+	const float* ptr = &img.at<float>(0, y, 0);
 	if ((int)fwrite(ptr, sizeof(float), n, stream) != n)
-	    throw CError("WriteFilePFM(%s): file is too short", filename);
+	    LOG(FATAL) << "WriteFilePFM(" << filename << "): file is too short";
     }
     
     // close file
     if (fclose(stream))
-        throw CError("WriteFilePFM(%s): error closing file", filename);
+        LOG(FATAL) << "WriteFilePFM(" << filename << "): error closing file";
 }
 
 void ftl::middlebury::evaldisp(const Mat &disp, const Mat &gtdisp, const Mat &mask, float badthresh, int maxdisp, int rounddisp)
@@ -184,19 +191,19 @@ void ftl::middlebury::evaldisp(const Mat &disp, const Mat &gtdisp, const Mat &ma
     float serr = 0;
     for (int y = 0; y < height; y++) {
 	for (int x = 0; x < width; x++) {
-	    float gt = gtdisp.at(x, y, 0);
+	    float gt = gtdisp.at<float>(y, x, 0);
 	    if (gt == INFINITY) // unknown
 		continue;
-	    float d = scale * disp.at(x / scale, y / scale, 0);
+	    float d = scale * disp.at<float>(y / scale, x / scale, 0);
 	    int valid = (d != INFINITY);
 	    if (valid) {
 		float maxd = scale * maxdisp; // max disp range
-		d = __max(0, __min(maxd, d)); // clip disps to max disp range
+		d = max(0.0f, min(maxd, d)); // clip disps to max disp range
 	    }
 	    if (valid && rounddisp)
 		d = round(d);
 	    float err = fabs(d - gt);
-	    if (usemask && mask.at(x, y, 0) != 255) { // don't evaluate pixel
+	    if (usemask && mask.at<float>(y, x, 0) != 255) { // don't evaluate pixel
 	    } else {
 		n++;
 		if (valid) {
@@ -214,24 +221,31 @@ void ftl::middlebury::evaldisp(const Mat &disp, const Mat &gtdisp, const Mat &ma
     float invalidpercent =  100.0*invalid/n;
     float totalbadpercent =  100.0*(bad+invalid)/n;
     float avgErr = serr / (n - invalid); // CHANGED 10/14/2014 -- was: serr / n
-    //printf("mask  bad%.1f  invalid  totbad   avgErr\n", badthresh);
+    printf("mask  bad%.1f  invalid  totbad   avgErr\n", badthresh);
     printf("%4.1f  %6.2f  %6.2f   %6.2f  %6.2f\n",   100.0*n/(width * height), 
 	   badpercent, invalidpercent, totalbadpercent, avgErr);
 }
 
 void ftl::middlebury::test(nlohmann::json &config) {
 	// Load dataset images
-	Mat l = imread((string)config["middlebury"]["dataset"] + "/im0.png");
-	Mat r = imread((string)config["middlebury"]["dataset"] + "/im1.png");
+	Mat l = cv::imread((string)config["middlebury"]["dataset"] + "/im0.png");
+	Mat r = cv::imread((string)config["middlebury"]["dataset"] + "/im1.png");
 	
 	// Load ground truth
 	Mat gt;
-	readFilePFM(gt, (string)config["middlebury"]["dataset"] + "disp0.pfm");
+	readFilePFM(gt, (string)config["middlebury"]["dataset"] + "/disp0.pfm");
+	
+	if ((float)config["middlebury"]["scale"] != 1.0f) {
+		float scale = (float)config["middlebury"]["scale"];
+		//cv::resize(gt, gt, cv::Size(gt.cols * scale,gt.rows * scale), 0, 0, cv::INTER_LINEAR);
+		cv::resize(l, l, cv::Size(l.cols * scale,l.rows * scale), 0, 0, cv::INTER_LINEAR);
+		cv::resize(r, r, cv::Size(r.cols * scale,r.rows * scale), 0, 0, cv::INTER_LINEAR);
+	}
 	
 	// Run algorithm
-	auto disparity = Disparity::create(config["disparity"]);
-	cvtColor(l,  l, COLOR_BGR2GRAY);
-    cvtColor(r, r, COLOR_BGR2GRAY);
+	auto disparity = ftl::Disparity::create(config["disparity"]);
+	cvtColor(l,  l, cv::COLOR_BGR2GRAY);
+    cvtColor(r, r, cv::COLOR_BGR2GRAY);
         
     Mat disp;
     disparity->compute(l,r,disp);
@@ -240,8 +254,26 @@ void ftl::middlebury::test(nlohmann::json &config) {
 	// Display results
 	evaldisp(disp, gt, Mat(), (float)config["middlebury"]["threshold"], (int)config["disparity"]["maximum"], 0);
 	
+	if (gt.cols > 1600) {
+		cv::resize(gt, gt, cv::Size(gt.cols * 0.25,gt.rows * 0.25), 0, 0, cv::INTER_LINEAR);
+	}
+	if (disp.cols > 1600) {
+		cv::resize(disp, disp, cv::Size(disp.cols * 0.25,disp.rows * 0.25), 0, 0, cv::INTER_LINEAR);
+	}
+	
+	double mindisp;
+	double maxdisp;
+	Mat mask;
+	threshold(disp,mask,10000.0, 255, cv::THRESH_BINARY_INV);
+	normalize(mask, mask, 0, 255, cv::NORM_MINMAX, CV_8U);
+	cv::minMaxLoc(disp, &mindisp, &maxdisp, 0, 0, mask);
+
+	gt = gt / 330.0; // TODO Read from calib.txt
+	disp = disp / maxdisp;
 	imshow("Ground Truth", gt);
 	imshow("Disparity", disp);
+	
+	while (cv::waitKey(10) != 27);
 	
 	/*cv::putText(yourImageMat, 
             "Here is some text",

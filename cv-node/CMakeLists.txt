@@ -76,6 +76,7 @@ set(CVNODESRC
 	src/local.cpp
 	src/sync.cpp
 	src/disparity.cpp
+	src/middlebury.cpp
 	src/algorithms/rtcensus.cpp
 	src/algorithms/opencv_sgbm.cpp
 	src/algorithms/opencv_bm.cpp
