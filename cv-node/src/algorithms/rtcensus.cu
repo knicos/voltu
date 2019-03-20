@@ -19,7 +19,7 @@ using namespace cv;
 #define BLOCK_W 60
 #define RADIUS 7
 #define RADIUS2 2
-#define ROWSperTHREAD 2
+#define ROWSperTHREAD 1
 
 #define XHI(P1,P2) ((P1 <= P2) ? 0 : 1)
 
@@ -63,30 +63,38 @@ __device__ float fit_parabola(size_t pi, uint16_t p, uint16_t pl, uint16_t pr) {
 /*
  * Calculate census mask for left and right images together.
  */
-__global__ void census_kernel(cudaTextureObject_t l, cudaTextureObject_t r, int w, int h, uint64_t *census) {	
-	//extern __shared__ uint64_t census[];
+__global__ void census_kernel(cudaTextureObject_t l, cudaTextureObject_t r,
+		int w, int h, uint64_t *censusL, uint64_t *censusR,
+		size_t pL, size_t pR) {	
 	
 	int u = (blockIdx.x * BLOCK_W + threadIdx.x + RADIUS);
 	int v_start = blockIdx.y * ROWSperTHREAD + RADIUS;
 	int v_end = v_start + ROWSperTHREAD;
 	
-	if (v_end >= h) v_end = h;
-	if (u >= w) return;
+	if (v_end+RADIUS >= h) v_end = h-RADIUS;
+	if (u+RADIUS >= w) return;
 	
 	for (int v=v_start; v<v_end; v++) {
-		int ix = (u + v*w) * 2;
+		//int ix = (u + v*pL);
 		uint64_t cenL = sparse_census(l, u, v);
 		uint64_t cenR = sparse_census(r, u, v);
 		
-		census[ix] = cenL;
-		census[ix + 1] = cenR;
+		censusL[(u + v*pL)] = cenL;
+		censusR[(u + v*pR)] = cenR;
 	}
+}
+
+__forceinline__ __device__ unsigned long long int int2_as_longlong (uint2 a)
+{
+    unsigned long long int res;
+    asm ("mov.b64 %0, {%1,%2};" : "=l"(res) : "r"(a.x), "r"(a.y));
+    return res;
 }
 
 /*
  * Generate left and right disparity images from census data. (19)
  */
-__global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, uint64_t *census, size_t ds) {	
+__global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, cudaTextureObject_t censusL, cudaTextureObject_t censusR, size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
 	const int gamma = 5;
@@ -132,18 +140,18 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 			//if (u+2+ds >= width) break;
 		
 			for (int m=-2; m<=2; m++) {
-				const auto v_ = (v + m)*width;
+				const auto v_ = (v + m);
 				for (int n=-2; n<=2; n++) {
 					const auto u_ = u + n;
 
 				
 					
 
-					auto l2 = census[(u_+v_)*2];
-					auto l1 = census[(u_+v_)*2+1];
+					auto l2 = int2_as_longlong(tex2D<uint2>(censusL,u_,v_));
+					auto l1 = int2_as_longlong(tex2D<uint2>(censusR,u_,v_));
 					
-					auto r1 = census[(v_+(u_+d))*2];
-					auto r2 = census[(v_+(u_-d))*2+1];
+					auto r1 = int2_as_longlong(tex2D<uint2>(censusL, u_+d, v_));
+					auto r2 = int2_as_longlong(tex2D<uint2>(censusR, u_-d, v_));
 					
 					hamming1 += __popcll(r1^l1);
 					hamming2 += __popcll(r2^l2);
@@ -225,10 +233,15 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS, ROWSperTHREAD);
 	
 	// TODO, reduce allocations
-	uint64_t *census;
+	uint64_t *censusL;
+	uint64_t *censusR;
 	float *disp_l;
 	float *disp_r;
-	cudaMalloc(&census, sizeof(uint64_t)*l.cols*l.rows*2);
+	size_t pitchL;
+	size_t pitchR;
+	cudaSafeCall( cudaMallocPitch(&censusL, &pitchL, l.cols*sizeof(uint64_t), l.rows) );
+	cudaSafeCall( cudaMallocPitch(&censusR, &pitchR, r.cols*sizeof(uint64_t), r.rows) );
+	
 	//cudaMemset(census, 0, sizeof(uint64_t)*l.cols*l.rows*2);
 	cudaMalloc(&disp_l, sizeof(float)*l.cols*l.rows);
 	cudaMalloc(&disp_r, sizeof(float)*l.cols*l.rows);
@@ -260,17 +273,45 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	cudaCreateTextureObject(&texLeft, &resDescL, &texDesc, NULL);
 	cudaTextureObject_t texRight = 0;
 	cudaCreateTextureObject(&texRight, &resDescR, &texDesc, NULL);
-	
+
 	//size_t smem_size = (2 * l.cols * l.rows) * sizeof(uint64_t);
 	
-	census_kernel<<<grid, threads>>>(texLeft, texRight, l.cols, l.rows, census);
+	census_kernel<<<grid, threads>>>(texLeft, texRight, l.cols, l.rows, censusL, censusR, pitchL/sizeof(uint64_t), pitchR/sizeof(uint64_t));
 	cudaSafeCall( cudaGetLastError() );
+	
+	//cudaSafeCall( cudaDeviceSynchronize() );
+	
+	// Make textures
+	cudaResourceDesc censusLDesc;
+	memset(&censusLDesc, 0, sizeof(censusLDesc));
+	censusLDesc.resType = cudaResourceTypePitch2D;
+	censusLDesc.res.pitch2D.devPtr = censusL;
+	censusLDesc.res.pitch2D.pitchInBytes = pitchL;
+	censusLDesc.res.pitch2D.desc = cudaCreateChannelDesc<uint2>();
+	//censusLDesc.res.pitch2D.desc.filterMode = cudaFilterModePoint;
+	censusLDesc.res.pitch2D.width = l.cols;
+	censusLDesc.res.pitch2D.height = l.rows;
+	
+	cudaResourceDesc censusRDesc;
+	memset(&censusRDesc, 0, sizeof(censusRDesc));
+	censusRDesc.resType = cudaResourceTypePitch2D;
+	censusRDesc.res.pitch2D.devPtr = censusR;
+	censusRDesc.res.pitch2D.pitchInBytes = pitchR;
+	censusRDesc.res.pitch2D.desc = cudaCreateChannelDesc<uint2>();
+	//censusRDesc.res.pitch2D.desc.filterMode = cudaFilterModePoint;
+	censusRDesc.res.pitch2D.width = r.cols;
+	censusRDesc.res.pitch2D.height = r.rows;
+  
+	cudaTextureObject_t censusTexLeft = 0;
+	cudaSafeCall( cudaCreateTextureObject(&censusTexLeft, &censusLDesc, &texDesc, NULL) );
+	cudaTextureObject_t censusTexRight = 0;
+	cudaSafeCall( cudaCreateTextureObject(&censusTexRight, &censusRDesc, &texDesc, NULL) );
 	
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
 	//grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS - num_disp, BLOCK_W) - 1;
-	disp_kernel<<<grid, threads>>>(disp_l, disp_r, l.cols, l.rows, census, num_disp);
+	disp_kernel<<<grid, threads>>>(disp_l, disp_r, l.cols, l.rows, censusTexLeft, censusTexRight, num_disp);
 	cudaSafeCall( cudaGetLastError() );
 	
 	consistency_kernel<<<grid, threads>>>(disp_l, disp_r, disp);
@@ -281,9 +322,12 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 		
 	cudaSafeCall( cudaDestroyTextureObject (texLeft) );
 	cudaSafeCall( cudaDestroyTextureObject (texRight) );
+	cudaSafeCall( cudaDestroyTextureObject (censusTexLeft) );
+	cudaSafeCall( cudaDestroyTextureObject (censusTexRight) );
 	cudaFree(disp_r);
 	cudaFree(disp_l);
-	cudaFree(census);
+	cudaFree(censusL);
+	cudaFree(censusR);
 }
 
 };

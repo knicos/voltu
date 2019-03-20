@@ -190,7 +190,7 @@ static void run(const string &file) {
 			myWindow.showWidget( "Depth", cloud_widget );
 			myWindow.setWidgetPose("Depth", pose);
 
-			myWindow.spinOnce( 30, true );
+			myWindow.spinOnce( 1, true );
 		}
 		
 		if (config["display"]["depth"]) {
