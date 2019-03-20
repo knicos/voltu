@@ -90,6 +90,8 @@ __global__ void census_kernel(PtrStepSzb l, PtrStepSzb r, uint64_t *census) {
  */
 __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, uint64_t *census, size_t ds) {	
 	//extern __shared__ uint64_t cache[];
+
+	const int gamma = 100;
 	
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	size_t v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
@@ -115,6 +117,8 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 		uint16_t last_ham2 = 65535;
 		uint16_t min_disp1 = 65535;
 		uint16_t min_disp2 = 65535;
+		uint16_t min_disp1b = 65535;
+		uint16_t min_disp2b = 65535;
 		uint16_t min_before1 = 0;
 		uint16_t min_before2 = 0;
 		uint16_t min_after1 = 0;
@@ -151,6 +155,8 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 				min_before1 = last_ham1;
 				min_disp1 = hamming1;
 				dix1 = d;
+			} else if (hamming1 < min_disp1b) {
+				min_disp1b = hamming1;
 			}
 			if (dix1 == d) min_after1 = hamming1;
 			last_ham1 = hamming1;
@@ -159,6 +165,8 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 				min_before2 = last_ham2;
 				min_disp2 = hamming2;
 				dix2 = d;
+			} else if (hamming2 < min_disp2b) {
+				min_disp2b = hamming2;
 			}
 			if (dix2 == d) min_after2 = hamming2;
 			last_ham2 = hamming2;
@@ -171,9 +179,15 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 		float d1 = fit_parabola(dix1, min_disp1, min_before1, min_after1);
 		float d2 = fit_parabola(dix2, min_disp2, min_before2, min_after2);
 	
-	
-		disp_l[v*width+u] = d2;
-		disp_r[v*width+u] = d1;
+		// Confidence filter (25)
+		// TODO choice of gamma to depend on disparity variance
+		// Variance with next option, variance with neighbours, variance with past value
+		disp_l[v*width+u] = ((min_disp2b - min_disp2) >= gamma) ? d2 : INFINITY;
+		disp_r[v*width+u] = ((min_disp1b - min_disp1) >= gamma) ? d1 : INFINITY;
+
+		// TODO If disparity is 0.0f, perhaps
+		// Use previous value unless it conflicts with present
+		// Use neighbour values if texture matches 
 	}
 }
 
@@ -196,8 +210,8 @@ __global__ void consistency_kernel(float *d_sub_l, float *d_sub_r, PtrStepSz<flo
 		
 		auto b = d_sub_r[v*w+u-a];
 		
-		if (abs(a-b) <= 1.0) disp(v,u) = abs((a+b)/2);
-		else disp(v,u) = 0.0f;
+		if (abs(a-b) <= 1.0) disp(v,u) = abs((a+b)/2); // was 1.0
+		else disp(v,u) = INFINITY;
 	//}
 	}
 

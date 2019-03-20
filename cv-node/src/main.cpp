@@ -158,9 +158,9 @@ int main(int argc, char **argv) {
 		l = l(rect);
 		
 		// HACK to make bad pixels invisible.
-		normalize(disparity32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
-		r = Mat(l.size(), CV_8UC3, Vec3i(255,255,255));
-		l.copyTo(r,depth32F);
+		//normalize(disparity32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
+		//r = Mat(l.size(), CV_8UC3, Vec3i(255,255,255));
+		//l.copyTo(r,depth32F);
 		
 		// TODO Send RGB+D data somewhere
 		
@@ -177,11 +177,11 @@ int main(int argc, char **argv) {
 			cv::Mat Q_32F; // = (Mat_<double>(4,4) << 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1); //(4,4,CV_32F);
 			calibrate.getQ().convertTo(Q_32F,CV_32F);
 			cv::Mat_<cv::Vec3f> XYZ(disparity32F.rows,disparity32F.cols);   // Output point cloud
-			reprojectImageTo3D(disparity32F, XYZ, Q_32F, false);
+			reprojectImageTo3D(disparity32F, XYZ, Q_32F, true);
 			
 			//cv::imshow("Points",XYZ);
 			
-			cv::viz::WCloud cloud_widget = cv::viz::WCloud( XYZ, r );
+			cv::viz::WCloud cloud_widget = cv::viz::WCloud( XYZ, l );
 			cloud_widget.setRenderingProperty( cv::viz::POINT_SIZE, 2 );
 			
 			/* Rotation using rodrigues */
