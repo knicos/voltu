@@ -11,7 +11,7 @@ enable_testing()
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
-find_package( glog REQUIRED )
+#find_package( glog REQUIRED )
 if (WIN32)
 include_directories(${glog_DIR})
 endif (WIN32)
