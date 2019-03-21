@@ -195,7 +195,7 @@ void ftl::middlebury::evaldisp(const Mat &disp, const Mat &gtdisp, const Mat &ma
 	    if (gt == INFINITY) // unknown
 		continue;
 	    float d = scale * disp.at<float>(y / scale, x / scale, 0);
-	    int valid = (d != INFINITY);
+	    int valid = (d != NAN); // NOTE: Is meant to be infinity in middlebury
 	    if (valid) {
 		float maxd = scale * maxdisp; // max disp range
 		d = max(0.0f, min(maxd, d)); // clip disps to max disp range

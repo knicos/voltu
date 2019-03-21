@@ -84,20 +84,23 @@ __global__ void census_kernel(cudaTextureObject_t l, cudaTextureObject_t r,
 	}
 }
 
-__forceinline__ __device__ unsigned long long int int2_as_longlong (uint2 a)
-{
-    unsigned long long int res;
-    asm ("mov.b64 %0, {%1,%2};" : "=l"(res) : "r"(a.x), "r"(a.y));
-    return res;
+/* Convert vector uint2 (32bit x2) into a single uint64_t */
+__forceinline__ __device__ uint64_t uint2asull (uint2 a) {
+	uint64_t res;
+	asm ("mov.b64 %0, {%1,%2};" : "=l"(res) : "r"(a.x), "r"(a.y));
+	return res;
 }
 
 /*
  * Generate left and right disparity images from census data. (19)
  */
-__global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t height, cudaTextureObject_t censusL, cudaTextureObject_t censusR, size_t ds) {	
+__global__ void disp_kernel(float *disp_l, float *disp_r,
+		size_t width, size_t height,
+		cudaTextureObject_t censusL, cudaTextureObject_t censusR,
+		size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
-	const int gamma = 5;
+	const int gamma = 10;
 	
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	size_t v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
@@ -147,11 +150,11 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 				
 					
 
-					auto l2 = int2_as_longlong(tex2D<uint2>(censusL,u_,v_));
-					auto l1 = int2_as_longlong(tex2D<uint2>(censusR,u_,v_));
+					auto l2 = uint2asull(tex2D<uint2>(censusL,u_,v_));
+					auto l1 = uint2asull(tex2D<uint2>(censusR,u_,v_));
 					
-					auto r1 = int2_as_longlong(tex2D<uint2>(censusL, u_+d, v_));
-					auto r2 = int2_as_longlong(tex2D<uint2>(censusR, u_-d, v_));
+					auto r1 = uint2asull(tex2D<uint2>(censusL, u_+d, v_));
+					auto r2 = uint2asull(tex2D<uint2>(censusR, u_-d, v_));
 					
 					hamming1 += __popcll(r1^l1);
 					hamming2 += __popcll(r2^l2);
@@ -190,8 +193,8 @@ __global__ void disp_kernel(float *disp_l, float *disp_r, size_t width, size_t h
 		// Confidence filter (25)
 		// TODO choice of gamma to depend on disparity variance
 		// Variance with next option, variance with neighbours, variance with past value
-		disp_l[v*width+u] = ((min_disp2b - min_disp2) >= gamma) ? d2 : INFINITY;
-		disp_r[v*width+u] = ((min_disp1b - min_disp1) >= gamma) ? d1 : INFINITY;
+		disp_l[v*width+u] = ((min_disp2b - min_disp2) >= gamma) ? d2 : NAN;
+		disp_r[v*width+u] = ((min_disp1b - min_disp1) >= gamma) ? d1 : NAN;
 
 		// TODO If disparity is 0.0f, perhaps
 		// Use previous value unless it conflicts with present
@@ -219,7 +222,7 @@ __global__ void consistency_kernel(float *d_sub_l, float *d_sub_r, PtrStepSz<flo
 		auto b = d_sub_r[v*w+u-a];
 		
 		if (abs(a-b) <= 1.0) disp(v,u) = abs((a+b)/2); // was 1.0
-		else disp(v,u) = INFINITY;
+		else disp(v,u) = NAN;
 	//}
 	}
 
