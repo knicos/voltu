@@ -75,13 +75,13 @@ cudaTextureObject_t makeTexture2D(void *ptr, int pitch, int width, int height) {
 __device__ uint64_t sparse_census(cudaTextureObject_t tex, int u, int v) {
 	uint64_t r = 0;
 
-	unsigned char t = tex2D<unsigned char>(tex, u,v);
+	unsigned char t = tex2D<uchar4>(tex, u,v).z;
 
 	for (int m=-7; m<=7; m+=2) {
 		//auto start_ix = (v + m)*w + u;
 		for (int n=-7; n<=7; n+=2) {
 			r <<= 1;
-			r |= XHI(t, tex2D<unsigned char>(tex, u+n, v+m));
+			r |= XHI(t, tex2D<uchar4>(tex, u+n, v+m).z);
 		}
 	}
 
@@ -141,7 +141,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
-	const int gamma = 100;
+	const int gamma = 20;
 	
 	int u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	int v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
@@ -275,7 +275,7 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 
 		//disp(v,u) = a; //abs((a+b)/2);
 		
-		if (abs(a-b) <= 1.0) disp[v*pitch+u] = abs((a+b)/2); // was 1.0
+		if (abs(a-b) <= 1.0) disp[v*pitch+u] = (u < 300) ? b : a;//abs((a+b)/2); // was 1.0
 		else disp[v*pitch+u] = NAN;
 	//}
 	}
@@ -284,8 +284,8 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 
 #define FILTER_WINDOW 11
 #define FILTER_WINDOW_R	5
-#define FILTER_SIM_THRESH 20
-#define FILTER_DISP_THRESH 10.0f
+#define FILTER_SIM_THRESH 5
+#define FILTER_DISP_THRESH 50.0f
 
 __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 		cudaTextureObject_t prevD,
@@ -293,44 +293,51 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS;
 	size_t v = blockIdx.y + RADIUS;
 
-	if (u+num_disp > f.cols) {
+	/*if (u+num_disp > f.cols) {
 		f(v,u) = NAN;
 		return;
-	}
+	}*/
 
 	float disp = tex2D<float>(d,u,v);
-	/*if (!isnan(disp)) {
-		f(v,u) = disp;
-		return;
-	}*/
-	//if (isnan(disp)) disp = 100000.0f; //tex2D<float>(prev, u, v);
 
 	cudaTextureObject_t nTex = (prevT) ? prevT : t;
 	cudaTextureObject_t nDisp = (prevD) ? prevD : d;
 
 	float pdisp = tex2D<float>(nDisp,u,v);
 	if (isnan(pdisp)) pdisp = disp;
-	//if (isnan(disp)) disp = pdisp;
-	int pixel = tex2D<unsigned char>(t, u, v);
-	int ppixel = tex2D<unsigned char>(nTex, u, v);
+	if (isnan(disp)) disp = pdisp;
+	int pixel = tex2D<uchar4>(t, u, v).x;
+	int ppixel = tex2D<uchar4>(nTex, u, v).x;
 	float est = 0.0f; //(isnan(disp)) ? tex2D<float>(prev, u, v) : disp;
 	int nn = 0; //(isnan(disp)) ? 0 : 1;
 	int neigh_sq = 0;
 	int neigh_sum = 0;
+	
+	/*if (abs(ppixel-pixel) <= FILTER_SIM_THRESH) {
+		f(v,u) = disp;
+	} else {
+		f(v,u) = NAN;
+	}
+	return;*/
+	
+	if (!isnan(pdisp) && isnan(disp) && abs(pixel-ppixel) <= FILTER_SIM_THRESH) {
+		disp = pdisp;
+	}
 
 	for (int m=-FILTER_WINDOW_R; m<=FILTER_WINDOW_R; m++) {
 		for (int n=-FILTER_WINDOW_R; n<=FILTER_WINDOW_R; n++) {
-			int neigh = tex2D<unsigned char>(t, u+n, v+m);
+			int neigh = tex2D<uchar4>(t, u+n, v+m).x;
 			neigh_sq += neigh*neigh;
 			neigh_sum += neigh;
 
 			float ndisp = tex2D<float>(d,u+n,v+m);
-			if (isnan(ndisp)) {
+			/*if (isnan(ndisp)) {
 				ndisp = tex2D<float>(nDisp,u+n,v+m);
-				neigh = tex2D<unsigned char>(nTex, u+n, v+m);
-			}
+				neigh = tex2D<uchar4>(nTex, u+n, v+m).x;
+			}*/
 
-			if (m+n == 0) continue;
+			//if (isnan(tex2D<float>(nDisp,u+n,v+m))) continue;
+			if (m == 0 && n == 0) continue;
 
 			if (ndisp > 1.0f && !isnan(ndisp) && (abs(neigh-pixel) <= FILTER_SIM_THRESH)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
 				est += ndisp;
@@ -341,21 +348,25 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 
 	// Texture map filtering
 	int tm = (neigh_sq / (FILTER_WINDOW*FILTER_WINDOW)) - ((neigh_sum*neigh_sum) / (FILTER_WINDOW*FILTER_WINDOW));
-	if (tm >= -9000000) {
+	//if (tm >= -9000000) {
 			 // ) {
-		if (!isnan(disp) && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH)) {
+		/*if (!isnan(disp) && disp > 1.0f) { // && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH)) {
 			f(v,u) = disp;
-		} else if (nn > 2) f(v,u) = (nn==0) ? NAN : est / nn;
-		else f(v,u) = NAN;
-	} else {
-		f(v,u) = NAN;
-	}
+		} else*/
+		if (nn > 4) {
+			f(v,u) = (est+disp) / (nn+1);
+		} else if (!isnan(pdisp) && abs(pixel-ppixel) <= FILTER_SIM_THRESH) {
+			f(v,u) = pdisp;
+		} else f(v,u) = NAN;
+	//} else {
+	//	f(v,u) = NAN;
+	//}
 }
 
 cudaTextureObject_t prevDisp = 0;
 cudaTextureObject_t prevImage = 0;
 
-void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
+void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
 	dim3 grid(1,1,1);
     dim3 threads(BLOCK_W, 1, 1);
 
@@ -389,8 +400,8 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	memset(&texDesc, 0, sizeof(texDesc));
 	texDesc.readMode = cudaReadModeElementType;
   
-	cudaTextureObject_t texLeft = makeTexture2D<unsigned char>(l);
-	cudaTextureObject_t texRight = makeTexture2D<unsigned char>(r);
+	cudaTextureObject_t texLeft = makeTexture2D<uchar4>(l);
+	cudaTextureObject_t texRight = makeTexture2D<uchar4>(r);
 
 	//size_t smem_size = (2 * l.cols * l.rows) * sizeof(uint64_t);
 	

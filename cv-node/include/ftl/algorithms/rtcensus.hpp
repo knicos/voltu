@@ -27,11 +27,13 @@ class RTCensus : public ftl::Disparity {
 	float gamma_;
 	float tau_;
 	bool use_cuda_;
+	bool alternate_;
 	
 	#if defined HAVE_CUDA
 	cv::cuda::GpuMat disp_;
 	cv::cuda::GpuMat filtered_;
 	cv::cuda::GpuMat left_;
+	cv::cuda::GpuMat left2_;
 	cv::cuda::GpuMat right_;
 	#endif
 	

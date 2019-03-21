@@ -134,19 +134,24 @@ static void run(const string &file) {
 		sync->get(RIGHT,r);
 		
 		// Black and white
-        cvtColor(l,  lbw,  COLOR_BGR2GRAY);
-        cvtColor(r, rbw, COLOR_BGR2GRAY);
+        cvtColor(l, lbw,  COLOR_BGR2HSV);
+        cvtColor(r, rbw, COLOR_BGR2HSV);
+        int from_to[] = {0,0,1,1,2,2,-1,3};
+        Mat hsval(lbw.size(), CV_8UC4);
+        Mat hsvar(lbw.size(), CV_8UC4);
+        mixChannels(&lbw, 1, &hsval, 1, from_to, 4);
+        mixChannels(&rbw, 1, &hsvar, 1, from_to, 4);
         
-        disparity->compute(lbw,rbw,disparity32F);
+        disparity->compute(hsval,hsvar,disparity32F);
 		//LOG(INFO) << "Disparity complete ";
 		
 		disparity32F.convertTo(disparity32F, CV_32F);
-		disparity32F += 50.0f; // TODO REMOVE
+		//disparity32F += 10.0f; // TODO REMOVE
 		
 		// Clip the left edge
 		Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
-		disparity32F = disparity32F(rect);
-		l = l(rect);
+		//disparity32F = disparity32F(rect);
+		//l = l(rect);
 		
 		// HACK to make bad pixels invisible.
 		//normalize(disparity32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
@@ -202,6 +207,7 @@ static void run(const string &file) {
 		        break;
 		    }
         } else if (config["display"]["disparity"]) {
+        	disparity32F = disparity32F / (float)config["disparity"]["maximum"];
         	//normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
 			cv::imshow("Disparity", disparity32F);
 			if(cv::waitKey(10) == 27){

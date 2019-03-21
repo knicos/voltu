@@ -31,6 +31,7 @@ set(CMAKE_CUDA_FLAGS "-Xcompiler -Wall")
 set(CMAKE_CUDA_FLAGS_DEBUG "-g -DDEBUG -D_DEBUG -Wall")
 set(CMAKE_CUDA_FLAGS_RELEASE "")
 add_definitions(-DHAVE_CUDA)
+include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 endif (CUDA_FOUND)
 
 # Need to include staged files and libs

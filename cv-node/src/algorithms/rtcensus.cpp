@@ -183,7 +183,8 @@ RTCensus::RTCensus(nlohmann::json &config)
 	:	Disparity(config),
 		gamma_(0.0f),
 		tau_(0.0f),
-		use_cuda_(config.value("use_cuda",true)) {}
+		use_cuda_(config.value("use_cuda",true)),
+		alternate_(false) {}
 
 /*
  * Choose the implementation and perform disparity calculation.
@@ -231,24 +232,30 @@ void RTCensus::computeCPU(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 using namespace cv::cuda;
 using namespace cv;
 
+#include <vector_types.h>
+
 namespace ftl { namespace gpu {
-void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<float> &disp, size_t num_disp, const int &s=0);
+void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const PtrStepSz<float> &disp, size_t num_disp, const int &s=0);
 }}
 
 void RTCensus::computeCUDA(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	// Initialise gpu memory here because we need image size
 	if (disp_.empty()) disp_ = cuda::GpuMat(l.size(), CV_32FC1);
-	if (left_.empty()) left_ = cuda::GpuMat(l.size(), CV_8U);
-	if (right_.empty()) right_ = cuda::GpuMat(l.size(), CV_8U);
+	if (left_.empty()) left_ = cuda::GpuMat(l.size(), CV_8UC4);
+	if (left2_.empty()) left2_ = cuda::GpuMat(l.size(), CV_8UC4);
+	if (right_.empty()) right_ = cuda::GpuMat(l.size(), CV_8UC4);
 	
 	// Send images to GPU
-	left_.upload(l);
+	if (alternate_) left_.upload(l);
+	else left2_.upload(l);
 	right_.upload(r);
 
 	auto start = std::chrono::high_resolution_clock::now();
-	ftl::gpu::rtcensus_call(left_, right_, disp_, max_disp_);
+	ftl::gpu::rtcensus_call((alternate_)?left_:left2_, right_, disp_, max_disp_);
 	std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start;
 	LOG(INFO) << "CUDA census in " << elapsed.count() << "s";
+	
+	alternate_ = !alternate_;
 	
 	// Read disparity from GPU
 	disp_.download(disp);
