@@ -28,6 +28,46 @@ namespace gpu {
 
 // --- SUPPORT -----------------------------------------------------------------
 
+template <typename T>
+cudaTextureObject_t makeTexture2D(const PtrStepSzb &d) {
+	cudaResourceDesc resDesc;
+	memset(&resDesc, 0, sizeof(resDesc));
+	resDesc.resType = cudaResourceTypePitch2D;
+	resDesc.res.pitch2D.devPtr = d.data;
+	resDesc.res.pitch2D.pitchInBytes = d.step;
+	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
+	resDesc.res.pitch2D.width = d.cols;
+	resDesc.res.pitch2D.height = d.rows;
+
+	cudaTextureDesc texDesc;
+	memset(&texDesc, 0, sizeof(texDesc));
+	texDesc.readMode = cudaReadModeElementType;
+
+	cudaTextureObject_t tex = 0;
+	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+	return tex;
+}
+
+template <typename T>
+cudaTextureObject_t makeTexture2D(void *ptr, int pitch, int width, int height) {
+	cudaResourceDesc resDesc;
+	memset(&resDesc, 0, sizeof(resDesc));
+	resDesc.resType = cudaResourceTypePitch2D;
+	resDesc.res.pitch2D.devPtr = ptr;
+	resDesc.res.pitch2D.pitchInBytes = pitch;
+	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
+	resDesc.res.pitch2D.width = width;
+	resDesc.res.pitch2D.height = height;
+
+	cudaTextureDesc texDesc;
+	memset(&texDesc, 0, sizeof(texDesc));
+	texDesc.readMode = cudaReadModeElementType;
+
+	cudaTextureObject_t tex = 0;
+	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+	return tex;
+}
+
 /*
  * Sparse 16x16 census (so 8x8) creating a 64bit mask
  * (14) & (15), based upon (9)
@@ -215,16 +255,15 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 	}
 }
 
-__global__ void consistency_kernel(cudaTextureObject_t d_sub_l, cudaTextureObject_t d_sub_r, PtrStepSz<float> disp) {
-	size_t w = disp.cols;
-	size_t h = disp.rows;
+__global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
+		cudaTextureObject_t d_sub_r, float *disp, int w, int h, int pitch) {
 	//Mat result = Mat::zeros(Size(w,h), CV_32FC1);
 	
 	int u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS;
 	int v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS;
 	int v_end = v_start + ROWSperTHREAD;
 	
-	if (v_end >= disp.rows) v_end = disp.rows;
+	if (v_end >= h) v_end = h;
 	if (u >= w) return;
 	
 	for (int v=v_start; v<v_end; v++) {
@@ -236,8 +275,8 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l, cudaTextureObjec
 
 		//disp(v,u) = a; //abs((a+b)/2);
 		
-		if (abs(a-b) <= 1.0) disp(v,u) = abs((a+b)/2); // was 1.0
-		else disp(v,u) = NAN;
+		if (abs(a-b) <= 1.0) disp[v*pitch+u] = abs((a+b)/2); // was 1.0
+		else disp[v*pitch+u] = NAN;
 	//}
 	}
 
@@ -246,67 +285,33 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l, cudaTextureObjec
 #define FILTER_WINDOW_R	7
 #define FILTER_SIM_THRESH 10
 
-__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d, float *f, int pitch) {
+__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d, PtrStepSz<float> f) {
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS;
 	size_t v = blockIdx.y;
 
 	float disp = tex2D<float>(d,u,v);
-	if (isnan(disp)) {
-		f[u+v*pitch] = disp;
+	if (!isnan(disp)) {
+		f(v,u) = disp;
 		return;
 	}
 
 	int pixel = tex2D<unsigned char>(t, u, v);
 	float est = 0.0f;
+	int nn = 0;
 
 	for (int m=-FILTER_WINDOW_R; m<=FILTER_WINDOW_R; m++) {
 		for (int n=-FILTER_WINDOW_R; n<=FILTER_WINDOW_R; n++) {
 			int neigh = tex2D<unsigned char>(t, u+n, v+m);
-			est += (abs(neigh-pixel) <= FILTER_SIM_THRESH) ? tex2D<float>(d,u+n,v+m) : 0.0f; 
+			float ndisp = tex2D<float>(d,u+n,v+m);
+
+			if (!isnan(ndisp) && (abs(neigh-pixel) <= FILTER_SIM_THRESH)) {
+				est += ndisp;
+				nn++;
+			}
 		}	
 	}
 
-	f[u+v*pitch] = est;
-}
-
-template <typename T>
-cudaTextureObject_t makeTexture2D(const PtrStepSzb &d) {
-	cudaResourceDesc resDesc;
-	memset(&resDesc, 0, sizeof(resDesc));
-	resDesc.resType = cudaResourceTypePitch2D;
-	resDesc.res.pitch2D.devPtr = d.data;
-	resDesc.res.pitch2D.pitchInBytes = d.step;
-	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
-	resDesc.res.pitch2D.width = d.cols;
-	resDesc.res.pitch2D.height = d.rows;
-
-	cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.readMode = cudaReadModeElementType;
-
-	cudaTextureObject_t tex = 0;
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
-	return tex;
-}
-
-template <typename T>
-cudaTextureObject_t makeTexture2D(void *ptr, int pitch, int width, int height) {
-	cudaResourceDesc resDesc;
-	memset(&resDesc, 0, sizeof(resDesc));
-	resDesc.resType = cudaResourceTypePitch2D;
-	resDesc.res.pitch2D.devPtr = ptr;
-	resDesc.res.pitch2D.pitchInBytes = pitch;
-	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
-	resDesc.res.pitch2D.width = width;
-	resDesc.res.pitch2D.height = height;
-
-	cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.readMode = cudaReadModeElementType;
-
-	cudaTextureObject_t tex = 0;
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
-	return tex;
+	f(v,u) = (nn==0) ? NAN : est / nn;
 }
 
 void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
@@ -326,6 +331,9 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	float *disp_r;
 	size_t pitchDL;
 	size_t pitchDR;
+
+	float *disp_raw;
+	size_t pitchD;
 	
 	cudaSafeCall( cudaMallocPitch(&censusL, &pitchL, l.cols*sizeof(uint64_t), l.rows) );
 	cudaSafeCall( cudaMallocPitch(&censusR, &pitchR, r.cols*sizeof(uint64_t), r.rows) );
@@ -333,6 +341,8 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	//cudaMemset(census, 0, sizeof(uint64_t)*l.cols*l.rows*2);
 	cudaSafeCall( cudaMallocPitch(&disp_l, &pitchDL, sizeof(float)*l.cols, l.rows) );
 	cudaSafeCall( cudaMallocPitch(&disp_r, &pitchDR, sizeof(float)*l.cols, l.rows) );
+
+	cudaSafeCall( cudaMallocPitch(&disp_raw, &pitchD, sizeof(float)*l.cols, l.rows) );
 	
 	cudaTextureDesc texDesc;
 	memset(&texDesc, 0, sizeof(texDesc));
@@ -343,6 +353,7 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 
 	//size_t smem_size = (2 * l.cols * l.rows) * sizeof(uint64_t);
 	
+	// Calculate L and R census
 	census_kernel<<<grid, threads>>>(texLeft, texRight, l.cols, l.rows, censusL, censusR, pitchL/sizeof(uint64_t), pitchR/sizeof(uint64_t));
 	cudaSafeCall( cudaGetLastError() );
 	
@@ -354,14 +365,20 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
-	//grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS - num_disp, BLOCK_W) - 1;
+	// Calculate L and R disparities
 	disp_kernel<<<grid, threads>>>(disp_l, disp_r, pitchDL/sizeof(float), pitchDR/sizeof(float), l.cols, l.rows, censusTexLeft, censusTexRight, num_disp);
 	cudaSafeCall( cudaGetLastError() );
 
 	cudaTextureObject_t dispTexLeft = makeTexture2D<float>(disp_l, pitchDL, l.cols, l.rows);
 	cudaTextureObject_t dispTexRight = makeTexture2D<float>(disp_r, pitchDR, r.cols, r.rows);
 	
-	consistency_kernel<<<grid, threads>>>(dispTexLeft, dispTexRight, disp);
+	// Check consistency between L and R disparities.
+	consistency_kernel<<<grid, threads>>>(dispTexLeft, dispTexRight, disp_raw, l.cols, l.rows, pitchD/sizeof(float));
+	cudaSafeCall( cudaGetLastError() );
+
+	cudaTextureObject_t dispTex = makeTexture2D<float>(disp_raw, pitchD, r.cols, r.rows);
+
+	filter_kernel<<<grid, threads>>>(texLeft, dispTex, disp);
 	cudaSafeCall( cudaGetLastError() );
 	
 	//if (&stream == Stream::Null())
@@ -371,6 +388,9 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 	cudaSafeCall( cudaDestroyTextureObject (texRight) );
 	cudaSafeCall( cudaDestroyTextureObject (censusTexLeft) );
 	cudaSafeCall( cudaDestroyTextureObject (censusTexRight) );
+	cudaSafeCall( cudaDestroyTextureObject (dispTexLeft) );
+	cudaSafeCall( cudaDestroyTextureObject (dispTexRight) );
+	cudaSafeCall( cudaDestroyTextureObject (dispTex) );
 	cudaFree(disp_r);
 	cudaFree(disp_l);
 	cudaFree(censusL);
