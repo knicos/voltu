@@ -141,7 +141,7 @@ static void run(const string &file) {
 		//LOG(INFO) << "Disparity complete ";
 		
 		disparity32F.convertTo(disparity32F, CV_32F);
-		disparity32F += 10.0f;
+		disparity32F += 50.0f; // TODO REMOVE
 		
 		// Clip the left edge
 		Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
@@ -202,7 +202,7 @@ static void run(const string &file) {
 		        break;
 		    }
         } else if (config["display"]["disparity"]) {
-        	normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
+        	//normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
 			cv::imshow("Disparity", disparity32F);
 			if(cv::waitKey(10) == 27){
 		        //exit if ESC is pressed
