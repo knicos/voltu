@@ -29,7 +29,7 @@ namespace gpu {
 // --- SUPPORT -----------------------------------------------------------------
 
 template <typename T>
-cudaTextureObject_t makeTexture2D(const PtrStepSzb &d) {
+cudaTextureObject_t makeTexture2D(const PtrStepSz<T> &d) {
 	cudaResourceDesc resDesc;
 	memset(&resDesc, 0, sizeof(resDesc));
 	resDesc.resType = cudaResourceTypePitch2D;
@@ -141,7 +141,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
-	const int gamma = 10;
+	const int gamma = 50;
 	
 	int u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	int v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
@@ -283,36 +283,70 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 }
 
 #define FILTER_WINDOW_R	7
-#define FILTER_SIM_THRESH 10
+#define FILTER_SIM_THRESH 20
+#define FILTER_DISP_THRESH 10.0f
 
-__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d, PtrStepSz<float> f) {
+__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
+		cudaTextureObject_t prevD,
+		cudaTextureObject_t prevT, PtrStepSz<float> f, int num_disp) {
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS;
-	size_t v = blockIdx.y;
+	size_t v = blockIdx.y + RADIUS;
 
-	float disp = tex2D<float>(d,u,v);
-	if (!isnan(disp)) {
-		f(v,u) = disp;
+	if (u+num_disp > f.cols) {
+		f(v,u) = NAN;
 		return;
 	}
 
+	float disp = tex2D<float>(d,u,v);
+	/*if (!isnan(disp)) {
+		f(v,u) = disp;
+		return;
+	}*/
+	//if (isnan(disp)) disp = 100000.0f; //tex2D<float>(prev, u, v);
+
+	cudaTextureObject_t nTex = (prevT) ? prevT : t;
+	cudaTextureObject_t nDisp = (prevD) ? prevD : d;
+
+	float pdisp = tex2D<float>(nDisp,u,v);
+	if (isnan(pdisp)) pdisp = disp;
+	if (isnan(disp)) disp = pdisp;
 	int pixel = tex2D<unsigned char>(t, u, v);
-	float est = 0.0f;
-	int nn = 0;
+	int ppixel = tex2D<unsigned char>(nTex, u, v);
+	float est = 0.0f; //(isnan(disp)) ? tex2D<float>(prev, u, v) : disp;
+	int nn = 0; //(isnan(disp)) ? 0 : 1;
+	int neigh_sq = 0;
+	int neigh_sum = 0;
 
 	for (int m=-FILTER_WINDOW_R; m<=FILTER_WINDOW_R; m++) {
 		for (int n=-FILTER_WINDOW_R; n<=FILTER_WINDOW_R; n++) {
 			int neigh = tex2D<unsigned char>(t, u+n, v+m);
-			float ndisp = tex2D<float>(d,u+n,v+m);
+			neigh_sq += neigh*neigh;
+			neigh_sum += neigh;
 
-			if (!isnan(ndisp) && (abs(neigh-pixel) <= FILTER_SIM_THRESH)) {
+			float ndisp = tex2D<float>(d,u+n,v+m);
+			if (isnan(ndisp)) {
+				ndisp = tex2D<float>(nDisp,u+n,v+m);
+				neigh = tex2D<unsigned char>(nTex, u+n, v+m);
+			}
+
+			if (ndisp > 1.0f && !isnan(ndisp) && (abs(neigh-pixel) <= FILTER_SIM_THRESH)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
 				est += ndisp;
 				nn++;
 			}
 		}	
 	}
 
-	f(v,u) = (nn==0) ? NAN : est / nn;
+	// Texture map filtering
+	int tm = (neigh_sq / (15*15)) - ((neigh_sum*neigh_sum) / (15*15));
+	if (tm >= -9000000 && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH) ) {
+		f(v,u) = disp; // = (nn==0) ? NAN : est / nn;
+	} else {
+		f(v,u) = NAN;
+	}
 }
+
+cudaTextureObject_t prevDisp = 0;
+cudaTextureObject_t prevImage = 0;
 
 void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
 	dim3 grid(1,1,1);
@@ -378,13 +412,19 @@ void rtcensus_call(const PtrStepSzb &l, const PtrStepSzb &r, const PtrStepSz<flo
 
 	cudaTextureObject_t dispTex = makeTexture2D<float>(disp_raw, pitchD, r.cols, r.rows);
 
-	filter_kernel<<<grid, threads>>>(texLeft, dispTex, disp);
+	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
+	filter_kernel<<<grid, threads>>>(texLeft, dispTex, prevDisp, prevImage, disp, num_disp);
 	cudaSafeCall( cudaGetLastError() );
+
+	if (prevDisp) cudaSafeCall( cudaDestroyTextureObject (prevDisp) );
+	prevDisp = makeTexture2D<float>(disp);
+	if (prevImage) cudaSafeCall( cudaDestroyTextureObject (prevImage) );
+	prevImage = texLeft;
 	
 	//if (&stream == Stream::Null())
 	cudaSafeCall( cudaDeviceSynchronize() );
 		
-	cudaSafeCall( cudaDestroyTextureObject (texLeft) );
+	//cudaSafeCall( cudaDestroyTextureObject (texLeft) );
 	cudaSafeCall( cudaDestroyTextureObject (texRight) );
 	cudaSafeCall( cudaDestroyTextureObject (censusTexLeft) );
 	cudaSafeCall( cudaDestroyTextureObject (censusTexRight) );
