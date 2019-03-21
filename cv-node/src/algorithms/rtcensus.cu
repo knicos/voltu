@@ -282,7 +282,8 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 
 }
 
-#define FILTER_WINDOW_R	7
+#define FILTER_WINDOW 11
+#define FILTER_WINDOW_R	5
 #define FILTER_SIM_THRESH 20
 #define FILTER_DISP_THRESH 10.0f
 
@@ -339,7 +340,7 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	}
 
 	// Texture map filtering
-	int tm = (neigh_sq / (15*15)) - ((neigh_sum*neigh_sum) / (15*15));
+	int tm = (neigh_sq / (FILTER_WINDOW*FILTER_WINDOW)) - ((neigh_sum*neigh_sum) / (FILTER_WINDOW*FILTER_WINDOW));
 	if (tm >= -9000000) {
 			 // ) {
 		if (!isnan(disp) && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH)) {
