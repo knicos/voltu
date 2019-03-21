@@ -329,6 +329,8 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 				neigh = tex2D<unsigned char>(nTex, u+n, v+m);
 			}
 
+			if (m+n == 0) continue;
+
 			if (ndisp > 1.0f && !isnan(ndisp) && (abs(neigh-pixel) <= FILTER_SIM_THRESH)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
 				est += ndisp;
 				nn++;
@@ -339,7 +341,8 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	// Texture map filtering
 	int tm = (neigh_sq / (15*15)) - ((neigh_sum*neigh_sum) / (15*15));
 	if (tm >= -9000000 && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH) ) {
-		f(v,u) = disp; // = (nn==0) ? NAN : est / nn;
+		if (nn > 2) f(v,u) = (nn==0) ? NAN : (est+disp) / (nn+1);
+		else f(v,u) = NAN;
 	} else {
 		f(v,u) = NAN;
 	}
