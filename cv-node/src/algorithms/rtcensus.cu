@@ -100,20 +100,25 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
-	const int gamma = 10;
+	const int gamma = 1;
 	
-	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
-	size_t v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
-	size_t v_end = v_start + ROWSperTHREAD;
+	int u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
+	int v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
+	int v_end = v_start + ROWSperTHREAD;
+	int maxdisp = ds;
+	
+	// Local cache
+	uint64_t l_cache_l1[5][5];
+	uint64_t l_cache_l2[5][5];
 
 	// Prepare the cache load
 	//const int cache_thread_width = (BLOCK_W+ds / BLOCK_W + RADIUS2*2 + 1)*2;
 	//uint64_t *cache_ptr = cache + (threadIdx.x * cache_thread_width);
 	
 	if (v_end >= height) v_end = height;
-	//if (u >= width-ds) return;
+	if (u+maxdisp >= width) maxdisp = width-u;
 	
-	for (size_t v=v_start; v<v_end; v++) {
+	for (int v=v_start; v<v_end; v++) {
 		/*const int cache_start = v*width*2 + cache_thread_width*blockIdx.x;
 		for (int i=0; i<cache_thread_width; i+=2) {
 			cache_ptr[i] = census[cache_start+i];
@@ -121,6 +126,15 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		}
 		
 		__syncthreads();*/
+		
+		// Fill local cache for window 5x5
+		// TODO Use shared memory?
+		for (int m=-2; m<=2; m++) {
+			for (int n=-2; n<=2; n++) {
+				l_cache_l2[m+2][n+2] = uint2asull(tex2D<uint2>(censusL,u+n,v+m));
+				l_cache_l1[m+2][n+2] = uint2asull(tex2D<uint2>(censusR,u+n,v+m));
+			}
+		}
 		
 		uint16_t last_ham1 = 65535;
 		uint16_t last_ham2 = 65535;
@@ -136,7 +150,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		int dix2 = 0;
 		
 		// TODO Use prediction textures to narrow range
-		for (size_t d=0; d<ds; d++) {
+		for (int d=0; d<maxdisp; d++) {
 			uint16_t hamming1 = 0;
 			uint16_t hamming2 = 0;
 			
@@ -146,13 +160,11 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 				const auto v_ = (v + m);
 				for (int n=-2; n<=2; n++) {
 					const auto u_ = u + n;
-
-				
 					
-
-					auto l2 = uint2asull(tex2D<uint2>(censusL,u_,v_));
-					auto l1 = uint2asull(tex2D<uint2>(censusR,u_,v_));
+					auto l1 = l_cache_l1[m+2][n+2];
+					auto l2 = l_cache_l2[m+2][n+2];
 					
+					// TODO Somehow might use shared memory
 					auto r1 = uint2asull(tex2D<uint2>(censusL, u_+d, v_));
 					auto r2 = uint2asull(tex2D<uint2>(censusR, u_-d, v_));
 					
