@@ -141,7 +141,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
-	const int gamma = 50;
+	const int gamma = 100;
 	
 	int u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	int v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
@@ -309,7 +309,7 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 
 	float pdisp = tex2D<float>(nDisp,u,v);
 	if (isnan(pdisp)) pdisp = disp;
-	if (isnan(disp)) disp = pdisp;
+	//if (isnan(disp)) disp = pdisp;
 	int pixel = tex2D<unsigned char>(t, u, v);
 	int ppixel = tex2D<unsigned char>(nTex, u, v);
 	float est = 0.0f; //(isnan(disp)) ? tex2D<float>(prev, u, v) : disp;
@@ -340,8 +340,11 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 
 	// Texture map filtering
 	int tm = (neigh_sq / (15*15)) - ((neigh_sum*neigh_sum) / (15*15));
-	if (tm >= -9000000 && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH) ) {
-		if (nn > 2) f(v,u) = (nn==0) ? NAN : (est+disp) / (nn+1);
+	if (tm >= -9000000) {
+			 // ) {
+		if (!isnan(disp) && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH)) {
+			f(v,u) = disp;
+		} else if (nn > 2) f(v,u) = (nn==0) ? NAN : est / nn;
 		else f(v,u) = NAN;
 	} else {
 		f(v,u) = NAN;
