@@ -281,27 +281,16 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 
 }
 
-#define FILTER_WINDOW 31
+/*#define FILTER_WINDOW 31
 #define FILTER_WINDOW_R	15
 #define FILTER_SIM_THRESH 5
 #define FILTER_DISP_THRESH 2.0f
 
-__device__ int colour_error(uchar4 v1, uchar4 v2) {
-	int dx = abs(v1.x-v2.x);
-	int dz = abs(v1.z-v2.z);
-	return dx*dx + dz*dz;
-}
-
-__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
+__global__ void filter_kernel_old(cudaTextureObject_t t, cudaTextureObject_t d,
 		cudaTextureObject_t prevD,
 		cudaTextureObject_t prevT, PtrStepSz<float> f, int num_disp) {
 	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS;
 	size_t v = blockIdx.y + RADIUS;
-
-	/*if (u+num_disp > f.cols) {
-		f(v,u) = NAN;
-		return;
-	}*/
 
 	float disp = tex2D<float>(d,u,v);
 
@@ -326,14 +315,6 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 		f(v,u) = disp;
 	}
 	return;
-	
-	/*if (!isnan(disp)) {// && colour_error(ppixel,pixel) <= FILTER_SIM_THRESH) {
-		f(v,u) = disp;
-		return;
-	} else {
-		f(v,u) = NAN;
-	}
-	return;*/
 	
 	//if (!isnan(pdisp) && isnan(disp) && colour_error(pixel,ppixel) <= FILTER_SIM_THRESH) {
 	//	disp = pdisp;
@@ -367,9 +348,7 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	//	nn = 0;
 	//}
 			 // ) {
-		/*if (!isnan(disp) && disp > 1.0f) { // && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH)) {
-			f(v,u) = disp;
-		} else*/
+
 		if (nn > 10) {
 			f(v,u) = (est+disp) / (nn+1);
 		} else if (!isnan(pdisp) && colour_error(pixel,ppixel) <= FILTER_SIM_THRESH) {
@@ -378,6 +357,51 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	//} else {
 	//	f(v,u) = NAN;
 	//}
+}*/
+
+__device__ int colour_error(uchar4 v1, uchar4 v2) {
+	int dx = abs(v1.x-v2.x);
+	int dz = abs(v1.z-v2.z);
+	return dx*dx + dz*dz;
+}
+
+__device__ bool is_edge_left(uchar4 *line, int x, int n) {
+	if (x < 1 || x >= n-1) return false;
+	return (abs(line[x-1].z-line[x].z) > 15 && abs(line[x].z-line[x+1].z) <= 15);
+}
+
+__device__ bool is_edge_right(uchar4 *line, int x, int n) {
+	if (x < 1 || x >= n-1) return false;
+	return (abs(line[x-1].z-line[x].z) <= 15 && abs(line[x].z-line[x+1].z) > 15);
+}
+
+__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
+		cudaTextureObject_t prevD,
+		cudaTextureObject_t prevT, PtrStepSz<float> f, int num_disp) {
+
+
+	extern __shared__ uchar4 line[]; // One entire line of hsv image
+	
+	for (STRIDE_Y(v,f.rows)) {
+		for (STRIDE_X(u,f.cols)) {
+			line[u] = tex2D<uchar4>(t, u, v);
+		}
+		__syncthreads();
+		
+		for (STRIDE_X(u,f.cols)) {
+			if (is_edge_left(line, u, f.cols)) {
+				float edge_disp = tex2D<float>(d, u, v);
+				f(v,u) = edge_disp;
+				
+				for (int i=1; u+i<f.cols; i++) {
+					if (is_edge_right(line, u+i, f.cols)) break;
+					float di = tex2D<float>(d,u+i,v);
+					if (!isnan(di)) edge_disp = di;
+					f(v,u+i) = edge_disp;
+				}
+			}// else f(v,u) = NAN;
+		}
+	}
 }
 
 cudaTextureObject_t prevDisp = 0;
@@ -447,8 +471,11 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 
 	cudaTextureObject_t dispTex = makeTexture2D<float>(disp_raw, pitchD, r.cols, r.rows);
 
-	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
-	filter_kernel<<<grid, threads>>>(texLeft, dispTex, prevDisp, prevImage, disp, num_disp);
+	grid.x = 4;
+	grid.y = l.rows;
+	threads.x = l.cols;
+	size_t filter_smem = sizeof(uchar4) * l.cols;
+	filter_kernel<<<grid, threads, filter_smem>>>(texLeft, dispTex, prevDisp, prevImage, disp, num_disp);
 	cudaSafeCall( cudaGetLastError() );
 
 	if (prevDisp) cudaSafeCall( cudaDestroyTextureObject (prevDisp) );
