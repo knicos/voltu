@@ -132,48 +132,21 @@ static void run(const string &file) {
 		// Read back from buffer
 		sync->get(LEFT,l);
 		sync->get(RIGHT,r);
-		
-		// Black and white
-        cvtColor(l, lbw,  COLOR_BGR2HSV);
-        cvtColor(r, rbw, COLOR_BGR2HSV);
-        int from_to[] = {0,0,1,1,2,2,-1,3};
-        Mat hsval(lbw.size(), CV_8UC4);
-        Mat hsvar(lbw.size(), CV_8UC4);
-        mixChannels(&lbw, 1, &hsval, 1, from_to, 4);
-        mixChannels(&rbw, 1, &hsvar, 1, from_to, 4);
         
-        disparity->compute(hsval,hsvar,disparity32F);
-		//LOG(INFO) << "Disparity complete ";
+        // TODO Check other algorithms convert to BW
+        disparity->compute(l,r,disparity32F);
 		
 		disparity32F.convertTo(disparity32F, CV_32F);
-		//disparity32F += 10.0f; // TODO REMOVE
+		disparity32F += 10.0f; // TODO REMOVE
 		
 		// Clip the left edge
-		Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
-		//disparity32F = disparity32F(rect);
-		//l = l(rect);
-		
-		// HACK to make bad pixels invisible.
-		//normalize(disparity32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
-		//r = Mat(l.size(), CV_8UC3, Vec3i(255,255,255));
-		//l.copyTo(r,depth32F);
-		
-		// TODO Send RGB+D data somewhere
-		
-		// Convert disparity to depth
-
-		//normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
-		
-		//cv::imshow("Disparity",filtered_disp);
-		//Mat i3d;
-		//const Mat &Q = calibrate.getQ();
-		
+		//Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
 
 		if (config["display"]["points"]) {
 			cv::Mat Q_32F; // = (Mat_<double>(4,4) << 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1); //(4,4,CV_32F);
 			calibrate.getQ().convertTo(Q_32F,CV_32F);
 			cv::Mat_<cv::Vec3f> XYZ(disparity32F.rows,disparity32F.cols);   // Output point cloud
-			reprojectImageTo3D(disparity32F, XYZ, Q_32F, true);
+			reprojectImageTo3D(disparity32F, XYZ, Q_32F, false);
 			
 			//cv::imshow("Points",XYZ);
 			
@@ -208,7 +181,9 @@ static void run(const string &file) {
 		    }
         } else if (config["display"]["disparity"]) {
         	disparity32F = disparity32F / (float)config["disparity"]["maximum"];
+        	disparity32F.convertTo(disparity32F,CV_8U,255.0f);
         	//normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
+        	applyColorMap(disparity32F, disparity32F, cv::COLORMAP_JET);
 			cv::imshow("Disparity", disparity32F);
 			if(cv::waitKey(10) == 27){
 		        //exit if ESC is pressed

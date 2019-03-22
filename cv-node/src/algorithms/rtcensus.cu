@@ -16,6 +16,10 @@
 using namespace cv::cuda;
 using namespace cv;
 
+/* Grid stride loop macros */
+#define STRIDE_Y(I,N) int I = blockIdx.y * blockDim.y + threadIdx.y; I < N; I += blockDim.y * gridDim.y
+#define STRIDE_X(I,N) int I = blockIdx.x * blockDim.x + threadIdx.x; I < N; I += blockDim.x * gridDim.x
+
 #define BLOCK_W 60
 #define RADIUS 7
 #define RADIUS2 2
@@ -255,37 +259,38 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 	}
 }
 
+/*
+ * Check for consistency between the LR and RL disparity maps, only selecting
+ * those that are similar. Otherwise it sets the disparity to NAN.
+ */
 __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 		cudaTextureObject_t d_sub_r, float *disp, int w, int h, int pitch) {
-	//Mat result = Mat::zeros(Size(w,h), CV_32FC1);
-	
-	int u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS;
-	int v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS;
-	int v_end = v_start + ROWSperTHREAD;
-	
-	if (v_end >= h) v_end = h;
-	if (u >= w) return;
-	
-	for (int v=v_start; v<v_end; v++) {
-	
+
+	// TODO This doesn't work at either edge (+-max_disparities)
+	for (STRIDE_Y(v,h)) {
+	for (STRIDE_X(u,w)) {
 		float a = (int)tex2D<float>(d_sub_l, u, v);
 		if (u-a < 0) continue;
 		
 		auto b = tex2D<float>(d_sub_r, u-a, v);
-
-		//disp(v,u) = a; //abs((a+b)/2);
 		
-		if (abs(a-b) <= 1.0) disp[v*pitch+u] = (u < 300) ? b : a;//abs((a+b)/2); // was 1.0
+		if (abs(a-b) <= 1.0) disp[v*pitch+u] = abs((a+b)/2);
 		else disp[v*pitch+u] = NAN;
-	//}
+	}
 	}
 
 }
 
-#define FILTER_WINDOW 11
-#define FILTER_WINDOW_R	5
+#define FILTER_WINDOW 31
+#define FILTER_WINDOW_R	15
 #define FILTER_SIM_THRESH 5
-#define FILTER_DISP_THRESH 50.0f
+#define FILTER_DISP_THRESH 2.0f
+
+__device__ int colour_error(uchar4 v1, uchar4 v2) {
+	int dx = abs(v1.x-v2.x);
+	int dz = abs(v1.z-v2.z);
+	return dx*dx + dz*dz;
+}
 
 __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 		cudaTextureObject_t prevD,
@@ -306,40 +311,50 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	float pdisp = tex2D<float>(nDisp,u,v);
 	if (isnan(pdisp)) pdisp = disp;
 	if (isnan(disp)) disp = pdisp;
-	int pixel = tex2D<uchar4>(t, u, v).x;
-	int ppixel = tex2D<uchar4>(nTex, u, v).x;
+	uchar4 pixel = tex2D<uchar4>(t, u, v);
+	uchar4 ppixel = tex2D<uchar4>(nTex, u, v);
 	float est = 0.0f; //(isnan(disp)) ? tex2D<float>(prev, u, v) : disp;
 	int nn = 0; //(isnan(disp)) ? 0 : 1;
 	int neigh_sq = 0;
 	int neigh_sum = 0;
 	
-	/*if (abs(ppixel-pixel) <= FILTER_SIM_THRESH) {
+	if (isnan(pdisp)) {
 		f(v,u) = disp;
+	} else if (!isnan(disp) && abs(pdisp-disp) <= FILTER_DISP_THRESH) {
+		f(v,u) = (disp+pdisp) / 2;
+	} else {
+		f(v,u) = disp;
+	}
+	return;
+	
+	/*if (!isnan(disp)) {// && colour_error(ppixel,pixel) <= FILTER_SIM_THRESH) {
+		f(v,u) = disp;
+		return;
 	} else {
 		f(v,u) = NAN;
 	}
 	return;*/
 	
-	if (!isnan(pdisp) && isnan(disp) && abs(pixel-ppixel) <= FILTER_SIM_THRESH) {
-		disp = pdisp;
-	}
+	//if (!isnan(pdisp) && isnan(disp) && colour_error(pixel,ppixel) <= FILTER_SIM_THRESH) {
+	//	disp = pdisp;
+	//}
 
 	for (int m=-FILTER_WINDOW_R; m<=FILTER_WINDOW_R; m++) {
 		for (int n=-FILTER_WINDOW_R; n<=FILTER_WINDOW_R; n++) {
-			int neigh = tex2D<uchar4>(t, u+n, v+m).x;
-			neigh_sq += neigh*neigh;
-			neigh_sum += neigh;
+			uchar4 neigh = tex2D<uchar4>(t, u+n, v+m);
+			//neigh_sq += neigh*neigh;
+			//neigh_sum += neigh;
 
 			float ndisp = tex2D<float>(d,u+n,v+m);
-			/*if (isnan(ndisp)) {
+			if (isnan(ndisp)) {
 				ndisp = tex2D<float>(nDisp,u+n,v+m);
-				neigh = tex2D<uchar4>(nTex, u+n, v+m).x;
-			}*/
+				neigh = tex2D<uchar4>(nTex, u+n, v+m);
+			}
 
 			//if (isnan(tex2D<float>(nDisp,u+n,v+m))) continue;
 			if (m == 0 && n == 0) continue;
 
-			if (ndisp > 1.0f && !isnan(ndisp) && (abs(neigh-pixel) <= FILTER_SIM_THRESH)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
+			if (!isnan(ndisp) && (colour_error(neigh,pixel) <= FILTER_SIM_THRESH)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
 				est += ndisp;
 				nn++;
 			}
@@ -347,17 +362,19 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	}
 
 	// Texture map filtering
-	int tm = (neigh_sq / (FILTER_WINDOW*FILTER_WINDOW)) - ((neigh_sum*neigh_sum) / (FILTER_WINDOW*FILTER_WINDOW));
-	//if (tm >= -9000000) {
+	//int tm = (neigh_sq / (FILTER_WINDOW*FILTER_WINDOW)) - ((neigh_sum*neigh_sum) / (FILTER_WINDOW*FILTER_WINDOW));
+	//if (tm >= -5000000) {
+	//	nn = 0;
+	//}
 			 // ) {
 		/*if (!isnan(disp) && disp > 1.0f) { // && (abs(ppixel-pixel) > FILTER_SIM_THRESH || abs(pdisp - disp) <= FILTER_DISP_THRESH)) {
 			f(v,u) = disp;
 		} else*/
-		if (nn > 4) {
+		if (nn > 10) {
 			f(v,u) = (est+disp) / (nn+1);
-		} else if (!isnan(pdisp) && abs(pixel-ppixel) <= FILTER_SIM_THRESH) {
+		} else if (!isnan(pdisp) && colour_error(pixel,ppixel) <= FILTER_SIM_THRESH) {
 			f(v,u) = pdisp;
-		} else f(v,u) = NAN;
+		} else f(v,u) = disp;
 	//} else {
 	//	f(v,u) = NAN;
 	//}
