@@ -19,12 +19,14 @@ class TextureObject {
 	TextureObject() : texobj_(0), ptr_(nullptr) {};
 	TextureObject(const cv::cuda::PtrStepSz<T> &d);
 	TextureObject(T *ptr, int pitch, int width, int height);
-	TextureObject(int width, int height);
+	TextureObject(size_t width, size_t height);
 	TextureObject(const TextureObject &t);
 	~TextureObject();
 	
-	int getPitch();
+	int pitch() const { return pitch_; }
 	T *devicePtr() { return ptr_; };
+	int width() const { return width_; }
+	int height() const { return height_; }
 	cudaTextureObject_t cudaTexture() const { return texobj_; }
 	__device__ inline T tex2D(int u, int v) { return ::tex2D<T>(texobj_, u, v); }
 	__device__ inline T tex2D(float u, float v) { return ::tex2D<T>(texobj_, u, v); }
@@ -41,7 +43,7 @@ class TextureObject {
 	
 	private:
 	cudaTextureObject_t texobj_;
-	int pitch_;
+	size_t pitch_;
 	int width_;
 	int height_;
 	T *ptr_;
@@ -109,8 +111,8 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 }
 
 template <typename T>
-TextureObject<T>::TextureObject(int width, int height) {
-	cudaMallocPitch(&ptr_,&pitch_,width*sizeof(T),height);
+TextureObject<T>::TextureObject(size_t width, size_t height) {
+	cudaMallocPitch((void**)&ptr_,&pitch_,width*sizeof(T),height);
 
 	cudaResourceDesc resDesc;
 	memset(&resDesc, 0, sizeof(resDesc));

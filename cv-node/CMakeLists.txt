@@ -88,7 +88,12 @@ if (LIBSGM_FOUND)
 endif (LIBSGM_FOUND)
 
 if (CUDA_FOUND)
-	list(APPEND CVNODESRC "src/algorithms/opencv_cuda_bm.cpp" "src/algorithms/opencv_cuda_bp.cpp" "src/algorithms/rtcensus.cu")
+	list(APPEND CVNODESRC
+		"src/algorithms/opencv_cuda_bm.cpp"
+		"src/algorithms/opencv_cuda_bp.cpp"
+		"src/algorithms/rtcensus.cu"
+		"src/algorithms/consistency.cu"
+		"src/algorithms/sparse_census.cu")
 endif (CUDA_FOUND)
 
 add_executable(cv-node ${CVNODESRC})

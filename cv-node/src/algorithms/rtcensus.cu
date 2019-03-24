@@ -12,6 +12,7 @@
  */
  
 #include <ftl/cuda_common.hpp>
+#include <ftl/cuda_algorithms.hpp>
 
 using namespace cv::cuda;
 using namespace cv;
@@ -22,34 +23,11 @@ using namespace cv;
 #define RADIUS2 2
 #define ROWSperTHREAD 1
 
-#define XHI(P1,P2) ((P1 <= P2) ? 0 : 1)
-
 namespace ftl {
 namespace gpu {
 
 // --- SUPPORT -----------------------------------------------------------------
 
-
-
-/*
- * Sparse 16x16 census (so 8x8) creating a 64bit mask
- * (14) & (15), based upon (9)
- */
-__device__ uint64_t sparse_census(cudaTextureObject_t tex, int u, int v) {
-	uint64_t r = 0;
-
-	unsigned char t = tex2D<uchar4>(tex, u,v).z;
-
-	for (int m=-7; m<=7; m+=2) {
-		//auto start_ix = (v + m)*w + u;
-		for (int n=-7; n<=7; n+=2) {
-			r <<= 1;
-			r |= XHI(t, tex2D<uchar4>(tex, u+n, v+m).z);
-		}
-	}
-
-	return r;
-}
 
 /*
  * Parabolic interpolation between matched disparities either side.
@@ -62,30 +40,6 @@ __device__ float fit_parabola(size_t pi, uint16_t p, uint16_t pl, uint16_t pr) {
 }
 
 // --- KERNELS -----------------------------------------------------------------
-
-/*
- * Calculate census mask for left and right images together.
- */
-__global__ void census_kernel(cudaTextureObject_t l, cudaTextureObject_t r,
-		int w, int h, uint64_t *censusL, uint64_t *censusR,
-		size_t pL, size_t pR) {	
-	
-	int u = (blockIdx.x * BLOCK_W + threadIdx.x + RADIUS);
-	int v_start = blockIdx.y * ROWSperTHREAD + RADIUS;
-	int v_end = v_start + ROWSperTHREAD;
-	
-	if (v_end+RADIUS >= h) v_end = h-RADIUS;
-	if (u+RADIUS >= w) return;
-	
-	for (int v=v_start; v<v_end; v++) {
-		//int ix = (u + v*pL);
-		uint64_t cenL = sparse_census(l, u, v);
-		uint64_t cenR = sparse_census(r, u, v);
-		
-		censusL[(u + v*pL)] = cenL;
-		censusR[(u + v*pR)] = cenR;
-	}
-}
 
 /* Convert vector uint2 (32bit x2) into a single uint64_t */
 __forceinline__ __device__ uint64_t uint2asull (uint2 a) {
@@ -216,31 +170,6 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		// Use previous value unless it conflicts with present
 		// Use neighbour values if texture matches 
 	}
-}
-
-/*
- * Check for consistency between the LR and RL disparity maps, only selecting
- * those that are similar. Otherwise it sets the disparity to NAN.
- */
-__global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
-		cudaTextureObject_t d_sub_r, float *disp, int w, int h, int pitch) {
-
-	// TODO This doesn't work at either edge (+-max_disparities)
-	for (STRIDE_Y(v,h)) {
-	for (STRIDE_X(u,w)) {
-		float a = (int)tex2D<float>(d_sub_l, u, v);
-		if (u-a < 0) {
-			//disp[v*pitch+u] = a;
-			continue;
-		}
-		
-		auto b = tex2D<float>(d_sub_r, u-a, v);
-		
-		if (abs(a-b) <= 1.0) disp[v*pitch+u] = abs((a+b)/2);
-		else disp[v*pitch+u] = NAN;
-	}
-	}
-
 }
 
 
@@ -394,68 +323,37 @@ ftl::cuda::TextureObject<float> prevDisp;
 ftl::cuda::TextureObject<uchar4> prevImage;
 
 void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
-	dim3 grid(1,1,1);
-    dim3 threads(BLOCK_W, 1, 1);
-
-	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS, BLOCK_W);
-	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS, ROWSperTHREAD);
-	
-	// TODO, reduce allocations
-	uint64_t *censusL;
-	uint64_t *censusR;
-	size_t pitchL;
-	size_t pitchR;
-
-	float *disp_l;
-	float *disp_r;
-	size_t pitchDL;
-	size_t pitchDR;
-
-	float *disp_raw;
-	size_t pitchD;
-	
-	cudaSafeCall( cudaMallocPitch(&censusL, &pitchL, l.cols*sizeof(uint64_t), l.rows) );
-	cudaSafeCall( cudaMallocPitch(&censusR, &pitchR, r.cols*sizeof(uint64_t), r.rows) );
-	
-	//cudaMemset(census, 0, sizeof(uint64_t)*l.cols*l.rows*2);
-	cudaSafeCall( cudaMallocPitch(&disp_l, &pitchDL, sizeof(float)*l.cols, l.rows) );
-	cudaSafeCall( cudaMallocPitch(&disp_r, &pitchDR, sizeof(float)*l.cols, l.rows) );
-
-	cudaSafeCall( cudaMallocPitch(&disp_raw, &pitchD, sizeof(float)*l.cols, l.rows) );
-	
-	cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.readMode = cudaReadModeElementType;
-  
+	// Make all the required texture steps
+	// TODO Could reduce re-allocations by caching these
 	ftl::cuda::TextureObject<uchar4> texLeft(l);
 	ftl::cuda::TextureObject<uchar4> texRight(r);
+	ftl::cuda::TextureObject<uint2> censusTexLeft(l.cols, l.rows);
+	ftl::cuda::TextureObject<uint2> censusTexRight(r.cols, r.rows);
+	ftl::cuda::TextureObject<float> dispTexLeft(l.cols, l.rows);
+	ftl::cuda::TextureObject<float> dispTexRight(r.cols, r.rows);
+	ftl::cuda::TextureObject<float> dispTex(r.cols, r.rows);
+	
+	// Calculate the census for left and right
+	ftl::cuda::sparse_census(texLeft, texRight, censusTexLeft, censusTexRight);
 
-	//size_t smem_size = (2 * l.cols * l.rows) * sizeof(uint64_t);
-	
-	// Calculate L and R census
-	census_kernel<<<grid, threads>>>(texLeft.cudaTexture(), texRight.cudaTexture(), l.cols, l.rows, censusL, censusR, pitchL/sizeof(uint64_t), pitchR/sizeof(uint64_t));
-	cudaSafeCall( cudaGetLastError() );
-	
-	//cudaSafeCall( cudaDeviceSynchronize() );
-  
-	ftl::cuda::TextureObject<uint2> censusTexLeft((uint2*)censusL, pitchL, l.cols, l.rows);
-	ftl::cuda::TextureObject<uint2> censusTexRight((uint2*)censusR, pitchR, r.cols, r.rows);
-	
+	dim3 grid(1,1,1);
+    dim3 threads(BLOCK_W, 1, 1);
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
 	// Calculate L and R disparities
-	disp_kernel<<<grid, threads>>>(disp_l, disp_r, pitchDL/sizeof(float), pitchDR/sizeof(float), l.cols, l.rows, censusTexLeft.cudaTexture(), censusTexRight.cudaTexture(), num_disp);
+	disp_kernel<<<grid, threads>>>(
+		dispTexLeft.devicePtr(), dispTexRight.devicePtr(),
+		dispTexLeft.pitch()/sizeof(float), dispTexRight.pitch()/sizeof(float),
+		l.cols, l.rows,
+		censusTexLeft.cudaTexture(), censusTexRight.cudaTexture(),
+		num_disp);
 	cudaSafeCall( cudaGetLastError() );
-
-	ftl::cuda::TextureObject<float> dispTexLeft(disp_l, pitchDL, l.cols, l.rows);
-	ftl::cuda::TextureObject<float> dispTexRight(disp_r, pitchDR, r.cols, r.rows);
 	
 	// Check consistency between L and R disparities.
-	consistency_kernel<<<grid, threads>>>(dispTexLeft.cudaTexture(), dispTexRight.cudaTexture(), disp_raw, l.cols, l.rows, pitchD/sizeof(float));
-	cudaSafeCall( cudaGetLastError() );
+	consistency(dispTexLeft, dispTexRight, dispTex);
 
-	ftl::cuda::TextureObject<float> dispTex(disp_raw, pitchD, r.cols, r.rows);
+	
 
 	grid.x = 4;
 	grid.y = l.rows;
@@ -480,11 +378,6 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	dispTexLeft.free();
 	dispTexRight.free();
 	dispTex.free();
-	
-	cudaFree(disp_r);
-	cudaFree(disp_l);
-	cudaFree(censusL);
-	cudaFree(censusR);
 }
 
 };
