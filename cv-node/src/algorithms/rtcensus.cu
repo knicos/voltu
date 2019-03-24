@@ -11,14 +11,11 @@
  *
  */
  
-#include <opencv2/core/cuda/common.hpp>
+#include <ftl/cuda_common.hpp>
 
 using namespace cv::cuda;
 using namespace cv;
 
-/* Grid stride loop macros */
-#define STRIDE_Y(I,N) int I = blockIdx.y * blockDim.y + threadIdx.y; I < N; I += blockDim.y * gridDim.y
-#define STRIDE_X(I,N) int I = blockIdx.x * blockDim.x + threadIdx.x; I < N; I += blockDim.x * gridDim.x
 
 #define BLOCK_W 60
 #define RADIUS 7
@@ -32,45 +29,7 @@ namespace gpu {
 
 // --- SUPPORT -----------------------------------------------------------------
 
-template <typename T>
-cudaTextureObject_t makeTexture2D(const PtrStepSz<T> &d) {
-	cudaResourceDesc resDesc;
-	memset(&resDesc, 0, sizeof(resDesc));
-	resDesc.resType = cudaResourceTypePitch2D;
-	resDesc.res.pitch2D.devPtr = d.data;
-	resDesc.res.pitch2D.pitchInBytes = d.step;
-	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
-	resDesc.res.pitch2D.width = d.cols;
-	resDesc.res.pitch2D.height = d.rows;
 
-	cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.readMode = cudaReadModeElementType;
-
-	cudaTextureObject_t tex = 0;
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
-	return tex;
-}
-
-template <typename T>
-cudaTextureObject_t makeTexture2D(void *ptr, int pitch, int width, int height) {
-	cudaResourceDesc resDesc;
-	memset(&resDesc, 0, sizeof(resDesc));
-	resDesc.resType = cudaResourceTypePitch2D;
-	resDesc.res.pitch2D.devPtr = ptr;
-	resDesc.res.pitch2D.pitchInBytes = pitch;
-	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
-	resDesc.res.pitch2D.width = width;
-	resDesc.res.pitch2D.height = height;
-
-	cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.readMode = cudaReadModeElementType;
-
-	cudaTextureObject_t tex = 0;
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
-	return tex;
-}
 
 /*
  * Sparse 16x16 census (so 8x8) creating a 64bit mask
@@ -270,7 +229,10 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 	for (STRIDE_Y(v,h)) {
 	for (STRIDE_X(u,w)) {
 		float a = (int)tex2D<float>(d_sub_l, u, v);
-		if (u-a < 0) continue;
+		if (u-a < 0) {
+			//disp[v*pitch+u] = a;
+			continue;
+		}
 		
 		auto b = tex2D<float>(d_sub_r, u-a, v);
 		
@@ -281,98 +243,76 @@ __global__ void consistency_kernel(cudaTextureObject_t d_sub_l,
 
 }
 
-/*#define FILTER_WINDOW 31
-#define FILTER_WINDOW_R	15
-#define FILTER_SIM_THRESH 5
-#define FILTER_DISP_THRESH 2.0f
 
-__global__ void filter_kernel_old(cudaTextureObject_t t, cudaTextureObject_t d,
-		cudaTextureObject_t prevD,
-		cudaTextureObject_t prevT, PtrStepSz<float> f, int num_disp) {
-	size_t u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS;
-	size_t v = blockIdx.y + RADIUS;
 
-	float disp = tex2D<float>(d,u,v);
+template <typename T>
+__host__ __device__
+inline T lerp(T v0, T v1, T t) {
+    return fma(t, v1, fma(-t, v0, v0));
+}
 
-	cudaTextureObject_t nTex = (prevT) ? prevT : t;
-	cudaTextureObject_t nDisp = (prevD) ? prevD : d;
+#define FILTER_WINDOW 21
+#define FILTER_WINDOW_R	10
+#define EDGE_SENSITIVITY 10.0f
 
-	float pdisp = tex2D<float>(nDisp,u,v);
-	if (isnan(pdisp)) pdisp = disp;
-	if (isnan(disp)) disp = pdisp;
-	uchar4 pixel = tex2D<uchar4>(t, u, v);
-	uchar4 ppixel = tex2D<uchar4>(nTex, u, v);
-	float est = 0.0f; //(isnan(disp)) ? tex2D<float>(prev, u, v) : disp;
-	int nn = 0; //(isnan(disp)) ? 0 : 1;
-	int neigh_sq = 0;
-	int neigh_sum = 0;
+__device__ float calculate_edge_disp(cudaTextureObject_t t, cudaTextureObject_t d, cudaTextureObject_t pT, cudaTextureObject_t pD, uchar4 pixel, int u, int v) {
+	float est = 0.0;
+	int nn = 0;
+	//float pest = 0.0;
+	//int pnn = 0;
 	
-	if (isnan(pdisp)) {
-		f(v,u) = disp;
-	} else if (!isnan(disp) && abs(pdisp-disp) <= FILTER_DISP_THRESH) {
-		f(v,u) = (disp+pdisp) / 2;
-	} else {
-		f(v,u) = disp;
-	}
-	return;
-	
-	//if (!isnan(pdisp) && isnan(disp) && colour_error(pixel,ppixel) <= FILTER_SIM_THRESH) {
-	//	disp = pdisp;
-	//}
+	//cudaTextureObject_t nTex = (pT) ? pT : t;
+	//cudaTextureObject_t nDisp = (pD) ? pD : d;
 
 	for (int m=-FILTER_WINDOW_R; m<=FILTER_WINDOW_R; m++) {
 		for (int n=-FILTER_WINDOW_R; n<=FILTER_WINDOW_R; n++) {
 			uchar4 neigh = tex2D<uchar4>(t, u+n, v+m);
-			//neigh_sq += neigh*neigh;
-			//neigh_sum += neigh;
-
 			float ndisp = tex2D<float>(d,u+n,v+m);
-			if (isnan(ndisp)) {
-				ndisp = tex2D<float>(nDisp,u+n,v+m);
-				neigh = tex2D<uchar4>(nTex, u+n, v+m);
-			}
+			
+			//uchar4 pneigh = tex2D<uchar4>(nTex, u+n, v+m);
+			//float pndisp = tex2D<float>(nDisp,u+n,v+m);
 
 			//if (isnan(tex2D<float>(nDisp,u+n,v+m))) continue;
-			if (m == 0 && n == 0) continue;
+			//if (m == 0 && n == 0) continue;
 
-			if (!isnan(ndisp) && (colour_error(neigh,pixel) <= FILTER_SIM_THRESH)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
+			if (!isnan(ndisp) && (abs(neigh.z-pixel.z) <= EDGE_SENSITIVITY)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
 				est += ndisp;
 				nn++;
 			}
+			
+			//if (!isnan(pndisp) && (abs(pneigh.z-pixel.z) <= EDGE_SENSITIVITY)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
+			//	pest += pndisp;
+			//	pnn++;
+			//}
 		}	
 	}
-
-	// Texture map filtering
-	//int tm = (neigh_sq / (FILTER_WINDOW*FILTER_WINDOW)) - ((neigh_sum*neigh_sum) / (FILTER_WINDOW*FILTER_WINDOW));
-	//if (tm >= -5000000) {
-	//	nn = 0;
-	//}
-			 // ) {
-
-		if (nn > 10) {
-			f(v,u) = (est+disp) / (nn+1);
-		} else if (!isnan(pdisp) && colour_error(pixel,ppixel) <= FILTER_SIM_THRESH) {
-			f(v,u) = pdisp;
-		} else f(v,u) = disp;
-	//} else {
-	//	f(v,u) = NAN;
-	//}
-}*/
-
-__device__ int colour_error(uchar4 v1, uchar4 v2) {
-	int dx = abs(v1.x-v2.x);
-	int dz = abs(v1.z-v2.z);
-	return dx*dx + dz*dz;
+	
+	est = (nn > 0) ? est/nn : NAN;
+	//pest = (pnn > 0) ? pest/pnn : NAN;
+	
+	return est;
 }
 
+__device__ float colour_error(uchar4 v1, uchar4 v2) {
+	float dx = 0.05*abs(v1.x-v2.x);
+	float dy = 0.1*abs(v1.y-v2.y);
+	float dz = 0.85*abs(v1.z-v2.z);
+	return dx + dz + dy;
+}
+
+// TODO Use HUE also and perhaps increase window?
+// Or use more complex notion of texture?
+
+/* Just crossed and currently on edge */
 __device__ bool is_edge_left(uchar4 *line, int x, int n) {
 	if (x < 1 || x >= n-1) return false;
-	return (abs(line[x-1].z-line[x].z) > 15 && abs(line[x].z-line[x+1].z) <= 15);
+	return (colour_error(line[x-1],line[x]) > EDGE_SENSITIVITY && colour_error(line[x],line[x+1]) <= EDGE_SENSITIVITY);
 }
 
+/* Just crossed but not on edge now */
 __device__ bool is_edge_right(uchar4 *line, int x, int n) {
 	if (x < 1 || x >= n-1) return false;
-	return (abs(line[x-1].z-line[x].z) <= 15 && abs(line[x].z-line[x+1].z) > 15);
+	return (colour_error(line[x-1],line[x]) <= EDGE_SENSITIVITY && colour_error(line[x],line[x+1]) > EDGE_SENSITIVITY);
 }
 
 __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
@@ -389,23 +329,69 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 		__syncthreads();
 		
 		for (STRIDE_X(u,f.cols)) {
-			if (is_edge_left(line, u, f.cols)) {
-				float edge_disp = tex2D<float>(d, u, v);
+			if (is_edge_right(line, u, f.cols)) {
+				float edge_disp = calculate_edge_disp(t,d,prevT,prevD,line[u],u+2,v); // tex2D<float>(d, u, v);
 				f(v,u) = edge_disp;
+				continue;
 				
-				for (int i=1; u+i<f.cols; i++) {
-					if (is_edge_right(line, u+i, f.cols)) break;
-					float di = tex2D<float>(d,u+i,v);
-					if (!isnan(di)) edge_disp = di;
-					f(v,u+i) = edge_disp;
+				float est = 0.0f;
+				int nn = 0;
+				
+				if (!isnan(edge_disp)) {
+					est += edge_disp;
+					nn++;
 				}
-			}// else f(v,u) = NAN;
+				//f(v,u) = edge_disp;
+				
+				// TODO, find other edge first to get disparity
+				// Use middle disparities to:
+				//		estimate curve or linear (choose equation)
+				//		or ignore as noise if impossible
+				
+				// TODO For edge disparity, use a window to:
+				//		a) find a missing disparity
+				//		b) make sure disparity has some consensus (above or below mostly)
+				
+				// TODO Use past values?
+				// Another way to fill blanks and gain concensus
+				
+				// TODO Maintain a disparity stack to pop back to background?
+				// Issue of background disparity not being detected.
+				// Only if hsv also matches previous background
+				
+				// TODO Edge prediction (in vertical direction at least) could
+				// help fill both edge and disparity gaps. Propagate disparity
+				// along edges
+				
+				float last_disp = edge_disp;
+				
+				int i;
+				for (i=1; u+i<f.cols; i++) {
+					if (is_edge_right(line, u+i, f.cols)) {
+						//float end_disp = calculate_edge_disp(t,d,prevT,prevD,line[u+i-1],u+i-3,v);
+						//if (!isnan(end_disp)) last_disp = end_disp;
+						break;
+					}
+					
+					float di = tex2D<float>(d,u+i,v);
+					if (!isnan(di)) {
+						est += di;
+						nn++;
+					}
+					//f(v,u+i) = edge_disp;
+				}
+				
+				est = (nn > 0) ? est / nn : NAN;
+				//for (int j=1; j<i; j++) {
+				//	f(v,u+j) = est; //lerp(edge_disp, last_disp, (float)j / (float)(i-1));
+				//}
+			} else f(v,u) = NAN;
 		}
 	}
 }
 
-cudaTextureObject_t prevDisp = 0;
-cudaTextureObject_t prevImage = 0;
+ftl::cuda::TextureObject<float> prevDisp;
+ftl::cuda::TextureObject<uchar4> prevImage;
 
 void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
 	dim3 grid(1,1,1);
@@ -441,58 +427,60 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	memset(&texDesc, 0, sizeof(texDesc));
 	texDesc.readMode = cudaReadModeElementType;
   
-	cudaTextureObject_t texLeft = makeTexture2D<uchar4>(l);
-	cudaTextureObject_t texRight = makeTexture2D<uchar4>(r);
+	ftl::cuda::TextureObject<uchar4> texLeft(l);
+	ftl::cuda::TextureObject<uchar4> texRight(r);
 
 	//size_t smem_size = (2 * l.cols * l.rows) * sizeof(uint64_t);
 	
 	// Calculate L and R census
-	census_kernel<<<grid, threads>>>(texLeft, texRight, l.cols, l.rows, censusL, censusR, pitchL/sizeof(uint64_t), pitchR/sizeof(uint64_t));
+	census_kernel<<<grid, threads>>>(texLeft.cudaTexture(), texRight.cudaTexture(), l.cols, l.rows, censusL, censusR, pitchL/sizeof(uint64_t), pitchR/sizeof(uint64_t));
 	cudaSafeCall( cudaGetLastError() );
 	
 	//cudaSafeCall( cudaDeviceSynchronize() );
   
-	cudaTextureObject_t censusTexLeft = makeTexture2D<uint2>(censusL, pitchL, l.cols, l.rows);
-	cudaTextureObject_t censusTexRight = makeTexture2D<uint2>(censusR, pitchR, r.cols, r.rows);
+	ftl::cuda::TextureObject<uint2> censusTexLeft((uint2*)censusL, pitchL, l.cols, l.rows);
+	ftl::cuda::TextureObject<uint2> censusTexRight((uint2*)censusR, pitchR, r.cols, r.rows);
 	
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
 	// Calculate L and R disparities
-	disp_kernel<<<grid, threads>>>(disp_l, disp_r, pitchDL/sizeof(float), pitchDR/sizeof(float), l.cols, l.rows, censusTexLeft, censusTexRight, num_disp);
+	disp_kernel<<<grid, threads>>>(disp_l, disp_r, pitchDL/sizeof(float), pitchDR/sizeof(float), l.cols, l.rows, censusTexLeft.cudaTexture(), censusTexRight.cudaTexture(), num_disp);
 	cudaSafeCall( cudaGetLastError() );
 
-	cudaTextureObject_t dispTexLeft = makeTexture2D<float>(disp_l, pitchDL, l.cols, l.rows);
-	cudaTextureObject_t dispTexRight = makeTexture2D<float>(disp_r, pitchDR, r.cols, r.rows);
+	ftl::cuda::TextureObject<float> dispTexLeft(disp_l, pitchDL, l.cols, l.rows);
+	ftl::cuda::TextureObject<float> dispTexRight(disp_r, pitchDR, r.cols, r.rows);
 	
 	// Check consistency between L and R disparities.
-	consistency_kernel<<<grid, threads>>>(dispTexLeft, dispTexRight, disp_raw, l.cols, l.rows, pitchD/sizeof(float));
+	consistency_kernel<<<grid, threads>>>(dispTexLeft.cudaTexture(), dispTexRight.cudaTexture(), disp_raw, l.cols, l.rows, pitchD/sizeof(float));
 	cudaSafeCall( cudaGetLastError() );
 
-	cudaTextureObject_t dispTex = makeTexture2D<float>(disp_raw, pitchD, r.cols, r.rows);
+	ftl::cuda::TextureObject<float> dispTex(disp_raw, pitchD, r.cols, r.rows);
 
 	grid.x = 4;
 	grid.y = l.rows;
 	threads.x = l.cols;
 	size_t filter_smem = sizeof(uchar4) * l.cols;
-	filter_kernel<<<grid, threads, filter_smem>>>(texLeft, dispTex, prevDisp, prevImage, disp, num_disp);
+	filter_kernel<<<grid, threads, filter_smem>>>(texLeft.cudaTexture(), dispTex.cudaTexture(), prevDisp.cudaTexture(), prevImage.cudaTexture(), disp, num_disp);
 	cudaSafeCall( cudaGetLastError() );
 
-	if (prevDisp) cudaSafeCall( cudaDestroyTextureObject (prevDisp) );
-	prevDisp = makeTexture2D<float>(disp);
-	if (prevImage) cudaSafeCall( cudaDestroyTextureObject (prevImage) );
+	prevDisp.free();
+	prevDisp = disp;
+	prevImage.free();
 	prevImage = texLeft;
 	
 	//if (&stream == Stream::Null())
 	cudaSafeCall( cudaDeviceSynchronize() );
 		
 	//cudaSafeCall( cudaDestroyTextureObject (texLeft) );
-	cudaSafeCall( cudaDestroyTextureObject (texRight) );
-	cudaSafeCall( cudaDestroyTextureObject (censusTexLeft) );
-	cudaSafeCall( cudaDestroyTextureObject (censusTexRight) );
-	cudaSafeCall( cudaDestroyTextureObject (dispTexLeft) );
-	cudaSafeCall( cudaDestroyTextureObject (dispTexRight) );
-	cudaSafeCall( cudaDestroyTextureObject (dispTex) );
+	
+	texRight.free();
+	censusTexLeft.free();
+	censusTexRight.free();
+	dispTexLeft.free();
+	dispTexRight.free();
+	dispTex.free();
+	
 	cudaFree(disp_r);
 	cudaFree(disp_l);
 	cudaFree(censusL);
