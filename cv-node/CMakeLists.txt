@@ -76,6 +76,7 @@ set(CVNODESRC
 	src/calibrate.cpp
 	src/local.cpp
 	src/sync.cpp
+	src/display.cpp
 	src/disparity.cpp
 	src/middlebury.cpp
 	src/algorithms/rtcensus.cpp
