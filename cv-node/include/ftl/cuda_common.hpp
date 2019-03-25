@@ -25,14 +25,15 @@ class TextureObject {
 	
 	int pitch() const { return pitch_; }
 	T *devicePtr() { return ptr_; };
-	int width() const { return width_; }
-	int height() const { return height_; }
+	__host__ __device__ T *devicePtr(int v) { return &ptr_[v*pitch2_]; }
+	__host__ __device__ int width() const { return width_; }
+	__host__ __device__ int height() const { return height_; }
 	cudaTextureObject_t cudaTexture() const { return texobj_; }
 	__device__ inline T tex2D(int u, int v) { return ::tex2D<T>(texobj_, u, v); }
 	__device__ inline T tex2D(float u, float v) { return ::tex2D<T>(texobj_, u, v); }
 	
-	inline const T &operator()(int u, int v) const { return ptr_[u+v*pitch_]; }
-	inline T &operator()(int u, int v) { return ptr_[u+v*pitch_]; }
+	__host__ __device__ inline const T &operator()(int u, int v) const { return ptr_[u+v*pitch2_]; }
+	__host__ __device__ inline T &operator()(int u, int v) { return ptr_[u+v*pitch2_]; }
 	
 	void free() {
 		if (texobj_ != 0) cudaSafeCall( cudaDestroyTextureObject (texobj_) );
@@ -44,6 +45,7 @@ class TextureObject {
 	private:
 	cudaTextureObject_t texobj_;
 	size_t pitch_;
+	size_t pitch2_; // in T units
 	int width_;
 	int height_;
 	T *ptr_;
@@ -73,6 +75,7 @@ TextureObject<T>::TextureObject(const cv::cuda::PtrStepSz<T> &d) {
 	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
 	texobj_ = tex;
 	pitch_ = d.step;
+	pitch2_ = pitch_ / sizeof(T);
 	ptr_ = d.data;
 	width_ = d.cols;
 	height_ = d.rows;
@@ -103,6 +106,7 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
 	texobj_ = tex;
 	pitch_ = pitch;
+	pitch2_ = pitch_ / sizeof(T);
 	ptr_ = ptr;
 	width_ = width;
 	height_ = height;
@@ -133,6 +137,7 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 	width_ = width;
 	height_ = height;
 	needsfree_ = true;
+	pitch2_ = pitch_ / sizeof(T);
 	//needsdestroy_ = true;
 }
 
@@ -143,6 +148,7 @@ TextureObject<T>::TextureObject(const TextureObject &p) {
 	width_ = p.width_;
 	height_ = p.height_;
 	pitch_ = p.pitch_;
+	pitch2_ = pitch_ / sizeof(T);
 	needsfree_ = p.needsfree_;
 	//needsdestroy_ = false;
 }

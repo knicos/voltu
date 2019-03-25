@@ -58,7 +58,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		size_t ds) {	
 	//extern __shared__ uint64_t cache[];
 
-	const int gamma = 20;
+	const int gamma = 35;
 	
 	int u = (blockIdx.x * BLOCK_W) + threadIdx.x + RADIUS2;
 	int v_start = (blockIdx.y * ROWSperTHREAD) + RADIUS2;
@@ -331,7 +331,8 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	ftl::cuda::TextureObject<uint2> censusTexRight(r.cols, r.rows);
 	ftl::cuda::TextureObject<float> dispTexLeft(l.cols, l.rows);
 	ftl::cuda::TextureObject<float> dispTexRight(r.cols, r.rows);
-	ftl::cuda::TextureObject<float> dispTex(disp); //r.cols, r.rows);
+	ftl::cuda::TextureObject<float> dispTex(r.cols, r.rows);
+	ftl::cuda::TextureObject<float> output(disp);
 	
 	// Calculate the census for left and right
 	ftl::cuda::sparse_census(texLeft, texRight, censusTexLeft, censusTexRight);
@@ -353,7 +354,7 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	// Check consistency between L and R disparities.
 	consistency(dispTexLeft, dispTexRight, dispTex);
 
-	
+	texture_filter(texLeft, dispTex, output, num_disp, 20.0);
 
 	/*grid.x = 4;
 	grid.y = l.rows;
@@ -378,6 +379,7 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	dispTexLeft.free();
 	dispTexRight.free();
 	dispTex.free();
+	output.free();
 }
 
 };

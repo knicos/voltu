@@ -12,6 +12,9 @@ namespace cuda {
 	void sparse_census(const TextureObject<uchar4> &l, const TextureObject<uchar4> &r,
 			TextureObject<uint2> &cl, TextureObject<uint2> &cr);
 
+	void texture_filter(const TextureObject<uchar4> &t, const TextureObject<float> &d,
+			TextureObject<float> &f, int num_disp, double thresh);
+
 }
 }
 
