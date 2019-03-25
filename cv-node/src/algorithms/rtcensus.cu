@@ -331,7 +331,7 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	ftl::cuda::TextureObject<uint2> censusTexRight(r.cols, r.rows);
 	ftl::cuda::TextureObject<float> dispTexLeft(l.cols, l.rows);
 	ftl::cuda::TextureObject<float> dispTexRight(r.cols, r.rows);
-	ftl::cuda::TextureObject<float> dispTex(r.cols, r.rows);
+	ftl::cuda::TextureObject<float> dispTex(disp); //r.cols, r.rows);
 	
 	// Calculate the census for left and right
 	ftl::cuda::sparse_census(texLeft, texRight, censusTexLeft, censusTexRight);
@@ -355,15 +355,15 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 
 	
 
-	grid.x = 4;
+	/*grid.x = 4;
 	grid.y = l.rows;
 	threads.x = l.cols;
 	size_t filter_smem = sizeof(uchar4) * l.cols;
 	filter_kernel<<<grid, threads, filter_smem>>>(texLeft.cudaTexture(), dispTex.cudaTexture(), prevDisp.cudaTexture(), prevImage.cudaTexture(), disp, num_disp);
-	cudaSafeCall( cudaGetLastError() );
+	cudaSafeCall( cudaGetLastError() );*/
 
-	prevDisp.free();
-	prevDisp = disp;
+	//prevDisp.free();
+	//prevDisp = disp;
 	prevImage.free();
 	prevImage = texLeft;
 	

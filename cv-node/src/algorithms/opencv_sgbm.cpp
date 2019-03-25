@@ -25,14 +25,17 @@ OpenCVSGBM::OpenCVSGBM(nlohmann::json &config) : Disparity(config) {
 }
 
 void OpenCVSGBM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
+	Mat lbw, rbw;
 	Mat left_disp;
 	Mat right_disp;
-	left_matcher_-> compute(l, r,left_disp);
-    right_matcher_->compute(r,l, right_disp);
+	cv::cvtColor(l, lbw,  COLOR_BGR2GRAY);
+	cv::cvtColor(r, rbw, COLOR_BGR2GRAY);
+	left_matcher_-> compute(lbw, rbw,left_disp);
+    right_matcher_->compute(rbw,lbw, right_disp);
     wls_filter_->filter(left_disp,l,disp,right_disp);
     
-    //float f = 255.0f / static_cast<float>(max_disp_);
-    //disp *= f;
+    // WHY 12!!!!!!
+    disp.convertTo(disp, CV_32F, 12.0 / max_disp_);
 }
 
 

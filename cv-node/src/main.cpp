@@ -86,6 +86,29 @@ static void process_options(const map<string,string> &opts) {
 	}
 }
 
+static string type2str(int type) {
+  string r;
+
+  uchar depth = type & CV_MAT_DEPTH_MASK;
+  uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+  switch ( depth ) {
+    case CV_8U:  r = "8U"; break;
+    case CV_8S:  r = "8S"; break;
+    case CV_16U: r = "16U"; break;
+    case CV_16S: r = "16S"; break;
+    case CV_32S: r = "32S"; break;
+    case CV_32F: r = "32F"; break;
+    case CV_64F: r = "64F"; break;
+    default:     r = "User"; break;
+  }
+
+  r += "C";
+  r += (chans+'0');
+
+  return r;
+}
+
 static void run(const string &file) {
 	// TODO Initiate the network
 	
@@ -136,8 +159,7 @@ static void run(const string &file) {
         // TODO Check other algorithms convert to BW
         disparity->compute(l,r,disparity32F);
 		
-		disparity32F.convertTo(disparity32F, CV_32F);
-		disparity32F += 10.0f; // TODO REMOVE
+		//disparity32F += 10.0f; // TODO REMOVE
 		
 		// Clip the left edge
 		//Rect rect((int)config["disparity"]["maximum"],7,disparity32F.cols-(int)config["disparity"]["maximum"],disparity32F.rows-14);
@@ -180,8 +202,10 @@ static void run(const string &file) {
 		        break;
 		    }
         } else if (config["display"]["disparity"]) {
-        	disparity32F = disparity32F / (float)config["disparity"]["maximum"];
-        	disparity32F.convertTo(disparity32F,CV_8U,255.0f);
+        	//if (disparity32F.type() == CV_32FC1) {
+        		//disparity32F = disparity32F / (float)config["disparity"]["maximum"];
+        		disparity32F.convertTo(disparity32F,CV_8U,255.0f / (float)config["disparity"]["maximum"]);
+        	//}
         	//normalize(disparity32F, disparity32F, 0, 255, NORM_MINMAX, CV_8U);
         	applyColorMap(disparity32F, disparity32F, cv::COLORMAP_JET);
 			cv::imshow("Disparity", disparity32F);
