@@ -14,6 +14,9 @@ namespace cuda {
 
 	void texture_filter(const TextureObject<uchar4> &t, const TextureObject<float> &d,
 			TextureObject<float> &f, int num_disp, double thresh);
+			
+	void texture_map(const TextureObject<uchar4> &t,
+			TextureObject<float> &f);
 
 }
 }

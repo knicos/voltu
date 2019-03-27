@@ -95,7 +95,9 @@ if (CUDA_FOUND)
 		"src/algorithms/rtcensus.cu"
 		"src/algorithms/consistency.cu"
 		"src/algorithms/sparse_census.cu"
-		"src/algorithms/tex_filter.cu")
+		"src/algorithms/tex_filter.cu"
+		"src/algorithms/nick1.cu"
+		"src/algorithms/nick.cpp")
 endif (CUDA_FOUND)
 
 add_executable(cv-node ${CVNODESRC})

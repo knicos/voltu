@@ -6,6 +6,8 @@
  *     for embedded real-time systems
  * [2] Humenberger, Zinner, Kubinger: Performance Evaluation of Census-Based
  *     Stereo Matching Algorithm on Embedded and Multi-Core Hardware
+ * [3] Humenberger, Engelke, Kubinger: A Census-Based Stereo Vision Algorithm Using Modified Semi-Global Matching
+ *     and Plane Fitting to Improve Matching Quality.
  *
  * Equation numbering uses [1] unless otherwise stated
  *
@@ -49,7 +51,7 @@ __forceinline__ __device__ uint64_t uint2asull (uint2 a) {
 }
 
 /*
- * Generate left and right disparity images from census data. (19)
+ * Generate left and right disparity images from census data. (18)(19)(25)
  */
 __global__ void disp_kernel(float *disp_l, float *disp_r,
 		int pitchL, int pitchR,
@@ -68,25 +70,11 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 	// Local cache
 	uint64_t l_cache_l1[5][5];
 	uint64_t l_cache_l2[5][5];
-
-	// Prepare the cache load
-	//const int cache_thread_width = (BLOCK_W+ds / BLOCK_W + RADIUS2*2 + 1)*2;
-	//uint64_t *cache_ptr = cache + (threadIdx.x * cache_thread_width);
 	
 	if (v_end >= height) v_end = height;
 	if (u+maxdisp >= width) maxdisp = width-u;
 	
 	for (int v=v_start; v<v_end; v++) {
-		/*const int cache_start = v*width*2 + cache_thread_width*blockIdx.x;
-		for (int i=0; i<cache_thread_width; i+=2) {
-			cache_ptr[i] = census[cache_start+i];
-			cache_ptr[i+1] = census[cache_start+i+1];
-		}
-		
-		__syncthreads();*/
-		
-		// Fill local cache for window 5x5
-		// TODO Use shared memory?
 		for (int m=-2; m<=2; m++) {
 			for (int n=-2; n<=2; n++) {
 				l_cache_l2[m+2][n+2] = uint2asull(tex2D<uint2>(censusL,u+n,v+m));
@@ -107,7 +95,7 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		int dix1 = 0;
 		int dix2 = 0;
 		
-		// TODO Use prediction textures to narrow range
+		// (19)
 		for (int d=0; d<maxdisp; d++) {
 			uint16_t hamming1 = 0;
 			uint16_t hamming2 = 0;
@@ -119,18 +107,17 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 				for (int n=-2; n<=2; n++) {
 					const auto u_ = u + n;
 					
+					// (18)
 					auto l1 = l_cache_l1[m+2][n+2];
 					auto l2 = l_cache_l2[m+2][n+2];
-					
-					// TODO Somehow might use shared memory
 					auto r1 = uint2asull(tex2D<uint2>(censusL, u_+d, v_));
 					auto r2 = uint2asull(tex2D<uint2>(censusR, u_-d, v_));
-					
 					hamming1 += __popcll(r1^l1);
 					hamming2 += __popcll(r2^l2);
 				}
 			}
 			
+			// Find the two minimum costs
 			if (hamming1 < min_disp1) {
 				min_before1 = last_ham1;
 				min_disp1 = hamming1;
@@ -157,170 +144,15 @@ __global__ void disp_kernel(float *disp_l, float *disp_r,
 		//float d2 = (dix2 == 0 || dix2 == ds-1) ? (float)dix2 : fit_parabola(dix2, min_disp2, min_before2, min_after2);
 	
 		// TODO Allow for discontinuities with threshold
+		// Subpixel disparity (20)
 		float d1 = fit_parabola(dix1, min_disp1, min_before1, min_after1);
 		float d2 = fit_parabola(dix2, min_disp2, min_before2, min_after2);
 	
-		// Confidence filter (25)
-		// TODO choice of gamma to depend on disparity variance
-		// Variance with next option, variance with neighbours, variance with past value
+		// Confidence filter based on (25)
 		disp_l[v*pitchL+u] = ((min_disp2b - min_disp2) >= gamma) ? d2 : NAN;
 		disp_r[v*pitchR+u] = ((min_disp1b - min_disp1) >= gamma) ? d1 : NAN;
-
-		// TODO If disparity is 0.0f, perhaps
-		// Use previous value unless it conflicts with present
-		// Use neighbour values if texture matches 
 	}
 }
-
-
-
-template <typename T>
-__host__ __device__
-inline T lerp(T v0, T v1, T t) {
-    return fma(t, v1, fma(-t, v0, v0));
-}
-
-#define FILTER_WINDOW 21
-#define FILTER_WINDOW_R	10
-#define EDGE_SENSITIVITY 10.0f
-
-__device__ float calculate_edge_disp(cudaTextureObject_t t, cudaTextureObject_t d, cudaTextureObject_t pT, cudaTextureObject_t pD, uchar4 pixel, int u, int v) {
-	float est = 0.0;
-	int nn = 0;
-	//float pest = 0.0;
-	//int pnn = 0;
-	
-	//cudaTextureObject_t nTex = (pT) ? pT : t;
-	//cudaTextureObject_t nDisp = (pD) ? pD : d;
-
-	for (int m=-FILTER_WINDOW_R; m<=FILTER_WINDOW_R; m++) {
-		for (int n=-FILTER_WINDOW_R; n<=FILTER_WINDOW_R; n++) {
-			uchar4 neigh = tex2D<uchar4>(t, u+n, v+m);
-			float ndisp = tex2D<float>(d,u+n,v+m);
-			
-			//uchar4 pneigh = tex2D<uchar4>(nTex, u+n, v+m);
-			//float pndisp = tex2D<float>(nDisp,u+n,v+m);
-
-			//if (isnan(tex2D<float>(nDisp,u+n,v+m))) continue;
-			//if (m == 0 && n == 0) continue;
-
-			if (!isnan(ndisp) && (abs(neigh.z-pixel.z) <= EDGE_SENSITIVITY)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
-				est += ndisp;
-				nn++;
-			}
-			
-			//if (!isnan(pndisp) && (abs(pneigh.z-pixel.z) <= EDGE_SENSITIVITY)) { // && (isnan(disp) || abs(ndisp-disp) < FILTER_DISP_THRESH)) {
-			//	pest += pndisp;
-			//	pnn++;
-			//}
-		}	
-	}
-	
-	est = (nn > 0) ? est/nn : NAN;
-	//pest = (pnn > 0) ? pest/pnn : NAN;
-	
-	return est;
-}
-
-__device__ float colour_error(uchar4 v1, uchar4 v2) {
-	float dx = 0.05*abs(v1.x-v2.x);
-	float dy = 0.1*abs(v1.y-v2.y);
-	float dz = 0.85*abs(v1.z-v2.z);
-	return dx + dz + dy;
-}
-
-// TODO Use HUE also and perhaps increase window?
-// Or use more complex notion of texture?
-
-/* Just crossed and currently on edge */
-__device__ bool is_edge_left(uchar4 *line, int x, int n) {
-	if (x < 1 || x >= n-1) return false;
-	return (colour_error(line[x-1],line[x]) > EDGE_SENSITIVITY && colour_error(line[x],line[x+1]) <= EDGE_SENSITIVITY);
-}
-
-/* Just crossed but not on edge now */
-__device__ bool is_edge_right(uchar4 *line, int x, int n) {
-	if (x < 1 || x >= n-1) return false;
-	return (colour_error(line[x-1],line[x]) <= EDGE_SENSITIVITY && colour_error(line[x],line[x+1]) > EDGE_SENSITIVITY);
-}
-
-__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
-		cudaTextureObject_t prevD,
-		cudaTextureObject_t prevT, PtrStepSz<float> f, int num_disp) {
-
-
-	extern __shared__ uchar4 line[]; // One entire line of hsv image
-	
-	for (STRIDE_Y(v,f.rows)) {
-		for (STRIDE_X(u,f.cols)) {
-			line[u] = tex2D<uchar4>(t, u, v);
-		}
-		__syncthreads();
-		
-		for (STRIDE_X(u,f.cols)) {
-			if (is_edge_right(line, u, f.cols)) {
-				float edge_disp = calculate_edge_disp(t,d,prevT,prevD,line[u],u+2,v); // tex2D<float>(d, u, v);
-				f(v,u) = edge_disp;
-				continue;
-				
-				float est = 0.0f;
-				int nn = 0;
-				
-				if (!isnan(edge_disp)) {
-					est += edge_disp;
-					nn++;
-				}
-				//f(v,u) = edge_disp;
-				
-				// TODO, find other edge first to get disparity
-				// Use middle disparities to:
-				//		estimate curve or linear (choose equation)
-				//		or ignore as noise if impossible
-				
-				// TODO For edge disparity, use a window to:
-				//		a) find a missing disparity
-				//		b) make sure disparity has some consensus (above or below mostly)
-				
-				// TODO Use past values?
-				// Another way to fill blanks and gain concensus
-				
-				// TODO Maintain a disparity stack to pop back to background?
-				// Issue of background disparity not being detected.
-				// Only if hsv also matches previous background
-				
-				// TODO Edge prediction (in vertical direction at least) could
-				// help fill both edge and disparity gaps. Propagate disparity
-				// along edges
-				
-				float last_disp = edge_disp;
-				
-				int i;
-				for (i=1; u+i<f.cols; i++) {
-					if (is_edge_right(line, u+i, f.cols)) {
-						//float end_disp = calculate_edge_disp(t,d,prevT,prevD,line[u+i-1],u+i-3,v);
-						//if (!isnan(end_disp)) last_disp = end_disp;
-						break;
-					}
-					
-					float di = tex2D<float>(d,u+i,v);
-					if (!isnan(di)) {
-						est += di;
-						nn++;
-					}
-					//f(v,u+i) = edge_disp;
-				}
-				
-				est = (nn > 0) ? est / nn : NAN;
-				//for (int j=1; j<i; j++) {
-				//	f(v,u+j) = est; //lerp(edge_disp, last_disp, (float)j / (float)(i-1));
-				//}
-			} else f(v,u) = NAN;
-		}
-	}
-}
-
-ftl::cuda::TextureObject<float> prevDisp;
-ftl::cuda::TextureObject<uchar4> prevImage;
 
 void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const PtrStepSz<float> &disp, size_t num_disp, const int &stream) {
 	// Make all the required texture steps
@@ -334,7 +166,7 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	ftl::cuda::TextureObject<float> dispTex(r.cols, r.rows);
 	ftl::cuda::TextureObject<float> output(disp);
 	
-	// Calculate the census for left and right
+	// Calculate the census for left and right (14)(15)(16)
 	ftl::cuda::sparse_census(texLeft, texRight, censusTexLeft, censusTexRight);
 
 	dim3 grid(1,1,1);
@@ -342,7 +174,7 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
-	// Calculate L and R disparities
+	// Calculate L and R disparities (18)(19)(20)(21)(22)(25)
 	disp_kernel<<<grid, threads>>>(
 		dispTexLeft.devicePtr(), dispTexRight.devicePtr(),
 		dispTexLeft.pitch()/sizeof(float), dispTexRight.pitch()/sizeof(float),
@@ -351,28 +183,15 @@ void rtcensus_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const
 		num_disp);
 	cudaSafeCall( cudaGetLastError() );
 	
-	// Check consistency between L and R disparities.
+	// Check consistency between L and R disparities. (23)(24)
 	consistency(dispTexLeft, dispTexRight, dispTex);
 
-	texture_filter(texLeft, dispTex, output, num_disp, 20.0);
+	// TM in (7) of paper [3]. Eq (26) in [1] is wrong.
+	texture_filter(texLeft, dispTex, output, num_disp, 10.0);
 
-	/*grid.x = 4;
-	grid.y = l.rows;
-	threads.x = l.cols;
-	size_t filter_smem = sizeof(uchar4) * l.cols;
-	filter_kernel<<<grid, threads, filter_smem>>>(texLeft.cudaTexture(), dispTex.cudaTexture(), prevDisp.cudaTexture(), prevImage.cudaTexture(), disp, num_disp);
-	cudaSafeCall( cudaGetLastError() );*/
-
-	//prevDisp.free();
-	//prevDisp = disp;
-	prevImage.free();
-	prevImage = texLeft;
-	
-	//if (&stream == Stream::Null())
 	cudaSafeCall( cudaDeviceSynchronize() );
-		
-	//cudaSafeCall( cudaDestroyTextureObject (texLeft) );
 	
+	texLeft.free();
 	texRight.free();
 	censusTexLeft.free();
 	censusTexRight.free();

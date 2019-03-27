@@ -6,6 +6,8 @@
  *     for embedded real-time systems
  * [2] Humenberger, Zinner, Kubinger: Performance Evaluation of Census-Based
  *     Stereo Matching Algorithm on Embedded and Multi-Core Hardware
+ * [3] Humenberger, Engelke, Kubinger: A Census-Based Stereo Vision Algorithm Using Modified Semi-Global Matching
+ *     and Plane Fitting to Improve Matching Quality.
  *
  * Equation numbering uses [1] unless otherwise stated
  */

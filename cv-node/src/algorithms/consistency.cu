@@ -1,3 +1,7 @@
+/*
+ * Algorithms for checking the consistency of two disparity maps.
+ */
+ 
 #include <ftl/cuda_common.hpp>
 
 #define CONSISTENCY_THRESHOLD	1.0f
