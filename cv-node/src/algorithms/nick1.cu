@@ -161,6 +161,8 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 	}
 }
 
+
+/* Use Prewitt operator */
 __global__ void edge_invar1_kernel(cudaTextureObject_t t, ftl::cuda::TextureObject<float2> o) {
 	for (STRIDE_Y(v,o.height())) {
 		for (STRIDE_X(u,o.width())) {
@@ -175,9 +177,71 @@ __global__ void edge_invar1_kernel(cudaTextureObject_t t, ftl::cuda::TextureObje
 			float a = atan2(gy,gx);
 			
 			// TODO adapt threshold using histeresis
-			o(u,v) = (g > 10.0f) ? make_float2(g,a) : make_float2(NAN,NAN);
+			o(u,v) = (g > 10.0f) ? make_float2(g,abs(a)) : make_float2(NAN,NAN);
 		}	
 	}
+}
+
+__device__ void edge_follow(float &sum, int &count, cudaTextureObject_t i1, int u, int v, int sign) {
+	int u2 = u;
+	int v2 = v;
+	int n = 0;
+	float sumchange = 0.0f;
+	float2 pixel_i1 = tex2D<float2>(i1,u,v);
+
+	for (int j=0; j<10; j++) {
+		// Vertical edge = 0, so to follow it don't move in x
+		int dx = ((pixel_i1.y >= 0.785 && pixel_i1.y <= 2.356) ) ? 0 : 1;
+		int dy = (dx == 1) ? 0 : 1;
+
+		// Check perpendicular to edge to find strongest gradient
+		//if (tex2D<float2>(i1, u2+dy, v2+dx).x < pixel_i1.x && tex2D<float2>(i1, u2-dy, v2-dx).x < pixel_i1.x) {
+			//o(u,v) = pixel_i1.y*81.0f;
+		//} else {
+		//	break;
+		//}
+		//continue;
+		
+		float2 next_pix;
+		next_pix.x = NAN;
+		next_pix.y = NAN;
+		float diff = 10000.0f;
+		int nu, nv;
+		
+		for (int i=-5; i<=5; i++) {
+			float2 pix = tex2D<float2>(i1,u2+dx*i+dy*1, v2+dy*i+dx*1);
+			if (isnan(pix.x)) continue;
+			
+			float d = abs(pix.x-pixel_i1.x)*abs(pix.y-pixel_i1.y);
+			if (d < diff) {
+				nu = u2+dx*i+dy*sign;
+				nv = v2+dy*i+dx*sign;
+				next_pix = pix;
+				diff = d;
+			}
+		}
+		
+		if (!isnan(next_pix.x) && diff < 10.0f) {
+			float change = abs(pixel_i1.y - next_pix.y);
+
+			// Corner or edge change.
+			//if (change > 0.785f) break;
+			if (change > 1.0f) break;
+
+			u2 = nu;
+			v2 = nv;
+			sumchange += change;
+			pixel_i1 = next_pix;
+			n++;
+		} else {
+			//o(u,v) = NAN;
+			break;
+		}
+	}
+
+	//if (n == 0) sum = 0.0f;
+	sum = sumchange;
+	count = n;
 }
 
 __global__ void edge_invar2_kernel(cudaTextureObject_t i1, ftl::cuda::TextureObject<float> o) {
@@ -189,31 +253,31 @@ __global__ void edge_invar2_kernel(cudaTextureObject_t i1, ftl::cuda::TextureObj
 				o(u,v) = NAN;
 				continue;
 			}
-			
-			int dx = ((pixel_i1.y >= 0.785 && pixel_i1.y <= 2.356) ) ? 0 : 1;
+
+			int dx = ((pixel_i1.y >= 0.785 && pixel_i1.y <= 2.356) ) ? 1 : 0;
 			int dy = (dx == 1) ? 0 : 1;
-			
-			float2 next_pix;
-			next_pix.x = NAN;
-			next_pix.y = NAN;
-			float diff = 10000.0f;
-			
-			for (int i=-10; i<=10; i++) {
-				float2 pix = tex2D<float2>(i1,u+dx*i+dy*2, v+dy*i+dx*2);
-				if (isnan(pix.x)) continue;
-				
-				float d = abs(pix.x-pixel_i1.x)*abs(pix.y-pixel_i1.y);
-				if (d < diff) {
-					next_pix = pix;
-					diff = d;
-				}
-			}
-			
-			if (!isnan(next_pix.x) && diff < 2.0f) {
-				o(u,v) = abs(pixel_i1.y - next_pix.y)*81.0f;
+
+			// Check perpendicular to edge to find strongest gradient
+			if (tex2D<float2>(i1, u+dy, v+dx).x < pixel_i1.x && tex2D<float2>(i1, u-dy, v-dx).x < pixel_i1.x) {
+				//o(u,v) = pixel_i1.y*81.0f;
 			} else {
 				o(u,v) = NAN;
+				continue;
 			}
+
+			float sum_a, sum_b;
+			int count_a, count_b;
+			edge_follow(sum_a, count_a, i1, u, v, 1);
+			edge_follow(sum_b, count_b, i1, u, v, -1);
+			
+
+			// Output length of edge
+			if (count_a+count_b > 5) {
+				o(u,v) = ((sum_a+sum_b) / (float)(count_a+count_b)) * 300.0f + 50.0f;
+			} else {
+				o(u,v) = 200.0f;
+			}
+			//o(u,v) = (sumchange / (float)(j-1))*100.0f;
 			
 			// Search in two directions for next edge pixel
 			// Calculate curvature by monitoring gradient angle change
