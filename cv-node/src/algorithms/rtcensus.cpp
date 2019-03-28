@@ -206,10 +206,14 @@ void RTCensus::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 void RTCensus::computeCPU(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	size_t d_min = min_disp_;
 	size_t d_max = max_disp_;
+	
+	Mat lbw, rbw;
+	cv::cvtColor(l, lbw,  cv::COLOR_BGR2GRAY);
+	cv::cvtColor(r, rbw, cv::COLOR_BGR2GRAY);
 
 	auto start = std::chrono::high_resolution_clock::now();
-	auto census_R = sparse_census_16x16(r);
-	auto census_L = sparse_census_16x16(l);
+	auto census_R = sparse_census_16x16(rbw);
+	auto census_L = sparse_census_16x16(lbw);
 	std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start;
 	LOG(INFO) << "Census in " << elapsed.count() << "s";
 
@@ -224,7 +228,7 @@ void RTCensus::computeCPU(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	auto disp_L = d_sub(dsi_ca_L, l.cols, l.rows, d_max-d_min);
 	LOG(INFO) << "Disp done";
 
-	disp = disp_R; //consistency(disp_R, disp_L);
+	disp = consistency(disp_R, disp_L);
 
 	// TODO confidence and texture filtering
 }

@@ -86,7 +86,7 @@ __device__ bool is_edge_right(uchar4 *line, int x, int n) {
 	return (colour_error(line[x-1],line[x]) <= EDGE_SENSITIVITY && colour_error(line[x],line[x+1]) > EDGE_SENSITIVITY);
 }
 
-__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
+/*__global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 		cudaTextureObject_t prevD,
 		cudaTextureObject_t prevT, PtrStepSz<float> f, int num_disp) {
 
@@ -159,11 +159,24 @@ __global__ void filter_kernel(cudaTextureObject_t t, cudaTextureObject_t d,
 			} else f(v,u) = NAN;
 		}
 	}
+}*/
+
+
+__device__ float neighbour_factor(float a, cudaTextureObject_t p, int u, int v) {
+	float f = 1.0f;
+	
+	for (int m=-1; m<=1; m++) {
+		for (int n=-1; n<=1; n++) {
+			float2 neighbour = tex2D<float2>(p, u+n, v+m);
+			if (neighbour.x > 8.0f && abs(neighbour.y-a) < 1.0f) f += neighbour.x / 10.0f;
+		}
+	}
+	
+	return f;
 }
 
-
 /* Use Prewitt operator */
-__global__ void edge_invar1_kernel(cudaTextureObject_t t, ftl::cuda::TextureObject<float2> o) {
+__global__ void edge_invar1_kernel(cudaTextureObject_t t, cudaTextureObject_t p, ftl::cuda::TextureObject<float2> o) {
 	for (STRIDE_Y(v,o.height())) {
 		for (STRIDE_X(u,o.width())) {
 			float gx = ((tex2D<uchar4>(t, u-1, v-1).z - tex2D<uchar4>(t, u+1, v-1).z) +
@@ -175,10 +188,15 @@ __global__ void edge_invar1_kernel(cudaTextureObject_t t, ftl::cuda::TextureObje
 						
 			float g = sqrt(gx*gx+gy*gy);
 			float a = atan2(gy,gx);
-			
-			// TODO adapt threshold using histeresis
-			o(u,v) = (g > 10.0f) ? make_float2(g,abs(a)) : make_float2(NAN,NAN);
-		}	
+
+			if (g > 1.0f) {
+				float2 n = tex2D<float2>(p, u, v);
+				float avg = (n.x > g && abs(n.y-a) < 0.2) ? (g+n.x) / 2.0f : g;
+				o(u,v) = make_float2(avg,abs(a));
+			} else {
+				o(u,v) = make_float2(NAN,NAN);
+			}
+		}
 	}
 }
 
@@ -189,7 +207,7 @@ __device__ void edge_follow(float &sum, int &count, cudaTextureObject_t i1, int 
 	float sumchange = 0.0f;
 	float2 pixel_i1 = tex2D<float2>(i1,u,v);
 
-	for (int j=0; j<10; j++) {
+	for (int j=0; j<50; j++) {
 		// Vertical edge = 0, so to follow it don't move in x
 		int dx = ((pixel_i1.y >= 0.785 && pixel_i1.y <= 2.356) ) ? 0 : 1;
 		int dy = (dx == 1) ? 0 : 1;
@@ -208,8 +226,8 @@ __device__ void edge_follow(float &sum, int &count, cudaTextureObject_t i1, int 
 		float diff = 10000.0f;
 		int nu, nv;
 		
-		for (int i=-5; i<=5; i++) {
-			float2 pix = tex2D<float2>(i1,u2+dx*i+dy*1, v2+dy*i+dx*1);
+		for (int i=-2; i<=2; i++) {
+			float2 pix = tex2D<float2>(i1,u2+dx*i+dy*sign, v2+dy*i+dx*sign);
 			if (isnan(pix.x)) continue;
 			
 			float d = abs(pix.x-pixel_i1.x)*abs(pix.y-pixel_i1.y);
@@ -249,7 +267,7 @@ __global__ void edge_invar2_kernel(cudaTextureObject_t i1, ftl::cuda::TextureObj
 		for (STRIDE_X(u,o.width())) {
 			float2 pixel_i1 = tex2D<float2>(i1,u,v);
 			
-			if (isnan(pixel_i1.x)) {
+			if (isnan(pixel_i1.x) || pixel_i1.x < 10.0f) {
 				o(u,v) = NAN;
 				continue;
 			}
@@ -271,11 +289,13 @@ __global__ void edge_invar2_kernel(cudaTextureObject_t i1, ftl::cuda::TextureObj
 			edge_follow(sum_b, count_b, i1, u, v, -1);
 			
 
-			// Output length of edge
-			if (count_a+count_b > 5) {
-				o(u,v) = ((sum_a+sum_b) / (float)(count_a+count_b)) * 300.0f + 50.0f;
+			// Output curvature of edge
+			if (count_a+count_b > 10) {
+				float curvature = ((sum_a+sum_b) / (float)(count_a+count_b));
+				//o(u,v) = curvature * 300.0f + 50.0f;
+				o(u,v) = (count_a+count_b) * 3.0f;
 			} else {
-				o(u,v) = 200.0f;
+				o(u,v) = NAN;
 			}
 			//o(u,v) = (sumchange / (float)(j-1))*100.0f;
 			
@@ -286,6 +306,7 @@ __global__ void edge_invar2_kernel(cudaTextureObject_t i1, ftl::cuda::TextureObj
 	}
 }
 
+ftl::cuda::TextureObject<float2> prevEdge1;
 ftl::cuda::TextureObject<float> prevDisp;
 ftl::cuda::TextureObject<uchar4> prevImage;
 
@@ -305,21 +326,21 @@ void nick1_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const Pt
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
-	edge_invar1_kernel<<<grid,threads>>>(texLeft.cudaTexture(), inv1);
+	edge_invar1_kernel<<<grid,threads>>>(texLeft.cudaTexture(), prevEdge1.cudaTexture(), inv1);
 	cudaSafeCall( cudaGetLastError() );
 	
 	edge_invar2_kernel<<<grid,threads>>>(inv1.cudaTexture(), output);
 	cudaSafeCall( cudaGetLastError() );
 	
-	//prevImage.free();
-	//prevImage = texLeft;
+	prevEdge1.free();
+	prevEdge1 = inv1;
 	
 	//if (&stream == Stream::Null())
 	cudaSafeCall( cudaDeviceSynchronize() );
 	
 	texLeft.free();
 	texRight.free();
-	inv1.free();
+	//inv1.free();
 	output.free();
 }
 

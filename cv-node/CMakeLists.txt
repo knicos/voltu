@@ -80,6 +80,7 @@ set(CVNODESRC
 	src/disparity.cpp
 	src/middlebury.cpp
 	src/algorithms/rtcensus.cpp
+	src/algorithms/rtcensus_sgm.cpp
 	src/algorithms/opencv_sgbm.cpp
 	src/algorithms/opencv_bm.cpp
 )
@@ -93,6 +94,7 @@ if (CUDA_FOUND)
 		"src/algorithms/opencv_cuda_bm.cpp"
 		"src/algorithms/opencv_cuda_bp.cpp"
 		"src/algorithms/rtcensus.cu"
+		"src/algorithms/rtcensus_sgm.cu"
 		"src/algorithms/consistency.cu"
 		"src/algorithms/sparse_census.cu"
 		"src/algorithms/tex_filter.cu"
