@@ -140,10 +140,6 @@ static void run(const string &file) {
 	
 	Display display(calibrate, config["display"]);
 	
-	float base_line = (float)config["camera"]["base_line"];
-	float focal = (float)(config["camera"]["focal_length"]) / (float)(config["camera"]["sensor_width"]);
-	Mat rot_vec = Mat::zeros(1,3,CV_32F);
-	
 	while (display.active()) {
 		// Read calibrated images.
 		calibrate.undistort(l,r);

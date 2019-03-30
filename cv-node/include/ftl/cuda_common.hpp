@@ -13,6 +13,15 @@
 namespace ftl {
 namespace cuda {
 
+/*template <typename T>
+class HisteresisTexture {
+	public:
+	HisteresisTexture();
+	~HisteresisTexture();
+	
+	HisteresisTexture<T> &operator=(TextureObject<T> &t);
+};*/
+
 template <typename T>
 class TextureObject {
 	public:

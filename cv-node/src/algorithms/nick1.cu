@@ -191,7 +191,7 @@ __global__ void edge_invar1_kernel(cudaTextureObject_t t, cudaTextureObject_t p,
 
 			if (g > 1.0f) {
 				float2 n = tex2D<float2>(p, u, v);
-				float avg = (n.x > g && abs(n.y-a) < 0.2) ? (g+n.x) / 2.0f : g;
+				float avg = (n.x > g && abs(n.y-a) < 0.1f) ? n.x : g;
 				o(u,v) = make_float2(avg,abs(a));
 			} else {
 				o(u,v) = make_float2(NAN,NAN);
@@ -207,7 +207,7 @@ __device__ void edge_follow(float &sum, int &count, cudaTextureObject_t i1, int 
 	float sumchange = 0.0f;
 	float2 pixel_i1 = tex2D<float2>(i1,u,v);
 
-	for (int j=0; j<50; j++) {
+	for (int j=0; j<5; j++) {
 		// Vertical edge = 0, so to follow it don't move in x
 		int dx = ((pixel_i1.y >= 0.785 && pixel_i1.y <= 2.356) ) ? 0 : 1;
 		int dy = (dx == 1) ? 0 : 1;
@@ -226,11 +226,11 @@ __device__ void edge_follow(float &sum, int &count, cudaTextureObject_t i1, int 
 		float diff = 10000.0f;
 		int nu, nv;
 		
-		for (int i=-2; i<=2; i++) {
+		for (int i=-5; i<=5; i++) {
 			float2 pix = tex2D<float2>(i1,u2+dx*i+dy*sign, v2+dy*i+dx*sign);
 			if (isnan(pix.x)) continue;
 			
-			float d = abs(pix.x-pixel_i1.x)*abs(pix.y-pixel_i1.y);
+			float d = abs(pix.x-pixel_i1.x); //*abs(pix.y-pixel_i1.y);
 			if (d < diff) {
 				nu = u2+dx*i+dy*sign;
 				nv = v2+dy*i+dx*sign;
@@ -244,11 +244,12 @@ __device__ void edge_follow(float &sum, int &count, cudaTextureObject_t i1, int 
 
 			// Corner or edge change.
 			//if (change > 0.785f) break;
-			if (change > 1.0f) break;
+			if (change > 2.0f) break;
+			
+			sumchange += (nu-u) / (nv-v);
 
 			u2 = nu;
 			v2 = nv;
-			sumchange += change;
 			pixel_i1 = next_pix;
 			n++;
 		} else {
@@ -290,10 +291,11 @@ __global__ void edge_invar2_kernel(cudaTextureObject_t i1, ftl::cuda::TextureObj
 			
 
 			// Output curvature of edge
-			if (count_a+count_b > 10) {
+			if (count_a+count_b > 3) {
 				float curvature = ((sum_a+sum_b) / (float)(count_a+count_b));
-				//o(u,v) = curvature * 300.0f + 50.0f;
-				o(u,v) = (count_a+count_b) * 3.0f;
+				o(u,v) = curvature * 150.0f + 50.0f;
+				//o(u,v) = (count_a+count_b) * 3.0f;
+				//o(u,v) = pixel_i1.y*81.0f;
 			} else {
 				o(u,v) = NAN;
 			}
@@ -306,7 +308,21 @@ __global__ void edge_invar2_kernel(cudaTextureObject_t i1, ftl::cuda::TextureObj
 	}
 }
 
+__global__ void disparity_kernel(cudaTextureObject_t l, cudaTextureObject_t r, ftl::cuda::TextureObject<float> o) {
+	for (STRIDE_Y(v,o.height())) {
+		for (STRIDE_X(u,o.width())) {
+			float dl = tex2D<float>(l,u,v);
+			float dr = tex2D<float>(r,u,v);
+			if (isnan(dl)) o(u,v) = dr;
+			else if (isnan(dr)) o(u,v) = dl;
+			else o(u,v) = max(dl,dr);
+			
+		}
+	}
+}
+
 ftl::cuda::TextureObject<float2> prevEdge1;
+ftl::cuda::TextureObject<float2> prevEdge2;
 ftl::cuda::TextureObject<float> prevDisp;
 ftl::cuda::TextureObject<uchar4> prevImage;
 
@@ -318,7 +334,10 @@ void nick1_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const Pt
 	// TODO Could reduce re-allocations by caching these
 	ftl::cuda::TextureObject<uchar4> texLeft(l);
 	ftl::cuda::TextureObject<uchar4> texRight(r);
-	ftl::cuda::TextureObject<float2> inv1(l.cols, l.rows);
+	ftl::cuda::TextureObject<float2> invl1(l.cols, l.rows);
+	ftl::cuda::TextureObject<float2> invr1(r.cols, r.rows);
+	ftl::cuda::TextureObject<float> invl2(l.cols, l.rows);
+	ftl::cuda::TextureObject<float> invr2(r.cols, r.rows);
 	ftl::cuda::TextureObject<float> output(disp);
 	
 	dim3 grid(1,1,1);
@@ -326,14 +345,24 @@ void nick1_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const Pt
 	grid.x = cv::cuda::device::divUp(l.cols - 2 * RADIUS2, BLOCK_W);
 	grid.y = cv::cuda::device::divUp(l.rows - 2 * RADIUS2, ROWSperTHREAD);
 	
-	edge_invar1_kernel<<<grid,threads>>>(texLeft.cudaTexture(), prevEdge1.cudaTexture(), inv1);
+	edge_invar1_kernel<<<grid,threads>>>(texLeft.cudaTexture(), prevEdge1.cudaTexture(), invl1);
 	cudaSafeCall( cudaGetLastError() );
 	
-	edge_invar2_kernel<<<grid,threads>>>(inv1.cudaTexture(), output);
+	edge_invar1_kernel<<<grid,threads>>>(texRight.cudaTexture(), prevEdge2.cudaTexture(), invr1);
 	cudaSafeCall( cudaGetLastError() );
+	
+	edge_invar2_kernel<<<grid,threads>>>(invl1.cudaTexture(), invl2);
+	cudaSafeCall( cudaGetLastError() );
+	
+	edge_invar2_kernel<<<grid,threads>>>(invr1.cudaTexture(), invr2);
+	cudaSafeCall( cudaGetLastError() );
+	
+	disparity_kernel<<<grid,threads>>>(invl2.cudaTexture(), invr2.cudaTexture(), output);
 	
 	prevEdge1.free();
-	prevEdge1 = inv1;
+	prevEdge1 = invl1;
+	prevEdge2.free();
+	prevEdge2 = invr1;
 	
 	//if (&stream == Stream::Null())
 	cudaSafeCall( cudaDeviceSynchronize() );
@@ -341,6 +370,8 @@ void nick1_call(const PtrStepSz<uchar4> &l, const PtrStepSz<uchar4> &r, const Pt
 	texLeft.free();
 	texRight.free();
 	//inv1.free();
+	invl2.free();
+	invr2.free();
 	output.free();
 }
 
