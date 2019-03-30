@@ -27,13 +27,11 @@ find_path(GLOG_INCLUDE_DIRS
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(glog DEFAULT_MSG GLOG_LIBRARY GLOG_INCLUDE_DIRS)
 
-message(STATUS "(GLOG_FOUND : ${GLOG_FOUND} include: ${GLOG_INCLUDE_DIRS}, lib: ${GLOG_LIBRARY})")
-
 mark_as_advanced(GLOG_FOUND)
 
 if(GLOG_FOUND)
 	include_directories(${GLOG_INCLUDE_DIRS})
     set(GLOG_FOUND TRUE CACHE BOOL "" FORCE)
     set(GLOG_LIBRARIES ${GLOG_LIBRARY})
-    message(STATUS "glog found ( include: ${GLOG_INCLUDE_DIRS}, lib: ${GLOG_LIBRARY})")
+    message(STATUS "Found glog)")
 endif()

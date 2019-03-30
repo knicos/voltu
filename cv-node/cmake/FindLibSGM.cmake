@@ -31,13 +31,11 @@ find_path(LIBSGM_INCLUDE_DIRS
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(LibSGM DEFAULT_MSG LIBSGM_LIBRARY LIBSGM_INCLUDE_DIRS)
 
-message(STATUS "(LIBSGM_FOUND : ${LIBSGM_FOUND} include: ${LIBSGM_INCLUDE_DIRS}, lib: ${LIBSGM_LIBRARY})")
-
 mark_as_advanced(LIBSGM_FOUND)
 
 if(LIBSGM_FOUND)
 	include_directories(${LIBSGM_INCLUDE_DIRS})
     set(LIBSGM_FOUND TRUE CACHE BOOL "" FORCE)
     set(LIBSGM_LIBRARIES ${LIBSGM_LIBRARY})
-    message(STATUS "LibSGM found ( include: ${LIBSGM_INCLUDE_DIRS}, lib: ${LIBSGM_LIBRARY})")
+    message(STATUS "Found libSGM")
 endif()

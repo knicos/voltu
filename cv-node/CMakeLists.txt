@@ -36,7 +36,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 
 # Check for optional opencv components
-set(CMAKE_REQUIRED_INCLUDES "${OpenCV_DIR}/include")
+set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
 check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
 check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
 
