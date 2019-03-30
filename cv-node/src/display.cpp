@@ -1,22 +1,29 @@
 #include <ftl/display.hpp>
+#include <glog/logging.h>
 
 using ftl::Display;
+using ftl::Calibrate;
 using namespace cv;
 
 Display::Display(const Calibrate &cal, nlohmann::json &config) : calibrate_(cal), config_(config) {
+	#if defined HAVE_VIZ
 	window_ = new cv::viz::Viz3d("FTL");
 	window_->setBackgroundColor(cv::viz::Color::white());
+	#endif // HAVE_VIZ
 	active_ = true;
 }
 
 Display::~Display() {
+	#if defined HAVE_VIZ
 	delete window_;
+	#endif // HAVE_VIZ
 }
 
 bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	Mat idepth;
 
 	if (config_["points"]) {
+		#if defined HAVE_VIZ
 		cv::Mat Q_32F;
 		calibrate_.getQ().convertTo(Q_32F,CV_32F);
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows,depth.cols);   // Output point cloud
@@ -32,6 +39,12 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 		window_->showWidget( "Depth", cloud_widget );
 
 		window_->spinOnce( 1, true );
+
+		#else // HAVE_VIZ
+
+		LOG(ERROR) << "Need OpenCV Viz module to display points";
+
+		#endif // HAVE_VIZ
 	}
 	
 	if (config_["depth"]) {
@@ -60,6 +73,10 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 }
 
 bool Display::active() const {
+	#if defined HAVE_VIZ
 	return active_ && !window_->wasStopped();
+	#else
+	return active_;
+	#endif
 }
 

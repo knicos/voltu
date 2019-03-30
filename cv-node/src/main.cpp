@@ -5,6 +5,7 @@
 #include <ftl/disparity.hpp>
 #include <ftl/middlebury.hpp>
 #include <ftl/display.hpp>
+#include <ftl/config.h>
 #include <nlohmann/json.hpp>
 
 #include "opencv2/imgproc.hpp"
@@ -75,6 +76,7 @@ static void process_options(const map<string,string> &opts) {
 		
 		try {
 			auto ptr = json::json_pointer("/"+opt.first);
+			// TODO Allow strings without quotes
 			auto v = json::parse(opt.second);
 			if (v.type() != config.at(ptr).type()) {
 				LOG(ERROR) << "Incorrect type for argument " << opt.first;
@@ -85,29 +87,6 @@ static void process_options(const map<string,string> &opts) {
 			LOG(ERROR) << "Unrecognised option: " << opt.first;
 		}
 	}
-}
-
-static string type2str(int type) {
-  string r;
-
-  uchar depth = type & CV_MAT_DEPTH_MASK;
-  uchar chans = 1 + (type >> CV_CN_SHIFT);
-
-  switch ( depth ) {
-    case CV_8U:  r = "8U"; break;
-    case CV_8S:  r = "8S"; break;
-    case CV_16U: r = "16U"; break;
-    case CV_16S: r = "16S"; break;
-    case CV_32S: r = "32S"; break;
-    case CV_32F: r = "32F"; break;
-    case CV_64F: r = "64F"; break;
-    default:     r = "User"; break;
-  }
-
-  r += "C";
-  r += (chans+'0');
-
-  return r;
 }
 
 static void run(const string &file) {
@@ -146,7 +125,7 @@ static void run(const string &file) {
 	
 	while (display.active()) {
 		// Read calibrated images.
-		calibrate.undistort(l,r);
+		calibrate.rectified(l,r);
 		
 		// Feed into sync buffer and network forward
 		sync->feed(LEFT, l,lsrc->getTimestamp());
@@ -179,6 +158,7 @@ int main(int argc, char **argv) {
 	}
 	process_options(options);
 	
+	// Choose normal or middlebury modes
 	if (config["middlebury"]["dataset"] == "") {
 		run((argc > 0) ? argv[0] : "");
 	} else {

@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
 #include <ftl/calibrate.hpp>
+#include <ftl/config.h>
 #include "opencv2/highgui.hpp"
 
 namespace ftl {
@@ -19,7 +20,11 @@ namespace ftl {
 		private:
 		const ftl::Calibrate &calibrate_;
 		nlohmann::json config_;
+
+		#if defined HAVE_VIZ
 		cv::viz::Viz3d *window_;
+		#endif // HAVE_VIZ
+
 		bool active_;
 	};
 };
