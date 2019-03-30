@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include <ftl/calibrate.hpp>
+#include <ftl/config.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
