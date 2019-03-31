@@ -30,6 +30,12 @@ if (NOT UUID_FOUND)
 	message(ERROR "UUID library is required")
 endif()
 
+find_program(CPPCHECK_FOUND cppcheck)
+if (CPPCHECK_FOUND)
+	message(STATUS "Found cppcheck: will perform source checks")
+	set(CMAKE_CXX_CPPCHECK "cppcheck" "--enable=style" "--suppress=*:*catch.hpp" "--suppress=*:*json.hpp")
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
 
 check_language(CUDA)

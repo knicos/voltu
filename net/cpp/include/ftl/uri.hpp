@@ -11,7 +11,7 @@ namespace ftl {
 
 	class URI {
 		public:
-		URI(uri_t puri) {
+		explicit URI(uri_t puri) {
 			UriUriA uri;
 
 			#ifdef HAVE_URIPARSESINGLE

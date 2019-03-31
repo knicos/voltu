@@ -35,7 +35,7 @@ struct virtual_caller {
 
 template <typename T>
 struct caller : virtual_caller {
-	caller(std::function<void(const T&)> f) : f_(f) {};
+	explicit caller(std::function<void(const T&)> &f) : f_(f) {};
 	void operator()(msgpack::object &o) { T r = o.as<T>(); f_(r); };
 	std::function<void(const T&)> f_;
 };
@@ -54,8 +54,8 @@ class Socket {
 	public:
 	friend bool ::_run(bool blocking, bool nodelay);
 	public:
-	Socket(const char *uri);
-	Socket(int s);
+	explicit Socket(const char *uri);
+	explicit Socket(int s);
 	~Socket();
 	
 	int close();
@@ -120,9 +120,9 @@ class Socket {
 	
 	size_t size() const { return header_->size-4; }
 
-	void onError(std::function<void(Socket&, int err, const char *msg)> f) {}
-	void onConnect(std::function<void(Socket&)> f);
-	void onDisconnect(std::function<void(Socket&)> f) {}
+	void onError(std::function<void(Socket&, int err, const char *msg)> &f) {}
+	void onConnect(std::function<void(Socket&)> &f);
+	void onDisconnect(std::function<void(Socket&)> &f) {}
 	
 	protected:
 	bool data();	// Process one message from socket
@@ -232,7 +232,7 @@ template <typename... ARGS>
 int Socket::_send(const std::string &t, ARGS... args) {
 	send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
 	header_w_->size += t.size();
-	return t.size()+_send(args...);
+	return _send(args...)+t.size();
 }
 
 template <typename... ARGS>
@@ -246,7 +246,7 @@ template <typename T, typename... ARGS>
 int Socket::_send(const std::vector<T> &t, ARGS... args) {
 	send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
 	header_w_->size += t.size();
-	return t.size()+_send(args...);
+	return _send(args...)+t.size();
 }
 
 template <typename... Types, typename... ARGS>

@@ -49,7 +49,7 @@ class Protocol {
 	friend class Socket;
 	
 	public:
-	Protocol(const std::string &id);
+	explicit Protocol(const std::string &id);
 	~Protocol();
 	
 	/**

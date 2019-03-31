@@ -1,8 +1,13 @@
+/*
+ * Copyright 2019 Nicolas Pope
+ */
+
 #include <ftl/disparity.hpp>
 
 using ftl::Disparity;
 
-std::map<std::string,std::function<Disparity*(nlohmann::json&)>> Disparity::algorithms__;
+std::map<std::string, std::function<Disparity*(nlohmann::json&)>>
+		Disparity::algorithms__;
 
 Disparity::Disparity(nlohmann::json &config)
 	: 	config_(config),
@@ -14,7 +19,8 @@ Disparity *Disparity::create(nlohmann::json &config) {
 	return algorithms__[config["algorithm"]](config);
 }
 
-void Disparity::_register(const std::string &n, std::function<Disparity*(nlohmann::json&)> f) {
+void Disparity::_register(const std::string &n,
+		std::function<Disparity*(nlohmann::json&)> f) {
 	algorithms__[n] = f;
 }
 

@@ -21,8 +21,8 @@ class Protocol;
 
 class Listener {
 	public:
-	Listener(const char *uri);
-	Listener(int sfd) : descriptor_(sfd) {}
+	explicit Listener(const char *uri);
+	explicit Listener(int sfd) : descriptor_(sfd), default_proto_(nullptr) {}
 	virtual ~Listener();
 	
 	bool isListening() { return descriptor_ >= 0; }

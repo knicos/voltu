@@ -373,7 +373,7 @@ void Socket::_dispatchReturn(const std::string &d) {
 	}
 }
 
-void Socket::onConnect(std::function<void(Socket&)> f) {
+void Socket::onConnect(std::function<void(Socket&)> &f) {
 	if (connected_) {
 		f(*this);
 	} else {

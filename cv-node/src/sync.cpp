@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Nicolas Pope
+ */
+
 #include <ftl/synched.hpp>
 
 using ftl::SyncSource;
@@ -7,9 +11,8 @@ SyncSource::SyncSource() {
 	channels_.push_back(Mat());
 	channels_.push_back(Mat());
 }
-	
-void SyncSource::addChannel(const std::string &c) {
 
+void SyncSource::addChannel(const std::string &c) {
 }
 
 void SyncSource::feed(int channel, cv::Mat &m, double ts) {

@@ -101,8 +101,6 @@ void ftl::net::stop() {
 
 bool _run(bool blocking, bool nodelay) {
 	timeval block;
-	int n;
-	int selres = 1;
 	
 	//if (ssock == INVALID_SOCKET) return 1;
 
@@ -110,7 +108,8 @@ bool _run(bool blocking, bool nodelay) {
 	bool repeat = nodelay;
 
 	while (active || repeat) {
-		n = setDescriptors();
+		int n = setDescriptors();
+		int selres = 1;
 
 		//Wait for a network event or timeout in 3 seconds
 		block.tv_sec = (repeat) ? 0 : 3;

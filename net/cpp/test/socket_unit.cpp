@@ -141,7 +141,7 @@ TEST_CASE("Socket::call()", "[rpc]") {
 		
 		int res = s.call<int>("test1");
 		
-		REQUIRE( res == 66 );
+		REQUIRE( (res == 66) );
 	}
 	
 	SECTION("one argument call") {
@@ -160,7 +160,7 @@ TEST_CASE("Socket::call()", "[rpc]") {
 		
 		int res = s.call<int>("test1", 78);
 		
-		REQUIRE( res == 43 );
+		REQUIRE( (res == 43) );
 	}
 	
 	waithandler = nullptr;
@@ -181,7 +181,7 @@ TEST_CASE("Socket receive RPC", "[rpc]") {
 		fake_send(0, FTL_PROTOCOL_RPC, buf.str());
 		s.mock_data(); // Force it to read the fake send...
 		
-		REQUIRE( last_rpc == buf.str() );
+		REQUIRE( (last_rpc == buf.str()) );
 	}
 	
 	SECTION("one argument call") {		
@@ -194,7 +194,7 @@ TEST_CASE("Socket receive RPC", "[rpc]") {
 		fake_send(0, FTL_PROTOCOL_RPC, buf.str());
 		s.mock_data(); // Force it to read the fake send...
 		
-		REQUIRE( last_rpc == buf.str() );
+		REQUIRE( (last_rpc == buf.str()) );
 	}
 }
 
@@ -211,10 +211,10 @@ TEST_CASE("Socket::operator>>()", "[io]") {
 		i[1] = 0;
 		s.mock_data(); // Force a message read, but no protocol...
 		
-		REQUIRE( s.size() == 2*sizeof(int) );
+		REQUIRE( (s.size() == 2*sizeof(int)) );
 		s >> i;
-		REQUIRE( i[0] == 99 );
-		REQUIRE( i[1] == 101 );
+		REQUIRE( (i[0] == 99) );
+		REQUIRE( (i[1] == 101) );
 	}
 }
 
@@ -225,43 +225,43 @@ TEST_CASE("Socket::send()", "[io]") {
 		int i = 607;
 		s.send(100,i);
 		
-		REQUIRE( get_service(0) == 100 );
-		REQUIRE( get_size(0) == sizeof(int) );
-		REQUIRE( get_value<int>(0) == 607 );
+		REQUIRE( (get_service(0) == 100) );
+		REQUIRE( (get_size(0) == sizeof(int)) );
+		REQUIRE( (get_value<int>(0) == 607) );
 	}
 	
 	SECTION("send a string") {
 		std::string str("hello world");
 		s.send(100,str);
 		
-		REQUIRE( get_service(0) == 100 );
-		REQUIRE( get_size(0) == str.size() );
-		REQUIRE( get_value<std::string>(0) == "hello world" );
+		REQUIRE( (get_service(0) == 100) );
+		REQUIRE( (get_size(0) == str.size()) );
+		REQUIRE( (get_value<std::string>(0) == "hello world") );
 	}
 	
 	SECTION("send const char* string") {
 		s.send(100,"hello world");
 		
-		REQUIRE( get_service(0) == 100 );
-		REQUIRE( get_size(0) == 11 );
-		REQUIRE( get_value<std::string>(0) == "hello world" );
+		REQUIRE( (get_service(0) == 100) );
+		REQUIRE( (get_size(0) == 11) );
+		REQUIRE( (get_value<std::string>(0) == "hello world") );
 	}
 	
 	SECTION("send const char* array") {
 		s.send(100,ftl::net::array{"hello world",10});
 		
-		REQUIRE( get_service(0) == 100 );
-		REQUIRE( get_size(0) == 10 );
-		REQUIRE( get_value<std::string>(0) == "hello worl" );
+		REQUIRE( (get_service(0) == 100) );
+		REQUIRE( (get_size(0) == 10) );
+		REQUIRE( (get_value<std::string>(0) == "hello worl") );
 	}
 	
 	SECTION("send a tuple") {
 		auto tup = std::make_tuple(55,66,true,6.7);
 		s.send(100,tup);
 		
-		REQUIRE( get_service(0) == 100 );
-		REQUIRE( get_size(0) == sizeof(tup) );
-		REQUIRE( get_value<decltype(tup)>(0) == tup );
+		REQUIRE( (get_service(0) == 100) );
+		REQUIRE( (get_size(0) == sizeof(tup)) );
+		REQUIRE( (get_value<decltype(tup)>(0) == tup) );
 	}
 	
 	SECTION("send multiple strings") {
@@ -269,9 +269,9 @@ TEST_CASE("Socket::send()", "[io]") {
 		std::string str2("world");
 		s.send(100,str,str2);
 		
-		REQUIRE( get_service(0) == 100 );
-		REQUIRE( get_size(0) == str.size()+str2.size() );
-		REQUIRE( get_value<std::string>(0) == "hello world" );
+		REQUIRE( (get_service(0) == 100) );
+		REQUIRE( (get_size(0) == str.size()+str2.size()) );
+		REQUIRE( (get_value<std::string>(0) == "hello world") );
 	}
 }
 
@@ -285,9 +285,9 @@ TEST_CASE("Socket::read()", "[io]") {
 		i = 0;
 		s.mock_data(); // Force a message read, but no protocol...
 		
-		REQUIRE( s.size() == sizeof(int) );
-		REQUIRE( s.read(i) == sizeof(int) );
-		REQUIRE( i == 99 );
+		REQUIRE( (s.size() == sizeof(int)) );
+		REQUIRE( (s.read(i) == sizeof(int)) );
+		REQUIRE( (i == 99) );
 	}
 	
 	SECTION("read two ints") {
@@ -300,10 +300,10 @@ TEST_CASE("Socket::read()", "[io]") {
 		i[1] = 0;
 		s.mock_data(); // Force a message read, but no protocol...
 		
-		REQUIRE( s.size() == 2*sizeof(int) );
-		REQUIRE( s.read(&i,2) == 2*sizeof(int) );
-		REQUIRE( i[0] == 99 );
-		REQUIRE( i[1] == 101 );
+		REQUIRE( (s.size() == 2*sizeof(int)) );
+		REQUIRE( (s.read(&i,2) == 2*sizeof(int)) );
+		REQUIRE( (i[0] == 99) );
+		REQUIRE( (i[1] == 101) );
 	}
 	
 	SECTION("multiple reads") {
@@ -316,10 +316,10 @@ TEST_CASE("Socket::read()", "[io]") {
 		i[1] = 0;
 		s.mock_data(); // Force a message read, but no protocol...
 		
-		REQUIRE( s.read(&i[0],1) == sizeof(int) );
-		REQUIRE( i[0] == 99 );
-		REQUIRE( s.read(&i[1],1) == sizeof(int) );
-		REQUIRE( i[1] == 101 );
+		REQUIRE( (s.read(&i[0],1) == sizeof(int)) );
+		REQUIRE( (i[0] == 99) );
+		REQUIRE( (s.read(&i[1],1) == sizeof(int)) );
+		REQUIRE( (i[1] == 101) );
 	}
 	
 	SECTION("read a string") {
@@ -328,9 +328,9 @@ TEST_CASE("Socket::read()", "[io]") {
 		
 		s.mock_data(); // Force a message read, but no protocol...
 		
-		REQUIRE( s.size() == 11 );
-		REQUIRE( s.read(str) == 11 );
-		REQUIRE( str == "hello world" );
+		REQUIRE( (s.size() == 11) );
+		REQUIRE( (s.read(str) == 11) );
+		REQUIRE( (str == "hello world") );
 	}
 	
 	SECTION("read into existing string") {
@@ -341,10 +341,10 @@ TEST_CASE("Socket::read()", "[io]") {
 		
 		s.mock_data(); // Force a message read, but no protocol...
 		
-		REQUIRE( s.size() == 11 );
-		REQUIRE( s.read(str) == 11 );
-		REQUIRE( str == "hello world" );
-		REQUIRE( str.data() == ptr );
+		REQUIRE( (s.size() == 11) );
+		REQUIRE( (s.read(str) == 11) );
+		REQUIRE( (str == "hello world") );
+		REQUIRE( (str.data() == ptr) );
 	}
 	
 	SECTION("read too much data") {
@@ -354,9 +354,9 @@ TEST_CASE("Socket::read()", "[io]") {
 		i = 0;
 		s.mock_data(); // Force a message read, but no protocol...
 		
-		REQUIRE( s.size() == sizeof(int) );
-		REQUIRE( s.read(&i,2) == sizeof(int) );
-		REQUIRE( i == 99 );
+		REQUIRE( (s.size() == sizeof(int)) );
+		REQUIRE( (s.read(&i,2) == sizeof(int)) );
+		REQUIRE( (i == 99) );
 	}
 }
 
