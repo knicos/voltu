@@ -16,6 +16,7 @@ find_package( glog REQUIRED )
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
 find_package( LibSGM )
+find_package( Msgpack REQUIRED )
 
 include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
 
