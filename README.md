@@ -2,12 +2,31 @@
 
 This monorepo contains all elements of the FTL software system.
 
-* p2p-remote-array : Access 2D memory arrays on other machines in P2P group
-* fabric : C++ library implementing the neural fabric
-* fabric-js : Node.js bindings for C++ fabric
-* fabric-js-modules : Additional fabric-js based native and non-native components
-* peer-node : P2P node.js application providing a web-service interface
-* front-end : Client side FTL code
+* net : A p2p messaging library for C++ and JavaScript
+* cv-node : Stereo vision node in p2p network
+* renderer : Produce video or live image feeds from scene representation
+* front-end : Client side FTL code, both web and native
+* web-service : A web backend service provider acting as a form of proxy
 * www : FTL Website
 
-The architecture relies on NodeJS with C++ native addons for processing.
+The architecture is a mix of C++ and NodeJS largely communicating over a p2p
+network protocol.
+
+## Build
+Use the following commands in the root repository directory to build:
+
+```bash
+mkdir build
+cd build
+cmake ..
+make
+```
+
+In Windows have Visual Studio installed and use the cmake graphical interface
+to configure the project.
+
+You will need to have OpenCV and glog installed. CUDA and LibSGM are optional
+but recommended also. OpenCV should have cuda stereo modules compiled, along
+with the viz module if local point cloud display is required. These are contrib
+modules.
+

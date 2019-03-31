@@ -1,3 +1,8 @@
 */build
 */node_modules
 */include/ftl/config.h
+**/*.blend1
+fabric/
+fabric-js/
+build/
+lab-designs/viewer
