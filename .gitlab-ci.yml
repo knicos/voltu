@@ -1,0 +1,11 @@
+before_script:
+ - apt-get update -qq && apt-get install -y -qq g++ cmake libopencv-dev
+
+ftl:
+  script:
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make
+    - make test
+
