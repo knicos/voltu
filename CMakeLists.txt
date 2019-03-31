@@ -27,10 +27,7 @@ add_definitions(-DHAVE_CUDA)
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 endif (CUDA_FOUND)
 
-set(ftl_VERSION_MAJOR "1")
-set(ftl_VERSION_MINOR "0")
-set(ftl_VERSION_PATCH "0")
-set(FTL_VERSION "\"${ftl_VERSION_MAJOR}.${ftl_VERSION_MINOR}.${ftl_VERSION_PATCH}\"")
+include(git_version)
 
 if (WIN32)
 	file(TO_CMAKE_PATH "$ENV{USERPROFILE}" ENV_USERPROFILE)
