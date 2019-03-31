@@ -1,5 +1,5 @@
 before_script:
- - apt get update -qq && apt get install -y -qq g++ cmake libopencv-dev
+ - dnf update -qq && dnf install -y -qq g++ cmake libopencv-dev
 
 ftl:
   script:
