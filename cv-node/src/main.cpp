@@ -36,7 +36,7 @@ static json config;
  */
 static bool findConfiguration(const string &file) {
 	// TODO Check other locations
-	ifstream i((file != "") ? file : FTL_CONFIG_ROOT "/config.json");
+	ifstream i((file != "") ? file : FTL_LOCAL_CONFIG_ROOT "/config.json");
 	if (!i.is_open()) return false;
 	i >> config;
 	return true;
@@ -73,6 +73,12 @@ map<string,string> read_options(char ***argv, int *argc) {
 static void process_options(const map<string,string> &opts) {
 	for (auto opt : opts) {
 		if (opt.first == "config") continue;
+		
+		if (opt.first == "version") {
+			std::cout << "FTL Vision Node - v" << FTL_VERSION << std::endl;
+			std::cout << FTL_VERSION_LONG << std::endl;
+			exit(0);
+		}
 		
 		try {
 			auto ptr = json::json_pointer("/"+opt.first);

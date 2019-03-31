@@ -1,6 +1,7 @@
 */build
 */node_modules
-*/include/ftl/config.h
+**/include/ftl/config.h
+**/src/config.cpp
 **/*.blend1
 fabric/
 fabric-js/

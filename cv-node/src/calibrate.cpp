@@ -206,7 +206,7 @@ bool Calibrate::_loadCalibration() {
     Rect roi1, roi2;
     
     // reading intrinsic parameters
-    FileStorage fs(FTL_CONFIG_ROOT "/intrinsics.yml", FileStorage::READ);
+    FileStorage fs(FTL_LOCAL_CONFIG_ROOT "/intrinsics.yml", FileStorage::READ);
     if(!fs.isOpened())
     {
         LOG(WARNING) << "Calibration file not found";
@@ -222,7 +222,7 @@ bool Calibrate::_loadCalibration() {
     M1 *= scale;
     M2 *= scale;
 
-    fs.open(FTL_CONFIG_ROOT "/extrinsics.yml", FileStorage::READ);
+    fs.open(FTL_LOCAL_CONFIG_ROOT "/extrinsics.yml", FileStorage::READ);
     if(!fs.isOpened())
     {
         LOG(WARNING) << "Calibration file not found";
@@ -289,7 +289,7 @@ bool Calibrate::recalibrate() {
 		LOG(INFO) << "... done with RMS error=" << rms;
 		
 		// save intrinsic parameters
-		FileStorage fs(FTL_CONFIG_ROOT "/intrinsics.yml", FileStorage::WRITE);
+		FileStorage fs(FTL_LOCAL_CONFIG_ROOT "/intrinsics.yml", FileStorage::WRITE);
 		if( fs.isOpened() )
 		{
 		    fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
@@ -307,7 +307,7 @@ bool Calibrate::recalibrate() {
 		              imageSize[0], R, T, R1, R2, P1, P2, Q_,
 		              CALIB_ZERO_DISPARITY, 1, imageSize[0], &validRoi[0], &validRoi[1]);
 
-		fs.open(FTL_CONFIG_ROOT "/extrinsics.yml", FileStorage::WRITE);
+		fs.open(FTL_LOCAL_CONFIG_ROOT "/extrinsics.yml", FileStorage::WRITE);
 		if( fs.isOpened() )
 		{
 		    fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q_;
@@ -376,13 +376,13 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
         LOG(INFO) << "Grabbing calibration image...";
         
         if (view[0].empty() || (local_->isStereo() && view[1].empty()) || imagePoints[0].size() >= (size_t)settings_.nrFrames) {
-        	settings_.outputFileName = FTL_CONFIG_ROOT "/cam0.xml";
+        	settings_.outputFileName = FTL_LOCAL_CONFIG_ROOT "/cam0.xml";
         	bool r = runCalibration(settings_, imageSize[0],
         					cameraMatrix[0], distCoeffs[0], imagePoints[0],
         					grid_width, release_object);
         					
         	if (local_->isStereo()) {
-		    	settings_.outputFileName = FTL_CONFIG_ROOT "/cam1.xml";
+		    	settings_.outputFileName = FTL_LOCAL_CONFIG_ROOT "/cam1.xml";
 		    	r &= runCalibration(settings_, imageSize[1],
 		    					cameraMatrix[1], distCoeffs[1], imagePoints[1],
 		    					grid_width, release_object);

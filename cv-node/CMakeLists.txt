@@ -7,11 +7,8 @@ set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
 check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
 check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
 
-configure_file(${CMAKE_SOURCE_DIR}/cv-node/include/ftl/config.h.in
-               ${CMAKE_SOURCE_DIR}/cv-node/include/ftl/config.h
-)
-
 set(CVNODESRC
+	../common/cpp/src/config.cpp
 	src/main.cpp
 	src/calibrate.cpp
 	src/local.cpp

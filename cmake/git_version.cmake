@@ -4,7 +4,7 @@ if (Git_FOUND)
 	#CHECK_REQUIRED_VARIABLE(GIT_EXECUTABLE)
 
 	execute_process(COMMAND
-        "${GIT_EXECUTABLE}" describe --contains HEAD
+        "${GIT_EXECUTABLE}" describe --tags
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
         RESULT_VARIABLE GIT_RESULT
         OUTPUT_VARIABLE VERSION
@@ -14,7 +14,8 @@ if (Git_FOUND)
 	string(REGEX REPLACE "^v([0-9]+)\\..*" "\\1" ftl_VERSION_MAJOR "${VERSION}")
 	string(REGEX REPLACE "^v[0-9]+\\.([0-9]+).*" "\\1" ftl_VERSION_MINOR "${VERSION}")
 	string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" ftl_VERSION_PATCH "${VERSION}")
-	string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.[0-9]+(.*)" "\\1" ftl_VERSION_SHA1 "${VERSION}")
+	string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.[0-9]+-([0-9]+).*" "\\1" ftl_VERSION_COMMITS "${VERSION}")
+	string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+-(.*)" "\\1" ftl_VERSION_SHA1 "${VERSION}")
 	set(FTL_VERSION "\"${ftl_VERSION_MAJOR}.${ftl_VERSION_MINOR}.${ftl_VERSION_PATCH}\"")
 
 else()
