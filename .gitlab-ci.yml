@@ -1,5 +1,8 @@
 before_script:
- - yum update -qq && yum install -y -qq g++ cmake libopencv-dev
+  - uname -a
+  - ls /etc/*release
+  - cat /etc/os-release
+# - yum update -qq && yum install -y -qq g++ cmake libopencv-dev
 
 ftl:
   script:
