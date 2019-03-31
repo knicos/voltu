@@ -1,5 +1,5 @@
 before_script:
- - dnf update -qq && dnf install -y -qq g++ cmake libopencv-dev
+ - yum update -qq && yum install -y -qq g++ cmake libopencv-dev
 
 ftl:
   script:
