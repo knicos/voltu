@@ -25,6 +25,11 @@ if (NOT MSGPACK_FOUND)
 	endif()
 endif()
 
+check_include_file("uuid/uuid.h" UUID_FOUND)
+if (NOT UUID_FOUND)
+	message(ERROR "UUID library is required")
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
 
 check_language(CUDA)
