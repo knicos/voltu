@@ -1,3 +1,5 @@
+image: gcc
+
 before_script:
   - uname -a
   - ls /etc/*release
