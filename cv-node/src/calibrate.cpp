@@ -563,8 +563,12 @@ static bool _runCalibration( Calibrate::Settings& s, Size& imageSize, Mat& camer
         int iFixedPoint = -1;
         if (release_object)
             iFixedPoint = s.boardSize.width - 1;
-        rms = calibrateCameraRO(objectPoints, imagePoints, imageSize, iFixedPoint,
-                                cameraMatrix, distCoeffs, rvecs, tvecs, newObjPoints,
+        //rms = calibrateCameraRO(objectPoints, imagePoints, imageSize, iFixedPoint,
+        //                        cameraMatrix, distCoeffs, rvecs, tvecs, newObjPoints,
+        //                        s.flag | CALIB_USE_LU);
+                                
+        rms = calibrateCamera(objectPoints, imagePoints, imageSize,
+                                cameraMatrix, distCoeffs, rvecs, tvecs,
                                 s.flag | CALIB_USE_LU);
     }
 
