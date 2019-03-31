@@ -1,7 +1,8 @@
 image: gcc
 
 before_script:
- - apt-get update -qq && apt-get install -y -qq g++ cmake libopencv-dev libgoogle-glog-dev liburiparser-dev libmsgpack-dev
+ - apt-get update -qq && apt-get install -y -qq g++ cmake
+ - apt-get install -y -qq libopencv-dev libgoogle-glog-dev liburiparser-dev libmsgpack-dev
 
 ftl:
   script:

@@ -15,8 +15,15 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 find_package( glog REQUIRED )
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
+find_package( MsgPack )
 find_package( LibSGM )
-find_package( Msgpack REQUIRED )
+
+if (NOT MSGPACK_FOUND)
+	check_include_file_cxx("msgpack.hpp" MSGPACK_FOUND)
+	if (NOT MSGPACK_FOUND)
+		message(ERROR "Msgpack is required")
+	endif()
+endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
 
