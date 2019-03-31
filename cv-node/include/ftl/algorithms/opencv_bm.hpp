@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Nicolas Pope
+ */
+
 #ifndef _FTL_ALGORITHMS_OPENCV_BM_HPP_
 #define _FTL_ALGORITHMS_OPENCV_BM_HPP_
 
@@ -9,13 +13,19 @@
 
 namespace ftl {
 namespace algorithms {
+
+/**
+ * OpenCV Block Matching algorithm.
+ */
 class OpenCVBM : public ftl::Disparity {
 	public:
-	OpenCVBM(nlohmann::json &config);
+	explicit OpenCVBM(nlohmann::json &config);
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create(nlohmann::json &config) { return new OpenCVBM(config); }
+	static inline Disparity *create(nlohmann::json &config) {
+		return new OpenCVBM(config);
+	}
 	
 	private:
 	cv::Ptr<cv::StereoBM> left_matcher_;
@@ -25,5 +35,5 @@ class OpenCVBM : public ftl::Disparity {
 };
 };
 
-#endif // _FTL_ALGORITHMS_OPENCV_SGBM_HPP_
+#endif  // _FTL_ALGORITHMS_OPENCV_SGBM_HPP_
 

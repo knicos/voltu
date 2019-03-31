@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Nicolas Pope
+ */
+
 #ifndef _FTL_CALIBRATION_HPP_
 #define _FTL_CALIBRATION_HPP_
 
@@ -13,8 +17,16 @@ class FileNode;
 };
 
 namespace ftl {
+
+/**
+ * Manage both performing and applying camera calibration. It will attempt to
+ * load any existing cached camera calibration unless explicitely told to
+ * redo the calibration.
+ */
 class Calibrate {
 	public:
+	
+	// TODO(nick) replace or remove this class.
 	class Settings {
 		public:
 		Settings() : goodInput(false) {}
@@ -68,15 +80,28 @@ class Calibrate {
 	public:
 	Calibrate(ftl::LocalSource *s, nlohmann::json &config);
 	
+	/**
+	 * Perform a new camera calibration. Ignore and replace any existing
+	 * cached calibration.
+	 */
 	bool recalibrate();
 	
 	bool undistort(cv::Mat &l, cv::Mat &r);
+	
+	/**
+	 * Get both left and right images from local source, but with intrinsic
+	 * and extrinsic stereo calibration already applied.
+	 */
 	bool rectified(cv::Mat &l, cv::Mat &r);
-	
+
 	bool isCalibrated();
-	
+
+	/**
+	 * Get the camera matrix. Used to convert disparity map back to depth and
+	 * a 3D point cloud.
+	 */
 	const cv::Mat &getQ() const { return Q_; }
-	
+
 	private:
 	bool _recalibrate(std::vector<std::vector<cv::Point2f>> *imagePoints,
 		cv::Mat *cameraMatrix, cv::Mat *distCoeffs, cv::Size *imageSize);

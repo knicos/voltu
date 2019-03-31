@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Nicolas Pope
+ */
+
 #ifndef _FTL_ALGORITHMS_OPENCV_SGBM_HPP_
 #define _FTL_ALGORITHMS_OPENCV_SGBM_HPP_
 
@@ -9,9 +13,13 @@
 
 namespace ftl {
 namespace algorithms {
+
+/**
+ * OpenCV Semi Global Matching algorithm.
+ */
 class OpenCVSGBM : public ftl::Disparity {
 	public:
-	OpenCVSGBM(nlohmann::json &config);
+	explicit OpenCVSGBM(nlohmann::json &config);
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
@@ -25,5 +33,5 @@ class OpenCVSGBM : public ftl::Disparity {
 };
 };
 
-#endif // _FTL_ALGORITHMS_OPENCV_SGBM_HPP_
+#endif  // _FTL_ALGORITHMS_OPENCV_SGBM_HPP_
 

@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Nicolas Pope
+ */
+
 #ifndef _FTL_ALGORITHMS_OPENCV_CUDA_BM_HPP_
 #define _FTL_ALGORITHMS_OPENCV_CUDA_BM_HPP_
 
@@ -8,13 +12,19 @@
 
 namespace ftl {
 namespace algorithms {
+
+/**
+ * OpenCV CUDA Block Matching algorithm.
+ */
 class OpenCVCudaBM : public ftl::Disparity {
 	public:
-	OpenCVCudaBM(nlohmann::json &config);
+	explicit OpenCVCudaBM(nlohmann::json &config);
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create(nlohmann::json &config) { return new OpenCVCudaBM(config); }
+	static inline Disparity *create(nlohmann::json &config) {
+		return new OpenCVCudaBM(config);
+	}
 	
 	private:
 	cv::Ptr<cv::cuda::StereoBM> matcher_;
@@ -27,5 +37,5 @@ class OpenCVCudaBM : public ftl::Disparity {
 };
 };
 
-#endif // _FTL_ALGORITHMS_OPENCV_CUDA_BM_HPP_
+#endif  // _FTL_ALGORITHMS_OPENCV_CUDA_BM_HPP_
 

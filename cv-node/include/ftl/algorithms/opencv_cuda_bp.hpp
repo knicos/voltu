@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Nicolas Pope
+ */
+
 #ifndef _FTL_ALGORITHMS_OPENCV_CUDA_BP_HPP_
 #define _FTL_ALGORITHMS_OPENCV_CUDA_BP_HPP_
 
@@ -8,13 +12,19 @@
 
 namespace ftl {
 namespace algorithms {
+
+/**
+ * OpenCV CUDA Belief Propagation algorithm.
+ */
 class OpenCVCudaBP : public ftl::Disparity {
 	public:
-	OpenCVCudaBP(nlohmann::json &config);
+	explicit OpenCVCudaBP(nlohmann::json &config);
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create(nlohmann::json &config) { return new OpenCVCudaBP(config); }
+	static inline Disparity *create(nlohmann::json &config) {
+		return new OpenCVCudaBP(config);
+	}
 	
 	private:
 	cv::Ptr<cv::cuda::StereoBeliefPropagation> matcher_;
@@ -25,5 +35,5 @@ class OpenCVCudaBP : public ftl::Disparity {
 };
 };
 
-#endif // _FTL_ALGORITHMS_OPENCV_CUDA_BP_HPP_
+#endif  // _FTL_ALGORITHMS_OPENCV_CUDA_BP_HPP_
 

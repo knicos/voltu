@@ -14,16 +14,15 @@
  * Equation numbering uses [1] unless otherwise stated
  */
 
-
-#include <ftl/algorithms/rtcensus.hpp>
-
-#include <cmath>
 #include <glog/logging.h>
+#include <cmath>
 
 #include <vector>
 #include <tuple>
 #include <bitset>
 #include <chrono>
+
+#include <ftl/algorithms/rtcensus.hpp>
 
 using ftl::algorithms::RTCensus;
 using std::vector;
@@ -100,7 +99,7 @@ static void dsi_ca(vector<uint16_t> &result, const vector<uint64_t> &census_R,
 			for (size_t d=0; d < ds; d++) {
 				const auto d_ = d * sign;
 				auto l = census_L[v_+(u_+d_)];
-				result[ix+d] += bitset<64>(r^l).count(); // Hamming distance
+				result[ix+d] += bitset<64>(r^l).count();  // Hamming distance
 			}
 		}
 		}
