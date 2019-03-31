@@ -18,6 +18,7 @@
 #include <tuple>
 #include <bitset>
 #include <cmath>
+#include <chrono>
 #include <glog/logging.h>
 
 using ftl::algorithms::RTCensus;
