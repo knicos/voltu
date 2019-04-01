@@ -5,7 +5,9 @@
 #include <memory>
 #include <iostream>
 
+#ifndef WIN32
 #include <sys/select.h>
+#endif
 
 using ftl::net::Dispatcher;
 using ftl::net::Protocol;
