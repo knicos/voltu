@@ -8,6 +8,10 @@
 
 using ftl::net::Socket;
 
+#ifdef WIN32
+#pragma comment(lib, "Ws2_32.lib")
+#endif
+
 // --- Mock --------------------------------------------------------------------
 
 class MockSocket : public Socket {
@@ -43,7 +47,8 @@ static std::map<int, std::string> fakedata;
 
 void fake_send(int sd, uint32_t  service, const std::string &data) {
 	//std::cout << "HEX SEND: " << hexStr(data) << std::endl;
-	char buf[8+data.size()];
+	char buf[8+1024];
+	assert(data.size() < 1024);
 	ftl::net::Header *h = (ftl::net::Header*)&buf;
 	h->size = data.size()+4;
 	h->service = service;
@@ -53,7 +58,11 @@ void fake_send(int sd, uint32_t  service, const std::string &data) {
 	//std::cout << "HEX SEND2: " << hexStr(fakedata[sd]) << std::endl;
 }
 
+#ifdef WIN32
+extern int recv(SOCKET sd, char *buf, int n, int f) {
+#else
 extern ssize_t recv(int sd, void *buf, size_t n, int f) {
+#endif
 	if (fakedata.count(sd) == 0) {
 		std::cout << "Unrecognised socket" << std::endl;
 		return 0;
@@ -66,6 +75,14 @@ extern ssize_t recv(int sd, void *buf, size_t n, int f) {
 	return l;
 }
 
+#ifdef WIN32
+extern int send(SOCKET sd, const char *v, int cnt, int flags) {
+	int len = cnt;
+	// TODO(nick) merge multiple sends
+	fakedata[sd] = std::string(v, len);
+	return len;
+}
+#else
 extern ssize_t writev(int sd, const struct iovec *v, int cnt) {
 	size_t len = 0; //v[0].iov_len+v[1].iov_len;
 	char buf[1000];
@@ -80,6 +97,7 @@ extern ssize_t writev(int sd, const struct iovec *v, int cnt) {
 	fakedata[sd] = std::string(&buf[0], len);
 	return len;
 }
+#endif
 
 uint32_t get_service(int sd) {
 	auto h = (ftl::net::Header*)fakedata[sd].data();

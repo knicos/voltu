@@ -10,6 +10,10 @@
 #include <iostream>
 #include <chrono>
 
+#ifdef WIN32
+#pragma comment(lib, "Ws2_32.lib")
+#endif
+
 using namespace std;
 using namespace std::chrono;
 using ftl::net::Listener;

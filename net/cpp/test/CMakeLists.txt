@@ -3,21 +3,21 @@ add_executable(protocol_unit
 	./protocol_unit.cpp
 )
 target_include_directories(protocol_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(protocol_unit glog)
+target_link_libraries(protocol_unit ${GLOG_LIBRARIES})
 
 add_executable(socket_unit
 	./tests.cpp
 	./socket_unit.cpp
 )
 target_include_directories(socket_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(socket_unit uriparser glog)
+target_link_libraries(socket_unit ${URIPARSER_LIBRARIES} ${GLOG_LIBRARIES})
 
 add_executable(uri_unit
 	./tests.cpp
 	./uri_unit.cpp
 )
 target_include_directories(uri_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(uri_unit uriparser)
+target_link_libraries(uri_unit ${URIPARSER_LIBRARIES})
 
 add_executable(p2p_base_unit
 	./tests.cpp
@@ -30,7 +30,7 @@ add_executable(p2p_base_unit
 	../src/listener.cpp
 )
 target_include_directories(p2p_base_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(p2p_base_unit uriparser gflags glog uuid)
+target_link_libraries(p2p_base_unit ${URIPARSER_LIBRARIES} gflags ${GLOG_LIBRARIES} uuid)
 
 add_executable(net_integration
 	./tests.cpp
@@ -42,7 +42,7 @@ add_executable(net_integration
 	../src/net.cpp
 )
 target_include_directories(net_integration PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(net_integration uriparser glog)
+target_link_libraries(net_integration ${URIPARSER_LIBRARIES} ${GLOG_LIBRARIES})
 
 add_test(URIUnitTest uri_unit)
 add_test(ProtocolUnitTest protocol_unit)

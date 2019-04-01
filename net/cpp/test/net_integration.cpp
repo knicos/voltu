@@ -25,9 +25,8 @@ using std::shared_ptr;
 
 #ifdef WIN32
 #include <windows.h>
-#include <winsock.h>
-typedef int socklen_t;
-#define MSG_WAITALL 0
+#include <winsock2.h>
+#include <Ws2tcpip.h>
 #endif
 
 static int ssock = INVALID_SOCKET;
@@ -66,7 +65,7 @@ void init_server() {
 	}
 
 	int enable = 1;
-	if (setsockopt(ssock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+	if (setsockopt(ssock, SOL_SOCKET, SO_REUSEADDR, (char*)&enable, sizeof(int)) < 0)
     	std::cerr << "setsockopt(SO_REUSEADDR) failed" << std::endl;
 
 	//Specify listen port and address
