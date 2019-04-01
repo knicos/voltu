@@ -12,6 +12,16 @@ enable_testing()
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
+check_language(CUDA)
+if (CUDA_TOOLKIT_ROOT_DIR)
+enable_language(CUDA)
+set(CMAKE_CUDA_FLAGS "")
+set(CMAKE_CUDA_FLAGS_DEBUG "-g -DDEBUG -D_DEBUG -Wall")
+set(CMAKE_CUDA_FLAGS_RELEASE "")
+add_definitions(-DHAVE_CUDA)
+include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+endif ()
+
 find_package( glog REQUIRED )
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
@@ -37,16 +47,6 @@ if (CPPCHECK_FOUND)
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
-
-check_language(CUDA)
-if (CUDA_FOUND)
-enable_language(CUDA)
-set(CMAKE_CUDA_FLAGS "")
-set(CMAKE_CUDA_FLAGS_DEBUG "-g -DDEBUG -D_DEBUG -Wall")
-set(CMAKE_CUDA_FLAGS_RELEASE "")
-add_definitions(-DHAVE_CUDA)
-include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-endif (CUDA_FOUND)
 
 include(git_version)
 
