@@ -11,10 +11,10 @@ set(NETSOURCE
 	src/protocol.cpp
 )
 
-check_include_file("uriparser/Uri.h" HAVE_URI_H)
-if(NOT HAVE_URI_H)
-	message(FATAL_ERROR "Uriparser not found")
-endif()
+#check_include_file("uriparser/Uri.h" HAVE_URI_H)
+#if(NOT HAVE_URI_H)
+#	message(FATAL_ERROR "Uriparser not found")
+#endif()
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
 
 add_library(net ${NETSOURCE})

@@ -3,8 +3,8 @@
 #
 
 if(WIN32)
-find_path(glog_DIR glog PATHS "C:/Program Files" "C:/Program Files (x86)")
-set(glog_DIR ${glog_DIR}/glog)
+find_path(glog_DIR NAMES include/glog/logging.h PATHS "C:/Program Files/glog" "C:/Program Files/google-glog" "C:/Program Files (x86)/google-glog")
+set(glog_DIR ${glog_DIR})
 else()
 set(glog_DIR "")
 endif()
