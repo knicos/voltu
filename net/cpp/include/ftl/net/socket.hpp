@@ -1,6 +1,7 @@
 #ifndef _FTL_NET_SOCKET_HPP_
 #define _FTL_NET_SOCKET_HPP_
 
+#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #include <ftl/net.hpp>
 #include <ftl/net/protocol.hpp>
@@ -12,7 +13,8 @@
 
 #ifdef WIN32
 //#include <windows.h>
-#include <winsock.h>
+//#include <winsock.h>
+#include <winsock2.h>
 #endif
 
 #include <iostream>

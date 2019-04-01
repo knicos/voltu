@@ -1,3 +1,4 @@
+#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 
 #include <ftl/uri.hpp>
@@ -16,9 +17,8 @@
 
 #ifdef WIN32
 #include <windows.h>
-#include <winsock.h>
-typedef int socklen_t;
-#define MSG_WAITALL 0
+#include <winsock2.h>
+#include <Ws2tcpip.h>
 #endif
 
 #include <iostream>
@@ -27,6 +27,7 @@ typedef int socklen_t;
 
 using namespace ftl;
 using ftl::net::Socket;
+using ftl::net::Protocol;
 using namespace std;
 
 /*static std::string hexStr(const std::string &s)
@@ -233,8 +234,12 @@ void Socket::setProtocol(Protocol *p) {
 
 void Socket::error() {
 	int err;
+#ifdef WIN32
+	int optlen = sizeof(err);
+#else
 	uint32_t optlen = sizeof(err);
-	getsockopt(sock_, SOL_SOCKET, SO_ERROR, &err, &optlen);
+#endif
+	getsockopt(sock_, SOL_SOCKET, SO_ERROR, (char*)&err, &optlen);
 	LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
 }
 
@@ -390,7 +395,15 @@ void Socket::_connected() {
 }
 
 int Socket::_send() {
+#ifdef WIN32
+	// TODO(nick) Use WSASend instead
+	int c = 0;
+	for (auto v : send_vec_) {
+		c += ::send(sock_, (char*)v.iov_base, v.iov_len, 0);
+	}
+#else
 	int c = ::writev(sock_, send_vec_.data(), send_vec_.size());
+#endif
 	send_vec_.clear();
 	return c;
 }

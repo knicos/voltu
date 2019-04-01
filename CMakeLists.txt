@@ -16,7 +16,7 @@ find_package( glog REQUIRED )
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
-find_package( MsgPack )
+find_package( MsgPack REQUIRED )
 find_package( LibSGM )
 
 check_language(CUDA)
@@ -35,6 +35,14 @@ if (NOT MsgPack_FOUND)
 		message(ERROR "Msgpack is required")
 	endif()
 else()
+	if(WIN32)
+		# Find include
+		find_path(MSGPACK_INCLUDE_DIRS
+		    NAMES msgpack.hpp
+		    PATHS "C:/Program Files/msgpack" "C:/Program Files (x86)/msgpack"
+		    PATH_SUFFIXES include
+		)
+	endif()
 	include_directories(${MSGPACK_INCLUDE_DIRS})
 endif()
 

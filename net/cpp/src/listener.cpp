@@ -1,3 +1,4 @@
+#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 
 #include <ftl/uri.hpp>
@@ -27,6 +28,7 @@ typedef int socklen_t;
 using namespace ftl;
 using ftl::net::Listener;
 using std::shared_ptr;
+using ftl::net::Socket;
 
 int tcpListen(URI &uri) {
 	int ssock;
@@ -45,7 +47,7 @@ int tcpListen(URI &uri) {
 	}
 	
 	int enable = 1;
-	if (setsockopt(ssock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+	if (setsockopt(ssock, SOL_SOCKET, SO_REUSEADDR, (char*)(&enable), sizeof(int)) < 0)
 		LOG(ERROR) << "setsockopt(SO_REUSEADDR) failed";
 
 	//Specify listen port and address

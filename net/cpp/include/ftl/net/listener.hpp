@@ -7,7 +7,7 @@
 
 #ifdef WIN32
 //#include <windows.h>
-#include <winsock.h>
+#include <winsock2.h>
 #endif
 
 #include <ftl/net/handlers.hpp>

@@ -1,3 +1,4 @@
+#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/net/socket.hpp>

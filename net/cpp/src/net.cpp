@@ -2,6 +2,10 @@
 #include <ftl/net/listener.hpp>
 #include <ftl/net/socket.hpp>
 
+#ifdef WIN32
+#include <Ws2tcpip.h>
+#endif
+
 #include <vector>
 #include <iostream>
 #include <chrono>
@@ -135,6 +139,7 @@ bool _run(bool blocking, bool nodelay) {
 				if (FD_ISSET(l->_socket(), &sfdread)) {
 					int rsize = sizeof(sockaddr_storage);
 					sockaddr_storage addr;
+
 					//int freeclient = freeSocket();
 
 					//if (freeclient >= 0) {
