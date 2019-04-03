@@ -23,12 +23,20 @@ namespace net {
  */
 class P2P : public ftl::net::Protocol {
 	public:
-	P2P(const char *uri);
-	P2P(const std::string &uri);
+	explicit P2P(const char *uri);
+	explicit P2P(const std::string &uri);
 	
 	void addPeer(std::shared_ptr<ftl::net::Socket> s) { peers_.push_back(s); };
+	void addPeer(const std::string &uri) {
+		auto s = ftl::net::connect(uri.c_str());
+		if (s->isValid()) peers_.push_back(s);
+	}
 	
-	const UUID &id() const { return id_; }
+	const std::vector<std::shared_ptr<ftl::net::Socket>> &getPeers() const {
+		return peers_;
+	}
+	
+	const ftl::UUID &id() const { return id_; }
 	
 	/**
 	 * Bind a member function as an rpc "find one" across peers function.

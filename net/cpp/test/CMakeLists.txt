@@ -7,6 +7,7 @@ target_link_libraries(protocol_unit ${GLOG_LIBRARIES})
 
 add_executable(socket_unit
 	./tests.cpp
+	../src/ws_internal.cpp
 	./socket_unit.cpp
 )
 target_include_directories(socket_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
@@ -28,6 +29,7 @@ add_executable(p2p_base_unit
 	../src/protocol.cpp
 	../src/net.cpp
 	../src/listener.cpp
+	../src/ws_internal.cpp
 )
 target_include_directories(p2p_base_unit PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(p2p_base_unit ${URIPARSER_LIBRARIES} gflags ${GLOG_LIBRARIES} uuid)
@@ -40,6 +42,7 @@ add_executable(net_integration
 	../src/listener.cpp
 	../src/protocol.cpp
 	../src/net.cpp
+	../src/ws_internal.cpp
 )
 target_include_directories(net_integration PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(net_integration ${URIPARSER_LIBRARIES} ${GLOG_LIBRARIES})

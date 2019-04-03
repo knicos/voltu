@@ -13,7 +13,7 @@ using ftl::net::P2P;
 using ftl::net::Listener;
 using ftl::net::Socket;
 
-static P2P p2p("ftl://cli");
+static P2P *p2p;
 static shared_ptr<Listener> listener = nullptr;
 static volatile bool stop = false;
 
@@ -25,12 +25,12 @@ void handle_options(const char ***argv, int *argc) {
 		if (cmd.find("--peer=") == 0) {
 			cmd = cmd.substr(cmd.find("=")+1);
 			//std::cout << "Peer added " << cmd.substr(cmd.find("=")+1) << std::endl;
-			p2p.addPeer(cmd);
+			p2p->addPeer(cmd);
 		} else if (cmd.find("--listen=") == 0) {
 			cmd = cmd.substr(cmd.find("=")+1);
 			listener = ftl::net::listen(cmd.c_str());
-			if (listener) listener->setProtocol(&p2p);
-			listener->onConnection([](shared_ptr<Socket> &s) { p2p.addPeer(s); });
+			if (listener) listener->setProtocol(p2p);
+			listener->onConnection([](shared_ptr<Socket> &s) { p2p->addPeer(s); });
 		}
 		
 		(*argc)--;
@@ -49,12 +49,12 @@ void handle_command(const char *l) {
 		stop = true;
 	} else if (cmd.find("peer ") == 0) {
 		cmd = cmd.substr(cmd.find(" ")+1);
-		p2p.addPeer(cmd);
+		p2p->addPeer(cmd);
 	} else if (cmd.find("list ") == 0) {
 		cmd = cmd.substr(cmd.find(" ")+1);
 		if (cmd == "peers") {
-			auto res = p2p.getPeers();
-			for (auto r : res) std::cout << "  " << r.to_string() << std::endl;
+			auto res = p2p->getPeers();
+			for (auto r : res) std::cout << "  " << r->to_string() << std::endl;
 		}
 	}
 }
@@ -62,6 +62,8 @@ void handle_command(const char *l) {
 int main(int argc, const char **argv) {
 	argc--;
 	argv++;
+	
+	p2p = new P2P("ftl://cli");
 	
 	// Process Arguments
 	handle_options(&argv, &argc);
@@ -79,6 +81,8 @@ int main(int argc, const char **argv) {
 	stop = true;
 	
 	nthread.join();
+	
+	delete p2p;
 	return 0;
 }
 

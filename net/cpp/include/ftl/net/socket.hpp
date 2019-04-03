@@ -5,6 +5,7 @@
 #include <glog/logging.h>
 #include <ftl/net.hpp>
 #include <ftl/net/protocol.hpp>
+#include <ftl/uri.hpp>
 
 #ifndef WIN32
 #define INVALID_SOCKET -1
@@ -78,6 +79,8 @@ class Socket {
 	 * the same as the initial connection string on the client.
 	 */
 	std::string getURI() const { return uri_; };
+	
+	std::string to_string() const { return peerid_; };
 			
 	/**
 	 * Non-blocking Remote Procedure Call using a callback function.
@@ -166,6 +169,7 @@ class Socket {
 	bool valid_;
 	bool connected_;
 	int sock_;
+	ftl::URI::scheme_t scheme_;
 	
 	// Receive buffers
 	size_t pos_;
@@ -198,6 +202,9 @@ class Socket {
 
 template <typename... ARGS>
 int Socket::send(uint32_t s, ARGS... args) {
+	// Leave a blank entry for websocket header
+	if (scheme_ == ftl::URI::SCHEME_WS) send_vec_.push_back({nullptr,0});
+	
 	header_w_->service = s;
 	header_w_->size = 4;
 	send_vec_.push_back({header_w_,sizeof(ftl::net::Header)});

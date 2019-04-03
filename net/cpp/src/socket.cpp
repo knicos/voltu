@@ -1,8 +1,11 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 
+#include <fcntl.h>
+
 #include <ftl/uri.hpp>
 #include <ftl/net/socket.hpp>
+#include <ftl/net/ws_internal.hpp>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -28,6 +31,8 @@
 using namespace ftl;
 using ftl::net::Socket;
 using ftl::net::Protocol;
+using ftl::URI;
+using ftl::net::ws_connect;
 using namespace std;
 
 /*static std::string hexStr(const std::string &s)
@@ -119,10 +124,6 @@ static int tcpConnect(URI &uri) {
 	return csocket;
 }
 
-static int wsConnect(URI &uri) {
-	return 1;
-}
-
 Socket::Socket(int s) : sock_(s), pos_(0), proto_(nullptr) {
 	valid_ = true;
 	
@@ -151,12 +152,38 @@ Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), proto_(nullptr) {
 	connected_ = false;
 	sock_ = INVALID_SOCKET;
 
+	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
 		sock_ = tcpConnect(uri);
+		
+#ifdef WIN32
+		u_long on = 1;
+		ioctlsocket(sock_, FIONBIO, &on);
+#else
+		fcntl(sock_, F_SETFL, O_NONBLOCK);
+#endif
+		
 		valid_ = true;
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
-		wsConnect(uri);
-		LOG(ERROR) << "Websocket currently unsupported";
+		LOG(INFO) << "Websocket connect " << uri.getPath();
+		sock_ = tcpConnect(uri);
+		if (sock_ != INVALID_SOCKET) {
+			if (!ws_connect(sock_, uri)) {
+				LOG(ERROR) << "Websocket connection failed";
+				close();
+			}
+		} else {
+			LOG(ERROR) << "Connection refused to " << uri.getHost() << ":" << uri.getPort();
+		}
+		
+#ifdef WIN32
+		u_long on = 1;
+		ioctlsocket(sock_, FIONBIO, &on);
+#else
+		fcntl(sock_, F_SETFL, O_NONBLOCK);
+#endif
+
+		valid_ = true;
 	} else {
 		LOG(ERROR) << "Unrecognised connection protocol: " << pUri;
 	}
@@ -395,6 +422,20 @@ void Socket::_connected() {
 }
 
 int Socket::_send() {
+	// Are we using a websocket?
+	if (scheme_ == ftl::URI::SCHEME_WS) {
+		// Create a websocket header as well.
+		size_t len = 0;
+		char buf[20];  // TODO(nick) Should not be a stack buffer.
+		for (auto v : send_vec_) {
+			len += v.iov_len;
+		}
+		int rc = ws_prepare(wsheader_type::BINARY_FRAME, false, len, buf, 20);
+		if (rc == -1) return -1;
+		send_vec_[0].iov_base = buf;
+		send_vec_[0].iov_len = rc;
+	}
+	
 #ifdef WIN32
 	// TODO(nick) Use WSASend instead
 	int c = 0;

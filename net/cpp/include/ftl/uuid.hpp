@@ -24,17 +24,24 @@ namespace ftl {
 #else
 			uuid_generate(uuid_);
 #endif
-		};
-		UUID(int u) { memset(&uuid_,u,16); };
-		UUID(const UUID &u) { memcpy(&uuid_,&u.uuid_,16); }
+		}
+		explicit UUID(int u) { memset(&uuid_,u,16); }
+		UUID(const ftl::UUID &u) { memcpy(&uuid_,&u.uuid_,16); }
 		
-		bool operator==(const UUID &u) const { return memcmp(&uuid_,&u.uuid_,16) == 0; }
-		bool operator!=(const UUID &u) const { return memcmp(&uuid_,&u.uuid_,16) != 0; }
+		UUID &operator=(const UUID &u)  {
+			memcpy(&uuid_,&u.uuid_,16); return *this;
+		}
+		bool operator==(const UUID &u) const {
+			return memcmp(&uuid_,&u.uuid_,16) == 0;
+		}
+		bool operator!=(const UUID &u) const {
+			return memcmp(&uuid_,&u.uuid_,16) != 0;
+		}
 		
 		/**
 		 * Get a raw data string.
 		 */
-		std::string str() const { return std::string((char*)&uuid_,16); };
+		std::string str() const { return std::string((char*)&uuid_,16); }
 		const unsigned char *raw() const { return (const unsigned char*)&uuid_; }
 		
 		/**
