@@ -35,6 +35,26 @@ using ftl::URI;
 using ftl::net::ws_connect;
 using namespace std;
 
+namespace ftl { namespace net { namespace internal {
+#ifdef TEST_MOCKS
+#ifdef WIN32
+	extern int recv(SOCKET sd, char *buf, int n, int f);
+	extern int send(SOCKET sd, const char *v, int cnt, int flags);
+#else
+	extern ssize_t recv(int sd, void *buf, size_t n, int f);
+	extern ssize_t writev(int sd, const struct iovec *v, int cnt);
+#endif
+#else
+#ifdef WIN32
+	inline int recv(SOCKET sd, char *buf, int n, int f) { return ::recv(sd,buf,n,f); }
+	inline int send(SOCKET sd, const char *v, int cnt, int flags) { return ::send(sd,v,cnt,flags); }
+#else
+	inline ssize_t recv(int sd, void *buf, size_t n, int f) { return ::recv(sd,buf,n,f); }
+	inline ssize_t writev(int sd, const struct iovec *v, int cnt) { return ::writev(sd,v,cnt); }
+#endif
+#endif
+}}}
+
 /*static std::string hexStr(const std::string &s)
 {
 	const char *data = s.data();
