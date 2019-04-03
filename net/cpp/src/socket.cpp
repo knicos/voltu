@@ -6,6 +6,7 @@
 #include <ftl/uri.hpp>
 #include <ftl/net/socket.hpp>
 #include <ftl/net/ws_internal.hpp>
+#include "net_internal.hpp"
 
 #ifndef WIN32
 #include <unistd.h>
@@ -34,26 +35,6 @@ using ftl::net::Protocol;
 using ftl::URI;
 using ftl::net::ws_connect;
 using namespace std;
-
-namespace ftl { namespace net { namespace internal {
-#ifdef TEST_MOCKS
-#ifdef WIN32
-	extern int recv(SOCKET sd, char *buf, int n, int f);
-	extern int send(SOCKET sd, const char *v, int cnt, int flags);
-#else
-	extern ssize_t recv(int sd, void *buf, size_t n, int f);
-	extern ssize_t writev(int sd, const struct iovec *v, int cnt);
-#endif
-#else
-#ifdef WIN32
-	inline int recv(SOCKET sd, char *buf, int n, int f) { return ::recv(sd,buf,n,f); }
-	inline int send(SOCKET sd, const char *v, int cnt, int flags) { return ::send(sd,v,cnt,flags); }
-#else
-	inline ssize_t recv(int sd, void *buf, size_t n, int f) { return ::recv(sd,buf,n,f); }
-	inline ssize_t writev(int sd, const struct iovec *v, int cnt) { return ::writev(sd,v,cnt); }
-#endif
-#endif
-}}}
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -310,7 +291,7 @@ bool Socket::data() {
 			return false;
 		}
 
-		const int rc = recv(sock_, buffer_+pos_, n, 0);
+		const int rc = ftl::net::internal::recv(sock_, buffer_+pos_, n, 0);
 
 		if (rc > 0) {
 			pos_ += static_cast<size_t>(rc);
@@ -460,10 +441,10 @@ int Socket::_send() {
 	// TODO(nick) Use WSASend instead
 	int c = 0;
 	for (auto v : send_vec_) {
-		c += ::send(sock_, (char*)v.iov_base, v.iov_len, 0);
+		c += ftl::net::internal::send(sock_, (char*)v.iov_base, v.iov_len, 0);
 	}
 #else
-	int c = ::writev(sock_, send_vec_.data(), send_vec_.size());
+	int c = ftl::net::internal::writev(sock_, send_vec_.data(), send_vec_.size());
 #endif
 	send_vec_.clear();
 	return c;

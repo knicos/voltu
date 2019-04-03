@@ -6,6 +6,10 @@
 #include <ftl/net/protocol.hpp>
 #include <ftl/net/socket.hpp>
 
+/* Allow socket functions to be mocked */
+#define TEST_MOCKS
+#include "../src/net_internal.hpp"
+
 using ftl::net::Socket;
 
 #ifdef WIN32
@@ -59,9 +63,9 @@ void fake_send(int sd, uint32_t  service, const std::string &data) {
 }
 
 #ifdef WIN32
-extern int recv(SOCKET sd, char *buf, int n, int f) {
+int ftl::net::internal::recv(SOCKET sd, char *buf, int n, int f) {
 #else
-extern ssize_t recv(int sd, void *buf, size_t n, int f) {
+ssize_t ftl::net::internal::recv(int sd, void *buf, size_t n, int f) {
 #endif
 	if (fakedata.count(sd) == 0) {
 		std::cout << "Unrecognised socket" << std::endl;
@@ -76,14 +80,14 @@ extern ssize_t recv(int sd, void *buf, size_t n, int f) {
 }
 
 #ifdef WIN32
-extern int send(SOCKET sd, const char *v, int cnt, int flags) {
+int ftl::net::internal::send(SOCKET sd, const char *v, int cnt, int flags) {
 	int len = cnt;
 	// TODO(nick) merge multiple sends
 	fakedata[sd] = std::string(v, len);
 	return len;
 }
 #else
-extern ssize_t writev(int sd, const struct iovec *v, int cnt) {
+ssize_t ftl::net::internal::writev(int sd, const struct iovec *v, int cnt) {
 	size_t len = 0; //v[0].iov_len+v[1].iov_len;
 	char buf[1000];
 	char *bufp = &buf[0];
