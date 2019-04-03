@@ -1,6 +1,8 @@
 #ifndef _FTL_CUDA_COMMON_HPP_
 #define _FTL_CUDA_COMMON_HPP_
 
+#include <ftl/config.h>
+
 #if defined HAVE_CUDA
 
 #include <opencv2/core/cuda.hpp>

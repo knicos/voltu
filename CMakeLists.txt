@@ -19,14 +19,20 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( LibSGM )
 
+# Why is this problematic on some machines?
 check_language(CUDA)
 if (CUDA_TOOLKIT_ROOT_DIR)
 enable_language(CUDA)
 set(CMAKE_CUDA_FLAGS "")
 set(CMAKE_CUDA_FLAGS_DEBUG "-g -DDEBUG -D_DEBUG -Wall")
 set(CMAKE_CUDA_FLAGS_RELEASE "")
-add_definitions(-DHAVE_CUDA)
+set(HAVE_CUDA TRUE)
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
+set_property(TARGET Threads::Threads
+                 PROPERTY INTERFACE_COMPILE_OPTIONS $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler -pthread>
+                                                    "$<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-pthread>")
+
 endif ()
 
 if (NOT MsgPack_FOUND)

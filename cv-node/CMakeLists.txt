@@ -43,14 +43,10 @@ add_executable(cv-node ${CVNODESRC})
 add_dependencies(cv-node net)
 
 if (CUDA_FOUND)
-set_property(TARGET Threads::Threads
-                 PROPERTY INTERFACE_COMPILE_OPTIONS $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler -pthread>
-                                                    "$<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-pthread>")
-
 set_property(TARGET cv-node PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-endif (CUDA_FOUND)
+endif()
 
-target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(cv-node Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} ${GLOG_LIBRARIES})
+#target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(cv-node net Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} ${GLOG_LIBRARIES})
 
 
