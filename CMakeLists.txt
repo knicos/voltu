@@ -73,7 +73,7 @@ check_include_file("uuid/uuid.h" UUID_FOUND)
 if (NOT UUID_FOUND)
 	message(ERROR "UUID library is required")
 endif()
-find_library(UUID_LIBRARIES NAME uuid libuuid)
+find_library(UUID_LIBRARIES NAMES uuid libuuid)
 else()
 
 endif()

@@ -40,13 +40,13 @@ if (CUDA_FOUND)
 endif (CUDA_FOUND)
 
 add_executable(cv-node ${CVNODESRC})
-add_dependencies(cv-node net)
+add_dependencies(cv-node ftlnet)
 
 if (CUDA_FOUND)
 set_property(TARGET cv-node PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(cv-node Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ${PROJECT_BINARY_DIR}/net/cpp/Release/net.lib)
+target_link_libraries(cv-node Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
 
 

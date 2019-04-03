@@ -19,11 +19,11 @@ set(NETSOURCE
 #endif()
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
 
-add_library(net ${NETSOURCE})
-target_link_libraries(net Threads::Threads glog::glog)
+add_library(ftlnet ${NETSOURCE})
+target_link_libraries(ftlnet Threads::Threads glog::glog)
 
 add_executable(net-cli src/main.cpp)
-target_link_libraries(net-cli "${PROJECT_BINARY_DIR}/net/cpp/libnet.a" glog::glog ${URIPARSER_LIBRARIES} Threads::Threads ${READLINE_LIBRARIES} ${UUID_LIBRARIES})
-add_dependencies(net-cli net)
+target_link_libraries(net-cli ftlnet glog::glog ${URIPARSER_LIBRARIES} Threads::Threads ${READLINE_LIBRARY} ${UUID_LIBRARIES})
+add_dependencies(net-cli ftlnet)
 
 ADD_SUBDIRECTORY(test)
