@@ -19,10 +19,9 @@
 #endif
 
 #ifdef WIN32
+#include <winsock2.h>
 #include <windows.h>
-#include <winsock.h>
 typedef int socklen_t;
-#define MSG_WAITALL 0
 #endif
 
 using namespace ftl;

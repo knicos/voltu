@@ -7,6 +7,8 @@
 
 #ifndef WIN32
 #include <sys/select.h>
+#else
+typedef int ssize_t;
 #endif
 
 using ftl::net::Dispatcher;

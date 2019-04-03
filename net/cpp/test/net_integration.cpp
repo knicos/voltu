@@ -24,9 +24,11 @@ using std::shared_ptr;
 #endif
 
 #ifdef WIN32
-#include <windows.h>
 #include <winsock2.h>
 #include <Ws2tcpip.h>
+#include <windows.h>
+
+#pragma comment(lib, "Ws2_32.lib")
 #endif
 
 static int ssock = INVALID_SOCKET;

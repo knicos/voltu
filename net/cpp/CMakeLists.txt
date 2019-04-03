@@ -20,10 +20,10 @@ set(NETSOURCE
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
 
 add_library(net ${NETSOURCE})
-target_link_libraries(net pthread)
+target_link_libraries(net Threads::Threads glog::glog)
 
 add_executable(net-cli src/main.cpp)
-target_link_libraries(net-cli "${PROJECT_BINARY_DIR}/net/cpp/libnet.a" ${GLOG_LIBRARIES} ${URIPARSER_LIBRARIES} pthread readline uuid)
+target_link_libraries(net-cli "${PROJECT_BINARY_DIR}/net/cpp/libnet.a" glog::glog ${URIPARSER_LIBRARIES} Threads::Threads ${READLINE_LIBRARIES} ${UUID_LIBRARIES})
 add_dependencies(net-cli net)
 
 ADD_SUBDIRECTORY(test)

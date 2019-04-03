@@ -8,6 +8,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <fstream>
 
 #include <opencv2/opencv.hpp>
 #include <ftl/local.hpp>
@@ -42,9 +43,20 @@ static json config;
  * Find and load a JSON configuration file
  */
 static bool findConfiguration(const string &file) {
-	// TODO(nick) Check other locations
-	ifstream i((file != "") ? file : FTL_LOCAL_CONFIG_ROOT "/config.json");
-	if (!i.is_open()) return false;
+	ifstream i;
+	
+	if (file != "") {
+		i.open(file);
+	}
+	if (!i.is_open()) {
+		i.open("./config.json");
+	}
+	if (!i.is_open()) {
+		i.open(FTL_LOCAL_CONFIG_ROOT "/config.json");
+	}
+	if (!i.is_open()) {
+		i.open(FTL_GLOBAL_CONFIG_ROOT "/config.json");
+	}
 	i >> config;
 	return true;
 }
