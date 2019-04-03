@@ -6,6 +6,7 @@ include(CheckLanguage)
 
 project (ftl.utu.fi)
 
+include(GNUInstallDirs)
 include(CTest)
 enable_testing()
 
@@ -33,9 +34,6 @@ if (NODE_NPM)
 	message(STATUS "Found NPM: ${NODE_NPM}")
 endif()
 
-include_directories(${GLOG_INCLUDE_DIRS})
-
-# Why is this problematic on some machines?
 check_language(CUDA)
 if (CUDA_TOOLKIT_ROOT_DIR)
 enable_language(CUDA)

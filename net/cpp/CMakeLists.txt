@@ -3,7 +3,7 @@ include_directories(${PROJECT_SOURCE_DIR}/net/cpp/include)
 #include_directories(${PROJECT_BINARY_DIR})
 
 
-set(NETSOURCE
+add_library(ftlnet
 	src/net.cpp
 	src/listener.cpp
 	src/socket.cpp
@@ -13,14 +13,19 @@ set(NETSOURCE
 	src/p2p.cpp
 )
 
-#check_include_file("uriparser/Uri.h" HAVE_URI_H)
-#if(NOT HAVE_URI_H)
-#	message(FATAL_ERROR "Uriparser not found")
-#endif()
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
 
-add_library(ftlnet ${NETSOURCE})
+target_include_directories(ftlnet PUBLIC
+	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+	$<INSTALL_INTERFACE:include>
+	PRIVATE src)
 target_link_libraries(ftlnet Threads::Threads glog::glog)
+
+install(TARGETS ftlnet EXPORT ftlnet-config
+	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 add_executable(net-cli src/main.cpp)
 target_link_libraries(net-cli ftlnet glog::glog ${URIPARSER_LIBRARIES} Threads::Threads ${READLINE_LIBRARY} ${UUID_LIBRARIES})
