@@ -1,0 +1,19 @@
+{
+  "name": "@ftl/web-service",
+  "version": "0.0.1",
+  "description": "Web-service backend for FT-Lab systems",
+  "main": "src/index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "mocha test"
+  },
+  "author": "Nicolas Pope",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.16.4",
+    "express-ws": "^4.0.0"
+  }
+}
