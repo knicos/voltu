@@ -20,7 +20,7 @@ namespace ftl {
 		public:
 		UUID() {
 #ifdef WIN32
-			::UuidCreate(&uuid_);
+			::UuidCreate(&guid_);
 #else
 			uuid_generate(uuid_);
 #endif
@@ -50,7 +50,7 @@ namespace ftl {
 		std::string to_string() const {
 			char b[37];
 #ifdef WIN32
-			UuidToString(&uuid_, (RPC_CSTR*)b);
+			UuidToString(&guid_, (RPC_CSTR*)b);
 #else
 			uuid_unparse(uuid_, b);
 #endif
@@ -62,7 +62,10 @@ namespace ftl {
 		
 		private:
 #ifdef WIN32
-		_GUID uuid_;
+		union {
+			_GUID guid_;
+			unsigned char uuid_[16];
+		};
 #else
 		unsigned char uuid_[16];
 #endif

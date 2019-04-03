@@ -19,6 +19,8 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( LibSGM )
 
+include_directories(${GLOG_INCLUDE_DIRS})
+
 # Why is this problematic on some machines?
 check_language(CUDA)
 if (CUDA_TOOLKIT_ROOT_DIR)
@@ -57,6 +59,9 @@ check_include_file("uuid/uuid.h" UUID_FOUND)
 if (NOT UUID_FOUND)
 	message(ERROR "UUID library is required")
 endif()
+find_library(UUID_LIBRARIES NAME uuid libuuid)
+else()
+
 endif()
 
 find_program(CPPCHECK_FOUND cppcheck)

@@ -1,6 +1,8 @@
 #ifndef _FTL_NET_P2P_HPP_
 #define _FTL_NET_P2P_HPP_
 
+#include <ftl/net/protocol.hpp>
+#include <ftl/net/socket.hpp>
 #include <ftl/uuid.hpp>
 #include <optional>
 #include <string>
@@ -8,8 +10,6 @@
 #include <chrono>
 #include <vector>
 #include <memory>
-#include <ftl/net/protocol.hpp>
-#include <ftl/net/socket.hpp>
 
 namespace ftl {
 namespace net {

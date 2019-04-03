@@ -10,6 +10,8 @@
 #include <ftl/disparity.hpp>
 #include <nlohmann/json.hpp>
 
+#include <ftl/config.h>
+
 #if defined HAVE_CUDA
 #include <opencv2/core/cuda.hpp>
 #endif

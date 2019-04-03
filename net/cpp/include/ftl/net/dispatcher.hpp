@@ -2,6 +2,11 @@
 #define _FTL_NET_DISPATCHER_HPP_
 
 #include <ftl/net/func_traits.hpp>
+
+#ifdef _MSC_VER
+#include <msgpack_optional.hpp>
+#endif
+
 #include <msgpack.hpp>
 #include <memory>
 #include <tuple>

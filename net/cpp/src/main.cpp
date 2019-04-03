@@ -5,7 +5,14 @@
 #include <ftl/net/socket.hpp>
 #include <memory>
 #include <thread>
+
+#ifndef WIN32
 #include <readline/readline.h>
+#endif
+
+#ifdef WIN32
+#pragma comment(lib, "Ws2_32.lib")
+#endif
 
 using std::string;
 using std::shared_ptr;
