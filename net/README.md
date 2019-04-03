@@ -9,4 +9,5 @@ Multiple protocols are supported, and it is intended that NAT traversal will be
 included. However, security, whether encryption or identification, is not
 considered presently.
 
-
+There are two supported languages: C++ and Javascript. See each respective
+language folder for more details.

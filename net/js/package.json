@@ -10,7 +10,8 @@
   "license": "ISC",
   "dependencies": {
     "struct": "0.0.12",
-    "uri-js": "^4.2.2"
+    "uri-js": "^4.2.2",
+    "ws": "^6.2.1"
   },
   "devDependencies": {
     "mocha": "^6.0.2"

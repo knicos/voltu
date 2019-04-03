@@ -19,6 +19,20 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( LibSGM )
 
+if (NOT WIN32)
+find_library( READLINE_LIBRARY NAMES readline libreadline )
+if (NOT READLINE_LIBRARY)
+	message(FATAL "Readline library missing")
+else()
+	message(STATUS "Found Readline: ${READLINE_LIBRARY}")
+endif()
+endif()
+
+find_program( NODE_NPM NAMES npm )
+if (NODE_NPM)
+	message(STATUS "Found NPM: ${NODE_NPM}")
+endif()
+
 # Why is this problematic on some machines?
 check_language(CUDA)
 if (CUDA_TOOLKIT_ROOT_DIR)
@@ -77,7 +91,7 @@ if (WIN32)
 	set(FTL_LOCAL_DATA_ROOT "\"$ENV{USERPROFILE}/AppData/ftl\"")
 	add_definitions(-DWIN32)
 
-	set(CMAKE_CXX_FLAGS "/std:c++17")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
 	set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -Wall")
 	set(CMAKE_CXX_FLAGS_RELEASE "/O2")
 endif (WIN32)
@@ -95,14 +109,14 @@ if (UNIX)
 	set(FTL_GLOBAL_CACHE_ROOT "\"${CMAKE_INSTALL_PREFIX}/share/ftl\"")
 	set(FTL_GLOBAL_DATA_ROOT "\"${CMAKE_INSTALL_PREFIX}/share/ftl\"")
 
-	set(CMAKE_CXX_FLAGS "-std=c++17")
-	set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG -pg -Wall")
-	set(CMAKE_CXX_FLAGS_RELEASE "-O3 -msse3 -mfpmath=sse")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -pg -Wall")
+	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -msse3 -mfpmath=sse")
 endif (UNIX)
 
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 
-add_subdirectory(net/cpp)
+add_subdirectory(net)
 add_subdirectory(cv-node)
 
 configure_file(${CMAKE_SOURCE_DIR}/common/cpp/include/ftl/config.h.in
