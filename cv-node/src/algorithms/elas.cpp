@@ -3,6 +3,8 @@
 #include <ftl/algorithms/elas.hpp>
 #include <glog/logging.h>
 
+#include <chrono>
+
 using ftl::algorithms::ELAS;
 using cv::Mat;
 
