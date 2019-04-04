@@ -22,6 +22,7 @@ set(CVNODESRC
 	src/algorithms/rtcensus_sgm.cpp
 	src/algorithms/opencv_sgbm.cpp
 	src/algorithms/opencv_bm.cpp
+	src/algorithms/elas.cpp
 )
 
 if (LIBSGM_FOUND)
@@ -43,12 +44,13 @@ endif (CUDA_FOUND)
 
 add_executable(cv-node ${CVNODESRC})
 add_dependencies(cv-node ftlnet)
+add_dependencies(cv-node libelas)
 
 if (CUDA_FOUND)
 set_property(TARGET cv-node PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(cv-node Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
+target_link_libraries(cv-node Threads::Threads libelas ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
 
 
