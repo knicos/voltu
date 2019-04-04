@@ -89,7 +89,9 @@ int main(int argc, const char **argv) {
 		
 		handle_command(line);
 		
-		free(line);		
+#ifndef WIN32
+		free(line);
+#endif
 	}
 	stop = true;
 	
