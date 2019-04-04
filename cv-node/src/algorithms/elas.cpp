@@ -9,7 +9,16 @@ using cv::Mat;
 static ftl::Disparity::Register elass("elas", ELAS::create);
 
 ELAS::ELAS(nlohmann::json &config) : Disparity(config) {
+	// TODO(nick) See if these can improve the situation
 	param_.postprocess_only_left = true;
+	param_.disp_min = 0;
+	param_.disp_max = config["maximum"];
+	param_.add_corners = 0;
+	param_.gamma = 3;
+	param_.sradius = 2;
+	param_.match_texture = 1;
+	param_.ipol_gap_width = 3;
+	param_.support_threshold = 0.85;
 	elas_ = new Elas(param_);
 }
 
@@ -24,7 +33,7 @@ void ELAS::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	disp = Mat(cv::Size(l.cols, l.rows), CV_32F);
 	Mat dispr(cv::Size(l.cols, l.rows), CV_32F);
 	
-	const int32_t dims[3] = {l.cols,l.rows,l.step/sizeof(float)};
+	const int32_t dims[3] = {l.cols,l.rows,lbw.step};
 	
 	if (disp.step/sizeof(float) != lbw.step) LOG(WARNING) << "Incorrect disparity step";
 
@@ -36,6 +45,4 @@ void ELAS::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 
 	//disp.convertTo(disp, CV_32F, 1.0f);
 }
-
-
 
