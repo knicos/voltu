@@ -135,7 +135,7 @@ static void run(const string &file) {
     // Choose and configure disparity algorithm
     auto disparity = Disparity::create(config["disparity"]);
 
-	Mat l, r, disparity;
+	Mat l, r, disp;
 
 	Display display(calibrate, config["display"]);
 
@@ -151,10 +151,10 @@ static void run(const string &file) {
 		sync->get(ftl::LEFT, l);
 		sync->get(ftl::RIGHT, r);
 
-        disparity->compute(l, r, disparity);
+        disparity->compute(l, r, disp);
 
 		// Send RGB+Depth images for local rendering
-		display.render(l, disparity);
+		display.render(l, disp);
 
 		// streamer.send(l, disparity32F);
 	}
