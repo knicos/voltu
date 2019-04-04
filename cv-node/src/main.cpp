@@ -1,5 +1,7 @@
 /*
- * Copyright 2019 Nicolas Pope
+ * Copyright 2019 Nicolas Pope. All rights reserved.
+ *
+ * See LICENSE.
  */
 
 #include <glog/logging.h>
@@ -45,18 +47,11 @@ static json config;
 static bool findConfiguration(const string &file) {
 	ifstream i;
 	
-	if (file != "") {
-		i.open(file);
-	}
-	if (!i.is_open()) {
-		i.open("./config.json");
-	}
-	if (!i.is_open()) {
-		i.open(FTL_LOCAL_CONFIG_ROOT "/config.json");
-	}
-	if (!i.is_open()) {
-		i.open(FTL_GLOBAL_CONFIG_ROOT "/config.json");
-	}
+	if (file != "") i.open(file);
+	if (!i.is_open()) i.open("./config.json");
+	if (!i.is_open()) i.open(FTL_LOCAL_CONFIG_ROOT "/config.json");
+	if (!i.is_open()) i.open(FTL_GLOBAL_CONFIG_ROOT "/config.json");
+	if (!i.is_open()) return false;
 	i >> config;
 	return true;
 }
@@ -140,7 +135,7 @@ static void run(const string &file) {
     // Choose and configure disparity algorithm
     auto disparity = Disparity::create(config["disparity"]);
 
-	Mat l, r, disparity32F, depth32F, lbw, rbw;
+	Mat l, r, disparity;
 
 	Display display(calibrate, config["display"]);
 
@@ -156,10 +151,10 @@ static void run(const string &file) {
 		sync->get(ftl::LEFT, l);
 		sync->get(ftl::RIGHT, r);
 
-        disparity->compute(l, r, disparity32F);
+        disparity->compute(l, r, disparity);
 
 		// Send RGB+Depth images for local rendering
-		display.render(l, disparity32F);
+		display.render(l, disparity);
 
 		// streamer.send(l, disparity32F);
 	}

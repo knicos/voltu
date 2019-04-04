@@ -49,16 +49,15 @@ using namespace std;
 
 int Socket::rpcid__ = 0;
 
+// TODO(nick) Move to tcp_internal.cpp
 static int tcpConnect(URI &uri) {
 	int rc;
 	sockaddr_in destAddr;
 
-	//std::cerr << "TCP Connect: " << uri.getHost() << " : " << uri.getPort() << std::endl;
-
 	#ifdef WIN32
 	WSAData wsaData;
 	if (WSAStartup(MAKEWORD(1,1), &wsaData) != 0) {
-		//ERROR
+		LOG(ERROR) << "Could not initiate sockets";
 		return INVALID_SOCKET;
 	}
 	#endif
@@ -67,6 +66,7 @@ static int tcpConnect(URI &uri) {
 	int csocket = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (csocket == INVALID_SOCKET) {
+		LOG(ERROR) << "Unable to create TCP socket";
 		return INVALID_SOCKET;
 	}
 
@@ -84,7 +84,6 @@ static int tcpConnect(URI &uri) {
 		#endif
 
 		LOG(ERROR) << "Address not found : " << uri.getHost() << std::endl;
-
 		return INVALID_SOCKET;
 	}
 
@@ -119,8 +118,6 @@ static int tcpConnect(URI &uri) {
 	/*rg = fcntl(csocket, F_GETFL, NULL));
 	arg &= (~O_NONBLOCK);
 	fcntl(csocket, F_SETFL, arg) < 0)*/
-	
-	// Handshake??
 
 	return csocket;
 }
@@ -386,6 +383,7 @@ void Socket::_dispatchReturn(const std::string &d) {
 	Dispatcher::response_t the_result;
 	unpacked.get().convert(the_result);
 
+	// Msgpack stipulates that 1 means return message
 	if (std::get<0>(the_result) != 1) {
 		LOG(ERROR) << "Bad RPC return message";
 		return;
@@ -399,6 +397,8 @@ void Socket::_dispatchReturn(const std::string &d) {
 	
 	if (callbacks_.count(id) > 0) {
 		LOG(INFO) << "Received return RPC value";
+		
+		// Call the callback with unpacked return value
 		(*callbacks_[id])(res);
 		callbacks_.erase(id);
 	} else {
@@ -428,17 +428,23 @@ int Socket::_send() {
 		// Create a websocket header as well.
 		size_t len = 0;
 		char buf[20];  // TODO(nick) Should not be a stack buffer.
+		
+		// Calculate total size of message
 		for (auto v : send_vec_) {
 			len += v.iov_len;
 		}
+		
+		// Pack correct websocket header into buffer
 		int rc = ws_prepare(wsheader_type::BINARY_FRAME, false, len, buf, 20);
 		if (rc == -1) return -1;
+		
+		// Patch the first io vector to be ws header
 		send_vec_[0].iov_base = buf;
 		send_vec_[0].iov_len = rc;
 	}
 	
 #ifdef WIN32
-	// TODO(nick) Use WSASend instead
+	// TODO(nick) Use WSASend instead as equivalent to writev
 	int c = 0;
 	for (auto v : send_vec_) {
 		c += ftl::net::internal::send(sock_, (char*)v.iov_base, v.iov_len, 0);
