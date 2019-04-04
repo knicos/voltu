@@ -2,6 +2,8 @@
 include_directories(${PROJECT_SOURCE_DIR}/cv-node/include)
 #include_directories(${PROJECT_BINARY_DIR})
 
+add_subdirectory(lib)
+
 # Check for optional opencv components
 set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
 check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
