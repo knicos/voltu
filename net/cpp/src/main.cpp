@@ -12,6 +12,7 @@
 
 #ifdef WIN32
 #pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "Rpcrt4.lib")
 #endif
 
 using std::string;
@@ -78,7 +79,12 @@ int main(int argc, const char **argv) {
 	std::thread nthread(run);
 	
 	while (!stop) {
+#ifndef WIN32
 		char *line = readline("> ");
+#else
+		char line[300];
+		fgets(line, 299, stdin);
+#endif
 		if (!line) break;
 		
 		handle_command(line);

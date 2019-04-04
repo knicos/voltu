@@ -26,6 +26,10 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/core/utility.hpp"
 
+#ifdef WIN32
+#pragma comment(lib, "Rpcrt4.lib")
+#endif
+
 using ftl::Calibrate;
 using ftl::LocalSource;
 using ftl::Display;

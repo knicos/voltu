@@ -32,7 +32,6 @@ add_dependencies(p2p_base_unit ftlnet)
 target_link_libraries(p2p_base_unit
 	ftlnet
 	${URIPARSER_LIBRARIES}
-	gflags
 	glog::glog
 	${UUID_LIBRARIES})
 

@@ -11,6 +11,11 @@
 typedef int ssize_t;
 #endif
 
+#ifdef WIN32
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "Rpcrt4.lib")
+#endif
+
 using ftl::net::Dispatcher;
 using ftl::net::Protocol;
 using ftl::net::Socket;
