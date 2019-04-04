@@ -1,6 +1,7 @@
 const net = require('net');
 const ws = require('ws');
 const urijs = require('uri-js');
+const binary = require('bops');
 
 function Socket(uri) {
 	let t = typeof uri;
@@ -12,25 +13,13 @@ function Socket(uri) {
 		'close': []
 	};
 	
+	this.connected_ = false;
 	this.buffer_ = new Buffer(0);
 
 	if (t == "string") {
 		this._fromURI(uri);
 	} else if (t == "object") {
 		this._fromObject(uri);
-	}
-	
-	// Attach handler depending on socket type
-	if (this.scheme_ = "websocket") {
-		if (this.socket_.addEventHandler) {
-			this.socket_.addEventHandler('message', event => {
-				dataHandler(event.data);
-			});	
-		} else {
-			this.socket_.on('message', dataHandler);
-		}
-	} else {
-		this.socket_.on('data', dataHandler);
 	}
 }
 
@@ -48,7 +37,7 @@ Socket.prototype._fromURI = function(uri) {
 		}
 		this._initWebsocket();
 	} else if (this.scheme_ == "tcp") {
-		this.socket_ = new net.Socket(uriobj.port, uriobj.host);
+		this.socket_ = net.connect(uriobj.port, uriobj.host);
 		this._initTCPSocket();
 	} else {
 		console.error("Invalid URI scheme for socket: ", this.scheme_);
@@ -95,25 +84,33 @@ Socket.prototype._initWebsocket = function() {
 
 Socket.prototype._initTCPSocket = function() {
 	let dataHandler = (data) => {
-		/*console.log('Received: ' + data);
+		console.log('Received: ' + data);
 		this.buffer_ = Buffer.concat([this.buffer_, data]);
 		
 		if (this.buffer_.length >= 8) {
-			this.header_._setBuff(this.buffer_);
-			let size = this.header_.get('size');
+			let size = binary.readUInt32LE(this.buffer_,0);
+			let service = binary.readUInt32LE(this.buffer_,4);
 			
-			console.log("Message: " + this.header_.get('service'));
+			console.log("Message: " + service);
 			
 			// Do we have a complete message yet?
-			if (this.buffer_.length-4 >= size) {
+			if (size > 1024*1024*100) {
+				this.dispatch('error', ["invalid message size"]);
+				console.log("Message too big");
+			} else if (this.buffer_.length-4 >= size) {
 				// Yes, so dispatch
 				console.log("Complete message found");
+				this.dispatch(service, [size, binary.subarray(this.buffer_,8)]);
 			} else {
 				console.log("Incomplete message");
 			}
-		}*/
+		}
 	};
 	this.socket_.on('data', dataHandler);
+	this.socket_.on('connect', () => {
+		this.connected_ = true;
+		this.dispatch('open', []);
+	});
 }
 
 Socket.prototype.isConnected = function() {
@@ -122,7 +119,7 @@ Socket.prototype.isConnected = function() {
 
 Socket.prototype.on = function(name, f) {
 	if (typeof name == "string") {
-		if (this.handlers.hasOwnProperty(name)) {
+		if (this.handlers_.hasOwnProperty(name)) {
 			this.handlers_[name].push(f);
 		} else {
 			console.error("Unrecognised handler: ", name);
@@ -132,6 +129,18 @@ Socket.prototype.on = function(name, f) {
 		this.handlers_[name].push(f);
 	} else {
 		console.error("Invalid handler: ", name);
+	}
+}
+
+Socket.prototype.dispatch = function(h, args) {
+	if (this.handlers_.hasOwnProperty(h)) {
+		let hs = this.handlers_[h];
+		for (var i=0; i<hs.length; i++) {
+			hs[i].apply(this, args);
+		}
+		return true;
+	} else {
+		return false;
 	}
 }
 

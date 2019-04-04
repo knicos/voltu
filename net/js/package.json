@@ -9,6 +9,7 @@
   "author": "Nicolas Pope",
   "license": "ISC",
   "dependencies": {
+    "bops": "^1.0.0",
     "struct": "0.0.12",
     "uri-js": "^4.2.2",
     "ws": "^6.2.1"

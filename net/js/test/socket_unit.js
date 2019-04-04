@@ -1,44 +1,59 @@
 const Socket = require('../src/socket.js');
 const assert = require('assert');
 const net = require('net');
+const binary = require('bops');
 
 describe("Constructing a socket", function() {
+	let server;
 	
-	let server = net.createServer(socket => {
-		console.log("Client connected");
+	beforeEach(() => {
+		server = net.createServer(socket => {
+			console.log("Client connected");
+		});
+		server.listen(9000, 'localhost');
 	});
-	server.listen(9000, 'localhost');
 	
 	it("Connects to a valid tcp uri", function(done) {
 		let sock = new Socket("tcp://localhost:9000");
-		sock.on('connect', () => {
+		sock.on('open', () => {
+			console.log("OPEN");
 			assert.equal(sock.isConnected(),true);
 			sock.close();
 			done();
 		});
 	});
 	
-	server.close(() => { console.log("Closed"); });
+	afterEach(() => {
+		server.close(() => { console.log("Closed"); });
+		server.unref();
+	});
 });
 
-describe("Receiving messages on a socket", function() {
+describe("Receiving messages on a tcp socket", function() {
+	let server;
 	
-	let server = net.createServer(socket => {
-		console.log("Client connected");
-		server.write(Buffer.from('helloworld'));
+	beforeEach(() => {
+		server = net.createServer(socket => {
+			console.log("Client connected");
+			socket.write(Buffer.from([8,0,0,0,44,0,0,0,23,0,0,0]));
+		});
+		server.listen(9001, 'localhost');
 	});
-	server.listen(9000, 'localhost');
 	
-	it("Connects to a valid tcp uri", function(done) {
-		let sock = new Socket("tcp://localhost:9000");
-		sock.on(44, (data) => {
+	it("receives valid short message", function(done) {
+		let sock = new Socket("tcp://localhost:9001");
+		sock.on(44, (size, data) => {
 			// TODO Parse the data...
+			assert.equal(binary.readInt32LE(data,0), 23);
 			console.log("Received data....");
-			done();
 			sock.close();
+			done();
 		});
 	});
 	
-	server.close(() => { console.log("Closed"); });
+	afterEach(() => {
+		server.close(() => { console.log("Closed"); });
+		server.unref();
+	});
 });
 
