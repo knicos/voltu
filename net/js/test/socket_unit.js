@@ -16,7 +16,7 @@ describe("Socket()", function() {
 			if (dobadhandshake) {
 				socket.write(Buffer.from([44,55,33,22,23,44,87]));
 			} else {
-				socket.write(Buffer.from([0x12,0x09,0x64,0x53,0x00,0x34,0x99,0x10,3,0,0,0,3,0,0,0,67,67,67,67,67,67]));
+				socket.write(Buffer.from([0x12,0x09,0x64,0x53,0x00,0x34,0x99,0x10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,67,67,67]));
 			}
 		});
 		server.listen(9000, 'localhost');
@@ -27,7 +27,7 @@ describe("Socket()", function() {
 			if (dobadhandshake) {
 				ws.send(Buffer.from([44,55,33,22,23,44,87]));
 			} else {
-				ws.send(Buffer.from([0x12,0x09,0x64,0x53,0x00,0x34,0x99,0x10,3,0,0,0,3,0,0,0,67,67,67,67,67,67]));
+				ws.send(Buffer.from([0x12,0x09,0x64,0x53,0x00,0x34,0x99,0x10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,67,67,67]));
 			}
 		});
 	});
@@ -52,18 +52,16 @@ describe("Socket()", function() {
 		});
 	});
 	
-	context("with a valid uri but bad handshake", () => {
+	context("with a valid uri but bad handshake", (done) => {
 		it("should reject the connection", () => {
-			let diderror = false;
 			dobadhandshake = true;
 			let sock = new Socket("tcp://localhost:9000");
 			sock.on('error', (errno) => {
-				diderror = true;
 				assert.equal(errno, Socket.ERROR_BADHANDSHAKE);
 				assert.isOk(sock.isValid());
 				assert.isNotOk(sock.isConnected());
+				done();
 			});
-			assert.isOk(diderror);
 		});
 	});
 	
@@ -101,7 +99,7 @@ describe("Socket()", function() {
 	});
 	
 	afterEach(() => {
-		server.close(() => { console.log("Closed"); });
+		server.close();
 		server.unref();
 		
 		wss.close();
@@ -113,6 +111,8 @@ describe("Receiving messages on a tcp socket", function() {
 	
 	beforeEach(() => {
 		server = net.createServer(socket => {
+			// Handshake first
+			socket.write(Buffer.from([0x12,0x09,0x64,0x53,0x00,0x34,0x99,0x10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,67,67,67]));
 			socket.write(Buffer.from([8,0,0,0,44,0,0,0,23,0,0,0]));
 		});
 		server.listen(9001, 'localhost');
@@ -121,7 +121,6 @@ describe("Receiving messages on a tcp socket", function() {
 	it("receives valid short message", function(done) {
 		let sock = new Socket("tcp://localhost:9001");
 		sock.on(44, (size, data) => {
-			// TODO Parse the data...
 			assert.equal(binary.readInt32LE(data,0), 23);
 			console.log("Received data....");
 			sock.close();
@@ -130,7 +129,7 @@ describe("Receiving messages on a tcp socket", function() {
 	});
 	
 	afterEach(() => {
-		server.close(() => { console.log("Closed"); });
+		server.close();
 		server.unref();
 	});
 });

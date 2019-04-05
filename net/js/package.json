@@ -1,6 +1,6 @@
 {
   "name": "@ftl/net",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "P2P Network protocol for FT-Lab",
   "main": "src/index.js",
   "scripts": {
@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "bops": "^1.0.0",
+    "detect-browser": "^4.2.0",
     "struct": "0.0.12",
     "uri-js": "^4.2.2",
     "ws": "^6.2.1"

@@ -2,6 +2,8 @@ const net = require('net');
 const ws = require('ws');
 const urijs = require('uri-js');
 const binary = require('bops');
+const browser = require('detect-browser').detect();
+const isbrowser = !browser || browser.name != "node";
 
 function Socket(uri) {
 	let t = typeof uri;
@@ -17,7 +19,11 @@ function Socket(uri) {
 	this.lasterr_ = null;
 	this.connected_ = false;
 	this.valid_ = false;
-	this.buffer_ = new Buffer(0);
+	this.uuid_ = binary.create(16);
+	
+	if (!isbrowser) {
+		this.buffer_ = new Buffer(0);  // Only in nodejs
+	}
 
 	if (t == "string") {
 		this._fromURI(uri);
@@ -26,10 +32,17 @@ function Socket(uri) {
 	}
 }
 
-Socket.ERROR_BADPROTOCOL = 0x01;
-Socket.ERROR_BADHOST = 0x02;
-Socket.ERROR_BADHANDSHAKE = 0x03;
-Socket.ERROR_MALFORMEDURI = 0x04;
+Socket.ERROR_BADPROTOCOL = "Bad Protocol";
+Socket.ERROR_BADHOST = "Unknown host";
+Socket.ERROR_BADHANDSHAKE = "Invalid Handshake";
+Socket.ERROR_MALFORMEDURI = "Malformed URI";
+Socket.ERROR_TCPINBROWSER = "TCP invalid in browser";
+Socket.ERROR_LARGEMESSAGE = "Network message too large";
+
+Socket.prototype.error = function(errno) {
+	this.lasterr_ = errno;
+	this.dispatch('error', [errno]);
+}
 
 Socket.prototype.isValid = function() {
 	return this.valid_;
@@ -45,8 +58,7 @@ Socket.prototype._fromURI = function(uri) {
 	
 	// Could not parse uri so report error
 	if (uriobj.scheme === undefined || uriobj.host === undefined) {
-		this.lasterr_ = Socket.ERROR_MALFORMEDURI;
-		this.dispatch('error', [this.lasterr_]);
+		this.error(Socket.ERROR_MALFORMEDURI);
 		return;
 	}
 	
@@ -63,12 +75,15 @@ Socket.prototype._fromURI = function(uri) {
 		this._initWebsocket();
 	// TCP
 	} else if (this.scheme_ == "tcp") {
-		this.socket_ = net.connect(uriobj.port, uriobj.host);
-		this._initTCPSocket();
+		if (!isbrowser) {
+			this.socket_ = net.connect(uriobj.port, uriobj.host);
+			this._initTCPSocket();
+		} else {
+			this.error(Socket.ERROR_TCPINBROWSER);
+		}
 	// Unrecognised protocol
 	} else {
-		this.lasterr_ = Socket.ERROR_BADPROTOCOL;
-		this.dispatch('error', [this.lasterr_]);
+		this.error(Socket.ERROR_BADPROTOCOL)
 	}
 }
 
@@ -95,15 +110,7 @@ Socket.prototype._initWebsocket = function() {
 	this.valid_ = true;
 
 	let dataHandler = (data) => {
-		let size = binary.readUInt32LE(data, 0);
-		let service = binary.readUInt32LE(data, 4);
-		
-		console.log("Message", service);
-		if (this.handlers_.hasOwnProperty(service)) {
-			this.handlers_[service](binary.subarray(data, 8));
-		} else {
-			console.error("No handler for service "+service);
-		}
+		this.processMessage(data);
 	};
 
 	if (this.socket_.addEventHandler) {
@@ -114,8 +121,8 @@ Socket.prototype._initWebsocket = function() {
 		this.socket_.on('message', dataHandler);
 	}
 	this.socket_.on('open', () => {
-		this.connected_ = true;
-		this.dispatch('open', []);
+		//this.connected_ = true;
+		//this.dispatch('open', []);
 	});
 	this.socket_.on('error', (err) => {
 		this.connected_ = false;
@@ -131,46 +138,78 @@ Socket.prototype._initWebsocket = function() {
 	});
 }
 
+function checkMagic(buffer) {
+	if (buffer.length < 8) return false;
+	let lo_magic = binary.readUInt32LE(buffer,0);
+	let hi_magic = binary.readUInt32LE(buffer,4);
+	return (lo_magic == 0x53640912 && hi_magic == 0x10993400)
+}
+
+Socket.prototype.processMessage = function(buffer) {
+	if (!this.handshake_) {
+		// Check handshake
+		if (!checkMagic(buffer)) {
+			this.close();
+			this.error(Socket.ERROR_BADHANDSHAKE);
+			return 0;
+		}
+		
+		binary.copy(buffer, this.uuid_, 0, 8, 16);
+		let proto_size = binary.readUInt32LE(buffer,24);
+		
+		this.handshake_ = true;
+		this.connected_ = true;
+		this.dispatch('open', []);
+		
+		return 28 + proto_size;
+	} else {
+		let size = binary.readUInt32LE(buffer,0);
+		let service = binary.readUInt32LE(buffer,4);
+		
+		console.log("Message: " + service + "(size="+size+")");
+		
+		// Do we have a complete message yet?
+		if (size > 1024*1024*100) {
+			this.error(Socket.ERROR_LARGEMESSAGE);
+			this.close();
+			return 0;
+		} else if (buffer.length-4 >= size) {
+			// Yes, so dispatch
+			this.dispatch(service, [size, binary.subarray(buffer,8)]);
+			return size+4;
+		} else {
+			return 0;
+		}
+	}
+}
+
+/**
+ * Setup TCP socket handlers and message buffering mechanism.
+ */
 Socket.prototype._initTCPSocket = function() {
 	this.valid_ = true;
 
 	let dataHandler = (data) => {
-		console.log('Received: ' + data);
 		this.buffer_ = Buffer.concat([this.buffer_, data]);
 		
-		if (this.buffer_.length >= 8) {
-			let size = binary.readUInt32LE(this.buffer_,0);
-			let service = binary.readUInt32LE(this.buffer_,4);
-			
-			console.log("Message: " + service);
-			
-			// Do we have a complete message yet?
-			if (size > 1024*1024*100) {
-				this.dispatch('error', ["invalid message size"]);
-				console.log("Message too big");
-			} else if (this.buffer_.length-4 >= size) {
-				// Yes, so dispatch
-				console.log("Complete message found");
-				this.dispatch(service, [size, binary.subarray(this.buffer_,8)]);
-			} else {
-				console.log("Incomplete message");
-			}
+		while (this.buffer_.length >= 8) {
+			let s = this.processMessage(this.buffer_);
+			if (s == 0) break;
+			this.buffer_ = binary.subarray(this.buffer_,s);
 		}
 	};
 	this.socket_.on('data', dataHandler);
 	this.socket_.on('connect', () => {
-		this.connected_ = true;
-		this.dispatch('open', []);
+		//this.connected_ = true;
+		//this.dispatch('open', []);
 	});
 	this.socket_.on('error', (err) => {
 		this.connected_ = false;
 		this.valid_ = false;
-		console.log("Sock error: ", err);
 		switch (err.errno) {
-		case 'ENOTFOUND'	: this.lasterr_ = Socket.ERROR_BADHOST; break;
-		default				: this.lasterr_ = err.errno;
+		case 'ENOTFOUND'	: this.error(Socket.ERROR_BADHOST); break;
+		default				: this.error(err.errno);
 		}
-		this.dispatch('error', [this.lasterr_]);
 	});
 	this.socket_.on('close', () => {
 		this.dispatch('close', []);
@@ -216,6 +255,8 @@ Socket.prototype.dispatch = function(h, args) {
 }
 
 Socket.prototype.close = function() {
+	if (this.socket_ == null) return;
+	
 	if (this.scheme_ == "ws") {
 		this.socket_.close();
 	} else {
