@@ -1,16 +1,20 @@
 #include "catch.hpp"
 #include <iostream>
 #include <memory>
-#include <map>
+//#include <map>
+#include <tuple>
 
+#include <ftl/net/peer.hpp>
 #include <ftl/net/protocol.hpp>
-#include <ftl/net/socket.hpp>
+#include <ftl/config.h>
 
 /* Allow socket functions to be mocked */
 #define TEST_MOCKS
 #include "../src/net_internal.hpp"
 
-using ftl::net::Socket;
+using std::tuple;
+using std::get;
+using ftl::net::Peer;
 
 #ifdef WIN32
 #pragma comment(lib, "Ws2_32.lib")
@@ -18,49 +22,15 @@ using ftl::net::Socket;
 
 // --- Mock --------------------------------------------------------------------
 
-class MockSocket : public Socket {
+class MockPeer : public Peer {
 	public:
-	MockSocket() : Socket(0) {}
+	MockPeer() : Peer(0) {}
 	void mock_data() { data(); }
 };
-
-static std::string last_rpc;
-void ftl::net::Protocol::dispatchRPC(Socket &s, const std::string &d) {
-	last_rpc = d;
-	
-	// This should send a return value
-}
-
-void ftl::net::Protocol::dispatchRaw(uint32_t service, Socket &s) {
-
-}
-
-ftl::net::Protocol::Protocol(const std::string &id) {
-}
-
-ftl::net::Protocol::~Protocol() {
-}
-
-ftl::net::Protocol *ftl::net::Protocol::find(const std::string &p) {
-	return NULL;
-}
 
 // --- Support -----------------------------------------------------------------
 
 static std::map<int, std::string> fakedata;
-
-void fake_send(int sd, uint32_t  service, const std::string &data) {
-	//std::cout << "HEX SEND: " << hexStr(data) << std::endl;
-	char buf[8+1024];
-	assert(data.size() < 1024);
-	ftl::net::Header *h = (ftl::net::Header*)&buf;
-	h->size = data.size()+4;
-	h->service = service;
-	std::memcpy(&buf[8],data.data(),data.size());
-	fakedata[sd] = std::string(&buf[0], 8+data.size());
-	
-	//std::cout << "HEX SEND2: " << hexStr(fakedata[sd]) << std::endl;
-}
 
 #ifdef WIN32
 int ftl::net::internal::recv(SOCKET sd, char *buf, int n, int f) {
@@ -103,26 +73,6 @@ ssize_t ftl::net::internal::writev(int sd, const struct iovec *v, int cnt) {
 }
 #endif
 
-uint32_t get_service(int sd) {
-	auto h = (ftl::net::Header*)fakedata[sd].data();
-	return h->service;
-}
-
-size_t get_size(int sd) {
-	auto h = (ftl::net::Header*)fakedata[sd].data();
-	return h->size-4;
-}
-
-template <typename T>
-T get_value(int sd) {
-	auto h = (T*)(fakedata[sd].data()+sizeof(ftl::net::Header));
-	return *h;
-}
-
-template <>
-std::string get_value(int sd) {
-	return std::string((char*)(fakedata[sd].data()+sizeof(ftl::net::Header)),get_size(sd));
-}
 
 static std::function<void()> waithandler;
 
@@ -136,16 +86,89 @@ bool wait() {
 };
 };
 
+/*void fake_send(int sd, uint32_t  service, ARGS) {
+	//std::cout << "HEX SEND: " << hexStr(data) << std::endl;
+	char buf[8+1024];
+	assert(data.size() < 1024);
+	ftl::net::Header *h = (ftl::net::Header*)&buf;
+	h->size = data.size()+4;
+	h->service = service;
+	std::memcpy(&buf[8],data.data(),data.size());
+	fakedata[sd] = std::string(&buf[0], 8+data.size());
+	
+	//std::cout << "HEX SEND2: " << hexStr(fakedata[sd]) << std::endl;
+}*/
+
+void send_handshake(Peer &p) {
+	ftl::UUID id;
+	p.send("__handshake__", ftl::net::kMagic, ((8 << 16) + (5 << 8) + 2), id);
+}
+
+template <typename T>
+tuple<std::string, T> readResponse(int s) {
+	msgpack::object_handle msg = msgpack::unpack(fakedata[s].data(), fakedata[s].size());
+	tuple<uint8_t, std::string, T> req;
+	msg.get().convert(req);
+	return std::make_tuple(get<1>(req), get<2>(req));
+}
+
 // --- Files to test -----------------------------------------------------------
 
-#include "../src/socket.cpp"
+#include "../src/peer.cpp"
 
 // --- Tests -------------------------------------------------------------------
 
-using ftl::net::Protocol;
+TEST_CASE("Peer(int)", "[]") {
+	SECTION("initiates a valid handshake") {
+		MockPeer s;
 
-TEST_CASE("Socket::call()", "[rpc]") {
-	MockSocket s;
+		auto [name, hs] = readResponse<ftl::net::Handshake>(0);
+		
+		REQUIRE( name == "__handshake__" );
+		
+		// 1) Sends magic (64bits)
+		REQUIRE( get<0>(hs) == ftl::net::kMagic );
+		 
+		// 2) Sends FTL Version
+		REQUIRE( get<1>(hs) == (FTL_VERSION_MAJOR << 16) + (FTL_VERSION_MINOR << 8) + FTL_VERSION_PATCH );
+		
+		// 3) Sends peer UUID
+		
+		
+		REQUIRE( s.status() == Peer::kConnecting );
+	}
+	
+	SECTION("completes on full handshake") {
+		MockPeer s;
+		
+		// Send handshake response
+		send_handshake(s);
+		s.mock_data();
+		
+		REQUIRE( s.status() == Peer::kConnected );
+	}
+	
+	SECTION("has correct version on full handshake") {
+		MockPeer s;
+		
+		// Send handshake response
+		send_handshake(s);
+		s.mock_data();
+		
+		REQUIRE( s.getFTLVersion() ==  (8 << 16) + (5 << 8) + 2 );
+	}
+	
+	SECTION("has correct peer id on full handshake") {
+		MockPeer s;
+		
+		// Send handshake response
+		
+		//REQUIRE( s.id() ==   );
+	}
+}
+
+/*TEST_CASE("Peer::call()", "[rpc]") {
+	MockPeer s;
 	
 	SECTION("no argument call") {
 		waithandler = [&]() {
@@ -186,42 +209,59 @@ TEST_CASE("Socket::call()", "[rpc]") {
 	}
 	
 	waithandler = nullptr;
-}
+}*/
 
-TEST_CASE("Socket receive RPC", "[rpc]") {
-	MockSocket s;
-	auto p = new Protocol("ftl://utu.fi");
-	s.setProtocol(p);
+TEST_CASE("Peer::bind()", "[rpc]") {
+	MockPeer s;
 	
-	SECTION("no argument call") {		
-		// Do a fake send
-		auto args_obj = std::make_tuple();
-		auto call_obj = std::make_tuple(0,0,"test1",args_obj);
-		std::stringstream buf;
-		msgpack::pack(buf, call_obj);
-	
-		fake_send(0, FTL_PROTOCOL_RPC, buf.str());
+	SECTION("no argument call") {
+		bool done = false;
+		
+		s.bind("hello", [&]() {
+			done = true;
+		});
+
+		send_handshake(s);
+		s.mock_data();
+		s.send("hello");
 		s.mock_data(); // Force it to read the fake send...
 		
-		REQUIRE( (last_rpc == buf.str()) );
+		REQUIRE( done );
 	}
 	
 	SECTION("one argument call") {		
-		// Do a fake send
-		auto args_obj = std::make_tuple(55);
-		auto call_obj = std::make_tuple(0,0,"test2",args_obj);
-		std::stringstream buf;
-		msgpack::pack(buf, call_obj);
-	
-		fake_send(0, FTL_PROTOCOL_RPC, buf.str());
+		int done = 0;
+		
+		s.bind("hello", [&](int a) {
+			done = a;
+		});
+		
+		send_handshake(s);	
+		s.mock_data();
+		s.send("hello", 55);
 		s.mock_data(); // Force it to read the fake send...
 		
-		REQUIRE( (last_rpc == buf.str()) );
+		REQUIRE( (done == 55) );
+	}
+	
+	SECTION("two argument call") {		
+		std::string done;
+		
+		s.bind("hello", [&](int a, std::string b) {
+			done = b;
+		});
+		
+		send_handshake(s);	
+		s.mock_data();
+		s.send("hello", 55, "world");
+		s.mock_data(); // Force it to read the fake send...
+		
+		REQUIRE( (done == "world") );
 	}
 }
 
-TEST_CASE("Socket::operator>>()", "[io]") {
-	MockSocket s;
+/*TEST_CASE("Socket::operator>>()", "[io]") {
+	MockPeer s;
 	
 	SECTION("stream ints") {
 		int i[2];
@@ -238,21 +278,22 @@ TEST_CASE("Socket::operator>>()", "[io]") {
 		REQUIRE( (i[0] == 99) );
 		REQUIRE( (i[1] == 101) );
 	}
-}
+}*/
 
 TEST_CASE("Socket::send()", "[io]") {
-	MockSocket s;
+	MockPeer s;
 	
 	SECTION("send an int") {
 		int i = 607;
-		s.send(100,i);
+		s.send("dummy",i);
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == sizeof(int)) );
-		REQUIRE( (get_value<int>(0) == 607) );
+		auto [name, value] = readResponse<tuple<int>>(0);
+		
+		REQUIRE( (name == "dummy") );
+		REQUIRE( (get<0>(value) == 607) );
 	}
 	
-	SECTION("send a string") {
+	/*SECTION("send a string") {
 		std::string str("hello world");
 		s.send(100,str);
 		
@@ -294,10 +335,10 @@ TEST_CASE("Socket::send()", "[io]") {
 		REQUIRE( (get_service(0) == 100) );
 		REQUIRE( (get_size(0) == str.size()+str2.size()) );
 		REQUIRE( (get_value<std::string>(0) == "hello world") );
-	}
+	}*/
 }
 
-TEST_CASE("Socket::read()", "[io]") {
+/*TEST_CASE("Socket::read()", "[io]") {
 	MockSocket s;
 	
 	SECTION("read an int") {
@@ -380,5 +421,5 @@ TEST_CASE("Socket::read()", "[io]") {
 		REQUIRE( (s.read(&i,2) == sizeof(int)) );
 		REQUIRE( (i == 99) );
 	}
-}
+}*/
 

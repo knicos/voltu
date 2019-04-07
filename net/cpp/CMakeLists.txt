@@ -6,11 +6,9 @@ include_directories(${PROJECT_SOURCE_DIR}/net/cpp/include)
 add_library(ftlnet
 	src/net.cpp
 	src/listener.cpp
-	src/socket.cpp
+	src/peer.cpp
 	src/dispatcher.cpp
-	src/protocol.cpp
 	src/ws_internal.cpp
-	src/p2p.cpp
 )
 
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)

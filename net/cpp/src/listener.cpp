@@ -3,7 +3,7 @@
 
 #include <ftl/uri.hpp>
 #include <ftl/net/listener.hpp>
-#include <ftl/net/socket.hpp>
+#include <ftl/net/peer.hpp>
 #include <ftl/net/protocol.hpp>
 #include <iostream>
 
@@ -24,10 +24,10 @@
 typedef int socklen_t;
 #endif
 
-using namespace ftl;
 using ftl::net::Listener;
 using std::shared_ptr;
-using ftl::net::Socket;
+using ftl::net::Peer;
+using ftl::URI;
 
 int tcpListen(URI &uri) {
 	int ssock;
@@ -113,10 +113,10 @@ Listener::~Listener() {
 	close();
 }
 
-void Listener::connection(shared_ptr<Socket> &s) {
-	Handshake hs1;
+void Listener::connection(shared_ptr<Peer> &s) {
+	/*Handshake hs1;
 	hs1.magic = ftl::net::MAGIC;
-	hs1.name_size = 0;
+	memset(hs1.id, 0, 16);
 	
 	if (default_proto_) {
 		s->setProtocol(default_proto_);
@@ -129,7 +129,7 @@ void Listener::connection(shared_ptr<Socket> &s) {
 	}
 	
 	LOG(INFO) << "Handshake initiated with " << s->getURI();
-	for (auto h : handler_connect_) h(s);
+	for (auto h : handler_connect_) h(s);*/
 }
 
 void Listener::close() {

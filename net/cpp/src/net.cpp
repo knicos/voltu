@@ -1,6 +1,6 @@
 #include <ftl/net.hpp>
 #include <ftl/net/listener.hpp>
-#include <ftl/net/socket.hpp>
+#include <ftl/net/peer.hpp>
 
 #ifdef WIN32
 #include <Ws2tcpip.h>
@@ -13,9 +13,9 @@
 using namespace std;
 using namespace std::chrono;
 using ftl::net::Listener;
-using ftl::net::Socket;
+using ftl::net::Peer;
 
- std::vector<shared_ptr<ftl::net::Socket>> sockets;
+std::vector<shared_ptr<ftl::net::Peer>> peers;
 static std::vector<shared_ptr<ftl::net::Listener>> listeners;
 static fd_set sfdread;
 static fd_set sfderror;
@@ -45,7 +45,7 @@ static fd_set sfderror;
 	return freeclient;
 }*/
 
-static int setDescriptors() {
+int setDescriptors() {
 	//Reset all file descriptors
 	FD_ZERO(&sfdread);
 	FD_ZERO(&sfderror);
@@ -62,7 +62,7 @@ static int setDescriptors() {
 	}
 
 	//Set the file descriptors for each client
-	for (auto s : sockets) {
+	for (auto s : peers) {
 		if (s != nullptr && s->isValid()) {
 			
 			if (s->_socket() > n) {
@@ -83,18 +83,18 @@ shared_ptr<Listener> ftl::net::listen(const char *uri) {
 	return l;
 }
 
-shared_ptr<Socket> ftl::net::connect(const char *uri) {
-	shared_ptr<Socket> s(new Socket((uri == NULL) ? "" : uri));
-	sockets.push_back(s);
+shared_ptr<Peer> ftl::net::connect(const char *uri) {
+	shared_ptr<Peer> s(new Peer((uri == NULL) ? "" : uri));
+	peers.push_back(s);
 	return s;
 }
 
 void ftl::net::stop() {
-	for (auto s : sockets) {
+	for (auto s : peers) {
 		s->close();
 	}
 	
-	sockets.clear();
+	peers.clear();
 	
 	for (auto l : listeners) {
 		l->close();
@@ -150,8 +150,8 @@ bool _run(bool blocking, bool nodelay) {
 						int csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
 
 						if (csock != INVALID_SOCKET) {
-							auto sock = make_shared<Socket>(csock);
-							sockets.push_back(sock);
+							auto sock = make_shared<Peer>(csock);
+							peers.push_back(sock);
 							
 							// Call connection handlers
 							l->connection(sock);
@@ -162,22 +162,22 @@ bool _run(bool blocking, bool nodelay) {
 		}
 
 		//Also check each clients socket to see if any messages or errors are waiting
-		for (auto s : sockets) {
+		for (auto s : peers) {
 			if (s != NULL && s->isValid()) {
 				//If message received from this client then deal with it
 				if (FD_ISSET(s->_socket(), &sfdread)) {
 					repeat |= s->data();
 				}
 				if (FD_ISSET(s->_socket(), &sfderror)) {
-					s->error();
+					s->socketError();
 				}
 			} else if (s != NULL) {
 				// Erase it
 				
-				for (auto i=sockets.begin(); i!=sockets.end(); i++) {
+				for (auto i=peers.begin(); i!=peers.end(); i++) {
 					if ((*i) == s) {
 						std::cout << "REMOVING SOCKET" << std::endl;
-						sockets.erase(i); break;
+						peers.erase(i); break;
 					}
 				}
 			}

@@ -39,13 +39,14 @@ namespace internal {
 }
 
 namespace net {
-class Socket;
+class Peer;
 
 class Dispatcher {
 	public:
 	Dispatcher() {}
 	
-	void dispatch(Socket &, const std::string &msg);
+	//void dispatch(Peer &, const std::string &msg);
+	void dispatch(Peer &, const msgpack::object &msg);
 	
 	template <typename F>
 	void bind(std::string const &name, F func,
@@ -134,10 +135,9 @@ class Dispatcher {
                                   std::size_t expected);
 
     void enforce_unique_name(std::string const &func);
-    
-    void dispatch(Socket &, const msgpack::object &msg);
-	void dispatch_call(Socket &, const msgpack::object &msg);
-	void dispatch_notification(Socket &, msgpack::object const &msg);
+
+	void dispatch_call(Peer &, const msgpack::object &msg);
+	void dispatch_notification(Peer &, msgpack::object const &msg);
 };
 
 }

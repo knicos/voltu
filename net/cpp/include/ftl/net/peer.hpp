@@ -1,20 +1,17 @@
-#ifndef _FTL_NET_SOCKET_HPP_
-#define _FTL_NET_SOCKET_HPP_
+#ifndef _FTL_NET_PEER_HPP_
+#define _FTL_NET_PEER_HPP_
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #include <ftl/net.hpp>
 #include <ftl/net/protocol.hpp>
 #include <ftl/uri.hpp>
+#include <ftl/uuid.hpp>
 
 #ifndef WIN32
 #define INVALID_SOCKET -1
 #include <netinet/in.h>
-#endif
-
-#ifdef WIN32
-//#include <windows.h>
-//#include <winsock.h>
+#else
 #include <winsock2.h>
 #endif
 
@@ -28,6 +25,7 @@
   typename std::enable_if<(__VA_ARGS__), bool>::type = true
 
 extern bool _run(bool blocking, bool nodelay);
+extern int setDescriptors();
 
 namespace ftl {
 namespace net {
@@ -53,26 +51,40 @@ struct decrypt{};*/
  * A single socket connection object, to be constructed using the connect()
  * function and not to be created directly.
  */
-class Socket {
+class Peer {
 	public:
 	friend bool ::_run(bool blocking, bool nodelay);
+	friend int ::setDescriptors();
+	
+	enum Status {
+		kInvalid, kConnecting, kConnected, kDisconnected, kReconnecting
+	};
+
 	public:
-	explicit Socket(const char *uri);
-	explicit Socket(int s);
-	~Socket();
+	explicit Peer(const char *uri);
+	explicit Peer(int s);
+	~Peer();
 	
-	int close();
-	
-	void setProtocol(Protocol *p);
-	Protocol *protocol() const { return proto_; }
-
 	/**
-	 * Get the internal OS dependent socket.
+	 * Close the peer if open. Setting retry parameter to true will initiate
+	 * backoff retry attempts.
 	 */
-	int _socket() const { return sock_; };
+	void close(bool retry=false);
 
-	bool isConnected() const { return sock_ != INVALID_SOCKET && connected_; };
-	bool isValid() const { return valid_ && sock_ != INVALID_SOCKET; };
+	bool isConnected() const {
+		return sock_ != INVALID_SOCKET && status_ == kConnected;
+	};
+	
+	bool isValid() const {
+		return status_ != kInvalid && sock_ != INVALID_SOCKET;
+	};
+	
+	Status status() const { return status_; }
+	
+	uint32_t getFTLVersion() const { return version_; }
+	uint8_t getFTLMajor() const { return version_ >> 16; }
+	uint8_t getFTLMinor() const { return (version_ >> 8) & 0xFF; }
+	uint8_t getFTLPatch() const { return version_ & 0xFF; }
 	
 	/**
 	 * Get the sockets protocol, address and port as a url string. This will be
@@ -80,7 +92,15 @@ class Socket {
 	 */
 	std::string getURI() const { return uri_; };
 	
-	std::string to_string() const { return peerid_; };
+	/**
+	 * Get the UUID for this peer.
+	 */
+	const ftl::UUID &id() const { return peerid_; };
+	
+	/**
+	 * Get the peer id as a string.
+	 */
+	std::string to_string() const { return peerid_.to_string(); };
 			
 	/**
 	 * Non-blocking Remote Procedure Call using a callback function.
@@ -91,51 +111,44 @@ class Socket {
 			ARGS... args);
 	
 	/**
-	 * Blocking Remote Procedure Call.
+	 * Blocking Remote Procedure Call using a string name.
 	 */
 	template <typename R, typename... ARGS>
 	R call(const std::string &name, ARGS... args);
-
+	
+	/**
+	 * Non-blocking send using RPC function, but with no return value.
+	 */
 	template <typename... ARGS>
-	int send(uint32_t s, ARGS... args);
+	int send(const std::string &name, ARGS... args);
 	
-	void begin(uint32_t s);
-	
-	template <typename T>
-	Socket &operator<<(T &t);
-	
-	void end();
-	
-	template <typename T>
-	int read(T *b, size_t count=1);
+	/**
+	 * Bind a function to an RPC call name.
+	 */
+	template <typename F>
+	void bind(const std::string &name, F func);
 
-	int read(char *b, size_t count);
-	int read(std::string &s, size_t count=0);
+	//void onError(std::function<void(Socket&, int err, const char *msg)> &f) {}
+	void onConnect(std::function<void()> &f);
+	void onDisconnect(std::function<void()> &f) {}
 	
-	template <typename T>
-	int read(std::vector<T> &b, size_t count=0);
-	
-	template <typename T>
-	int read(T &b);
-	
-	template <typename T>
-	Socket &operator>>(T &t);
-	
-	//SocketStream stream(uint32_t service);
-	
-	size_t size() const { return header_->size-4; }
-
-	void onError(std::function<void(Socket&, int err, const char *msg)> &f) {}
-	void onConnect(std::function<void(Socket&)> &f);
-	void onDisconnect(std::function<void(Socket&)> &f) {}
+	public:
+	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently
 	
 	protected:
-	bool data();	// Process one message from socket
-	void error();	// Process one error from socket
+	bool data();			// Process one message from socket
+	void socketError();		// Process one error from socket
+	void error(int e);
+	
+	/**
+	 * Get the internal OS dependent socket.
+	 * TODO(nick) Work out if this should be private.
+	 */
+	int _socket() const { return sock_; };
 	
 	/**
 	 * Internal handlers for specific event types. This should be private but
-	 * is current here for testing purposes.
+	 * is currently here for testing purposes.
 	 * @{
 	 */
 	void handshake1();
@@ -166,52 +179,50 @@ class Socket {
 	int _send(const T &t, ARGS... args);
 
 	private: // Data
-	bool valid_;
-	bool connected_;
+	Status status_;
 	int sock_;
 	ftl::URI::scheme_t scheme_;
+	uint32_t version_;
 	
 	// Receive buffers
-	size_t pos_;
-	size_t gpos_;
-	char *buffer_;
-	ftl::net::Header *header_;
-	char *data_;
+	msgpack::unpacker recv_buf_;
 	
 	// Send buffers
-	char *buffer_w_;
-	std::vector<iovec> send_vec_;
-	ftl::net::Header *header_w_;
+	msgpack::vrefbuffer send_buf_;
 	
 	std::string uri_;
-	std::string peerid_;
-	std::string remote_proto_;
-
-	Protocol *proto_; 
+	ftl::UUID peerid_;
 	
-	std::vector<std::function<void(Socket&)>> connect_handlers_;
+	ftl::net::Dispatcher disp_;
+	std::vector<std::function<void()>> open_handlers_;
+	//std::vector<std::function<void(const ftl::net::Error &)>> error_handlers_
+	std::vector<std::function<void()>> close_handlers_;
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 	
 	static int rpcid__;
-
-	static const int MAX_MESSAGE = 10*1024*1024; // 10Mb currently
-	static const int BUFFER_SIZE = MAX_MESSAGE + 16;
 };
 
 // --- Inline Template Implementations -----------------------------------------
 
 template <typename... ARGS>
-int Socket::send(uint32_t s, ARGS... args) {
+int Peer::send(const std::string &s, ARGS... args) {
 	// Leave a blank entry for websocket header
-	if (scheme_ == ftl::URI::SCHEME_WS) send_vec_.push_back({nullptr,0});
-	
-	header_w_->service = s;
-	header_w_->size = 4;
-	send_vec_.push_back({header_w_,sizeof(ftl::net::Header)});
-	return _send(args...);
+	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
+	//msgpack::pack(send_buf_, std::make_tuple(s, std::make_tuple(args...)));
+	auto args_obj = std::make_tuple(args...);
+	auto call_obj = std::make_tuple(0,s,args_obj);
+	msgpack::pack(send_buf_, call_obj);
+	return _send();
 }
 
-template <typename T>
+template <typename F>
+void Peer::bind(const std::string &name, F func) {
+	disp_.bind(name, func,
+		typename ftl::internal::func_kind_info<F>::result_kind(),
+	    typename ftl::internal::func_kind_info<F>::args_kind());
+}
+
+/*template <typename T>
 int Socket::read(T *b, size_t count) {
 	static_assert(std::is_trivial<T>::value, "Can only read trivial types");
 	return read((char*)b, sizeof(T)*count);
@@ -235,47 +246,52 @@ Socket &Socket::operator>>(T &t) {
 	if (std::is_array<T>::value) read(&t,std::extent<T>::value);
 	else read(&t);
 	return *this;
-}
+}*/
 
-template <typename... ARGS>
-int Socket::_send(const std::string &t, ARGS... args) {
-	send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
-	header_w_->size += t.size();
+/*template <typename... ARGS>
+int Peer::_send(const std::string &t, ARGS... args) {
+	//send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
+	//header_w_->size += t.size();
+	msgpack::pack(send_buf_, t);
 	return _send(args...)+t.size();
 }
 
 template <typename... ARGS>
-int Socket::_send(const ftl::net::array &b, ARGS... args) {
-	send_vec_.push_back({const_cast<char*>(std::get<0>(b)),std::get<1>(b)});
-	header_w_->size += std::get<1>(b);
+int Peer::_send(const ftl::net::array &b, ARGS... args) {
+	//send_vec_.push_back({const_cast<char*>(std::get<0>(b)),std::get<1>(b)});
+	//header_w_->size += std::get<1>(b);
+	msgpack::pack(send_buf_, msgpack::type::raw_ref(std::get<0>(b), std::get<1>(b)));
 	return std::get<1>(b)+_send(args...);
 }
 
 template <typename T, typename... ARGS>
-int Socket::_send(const std::vector<T> &t, ARGS... args) {
-	send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
-	header_w_->size += t.size();
+int Peer::_send(const std::vector<T> &t, ARGS... args) {
+	//send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
+	//header_w_->size += t.size();
+	msgpack::pack(send_buf_, t);
 	return _send(args...)+t.size();
 }
 
 template <typename... Types, typename... ARGS>
-int Socket::_send(const std::tuple<Types...> &t, ARGS... args) {
-	send_vec_.push_back({const_cast<char*>((char*)&t),sizeof(t)});
-	header_w_->size += sizeof(t);
+int Peer::_send(const std::tuple<Types...> &t, ARGS... args) {
+	//send_vec_.push_back({const_cast<char*>((char*)&t),sizeof(t)});
+	//header_w_->size += sizeof(t);
+	msgpack::pack(send_buf_, t);
 	return sizeof(t)+_send(args...);
 }
 
 template <typename T, typename... ARGS,
 		ENABLE_IF(std::is_trivial<T>::value && !std::is_pointer<T>::value)>
-int Socket::_send(const T &t, ARGS... args) {
-	send_vec_.push_back({const_cast<T*>(&t),sizeof(T)});
-	header_w_->size += sizeof(T);
+int Peer::_send(const T &t, ARGS... args) {
+	//send_vec_.push_back({const_cast<T*>(&t),sizeof(T)});
+	//header_w_->size += sizeof(T);
+	msgpack::pack(send_buf_, t);
 	return sizeof(T)+_send(args...);
-}
+}*/
 
 //template <typename T, typename... ARGS>
 template <typename R, typename... ARGS>
-R Socket::call(const std::string &name, ARGS... args) {
+R Peer::call(const std::string &name, ARGS... args) {
 	bool hasreturned = false;
 	R result;
 	asyncCall<R>(name, [&result,&hasreturned](const R &r) {
@@ -294,7 +310,7 @@ R Socket::call(const std::string &name, ARGS... args) {
 }
 
 template <typename T, typename... ARGS>
-void Socket::asyncCall(
+void Peer::asyncCall(
 		const std::string &name,
 		std::function<void(const T&)> cb,
 		ARGS... args) {
@@ -310,7 +326,7 @@ void Socket::asyncCall(
 	// Register the CB
 	callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
 	
-	send(FTL_PROTOCOL_RPC, buf.str());
+	send("__rpc__", buf.str());
 }
 
 };

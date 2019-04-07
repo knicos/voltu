@@ -11,6 +11,7 @@
 #endif
 
 #include <ftl/net/handlers.hpp>
+#include <ftl/net/peer.hpp>
 
 #include <vector>
 
@@ -31,7 +32,7 @@ class Listener {
 	
 	void setProtocol(Protocol *p) { default_proto_ = p; }
 	
-	void connection(std::shared_ptr<Socket> &s);
+	void connection(std::shared_ptr<Peer> &s);
 	void onConnection(connecthandler_t h) { handler_connect_.push_back(h); };
 	
 	private:

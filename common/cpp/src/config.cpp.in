@@ -1,3 +1,4 @@
+#include <ftl/config.h>
 
 const char *FTL_VERSION_LONG = "@VERSION@";
 const char *FTL_VERSION = @FTL_VERSION@;

@@ -4,8 +4,9 @@
 #include <fcntl.h>
 
 #include <ftl/uri.hpp>
-#include <ftl/net/socket.hpp>
+#include <ftl/net/peer.hpp>
 #include <ftl/net/ws_internal.hpp>
+#include <ftl/config.h>
 #include "net_internal.hpp"
 
 #ifndef WIN32
@@ -28,13 +29,13 @@
 #include <iostream>
 #include <memory>
 #include <algorithm>
+#include <tuple>
 
-using namespace ftl;
-using ftl::net::Socket;
-using ftl::net::Protocol;
+using std::tuple;
+using std::get;
+using ftl::net::Peer;
 using ftl::URI;
 using ftl::net::ws_connect;
-using namespace std;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -47,7 +48,7 @@ using namespace std;
     return ss.str();
 }*/
 
-int Socket::rpcid__ = 0;
+int Peer::rpcid__ = 0;
 
 // TODO(nick) Move to tcp_internal.cpp
 static int tcpConnect(URI &uri) {
@@ -122,32 +123,33 @@ static int tcpConnect(URI &uri) {
 	return csocket;
 }
 
-Socket::Socket(int s) : sock_(s), pos_(0), proto_(nullptr) {
-	valid_ = true;
-	
-	buffer_ = new char[BUFFER_SIZE];
-	header_ = (Header*)buffer_;
-	data_ = buffer_+sizeof(Header);
-	buffer_w_ = new char[BUFFER_SIZE];
-	header_w_ = (Header*)buffer_w_;
-	
-	connected_ = false;
-	
+Peer::Peer(int s) : sock_(s) {
+	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
+	
+	// Send the initiating handshake if valid
+	if (status_ == kConnecting) {
+		// Install return handshake handler.
+		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
+			if (magic != ftl::net::kMagic) {
+				close();
+				LOG(ERROR) << "Invalid magic during handshake";
+			} else {
+				status_ = kConnected;
+				version_ = version;
+			}
+		});
+	
+		ftl::UUID uuid;
+
+		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, uuid); 
+	}
 }
 
-Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), proto_(nullptr) {
-	// Allocate buffer
-	buffer_ = new char[BUFFER_SIZE];
-	header_ = (Header*)buffer_;
-	data_ = buffer_+sizeof(Header);
-	buffer_w_ = new char[BUFFER_SIZE];
-	header_w_ = (Header*)buffer_w_;
-	
+Peer::Peer(const char *pUri) : uri_(pUri) {	
 	URI uri(pUri);
 	
-	valid_ = false;
-	connected_ = false;
+	status_ = kInvalid;
 	sock_ = INVALID_SOCKET;
 
 	scheme_ = uri.getProtocol();
@@ -161,7 +163,7 @@ Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), proto_(nullptr) {
 		fcntl(sock_, F_SETFL, O_NONBLOCK);
 #endif
 		
-		valid_ = true;
+		status_ = kConnecting;
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
 		LOG(INFO) << "Websocket connect " << uri.getPath();
 		sock_ = tcpConnect(uri);
@@ -181,13 +183,13 @@ Socket::Socket(const char *pUri) : pos_(0), uri_(pUri), proto_(nullptr) {
 		fcntl(sock_, F_SETFL, O_NONBLOCK);
 #endif
 
-		valid_ = true;
+		status_ = kConnecting;
 	} else {
 		LOG(ERROR) << "Unrecognised connection protocol: " << pUri;
 	}
 }
 
-void Socket::_updateURI() {
+void Peer::_updateURI() {
 	sockaddr_storage addr;
 	int rsize = sizeof(sockaddr_storage);
 	if (getpeername(sock_, (sockaddr*)&addr, (socklen_t*)&rsize) == 0) {
@@ -214,7 +216,7 @@ void Socket::_updateURI() {
 	}
 }
 
-int Socket::close() {
+void Peer::close(bool retry) {
 	if (sock_ != INVALID_SOCKET) {
 		#ifndef WIN32
 		::close(sock_);
@@ -222,17 +224,16 @@ int Socket::close() {
 		closesocket(sock_);
 		#endif
 		sock_ = INVALID_SOCKET;
-		connected_ = false;
+		status_ = kDisconnected;
 
 		// Attempt auto reconnect?
 		
 		//auto i = find(sockets.begin(),sockets.end(),this);
 		//sockets.erase(i);
 	}
-	return 0;
 }
 
-void Socket::setProtocol(Protocol *p) {
+/*void Peer::setProtocol(Protocol *p) {
 	if (p != NULL) {
 		if (proto_ == p) return;
 		if (proto_ && proto_->id() == p->id()) return;
@@ -240,7 +241,7 @@ void Socket::setProtocol(Protocol *p) {
 		if (remote_proto_ != "") {
 			Handshake hs1;
 			hs1.magic = ftl::net::MAGIC;
-			hs1.name_size = 0;
+			//hs1.name_size = 0;
 			hs1.proto_size = p->id().size();
 			send(FTL_PROTOCOL_HS1, hs1, p->id());
 			LOG(INFO) << "Handshake initiated with " << uri_;
@@ -248,16 +249,10 @@ void Socket::setProtocol(Protocol *p) {
 		
 		proto_ = p;
 	} else {
-		/*Handshake hs1;
-		hs1.magic = ftl::net::MAGIC;
-		hs1.name_size = 0;
-		hs1.proto_size = 0;
-		send(FTL_PROTOCOL_HS1, hs1);
-		LOG(INFO) << "Handshake initiated with " << uri_;*/
 	}
-}
+}*/
 
-void Socket::error() {
+void Peer::socketError() {
 	int err;
 #ifdef WIN32
 	int optlen = sizeof(err);
@@ -268,7 +263,35 @@ void Socket::error() {
 	LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
 }
 
-bool Socket::data() {
+void Peer::error(int e) {
+	
+}
+
+bool Peer::data() {
+	recv_buf_.reserve_buffer(kMaxMessage);
+	size_t rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
+	recv_buf_.buffer_consumed(rc);
+	
+	msgpack::object_handle msg;
+	while (recv_buf_.next(msg)) {
+		msgpack::object obj = msg.get();
+		if (status_ != kConnected) {
+			// First message must be a handshake
+			tuple<uint32_t, std::string, msgpack::object> hs;
+			obj.convert(hs);
+			
+			if (get<1>(hs) != "__handshake__") {
+				close();
+				LOG(ERROR) << "Missing handshake";
+				return false;
+			}
+		}
+		disp_.dispatch(*this, obj);
+	}
+	return false;
+}
+
+/*bool Socket::data() {
 	//Read data from socket
 	size_t n = 0;
 	int c = 0;
@@ -336,9 +359,9 @@ bool Socket::data() {
 	}
 
 	return true;
-}
+}*/
 
-int Socket::read(char *b, size_t count) {
+/*int Socket::read(char *b, size_t count) {
 	if (count > size()) LOG(WARNING) << "Reading too much data for service " << header_->service;
 	count = (count > size() || count==0) ? size() : count;
 	// TODO, utilise recv directly here...
@@ -376,9 +399,9 @@ void Socket::handshake1() {
 void Socket::handshake2() {
 	LOG(INFO) << "Handshake finalised for " << uri_;
 	_connected();
-}
+}*/
 
-void Socket::_dispatchReturn(const std::string &d) {
+void Peer::_dispatchReturn(const std::string &d) {
 	auto unpacked = msgpack::unpack(d.data(), d.size());
 	Dispatcher::response_t the_result;
 	unpacked.get().convert(the_result);
@@ -406,32 +429,34 @@ void Socket::_dispatchReturn(const std::string &d) {
 	}
 }
 
-void Socket::onConnect(std::function<void(Socket&)> &f) {
-	if (connected_) {
-		f(*this);
+void Peer::onConnect(std::function<void()> &f) {
+	if (status_ == kConnected) {
+		f();
 	} else {
-		connect_handlers_.push_back(f);
+		open_handlers_.push_back(f);
 	}
 }
 
-void Socket::_connected() {
-	connected_ = true;
-	for (auto h : connect_handlers_) {
-		h(*this);
+void Peer::_connected() {
+	status_ = kConnected;
+	for (auto h : open_handlers_) {
+		h();
 	}
 	//connect_handlers_.clear();
 }
 
-int Socket::_send() {
+int Peer::_send() {
 	// Are we using a websocket?
 	if (scheme_ == ftl::URI::SCHEME_WS) {
 		// Create a websocket header as well.
 		size_t len = 0;
+		const iovec *sendvec = send_buf_.vector();
+		size_t size = send_buf_.vector_size();
 		char buf[20];  // TODO(nick) Should not be a stack buffer.
 		
 		// Calculate total size of message
-		for (auto v : send_vec_) {
-			len += v.iov_len;
+		for (size_t i=0; i < size; i++) {
+			len += sendvec[i].iov_len;
 		}
 		
 		// Pack correct websocket header into buffer
@@ -439,8 +464,8 @@ int Socket::_send() {
 		if (rc == -1) return -1;
 		
 		// Patch the first io vector to be ws header
-		send_vec_[0].iov_base = buf;
-		send_vec_[0].iov_len = rc;
+		const_cast<iovec*>(&sendvec[0])->iov_base = buf;
+		const_cast<iovec*>(&sendvec[0])->iov_len = rc;
 	}
 	
 #ifdef WIN32
@@ -450,19 +475,13 @@ int Socket::_send() {
 		c += ftl::net::internal::send(sock_, (char*)v.iov_base, v.iov_len, 0);
 	}
 #else
-	int c = ftl::net::internal::writev(sock_, send_vec_.data(), send_vec_.size());
+	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), send_buf_.vector_size());
 #endif
-	send_vec_.clear();
+	send_buf_.clear();
 	return c;
 }
 
-Socket::~Socket() {
+Peer::~Peer() {
 	close();
-	
-	// Delete socket buffer
-	if (buffer_) delete [] buffer_;
-	buffer_ = NULL;
-	if (buffer_w_) delete [] buffer_w_;
-	buffer_w_ = NULL;
 }
 

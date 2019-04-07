@@ -8,7 +8,7 @@ namespace ftl {
 namespace net {
 
 class Listener;
-class Socket;
+class Peer;
 
 const int MAX_CONNECTIONS = 100; // TODO Is this a good number?
 
@@ -23,7 +23,7 @@ std::shared_ptr<Listener> listen(const char *uri);
  * Accepts tcp, ipc and ws URIs. An example would be:
  *  ws://ftl.utu.fi/api/connect
  */
-std::shared_ptr<Socket> connect(const char *uri);
+std::shared_ptr<Peer> connect(const char *uri);
 
 /**
  * Start a loop to continually check for network messages. If the async

@@ -1,10 +1,10 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #include <ftl/net/dispatcher.hpp>
-#include <ftl/net/socket.hpp>
+#include <ftl/net/peer.hpp>
 #include <iostream>
 
-using ftl::net::Socket;
+using ftl::net::Peer;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -17,13 +17,13 @@ using ftl::net::Socket;
     return ss.str();
 }*/
 
-void ftl::net::Dispatcher::dispatch(Socket &s, const std::string &msg) {
+//void ftl::net::Dispatcher::dispatch(Peer &s, const std::string &msg) {
 	//std::cout << "Received dispatch : " << hexStr(msg) << std::endl;
-    auto unpacked = msgpack::unpack(msg.data(), msg.size());
-    dispatch(s, unpacked.get());
-}
+//    auto unpacked = msgpack::unpack(msg.data(), msg.size());
+//    dispatch(s, unpacked.get());
+//}
 
-void ftl::net::Dispatcher::dispatch(Socket &s, const msgpack::object &msg) {
+void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
     switch (msg.via.array.size) {
     case 3:
         dispatch_notification(s, msg); break;
@@ -35,7 +35,7 @@ void ftl::net::Dispatcher::dispatch(Socket &s, const msgpack::object &msg) {
     }
 }
 
-void ftl::net::Dispatcher::dispatch_call(Socket &s, const msgpack::object &msg) {
+void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     call_t the_call;
     msg.convert(the_call);
 
@@ -57,26 +57,26 @@ void ftl::net::Dispatcher::dispatch_call(Socket &s, const msgpack::object &msg) 
             response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);			
-			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
+			s.send("__return__", buf.str());
 		} catch (const std::exception &e) {
 			//throw;
 			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
             response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);			
-			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
+			s.send("__return__", buf.str());
 		} catch (int e) {
 			//throw;
 			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
             response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);			
-			s.send(FTL_PROTOCOL_RPCRETURN, buf.str());
+			s.send("__return__", buf.str());
 		}
     }
 }
 
-void ftl::net::Dispatcher::dispatch_notification(Socket &s, msgpack::object const &msg) {
+void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const &msg) {
     notification_t the_call;
     msg.convert(the_call);
 
@@ -86,6 +86,8 @@ void ftl::net::Dispatcher::dispatch_notification(Socket &s, msgpack::object cons
 
     auto &&name = std::get<1>(the_call);
     auto &&args = std::get<2>(the_call);
+    
+    LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
 
     auto it_func = funcs_.find(name);
 
@@ -95,6 +97,8 @@ void ftl::net::Dispatcher::dispatch_notification(Socket &s, msgpack::object cons
         } catch (int e) {
 			throw e;
 		}
+    } else {
+    	LOG(ERROR) << "Missing handler for incoming message";
     }
 }
 
