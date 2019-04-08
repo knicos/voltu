@@ -4,6 +4,7 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #include <ftl/net/protocol.hpp>
+#include <ftl/net/dispatcher.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/uuid.hpp>
 
@@ -42,7 +43,7 @@ struct caller : virtual_caller {
 	std::function<void(const T&)> f_;
 };
 
-typedef std::tuple<const char*,size_t> array;
+//typedef std::tuple<const char*,size_t> array;
 /*struct compress{};
 struct encrypt{};
 struct decompress{};
@@ -61,8 +62,8 @@ class Peer {
 	};
 
 	public:
-	explicit Peer(const char *uri);
-	explicit Peer(int s);
+	explicit Peer(const char *uri, ftl::net::Dispatcher *d=nullptr);
+	explicit Peer(int s, ftl::net::Dispatcher *d=nullptr);
 	~Peer();
 	
 	/**
@@ -123,7 +124,9 @@ class Peer {
 	int send(const std::string &name, ARGS... args);
 	
 	/**
-	 * Bind a function to an RPC call name.
+	 * Bind a function to an RPC call name. Note: if an overriding dispatcher
+	 * is used then these bindings will propagate to all peers sharing that
+	 * dispatcher.
 	 */
 	template <typename F>
 	void bind(const std::string &name, F func);
@@ -162,7 +165,7 @@ class Peer {
 	
 	int _send();
 	
-	template <typename... ARGS>
+	/*template <typename... ARGS>
 	int _send(const std::string &t, ARGS... args);
 	
 	template <typename... ARGS>
@@ -176,13 +179,14 @@ class Peer {
 	
 	template <typename T, typename... ARGS,
 			ENABLE_IF(std::is_trivial<T>::value && !std::is_pointer<T>::value)>
-	int _send(const T &t, ARGS... args);
+	int _send(const T &t, ARGS... args);*/
 
 	private: // Data
 	Status status_;
 	int sock_;
 	ftl::URI::scheme_t scheme_;
 	uint32_t version_;
+	bool destroy_disp_;
 	
 	// Receive buffers
 	msgpack::unpacker recv_buf_;
@@ -193,7 +197,7 @@ class Peer {
 	std::string uri_;
 	ftl::UUID peerid_;
 	
-	ftl::net::Dispatcher disp_;
+	ftl::net::Dispatcher *disp_;
 	std::vector<std::function<void()>> open_handlers_;
 	//std::vector<std::function<void(const ftl::net::Error &)>> error_handlers_
 	std::vector<std::function<void()>> close_handlers_;
@@ -208,7 +212,6 @@ template <typename... ARGS>
 int Peer::send(const std::string &s, ARGS... args) {
 	// Leave a blank entry for websocket header
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
-	//msgpack::pack(send_buf_, std::make_tuple(s, std::make_tuple(args...)));
 	auto args_obj = std::make_tuple(args...);
 	auto call_obj = std::make_tuple(0,s,args_obj);
 	msgpack::pack(send_buf_, call_obj);
@@ -217,79 +220,11 @@ int Peer::send(const std::string &s, ARGS... args) {
 
 template <typename F>
 void Peer::bind(const std::string &name, F func) {
-	disp_.bind(name, func,
+	disp_->bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
 	    typename ftl::internal::func_kind_info<F>::args_kind());
 }
 
-/*template <typename T>
-int Socket::read(T *b, size_t count) {
-	static_assert(std::is_trivial<T>::value, "Can only read trivial types");
-	return read((char*)b, sizeof(T)*count);
-}
-
-template <typename T>
-int Socket::read(std::vector<T> &b, size_t count) {
-	count = (count == 0) ? size()/sizeof(T) : count; // TODO Round this!
-	if (b.size() != count) b.resize(count);
-	return read((char*)b.data(), sizeof(T)*count);
-}
-
-template <typename T>
-int Socket::read(T &b) {
-	if (std::is_array<T>::value) return read(&b,std::extent<T>::value);
-	else return read(&b);
-}
-
-template <typename T>
-Socket &Socket::operator>>(T &t) {
-	if (std::is_array<T>::value) read(&t,std::extent<T>::value);
-	else read(&t);
-	return *this;
-}*/
-
-/*template <typename... ARGS>
-int Peer::_send(const std::string &t, ARGS... args) {
-	//send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
-	//header_w_->size += t.size();
-	msgpack::pack(send_buf_, t);
-	return _send(args...)+t.size();
-}
-
-template <typename... ARGS>
-int Peer::_send(const ftl::net::array &b, ARGS... args) {
-	//send_vec_.push_back({const_cast<char*>(std::get<0>(b)),std::get<1>(b)});
-	//header_w_->size += std::get<1>(b);
-	msgpack::pack(send_buf_, msgpack::type::raw_ref(std::get<0>(b), std::get<1>(b)));
-	return std::get<1>(b)+_send(args...);
-}
-
-template <typename T, typename... ARGS>
-int Peer::_send(const std::vector<T> &t, ARGS... args) {
-	//send_vec_.push_back({const_cast<char*>(t.data()),t.size()});
-	//header_w_->size += t.size();
-	msgpack::pack(send_buf_, t);
-	return _send(args...)+t.size();
-}
-
-template <typename... Types, typename... ARGS>
-int Peer::_send(const std::tuple<Types...> &t, ARGS... args) {
-	//send_vec_.push_back({const_cast<char*>((char*)&t),sizeof(t)});
-	//header_w_->size += sizeof(t);
-	msgpack::pack(send_buf_, t);
-	return sizeof(t)+_send(args...);
-}
-
-template <typename T, typename... ARGS,
-		ENABLE_IF(std::is_trivial<T>::value && !std::is_pointer<T>::value)>
-int Peer::_send(const T &t, ARGS... args) {
-	//send_vec_.push_back({const_cast<T*>(&t),sizeof(T)});
-	//header_w_->size += sizeof(T);
-	msgpack::pack(send_buf_, t);
-	return sizeof(T)+_send(args...);
-}*/
-
-//template <typename T, typename... ARGS>
 template <typename R, typename... ARGS>
 R Peer::call(const std::string &name, ARGS... args) {
 	bool hasreturned = false;

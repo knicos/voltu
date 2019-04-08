@@ -2,12 +2,8 @@
 #define _FTL_NET_PROTOCOL_HPP_
 
 #include <ftl/uuid.hpp>
-#include <ftl/net/func_traits.hpp>
-#include <ftl/net/dispatcher.hpp>
 #include <ftl/config.h>
 #include <tuple>
-
-
 
 namespace ftl {
 namespace net {

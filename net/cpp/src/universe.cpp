@@ -36,7 +36,7 @@ bool Universe::listen(const string &addr) {
 }
 
 bool Universe::connect(const string &addr) {
-	auto p = new Peer(addr.c_str());
+	auto p = new Peer(addr.c_str(), &disp_);
 	if (!p) return false;
 	
 	if (p->status() != Peer::kInvalid) {
@@ -81,7 +81,11 @@ int Universe::_setDescriptors() {
 }
 
 void Universe::_installBindings(Peer *p) {
-
+	p->bind("__subscribe__", [this](const string &uri) {
+		// Add this peer to subscription list for uri resource
+	});
+	
+	
 }
 
 void Universe::__start(Universe * u) {
@@ -127,7 +131,7 @@ void Universe::_run() {
 						int csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
 
 						if (csock != INVALID_SOCKET) {
-							auto p = new Peer(csock);
+							auto p = new Peer(csock, &disp_);
 							peers_.push_back(p);
 							
 							_installBindings(p);

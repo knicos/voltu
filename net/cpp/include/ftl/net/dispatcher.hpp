@@ -12,6 +12,9 @@
 #include <tuple>
 #include <functional>
 #include <iostream>
+#include <vector>
+#include <string>
+#include <unordered_map>
 
 namespace ftl {
 
@@ -115,6 +118,8 @@ class Dispatcher {
 		    return std::make_unique<msgpack::object_handle>(result, std::move(z));
 		}));
 	}
+	
+	std::vector<std::string> getBindings() const;
 	
 	using adaptor_type = std::function<std::unique_ptr<msgpack::object_handle>(
         msgpack::object const &)>;

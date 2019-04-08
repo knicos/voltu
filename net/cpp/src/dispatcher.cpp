@@ -5,6 +5,9 @@
 #include <iostream>
 
 using ftl::net::Peer;
+using ftl::net::Dispatcher;
+using std::vector;
+using std::string;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -22,6 +25,14 @@ using ftl::net::Peer;
 //    auto unpacked = msgpack::unpack(msg.data(), msg.size());
 //    dispatch(s, unpacked.get());
 //}
+
+vector<string> Dispatcher::getBindings() const {
+	vector<string> res;
+	for (auto x : funcs_) {
+		res.push_back(x.first);
+	}
+	return res;
+}
 
 void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
     switch (msg.via.array.size) {

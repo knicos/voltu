@@ -36,6 +36,7 @@ using std::get;
 using ftl::net::Peer;
 using ftl::URI;
 using ftl::net::ws_connect;
+using ftl::net::Dispatcher;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -123,9 +124,17 @@ static int tcpConnect(URI &uri) {
 	return csocket;
 }
 
-Peer::Peer(int s) : sock_(s) {
+Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
+	
+	if (d != nullptr) {
+		disp_ = d;
+		destroy_disp_ = false;
+	} else {
+		disp_ = new Dispatcher();
+		destroy_disp_ = true;
+	}
 	
 	// Send the initiating handshake if valid
 	if (status_ == kConnecting) {
@@ -146,11 +155,19 @@ Peer::Peer(int s) : sock_(s) {
 	}
 }
 
-Peer::Peer(const char *pUri) : uri_(pUri) {	
+Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {	
 	URI uri(pUri);
 	
 	status_ = kInvalid;
 	sock_ = INVALID_SOCKET;
+	
+	if (d != nullptr) {
+		disp_ = d;
+		destroy_disp_ = false;
+	} else {
+		disp_ = new Dispatcher();
+		destroy_disp_ = true;
+	}
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
@@ -301,7 +318,7 @@ bool Peer::data() {
 				return false;
 			}
 		}
-		disp_.dispatch(*this, obj);
+		disp_->dispatch(*this, obj);
 	}
 	return false;
 }
@@ -498,5 +515,9 @@ int Peer::_send() {
 
 Peer::~Peer() {
 	close();
+	
+	if (destroy_disp_) {
+		delete disp_;
+	}
 }
 
