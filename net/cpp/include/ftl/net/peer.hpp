@@ -3,7 +3,6 @@
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
-#include <ftl/net.hpp>
 #include <ftl/net/protocol.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/uuid.hpp>
@@ -30,6 +29,8 @@ extern int setDescriptors();
 namespace ftl {
 namespace net {
 
+class Universe;
+
 struct virtual_caller {
 	virtual void operator()(msgpack::object &o)=0;
 };
@@ -53,8 +54,7 @@ struct decrypt{};*/
  */
 class Peer {
 	public:
-	friend bool ::_run(bool blocking, bool nodelay);
-	friend int ::setDescriptors();
+	friend class Universe;
 	
 	enum Status {
 		kInvalid, kConnecting, kConnected, kDisconnected, kReconnecting
@@ -303,7 +303,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 	int limit = 10;
 	while (limit > 0 && !hasreturned) {
 		limit--;
-		ftl::net::wait();
+		// TODO REPLACE ftl::net::wait();
 	}
 	
 	return result;

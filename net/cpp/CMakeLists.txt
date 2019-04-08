@@ -4,10 +4,10 @@ include_directories(${PROJECT_SOURCE_DIR}/net/cpp/include)
 
 
 add_library(ftlnet
-	src/net.cpp
 	src/listener.cpp
 	src/peer.cpp
 	src/dispatcher.cpp
+	src/universe.cpp
 	src/ws_internal.cpp
 )
 
@@ -25,7 +25,7 @@ install(TARGETS ftlnet EXPORT ftlnet-config
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_executable(net-cli src/main.cpp)
+add_executable(net-cli src/main.cpp ../../common/cpp/src/config.cpp)
 target_link_libraries(net-cli ftlnet glog::glog ${URIPARSER_LIBRARIES} Threads::Threads ${READLINE_LIBRARY} ${UUID_LIBRARIES})
 add_dependencies(net-cli ftlnet)
 

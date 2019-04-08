@@ -187,6 +187,21 @@ Peer::Peer(const char *pUri) : uri_(pUri) {
 	} else {
 		LOG(ERROR) << "Unrecognised connection protocol: " << pUri;
 	}
+	
+	if (status_ == kConnecting) {
+		// Install return handshake handler.
+		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
+			if (magic != ftl::net::kMagic) {
+				close();
+				LOG(ERROR) << "Invalid magic during handshake";
+			} else {
+				status_ = kConnected;
+				version_ = version;
+				ftl::UUID uuid;
+				send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, uuid);
+			}
+		}); 
+	}
 }
 
 void Peer::_updateURI() {
