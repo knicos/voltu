@@ -59,11 +59,28 @@ class Universe {
 	void bind(const std::string &name, F func);
 	
 	/**
+	 * Subscribe a function to a resource. The subscribed function is
+	 * triggered whenever that resource is published to. It is akin to
+	 * RPC broadcast (no return value) to a subgroup of peers.
+	 */
+	template <typename F>
+	bool subscribe(const std::string &res, F func);
+	
+	/**
 	 * Send a non-blocking RPC call with no return value to all connected
 	 * peers.
 	 */
 	template <typename... ARGS>
 	void broadcast(const std::string &name, ARGS... args);
+	
+	/**
+	 * Send a non-blocking RPC call with no return value to all subscribers
+	 * of a resource. There may be no subscribers.
+	 */
+	template <typename... ARGS>
+	void publish(const std::string &res, ARGS... args);
+	
+	// TODO(nick) Add find_one, find_all, call_any ...
 	
 	private:
 	void _run();
@@ -82,7 +99,25 @@ class Universe {
 	std::vector<ftl::net::Peer*> peers_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
+	
+	// std::map<std::string, std::vector<ftl::net::Peer*>> subscriptions_;
 };
+
+//------------------------------------------------------------------------------
+
+template <typename F>
+void Universe::bind(const std::string &name, F func) {
+	disp_.bind(name, func,
+		typename ftl::internal::func_kind_info<F>::result_kind(),
+	    typename ftl::internal::func_kind_info<F>::args_kind());
+}
+
+template <typename... ARGS>
+void Universe::broadcast(const std::string &name, ARGS... args) {
+	for (auto p : peers_) {
+		p->send(name, args...);
+	}
+}
 
 };  // namespace net
 };  // namespace ftl
