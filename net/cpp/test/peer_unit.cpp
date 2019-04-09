@@ -8,6 +8,10 @@
 #include <ftl/net/protocol.hpp>
 #include <ftl/config.h>
 
+#ifdef WIN32
+#pragma comment(lib, "Rpcrt4.lib")
+#endif
+
 /* Allow socket functions to be mocked */
 #define TEST_MOCKS
 #include "../src/net_internal.hpp"
