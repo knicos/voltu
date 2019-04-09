@@ -1,19 +1,19 @@
 #ifndef _FTL_NET_PEER_HPP_
 #define _FTL_NET_PEER_HPP_
 
-#define GLOG_NO_ABBREVIATED_SEVERITIES
-#include <glog/logging.h>
-#include <ftl/net/protocol.hpp>
-#include <ftl/net/dispatcher.hpp>
-#include <ftl/uri.hpp>
-#include <ftl/uuid.hpp>
-
 #ifndef WIN32
 #define INVALID_SOCKET -1
 #include <netinet/in.h>
 #else
 #include <winsock2.h>
 #endif
+
+#define GLOG_NO_ABBREVIATED_SEVERITIES
+#include <glog/logging.h>
+#include <ftl/net/protocol.hpp>
+#include <ftl/net/dispatcher.hpp>
+#include <ftl/uri.hpp>
+#include <ftl/uuid.hpp>
 
 #include <iostream>
 #include <sstream>

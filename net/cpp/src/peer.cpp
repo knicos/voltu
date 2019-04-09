@@ -2,6 +2,11 @@
 #include <glog/logging.h>
 
 #include <fcntl.h>
+#ifdef WIN32
+#include <winsock2.h>
+#include <Ws2tcpip.h>
+#include <windows.h>
+#endif
 
 #include <ftl/uri.hpp>
 #include <ftl/net/peer.hpp>
@@ -18,12 +23,6 @@
 #include <arpa/inet.h>
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
-#endif
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <Ws2tcpip.h>
-#include <windows.h>
 #endif
 
 #include <iostream>
@@ -502,9 +501,11 @@ int Peer::_send() {
 	
 #ifdef WIN32
 	// TODO(nick) Use WSASend instead as equivalent to writev
+	auto send_vec = send_buf_.vector();
+	auto send_size = send_buf_.vector_size();
 	int c = 0;
-	for (auto v : send_vec_) {
-		c += ftl::net::internal::send(sock_, (char*)v.iov_base, v.iov_len, 0);
+	for (int i = 0; i < send_size; i++) {
+		c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, send_vec[i].iov_len, 0);
 	}
 #else
 	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), send_buf_.vector_size());

@@ -13,6 +13,7 @@ enable_testing()
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
+#include(Findglog)
 find_package( glog REQUIRED )
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )

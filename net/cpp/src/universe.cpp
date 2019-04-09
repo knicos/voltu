@@ -1,5 +1,10 @@
 #include <ftl/net/universe.hpp>
 
+#ifdef WIN32
+#include <Ws2tcpip.h>
+#pragma comment(lib, "Rpcrt4.lib")
+#endif
+
 using std::string;
 using std::vector;
 using std::thread;

@@ -5,6 +5,13 @@
 if(WIN32)
 find_path(glog_DIR NAMES include/glog/logging.h PATHS "C:/Program Files/glog" "C:/Program Files/google-glog" "C:/Program Files (x86)/google-glog")
 set(glog_DIR ${glog_DIR})
+
+find_package(glog QUIET PATHS "${glog_DIR}/lib/cmake" NO_DEFAULT_PATH)
+
+if (GLOG_FOUND)
+return()
+endif()
+
 else()
 set(glog_DIR "")
 endif()
