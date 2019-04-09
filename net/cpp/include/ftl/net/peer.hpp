@@ -206,6 +206,7 @@ class Peer {
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;
+	std::mutex send_mtx_;
 	
 	std::string uri_;
 	ftl::UUID peerid_;
@@ -223,6 +224,7 @@ class Peer {
 
 template <typename... ARGS>
 int Peer::send(const std::string &s, ARGS... args) {
+	std::unique_lock<std::mutex> lk(send_mtx_);
 	// Leave a blank entry for websocket header
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	auto args_obj = std::make_tuple(args...);

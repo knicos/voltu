@@ -70,6 +70,40 @@ TEST_CASE("Universe::connect()", "[net]") {
 	//fin_server();
 }
 
+TEST_CASE("Universe::broadcast()", "[net]") {
+	Universe a("ftl://utu.fi");
+	Universe b("ftl://utu.fi");
+	
+	a.listen("tcp://localhost:7077");
+	
+	SECTION("no arguments to no peers") {
+		bool done = false;
+		a.bind("hello", [&done]() {
+			done = true;
+		});
+		
+		b.broadcast("done");
+		
+		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+	}
+	
+	SECTION("no arguments to one peer") {
+		b.connect("tcp://localhost:7077");
+		while (a.numberOfPeers() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		
+		bool done = false;
+		a.bind("hello", [&done]() {
+			done = true;
+		});
+		
+		b.broadcast("hello");
+		
+		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		
+		REQUIRE( done );
+	}
+}
+
 /*TEST_CASE("net::listen()", "[net]") {
 
 	SECTION("tcp any interface") {

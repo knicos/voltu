@@ -51,7 +51,7 @@ using ftl::net::Dispatcher;
 
 int Peer::rpcid__ = 0;
 
-static ctpl::thread_pool pool(1);
+static ctpl::thread_pool pool(5);
 
 // TODO(nick) Move to tcp_internal.cpp
 static int tcpConnect(URI &uri) {
@@ -308,6 +308,7 @@ void Peer::error(int e) {
 }
 
 void Peer::data() {
+	//if (!is_waiting_) return;
 	is_waiting_ = false;
 	pool.push([](int id, Peer *p) {
 		p->_data();
@@ -318,14 +319,19 @@ void Peer::data() {
 bool Peer::_data() {
 	//std::unique_lock<std::mutex> lk(recv_mtx_);
 	
+	std::cout << "BEGIN DATA" << std::endl;
 	recv_buf_.reserve_buffer(kMaxMessage);
-	size_t rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
+	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
+
+	if (rc < 0) {
+		std::cout << "ERR = " << std::to_string(errno) << std::endl;
+		return false;
+	}
+	
 	recv_buf_.buffer_consumed(rc);
 	
 	msgpack::object_handle msg;
 	while (recv_buf_.next(msg)) {
-		std::cout << "RECEIVING DATA" << std::endl;
-		
 		msgpack::object obj = msg.get();
 		if (status_ != kConnected) {
 			// First message must be a handshake
