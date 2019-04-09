@@ -9,6 +9,7 @@ add_executable(peer_unit
 target_link_libraries(peer_unit
 	${URIPARSER_LIBRARIES}
 	glog::glog
+	Threads::Threads
 	${UUID_LIBRARIES})
 
 ### URI ########################################################################

@@ -48,43 +48,56 @@ void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
 
 void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     call_t the_call;
-    msg.convert(the_call);
+    
+    try {
+    	msg.convert(the_call);
+    } catch(...) {
+    	LOG(ERROR) << "Bad message format";
+    	return;
+    }
 
     // TODO: proper validation of protocol (and responding to it)
-    // auto &&type = std::get<0>(the_call);
-    // assert(type == 0);
-
+    auto &&type = std::get<0>(the_call);
     auto &&id = std::get<1>(the_call);
-    auto &&name = std::get<2>(the_call);
-    auto &&args = std::get<3>(the_call);
+	auto &&name = std::get<2>(the_call);
+	auto &&args = std::get<3>(the_call);
+    // assert(type == 0);
     
-    LOG(INFO) << "RPC " << name << "() <- " << s.getURI();
+    if (type == 1) {
+    	LOG(INFO) << "RPC return for " << id;
+    	s._dispatchResponse(id, args);
+    } else if (type == 0) {
+		LOG(INFO) << "RPC " << name << "() <- " << s.getURI();
 
-    auto it_func = funcs_.find(name);
+		auto it_func = funcs_.find(name);
 
-    if (it_func != end(funcs_)) {
-        try {
-            auto result = (it_func->second)(args); //->get();
-            response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
-			std::stringstream buf;
-			msgpack::pack(buf, res_obj);			
-			s.send("__return__", buf.str());
-		} catch (const std::exception &e) {
-			//throw;
-			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
-            response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
-			std::stringstream buf;
-			msgpack::pack(buf, res_obj);			
-			s.send("__return__", buf.str());
-		} catch (int e) {
-			//throw;
-			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
-            response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
-			std::stringstream buf;
-			msgpack::pack(buf, res_obj);			
-			s.send("__return__", buf.str());
+		if (it_func != end(funcs_)) {
+		    try {
+		        auto result = (it_func->second)(args); //->get();
+		        s._sendResponse(id, result->get());
+		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
+				std::stringstream buf;
+				msgpack::pack(buf, res_obj);			
+				s.send("__return__", buf.str());*/
+			} catch (const std::exception &e) {
+				//throw;
+				//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
+				std::stringstream buf;
+				msgpack::pack(buf, res_obj);			
+				s.send("__return__", buf.str());*/
+			} catch (int e) {
+				//throw;
+				//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
+				std::stringstream buf;
+				msgpack::pack(buf, res_obj);			
+				s.send("__return__", buf.str());*/
+			}
 		}
-    }
+	} else {
+		// TODO(nick) Some error
+	}
 }
 
 void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const &msg) {

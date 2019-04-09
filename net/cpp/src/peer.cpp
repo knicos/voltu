@@ -308,12 +308,18 @@ bool Peer::data() {
 		msgpack::object obj = msg.get();
 		if (status_ != kConnected) {
 			// First message must be a handshake
-			tuple<uint32_t, std::string, msgpack::object> hs;
-			obj.convert(hs);
-			
-			if (get<1>(hs) != "__handshake__") {
+			try {
+				tuple<uint32_t, std::string, msgpack::object> hs;
+				obj.convert(hs);
+				
+				if (get<1>(hs) != "__handshake__") {
+					close();
+					LOG(ERROR) << "Missing handshake";
+					return false;
+				}
+			} catch(...) {
 				close();
-				LOG(ERROR) << "Missing handshake";
+				LOG(ERROR) << "Bad first message format";
 				return false;
 			}
 		}
@@ -432,21 +438,7 @@ void Socket::handshake2() {
 	_connected();
 }*/
 
-void Peer::_dispatchReturn(const std::string &d) {
-	auto unpacked = msgpack::unpack(d.data(), d.size());
-	Dispatcher::response_t the_result;
-	unpacked.get().convert(the_result);
-
-	// Msgpack stipulates that 1 means return message
-	if (std::get<0>(the_result) != 1) {
-		LOG(ERROR) << "Bad RPC return message";
-		return;
-	}
-
-	auto &&id = std::get<1>(the_result);
-	//auto &&err = std::get<2>(the_result);
-	auto &&res = std::get<3>(the_result);
-	
+void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
 	// TODO Handle error reporting...
 	
 	if (callbacks_.count(id) > 0) {
@@ -458,6 +450,12 @@ void Peer::_dispatchReturn(const std::string &d) {
 	} else {
 		LOG(ERROR) << "Missing RPC callback for result";
 	}
+}
+
+void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
+	Dispatcher::response_t res_obj = std::make_tuple(1,id,msgpack::object(),res);
+	msgpack::pack(send_buf_, res_obj);
+	_send();
 }
 
 void Peer::onConnect(std::function<void()> &f) {
