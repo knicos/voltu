@@ -260,26 +260,6 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 	}
 }
 
-/*TEST_CASE("Socket::operator>>()", "[io]") {
-	MockPeer s;
-	
-	SECTION("stream ints") {
-		int i[2];
-		i[0] = 99;
-		i[1] = 101;
-		fake_send(0, 100, std::string((char*)&i,2*sizeof(int)));
-		
-		i[0] = 0;
-		i[1] = 0;
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.size() == 2*sizeof(int)) );
-		s >> i;
-		REQUIRE( (i[0] == 99) );
-		REQUIRE( (i[1] == 101) );
-	}
-}*/
-
 TEST_CASE("Socket::send()", "[io]") {
 	MockPeer s;
 	
@@ -293,49 +273,54 @@ TEST_CASE("Socket::send()", "[io]") {
 		REQUIRE( (get<0>(value) == 607) );
 	}
 	
-	/*SECTION("send a string") {
+	SECTION("send a string") {
 		std::string str("hello world");
-		s.send(100,str);
+		s.send("dummy",str);
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == str.size()) );
-		REQUIRE( (get_value<std::string>(0) == "hello world") );
+		auto [name, value] = readResponse<tuple<std::string>>(0);
+		
+		REQUIRE( (name == "dummy") );
+		REQUIRE( (get<0>(value) == "hello world") );
 	}
 	
 	SECTION("send const char* string") {
-		s.send(100,"hello world");
+		s.send("dummy","hello world");
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == 11) );
-		REQUIRE( (get_value<std::string>(0) == "hello world") );
+		auto [name, value] = readResponse<tuple<std::string>>(0);
+		
+		REQUIRE( (name == "dummy") );
+		REQUIRE( (get<0>(value) == "hello world") );
 	}
 	
-	SECTION("send const char* array") {
+	/*SECTION("send const char* array") {
 		s.send(100,ftl::net::array{"hello world",10});
 		
 		REQUIRE( (get_service(0) == 100) );
 		REQUIRE( (get_size(0) == 10) );
 		REQUIRE( (get_value<std::string>(0) == "hello worl") );
-	}
+	}*/
 	
 	SECTION("send a tuple") {
 		auto tup = std::make_tuple(55,66,true,6.7);
-		s.send(100,tup);
+		s.send("dummy",tup);
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == sizeof(tup)) );
-		REQUIRE( (get_value<decltype(tup)>(0) == tup) );
+		auto [name, value] = readResponse<tuple<decltype(tup)>>(0);
+		
+		REQUIRE( (name == "dummy") );
+		REQUIRE( (get<1>(get<0>(value)) == 66) );
 	}
 	
 	SECTION("send multiple strings") {
 		std::string str("hello ");
 		std::string str2("world");
-		s.send(100,str,str2);
+		s.send("dummy2",str,str2);
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == str.size()+str2.size()) );
-		REQUIRE( (get_value<std::string>(0) == "hello world") );
-	}*/
+		auto [name, value] = readResponse<tuple<std::string,std::string>>(0);
+		
+		REQUIRE( (name == "dummy2") );
+		REQUIRE( (get<0>(value) == "hello") );
+		REQUIRE( (get<1>(value) == "world") );
+	}
 }
 
 /*TEST_CASE("Socket::read()", "[io]") {
