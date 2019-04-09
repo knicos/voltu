@@ -51,6 +51,8 @@ class Universe {
 	 */
 	bool connect(const std::string &addr);
 	
+	int numberOfPeers() const { return peers_.size(); }
+	
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
 	 * be called by any peer making the request.

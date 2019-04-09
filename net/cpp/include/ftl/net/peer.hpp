@@ -140,13 +140,17 @@ class Peer {
 	void onConnect(std::function<void()> &f);
 	void onDisconnect(std::function<void()> &f) {}
 	
+	bool isWaiting() const { return is_waiting_; }
+	
 	public:
 	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently
 	
 	protected:
-	bool data();			// Process one message from socket
+	void data();			// Process one message from socket
 	void socketError();		// Process one error from socket
 	void error(int e);
+	
+	bool _data();
 	
 	void _dispatchResponse(uint32_t id, msgpack::object &obj);
 	void _sendResponse(uint32_t id, const msgpack::object &obj);
@@ -196,7 +200,9 @@ class Peer {
 	bool destroy_disp_;
 	
 	// Receive buffers
+	bool is_waiting_;
 	msgpack::unpacker recv_buf_;
+	std::mutex recv_mtx_;
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;

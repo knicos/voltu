@@ -1,5 +1,6 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
+#include <ctpl_stl.h>
 
 #include <fcntl.h>
 #ifdef WIN32
@@ -49,6 +50,8 @@ using ftl::net::Dispatcher;
 }*/
 
 int Peer::rpcid__ = 0;
+
+static ctpl::thread_pool pool(1);
 
 // TODO(nick) Move to tcp_internal.cpp
 static int tcpConnect(URI &uri) {
@@ -135,10 +138,13 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 		destroy_disp_ = true;
 	}
 	
+	is_waiting_ = true;
+	
 	// Send the initiating handshake if valid
 	if (status_ == kConnecting) {
 		// Install return handshake handler.
 		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
+			LOG(INFO) << "Handshake 2 received";
 			if (magic != ftl::net::kMagic) {
 				close();
 				LOG(ERROR) << "Invalid magic during handshake";
@@ -204,9 +210,12 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 		LOG(ERROR) << "Unrecognised connection protocol: " << pUri;
 	}
 	
+	is_waiting_ = true;
+	
 	if (status_ == kConnecting) {
 		// Install return handshake handler.
 		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
+			LOG(INFO) << "Handshake 1 received";
 			if (magic != ftl::net::kMagic) {
 				close();
 				LOG(ERROR) << "Invalid magic during handshake";
@@ -298,13 +307,25 @@ void Peer::error(int e) {
 	
 }
 
-bool Peer::data() {
+void Peer::data() {
+	is_waiting_ = false;
+	pool.push([](int id, Peer *p) {
+		p->_data();
+		p->is_waiting_ = true;
+	}, this);
+}
+
+bool Peer::_data() {
+	//std::unique_lock<std::mutex> lk(recv_mtx_);
+	
 	recv_buf_.reserve_buffer(kMaxMessage);
 	size_t rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
 	recv_buf_.buffer_consumed(rc);
 	
 	msgpack::object_handle msg;
 	while (recv_buf_.next(msg)) {
+		std::cout << "RECEIVING DATA" << std::endl;
+		
 		msgpack::object obj = msg.get();
 		if (status_ != kConnected) {
 			// First message must be a handshake

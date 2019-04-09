@@ -33,14 +33,17 @@ target_link_libraries(uri_unit
 #	${UUID_LIBRARIES})
 
 ### Net Integration ############################################################
-#add_executable(net_integration
-#	./tests.cpp
-#	./net_integration.cpp)
-#add_dependencies(net_integration ftlnet)
-#target_link_libraries(net_integration
-#	ftlnet
-#	${URIPARSER_LIBRARIES}
-#	glog::glog)
+add_executable(net_integration
+	./tests.cpp
+	../../../common/cpp/src/config.cpp
+	./net_integration.cpp)
+add_dependencies(net_integration ftlnet)
+target_link_libraries(net_integration
+	ftlnet
+	${URIPARSER_LIBRARIES}
+	glog::glog
+	Threads::Threads
+	${UUID_LIBRARIES})
 
 
 
@@ -49,7 +52,7 @@ target_link_libraries(uri_unit
 add_test(URIUnitTest uri_unit)
 #add_test(ProtocolUnitTest protocol_unit)
 add_test(PeerUnitTest peer_unit)
-#add_test(NetIntegrationTest net_integration)
+add_test(NetIntegrationTest net_integration)
 
 add_custom_target(tests)
 add_dependencies(tests peer_unit uri_unit)
