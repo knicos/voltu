@@ -77,7 +77,9 @@ int Universe::_setDescriptors() {
 				n = s->_socket();
 			}
 
-			FD_SET(s->_socket(), &sfdread_);
+			if (s->isWaiting()) {
+				FD_SET(s->_socket(), &sfdread_);
+			}
 			FD_SET(s->_socket(), &sfderror_);
 		}
 	}
@@ -105,8 +107,8 @@ void Universe::_run() {
 		int selres = 1;
 
 		//Wait for a network event or timeout in 3 seconds
-		block.tv_sec = 3;
-		block.tv_usec = 0;
+		block.tv_sec = 0;
+		block.tv_usec = 10000;
 		selres = select(n+1, &sfdread_, 0, &sfderror_, &block);
 
 		//Some kind of error occured, it is usually possible to recover from this.
@@ -151,7 +153,12 @@ void Universe::_run() {
 			if (s != NULL && s->isValid()) {
 				//If message received from this client then deal with it
 				if (FD_ISSET(s->_socket(), &sfdread_)) {
-					s->data();
+					//s->data();
+					//std::cout << "QUEUE DATA PROC" << std::endl;
+					//p.push([](int id, Peer *s) {
+					//	std::cout << "Processing in thread " << std::to_string(id) << std::endl;
+						s->data();
+					//}, s);
 				}
 				if (FD_ISSET(s->_socket(), &sfderror_)) {
 					s->socketError();

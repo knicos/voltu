@@ -1,5 +1,6 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
+#include <ctpl_stl.h>
 
 #include <fcntl.h>
 #ifdef WIN32
@@ -49,6 +50,8 @@ using ftl::net::Dispatcher;
 }*/
 
 int Peer::rpcid__ = 0;
+
+static ctpl::thread_pool pool(5);
 
 // TODO(nick) Move to tcp_internal.cpp
 static int tcpConnect(URI &uri) {
@@ -127,18 +130,15 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
 	
-	if (d != nullptr) {
-		disp_ = d;
-		destroy_disp_ = false;
-	} else {
-		disp_ = new Dispatcher();
-		destroy_disp_ = true;
-	}
+	disp_ = new Dispatcher(d);
+	
+	is_waiting_ = true;
 	
 	// Send the initiating handshake if valid
 	if (status_ == kConnecting) {
 		// Install return handshake handler.
 		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
+			LOG(INFO) << "Handshake 2 received";
 			if (magic != ftl::net::kMagic) {
 				close();
 				LOG(ERROR) << "Invalid magic during handshake";
@@ -160,13 +160,7 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 	status_ = kInvalid;
 	sock_ = INVALID_SOCKET;
 	
-	if (d != nullptr) {
-		disp_ = d;
-		destroy_disp_ = false;
-	} else {
-		disp_ = new Dispatcher();
-		destroy_disp_ = true;
-	}
+	disp_ = new Dispatcher(d);
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
@@ -204,9 +198,12 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 		LOG(ERROR) << "Unrecognised connection protocol: " << pUri;
 	}
 	
+	is_waiting_ = true;
+	
 	if (status_ == kConnecting) {
 		// Install return handshake handler.
 		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
+			LOG(INFO) << "Handshake 1 received";
 			if (magic != ftl::net::kMagic) {
 				close();
 				LOG(ERROR) << "Invalid magic during handshake";
@@ -298,9 +295,25 @@ void Peer::error(int e) {
 	
 }
 
-bool Peer::data() {
+void Peer::data() {
+	//if (!is_waiting_) return;
+	is_waiting_ = false;
+	pool.push([](int id, Peer *p) {
+		p->_data();
+		p->is_waiting_ = true;
+	}, this);
+}
+
+bool Peer::_data() {
+	//std::unique_lock<std::mutex> lk(recv_mtx_);
+
 	recv_buf_.reserve_buffer(kMaxMessage);
-	size_t rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
+	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
+
+	if (rc < 0) {
+		return false;
+	}
+	
 	recv_buf_.buffer_consumed(rc);
 	
 	msgpack::object_handle msg;
@@ -308,12 +321,18 @@ bool Peer::data() {
 		msgpack::object obj = msg.get();
 		if (status_ != kConnected) {
 			// First message must be a handshake
-			tuple<uint32_t, std::string, msgpack::object> hs;
-			obj.convert(hs);
-			
-			if (get<1>(hs) != "__handshake__") {
+			try {
+				tuple<uint32_t, std::string, msgpack::object> hs;
+				obj.convert(hs);
+				
+				if (get<1>(hs) != "__handshake__") {
+					close();
+					LOG(ERROR) << "Missing handshake";
+					return false;
+				}
+			} catch(...) {
 				close();
-				LOG(ERROR) << "Missing handshake";
+				LOG(ERROR) << "Bad first message format";
 				return false;
 			}
 		}
@@ -432,21 +451,7 @@ void Socket::handshake2() {
 	_connected();
 }*/
 
-void Peer::_dispatchReturn(const std::string &d) {
-	auto unpacked = msgpack::unpack(d.data(), d.size());
-	Dispatcher::response_t the_result;
-	unpacked.get().convert(the_result);
-
-	// Msgpack stipulates that 1 means return message
-	if (std::get<0>(the_result) != 1) {
-		LOG(ERROR) << "Bad RPC return message";
-		return;
-	}
-
-	auto &&id = std::get<1>(the_result);
-	//auto &&err = std::get<2>(the_result);
-	auto &&res = std::get<3>(the_result);
-	
+void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
 	// TODO Handle error reporting...
 	
 	if (callbacks_.count(id) > 0) {
@@ -458,6 +463,12 @@ void Peer::_dispatchReturn(const std::string &d) {
 	} else {
 		LOG(ERROR) << "Missing RPC callback for result";
 	}
+}
+
+void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
+	Dispatcher::response_t res_obj = std::make_tuple(1,id,msgpack::object(),res);
+	msgpack::pack(send_buf_, res_obj);
+	_send();
 }
 
 void Peer::onConnect(std::function<void()> &f) {
@@ -516,9 +527,7 @@ int Peer::_send() {
 
 Peer::~Peer() {
 	close();
-	
-	if (destroy_disp_) {
-		delete disp_;
-	}
+
+	delete disp_;
 }
 

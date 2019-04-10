@@ -8,6 +8,7 @@ using ftl::net::Peer;
 using ftl::net::Dispatcher;
 using std::vector;
 using std::string;
+using std::optional;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -48,43 +49,69 @@ void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
 
 void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     call_t the_call;
-    msg.convert(the_call);
+    
+    try {
+    	msg.convert(the_call);
+    } catch(...) {
+    	LOG(ERROR) << "Bad message format";
+    	return;
+    }
 
     // TODO: proper validation of protocol (and responding to it)
-    // auto &&type = std::get<0>(the_call);
-    // assert(type == 0);
-
+    auto &&type = std::get<0>(the_call);
     auto &&id = std::get<1>(the_call);
-    auto &&name = std::get<2>(the_call);
-    auto &&args = std::get<3>(the_call);
+	auto &&name = std::get<2>(the_call);
+	auto &&args = std::get<3>(the_call);
+    // assert(type == 0);
     
-    LOG(INFO) << "RPC " << name << "() <- " << s.getURI();
+    if (type == 1) {
+    	LOG(INFO) << "RPC return for " << id;
+    	s._dispatchResponse(id, args);
+    } else if (type == 0) {
+		LOG(INFO) << "RPC " << name << "() <- " << s.getURI();
 
-    auto it_func = funcs_.find(name);
+		auto it_func = funcs_.find(name);
 
-    if (it_func != end(funcs_)) {
-        try {
-            auto result = (it_func->second)(args); //->get();
-            response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
-			std::stringstream buf;
-			msgpack::pack(buf, res_obj);			
-			s.send("__return__", buf.str());
-		} catch (const std::exception &e) {
-			//throw;
-			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
-            response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
-			std::stringstream buf;
-			msgpack::pack(buf, res_obj);			
-			s.send("__return__", buf.str());
-		} catch (int e) {
-			//throw;
-			//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
-            response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
-			std::stringstream buf;
-			msgpack::pack(buf, res_obj);			
-			s.send("__return__", buf.str());
+		if (it_func != end(funcs_)) {
+		    try {
+		        auto result = (it_func->second)(args); //->get();
+		        s._sendResponse(id, result->get());
+		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
+				std::stringstream buf;
+				msgpack::pack(buf, res_obj);			
+				s.send("__return__", buf.str());*/
+			} catch (const std::exception &e) {
+				//throw;
+				//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
+				std::stringstream buf;
+				msgpack::pack(buf, res_obj);			
+				s.send("__return__", buf.str());*/
+			} catch (int e) {
+				//throw;
+				//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
+				std::stringstream buf;
+				msgpack::pack(buf, res_obj);			
+				s.send("__return__", buf.str());*/
+			}
 		}
-    }
+	} else {
+		// TODO(nick) Some error
+	}
+}
+
+optional<Dispatcher::adaptor_type> ftl::net::Dispatcher::_locateHandler(const std::string &name) const {
+	auto it_func = funcs_.find(name);
+	if (it_func == end(funcs_)) {
+		if (parent_ != nullptr) {
+			return parent_->_locateHandler(name);
+		} else {
+			return {};
+		}
+	} else {
+		return it_func->second;
+	}
 }
 
 void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const &msg) {
@@ -100,11 +127,11 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
     
     LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
 
-    auto it_func = funcs_.find(name);
+    auto binding = _locateHandler(name);
 
-    if (it_func != end(funcs_)) {
+    if (binding) {
         try {
-            auto result = (it_func->second)(args);
+            auto result = (*binding)(args);
         } catch (int e) {
 			throw e;
 		}
@@ -124,6 +151,7 @@ void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_
 void ftl::net::Dispatcher::enforce_unique_name(std::string const &func) {
     auto pos = funcs_.find(func);
     if (pos != end(funcs_)) {
+    	LOG(ERROR) << "RPC non unique binding for " << func;
         throw -1;
     }
 }

@@ -20,6 +20,10 @@
 #include <tuple>
 #include <vector>
 #include <type_traits>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <chrono>
 
 # define ENABLE_IF(...) \
   typename std::enable_if<(__VA_ARGS__), bool>::type = true
@@ -56,6 +60,7 @@ struct decrypt{};*/
 class Peer {
 	public:
 	friend class Universe;
+	friend class Dispatcher;
 	
 	enum Status {
 		kInvalid, kConnecting, kConnected, kDisconnected, kReconnecting
@@ -135,13 +140,20 @@ class Peer {
 	void onConnect(std::function<void()> &f);
 	void onDisconnect(std::function<void()> &f) {}
 	
+	bool isWaiting() const { return is_waiting_; }
+	
 	public:
 	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently
 	
 	protected:
-	bool data();			// Process one message from socket
+	void data();			// Process one message from socket
 	void socketError();		// Process one error from socket
 	void error(int e);
+	
+	bool _data();
+	
+	void _dispatchResponse(uint32_t id, msgpack::object &obj);
+	void _sendResponse(uint32_t id, const msgpack::object &obj);
 	
 	/**
 	 * Get the internal OS dependent socket.
@@ -161,7 +173,6 @@ class Peer {
 	private: // Functions
 	void _connected();
 	void _updateURI();
-	void _dispatchReturn(const std::string &d);
 	
 	int _send();
 	
@@ -186,13 +197,15 @@ class Peer {
 	int sock_;
 	ftl::URI::scheme_t scheme_;
 	uint32_t version_;
-	bool destroy_disp_;
 	
 	// Receive buffers
+	bool is_waiting_;
 	msgpack::unpacker recv_buf_;
+	std::mutex recv_mtx_;
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;
+	std::mutex send_mtx_;
 	
 	std::string uri_;
 	ftl::UUID peerid_;
@@ -210,6 +223,7 @@ class Peer {
 
 template <typename... ARGS>
 int Peer::send(const std::string &s, ARGS... args) {
+	std::unique_lock<std::mutex> lk(send_mtx_);
 	// Leave a blank entry for websocket header
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	auto args_obj = std::make_tuple(args...);
@@ -228,17 +242,26 @@ void Peer::bind(const std::string &name, F func) {
 template <typename R, typename... ARGS>
 R Peer::call(const std::string &name, ARGS... args) {
 	bool hasreturned = false;
+	std::mutex m;
+	std::condition_variable cv;
+	
 	R result;
-	asyncCall<R>(name, [&result,&hasreturned](const R &r) {
+	asyncCall<R>(name, [&](const R &r) {
+		std::unique_lock<std::mutex> lk(m);
 		hasreturned = true;
 		result = r;
+		lk.unlock();
+		cv.notify_one();
 	}, std::forward<ARGS>(args)...);
 	
-	// Loop the network
-	int limit = 10;
-	while (limit > 0 && !hasreturned) {
-		limit--;
-		// TODO REPLACE ftl::net::wait();
+	{  // Block thread until async callback notifies us
+		std::unique_lock<std::mutex> lk(m);
+		cv.wait_for(lk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
+	}
+	
+	if (!hasreturned) {
+		// TODO(nick) remove callback
+		throw 1;
 	}
 	
 	return result;
@@ -255,13 +278,12 @@ void Peer::asyncCall(
 	
 	LOG(INFO) << "RPC " << name << "() -> " << uri_;
 	
-	std::stringstream buf;
-	msgpack::pack(buf, call_obj);
+	msgpack::pack(send_buf_, call_obj);
 	
 	// Register the CB
 	callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
 	
-	send("__rpc__", buf.str());
+	_send();
 }
 
 };

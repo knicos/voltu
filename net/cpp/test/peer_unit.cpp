@@ -116,6 +116,14 @@ tuple<std::string, T> readResponse(int s) {
 	return std::make_tuple(get<1>(req), get<2>(req));
 }
 
+template <typename T>
+tuple<uint32_t, T> readRPC(int s) {
+	msgpack::object_handle msg = msgpack::unpack(fakedata[s].data(), fakedata[s].size());
+	tuple<uint8_t, uint32_t, std::string, T> req;
+	msg.get().convert(req);
+	return std::make_tuple(get<1>(req), get<3>(req));
+}
+
 // --- Files to test -----------------------------------------------------------
 
 #include "../src/peer.cpp"
@@ -171,52 +179,64 @@ TEST_CASE("Peer(int)", "[]") {
 	}
 }
 
-/*TEST_CASE("Peer::call()", "[rpc]") {
+TEST_CASE("Peer::call()", "[rpc]") {
 	MockPeer s;
+	send_handshake(s);
+	s.mock_data();
 	
-	SECTION("no argument call") {
-		waithandler = [&]() {
-			// Read fakedata sent
-			// TODO Validate data
+	SECTION("one argument call") {
+		REQUIRE( s.isConnected() );
+		
+		fakedata[0] = "";
+		
+		// Thread to provide response to otherwise blocking call
+		std::thread thr([&s]() {
+			while (fakedata[0].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			
-			// Do a fake send
-			auto res_obj = std::make_tuple(1,0,msgpack::object(),66);
+			auto [id,value] = readRPC<tuple<int>>(0);
+			auto res_obj = std::make_tuple(1,id,"__return__",get<0>(value)+22);
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);
-		
-			fake_send(0, FTL_PROTOCOL_RPCRETURN, buf.str());
+			fakedata[0] = buf.str();
 			s.mock_data();
-		};
+		});
 		
-		int res = s.call<int>("test1");
+		int res = s.call<int>("test1", 44);
+		
+		thr.join();
 		
 		REQUIRE( (res == 66) );
 	}
 	
-	SECTION("one argument call") {
-		waithandler = [&]() {
-			// Read fakedata sent
-			// TODO Validate data
+	SECTION("no argument call") {
+		REQUIRE( s.isConnected() );
+		
+		fakedata[0] = "";
+		
+		// Thread to provide response to otherwise blocking call
+		std::thread thr([&s]() {
+			while (fakedata[0].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			
-			// Do a fake send
-			auto res_obj = std::make_tuple(1,1,msgpack::object(),43);
+			auto [id,value] = readRPC<tuple<>>(0);
+			auto res_obj = std::make_tuple(1,id,"__return__",77);
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);
-		
-			fake_send(0, FTL_PROTOCOL_RPCRETURN, buf.str());
+			fakedata[0] = buf.str();
 			s.mock_data();
-		};
+		});
 		
-		int res = s.call<int>("test1", 78);
+		int res = s.call<int>("test1");
 		
-		REQUIRE( (res == 43) );
+		thr.join();
+		
+		REQUIRE( (res == 77) );
 	}
-	
-	waithandler = nullptr;
-}*/
+}
 
 TEST_CASE("Peer::bind()", "[rpc]") {
 	MockPeer s;
+	send_handshake(s);	
+	s.mock_data();
 	
 	SECTION("no argument call") {
 		bool done = false;
@@ -225,8 +245,6 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 			done = true;
 		});
 
-		send_handshake(s);
-		s.mock_data();
 		s.send("hello");
 		s.mock_data(); // Force it to read the fake send...
 		
@@ -240,8 +258,6 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 			done = a;
 		});
 		
-		send_handshake(s);	
-		s.mock_data();
 		s.send("hello", 55);
 		s.mock_data(); // Force it to read the fake send...
 		
@@ -254,35 +270,13 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 		s.bind("hello", [&](int a, std::string b) {
 			done = b;
 		});
-		
-		send_handshake(s);	
-		s.mock_data();
+
 		s.send("hello", 55, "world");
 		s.mock_data(); // Force it to read the fake send...
 		
 		REQUIRE( (done == "world") );
 	}
 }
-
-/*TEST_CASE("Socket::operator>>()", "[io]") {
-	MockPeer s;
-	
-	SECTION("stream ints") {
-		int i[2];
-		i[0] = 99;
-		i[1] = 101;
-		fake_send(0, 100, std::string((char*)&i,2*sizeof(int)));
-		
-		i[0] = 0;
-		i[1] = 0;
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.size() == 2*sizeof(int)) );
-		s >> i;
-		REQUIRE( (i[0] == 99) );
-		REQUIRE( (i[1] == 101) );
-	}
-}*/
 
 TEST_CASE("Socket::send()", "[io]") {
 	MockPeer s;
@@ -297,133 +291,53 @@ TEST_CASE("Socket::send()", "[io]") {
 		REQUIRE( (get<0>(value) == 607) );
 	}
 	
-	/*SECTION("send a string") {
+	SECTION("send a string") {
 		std::string str("hello world");
-		s.send(100,str);
+		s.send("dummy",str);
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == str.size()) );
-		REQUIRE( (get_value<std::string>(0) == "hello world") );
+		auto [name, value] = readResponse<tuple<std::string>>(0);
+		
+		REQUIRE( (name == "dummy") );
+		REQUIRE( (get<0>(value) == "hello world") );
 	}
 	
 	SECTION("send const char* string") {
-		s.send(100,"hello world");
+		s.send("dummy","hello world");
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == 11) );
-		REQUIRE( (get_value<std::string>(0) == "hello world") );
+		auto [name, value] = readResponse<tuple<std::string>>(0);
+		
+		REQUIRE( (name == "dummy") );
+		REQUIRE( (get<0>(value) == "hello world") );
 	}
 	
-	SECTION("send const char* array") {
+	/*SECTION("send const char* array") {
 		s.send(100,ftl::net::array{"hello world",10});
 		
 		REQUIRE( (get_service(0) == 100) );
 		REQUIRE( (get_size(0) == 10) );
 		REQUIRE( (get_value<std::string>(0) == "hello worl") );
-	}
+	}*/
 	
 	SECTION("send a tuple") {
 		auto tup = std::make_tuple(55,66,true,6.7);
-		s.send(100,tup);
+		s.send("dummy",tup);
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == sizeof(tup)) );
-		REQUIRE( (get_value<decltype(tup)>(0) == tup) );
+		auto [name, value] = readResponse<tuple<decltype(tup)>>(0);
+		
+		REQUIRE( (name == "dummy") );
+		REQUIRE( (get<1>(get<0>(value)) == 66) );
 	}
 	
 	SECTION("send multiple strings") {
 		std::string str("hello ");
 		std::string str2("world");
-		s.send(100,str,str2);
+		s.send("dummy2",str,str2);
 		
-		REQUIRE( (get_service(0) == 100) );
-		REQUIRE( (get_size(0) == str.size()+str2.size()) );
-		REQUIRE( (get_value<std::string>(0) == "hello world") );
-	}*/
+		auto [name, value] = readResponse<tuple<std::string,std::string>>(0);
+		
+		REQUIRE( (name == "dummy2") );
+		REQUIRE( (get<0>(value) == "hello ") );
+		REQUIRE( (get<1>(value) == "world") );
+	}
 }
-
-/*TEST_CASE("Socket::read()", "[io]") {
-	MockSocket s;
-	
-	SECTION("read an int") {
-		int i = 99;
-		fake_send(0, 100, std::string((char*)&i,4));
-		
-		i = 0;
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.size() == sizeof(int)) );
-		REQUIRE( (s.read(i) == sizeof(int)) );
-		REQUIRE( (i == 99) );
-	}
-	
-	SECTION("read two ints") {
-		int i[2];
-		i[0] = 99;
-		i[1] = 101;
-		fake_send(0, 100, std::string((char*)&i,2*sizeof(int)));
-		
-		i[0] = 0;
-		i[1] = 0;
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.size() == 2*sizeof(int)) );
-		REQUIRE( (s.read(&i,2) == 2*sizeof(int)) );
-		REQUIRE( (i[0] == 99) );
-		REQUIRE( (i[1] == 101) );
-	}
-	
-	SECTION("multiple reads") {
-		int i[2];
-		i[0] = 99;
-		i[1] = 101;
-		fake_send(0, 100, std::string((char*)&i,2*sizeof(int)));
-		
-		i[0] = 0;
-		i[1] = 0;
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.read(&i[0],1) == sizeof(int)) );
-		REQUIRE( (i[0] == 99) );
-		REQUIRE( (s.read(&i[1],1) == sizeof(int)) );
-		REQUIRE( (i[1] == 101) );
-	}
-	
-	SECTION("read a string") {
-		std::string str;
-		fake_send(0, 100, std::string("hello world"));
-		
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.size() == 11) );
-		REQUIRE( (s.read(str) == 11) );
-		REQUIRE( (str == "hello world") );
-	}
-	
-	SECTION("read into existing string") {
-		std::string str;
-		str.reserve(11);
-		void *ptr = str.data();
-		fake_send(0, 100, std::string("hello world"));
-		
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.size() == 11) );
-		REQUIRE( (s.read(str) == 11) );
-		REQUIRE( (str == "hello world") );
-		REQUIRE( (str.data() == ptr) );
-	}
-	
-	SECTION("read too much data") {
-		int i = 99;
-		fake_send(0, 100, std::string((char*)&i,4));
-		
-		i = 0;
-		s.mock_data(); // Force a message read, but no protocol...
-		
-		REQUIRE( (s.size() == sizeof(int)) );
-		REQUIRE( (s.read(&i,2) == sizeof(int)) );
-		REQUIRE( (i == 99) );
-	}
-}*/
 

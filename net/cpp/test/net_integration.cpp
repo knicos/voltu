@@ -1,134 +1,51 @@
 #include "catch.hpp"
 #include <ftl/net.hpp>
-#include <ftl/net/socket.hpp>
-#include <ftl/net/listener.hpp>
 
-#include <memory>
-#include <iostream>
+#include <thread>
+#include <chrono>
 
-using ftl::net::Socket;
-using ftl::net::Protocol;
-using std::shared_ptr;
+using ftl::net::Universe;
+using std::this_thread::sleep_for;
+using std::chrono::milliseconds;
 
 // --- Support -----------------------------------------------------------------
 
-#ifndef WIN32
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-#endif
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <Ws2tcpip.h>
-#include <windows.h>
-
-#pragma comment(lib, "Ws2_32.lib")
-#endif
-
-static int ssock = INVALID_SOCKET;
-static sockaddr_in slocalAddr;
-
-void fin_server() {
-	//int t = 1;
-	//setsockopt(ssock,SOL_SOCKET,SO_REUSEADDR,&t,sizeof(int));
-
-	#ifndef WIN32
-	if (ssock != INVALID_SOCKET) close(ssock);
-	#else
-	if (ssock != INVALID_SOCKET) closesocket(ssock);
-	#endif
-
-	ssock = INVALID_SOCKET;
-}
-
-void init_server() {
-	//fin_server();
-	int port = 7077;
-	
-	#ifdef WIN32
-	WSAData wsaData;
-	//If Win32 then load winsock
-	if (WSAStartup(MAKEWORD(1,1), &wsaData) != 0) {
-		std::cerr << "Socket error\n";
-		return;
-	}
-	#endif
-
-	ssock = socket(AF_INET, SOCK_STREAM, 0);
-	if (ssock == INVALID_SOCKET) {
-		std::cerr << "Socket error 1\n";
-		return;
-	}
-
-	int enable = 1;
-	if (setsockopt(ssock, SOL_SOCKET, SO_REUSEADDR, (char*)&enable, sizeof(int)) < 0)
-    	std::cerr << "setsockopt(SO_REUSEADDR) failed" << std::endl;
-
-	//Specify listen port and address
-	//memset(&s_localAddr, 0, sizeof(s_localAddr));
-	slocalAddr.sin_family = AF_INET;
-	slocalAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	slocalAddr.sin_port = htons(port);
-	
-	int rc = bind(ssock, (struct sockaddr*)&slocalAddr, sizeof(slocalAddr));
-	
-	if (rc == SOCKET_ERROR) {
-		std::cerr << "Socket error 2\n";
-		
-		#ifndef WIN32
-		close(ssock);
-		#else
-		closesocket(ssock);
-		#endif
-		ssock = INVALID_SOCKET;
-		return;
-	}
-
-	//Attempt to start listening for connection requests.
-	rc = ::listen(ssock, 1);
-
-	if (rc == SOCKET_ERROR) {
-		std::cerr << "Socket error 3\n";
-
-		#ifndef WIN32
-		close(ssock);
-		#else
-		closesocket(ssock);
-		#endif
-		ssock = INVALID_SOCKET;
-		return;
-	}
-}
-
 // --- Tests -------------------------------------------------------------------
 
-TEST_CASE("net::connect()", "[net]") {
-	init_server();
-	shared_ptr<Socket> sock = nullptr;
+TEST_CASE("Universe::connect()", "[net]") {
+	Universe a("ftl://utu.fi");
+	Universe b("ftl://utu.fi");
+	
+	a.listen("tcp://localhost:7077");
 
 	SECTION("valid tcp connection using ipv4") {
-		sock = ftl::net::connect("tcp://127.0.0.1:7077");
-		REQUIRE(sock != nullptr);
-		REQUIRE(sock->isValid());
+		REQUIRE( b.connect("tcp://127.0.0.1:7077") );
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( a.numberOfPeers() == 1 );
+		REQUIRE( b.numberOfPeers() == 1 );
 	}
 
 	SECTION("valid tcp connection using hostname") {
-		sock = ftl::net::connect("tcp://localhost:7077");
-		REQUIRE(sock->isValid());
+		REQUIRE( b.connect("tcp://localhost:7077") );
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( a.numberOfPeers() == 1 );
+		REQUIRE( b.numberOfPeers() == 1 );
 	}
 
 	SECTION("invalid protocol") {
-		sock = ftl::net::connect("http://127.0.0.1:7077");
-		REQUIRE(!sock->isValid());
+		REQUIRE( !b.connect("http://127.0.0.1:7077") );
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( a.numberOfPeers() == 0 );
+		REQUIRE( b.numberOfPeers() == 0 );
 	}
 
-	SECTION("empty uri") {
+	/*SECTION("empty uri") {
 		sock = ftl::net::connect("");
 		REQUIRE(!sock->isValid());
 	}
@@ -136,7 +53,7 @@ TEST_CASE("net::connect()", "[net]") {
 	SECTION("null uri") {
 		sock = ftl::net::connect(NULL);
 		REQUIRE(!sock->isValid());
-	}
+	}*/
 
 	// Disabled due to long timeout
 	/*SECTION("incorrect ipv4 address") {
@@ -152,10 +69,85 @@ TEST_CASE("net::connect()", "[net]") {
 		REQUIRE(!sock->isValid());
 	}*/
 	
-	fin_server();
+	//fin_server();
 }
 
-TEST_CASE("net::listen()", "[net]") {
+TEST_CASE("Universe::broadcast()", "[net]") {
+	Universe a("ftl://utu.fi");
+	Universe b("ftl://utu.fi");
+	
+	a.listen("tcp://localhost:7077");
+	
+	SECTION("no arguments to no peers") {
+		bool done = false;
+		a.bind("hello", [&done]() {
+			done = true;
+		});
+		
+		b.broadcast("done");
+		
+		sleep_for(milliseconds(100));
+	}
+	
+	SECTION("no arguments to one peer") {
+		b.connect("tcp://localhost:7077");
+		while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+		
+		bool done = false;
+		a.bind("hello", [&done]() {
+			done = true;
+		});
+		
+		b.broadcast("hello");
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( done );
+	}
+	
+	SECTION("one argument to one peer") {
+		b.connect("tcp://localhost:7077");
+		while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+		
+		int done = 0;
+		a.bind("hello", [&done](int v) {
+			done = v;
+		});
+		
+		b.broadcast("hello", 676);
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( done == 676 );
+	}
+	
+	SECTION("one argument to two peers") {
+		Universe c("ftl://utu.fi");
+		
+		b.connect("tcp://localhost:7077");
+		c.connect("tcp://localhost:7077");
+		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
+		
+		int done1 = 0;
+		b.bind("hello", [&done1](int v) {
+			done1 = v;
+		});
+		
+		int done2 = 0;
+		c.bind("hello", [&done2](int v) {
+			done2 = v;
+		});
+		
+		a.broadcast("hello", 676);
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( done1 == 676 );
+		REQUIRE( done2 == 676 );
+	}
+}
+
+/*TEST_CASE("net::listen()", "[net]") {
 
 	SECTION("tcp any interface") {
 		REQUIRE( ftl::net::listen("tcp://localhost:9001")->isListening() );
@@ -229,5 +221,5 @@ TEST_CASE("Net Integration", "[integrate]") {
 	// TODO s2->wait(100);
 	
 	REQUIRE( data == "hello world" );
-}
+}*/
 
