@@ -3,6 +3,8 @@
 #include <memory>
 //#include <map>
 #include <tuple>
+#include <thread>
+#include <chrono>
 
 #include <ftl/net/peer.hpp>
 #include <ftl/net/protocol.hpp>
@@ -19,6 +21,8 @@
 using std::tuple;
 using std::get;
 using ftl::net::Peer;
+using std::this_thread::sleep_for;
+using std::chrono::milliseconds;
 
 #ifdef WIN32
 #pragma comment(lib, "Ws2_32.lib")
@@ -157,6 +161,8 @@ TEST_CASE("Peer(int)", "[]") {
 		send_handshake(s);
 		s.mock_data();
 		
+		sleep_for(milliseconds(50));
+		
 		REQUIRE( s.status() == Peer::kConnected );
 	}
 	
@@ -166,6 +172,8 @@ TEST_CASE("Peer(int)", "[]") {
 		// Send handshake response
 		send_handshake(s);
 		s.mock_data();
+		
+		sleep_for(milliseconds(50));
 		
 		REQUIRE( s.getFTLVersion() ==  (8 << 16) + (5 << 8) + 2 );
 	}
@@ -183,6 +191,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
 	MockPeer s;
 	send_handshake(s);
 	s.mock_data();
+	sleep_for(milliseconds(50));
 	
 	SECTION("one argument call") {
 		REQUIRE( s.isConnected() );
@@ -199,6 +208,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
 			msgpack::pack(buf, res_obj);
 			fakedata[0] = buf.str();
 			s.mock_data();
+			sleep_for(milliseconds(50));
 		});
 		
 		int res = s.call<int>("test1", 44);
@@ -223,6 +233,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
 			msgpack::pack(buf, res_obj);
 			fakedata[0] = buf.str();
 			s.mock_data();
+			sleep_for(milliseconds(50));
 		});
 		
 		int res = s.call<int>("test1");
@@ -237,6 +248,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 	MockPeer s;
 	send_handshake(s);	
 	s.mock_data();
+	sleep_for(milliseconds(50));
 	
 	SECTION("no argument call") {
 		bool done = false;
@@ -247,6 +259,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 
 		s.send("hello");
 		s.mock_data(); // Force it to read the fake send...
+		sleep_for(milliseconds(50));
 		
 		REQUIRE( done );
 	}
@@ -260,6 +273,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 		
 		s.send("hello", 55);
 		s.mock_data(); // Force it to read the fake send...
+		sleep_for(milliseconds(50));
 		
 		REQUIRE( (done == 55) );
 	}
@@ -273,6 +287,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 
 		s.send("hello", 55, "world");
 		s.mock_data(); // Force it to read the fake send...
+		sleep_for(milliseconds(50));
 		
 		REQUIRE( (done == "world") );
 	}
