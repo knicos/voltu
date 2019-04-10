@@ -15,6 +15,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <optional>
 
 namespace ftl {
 
@@ -46,7 +47,7 @@ class Peer;
 
 class Dispatcher {
 	public:
-	Dispatcher() {}
+	explicit Dispatcher(Dispatcher *parent=nullptr) : parent_(parent) {}
 	
 	//void dispatch(Peer &, const std::string &msg);
 	void dispatch(Peer &, const msgpack::object &msg);
@@ -134,7 +135,10 @@ class Dispatcher {
         std::tuple<uint32_t, uint32_t, msgpack::object, msgpack::object>;
 	
 	private:
+	Dispatcher *parent_;
 	std::unordered_map<std::string, adaptor_type> funcs_;
+	
+	std::optional<adaptor_type> _locateHandler(const std::string &name) const;
 	
 	static void enforce_arg_count(std::string const &func, std::size_t found,
                                   std::size_t expected);

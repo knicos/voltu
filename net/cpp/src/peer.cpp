@@ -130,13 +130,7 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
 	
-	if (d != nullptr) {
-		disp_ = d;
-		destroy_disp_ = false;
-	} else {
-		disp_ = new Dispatcher();
-		destroy_disp_ = true;
-	}
+	disp_ = new Dispatcher(d);
 	
 	is_waiting_ = true;
 	
@@ -166,13 +160,7 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 	status_ = kInvalid;
 	sock_ = INVALID_SOCKET;
 	
-	if (d != nullptr) {
-		disp_ = d;
-		destroy_disp_ = false;
-	} else {
-		disp_ = new Dispatcher();
-		destroy_disp_ = true;
-	}
+	disp_ = new Dispatcher(d);
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
@@ -318,13 +306,11 @@ void Peer::data() {
 
 bool Peer::_data() {
 	//std::unique_lock<std::mutex> lk(recv_mtx_);
-	
-	std::cout << "BEGIN DATA" << std::endl;
+
 	recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
 
 	if (rc < 0) {
-		std::cout << "ERR = " << std::to_string(errno) << std::endl;
 		return false;
 	}
 	
@@ -541,9 +527,7 @@ int Peer::_send() {
 
 Peer::~Peer() {
 	close();
-	
-	if (destroy_disp_) {
-		delete disp_;
-	}
+
+	delete disp_;
 }
 

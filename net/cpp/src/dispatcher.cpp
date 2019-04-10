@@ -8,6 +8,7 @@ using ftl::net::Peer;
 using ftl::net::Dispatcher;
 using std::vector;
 using std::string;
+using std::optional;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -100,6 +101,19 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 	}
 }
 
+optional<Dispatcher::adaptor_type> ftl::net::Dispatcher::_locateHandler(const std::string &name) const {
+	auto it_func = funcs_.find(name);
+	if (it_func == end(funcs_)) {
+		if (parent_ != nullptr) {
+			return parent_->_locateHandler(name);
+		} else {
+			return {};
+		}
+	} else {
+		return it_func->second;
+	}
+}
+
 void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const &msg) {
     notification_t the_call;
     msg.convert(the_call);
@@ -113,11 +127,11 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
     
     LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
 
-    auto it_func = funcs_.find(name);
+    auto binding = _locateHandler(name);
 
-    if (it_func != end(funcs_)) {
+    if (binding) {
         try {
-            auto result = (it_func->second)(args);
+            auto result = (*binding)(args);
         } catch (int e) {
 			throw e;
 		}
@@ -137,6 +151,7 @@ void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_
 void ftl::net::Dispatcher::enforce_unique_name(std::string const &func) {
     auto pos = funcs_.find(func);
     if (pos != end(funcs_)) {
+    	LOG(ERROR) << "RPC non unique binding for " << func;
         throw -1;
     }
 }

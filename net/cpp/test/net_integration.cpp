@@ -5,6 +5,8 @@
 #include <chrono>
 
 using ftl::net::Universe;
+using std::this_thread::sleep_for;
+using std::chrono::milliseconds;
 
 // --- Support -----------------------------------------------------------------
 
@@ -19,7 +21,7 @@ TEST_CASE("Universe::connect()", "[net]") {
 	SECTION("valid tcp connection using ipv4") {
 		REQUIRE( b.connect("tcp://127.0.0.1:7077") );
 		
-		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		sleep_for(milliseconds(100));
 		
 		REQUIRE( a.numberOfPeers() == 1 );
 		REQUIRE( b.numberOfPeers() == 1 );
@@ -28,7 +30,7 @@ TEST_CASE("Universe::connect()", "[net]") {
 	SECTION("valid tcp connection using hostname") {
 		REQUIRE( b.connect("tcp://localhost:7077") );
 		
-		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		sleep_for(milliseconds(100));
 		
 		REQUIRE( a.numberOfPeers() == 1 );
 		REQUIRE( b.numberOfPeers() == 1 );
@@ -37,7 +39,7 @@ TEST_CASE("Universe::connect()", "[net]") {
 	SECTION("invalid protocol") {
 		REQUIRE( !b.connect("http://127.0.0.1:7077") );
 		
-		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		sleep_for(milliseconds(100));
 		
 		REQUIRE( a.numberOfPeers() == 0 );
 		REQUIRE( b.numberOfPeers() == 0 );
@@ -84,12 +86,12 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		b.broadcast("done");
 		
-		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		sleep_for(milliseconds(100));
 	}
 	
 	SECTION("no arguments to one peer") {
 		b.connect("tcp://localhost:7077");
-		while (a.numberOfPeers() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
 		
 		bool done = false;
 		a.bind("hello", [&done]() {
@@ -98,9 +100,50 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		b.broadcast("hello");
 		
-		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		sleep_for(milliseconds(100));
 		
 		REQUIRE( done );
+	}
+	
+	SECTION("one argument to one peer") {
+		b.connect("tcp://localhost:7077");
+		while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+		
+		int done = 0;
+		a.bind("hello", [&done](int v) {
+			done = v;
+		});
+		
+		b.broadcast("hello", 676);
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( done == 676 );
+	}
+	
+	SECTION("one argument to two peers") {
+		Universe c("ftl://utu.fi");
+		
+		b.connect("tcp://localhost:7077");
+		c.connect("tcp://localhost:7077");
+		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
+		
+		int done1 = 0;
+		b.bind("hello", [&done1](int v) {
+			done1 = v;
+		});
+		
+		int done2 = 0;
+		c.bind("hello", [&done2](int v) {
+			done2 = v;
+		});
+		
+		a.broadcast("hello", 676);
+		
+		sleep_for(milliseconds(100));
+		
+		REQUIRE( done1 == 676 );
+		REQUIRE( done2 == 676 );
 	}
 }
 

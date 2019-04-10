@@ -197,7 +197,6 @@ class Peer {
 	int sock_;
 	ftl::URI::scheme_t scheme_;
 	uint32_t version_;
-	bool destroy_disp_;
 	
 	// Receive buffers
 	bool is_waiting_;
