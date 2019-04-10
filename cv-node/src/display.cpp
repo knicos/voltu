@@ -54,6 +54,10 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 		#endif  // HAVE_VIZ
 	}
 
+	if (config_["left"]) {
+		cv::imshow("RGB", rgb);
+	}
+
 	if (config_["depth"]) {
 		/*Mat depth32F = (focal * (float)l.cols * base_line) / depth;
 		normalize(depth32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
@@ -63,7 +67,13 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	       	active_ = false;
 	    }*/
     } else if (config_["disparity"]) {
-    	depth.convertTo(idepth, CV_8U, 255.0f / 208.0f);  // TODO(nick)
+		if ((bool)config_["flip_vert"]) {
+			cv::flip(depth, idepth, 0);
+		} else {
+			idepth = depth;
+		}
+
+    	idepth.convertTo(idepth, CV_8U, 255.0f / 256.0f);  // TODO(nick)
 
     	applyColorMap(idepth, idepth, cv::COLORMAP_JET);
 		cv::imshow("Disparity", idepth);

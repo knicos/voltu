@@ -9,6 +9,7 @@ set(glog_DIR ${glog_DIR})
 find_package(glog QUIET PATHS "${glog_DIR}/lib/cmake" NO_DEFAULT_PATH)
 
 if (GLOG_FOUND)
+message(STATUS "Found installed glog")
 return()
 endif()
 

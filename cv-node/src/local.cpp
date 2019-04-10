@@ -21,8 +21,9 @@ using std::chrono::duration;
 using std::chrono::high_resolution_clock;
 
 LocalSource::LocalSource(nlohmann::json &config)
-	:	timestamp_(0.0),
+		: timestamp_(0.0),
 		flip_(config["flip"]),
+		flip_v_(config["flip_vert"]),
 		nostereo_(config["nostereo"]),
 		downsize_(config.value("scale", 1.0f)) {
 	// Use cameras
@@ -55,6 +56,7 @@ LocalSource::LocalSource(nlohmann::json &config)
 LocalSource::LocalSource(const string &vid, nlohmann::json &config)
 	:	timestamp_(0.0),
 		flip_(config["flip"]),
+		flip_v_(config["flip_vert"]),
 		nostereo_(config["nostereo"]),
 		downsize_(config.value("scale", 1.0f)) {
 	if (vid == "") {
@@ -209,6 +211,14 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 				0, 0, cv::INTER_LINEAR);
 		cv::resize(r, r, cv::Size(r.cols * downsize_, r.rows * downsize_),
 				0, 0, cv::INTER_LINEAR);
+	}
+
+	if (flip_v_) {
+		Mat tl, tr;
+		cv::flip(l, tl, 0);
+		cv::flip(r, tr, 0);
+		l = tl;
+		r = tr;
 	}
 
 	return true;
