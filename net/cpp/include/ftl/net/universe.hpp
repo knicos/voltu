@@ -5,6 +5,7 @@
 #include <ftl/net/listener.hpp>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/uuid.hpp>
+#include <nlohmann/json.hpp>
 #include <vector>
 #include <string>
 #include <thread>
@@ -23,12 +24,12 @@ namespace net {
  */
 class Universe {
 	public:
+	Universe();
 	/**
-	 * Constructor with a URI base. The base uri is used as a base to validate
-	 * resource identifiers. (it may be removed). This creates a new thread
-	 * to monitor network sockets.
+	 * Constructor with json config object. The config allows listening and
+	 * peer connection to be set up automatically.
 	 */
-	explicit Universe(const std::string &base);
+	explicit Universe(nlohmann::json &config);
 
 	/**
 	 * The destructor will terminate the network thread before completing.
@@ -93,7 +94,7 @@ class Universe {
 	
 	private:
 	bool active_;
-	std::string base_;
+	nlohmann::json config_;
 	std::thread thread_;
 	fd_set sfderror_;
 	fd_set sfdread_;

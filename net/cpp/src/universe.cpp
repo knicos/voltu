@@ -11,9 +11,25 @@ using std::thread;
 using ftl::net::Peer;
 using ftl::net::Listener;
 using ftl::net::Universe;
+using nlohmann::json;
 
-Universe::Universe(const string &base) :
-		active_(true), base_(base), thread_(Universe::__start, this) {	
+Universe::Universe() : active_(true), thread_(Universe::__start, this) {}
+
+Universe::Universe(nlohmann::json &config) :
+		active_(true), config_(config), thread_(Universe::__start, this) {
+	if (config["listen"].is_array()) {
+		for (auto &l : config["listen"]) {
+			listen(l);
+		}
+	} else if (config["listen"].is_string()) {
+		listen(config["listen"]);
+	}
+	
+	if (config["peers"].is_array()) {
+		for (auto &p : config["peers"]) {
+			connect(p);
+		}
+	}
 }
 
 Universe::~Universe() {

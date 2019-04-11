@@ -13,8 +13,8 @@ using std::chrono::milliseconds;
 // --- Tests -------------------------------------------------------------------
 
 TEST_CASE("Universe::connect()", "[net]") {
-	Universe a("ftl://utu.fi");
-	Universe b("ftl://utu.fi");
+	Universe a;
+	Universe b;
 	
 	a.listen("tcp://localhost:7077");
 
@@ -73,8 +73,8 @@ TEST_CASE("Universe::connect()", "[net]") {
 }
 
 TEST_CASE("Universe::broadcast()", "[net]") {
-	Universe a("ftl://utu.fi");
-	Universe b("ftl://utu.fi");
+	Universe a;
+	Universe b;
 	
 	a.listen("tcp://localhost:7077");
 	
@@ -122,7 +122,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 	}
 	
 	SECTION("one argument to two peers") {
-		Universe c("ftl://utu.fi");
+		Universe c;
 		
 		b.connect("tcp://localhost:7077");
 		c.connect("tcp://localhost:7077");
