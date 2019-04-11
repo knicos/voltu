@@ -140,9 +140,9 @@ class Peer {
 	template <typename F>
 	void bind(const std::string &name, F func);
 
-	//void onError(std::function<void(Socket&, int err, const char *msg)> &f) {}
-	void onConnect(std::function<void()> &f);
-	void onDisconnect(std::function<void()> &f) {}
+	// void onError(std::function<void(Peer &, int err, const char *msg)> &f) {}
+	void onConnect(const std::function<void(Peer &)> &f);
+	void onDisconnect(std::function<void(Peer &)> &f) {}
 	
 	bool isWaiting() const { return is_waiting_; }
 	
@@ -180,6 +180,13 @@ class Peer {
 	
 	int _send();
 	
+	template<typename... ARGS>
+	void _trigger(const std::vector<std::function<void(Peer &, ARGS...)>> &hs, ARGS... args) {
+		for (auto h : hs) {
+			h(*this, args...);
+		}
+	}
+	
 	/*template <typename... ARGS>
 	int _send(const std::string &t, ARGS... args);
 	
@@ -215,9 +222,9 @@ class Peer {
 	ftl::UUID peerid_;
 	
 	ftl::net::Dispatcher *disp_;
-	std::vector<std::function<void()>> open_handlers_;
+	std::vector<std::function<void(Peer &)>> open_handlers_;
 	//std::vector<std::function<void(const ftl::net::Error &)>> error_handlers_
-	std::vector<std::function<void()>> close_handlers_;
+	std::vector<std::function<void(Peer &)>> close_handlers_;
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 	
 	static int rpcid__;

@@ -149,6 +149,8 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 				status_ = kConnected;
 				version_ = version;
 				peerid_ = pid;
+				
+				_trigger(open_handlers_);
 			}
 		});
 	
@@ -216,6 +218,8 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 				version_ = version;
 				peerid_ = pid;
 				send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer);
+				
+				_trigger(open_handlers_);
 			}
 		}); 
 	}
@@ -262,6 +266,8 @@ void Peer::close(bool retry) {
 		
 		//auto i = find(sockets.begin(),sockets.end(),this);
 		//sockets.erase(i);
+		
+		_trigger(close_handlers_);
 	}
 }
 
@@ -481,9 +487,9 @@ void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 	_send();
 }
 
-void Peer::onConnect(std::function<void()> &f) {
+void Peer::onConnect(const std::function<void(Peer&)> &f) {
 	if (status_ == kConnected) {
-		f();
+		f(*this);
 	} else {
 		open_handlers_.push_back(f);
 	}
@@ -491,10 +497,7 @@ void Peer::onConnect(std::function<void()> &f) {
 
 void Peer::_connected() {
 	status_ = kConnected;
-	for (auto h : open_handlers_) {
-		h();
-	}
-	//connect_handlers_.clear();
+
 }
 
 int Peer::_send() {

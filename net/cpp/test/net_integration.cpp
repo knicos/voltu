@@ -162,6 +162,34 @@ TEST_CASE("Universe::findOwner()", "") {
 		a.createResource("ftl://test");
 		REQUIRE( *(b.findOwner("ftl://test")) == ftl::net::this_peer );
 	}
+	
+	SECTION("three peers and one owner") {
+		Universe c;
+		c.connect("tcp://localhost:7077");
+		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
+
+		b.createResource("ftl://test");
+		REQUIRE( *(a.findOwner("ftl://test")) == ftl::net::this_peer );
+	}
+}
+
+TEST_CASE("Universe::subscribe()", "") {
+	Universe a;
+	Universe b;
+	a.listen("tcp://localhost:7077");
+	b.connect("tcp://localhost:7077");
+	while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+
+	SECTION("no resource exists") {
+		REQUIRE( !b.subscribe("ftl://test", []() {}) );
+	}
+
+	SECTION("one resource exists") {
+		a.createResource("ftl://test");
+		REQUIRE( b.subscribe("ftl://test", []() {}) );
+		sleep_for(milliseconds(50));
+		REQUIRE( a.numberOfSubscribers("ftl://test") == 1);
+	}
 }
 
 /*TEST_CASE("net::listen()", "[net]") {

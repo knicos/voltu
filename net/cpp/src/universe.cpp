@@ -72,6 +72,10 @@ bool Universe::connect(const string &addr) {
 	
 	_installBindings(p);
 	
+	p->onConnect([this](Peer &p) {
+		peer_ids_[p.id()] = &p;
+	});
+	
 	return p->status() == Peer::kConnecting;
 }
 
@@ -116,6 +120,8 @@ void Universe::_installBindings(Peer *p) {
 void Universe::_installBindings() {
 	bind("__subscribe__", [this](const UUID &id, const string &uri) -> bool {
 		LOG(INFO) << "Subscription to " << uri << " by " << id.to_string();
+		subscribers_[uri].push_back(id);
+		return true;
 	});
 	
 	bind("__owner__", [this](const std::string &res) -> optional<UUID> {
@@ -138,7 +144,17 @@ optional<UUID> Universe::findOwner(const string &res) {
 
 bool Universe::createResource(const std::string &uri) {
 	owned_.insert(uri);
+	subscribers_[uri];
 	return true;
+}
+
+int Universe::numberOfSubscribers(const std::string &res) const {
+	auto s = subscribers_.find(res);
+	if (s != subscribers_.end()) {
+		return s->second.size();
+	} else {
+		return -1;
+	}
 }
 
 bool Universe::_subscribe(const std::string &res) {
@@ -146,7 +162,7 @@ bool Universe::_subscribe(const std::string &res) {
 	optional<UUID> pid = findOwner(res);
 	
 	if (pid) {
-		return call<bool>(*pid, "__subscribe__", id_, res);
+		return call<bool>(*pid, "__subscribe__", ftl::net::this_peer, res);
 	} else {
 		// No resource found
 		LOG(WARNING) << "Subscribe to unknown resource: " << res;
@@ -199,8 +215,10 @@ void Universe::_run() {
 						if (csock != INVALID_SOCKET) {
 							auto p = new Peer(csock, &disp_);
 							peers_.push_back(p);
-							
 							_installBindings(p);
+							p->onConnect([this](Peer &p) {
+								peer_ids_[p.id()] = &p;
+							});
 						}
 					//}
 				}

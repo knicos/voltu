@@ -57,6 +57,8 @@ class Universe {
 	
 	Peer *getPeer(const ftl::UUID &pid) const;
 	
+	int numberOfSubscribers(const std::string &res) const;
+	
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
 	 * be called by any peer making the request.
@@ -138,8 +140,7 @@ void Universe::bind(const std::string &name, F func) {
 template <typename F>
 bool Universe::subscribe(const std::string &res, F func) {
 	bind(res, func);
-	_subscribe(res);
-	return true;
+	return _subscribe(res);
 }
 
 template <typename... ARGS>
@@ -190,7 +191,10 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 template <typename R, typename... ARGS>
 R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
-	if (p == nullptr) throw -1;
+	if (p == nullptr) {
+		LOG(ERROR) << "Attempting to call an unknown peer : " << pid.to_string();
+		throw -1;
+	}
 	return p->call<R>(name, args...);
 }
 
