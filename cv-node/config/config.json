@@ -48,11 +48,25 @@
 		"lambda": 8000.0
 	},
 	"display": {
+		"flip_vert": false,
 		"disparity": false,
 		"points": true,
 		"depth": false,
 		"left": false,
 		"right": false
+	},
+	"net": {
+		"listen": "tcp://*:9001",
+		"peers": []
+	},
+	"stream": {
+		"name": "dummy"
+	},
+	"representation": {
+		"net": {
+			"peers": ["tcp://localhost:9001"]
+		},
+		"source": "ftl://utu.fi/dummy/rgb-d"
 	}
 }
 

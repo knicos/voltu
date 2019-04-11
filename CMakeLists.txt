@@ -82,6 +82,11 @@ find_library(UUID_LIBRARIES NAMES uuid libuuid)
 else()
 endif()
 
+# Check for optional opencv components
+set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
+check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
+check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
+
 # Optional source problem check
 find_program(CPPCHECK_FOUND cppcheck)
 if (CPPCHECK_FOUND)
@@ -110,6 +115,7 @@ SET(CMAKE_USE_RELATIVE_PATHS ON)
 
 add_subdirectory(net)
 add_subdirectory(cv-node)
+add_subdirectory(rep-server)
 
 ### Generate Build Configuration Files =========================================
 

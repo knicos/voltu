@@ -4,11 +4,6 @@ include_directories(${PROJECT_SOURCE_DIR}/cv-node/include)
 
 add_subdirectory(lib)
 
-# Check for optional opencv components
-set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
-check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
-check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
-
 set(CVNODESRC
 	../common/cpp/src/config.cpp
 	src/main.cpp
@@ -17,6 +12,7 @@ set(CVNODESRC
 	src/sync.cpp
 	src/display.cpp
 	src/disparity.cpp
+	src/streamer.cpp
 	src/middlebury.cpp
 	src/algorithms/rtcensus.cpp
 	src/algorithms/rtcensus_sgm.cpp

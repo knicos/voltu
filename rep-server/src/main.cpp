@@ -11,15 +11,11 @@
 #include <map>
 #include <vector>
 #include <fstream>
+#include <thread>
+#include <chrono>
+#include <mutex>
 
 #include <opencv2/opencv.hpp>
-#include <ftl/local.hpp>
-#include <ftl/synched.hpp>
-#include <ftl/calibrate.hpp>
-#include <ftl/disparity.hpp>
-#include <ftl/middlebury.hpp>
-#include <ftl/display.hpp>
-#include <ftl/streamer.hpp>
 #include <ftl/net/universe.hpp>
 #include <nlohmann/json.hpp>
 
@@ -32,12 +28,6 @@
 #pragma comment(lib, "Rpcrt4.lib")
 #endif
 
-using ftl::Calibrate;
-using ftl::LocalSource;
-using ftl::Display;
-using ftl::Streamer;
-using ftl::Disparity;
-using ftl::SyncSource;
 using ftl::net::Universe;
 using std::string;
 using std::vector;
@@ -45,6 +35,10 @@ using std::map;
 using cv::Mat;
 using json = nlohmann::json;
 using std::ifstream;
+using std::this_thread::sleep_for;
+using std::chrono::milliseconds;
+using std::mutex;
+using std::unique_lock;
 
 // Store loaded configuration
 static json config;
@@ -61,6 +55,7 @@ static bool findConfiguration(const string &file) {
 	if (!i.is_open()) i.open(FTL_GLOBAL_CONFIG_ROOT "/config.json");
 	if (!i.is_open()) return false;
 	i >> config;
+	config = config["representation"];
 	return true;
 }
 
@@ -119,53 +114,25 @@ static void process_options(const map<string, string> &opts) {
 
 static void run(const string &file) {
 	Universe net(config["net"]);
+	Mat rgb;
+	mutex m;
+	
+	// Make sure connections are complete
+	sleep_for(milliseconds(500));
 
-	LocalSource *lsrc;
-	if (file != "") {
-		// Load video file
-		lsrc = new LocalSource(file, config["source"]);
-	} else {
-		// Use cameras
-		lsrc = new LocalSource(config["source"]);
-	}
-
-	auto sync = new SyncSource();  // TODO(nick) Pass protocol object
-	// Add any remote channels
-	/* for (auto c : OPTION_channels) {
-		sync->addChannel(c);
-	} */
-
-	// Perform or load calibration intrinsics + extrinsics
-	Calibrate calibrate(lsrc, config["calibration"]);
-	if (config["calibrate"]) calibrate.recalibrate();
-	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
-
-    // Choose and configure disparity algorithm
-    auto disparity = Disparity::create(config["disparity"]);
-
-	Mat l, r, disp;
-
-	Display display(calibrate, config["display"]);
-	Streamer stream(net, config["stream"]);
-
-	while (display.active()) {
-		// Read calibrated images.
-		calibrate.rectified(l, r);
-
-		// Feed into sync buffer and network forward
-		sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
-		sync->feed(ftl::RIGHT, r, lsrc->getTimestamp());
-
-		// Read back from buffer
-		sync->get(ftl::LEFT, l);
-		sync->get(ftl::RIGHT, r);
-
-        disparity->compute(l, r, disp);
-
-		// Send RGB+Depth images for local rendering
-		display.render(l, disp);
-
-		stream.send(l, disp);
+	net.subscribe(config["source"], [&rgb,&m](const vector<unsigned char> &jpg) {
+		unique_lock<mutex> lk(m);
+		cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb);
+		//LOG(INFO) << "Received JPG : " << rgb.cols;
+	});
+	
+	while (true) {
+		unique_lock<mutex> lk(m);
+		if (rgb.cols > 0) {
+			cv::imshow("RGB", rgb);
+		}
+		lk.unlock();
+		if (cv::waitKey(5) == 27) break;
 	}
 }
 
@@ -180,11 +147,6 @@ int main(int argc, char **argv) {
 	}
 	process_options(options);
 
-	// Choose normal or middlebury modes
-	if (config["middlebury"]["dataset"] == "") {
-		run((argc > 0) ? argv[0] : "");
-	} else {
-		ftl::middlebury::test(config);
-	}
+	run((argc > 0) ? argv[0] : "");
 }
 
