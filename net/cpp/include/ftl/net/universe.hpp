@@ -204,7 +204,7 @@ void Universe::publish(const std::string &res, ARGS... args) {
 	for (auto p : subs) {
 		auto peer = getPeer(p);
 		if (peer) {
-			*peer->send(res, args...);
+			peer->send(res, args...);
 		}
 	}
 }

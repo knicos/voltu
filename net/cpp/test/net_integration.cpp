@@ -192,6 +192,33 @@ TEST_CASE("Universe::subscribe()", "") {
 	}
 }
 
+TEST_CASE("Universe::publish()", "") {
+	Universe a;
+	Universe b;
+	a.listen("tcp://localhost:7077");
+	b.connect("tcp://localhost:7077");
+	while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+
+	SECTION("no subscribers") {
+		a.createResource("ftl://test");
+		a.publish("ftl://test", 55);
+	}
+
+	SECTION("one subscriber") {
+		int done = 0;
+		a.createResource("ftl://test");
+		REQUIRE( b.subscribe("ftl://test", [&done](int a) {
+			done = a;
+		}) );
+		sleep_for(milliseconds(50));
+
+		a.publish("ftl://test", 56);
+		sleep_for(milliseconds(50));
+		
+		REQUIRE( done == 56 );
+	}
+}
+
 /*TEST_CASE("net::listen()", "[net]") {
 
 	SECTION("tcp any interface") {
