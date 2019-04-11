@@ -147,6 +147,23 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 	}
 }
 
+TEST_CASE("Universe::findOwner()", "") {
+	Universe a;
+	Universe b;
+	a.listen("tcp://localhost:7077");
+	b.connect("tcp://localhost:7077");
+	while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+
+	SECTION("no owners exist") {
+		REQUIRE( !b.findOwner("ftl://test") );
+	}
+
+	SECTION("one owner exists") {
+		a.createResource("ftl://test");
+		REQUIRE( *(b.findOwner("ftl://test")) == ftl::net::this_peer );
+	}
+}
+
 /*TEST_CASE("net::listen()", "[net]") {
 
 	SECTION("tcp any interface") {

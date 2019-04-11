@@ -70,11 +70,12 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     } else if (type == 0) {
 		LOG(INFO) << "RPC " << name << "() <- " << s.getURI();
 
-		auto it_func = funcs_.find(name);
+		auto func = _locateHandler(name);
 
-		if (it_func != end(funcs_)) {
+		if (func) {
+			LOG(INFO) << "Found binding for " << name;
 		    try {
-		        auto result = (it_func->second)(args); //->get();
+		        auto result = (*func)(args); //->get();
 		        s._sendResponse(id, result->get());
 		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
 				std::stringstream buf;
@@ -82,22 +83,25 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 				s.send("__return__", buf.str());*/
 			} catch (const std::exception &e) {
 				//throw;
-				//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+				LOG(ERROR) << "Exception when attempting to call RPC (" << e.what() << ")";
 		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
 				std::stringstream buf;
 				msgpack::pack(buf, res_obj);			
 				s.send("__return__", buf.str());*/
 			} catch (int e) {
 				//throw;
-				//LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
+				LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
 		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
 				std::stringstream buf;
 				msgpack::pack(buf, res_obj);			
 				s.send("__return__", buf.str());*/
 			}
+		} else {
+			LOG(WARNING) << "No binding found for " << name;
 		}
 	} else {
 		// TODO(nick) Some error
+		LOG(ERROR) << "Unrecognised message type";
 	}
 }
 

@@ -476,7 +476,7 @@ void Peer::cancelCall(int id) {
 }
 
 void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
-	Dispatcher::response_t res_obj = std::make_tuple(1,id,msgpack::object(),res);
+	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
 	msgpack::pack(send_buf_, res_obj);
 	_send();
 }

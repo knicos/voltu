@@ -119,6 +119,7 @@ void Universe::_installBindings() {
 	});
 	
 	bind("__owner__", [this](const std::string &res) -> optional<UUID> {
+		LOG(INFO) << "SOMEONE ASKS FOR " << res;
 		if (owned_.count(res) > 0) return ftl::net::this_peer;
 		else return {};
 	});
@@ -130,7 +131,7 @@ Peer *Universe::getPeer(const UUID &id) const {
 	else return ix->second;
 }
 
-optional<UUID> Universe::_findOwner(const string &res) {
+optional<UUID> Universe::findOwner(const string &res) {
 	// TODO(nick) cache this information
 	return findOne<UUID>("__owner__", res);
 }
@@ -142,7 +143,7 @@ bool Universe::createResource(const std::string &uri) {
 
 bool Universe::_subscribe(const std::string &res) {
 	// Need to find who owns the resource
-	optional<UUID> pid = _findOwner(res);
+	optional<UUID> pid = findOwner(res);
 	
 	if (pid) {
 		return call<bool>(*pid, "__subscribe__", id_, res);

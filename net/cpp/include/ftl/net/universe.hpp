@@ -97,6 +97,8 @@ class Universe {
 	 * publishing to this resource and before any peers attempt to subscribe.
 	 */
 	bool createResource(const std::string &uri);
+
+	std::optional<ftl::UUID> findOwner(const std::string &res);
 	
 	private:
 	void _run();
@@ -104,7 +106,6 @@ class Universe {
 	void _installBindings();
 	void _installBindings(Peer *);
 	bool _subscribe(const std::string &res);
-	std::optional<ftl::UUID> _findOwner(const std::string &res);
 	
 	static void __start(Universe *u);
 	
