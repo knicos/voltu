@@ -115,10 +115,13 @@ void Universe::_installBindings(Peer *p) {
 
 void Universe::_installBindings() {
 	bind("__subscribe__", [this](const UUID &id, const string &uri) -> bool {
-		
+		LOG(INFO) << "Subscription to " << uri << " by " << id.to_string();
 	});
 	
-	
+	bind("__owner__", [this](const std::string &res) -> optional<UUID> {
+		if (owned_.count(res) > 0) return ftl::net::this_peer;
+		else return {};
+	});
 }
 
 Peer *Universe::getPeer(const UUID &id) const {
@@ -130,6 +133,11 @@ Peer *Universe::getPeer(const UUID &id) const {
 optional<UUID> Universe::_findOwner(const string &res) {
 	// TODO(nick) cache this information
 	return findOne<UUID>("__owner__", res);
+}
+
+bool Universe::createResource(const std::string &uri) {
+	owned_.insert(uri);
+	return true;
 }
 
 bool Universe::_subscribe(const std::string &res) {

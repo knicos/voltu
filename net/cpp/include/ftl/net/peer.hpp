@@ -114,9 +114,11 @@ class Peer {
 	 * Non-blocking Remote Procedure Call using a callback function.
 	 */
 	template <typename T, typename... ARGS>
-	void asyncCall(const std::string &name,
+	int asyncCall(const std::string &name,
 			std::function<void(const T&)> cb,
 			ARGS... args);
+
+	void cancelCall(int id);
 	
 	/**
 	 * Blocking Remote Procedure Call using a string name.
@@ -248,7 +250,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 	std::condition_variable cv;
 	
 	R result;
-	asyncCall<R>(name, [&](const R &r) {
+	int id = asyncCall<R>(name, [&](const R &r) {
 		std::unique_lock<std::mutex> lk(m);
 		hasreturned = true;
 		result = r;
@@ -262,7 +264,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 	}
 	
 	if (!hasreturned) {
-		// TODO(nick) remove callback
+		cancelCall(id);
 		throw 1;
 	}
 	
@@ -270,7 +272,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 }
 
 template <typename T, typename... ARGS>
-void Peer::asyncCall(
+int Peer::asyncCall(
 		const std::string &name,
 		std::function<void(const T&)> cb,
 		ARGS... args) {
@@ -286,6 +288,7 @@ void Peer::asyncCall(
 	callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
 	
 	_send();
+	return rpcid;
 }
 
 };

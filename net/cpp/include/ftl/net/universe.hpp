@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <thread>
+#include <map>
 
 namespace ftl {
 namespace net {
@@ -91,7 +92,11 @@ class Universe {
 	template <typename... ARGS>
 	void publish(const std::string &res, ARGS... args);
 	
-	// TODO(nick) Add find_one, find_all, call_any ...
+	/**
+	 * Register your ownership of a new resource. This must be called before
+	 * publishing to this resource and before any peers attempt to subscribe.
+	 */
+	bool createResource(const std::string &uri);
 	
 	private:
 	void _run();
@@ -111,7 +116,8 @@ class Universe {
 	fd_set sfdread_;
 	std::vector<ftl::net::Listener*> listeners_;
 	std::vector<ftl::net::Peer*> peers_;
-	std::map<std::string, std::vector<ftl::net::Peer*>> subscribers_;
+	std::map<std::string, std::vector<ftl::UUID>> subscribers_;
+	std::unordered_set<std::string> owned_;
 	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
@@ -144,10 +150,40 @@ void Universe::broadcast(const std::string &name, ARGS... args) {
 
 template <typename R, typename... ARGS>
 std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
+	bool hasreturned = false;
+	std::mutex m;
+	std::condition_variable cv;
+	
+	std::optional<R> result;
+
+	auto handler = [&](const std::optional<R> &r) {
+		std::unique_lock<std::mutex> lk(m);
+		if (hasreturned || !r) return;
+		hasreturned = true;
+		result = r;
+		lk.unlock();
+		cv.notify_one();
+	};
+
+	std::map<Peer*, int> record;
 	for (auto p : peers_) {
-		p->send(name, args...);
+		record[p] = p->asyncCall<std::optional<R>>(name, handler, std::forward<ARGS>(args)...);
 	}
-	return {};
+	
+	{  // Block thread until async callback notifies us
+		std::unique_lock<std::mutex> lk(m);
+		cv.wait_for(lk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
+
+		// Cancel any further results
+		for (auto p : peers_) {
+			auto m = record.find(p);
+			if (m != record.end()) {
+				p->cancelCall(m->second);
+			}
+		}
+	}
+
+	return result;
 }
 
 template <typename R, typename... ARGS>
@@ -161,7 +197,10 @@ template <typename... ARGS>
 void Universe::publish(const std::string &res, ARGS... args) {
 	auto subs = subscribers_[res];
 	for (auto p : subs) {
-		p->send(res, args...);
+		auto peer = getPeer(p);
+		if (peer) {
+			*peer->send(res, args...);
+		}
 	}
 }
 

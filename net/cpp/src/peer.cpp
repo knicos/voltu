@@ -465,7 +465,13 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 		(*callbacks_[id])(res);
 		callbacks_.erase(id);
 	} else {
-		LOG(ERROR) << "Missing RPC callback for result";
+		LOG(WARNING) << "Missing RPC callback for result - discarding";
+	}
+}
+
+void Peer::cancelCall(int id) {
+	if (callbacks_.count(id) > 0) {
+		callbacks_.erase(id);
 	}
 }
 
