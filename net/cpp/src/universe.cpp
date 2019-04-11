@@ -12,8 +12,12 @@ using ftl::net::Peer;
 using ftl::net::Listener;
 using ftl::net::Universe;
 using nlohmann::json;
+using ftl::UUID;
+using std::optional;
 
-Universe::Universe() : active_(true), thread_(Universe::__start, this) {}
+Universe::Universe() : active_(true), thread_(Universe::__start, this) {
+	_installBindings();
+}
 
 Universe::Universe(nlohmann::json &config) :
 		active_(true), config_(config), thread_(Universe::__start, this) {
@@ -30,6 +34,8 @@ Universe::Universe(nlohmann::json &config) :
 			connect(p);
 		}
 	}
+	
+	_installBindings();
 }
 
 Universe::~Universe() {
@@ -104,11 +110,39 @@ int Universe::_setDescriptors() {
 }
 
 void Universe::_installBindings(Peer *p) {
-	p->bind("__subscribe__", [this](const string &uri) {
-		// Add this peer to subscription list for uri resource
+
+}
+
+void Universe::_installBindings() {
+	bind("__subscribe__", [this](const UUID &id, const string &uri) -> bool {
+		
 	});
 	
 	
+}
+
+Peer *Universe::getPeer(const UUID &id) const {
+	auto ix = peer_ids_.find(id);
+	if (ix == peer_ids_.end()) return nullptr;
+	else return ix->second;
+}
+
+optional<UUID> Universe::_findOwner(const string &res) {
+	// TODO(nick) cache this information
+	return findOne<UUID>("__owner__", res);
+}
+
+bool Universe::_subscribe(const std::string &res) {
+	// Need to find who owns the resource
+	optional<UUID> pid = _findOwner(res);
+	
+	if (pid) {
+		return call<bool>(*pid, "__subscribe__", id_, res);
+	} else {
+		// No resource found
+		LOG(WARNING) << "Subscribe to unknown resource: " << res;
+		return false;
+	}
 }
 
 void Universe::__start(Universe * u) {

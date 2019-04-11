@@ -37,6 +37,9 @@ namespace ftl {
 		bool operator!=(const UUID &u) const {
 			return memcmp(&uuid_,&u.uuid_,16) != 0;
 		}
+		bool operator<(const UUID &u) const {
+			return strncmp((const char*)uuid_, (const char *)u.uuid_, 16) < 0;
+		}
 		
 		/**
 		 * Get a raw data string.

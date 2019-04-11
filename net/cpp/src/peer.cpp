@@ -51,6 +51,9 @@ using ftl::net::Dispatcher;
 
 int Peer::rpcid__ = 0;
 
+// Global peer UUID
+ftl::UUID ftl::net::this_peer;
+
 static ctpl::thread_pool pool(5);
 
 // TODO(nick) Move to tcp_internal.cpp
@@ -145,12 +148,13 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 			} else {
 				status_ = kConnected;
 				version_ = version;
+				peerid_ = pid;
 			}
 		});
 	
-		ftl::UUID uuid;
+		//ftl::UUID uuid;
 
-		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, uuid); 
+		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer); 
 	}
 }
 
@@ -210,8 +214,8 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 			} else {
 				status_ = kConnected;
 				version_ = version;
-				ftl::UUID uuid;
-				send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, uuid);
+				peerid_ = pid;
+				send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer);
 			}
 		}); 
 	}

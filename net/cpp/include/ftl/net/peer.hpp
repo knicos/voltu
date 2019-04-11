@@ -34,6 +34,8 @@ extern int setDescriptors();
 namespace ftl {
 namespace net {
 
+extern ftl::UUID this_peer;
+
 class Universe;
 
 struct virtual_caller {

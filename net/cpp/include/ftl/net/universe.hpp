@@ -54,6 +54,8 @@ class Universe {
 	
 	int numberOfPeers() const { return peers_.size(); }
 	
+	Peer *getPeer(const ftl::UUID &pid) const;
+	
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
 	 * be called by any peer making the request.
@@ -76,6 +78,12 @@ class Universe {
 	template <typename... ARGS>
 	void broadcast(const std::string &name, ARGS... args);
 	
+	template <typename R, typename... ARGS>
+	R call(const UUID &pid, const std::string &name, ARGS... args);
+	
+	template <typename R, typename... ARGS>
+	std::optional<R> findOne(const std::string &name, ARGS... args);
+	
 	/**
 	 * Send a non-blocking RPC call with no return value to all subscribers
 	 * of a resource. There may be no subscribers.
@@ -88,7 +96,10 @@ class Universe {
 	private:
 	void _run();
 	int _setDescriptors();
+	void _installBindings();
 	void _installBindings(Peer *);
+	bool _subscribe(const std::string &res);
+	std::optional<ftl::UUID> _findOwner(const std::string &res);
 	
 	static void __start(Universe *u);
 	
@@ -100,6 +111,8 @@ class Universe {
 	fd_set sfdread_;
 	std::vector<ftl::net::Listener*> listeners_;
 	std::vector<ftl::net::Peer*> peers_;
+	std::map<std::string, std::vector<ftl::net::Peer*>> subscribers_;
+	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
 	
@@ -115,10 +128,40 @@ void Universe::bind(const std::string &name, F func) {
 	    typename ftl::internal::func_kind_info<F>::args_kind());
 }
 
+template <typename F>
+bool Universe::subscribe(const std::string &res, F func) {
+	bind(res, func);
+	_subscribe(res);
+	return true;
+}
+
 template <typename... ARGS>
 void Universe::broadcast(const std::string &name, ARGS... args) {
 	for (auto p : peers_) {
 		p->send(name, args...);
+	}
+}
+
+template <typename R, typename... ARGS>
+std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
+	for (auto p : peers_) {
+		p->send(name, args...);
+	}
+	return {};
+}
+
+template <typename R, typename... ARGS>
+R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
+	Peer *p = getPeer(pid);
+	if (p == nullptr) throw -1;
+	return p->call<R>(name, args...);
+}
+
+template <typename... ARGS>
+void Universe::publish(const std::string &res, ARGS... args) {
+	auto subs = subscribers_[res];
+	for (auto p : subs) {
+		p->send(res, args...);
 	}
 }
 
