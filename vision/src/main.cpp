@@ -139,9 +139,21 @@ static void run(const string &file) {
 	Calibrate calibrate(lsrc, config["calibration"]);
 	if (config["calibrate"]) calibrate.recalibrate();
 	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
+	
+	// Allow remote users to access camera calibration matrix
+	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [&calibrate]() -> vector<unsigned char> {
+		vector<unsigned char> buf;
+		cv::Mat Q_32F;
+		calibrate.getQ().convertTo(Q_32F, CV_32F);
+		
+		buf.resize(Q_32F.step*Q_32F.rows);
+		memcpy(Q_32F.data, buf.data(), buf.size());
+		return buf;
+	});
 
     // Choose and configure disparity algorithm
     auto disparity = Disparity::create(config["disparity"]);
+    if (!disparity) LOG(FATAL) << "Unknown disparity algorithm : " << config["disparity"];
 
 	Mat l, r, disp;
 
@@ -160,6 +172,7 @@ static void run(const string &file) {
 		sync->get(ftl::LEFT, l);
 		sync->get(ftl::RIGHT, r);
 
+		// TODO(nick) Pipeline this
         disparity->compute(l, r, disp);
 
 		// Send RGB+Depth images for local rendering

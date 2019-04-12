@@ -115,7 +115,7 @@ static void process_options(const map<string, string> &opts) {
 
 static void run(const string &file) {
 	Universe net(config["net"]);
-	Mat rgb, depth;
+	Mat rgb, depth, Q;
 	mutex m;
 	
 	// Make sure connections are complete
@@ -152,6 +152,14 @@ static void run(const string &file) {
 			cv::imshow("RGB", rgb);
 		}
 		if (depth.cols > 0) {
+			if (Q.rows == 0) {
+				auto buf = net.findOne<vector<unsigned char>>((string)config["source"]+"/calibration");
+				if (buf) {
+					Q = Mat(cv::Size(4,4), CV_32F);
+					memcpy((*buf).data(), Q.data, (*buf).size());
+					LOG(INFO) << "Have calibration";
+				}
+			}
 			depth.convertTo(idepth, CV_8U, 255.0f / 256.0f);  // TODO(nick)
     		applyColorMap(idepth, idepth, cv::COLORMAP_JET);
 			cv::imshow("Depth", idepth);
