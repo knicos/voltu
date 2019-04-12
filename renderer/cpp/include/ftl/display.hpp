@@ -9,7 +9,6 @@
 
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
-#include <ftl/calibrate.hpp>
 #include "opencv2/highgui.hpp"
 
 namespace ftl {
@@ -19,15 +18,19 @@ namespace ftl {
  */
 class Display {
 	public:
-	Display(const Calibrate &cal, nlohmann::json &config);
+	Display(nlohmann::json &config);
 	~Display();
+	
+	void setCalibration(const cv::Mat &q) { q_ = q; }
 
 	bool render(const cv::Mat &rgb, const cv::Mat &depth);
 
 	bool active() const;
+	
+	void wait(int ms);
 
 	private:
-	const ftl::Calibrate &calibrate_;
+	cv::Mat q_;
 	nlohmann::json config_;
 
 	#if defined HAVE_VIZ

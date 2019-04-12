@@ -114,6 +114,7 @@ endif()
 
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 
+add_subdirectory(renderer)
 add_subdirectory(net)
 add_subdirectory(vision)
 add_subdirectory(reconstruct)

@@ -18,6 +18,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <ftl/net/universe.hpp>
+#include <ftl/display.hpp>
 #include <nlohmann/json.hpp>
 
 #include "opencv2/imgproc.hpp"
@@ -30,6 +31,7 @@
 #endif
 
 using ftl::net::Universe;
+using ftl::Display;
 using std::string;
 using std::vector;
 using std::map;
@@ -118,6 +120,8 @@ static void run(const string &file) {
 	Mat rgb, depth, Q;
 	mutex m;
 	
+	Display disp(config["display"]);
+	
 	// Make sure connections are complete
 	sleep_for(milliseconds(500));
 
@@ -144,13 +148,10 @@ static void run(const string &file) {
 		inflateEnd(&infstream);
 	});
 	
-	while (true) {
+	while (disp.active()) {
 		Mat idepth;
 		
 		unique_lock<mutex> lk(m);
-		if (rgb.cols > 0) {
-			cv::imshow("RGB", rgb);
-		}
 		if (depth.cols > 0) {
 			if (Q.rows == 0) {
 				auto buf = net.findOne<vector<unsigned char>>((string)config["source"]+"/calibration");
@@ -158,14 +159,23 @@ static void run(const string &file) {
 					Q = Mat(cv::Size(4,4), CV_32F);
 					memcpy((*buf).data(), Q.data, (*buf).size());
 					LOG(INFO) << "Have calibration";
+					if (Q.step*Q.rows != (*buf).size()) LOG(ERROR) << "Corrupted calibration";
+					disp.setCalibration(Q);
 				}
 			}
-			depth.convertTo(idepth, CV_8U, 255.0f / 256.0f);  // TODO(nick)
-    		applyColorMap(idepth, idepth, cv::COLORMAP_JET);
-			cv::imshow("Depth", idepth);
+			//depth.convertTo(idepth, CV_8U, 255.0f / 256.0f);  // TODO(nick)
+    		//applyColorMap(idepth, idepth, cv::COLORMAP_JET);
+			//cv::imshow("Depth", idepth);
 		}
+		
+		if (rgb.cols > 0) {
+			//cv::imshow("RGB", rgb);
+			disp.render(rgb,depth);
+		}
+		
 		lk.unlock();
-		if (cv::waitKey(40) == 27) break;
+		//if (cv::waitKey(40) == 27) break;
+		disp.wait(40);
 	}
 }
 

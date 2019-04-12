@@ -7,12 +7,10 @@
 #include <ftl/display.hpp>
 
 using ftl::Display;
-using ftl::Calibrate;
 using cv::Mat;
 using cv::Vec3f;
 
-Display::Display(const Calibrate &cal, nlohmann::json &config) :
-		calibrate_(cal), config_(config) {
+Display::Display(nlohmann::json &config) : config_(config) {
 	#if defined HAVE_VIZ
 	window_ = new cv::viz::Viz3d("FTL");
 	window_->setBackgroundColor(cv::viz::Color::white());
@@ -29,12 +27,12 @@ Display::~Display() {
 bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	Mat idepth;
 
-	if (config_["points"]) {
+	if (config_["points"] && q_.rows != 0) {
 		#if defined HAVE_VIZ
-		cv::Mat Q_32F;
-		calibrate_.getQ().convertTo(Q_32F, CV_32F);
+		//cv::Mat Q_32F;
+		//calibrate_.getQ().convertTo(Q_32F, CV_32F);
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
-		reprojectImageTo3D(depth+20.0f, XYZ, Q_32F, true);
+		reprojectImageTo3D(depth+20.0f, XYZ, q_, true);
 
 		// Remove all invalid pixels from point cloud
 		XYZ.setTo(Vec3f(NAN, NAN, NAN), depth == 0.0f);
@@ -45,7 +43,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 		window_->showWidget("coosys", cv::viz::WCoordinateSystem());
 		window_->showWidget("Depth", cloud_widget);
 
-		window_->spinOnce(1, true);
+		//window_->spinOnce(40, true);
 
 		#else  // HAVE_VIZ
 
@@ -77,13 +75,28 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 
     	applyColorMap(idepth, idepth, cv::COLORMAP_JET);
 		cv::imshow("Disparity", idepth);
-		if(cv::waitKey(10) == 27) {
+		//if(cv::waitKey(40) == 27) {
 	        // exit if ESC is pressed
-	        active_ = false;
-	    }
+	    //    active_ = false;
+	    //}
     }
 
 	return true;
+}
+
+void Display::wait(int ms) {
+	if (config_["points"] && q_.rows != 0) {
+		#if defined HAVE_VIZ
+		window_->spinOnce(1, true);
+		#endif  // HAVE_VIZ
+	}
+	
+	if (config_["disparity"]) {
+		if(cv::waitKey(ms) == 27) {
+	        // exit if ESC is pressed
+	        active_ = false;
+	    }
+	}
 }
 
 bool Display::active() const {
