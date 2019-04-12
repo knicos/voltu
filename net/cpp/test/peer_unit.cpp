@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 //#include <map>
+#include <vector>
 #include <tuple>
 #include <thread>
 #include <chrono>
@@ -20,6 +21,7 @@
 
 using std::tuple;
 using std::get;
+using std::vector;
 using ftl::net::Peer;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
@@ -126,6 +128,14 @@ tuple<uint32_t, T> readRPC(int s) {
 	tuple<uint8_t, uint32_t, std::string, T> req;
 	msg.get().convert(req);
 	return std::make_tuple(get<1>(req), get<3>(req));
+}
+
+template <typename T>
+T readRPCReturn(int s) {
+	msgpack::object_handle msg = msgpack::unpack(fakedata[s].data(), fakedata[s].size());
+	tuple<uint8_t, uint32_t, std::string, T> req;
+	msg.get().convert(req);
+	return get<3>(req);
 }
 
 // --- Files to test -----------------------------------------------------------
@@ -242,6 +252,33 @@ TEST_CASE("Peer::call()", "[rpc]") {
 		
 		REQUIRE( (res == 77) );
 	}
+
+	SECTION("vector return from call") {
+		REQUIRE( s.isConnected() );
+		
+		fakedata[0] = "";
+		
+		// Thread to provide response to otherwise blocking call
+		std::thread thr([&s]() {
+			while (fakedata[0].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			
+			auto [id,value] = readRPC<tuple<>>(0);
+			vector<int> data = {44,55,66};
+			auto res_obj = std::make_tuple(1,id,"__return__",data);
+			std::stringstream buf;
+			msgpack::pack(buf, res_obj);
+			fakedata[0] = buf.str();
+			s.mock_data();
+			sleep_for(milliseconds(50));
+		});
+		
+		vector<int> res = s.call<vector<int>>("test1");
+		
+		thr.join();
+		
+		REQUIRE( (res[0] == 44) );
+		REQUIRE( (res[2] == 66) );
+	}
 }
 
 TEST_CASE("Peer::bind()", "[rpc]") {
@@ -290,6 +327,41 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 		sleep_for(milliseconds(50));
 		
 		REQUIRE( (done == "world") );
+	}
+
+	SECTION("int return value") {		
+		int done = 0;
+		
+		s.bind("hello", [&](int a) -> int {
+			done = a;
+			return a;
+		});
+		
+		s.asyncCall<int>("hello", [](int a){}, 55);
+		s.mock_data(); // Force it to read the fake send...
+		sleep_for(milliseconds(50));
+		
+		REQUIRE( (done == 55) );
+		REQUIRE( readRPCReturn<int>(0) == 55 );
+	}
+
+	SECTION("vector return value") {		
+		int done = 0;
+		
+		s.bind("hello", [&](int a) -> vector<int> {
+			done = a;
+			vector<int> b = {a,45};
+			return b;
+		});
+		
+		s.asyncCall<int>("hello", [](int a){}, 55);
+		s.mock_data(); // Force it to read the fake send...
+		sleep_for(milliseconds(50));
+		
+		REQUIRE( (done == 55) );
+
+		auto res = readRPCReturn<vector<int>>(0);
+		REQUIRE( res[1] == 45 );
 	}
 }
 

@@ -147,7 +147,8 @@ static void run(const string &file) {
 	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [&calibrate,Q_32F]() -> vector<unsigned char> {
 		vector<unsigned char> buf;
 		buf.resize(Q_32F.step*Q_32F.rows);
-		memcpy(Q_32F.data, buf.data(), buf.size());
+		LOG(INFO) << "Calib buf size = " << buf.size();
+		memcpy(buf.data(), Q_32F.data, buf.size());
 		return buf;
 	});
 

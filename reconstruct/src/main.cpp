@@ -157,8 +157,7 @@ static void run(const string &file) {
 				auto buf = net.findOne<vector<unsigned char>>((string)config["source"]+"/calibration");
 				if (buf) {
 					Q = Mat(cv::Size(4,4), CV_32F);
-					memcpy((*buf).data(), Q.data, (*buf).size());
-					LOG(INFO) << "Have calibration";
+					memcpy(Q.data, (*buf).data(), (*buf).size());
 					if (Q.step*Q.rows != (*buf).size()) LOG(ERROR) << "Corrupted calibration";
 					disp.setCalibration(Q);
 				}
