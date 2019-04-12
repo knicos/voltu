@@ -35,7 +35,7 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     defstream.avail_out = (uInt)depth.step*depth.rows; // size of output
     defstream.next_out = (Bytef *)d_buf.data(); // output char array
     
-    deflateInit(&defstream, Z_BEST_COMPRESSION);
+    deflateInit(&defstream, Z_DEFAULT_COMPRESSION);
     deflate(&defstream, Z_FINISH);
     deflateEnd(&defstream);
     
