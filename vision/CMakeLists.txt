@@ -10,7 +10,6 @@ set(CVNODESRC
 	src/calibrate.cpp
 	src/local.cpp
 	src/sync.cpp
-	src/display.cpp
 	src/disparity.cpp
 	src/streamer.cpp
 	src/middlebury.cpp
@@ -40,6 +39,7 @@ endif (CUDA_FOUND)
 
 add_executable(ftl-vision ${CVNODESRC})
 add_dependencies(ftl-vision ftlnet)
+add_dependencies(ftl-vision ftlrender)
 add_dependencies(ftl-vision libelas)
 
 if (CUDA_FOUND)
@@ -47,6 +47,6 @@ set_property(TARGET ftl-vision PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-vision Threads::Threads ZLIB::ZLIB libelas ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
+target_link_libraries(ftl-vision ftlrender Threads::Threads ZLIB::ZLIB libelas ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
 
 

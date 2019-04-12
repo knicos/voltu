@@ -140,12 +140,12 @@ static void run(const string &file) {
 	if (config["calibrate"]) calibrate.recalibrate();
 	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 	
+	cv::Mat Q_32F;
+	calibrate.getQ().convertTo(Q_32F, CV_32F);
+	
 	// Allow remote users to access camera calibration matrix
-	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [&calibrate]() -> vector<unsigned char> {
+	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [&calibrate,Q_32F]() -> vector<unsigned char> {
 		vector<unsigned char> buf;
-		cv::Mat Q_32F;
-		calibrate.getQ().convertTo(Q_32F, CV_32F);
-		
 		buf.resize(Q_32F.step*Q_32F.rows);
 		memcpy(Q_32F.data, buf.data(), buf.size());
 		return buf;
@@ -157,7 +157,9 @@ static void run(const string &file) {
 
 	Mat l, r, disp;
 
-	Display display(calibrate, config["display"]);
+	Display display(config["display"]);
+	display.setCalibration(Q_32F);
+	
 	Streamer stream(net, config["stream"]);
 
 	while (display.active()) {
@@ -179,6 +181,7 @@ static void run(const string &file) {
 		display.render(l, disp);
 
 		stream.send(l, disp);
+		display.wait(1);
 	}
 }
 
