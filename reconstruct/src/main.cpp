@@ -6,6 +6,7 @@
 
 #include <glog/logging.h>
 #include <ftl/config.h>
+#include <zlib.h>
 
 #include <string>
 #include <map>
@@ -114,22 +115,46 @@ static void process_options(const map<string, string> &opts) {
 
 static void run(const string &file) {
 	Universe net(config["net"]);
-	Mat rgb;
+	Mat rgb, depth;
 	mutex m;
 	
 	// Make sure connections are complete
 	sleep_for(milliseconds(500));
 
-	net.subscribe(config["source"], [&rgb,&m](const vector<unsigned char> &jpg) {
+	net.subscribe(config["source"], [&rgb,&m,&depth](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 		unique_lock<mutex> lk(m);
 		cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb);
 		//LOG(INFO) << "Received JPG : " << rgb.cols;
+		
+		depth = Mat(rgb.size(), CV_32FC1);
+		
+		z_stream infstream;
+		infstream.zalloc = Z_NULL;
+		infstream.zfree = Z_NULL;
+		infstream.opaque = Z_NULL;
+		// setup "b" as the input and "c" as the compressed output
+		infstream.avail_in = (uInt)d.size(); // size of input
+		infstream.next_in = (Bytef *)d.data(); // input char array
+		infstream.avail_out = (uInt)depth.step*depth.rows; // size of output
+		infstream.next_out = (Bytef *)depth.data; // output char array
+		 
+		// the actual DE-compression work.
+		inflateInit(&infstream);
+		inflate(&infstream, Z_NO_FLUSH);
+		inflateEnd(&infstream);
 	});
 	
 	while (true) {
+		Mat idepth;
+		
 		unique_lock<mutex> lk(m);
 		if (rgb.cols > 0) {
 			cv::imshow("RGB", rgb);
+		}
+		if (depth.cols > 0) {
+			depth.convertTo(idepth, CV_8U, 255.0f / 256.0f);  // TODO(nick)
+    		applyColorMap(idepth, idepth, cv::COLORMAP_JET);
+			cv::imshow("Depth", idepth);
 		}
 		lk.unlock();
 		if (cv::waitKey(40) == 27) break;

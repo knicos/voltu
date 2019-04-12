@@ -12,6 +12,6 @@ add_executable(ftl-reconstruct ${REPSRC})
 add_dependencies(ftl-reconstruct ftlnet)
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-reconstruct Threads::Threads ${OpenCV_LIBS} glog::glog ftlnet)
+target_link_libraries(ftl-reconstruct Threads::Threads ZLIB::ZLIB ${OpenCV_LIBS} glog::glog ftlnet)
 
 
