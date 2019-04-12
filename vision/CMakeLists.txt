@@ -1,5 +1,5 @@
 # Need to include staged files and libs
-include_directories(${PROJECT_SOURCE_DIR}/cv-node/include)
+include_directories(${PROJECT_SOURCE_DIR}/vision/include)
 #include_directories(${PROJECT_BINARY_DIR})
 
 add_subdirectory(lib)
@@ -38,15 +38,15 @@ if (CUDA_FOUND)
 		"src/algorithms/nick.cpp")
 endif (CUDA_FOUND)
 
-add_executable(cv-node ${CVNODESRC})
-add_dependencies(cv-node ftlnet)
-add_dependencies(cv-node libelas)
+add_executable(ftl-vision ${CVNODESRC})
+add_dependencies(ftl-vision ftlnet)
+add_dependencies(ftl-vision libelas)
 
 if (CUDA_FOUND)
-set_property(TARGET cv-node PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+set_property(TARGET ftl-vision PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(cv-node Threads::Threads libelas ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
+target_link_libraries(ftl-vision Threads::Threads libelas ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
 
 

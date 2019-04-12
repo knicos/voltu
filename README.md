@@ -3,8 +3,9 @@
 This monorepo contains all elements of the FTL software system.
 
 * net : A p2p messaging library for C++ and JavaScript
-* cv-node : Stereo vision node in p2p network
-* renderer : Produce video or live image feeds from scene representation
+* vision : Stereo vision node in p2p network
+* reconstruct : Performs scene reconstruction from vision nodes
+* renderer : Produce video or live feeds from scene representation
 * front-end : Client side FTL code, both web and native
 * web-service : A web backend service provider acting as a form of proxy
 * www : FTL Website

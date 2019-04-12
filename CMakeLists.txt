@@ -114,8 +114,8 @@ endif()
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 
 add_subdirectory(net)
-add_subdirectory(cv-node)
-add_subdirectory(rep-server)
+add_subdirectory(vision)
+add_subdirectory(reconstruct)
 
 ### Generate Build Configuration Files =========================================
 

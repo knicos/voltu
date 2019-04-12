@@ -132,7 +132,7 @@ static void run(const string &file) {
 			cv::imshow("RGB", rgb);
 		}
 		lk.unlock();
-		if (cv::waitKey(5) == 27) break;
+		if (cv::waitKey(40) == 27) break;
 	}
 }
 
