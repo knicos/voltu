@@ -40,7 +40,7 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     deflateEnd(&defstream);
     
     d_buf.resize(defstream.total_out);
-    LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
+    //LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
     
     net_.publish(uri_, rgb_buf, d_buf);
 }

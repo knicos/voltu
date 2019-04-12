@@ -125,6 +125,7 @@ static void run(const string &file) {
 	// Make sure connections are complete
 	sleep_for(milliseconds(500));
 
+	// TODO(nick) Allow for many sources
 	net.subscribe(config["source"], [&rgb,&m,&depth](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 		unique_lock<mutex> lk(m);
 		cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb);
@@ -153,6 +154,7 @@ static void run(const string &file) {
 		
 		unique_lock<mutex> lk(m);
 		if (depth.cols > 0) {
+			// If no calibration data then get it from the remote machine
 			if (Q.rows == 0) {
 				auto buf = net.findOne<vector<unsigned char>>((string)config["source"]+"/calibration");
 				if (buf) {
@@ -162,9 +164,6 @@ static void run(const string &file) {
 					disp.setCalibration(Q);
 				}
 			}
-			//depth.convertTo(idepth, CV_8U, 255.0f / 256.0f);  // TODO(nick)
-    		//applyColorMap(idepth, idepth, cv::COLORMAP_JET);
-			//cv::imshow("Depth", idepth);
 		}
 		
 		if (rgb.cols > 0) {
@@ -172,6 +171,7 @@ static void run(const string &file) {
 			disp.render(rgb,depth);
 		}
 		
+		// TODO(nick) Use a swap buffer so this can be unlocked earlier
 		lk.unlock();
 		//if (cv::waitKey(40) == 27) break;
 		disp.wait(40);

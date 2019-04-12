@@ -6,11 +6,15 @@
 
 #include <glog/logging.h>
 #include <ftl/config.h>
+#include <ctpl_stl.h>
 
 #include <string>
 #include <map>
 #include <vector>
 #include <fstream>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include <opencv2/opencv.hpp>
 #include <ftl/local.hpp>
@@ -42,6 +46,9 @@ using ftl::net::Universe;
 using std::string;
 using std::vector;
 using std::map;
+using std::condition_variable;
+using std::mutex;
+using std::unique_lock;
 using cv::Mat;
 using json = nlohmann::json;
 using std::ifstream;
@@ -118,6 +125,7 @@ static void process_options(const map<string, string> &opts) {
 }
 
 static void run(const string &file) {
+	ctpl::thread_pool pool(2);
 	Universe net(config["net"]);
 
 	LocalSource *lsrc;
@@ -157,6 +165,7 @@ static void run(const string &file) {
     if (!disparity) LOG(FATAL) << "Unknown disparity algorithm : " << config["disparity"];
 
 	Mat l, r, disp;
+	Mat pl, pdisp;
 
 	Display display(config["display"]);
 	display.setCalibration(Q_32F);
@@ -164,25 +173,58 @@ static void run(const string &file) {
 	Streamer stream(net, config["stream"]);
 
 	while (display.active()) {
-		// Read calibrated images.
-		calibrate.rectified(l, r);
+		mutex m;
+		condition_variable cv;
+		int jobs = 0;
 
-		// Feed into sync buffer and network forward
-		sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
-		sync->feed(ftl::RIGHT, r, lsrc->getTimestamp());
+		pool.push([&](int id) {
+			auto start = std::chrono::high_resolution_clock::now();
+			// Read calibrated images.
+			calibrate.rectified(l, r);
 
-		// Read back from buffer
-		sync->get(ftl::LEFT, l);
-		sync->get(ftl::RIGHT, r);
+			// Feed into sync buffer and network forward
+			sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
+			sync->feed(ftl::RIGHT, r, lsrc->getTimestamp());
 
-		// TODO(nick) Pipeline this
-        disparity->compute(l, r, disp);
+			// Read back from buffer
+			sync->get(ftl::LEFT, l);
+			sync->get(ftl::RIGHT, r);
+
+			// TODO(nick) Pipeline this
+		    disparity->compute(l, r, disp);
+
+			unique_lock<mutex> lk(m);
+			jobs++;
+			lk.unlock();
+			cv.notify_one();
+
+			std::chrono::duration<double> elapsed =
+				std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "Disparity in " << elapsed.count() << "s";
+		});
+
+		pool.push([&](int id) {
+			auto start = std::chrono::high_resolution_clock::now();
+			if (pl.rows != 0) stream.send(pl, pdisp);
+			unique_lock<mutex> lk(m);
+			jobs++;
+			lk.unlock();
+			cv.notify_one();
+
+			std::chrono::duration<double> elapsed =
+				std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "Stream in " << elapsed.count() << "s";
+		});
 
 		// Send RGB+Depth images for local rendering
 		display.render(l, disp);
-
-		stream.send(l, disp);
 		display.wait(1);
+
+		unique_lock<mutex> lk(m);
+		cv.wait(lk, [&jobs]{return jobs == 2;});
+
+		l.copyTo(pl);
+		disp.copyTo(pdisp);
 	}
 }
 
