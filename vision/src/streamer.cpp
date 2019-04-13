@@ -20,27 +20,39 @@ Streamer::~Streamer() {
 
 }
 
+//static Mat last;
+
 void Streamer::send(const Mat &rgb, const Mat &depth) {
 	// Compress the rgb as jpeg.
 	vector<unsigned char> rgb_buf;
 	cv::imencode(".jpg", rgb, rgb_buf);
 	
+	Mat d2;
+    depth.convertTo(d2, CV_16UC1, 256);
+	
+	//if (last.rows == 0) d2.copyTo(last);
+	
+	//Mat ddepth;
+	//ddepth = d2 - last;
+	
 	vector<unsigned char> d_buf;
-	d_buf.resize(depth.step*depth.rows);
+	/*d_buf.resize(d2.step*d2.rows);
 	z_stream defstream;
     defstream.zalloc = Z_NULL;
     defstream.zfree = Z_NULL;
     defstream.opaque = Z_NULL;
-    defstream.avail_in = depth.step*depth.rows;
-    defstream.next_in = (Bytef *)depth.data; // input char array
-    defstream.avail_out = (uInt)depth.step*depth.rows; // size of output
+    defstream.avail_in = d2.step*d2.rows;
+    defstream.next_in = (Bytef *)d2.data; // input char array
+    defstream.avail_out = (uInt)d2.step*d2.rows; // size of output
     defstream.next_out = (Bytef *)d_buf.data(); // output char array
     
     deflateInit(&defstream, 4); // Z_DEFAULT_COMPRESSION
     deflate(&defstream, Z_FINISH);
     deflateEnd(&defstream);
     
-    d_buf.resize(defstream.total_out);
+    d2.copyTo(last);
+    
+    d_buf.resize(defstream.total_out);*/
     
     // LZ4 Version
     // d_buf.resize(LZ4_compressBound(depth.step*depth.rows));
@@ -49,7 +61,7 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     
     //Mat d2;
     //depth.convertTo(d2, CV_16UC1, 256);
-    //cv::imencode(".png", depth, d_buf);
+    cv::imencode(".png", d2, d_buf);
     LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
     
     net_.publish(uri_, rgb_buf, d_buf);
