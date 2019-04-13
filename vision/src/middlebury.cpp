@@ -244,9 +244,7 @@ void ftl::middlebury::test(nlohmann::json &config) {
 	
 	// Run algorithm
 	auto disparity = ftl::Disparity::create(config["disparity"]);
-	cvtColor(l,  l, cv::COLOR_BGR2GRAY);
-    cvtColor(r, r, cv::COLOR_BGR2GRAY);
-        
+    
     Mat disp;
     disparity->compute(l,r,disp);
 	disp.convertTo(disp, CV_32F);

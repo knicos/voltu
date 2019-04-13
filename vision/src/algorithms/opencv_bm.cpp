@@ -22,9 +22,12 @@ OpenCVBM::OpenCVBM(nlohmann::json &config) : Disparity(config) {
 void OpenCVBM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	Mat left_disp;
 	Mat right_disp;
-	left_matcher_-> compute(l, r,left_disp);
-    right_matcher_->compute(r,l, right_disp);
-    wls_filter_->filter(left_disp,l,disp,right_disp);
+    Mat lg, rg;
+	cv::cvtColor(l, lg, cv::COLOR_BGR2GRAY);
+	cv::cvtColor(r, rg, cv::COLOR_BGR2GRAY);
+	left_matcher_-> compute(lg, rg,left_disp);
+    right_matcher_->compute(rg, lg, right_disp);
+    wls_filter_->filter(left_disp, l, disp, right_disp);
 }
 
 
