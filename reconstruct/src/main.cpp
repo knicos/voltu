@@ -7,6 +7,7 @@
 #include <glog/logging.h>
 #include <ftl/config.h>
 #include <zlib.h>
+// #include <lz4.h>
 
 #include <string>
 #include <map>
@@ -147,6 +148,9 @@ static void run(const string &file) {
 		inflateInit(&infstream);
 		inflate(&infstream, Z_NO_FLUSH);
 		inflateEnd(&infstream);
+		
+		//LZ4_decompress_safe((char*)d.data(), (char*)depth.data, d.size(), depth.step*depth.rows);
+		
 		//cv::imdecode(d, cv::IMREAD_GRAYSCALE, &depth);
 		//depth.convertTo(depth, CV_32FC1); //, 1.0f/16.0f); //, 1.0f/256.0f);
 	});

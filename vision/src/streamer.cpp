@@ -2,6 +2,7 @@
 #include <ftl/streamer.hpp>
 #include <vector>
 #include <zlib.h>
+// #include <lz4.h>
 
 using ftl::Streamer;
 using ftl::net::Universe;
@@ -35,11 +36,17 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     defstream.avail_out = (uInt)depth.step*depth.rows; // size of output
     defstream.next_out = (Bytef *)d_buf.data(); // output char array
     
-    deflateInit(&defstream, Z_DEFAULT_COMPRESSION);
+    deflateInit(&defstream, 4); // Z_DEFAULT_COMPRESSION
     deflate(&defstream, Z_FINISH);
     deflateEnd(&defstream);
     
     d_buf.resize(defstream.total_out);
+    
+    // LZ4 Version
+    // d_buf.resize(LZ4_compressBound(depth.step*depth.rows));
+    // int s = LZ4_compress_default((char*)depth.data, (char*)d_buf.data(), depth.step*depth.rows, d_buf.size());
+    // d_buf.resize(s);
+    
     //Mat d2;
     //depth.convertTo(d2, CV_16UC1, 256);
     //cv::imencode(".png", depth, d_buf);
