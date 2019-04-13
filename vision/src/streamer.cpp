@@ -25,7 +25,7 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
 	cv::imencode(".jpg", rgb, rgb_buf);
 	
 	vector<unsigned char> d_buf;
-	/*d_buf.resize(depth.step*depth.rows);
+	d_buf.resize(depth.step*depth.rows);
 	z_stream defstream;
     defstream.zalloc = Z_NULL;
     defstream.zfree = Z_NULL;
@@ -35,14 +35,14 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     defstream.avail_out = (uInt)depth.step*depth.rows; // size of output
     defstream.next_out = (Bytef *)d_buf.data(); // output char array
     
-    deflateInit(&defstream, Z_BEST_COMPRESSION);
+    deflateInit(&defstream, Z_DEFAULT_COMPRESSION);
     deflate(&defstream, Z_FINISH);
     deflateEnd(&defstream);
     
-    d_buf.resize(defstream.total_out);*/
+    d_buf.resize(defstream.total_out);
     //Mat d2;
-    //depth.convertTo(d2, CV_16UC1, 256.0f*16.0f);
-    cv::imencode(".png", depth, d_buf);
+    //depth.convertTo(d2, CV_16UC1, 256);
+    //cv::imencode(".png", depth, d_buf);
     LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
     
     net_.publish(uri_, rgb_buf, d_buf);

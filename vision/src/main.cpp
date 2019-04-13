@@ -185,14 +185,13 @@ static void run(const string &file) {
 			calibrate.rectified(l, r);
 
 			// Feed into sync buffer and network forward
-			sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
-			sync->feed(ftl::RIGHT, r, lsrc->getTimestamp());
+			//sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
+			//sync->feed(ftl::RIGHT, r, lsrc->getTimestamp());
 
 			// Read back from buffer
-			sync->get(ftl::LEFT, l);
-			sync->get(ftl::RIGHT, r);
+			//sync->get(ftl::LEFT, l);
+			//sync->get(ftl::RIGHT, r);
 
-			// TODO(nick) Pipeline this
 		    disparity->compute(l, r, disp);
 
 			unique_lock<mutex> lk(m);
@@ -219,13 +218,11 @@ static void run(const string &file) {
 		});
 
 		// Send RGB+Depth images for local rendering
-		display.render(l, disp);
+		if (pl.rows > 0) display.render(pl, pdisp);
 		display.wait(1);
 
 		unique_lock<mutex> lk(m);
 		cv.wait(lk, [&jobs]{return jobs == 2;});
-		
-		//sleep_for(milliseconds(40));
 
 		l.copyTo(pl);
 		disp.copyTo(pdisp);
