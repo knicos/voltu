@@ -289,6 +289,7 @@ int Peer::asyncCall(
 	
 	LOG(INFO) << "RPC " << name << "() -> " << uri_;
 	
+	std::unique_lock<std::mutex> lk(send_mtx_);
 	msgpack::pack(send_buf_, call_obj);
 	
 	// Register the CB

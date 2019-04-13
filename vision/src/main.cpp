@@ -47,6 +47,8 @@ using std::string;
 using std::vector;
 using std::map;
 using std::condition_variable;
+using std::this_thread::sleep_for;
+using std::chrono::milliseconds;
 using std::mutex;
 using std::unique_lock;
 using cv::Mat;
@@ -152,7 +154,7 @@ static void run(const string &file) {
 	calibrate.getQ().convertTo(Q_32F, CV_32F);
 	
 	// Allow remote users to access camera calibration matrix
-	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [&calibrate,Q_32F]() -> vector<unsigned char> {
+	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [Q_32F]() -> vector<unsigned char> {
 		vector<unsigned char> buf;
 		buf.resize(Q_32F.step*Q_32F.rows);
 		LOG(INFO) << "Calib buf size = " << buf.size();
@@ -222,6 +224,8 @@ static void run(const string &file) {
 
 		unique_lock<mutex> lk(m);
 		cv.wait(lk, [&jobs]{return jobs == 2;});
+		
+		//sleep_for(milliseconds(40));
 
 		l.copyTo(pl);
 		disp.copyTo(pdisp);

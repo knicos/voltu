@@ -131,9 +131,9 @@ static void run(const string &file) {
 		cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb);
 		//LOG(INFO) << "Received JPG : " << rgb.cols;
 		
-		depth = Mat(rgb.size(), CV_32FC1);
+		//depth = Mat(rgb.size(), CV_16UC1);
 		
-		z_stream infstream;
+		/*z_stream infstream;
 		infstream.zalloc = Z_NULL;
 		infstream.zfree = Z_NULL;
 		infstream.opaque = Z_NULL;
@@ -146,7 +146,9 @@ static void run(const string &file) {
 		// the actual DE-compression work.
 		inflateInit(&infstream);
 		inflate(&infstream, Z_NO_FLUSH);
-		inflateEnd(&infstream);
+		inflateEnd(&infstream);*/
+		cv::imdecode(d, cv::IMREAD_GRAYSCALE, &depth);
+		//depth.convertTo(depth, CV_32FC1, 1.0f/(256.0f*16.0f));
 	});
 	
 	while (disp.active()) {
@@ -156,7 +158,10 @@ static void run(const string &file) {
 		if (depth.cols > 0) {
 			// If no calibration data then get it from the remote machine
 			if (Q.rows == 0) {
+				// Must unlock before calling findOne to prevent net block!!
+				lk.unlock();
 				auto buf = net.findOne<vector<unsigned char>>((string)config["source"]+"/calibration");
+				lk.lock();
 				if (buf) {
 					Q = Mat(cv::Size(4,4), CV_32F);
 					memcpy(Q.data, (*buf).data(), (*buf).size());
