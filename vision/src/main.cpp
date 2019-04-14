@@ -61,9 +61,16 @@ static void run(const string &file) {
 	Universe net(config["net"]);
 
 	LocalSource *lsrc;
-	if (file != "") {
+	if (ftl::is_video(file)) {
 		// Load video file
 		lsrc = new LocalSource(file, config["source"]);
+	} else if (file != "") {
+		auto vid = ftl::locateFile("video.mp4");
+		if (!vid) {
+			LOG(FATAL) << "No video.mp4 file found in provided paths";
+		} else {
+			lsrc = new LocalSource(*vid, config["source"]);
+		}
 	} else {
 		// Use cameras
 		lsrc = new LocalSource(config["source"]);
@@ -161,6 +168,8 @@ static void run(const string &file) {
 
 int main(int argc, char **argv) {
 	auto paths = ftl::configure(argc, argv, "vision");
+	
+	config["paths"] = paths;
 
 	// Choose normal or middlebury modes
 	if (config["middlebury"]["dataset"] == "") {

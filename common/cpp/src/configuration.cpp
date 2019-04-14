@@ -63,6 +63,15 @@ bool ftl::is_file(const std::string &path) {
 #endif
 }
 
+static bool endsWith(const string &s, const string &e) {
+	return s.size() >= e.size() && 
+				s.compare(s.size() - e.size(), e.size(), e) == 0;
+}
+
+bool ftl::is_video(const string &file) {
+	return endsWith(file, ".mp4");
+}
+
 bool ftl::create_directory(const std::string &path) {
 #ifdef WIN32
 	// TODO(nick)
@@ -75,16 +84,20 @@ bool ftl::create_directory(const std::string &path) {
 #endif
 }
 
-optional<string> locateFile(const string &name, const vector<string> &paths) {	
-	for (auto p : paths) {
-		if (is_directory(p)) {
-			if (is_file(p+"/"+name)) {
-				return p+"/"+name;
+optional<string> ftl::locateFile(const string &name) {
+	auto paths = config["paths"];
+	
+	if (!paths.is_null()) {
+		for (string p : paths) {
+			if (is_directory(p)) {
+				if (is_file(p+"/"+name)) {
+					return p+"/"+name;
+				}
+			} else if (p.size() >= name.size() && 
+					p.compare(p.size() - name.size(), name.size(), name) == 0 &&
+					is_file(p)) {
+				return p;
 			}
-		} else if (p.size() >= name.size() && 
-				p.compare(p.size() - name.size(), name.size(), name) == 0 &&
-				is_file(p)) {
-			return p;
 		}
 	}
 	
