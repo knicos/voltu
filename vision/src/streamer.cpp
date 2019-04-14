@@ -20,20 +20,13 @@ Streamer::~Streamer() {
 
 }
 
-//static Mat last;
-
 void Streamer::send(const Mat &rgb, const Mat &depth) {
 	// Compress the rgb as jpeg.
 	vector<unsigned char> rgb_buf;
 	cv::imencode(".jpg", rgb, rgb_buf);
 	
 	Mat d2;
-    depth.convertTo(d2, CV_16UC1, 256);
-	
-	//if (last.rows == 0) d2.copyTo(last);
-	
-	//Mat ddepth;
-	//ddepth = d2 - last;
+    depth.convertTo(d2, CV_16UC1, 16);
 	
 	vector<unsigned char> d_buf;
 	/*d_buf.resize(d2.step*d2.rows);
@@ -58,9 +51,7 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     // d_buf.resize(LZ4_compressBound(depth.step*depth.rows));
     // int s = LZ4_compress_default((char*)depth.data, (char*)d_buf.data(), depth.step*depth.rows, d_buf.size());
     // d_buf.resize(s);
-    
-    //Mat d2;
-    //depth.convertTo(d2, CV_16UC1, 256);
+
     cv::imencode(".png", d2, d_buf);
     LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
     

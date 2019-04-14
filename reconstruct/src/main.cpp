@@ -152,7 +152,7 @@ static void run(const string &file) {
 		//LZ4_decompress_safe((char*)d.data(), (char*)depth.data, d.size(), depth.step*depth.rows);
 		
 		cv::imdecode(d, cv::IMREAD_UNCHANGED, &depth);
-		depth.convertTo(depth, CV_32FC1, 1.0f/256.0f); //, 1.0f/16.0f); //, 1.0f/256.0f);
+		depth.convertTo(depth, CV_32FC1, 1.0f/16.0f);
 	});
 	
 	while (disp.active()) {
