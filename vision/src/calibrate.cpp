@@ -377,11 +377,6 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 
     float grid_width = settings_.squareSize * (settings_.boardSize.width - 1);
     bool release_object = false;
-
-    // vector<vector<Point2f> > imagePoints;
-    // Mat cameraMatrix, distCoeffs;
-    // Size imageSize;
-    int mode = CAPTURING;
     double prevTimestamp = 0.0;
     const Scalar RED(0, 0, 255), GREEN(0, 255, 0);
 
