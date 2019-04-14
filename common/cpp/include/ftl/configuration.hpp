@@ -4,10 +4,17 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace ftl {
 
 extern nlohmann::json config;
+
+bool is_directory(const std::string &path);
+bool is_file(const std::string &path);
+bool create_directory(const std::string &path);
+
+std::optional<std::string> locateFile(const std::string &name, const std::vector<std::string> &paths);
 
 std::vector<std::string> configure(int argc, char **argv, const std::string &app);
 
