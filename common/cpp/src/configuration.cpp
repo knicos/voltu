@@ -95,25 +95,48 @@ optional<string> locateFile(const string &name, const vector<string> &paths) {
 }
 
 /**
+ * Combine one json config with another patch json config.
+ */
+static bool mergeConfig(const string &path) {
+	ifstream i;
+	i.open(path);
+	if (i.is_open()) {
+		json t;
+		i >> t;
+		config.merge_patch(t);
+		return true;
+	} else {
+		return false;
+	}
+}
+
+/**
  * Find and load a JSON configuration file
  */
 static bool findConfiguration(const string &file, const vector<string> &paths,
 		const std::string &app) {
-	ifstream i;
+	bool found = false;
 	
-	if (file != "") i.open(file);
-
-	if (!i.is_open()) {
-		auto f = locateFile("config.json", paths);
-		if (!f) return false;
-		i.open(*f);
+	found |= mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.json");
+	found |= mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.json");
+	found |= mergeConfig("./config.json");
+	
+	for (auto p : paths) {
+		if (is_directory(p)) {
+			found |= mergeConfig(p+"/config.json");
+		}
 	}
 	
-	if (!i.is_open()) return false;
-	
-	i >> config;
-	config = config[app];
-	return true;
+	if (file != "") {
+		found |= mergeConfig(file);
+	}
+
+	if (found) {
+		config = config[app];
+		return true;
+	} else {
+		return false;
+	}
 }
 
 /**
