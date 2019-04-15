@@ -191,7 +191,7 @@ static void process_options(const map<string, string> &opts) {
 		if (opt.first == "config") continue;
 
 		if (opt.first == "version") {
-			std::cout << "FTL Vision Node - v" << FTL_VERSION << std::endl;
+			std::cout << "Future-Tech Lab - v" << FTL_VERSION << std::endl;
 			std::cout << FTL_VERSION_LONG << std::endl;
 			exit(0);
 		}

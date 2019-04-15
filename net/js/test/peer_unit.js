@@ -1,10 +1,10 @@
-const Socket = require('../src/socket.js');
+const Peer = require('../src/peer.js');
 const assert = require('chai').assert;
 const net = require('net');
-const binary = require('bops');
+//const binary = require('bops');
 const WebSocket = require('ws');
 
-describe("Socket()", function() {
+describe("Peer()", function() {
 	let server;
 	let wss;
 	let dobadhandshake = false;
@@ -34,7 +34,7 @@ describe("Socket()", function() {
 	
 	context("with a valid connection uri and handshake", () => {
 		it("make a tcp connection", function(done) {
-			let sock = new Socket("tcp://localhost:9000");
+			let sock = new Peer("tcp://localhost:9000");
 			sock.on('open', () => {
 				assert.isOk(sock.isConnected());
 				sock.close();

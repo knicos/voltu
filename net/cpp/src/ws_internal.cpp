@@ -159,7 +159,7 @@ bool ftl::net::ws_connect(int sockfd, const URI &uri) {
 	http += "Sec-WebSocket-Version: 13\r\n";
 	http += "\r\n";
 	int rc = ::send(sockfd, http.c_str(), http.length(), 0);
-	if (rc != http.length()) {
+	if (rc != (int)http.length()) {
 		LOG(ERROR) << "Could not send Websocket http request...";
 		std::cout << http;
 		return false;

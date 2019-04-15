@@ -6,13 +6,12 @@
 
 #include <glog/logging.h>
 #include <ftl/config.h>
+#include <ftl/configuration.hpp>
 #include <zlib.h>
 // #include <lz4.h>
 
 #include <string>
-#include <map>
 #include <vector>
-#include <fstream>
 #include <thread>
 #include <chrono>
 #include <mutex>
@@ -33,90 +32,17 @@
 
 using ftl::net::Universe;
 using ftl::Display;
+using ftl::config;
 using std::string;
 using std::vector;
-using std::map;
 using cv::Mat;
 using json = nlohmann::json;
-using std::ifstream;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using std::mutex;
 using std::unique_lock;
 
-// Store loaded configuration
-static json config;
-
-/**
- * Find and load a JSON configuration file
- */
-static bool findConfiguration(const string &file) {
-	ifstream i;
-	
-	if (file != "") i.open(file);
-	if (!i.is_open()) i.open("./config.json");
-	if (!i.is_open()) i.open(FTL_LOCAL_CONFIG_ROOT "/config.json");
-	if (!i.is_open()) i.open(FTL_GLOBAL_CONFIG_ROOT "/config.json");
-	if (!i.is_open()) return false;
-	i >> config;
-	config = config["representation"];
-	return true;
-}
-
-/**
- * Generate a map from command line option to value
- */
-map<string, string> read_options(char ***argv, int *argc) {
-	map<string, string> opts;
-
-	while (*argc > 0) {
-		string cmd((*argv)[0]);
-		if (cmd[0] != '-') break;
-
-		size_t p;
-		if ((p = cmd.find("=")) == string::npos) {
-			opts[cmd.substr(2)] = "true";
-		} else {
-			opts[cmd.substr(2, p-2)] = cmd.substr(p+1);
-		}
-
-		(*argc)--;
-		(*argv)++;
-	}
-
-	return opts;
-}
-
-/**
- * Put command line options into json config. If config element does not exist
- * or is of a different type then report an error.
- */
-static void process_options(const map<string, string> &opts) {
-	for (auto opt : opts) {
-		if (opt.first == "config") continue;
-
-		if (opt.first == "version") {
-			std::cout << "FTL Vision Node - v" << FTL_VERSION << std::endl;
-			std::cout << FTL_VERSION_LONG << std::endl;
-			exit(0);
-		}
-
-		try {
-			auto ptr = json::json_pointer("/"+opt.first);
-			// TODO(nick) Allow strings without quotes
-			auto v = json::parse(opt.second);
-			if (v.type() != config.at(ptr).type()) {
-				LOG(ERROR) << "Incorrect type for argument " << opt.first;
-				continue;
-			}
-			config.at(ptr) = v;
-		} catch(...) {
-			LOG(ERROR) << "Unrecognised option: " << opt.first;
-		}
-	}
-}
-
-static void run(const string &file) {
+static void run() {
 	Universe net(config["net"]);
 	Mat rgb, depth, Q;
 	mutex m;
@@ -188,16 +114,7 @@ static void run(const string &file) {
 }
 
 int main(int argc, char **argv) {
-	argc--;
-	argv++;
-
-	// Process Arguments
-	auto options = read_options(&argv, &argc);
-	if (!findConfiguration(options["config"])) {
-		LOG(FATAL) << "Could not find any configuration!";
-	}
-	process_options(options);
-
-	run((argc > 0) ? argv[0] : "");
+	ftl::configure(argc, argv, "representation"); // TODO(nick) change to "reconstruction"
+	run();
 }
 

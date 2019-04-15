@@ -18,7 +18,7 @@ namespace ftl {
  */
 class Display {
 	public:
-	Display(nlohmann::json &config);
+	explicit Display(nlohmann::json &config);
 	~Display();
 	
 	void setCalibration(const cv::Mat &q) { q_ = q; }
