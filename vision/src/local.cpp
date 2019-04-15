@@ -6,6 +6,7 @@
 
 #include <string>
 #include <chrono>
+#include <thread>
 
 #include <ftl/local.hpp>
 #include <opencv2/core.hpp>
@@ -19,6 +20,8 @@ using std::string;
 using std::chrono::duration_cast;
 using std::chrono::duration;
 using std::chrono::high_resolution_clock;
+using std::chrono::milliseconds;
+using std::this_thread::sleep_for;
 
 LocalSource::LocalSource(nlohmann::json &config)
 		: timestamp_(0.0),
@@ -51,6 +54,8 @@ LocalSource::LocalSource(nlohmann::json &config)
 	} else {
 		stereo_ = true;
 	}
+
+	tps_ = 1.0 / (double)config["max_fps"];
 }
 
 LocalSource::LocalSource(const string &vid, nlohmann::json &config)
@@ -89,6 +94,8 @@ LocalSource::LocalSource(const string &vid, nlohmann::json &config)
 		LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
 		stereo_ = false;
 	}
+
+	tps_ = 1.0 / (double)config["max_fps"];
 }
 
 bool LocalSource::left(cv::Mat &l) {
@@ -177,8 +184,15 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 	}
 
 	// Record timestamp
-	timestamp_ = duration_cast<duration<double>>(
+	double timestamp = duration_cast<duration<double>>(
 			high_resolution_clock::now().time_since_epoch()).count();
+	
+	// Limit max framerate
+	if (timestamp - timestamp_ < tps_) {
+		sleep_for(milliseconds((int)std::round((tps_ - (timestamp - timestamp_))*1000)));
+	}
+
+	timestamp_ = timestamp;
 
 	if (camera_b_ || !stereo_) {
 		if (!camera_a_->retrieve(l)) {

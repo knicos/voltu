@@ -28,6 +28,7 @@ class LocalSource {
 	
 	private:
 	double timestamp_;
+	double tps_;
 	bool stereo_;
 	//float fps_;
 	bool flip_;
