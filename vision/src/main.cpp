@@ -7,6 +7,7 @@
 #include <glog/logging.h>
 #include <ftl/configuration.hpp>
 #include <ctpl_stl.h>
+#include <zlib.h>
 
 #include <string>
 #include <map>
@@ -105,6 +106,9 @@ static void run(const string &file) {
 
 	Mat l, r, disp;
 	Mat pl, pdisp;
+	vector<unsigned char> rgb_buf;
+	vector<unsigned char> d_buf;
+	string uri = string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d");
 
 	Display display(config["display"]);
 	display.setCalibration(Q_32F);
@@ -116,6 +120,7 @@ static void run(const string &file) {
 		condition_variable cv;
 		int jobs = 0;
 
+		// Pipeline for disparity
 		pool.push([&](int id) {
 			auto start = std::chrono::high_resolution_clock::now();
 			// Read calibrated images.
@@ -141,6 +146,51 @@ static void run(const string &file) {
 			LOG(INFO) << "Disparity in " << elapsed.count() << "s";
 		});
 
+		// Pipeline for jpeg compression
+		/*pool.push([&](int id) {
+			auto start = std::chrono::high_resolution_clock::now();
+			if (pl.rows != 0) cv::imencode(".jpg", pl, rgb_buf);
+			unique_lock<mutex> lk(m);
+			jobs++;
+			lk.unlock();
+			cv.notify_one();
+
+			std::chrono::duration<double> elapsed =
+				std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "JPG in " << elapsed.count() << "s";
+		});*/
+
+		// Pipeline for zlib compression
+		/*pool.push([&](int id) {
+			auto start = std::chrono::high_resolution_clock::now();
+			if (pl.rows != 0) {
+				d_buf.resize(pdisp.step*pdisp.rows);
+				z_stream defstream;
+				defstream.zalloc = Z_NULL;
+				defstream.zfree = Z_NULL;
+				defstream.opaque = Z_NULL;
+				defstream.avail_in = pdisp.step*pdisp.rows;
+				defstream.next_in = (Bytef *)pdisp.data; // input char array
+				defstream.avail_out = (uInt)pdisp.step*pdisp.rows; // size of output
+				defstream.next_out = (Bytef *)d_buf.data(); // output char array
+				
+				deflateInit(&defstream, Z_BEST_COMPRESSION);
+				deflate(&defstream, Z_FINISH);
+				deflateEnd(&defstream);
+				
+				d_buf.resize(defstream.total_out);
+			}
+			unique_lock<mutex> lk(m);
+			jobs++;
+			lk.unlock();
+			cv.notify_one();
+
+			std::chrono::duration<double> elapsed =
+				std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "ZLIB in " << elapsed.count() << "s";
+		});*/
+
+		// Pipeline for stream compression
 		pool.push([&](int id) {
 			auto start = std::chrono::high_resolution_clock::now();
 			if (pl.rows != 0) stream.send(pl, pdisp);
@@ -158,11 +208,15 @@ static void run(const string &file) {
 		if (pl.rows > 0) display.render(pl, pdisp);
 		display.wait(1);
 
+		// Wait for both pipelines to complete
 		unique_lock<mutex> lk(m);
 		cv.wait(lk, [&jobs]{return jobs == 2;});
 
+		// Store previous frame for next stage compression
 		l.copyTo(pl);
 		disp.copyTo(pdisp);
+
+		//net.publish(uri, rgb_buf, d_buf);
 	}
 }
 

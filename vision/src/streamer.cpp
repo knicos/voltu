@@ -1,7 +1,7 @@
 #include <glog/logging.h>
 #include <ftl/streamer.hpp>
 #include <vector>
-#include <zlib.h>
+// #include <zlib.h>
 // #include <lz4.h>
 
 using ftl::Streamer;
@@ -39,7 +39,7 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     defstream.avail_out = (uInt)d2.step*d2.rows; // size of output
     defstream.next_out = (Bytef *)d_buf.data(); // output char array
     
-    deflateInit(&defstream, 4); // Z_DEFAULT_COMPRESSION
+    deflateInit(&defstream, Z_DEFAULT_COMPRESSION);
     deflate(&defstream, Z_FINISH);
     deflateEnd(&defstream);
     

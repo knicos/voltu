@@ -9,7 +9,8 @@
 			"flip": false,
 			"nostereo": false,
 			"scale": 1.0,
-			"flip_vert": false
+			"flip_vert": false,
+			"max_fps": 25
 		},
 		"calibrate": false,
 		"calibration": {
