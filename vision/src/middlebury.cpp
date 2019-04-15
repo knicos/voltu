@@ -75,7 +75,7 @@ void ftl::middlebury::readFilePFM(Mat &img, const string &filename)
     // Open the file and read the header
     FILE *fp = fopen(filename.c_str(), "rb");
     if (fp == 0)
-        LOG(FATAL) << "ReadFilePFM: could not open " << filename;
+        LOG(FATAL) << "ReadFilePFM: could not open \"" << filename << "\"";
 
     int width, height, nBands;
     read_header(fp, "PFM", 'P', 'f', &width, &height, &nBands, 0);
@@ -195,7 +195,7 @@ void ftl::middlebury::evaldisp(const Mat &disp, const Mat &gtdisp, const Mat &ma
 	    if (gt == INFINITY) // unknown
 		continue;
 	    float d = scale * disp.at<float>(y / scale, x / scale, 0);
-	    int valid = (d != NAN); // NOTE: Is meant to be infinity in middlebury
+	    int valid = (!isnanf(d) && d < 256.0f); // NOTE: Is meant to be infinity in middlebury
 	    if (valid) {
 		float maxd = scale * maxdisp; // max disp range
 		d = max(0.0f, min(maxd, d)); // clip disps to max disp range
@@ -247,7 +247,7 @@ void ftl::middlebury::test(nlohmann::json &config) {
     
     Mat disp;
     disparity->compute(l,r,disp);
-	disp.convertTo(disp, CV_32F);
+	//disp.convertTo(disp, CV_32F);
 	
 	// Display results
 	evaldisp(disp, gt, Mat(), (float)config["middlebury"]["threshold"], (int)config["disparity"]["maximum"], 0);
@@ -259,15 +259,21 @@ void ftl::middlebury::test(nlohmann::json &config) {
 		cv::resize(disp, disp, cv::Size(disp.cols * 0.25,disp.rows * 0.25), 0, 0, cv::INTER_LINEAR);
 	}
 	
-	double mindisp;
-	double maxdisp;
+	double mindisp, mindisp_gt;
+	double maxdisp, maxdisp_gt;
 	Mat mask;
-	threshold(disp,mask,10000.0, 255, cv::THRESH_BINARY_INV);
+	threshold(disp,mask,255.0, 255, cv::THRESH_BINARY_INV);
 	normalize(mask, mask, 0, 255, cv::NORM_MINMAX, CV_8U);
 	cv::minMaxLoc(disp, &mindisp, &maxdisp, 0, 0, mask);
+    cv::minMaxLoc(gt, &mindisp_gt, &maxdisp_gt, 0, 0);
 
-	gt = gt / 330.0; // TODO Read from calib.txt
-	disp = disp / maxdisp;
+    //disp = (disp < 256.0f);
+    //disp = disp + (mindisp_gt - mindisp);
+    disp.convertTo(disp, CV_8U, 255.0f / (maxdisp_gt));
+    disp = disp & mask;
+
+	gt = gt / maxdisp_gt; // TODO Read from calib.txt
+	//disp = disp / maxdisp;
 	imshow("Ground Truth", gt);
 	imshow("Disparity", disp);
 	
