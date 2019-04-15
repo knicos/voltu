@@ -7,7 +7,7 @@
 #include <glog/logging.h>
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
-#include <zlib.h>
+// #include <zlib.h>
 // #include <lz4.h>
 
 #include <string>

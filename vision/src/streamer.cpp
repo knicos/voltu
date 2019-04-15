@@ -1,7 +1,7 @@
 #include <glog/logging.h>
 #include <ftl/streamer.hpp>
 #include <vector>
-#include <zlib.h>
+// #include <zlib.h>
 // #include <lz4.h>
 
 using ftl::Streamer;

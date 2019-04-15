@@ -20,7 +20,7 @@ find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( LibSGM )
-find_package( ZLIB REQUIRED )
+#find_package( ZLIB REQUIRED )
 
 # Readline library is not required on Windows
 # May also entirely remove dependence on this... it should be optional at least.
