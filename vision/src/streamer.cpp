@@ -2,6 +2,7 @@
 #include <ftl/streamer.hpp>
 #include <vector>
 #include <zlib.h>
+// #include <lz4.h>
 
 using ftl::Streamer;
 using ftl::net::Universe;
@@ -24,23 +25,35 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
 	vector<unsigned char> rgb_buf;
 	cv::imencode(".jpg", rgb, rgb_buf);
 	
+	Mat d2;
+    depth.convertTo(d2, CV_16UC1, 16);
+	
 	vector<unsigned char> d_buf;
-	d_buf.resize(depth.step*depth.rows);
+	/*d_buf.resize(d2.step*d2.rows);
 	z_stream defstream;
     defstream.zalloc = Z_NULL;
     defstream.zfree = Z_NULL;
     defstream.opaque = Z_NULL;
-    defstream.avail_in = depth.step*depth.rows;
-    defstream.next_in = (Bytef *)depth.data; // input char array
-    defstream.avail_out = (uInt)depth.step*depth.rows; // size of output
+    defstream.avail_in = d2.step*d2.rows;
+    defstream.next_in = (Bytef *)d2.data; // input char array
+    defstream.avail_out = (uInt)d2.step*d2.rows; // size of output
     defstream.next_out = (Bytef *)d_buf.data(); // output char array
     
     deflateInit(&defstream, Z_DEFAULT_COMPRESSION);
     deflate(&defstream, Z_FINISH);
     deflateEnd(&defstream);
     
-    d_buf.resize(defstream.total_out);
-    //LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
+    d2.copyTo(last);
+    
+    d_buf.resize(defstream.total_out);*/
+    
+    // LZ4 Version
+    // d_buf.resize(LZ4_compressBound(depth.step*depth.rows));
+    // int s = LZ4_compress_default((char*)depth.data, (char*)d_buf.data(), depth.step*depth.rows, d_buf.size());
+    // d_buf.resize(s);
+
+    cv::imencode(".png", d2, d_buf);
+    LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
     
     net_.publish(uri_, rgb_buf, d_buf);
 }

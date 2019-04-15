@@ -4,6 +4,7 @@
 
 #include <glog/logging.h>
 #include <ftl/config.h>
+#include <ftl/configuration.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -214,12 +215,21 @@ bool Calibrate::_loadCalibration() {
 	float scale = 1.0f;
 
     Rect roi1, roi2;
+    FileStorage fs;
 
     // reading intrinsic parameters
-    FileStorage fs(FTL_LOCAL_CONFIG_ROOT "/intrinsics.yml", FileStorage::READ);
-    if (!fs.isOpened()) {
-        LOG(WARNING) << "Calibration file not found";
-        return false;
+    auto ifile = ftl::locateFile("intrinsics.yml");
+    if (ifile) {
+		fs.open((*ifile).c_str(), FileStorage::READ);
+		if (!fs.isOpened()) {
+		    LOG(WARNING) << "Could not open intrinsics file";
+		    return false;
+		}
+		
+		LOG(INFO) << "Intrinsics from: " << *ifile;
+    } else {
+    	LOG(WARNING) << "Calibration intrinsics file not found";
+		return false;
     }
 
     Mat M1, D1, M2, D2;
@@ -231,10 +241,18 @@ bool Calibrate::_loadCalibration() {
     M1 *= scale;
     M2 *= scale;
 
-    fs.open(FTL_LOCAL_CONFIG_ROOT "/extrinsics.yml", FileStorage::READ);
-    if (!fs.isOpened()) {
-        LOG(WARNING) << "Calibration file not found";
-        return false;
+	auto efile = ftl::locateFile("extrinsics.yml");
+	if (efile) {
+		fs.open((*efile).c_str(), FileStorage::READ);
+		if (!fs.isOpened()) {
+		    LOG(WARNING) << "Could not open extrinsics file";
+		    return false;
+		}
+		
+		LOG(INFO) << "Extrinsics from: " << *efile;
+    } else {
+    	LOG(WARNING) << "Calibration extrinsics file not found";
+		return false;
     }
 
     Mat R, T, R1, P1, R2, P2;

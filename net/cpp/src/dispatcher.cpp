@@ -129,7 +129,7 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
     auto &&name = std::get<1>(the_call);
     auto &&args = std::get<2>(the_call);
     
-    //LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
+    // LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
 
     auto binding = _locateHandler(name);
 

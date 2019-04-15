@@ -122,9 +122,9 @@ static int tcpConnect(URI &uri) {
 	}
 
 	// Make blocking again
-	/*rg = fcntl(csocket, F_GETFL, NULL));
+	/*long arg = fcntl(csocket, F_GETFL, NULL);
 	arg &= (~O_NONBLOCK);
-	fcntl(csocket, F_SETFL, arg) < 0)*/
+	fcntl(csocket, F_SETFL, arg);*/
 
 	return csocket;
 }
@@ -153,8 +153,6 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 				_trigger(open_handlers_);
 			}
 		});
-	
-		//ftl::UUID uuid;
 
 		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer); 
 	}
@@ -171,14 +169,6 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
 		sock_ = tcpConnect(uri);
-		
-#ifdef WIN32
-		u_long on = 1;
-		ioctlsocket(sock_, FIONBIO, &on);
-#else
-		fcntl(sock_, F_SETFL, O_NONBLOCK);
-#endif
-		
 		status_ = kConnecting;
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
 		LOG(INFO) << "Websocket connect " << uri.getPath();
@@ -191,13 +181,6 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 		} else {
 			LOG(ERROR) << "Connection refused to " << uri.getHost() << ":" << uri.getPort();
 		}
-		
-#ifdef WIN32
-		u_long on = 1;
-		ioctlsocket(sock_, FIONBIO, &on);
-#else
-		fcntl(sock_, F_SETFL, O_NONBLOCK);
-#endif
 
 		status_ = kConnecting;
 	} else {
@@ -315,7 +298,7 @@ void Peer::data() {
 }
 
 bool Peer::_data() {
-	//std::unique_lock<std::mutex> lk(recv_mtx_);
+	// std::unique_lock<std::mutex> lk(recv_mtx_);
 
 	recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
@@ -483,6 +466,7 @@ void Peer::cancelCall(int id) {
 
 void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
+	std::unique_lock<std::mutex> lk(send_mtx_);
 	msgpack::pack(send_buf_, res_obj);
 	_send();
 }
@@ -535,6 +519,13 @@ int Peer::_send() {
 	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), send_buf_.vector_size());
 #endif
 	send_buf_.clear();
+	
+	// We are blocking, so -1 should mean actual error
+	if (c == -1) {
+		socketError();
+		close();
+	}
+	
 	return c;
 }
 

@@ -5,7 +5,7 @@
  */
 
 #include <glog/logging.h>
-#include <ftl/config.h>
+#include <ftl/configuration.hpp>
 #include <ctpl_stl.h>
 #include <zlib.h>
 
@@ -48,91 +48,30 @@ using std::string;
 using std::vector;
 using std::map;
 using std::condition_variable;
+using std::this_thread::sleep_for;
+using std::chrono::milliseconds;
 using std::mutex;
 using std::unique_lock;
 using cv::Mat;
 using json = nlohmann::json;
-using std::ifstream;
+using ftl::config;
 
-// Store loaded configuration
-static json config;
-
-/**
- * Find and load a JSON configuration file
- */
-static bool findConfiguration(const string &file) {
-	ifstream i;
-	
-	if (file != "") i.open(file);
-	if (!i.is_open()) i.open("./config.json");
-	if (!i.is_open()) i.open(FTL_LOCAL_CONFIG_ROOT "/config.json");
-	if (!i.is_open()) i.open(FTL_GLOBAL_CONFIG_ROOT "/config.json");
-	if (!i.is_open()) return false;
-	i >> config;
-	return true;
-}
-
-/**
- * Generate a map from command line option to value
- */
-map<string, string> read_options(char ***argv, int *argc) {
-	map<string, string> opts;
-
-	while (*argc > 0) {
-		string cmd((*argv)[0]);
-		if (cmd[0] != '-') break;
-
-		size_t p;
-		if ((p = cmd.find("=")) == string::npos) {
-			opts[cmd.substr(2)] = "true";
-		} else {
-			opts[cmd.substr(2, p-2)] = cmd.substr(p+1);
-		}
-
-		(*argc)--;
-		(*argv)++;
-	}
-
-	return opts;
-}
-
-/**
- * Put command line options into json config. If config element does not exist
- * or is of a different type then report an error.
- */
-static void process_options(const map<string, string> &opts) {
-	for (auto opt : opts) {
-		if (opt.first == "config") continue;
-
-		if (opt.first == "version") {
-			std::cout << "FTL Vision Node - v" << FTL_VERSION << std::endl;
-			std::cout << FTL_VERSION_LONG << std::endl;
-			exit(0);
-		}
-
-		try {
-			auto ptr = json::json_pointer("/"+opt.first);
-			// TODO(nick) Allow strings without quotes
-			auto v = json::parse(opt.second);
-			if (v.type() != config.at(ptr).type()) {
-				LOG(ERROR) << "Incorrect type for argument " << opt.first;
-				continue;
-			}
-			config.at(ptr) = v;
-		} catch(...) {
-			LOG(ERROR) << "Unrecognised option: " << opt.first;
-		}
-	}
-}
 
 static void run(const string &file) {
 	ctpl::thread_pool pool(2);
 	Universe net(config["net"]);
 
 	LocalSource *lsrc;
-	if (file != "") {
+	if (ftl::is_video(file)) {
 		// Load video file
 		lsrc = new LocalSource(file, config["source"]);
+	} else if (file != "") {
+		auto vid = ftl::locateFile("video.mp4");
+		if (!vid) {
+			LOG(FATAL) << "No video.mp4 file found in provided paths";
+		} else {
+			lsrc = new LocalSource(*vid, config["source"]);
+		}
 	} else {
 		// Use cameras
 		lsrc = new LocalSource(config["source"]);
@@ -153,7 +92,7 @@ static void run(const string &file) {
 	calibrate.getQ().convertTo(Q_32F, CV_32F);
 	
 	// Allow remote users to access camera calibration matrix
-	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [&calibrate,Q_32F]() -> vector<unsigned char> {
+	net.bind(string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d/calibration"), [Q_32F]() -> vector<unsigned char> {
 		vector<unsigned char> buf;
 		buf.resize(Q_32F.step*Q_32F.rows);
 		LOG(INFO) << "Calib buf size = " << buf.size();
@@ -188,14 +127,13 @@ static void run(const string &file) {
 			calibrate.rectified(l, r);
 
 			// Feed into sync buffer and network forward
-			sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
-			sync->feed(ftl::RIGHT, r, lsrc->getTimestamp());
+			//sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
+			//sync->feed(ftl::RIGHT, r, lsrc->getTimestamp());
 
 			// Read back from buffer
-			sync->get(ftl::LEFT, l);
-			sync->get(ftl::RIGHT, r);
+			//sync->get(ftl::LEFT, l);
+			//sync->get(ftl::RIGHT, r);
 
-			// TODO(nick) Pipeline this
 		    disparity->compute(l, r, disp);
 
 			unique_lock<mutex> lk(m);
@@ -266,7 +204,8 @@ static void run(const string &file) {
 			LOG(INFO) << "Stream in " << elapsed.count() << "s";
 		});
 
-		display.render(l, disp);
+		// Send RGB+Depth images for local rendering
+		if (pl.rows > 0) display.render(pl, pdisp);
 		display.wait(1);
 
 		// Wait for both pipelines to complete
@@ -282,19 +221,13 @@ static void run(const string &file) {
 }
 
 int main(int argc, char **argv) {
-	argc--;
-	argv++;
-
-	// Process Arguments
-	auto options = read_options(&argv, &argc);
-	if (!findConfiguration(options["config"])) {
-		LOG(FATAL) << "Could not find any configuration!";
-	}
-	process_options(options);
+	auto paths = ftl::configure(argc, argv, "vision");
+	
+	config["paths"] = paths;
 
 	// Choose normal or middlebury modes
 	if (config["middlebury"]["dataset"] == "") {
-		run((argc > 0) ? argv[0] : "");
+		run((paths.size() > 0) ? paths[0] : "");
 	} else {
 		ftl::middlebury::test(config);
 	}
