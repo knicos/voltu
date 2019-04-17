@@ -252,12 +252,13 @@ void ftl::middlebury::test(nlohmann::json &config) {
 	// Display results
 	evaldisp(disp, gt, Mat(), (float)config["middlebury"]["threshold"], (int)config["disparity"]["maximum"], 0);
 	
-	if (gt.cols > 1600) {
+	/*if (gt.cols > 1600) {
 		cv::resize(gt, gt, cv::Size(gt.cols * 0.25,gt.rows * 0.25), 0, 0, cv::INTER_LINEAR);
-	}
+	}*/
 	if (disp.cols > 1600) {
 		cv::resize(disp, disp, cv::Size(disp.cols * 0.25,disp.rows * 0.25), 0, 0, cv::INTER_LINEAR);
 	}
+    cv::resize(gt, gt, cv::Size(disp.cols,disp.rows), 0, 0, cv::INTER_LINEAR);
 	
 	double mindisp, mindisp_gt;
 	double maxdisp, maxdisp_gt;
@@ -269,13 +270,15 @@ void ftl::middlebury::test(nlohmann::json &config) {
 
     //disp = (disp < 256.0f);
     //disp = disp + (mindisp_gt - mindisp);
-    disp.convertTo(disp, CV_8U, 255.0f / (maxdisp_gt));
+    disp.convertTo(disp, CV_8U, 255.0f / (maxdisp_gt*(float)config["middlebury"]["scale"]));
     disp = disp & mask;
 
 	gt = gt / maxdisp_gt; // TODO Read from calib.txt
+    gt.convertTo(gt, CV_8U, 255.0f);
 	//disp = disp / maxdisp;
 	imshow("Ground Truth", gt);
 	imshow("Disparity", disp);
+    imshow("Diff", gt - disp);
 	
 	while (cv::waitKey(10) != 27);
 	
