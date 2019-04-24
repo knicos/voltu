@@ -3,6 +3,7 @@ add_executable(peer_unit
 	./tests.cpp
 	../src/ws_internal.cpp
 	../src/dispatcher.cpp
+	../src/uri.cpp
 	./peer_unit.cpp
 	../../../common/cpp/src/config.cpp
 )
@@ -15,6 +16,7 @@ target_link_libraries(peer_unit
 ### URI ########################################################################
 add_executable(uri_unit
 	./tests.cpp
+	../src/uri.cpp
 	./uri_unit.cpp)
 target_link_libraries(uri_unit
 	${URIPARSER_LIBRARIES})

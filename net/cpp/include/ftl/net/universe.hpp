@@ -58,6 +58,9 @@ class Universe {
 	Peer *getPeer(const ftl::UUID &pid) const;
 	
 	int numberOfSubscribers(const std::string &res) const;
+
+	bool hasSubscribers(const std::string &res) const;
+	bool hasSubscribers(const ftl::URI &res) const;
 	
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
@@ -73,6 +76,14 @@ class Universe {
 	 */
 	template <typename F>
 	bool subscribe(const std::string &res, F func);
+
+	/**
+	 * Subscribe a function to a resource. The subscribed function is
+	 * triggered whenever that resource is published to. It is akin to
+	 * RPC broadcast (no return value) to a subgroup of peers.
+	 */
+	template <typename F>
+	bool subscribe(const ftl::URI &res, F func);
 	
 	/**
 	 * Send a non-blocking RPC call with no return value to all connected
@@ -89,10 +100,19 @@ class Universe {
 	
 	/**
 	 * Send a non-blocking RPC call with no return value to all subscribers
-	 * of a resource. There may be no subscribers.
+	 * of a resource. There may be no subscribers. Note that query parameter
+	 * order in the URI string is not important.
 	 */
 	template <typename... ARGS>
 	void publish(const std::string &res, ARGS... args);
+
+	/**
+	 * Send a non-blocking RPC call with no return value to all subscribers
+	 * of a resource. There may be no subscribers. This overload accepts a
+	 * URI object directly to enable more efficient modification of parameters.
+	 */
+	template <typename... ARGS>
+	void publish(const ftl::URI &res, ARGS... args);
 	
 	/**
 	 * Register your ownership of a new resource. This must be called before
@@ -139,8 +159,13 @@ void Universe::bind(const std::string &name, F func) {
 
 template <typename F>
 bool Universe::subscribe(const std::string &res, F func) {
-	bind(res, func);
-	return _subscribe(res);
+	return subscribe(ftl::URI(res), func);
+}
+
+template <typename F>
+bool Universe::subscribe(const ftl::URI &res, F func) {
+	bind(res.to_string(), func);
+	return _subscribe(res.to_string());
 }
 
 template <typename... ARGS>
@@ -200,11 +225,17 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 
 template <typename... ARGS>
 void Universe::publish(const std::string &res, ARGS... args) {
-	auto subs = subscribers_[res];
+	ftl::URI uri(res);
+	publish(uri, args...);
+}
+
+template <typename... ARGS>
+void Universe::publish(const ftl::URI &res, ARGS... args) {
+	auto subs = subscribers_[res.getBaseURI()];
 	for (auto p : subs) {
 		auto peer = getPeer(p);
 		if (peer) {
-			peer->send(res, args...);
+			peer->send(res.getBaseURI(), args...);
 		}
 	}
 }

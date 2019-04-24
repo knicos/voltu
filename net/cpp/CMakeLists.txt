@@ -4,6 +4,7 @@ include_directories(${PROJECT_SOURCE_DIR}/net/cpp/include)
 
 
 add_library(ftlnet
+	src/uri.cpp
 	src/listener.cpp
 	src/peer.cpp
 	src/dispatcher.cpp

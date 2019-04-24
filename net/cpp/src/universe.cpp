@@ -120,7 +120,7 @@ void Universe::_installBindings(Peer *p) {
 void Universe::_installBindings() {
 	bind("__subscribe__", [this](const UUID &id, const string &uri) -> bool {
 		LOG(INFO) << "Subscription to " << uri << " by " << id.to_string();
-		subscribers_[uri].push_back(id);
+		subscribers_[ftl::URI(uri).to_string()].push_back(id);
 		return true;
 	});
 	
@@ -148,6 +148,7 @@ bool Universe::createResource(const std::string &uri) {
 	return true;
 }
 
+// TODO (nick) Add URI version and correctly parse URI query parameters
 int Universe::numberOfSubscribers(const std::string &res) const {
 	auto s = subscribers_.find(res);
 	if (s != subscribers_.end()) {
@@ -155,6 +156,15 @@ int Universe::numberOfSubscribers(const std::string &res) const {
 	} else {
 		return -1;
 	}
+}
+
+bool Universe::hasSubscribers(const std::string &res) const {
+	// FIXME (nick) Need to parse URI and correct query order
+	return numberOfSubscribers(res) > 0;
+}
+
+bool Universe::hasSubscribers(const ftl::URI &res) const {
+	return numberOfSubscribers(res.to_string()) > 0;
 }
 
 bool Universe::_subscribe(const std::string &res) {

@@ -2,6 +2,7 @@
 #include <ftl/uri.hpp>
 
 using ftl::URI;
+using std::string;
 
 SCENARIO( "URI() can parse valid URIs", "[utility]" ) {
 	GIVEN( "a valid scheme, no port or path" ) {
@@ -56,6 +57,35 @@ SCENARIO( "URI() fails gracefully with invalid URIs", "[utility]" ) {
 	GIVEN( "only a scheme" ) {
 		URI uri("tcp:");
 		REQUIRE( !uri.isValid() );
+	}
+}
+
+SCENARIO( "URI::to_string() from a valid URI" ) {
+	GIVEN( "no query component" ) {
+		URI uri("http://localhost:1000/hello");
+		REQUIRE( uri.to_string() == "http://localhost:1000/hello" );
+	}
+
+	GIVEN( "A single query component" ) {
+		URI uri("http://localhost:1000/hello?x=5");
+		REQUIRE( uri.to_string() == "http://localhost:1000/hello?x=5" );
+	}
+
+	GIVEN( "an unsorted set of query components" ) {
+		URI uri("http://localhost:1000/hello?z=5&y=4&x=2");
+		REQUIRE( uri.to_string() == "http://localhost:1000/hello?x=2&y=4&z=5" );
+	}
+}
+
+SCENARIO( "URI::getAttribute() from query" ) {
+	GIVEN( "a string value" ) {
+		URI uri("http://localhost:1000/hello?x=world");
+		REQUIRE( uri.getAttribute<string>("x") == "world" );
+	}
+
+	GIVEN( "an integer value" ) {
+		URI uri("http://localhost:1000/hello?x=56");
+		REQUIRE( uri.getAttribute<int>("x") == 56 );
 	}
 }
 
