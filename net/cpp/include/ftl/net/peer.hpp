@@ -1,6 +1,10 @@
 #ifndef _FTL_NET_PEER_HPP_
 #define _FTL_NET_PEER_HPP_
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #ifndef WIN32
 #define INVALID_SOCKET -1
 #include <netinet/in.h>

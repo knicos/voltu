@@ -75,6 +75,7 @@ bool ftl::is_video(const string &file) {
 bool ftl::create_directory(const std::string &path) {
 #ifdef WIN32
 	// TODO(nick)
+	return false;
 #else
 	if (!is_directory(path)) {
 		int err = ::mkdir(path.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
@@ -167,7 +168,11 @@ static map<string, string> read_options(char ***argv, int *argc) {
 			opts[cmd.substr(2)] = "true";
 		} else {
 			auto val = cmd.substr(p+1);
+#ifdef WIN32
+			if ((val[0] >= 48 && val[0] <= 57) || val == "true" || val == "false" || val == "null") {
+#else
 			if (std::isdigit(val[0]) || val == "true" || val == "false" || val == "null") {
+#endif
 				opts[cmd.substr(2, p-2)] = val;
 			} else {
 				if (val[0] == '\\') opts[cmd.substr(2, p-2)] = val;

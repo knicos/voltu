@@ -2,11 +2,20 @@
 #include <glog/logging.h>
 #include <ctpl_stl.h>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #include <fcntl.h>
 #ifdef WIN32
 #include <winsock2.h>
 #include <Ws2tcpip.h>
 #include <windows.h>
+#endif
+
+#ifdef WIN32
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "Rpcrt4.lib")
 #endif
 
 #include <ftl/uri.hpp>

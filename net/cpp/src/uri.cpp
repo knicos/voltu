@@ -1,6 +1,7 @@
 #include <ftl/uri.hpp>
 
 using ftl::URI;
+using ftl::uri_t;
 using std::string;
 
 URI::URI(uri_t puri) {

@@ -10,6 +10,7 @@ using cv::Size;
 using std::string;
 using std::min;
 using std::max;
+using std::isnan;
 
 static void skip_comment(FILE *fp) {
     // skip comment lines in the headers of pnm files
@@ -195,7 +196,7 @@ void ftl::middlebury::evaldisp(const Mat &disp, const Mat &gtdisp, const Mat &ma
 	    if (gt == INFINITY) // unknown
 		continue;
 	    float d = scale * disp.at<float>(y / scale, x / scale, 0);
-	    int valid = (!isnanf(d) && d < 256.0f); // NOTE: Is meant to be infinity in middlebury
+	    int valid = (!isnan(d) && d < 256.0f); // NOTE: Is meant to be infinity in middlebury
 	    if (valid) {
 		float maxd = scale * maxdisp; // max disp range
 		d = max(0.0f, min(maxd, d)); // clip disps to max disp range

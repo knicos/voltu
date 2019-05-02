@@ -7,7 +7,7 @@
 #include <glog/logging.h>
 #include <ftl/configuration.hpp>
 #include <ctpl_stl.h>
-#include <zlib.h>
+// #include <zlib.h>
 
 #include <string>
 #include <map>
