@@ -187,6 +187,15 @@ void Universe::__start(Universe * u) {
 void Universe::_run() {
 	timeval block;
 
+#ifdef WIN32
+	WSAData wsaData;
+	//If Win32 then load winsock
+	if (WSAStartup(MAKEWORD(1, 1), &wsaData) != 0) {
+		LOG(ERROR) << "Could not initiate sockets";
+		return;
+	}
+#endif
+
 	while (active_) {
 		int n = _setDescriptors();
 		int selres = 1;

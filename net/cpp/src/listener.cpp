@@ -36,6 +36,7 @@ int tcpListen(URI &uri) {
 	WSAData wsaData;
 	//If Win32 then load winsock
 	if (WSAStartup(MAKEWORD(1,1), &wsaData) != 0) {
+		LOG(ERROR) << "Could not initiate sockets";
 		return INVALID_SOCKET;
 	}
 	#endif
