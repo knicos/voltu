@@ -139,7 +139,7 @@ class Universe {
 	private:
 	bool active_;
 	nlohmann::json config_;
-	std::thread thread_;
+	std::mutex net_mutex_;
 	fd_set sfderror_;
 	fd_set sfdread_;
 	std::vector<ftl::net::Listener*> listeners_;
@@ -149,8 +149,7 @@ class Universe {
 	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
-	std::mutex net_mutex_;
-	
+	std::thread thread_;
 	// std::map<std::string, std::vector<ftl::net::Peer*>> subscriptions_;
 };
 
