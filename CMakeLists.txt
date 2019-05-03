@@ -21,7 +21,10 @@ find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( LibSGM )
+find_package( PCL )
 #find_package( ZLIB REQUIRED )
+
+set(CMAKE_CXX_STANDARD 17) # For PCL/VTK https://github.com/PointCloudLibrary/pcl/issues/2686
 
 # Readline library is not required on Windows
 # May also entirely remove dependence on this... it should be optional at least.
