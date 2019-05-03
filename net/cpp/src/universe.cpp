@@ -1,4 +1,5 @@
 #include <ftl/net/universe.hpp>
+#include <chrono>
 
 #ifdef WIN32
 #include <Ws2tcpip.h>
@@ -14,6 +15,8 @@ using ftl::net::Universe;
 using nlohmann::json;
 using ftl::UUID;
 using std::optional;
+using std::unique_lock;
+using std::mutex;
 
 Universe::Universe() : active_(true), thread_(Universe::__start, this) {
 	_installBindings();
@@ -58,6 +61,7 @@ Universe::~Universe() {
 bool Universe::listen(const string &addr) {
 	auto l = new Listener(addr.c_str());
 	if (!l) return false;
+	unique_lock<mutex> lk(net_mutex_);
 	listeners_.push_back(l);
 	return l->isListening();
 }
@@ -67,6 +71,7 @@ bool Universe::connect(const string &addr) {
 	if (!p) return false;
 	
 	if (p->status() != Peer::kInvalid) {
+		unique_lock<mutex> lk(net_mutex_);
 		peers_.push_back(p);
 	}
 	
@@ -85,6 +90,8 @@ int Universe::_setDescriptors() {
 	FD_ZERO(&sfderror_);
 
 	int n = 0;
+
+	unique_lock<mutex> lk(net_mutex_);
 
 	//Set file descriptor for the listening sockets.
 	for (auto l : listeners_) {
@@ -199,6 +206,11 @@ void Universe::_run() {
 	while (active_) {
 		int n = _setDescriptors();
 		int selres = 1;
+
+		if (n == 0) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(300));
+			continue;
+		}
 
 		//Wait for a network event or timeout in 3 seconds
 		block.tv_sec = 0;

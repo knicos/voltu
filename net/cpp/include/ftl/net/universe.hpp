@@ -13,6 +13,7 @@
 #include <vector>
 #include <string>
 #include <thread>
+#include <mutex>
 #include <map>
 
 namespace ftl {
@@ -148,6 +149,7 @@ class Universe {
 	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
+	std::mutex net_mutex_;
 	
 	// std::map<std::string, std::vector<ftl::net::Peer*>> subscriptions_;
 };

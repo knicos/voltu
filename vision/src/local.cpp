@@ -29,8 +29,14 @@ LocalSource::LocalSource(nlohmann::json &config)
 		flip_v_(config["flip_vert"]),
 		nostereo_(config["nostereo"]),
 		downsize_(config.value("scale", 1.0f)) {
+
 	// Use cameras
-	camera_a_ = new VideoCapture((flip_) ? 1 : 0);
+	camera_a_ = new VideoCapture;
+	LOG(INFO) << "Cameras check... ";
+	camera_a_->open((flip_) ? 1 : 0);
+
+	LOG(INFO) << "Cameras open? " << flip_;
+
 	if (!nostereo_) {
 		camera_b_ = new VideoCapture((flip_) ? 0 : 1);
 	} else {

@@ -61,32 +61,40 @@ static void run(const string &file) {
 	ctpl::thread_pool pool(2);
 	Universe net(config["net"]);
 
+	LOG(INFO) << "Net started.";
+
 	LocalSource *lsrc;
 	if (ftl::is_video(file)) {
 		// Load video file
+		LOG(INFO) << "Using video file...";
 		lsrc = new LocalSource(file, config["source"]);
 	} else if (file != "") {
 		auto vid = ftl::locateFile("video.mp4");
 		if (!vid) {
 			LOG(FATAL) << "No video.mp4 file found in provided paths";
 		} else {
+			LOG(INFO) << "Using test directory...";
 			lsrc = new LocalSource(*vid, config["source"]);
 		}
 	} else {
 		// Use cameras
+		LOG(INFO) << "Using cameras...";
 		lsrc = new LocalSource(config["source"]);
 	}
 
-	auto sync = new SyncSource();  // TODO(nick) Pass protocol object
+	//auto sync = new SyncSource();  // TODO(nick) Pass protocol object
 	// Add any remote channels
 	/* for (auto c : OPTION_channels) {
 		sync->addChannel(c);
 	} */
 
+	LOG(INFO) << "Locating calibration...";
+
 	// Perform or load calibration intrinsics + extrinsics
 	Calibrate calibrate(lsrc, config["calibration"]);
 	if (config["calibrate"]) calibrate.recalibrate();
 	if (!calibrate.isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
+	else LOG(INFO) << "Calibration initiated.";
 	
 	cv::Mat Q_32F;
 	calibrate.getQ().convertTo(Q_32F, CV_32F);
@@ -115,6 +123,8 @@ static void run(const string &file) {
 	
 	Streamer stream(net, config["stream"]);
 
+	LOG(INFO) << "Beginning capture...";
+
 	while (display.active()) {
 		mutex m;
 		condition_variable cv;
@@ -134,7 +144,9 @@ static void run(const string &file) {
 			//sync->get(ftl::LEFT, l);
 			//sync->get(ftl::RIGHT, r);
 
+			LOG(INFO) << "PRE DISPARITY";
 		    disparity->compute(l, r, disp);
+			LOG(INFO) << "POST DISPARITY";
 
 			unique_lock<mutex> lk(m);
 			jobs++;
@@ -218,6 +230,8 @@ static void run(const string &file) {
 
 		//net.publish(uri, rgb_buf, d_buf);
 	}
+
+	LOG(INFO) << "Finished.";
 }
 
 int main(int argc, char **argv) {
