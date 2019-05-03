@@ -6,6 +6,7 @@ include(CheckLanguage)
 
 project (ftl.utu.fi)
 
+set(CMAKE_CODELITE_USE_TARGETS ON)
 include(GNUInstallDirs)
 include(CTest)
 enable_testing()
