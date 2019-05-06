@@ -36,6 +36,7 @@ Display::~Display() {
 	#endif  // HAVE_VIZ
 }
 
+#if defined HAVE_PCL
 static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &OpencVPointCloud, const cv::Mat &rgbimage) {
 	/*
 	*  Function: Get from a Mat to pcl pointcloud datatype
@@ -45,8 +46,6 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &Openc
 
 	//char pr=100, pg=100, pb=100;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>);//(new pcl::pointcloud<pcl::pointXYZ>);
-
-	LOG(INFO) << "OCVPC SIZE = " << OpencVPointCloud.cols << "," << OpencVPointCloud.rows;
 
 	for(int i=0;i<OpencVPointCloud.rows;i++) {
 	for(int j=0;j<OpencVPointCloud.cols;j++) {
@@ -58,10 +57,10 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &Openc
 		point.y = cvpoint[1]; //OpencVPointCloud.at<float>(1,i);
 		point.z = cvpoint[2]; //OpencVPointCloud.at<float>(2,i);
 
-		cv::Point3_<uchar> prgb; // = rgbimage.at<cv::Point3_<uchar>>((int)point.x, (int)point.y);
+		cv::Point3_<uchar> prgb = rgbimage.at<cv::Point3_<uchar>>(i, j);
 
 		// when color needs to be added:
-		uint32_t rgb = (static_cast<uint32_t>(prgb.x) << 16 | static_cast<uint32_t>(prgb.y) << 8 | static_cast<uint32_t>(prgb.z));
+		uint32_t rgb = (static_cast<uint32_t>(prgb.z) << 16 | static_cast<uint32_t>(prgb.y) << 8 | static_cast<uint32_t>(prgb.x));
 		point.rgb = *reinterpret_cast<float*>(&rgb);
 
 		point_cloud_ptr -> points.push_back(point);
@@ -72,6 +71,7 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &Openc
 
 	return point_cloud_ptr;
 }
+#endif  // HAVE_PCL
 
 bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	Mat idepth;
@@ -99,7 +99,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 		);*/
 
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
-		reprojectImageTo3D(depth+20.0f, XYZ, q_, true);
+		reprojectImageTo3D(depth, XYZ, q_, true);
 		auto pc = matToPointXYZ(XYZ, rgb);
 
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
