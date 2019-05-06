@@ -17,11 +17,12 @@ TEST_CASE("Universe::connect()", "[net]") {
 	Universe b;
 	
 	a.listen("tcp://localhost:7077");
+	sleep_for(milliseconds(100));
 
 	SECTION("valid tcp connection using ipv4") {
 		REQUIRE( b.connect("tcp://127.0.0.1:7077") );
 		
-		sleep_for(milliseconds(100));
+		sleep_for(milliseconds(200));
 		
 		REQUIRE( a.numberOfPeers() == 1 );
 		REQUIRE( b.numberOfPeers() == 1 );
@@ -30,7 +31,7 @@ TEST_CASE("Universe::connect()", "[net]") {
 	SECTION("valid tcp connection using hostname") {
 		REQUIRE( b.connect("tcp://localhost:7077") );
 		
-		sleep_for(milliseconds(100));
+		sleep_for(milliseconds(200));
 		
 		REQUIRE( a.numberOfPeers() == 1 );
 		REQUIRE( b.numberOfPeers() == 1 );
