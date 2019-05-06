@@ -11,6 +11,11 @@
 #include <opencv2/opencv.hpp>
 #include "opencv2/highgui.hpp"
 
+#if defined HAVE_PCL
+#include <pcl/common/common_headers.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#endif  // HAVE_PCL
+
 namespace ftl {
 
 /**
@@ -25,6 +30,10 @@ class Display {
 
 	bool render(const cv::Mat &rgb, const cv::Mat &depth);
 
+#if defined HAVE_PCL
+	bool render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr);
+#endif  // HAVE_PCL
+
 	bool active() const;
 	
 	void wait(int ms);
@@ -33,9 +42,13 @@ class Display {
 	cv::Mat q_;
 	nlohmann::json config_;
 
-	#if defined HAVE_VIZ
+#if defined HAVE_VIZ
 	cv::viz::Viz3d *window_;
-	#endif  // HAVE_VIZ
+#endif  // HAVE_VIZ
+
+#if defined HAVE_PCL
+	pcl::visualization::PCLVisualizer::Ptr pclviz_;
+#endif  // HAVE_PCL
 
 	bool active_;
 };

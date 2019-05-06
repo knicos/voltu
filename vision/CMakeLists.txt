@@ -46,11 +46,7 @@ if (CUDA_FOUND)
 set_property(TARGET ftl-vision PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
-# TODO: move PCL stuff elsewhere
-target_include_directories(ftl-vision PUBLIC ${PCL_INCLUDE_DIRS})
-target_compile_definitions(ftl-vision PUBLIC ${PCL_DEFINITIONS})
-
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-vision ftlcommon ftlrender Threads::Threads libelas ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet ${PCL_LIBRARIES})
+target_link_libraries(ftl-vision ftlcommon ftlrender Threads::Threads libelas ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
 
 
