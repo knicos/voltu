@@ -5,6 +5,7 @@
 #cmakedefine HAVE_OPENCVCUDA
 #cmakedefine HAVE_URIPARSESINGLE
 #cmakedefine HAVE_CUDA
+#cmakedefine HAVE_OPENCV
 
 extern const char *FTL_VERSION_LONG;
 extern const char *FTL_VERSION;

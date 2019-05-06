@@ -23,6 +23,8 @@ find_package( MsgPack REQUIRED )
 find_package( LibSGM )
 #find_package( ZLIB REQUIRED )
 
+set(HAVE_OPENCV TRUE)
+
 # Readline library is not required on Windows
 # May also entirely remove dependence on this... it should be optional at least.
 if (NOT WIN32)
