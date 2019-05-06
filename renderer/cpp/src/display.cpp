@@ -24,6 +24,8 @@ Display::Display(nlohmann::json &config) : config_(config) {
 	pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud"));
 	pclviz_->setBackgroundColor (255, 255, 255);
 	pclviz_->addCoordinateSystem (1.0);
+	pclviz_->setShowFPS(true);
+	pclviz_->initCameraParameters ();
 #endif  // HAVE_PCL
 
 	active_ = true;
@@ -89,10 +91,9 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
 		if (!pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
 			pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
-			pclviz_->initCameraParameters ();
+			pclviz_->setCameraPosition(-878.0, -71.0, -2315.0, -0.1, -0.99, 0.068, 0.0, -1.0, 0.0);
+			pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "reconstruction");
 		}
-
-		pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "reconstruction");
 #elif defined HAVE_VIZ
 		//cv::Mat Q_32F;
 		//calibrate_.getQ().convertTo(Q_32F, CV_32F);
