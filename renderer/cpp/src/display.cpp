@@ -63,11 +63,11 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &Openc
 		uint32_t rgb = (static_cast<uint32_t>(prgb.z) << 16 | static_cast<uint32_t>(prgb.y) << 8 | static_cast<uint32_t>(prgb.x));
 		point.rgb = *reinterpret_cast<float*>(&rgb);
 
-		point_cloud_ptr -> points.push_back(point);
+		if (point.z != INFINITY) point_cloud_ptr -> points.push_back(point);
 	}
 	}
-	point_cloud_ptr->width = (int)point_cloud_ptr->points.size();
-	point_cloud_ptr->height = 1;
+	point_cloud_ptr->width = OpencVPointCloud.cols; //(int)point_cloud_ptr->points.size();
+	point_cloud_ptr->height = OpencVPointCloud.rows;
 
 	return point_cloud_ptr;
 }
@@ -99,7 +99,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 		);*/
 
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
-		reprojectImageTo3D(depth, XYZ, q_, true);
+		reprojectImageTo3D(depth+20.0f, XYZ, q_, true);
 		auto pc = matToPointXYZ(XYZ, rgb);
 
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
@@ -175,7 +175,7 @@ bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {
 void Display::wait(int ms) {
 	if (config_["points"] && q_.rows != 0) {
 		#if defined HAVE_PCL
-		pclviz_->spinOnce (100);
+		pclviz_->spinOnce(5);
 		#elif defined HAVE_VIZ
 		window_->spinOnce(1, true);
 		#endif  // HAVE_VIZ
