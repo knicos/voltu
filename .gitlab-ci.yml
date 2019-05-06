@@ -1,15 +1,22 @@
-image: ubuntu:18.04
+windows job:
+  tags:
+    - win
+  script:
+    - echo "OK"
+  
+linux job:
+  tags:
+    - docker
 
-before_script:
- - export DEBIAN_FRONTEND=noninteractive
- - apt-get update -qq && apt-get install -y -qq g++ cmake git
- - apt-get install -y -qq libopencv-dev libgoogle-glog-dev liburiparser-dev libreadline-dev libmsgpack-dev uuid-dev
-
-ftl:
+  image: ubuntu:18.04
+  
+  before_script:
+   - export DEBIAN_FRONTEND=noninteractive
+   - apt-get update -qq && apt-get install -y -qq g++ cmake git
+   - apt-get install -y -qq libopencv-dev libgoogle-glog-dev liburiparser-dev libreadline-dev libmsgpack-dev uuid-dev
   script:
     - mkdir build
     - cd build
     - cmake ..
     - make
     - make test
-
