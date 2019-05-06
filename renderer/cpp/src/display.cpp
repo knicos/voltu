@@ -6,10 +6,6 @@
 
 #include <ftl/display.hpp>
 
-#if defined HAVE_PCL
-#include <pcl/compression/organized_pointcloud_conversion.h>
-#endif  // HAVE_PCL
-
 using ftl::Display;
 using cv::Mat;
 using cv::Vec3f;
