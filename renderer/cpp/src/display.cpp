@@ -24,7 +24,6 @@ Display::Display(nlohmann::json &config) : config_(config) {
 	pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud"));
 	pclviz_->setBackgroundColor (255, 255, 255);
 	pclviz_->addCoordinateSystem (1.0);
-	pclviz_->initCameraParameters ();
 #endif  // HAVE_PCL
 
 	active_ = true;
@@ -37,7 +36,7 @@ Display::~Display() {
 }
 
 #if defined HAVE_PCL
-static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &OpencVPointCloud, const cv::Mat &rgbimage) {
+static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &cvcloud, const cv::Mat &rgbimage) {
 	/*
 	*  Function: Get from a Mat to pcl pointcloud datatype
 	*  In: cv::Mat
@@ -47,15 +46,20 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &Openc
 	//char pr=100, pg=100, pb=100;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>);//(new pcl::pointcloud<pcl::pointXYZ>);
 
-	for(int i=0;i<OpencVPointCloud.rows;i++) {
-	for(int j=0;j<OpencVPointCloud.cols;j++) {
+	for(int i=0;i<cvcloud.rows;i++) {
+	for(int j=0;j<cvcloud.cols;j++) {
 		//std::cout<<i<<endl;
 
 		pcl::PointXYZRGB point;
-		cv::Vec3f cvpoint = OpencVPointCloud.at<cv::Vec3f>(i,j);
-		point.x = cvpoint[0]; //OpencVPointCloud.at<float>(0,i);
-		point.y = cvpoint[1]; //OpencVPointCloud.at<float>(1,i);
-		point.z = cvpoint[2]; //OpencVPointCloud.at<float>(2,i);
+		cv::Vec3f cvpoint = cvcloud.at<cv::Vec3f>(i,j);
+		point.x = cvpoint[0];
+		point.y = cvpoint[1];
+		point.z = cvpoint[2];
+
+		//LOG(INFO) << point.x;
+		if (point.x == INFINITY || point.y == INFINITY || point.z == INFINITY || point.z < 600.0f) {
+			point.x = 0; point.y = 0; point.z = 0;
+		}
 
 		cv::Point3_<uchar> prgb = rgbimage.at<cv::Point3_<uchar>>(i, j);
 
@@ -63,11 +67,11 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &Openc
 		uint32_t rgb = (static_cast<uint32_t>(prgb.z) << 16 | static_cast<uint32_t>(prgb.y) << 8 | static_cast<uint32_t>(prgb.x));
 		point.rgb = *reinterpret_cast<float*>(&rgb);
 
-		if (point.z != INFINITY) point_cloud_ptr -> points.push_back(point);
+		point_cloud_ptr -> points.push_back(point);
 	}
 	}
-	point_cloud_ptr->width = OpencVPointCloud.cols; //(int)point_cloud_ptr->points.size();
-	point_cloud_ptr->height = OpencVPointCloud.rows;
+	point_cloud_ptr->width = cvcloud.cols;
+	point_cloud_ptr->height = cvcloud.rows;
 
 	return point_cloud_ptr;
 }
@@ -78,33 +82,14 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 
 	if (config_["points"] && q_.rows != 0) {
 #if defined HAVE_PCL
-		/*Mat ddepth;
-		depth.convertTo(ddepth, CV_16SC1, 4096);
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGB>);;
-		float focal = q_.at<float>(2,3);
-		float dshift = -1.0f / q_.at<float>(3,2);
-		float dscale = 256.0f;
-		std::vector<uint16_t> dispData;
-		std::vector<uint8_t> rgbData;
-
-		LOG(INFO) << "Focal = " << focal << ", baseline = " << dshift;
-
-		dispData.resize(ddepth.cols*ddepth.rows*sizeof(uint16_t));
-		rgbData.resize(rgb.cols*rgb.rows*sizeof(uint8_t)*3);
-		dispData.assign(ddepth.data, ddepth.data + dispData.size());
-		rgbData.assign(rgb.data, rgb.data + rgbData.size());
-
-		pcl::io::OrganizedConversion<pcl::PointXYZRGB>::convert(
-			*pc, focal, dshift, dscale, true, dispData, rgbData
-		);*/
-
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
-		reprojectImageTo3D(depth+20.0f, XYZ, q_, true);
+		reprojectImageTo3D(depth, XYZ, q_, false);
 		auto pc = matToPointXYZ(XYZ, rgb);
 
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
 		if (!pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
 			pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
+			pclviz_->initCameraParameters ();
 		}
 
 		pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "reconstruction");
@@ -167,7 +152,11 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 #if defined HAVE_PCL
 bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {
 	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
-	pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
+	if (!pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
+		pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
+	}
+
+	pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "reconstruction");
 	return true;
 }
 #endif  // HAVE_PCL
