@@ -91,6 +91,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		b.broadcast("done");
 		
 		sleep_for(milliseconds(100));
+		REQUIRE( !done );
 	}
 	
 	SECTION("no arguments to one peer") {

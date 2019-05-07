@@ -21,8 +21,8 @@ SCENARIO( "URI() can parse valid URIs", "[utility]" ) {
 		REQUIRE( uri.isValid() );
 		REQUIRE( uri.getScheme() == URI::SCHEME_HTTP );
 		REQUIRE( uri.getHost() == "localhost" );
-		REQUIRE( uri.getPort() == 8080 );
-		REQUIRE (uri.getPath() == "/test/case.html" );
+		REQUIRE( (uri.getPort() == 8080) );
+		REQUIRE( uri.getPath() == "/test/case.html" );
 	}
 
 	GIVEN( "a valid scheme with path and query" ) {
@@ -85,7 +85,7 @@ SCENARIO( "URI::getAttribute() from query" ) {
 
 	GIVEN( "an integer value" ) {
 		URI uri("http://localhost:1000/hello?x=56");
-		REQUIRE( uri.getAttribute<int>("x") == 56 );
+		REQUIRE( (uri.getAttribute<int>("x") == 56) );
 	}
 }
 

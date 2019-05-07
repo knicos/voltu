@@ -35,7 +35,7 @@ void ELAS::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	disp = Mat(cv::Size(l.cols, l.rows), CV_32F);
 	Mat dispr(cv::Size(l.cols, l.rows), CV_32F);
 	
-	const int32_t dims[3] = {l.cols,l.rows,lbw.step};
+	const int32_t dims[3] = {l.cols,l.rows,static_cast<int32_t>(lbw.step)};
 	
 	if (disp.step/sizeof(float) != lbw.step) LOG(WARNING) << "Incorrect disparity step";
 

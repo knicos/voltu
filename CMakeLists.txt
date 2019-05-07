@@ -99,7 +99,7 @@ check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
 find_program(CPPCHECK_FOUND cppcheck)
 if (CPPCHECK_FOUND)
 	message(STATUS "Found cppcheck: will perform source checks")
-	set(CMAKE_CXX_CPPCHECK "cppcheck" "--enable=style" "--suppress=*:*catch.hpp" "--suppress=*:*json.hpp")
+	set(CMAKE_CXX_CPPCHECK "cppcheck" "--enable=style" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*json.hpp")
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
