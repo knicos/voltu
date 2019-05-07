@@ -66,9 +66,9 @@ bool Universe::listen(const string &addr) {
 	return l->isListening();
 }
 
-bool Universe::connect(const string &addr) {
+Peer *Universe::connect(const string &addr) {
 	auto p = new Peer(addr.c_str(), &disp_);
-	if (!p) return false;
+	if (!p) return nullptr;
 	
 	if (p->status() != Peer::kInvalid) {
 		unique_lock<mutex> lk(net_mutex_);
@@ -81,7 +81,7 @@ bool Universe::connect(const string &addr) {
 		peer_ids_[p.id()] = &p;
 	});
 	
-	return p->status() == Peer::kConnecting;
+	return p;
 }
 
 int Universe::_setDescriptors() {

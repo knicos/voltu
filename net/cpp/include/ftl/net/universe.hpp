@@ -56,7 +56,7 @@ class Universe {
 	 *
 	 * @param addr URI giving protocol, interface and port
 	 */
-	bool connect(const std::string &addr);
+	Peer *connect(const std::string &addr);
 	
 	int numberOfPeers() const { return peers_.size(); }
 	
