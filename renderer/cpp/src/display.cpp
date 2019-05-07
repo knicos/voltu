@@ -84,6 +84,27 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	return true;
 }
 
+bool Display::render(const cv::Mat &img, style_t s) {
+	if (s == STYLE_NORMAL) {
+		cv::imshow("Image", img);
+	} else if (s = STYLE_DISPARITY) {
+		Mat idepth;
+
+		if ((bool)config_["flip_vert"]) {
+			cv::flip(img, idepth, 0);
+		} else {
+			idepth = img;
+		}
+
+    	idepth.convertTo(idepth, CV_8U, 255.0f / 256.0f);
+
+    	applyColorMap(idepth, idepth, cv::COLORMAP_JET);
+		cv::imshow("Disparity", idepth);
+	}
+
+	return true;
+}
+
 void Display::wait(int ms) {
 	if (config_["points"] && q_.rows != 0) {
 		#if defined HAVE_VIZ

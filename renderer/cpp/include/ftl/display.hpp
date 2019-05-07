@@ -18,12 +18,19 @@ namespace ftl {
  */
 class Display {
 	public:
+	enum style_t {
+		STYLE_NORMAL, STYLE_DISPARITY, STYLE_DEPTH
+	};
+
+	public:
 	explicit Display(nlohmann::json &config);
 	~Display();
 	
 	void setCalibration(const cv::Mat &q) { q_ = q; }
 
 	bool render(const cv::Mat &rgb, const cv::Mat &depth);
+
+	bool render(const cv::Mat &img, style_t s=STYLE_NORMAL);
 
 	bool active() const;
 	
