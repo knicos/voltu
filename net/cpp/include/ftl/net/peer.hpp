@@ -298,7 +298,7 @@ int Peer::asyncCall(
 	
 	// Register the CB
 	callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
-	
+
 	_send();
 	return rpcid;
 }

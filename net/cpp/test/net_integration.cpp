@@ -170,10 +170,23 @@ TEST_CASE("Universe::findOwner()", "") {
 	SECTION("three peers and one owner") {
 		Universe c;
 		c.connect("tcp://localhost:7077");
+		b.setLocalID(ftl::UUID(7));
 		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
 
 		b.createResource("ftl://test");
-		REQUIRE( *(a.findOwner("ftl://test")) == ftl::net::this_peer );
+		REQUIRE( *(a.findOwner("ftl://test")) == ftl::UUID(7) );
+	}
+
+	SECTION("three peers and one owner (2)") {
+		Universe c;
+		c.connect("tcp://localhost:7077");
+		c.setLocalID(ftl::UUID(7));
+		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
+
+		c.createResource("ftl://test");
+		auto r = a.findOwner("ftl://test");
+		REQUIRE( r );
+		REQUIRE( *r == ftl::UUID(7) );
 	}
 }
 
