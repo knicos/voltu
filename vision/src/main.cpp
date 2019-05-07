@@ -108,11 +108,24 @@ static void run(const string &file) {
 		return buf;
 	});
 
+	Mat l, r, disp;
+	bool grabbed = false;
+	mutex datam;
+	condition_variable datacv;
+
+	net.bind("grab", [&calibrate,&l,&r,&datam,&datacv,&grabbed]() -> void {
+		// LOG(INFO) << "GRAB";
+		unique_lock<mutex> datalk(datam);
+		if (grabbed) return;
+		calibrate.rectified(l, r);
+		grabbed = true;
+		datacv.notify_one();
+	});
+
     // Choose and configure disparity algorithm
     auto disparity = Disparity::create(config["disparity"]);
     if (!disparity) LOG(FATAL) << "Unknown disparity algorithm : " << config["disparity"];
 
-	Mat l, r, disp;
 	Mat pl, pdisp;
 	vector<unsigned char> rgb_buf;
 	vector<unsigned char> d_buf;
@@ -132,9 +145,11 @@ static void run(const string &file) {
 
 		// Pipeline for disparity
 		pool.push([&](int id) {
-			auto start = std::chrono::high_resolution_clock::now();
 			// Read calibrated images.
-			calibrate.rectified(l, r);
+			//calibrate.rectified(l, r);
+			unique_lock<mutex> datalk(datam);
+			datacv.wait(datalk, [&grabbed](){ return grabbed; });
+			grabbed = false;
 
 			// Feed into sync buffer and network forward
 			//sync->feed(ftl::LEFT, l, lsrc->getTimestamp());
@@ -144,7 +159,9 @@ static void run(const string &file) {
 			//sync->get(ftl::LEFT, l);
 			//sync->get(ftl::RIGHT, r);
 
+			auto start = std::chrono::high_resolution_clock::now();
 		    disparity->compute(l, r, disp);
+			datalk.unlock();
 
 			unique_lock<mutex> lk(m);
 			jobs++;

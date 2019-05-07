@@ -83,6 +83,8 @@ static void run() {
 	
 	while (disp.active()) {
 		Mat idepth;
+
+		net.broadcast("grab");
 		
 		unique_lock<mutex> lk(m);
 		if (depth.cols > 0) {
