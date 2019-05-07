@@ -144,9 +144,7 @@ static void run(const string &file) {
 			//sync->get(ftl::LEFT, l);
 			//sync->get(ftl::RIGHT, r);
 
-			LOG(INFO) << "PRE DISPARITY";
 		    disparity->compute(l, r, disp);
-			LOG(INFO) << "POST DISPARITY";
 
 			unique_lock<mutex> lk(m);
 			jobs++;
