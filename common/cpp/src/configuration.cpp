@@ -129,20 +129,36 @@ static bool mergeConfig(const string &path) {
  */
 static bool findConfiguration(const string &file, const vector<string> &paths,
 		const std::string &app) {
+	bool f = false;
 	bool found = false;
 	
-	found |= mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.json");
-	found |= mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.json");
-	found |= mergeConfig("./config.json");
+	f = mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.json");
+	found |= f;
+	if (f) LOG(INFO) << "Loaded config: " << FTL_GLOBAL_CONFIG_ROOT "/config.json";
+	f = mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.json");
+	found |= f;
+	if (f) LOG(INFO) << "Loaded config: " << FTL_LOCAL_CONFIG_ROOT "/config.json";
+	f = mergeConfig("./config.json");
+	found |= f;
+	if (f) LOG(INFO) << "Loaded config: " << "./config.json";
 	
 	for (auto p : paths) {
 		if (is_directory(p)) {
-			found |= mergeConfig(p+"/config.json");
+			f = mergeConfig(p+"/config.json");
+			found |= f;
+			if (f) LOG(INFO) << "Loaded config: " << p << "/config.json";
 		}
 	}
 	
 	if (file != "") {
-		found |= mergeConfig(file);
+		f = mergeConfig(file);
+		found |= f;
+
+		if (!f) {
+			LOG(ERROR) << "Specific config file (" << file << ") was not found";
+		} else {
+			LOG(INFO) << "Loaded config: " << file;
+		}
 	}
 
 	if (found) {

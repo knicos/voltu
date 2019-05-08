@@ -7,6 +7,7 @@
 #cmakedefine HAVE_CUDA
 #cmakedefine HAVE_OPENCV
 #cmakedefine HAVE_PCL
+#cmakedefine HAVE_RENDER
 
 extern const char *FTL_VERSION_LONG;
 extern const char *FTL_VERSION;

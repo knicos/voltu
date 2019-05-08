@@ -491,7 +491,7 @@ static double computeReprojectionErrors(
 		vector<float>& perViewErrors, bool fisheye) {
     vector<Point2f> imagePoints2;
     size_t totalPoints = 0;
-    double totalErr = 0, err;
+    double totalErr = 0;
     perViewErrors.resize(objectPoints.size());
 
     for (size_t i = 0; i < objectPoints.size(); ++i) {
@@ -502,7 +502,7 @@ static double computeReprojectionErrors(
             projectPoints(objectPoints[i], rvecs[i], tvecs[i], cameraMatrix,
             		distCoeffs, imagePoints2);
         }
-        err = norm(imagePoints[i], imagePoints2, NORM_L2);
+        double err = norm(imagePoints[i], imagePoints2, NORM_L2);
 
         size_t n = objectPoints[i].size();
         perViewErrors[i] = static_cast<float>(std::sqrt(err*err/n));
@@ -576,10 +576,6 @@ static bool _runCalibration(const Calibrate::Settings& s, Size& imageSize,
             tvecs.push_back(_tvecs.row(i));
         }
     } else {
-        int iFixedPoint = -1;
-        if (release_object)
-            iFixedPoint = s.boardSize.width - 1;
-
         rms = calibrateCamera(objectPoints, imagePoints, imageSize,
                                 cameraMatrix, distCoeffs, rvecs, tvecs,
                                 s.flag | CALIB_USE_LU);

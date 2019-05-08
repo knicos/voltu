@@ -178,7 +178,8 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
 		sock_ = tcpConnect(uri);
-		status_ = kConnecting;
+		if (sock_ != INVALID_SOCKET) status_ = kConnecting;
+		else status_ = kReconnecting;
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
 		LOG(INFO) << "Websocket connect " << uri.getPath();
 		sock_ = tcpConnect(uri);

@@ -56,7 +56,7 @@ class Universe {
 	 *
 	 * @param addr URI giving protocol, interface and port
 	 */
-	bool connect(const std::string &addr);
+	Peer *connect(const std::string &addr);
 	
 	int numberOfPeers() const { return peers_.size(); }
 	
@@ -126,6 +126,8 @@ class Universe {
 	bool createResource(const std::string &uri);
 
 	std::optional<ftl::UUID> findOwner(const std::string &res);
+
+	void setLocalID(const ftl::UUID &u) { this_peer = u; };
 	
 	private:
 	void _run();
@@ -138,6 +140,7 @@ class Universe {
 	
 	private:
 	bool active_;
+	ftl::UUID this_peer;
 	nlohmann::json config_;
 	std::mutex net_mutex_;
 	fd_set sfderror_;
@@ -199,7 +202,7 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 
 	std::map<Peer*, int> record;
 	for (auto p : peers_) {
-		record[p] = p->asyncCall<std::optional<R>>(name, handler, std::forward<ARGS>(args)...);
+		record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
 	}
 	
 	{  // Block thread until async callback notifies us

@@ -18,12 +18,12 @@ using std::optional;
 using std::unique_lock;
 using std::mutex;
 
-Universe::Universe() : active_(true), thread_(Universe::__start, this) {
+Universe::Universe() : active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this) {
 	_installBindings();
 }
 
 Universe::Universe(nlohmann::json &config) :
-		active_(true), config_(config), thread_(Universe::__start, this) {
+		active_(true), this_peer(ftl::net::this_peer), config_(config), thread_(Universe::__start, this) {
 	if (config["listen"].is_array()) {
 		for (auto &l : config["listen"]) {
 			listen(l);
@@ -66,9 +66,9 @@ bool Universe::listen(const string &addr) {
 	return l->isListening();
 }
 
-bool Universe::connect(const string &addr) {
+Peer *Universe::connect(const string &addr) {
 	auto p = new Peer(addr.c_str(), &disp_);
-	if (!p) return false;
+	if (!p) return nullptr;
 	
 	if (p->status() != Peer::kInvalid) {
 		unique_lock<mutex> lk(net_mutex_);
@@ -81,7 +81,7 @@ bool Universe::connect(const string &addr) {
 		peer_ids_[p.id()] = &p;
 	});
 	
-	return p->status() == Peer::kConnecting;
+	return p;
 }
 
 int Universe::_setDescriptors() {
@@ -133,7 +133,7 @@ void Universe::_installBindings() {
 	
 	bind("__owner__", [this](const std::string &res) -> optional<UUID> {
 		LOG(INFO) << "SOMEONE ASKS FOR " << res;
-		if (owned_.count(res) > 0) return ftl::net::this_peer;
+		if (owned_.count(res) > 0) return this_peer;
 		else return {};
 	});
 }
@@ -179,7 +179,7 @@ bool Universe::_subscribe(const std::string &res) {
 	optional<UUID> pid = findOwner(res);
 	
 	if (pid) {
-		return call<bool>(*pid, "__subscribe__", ftl::net::this_peer, res);
+		return call<bool>(*pid, "__subscribe__", this_peer, res);
 	} else {
 		// No resource found
 		LOG(WARNING) << "Subscribe to unknown resource: " << res;
@@ -219,7 +219,7 @@ void Universe::_run() {
 
 		//Some kind of error occured, it is usually possible to recover from this.
 		if (selres < 0) {
-			std::cout << "SELECT ERROR " << selres << std::endl;
+			std::cout << "SELECT ERROR " << selres << " - " << strerror(errno) << std::endl;
 			//return false;
 			continue;
 		} else if (selres == 0) {

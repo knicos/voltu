@@ -13,6 +13,9 @@ enable_testing()
 
 option(WITH_PCL "Use PCL if available" ON)
 option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
+option(BUILD_VISION "Enable the vision component" ON)
+option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
+option(BUILD_RENDERER "Enable the renderer component" ON)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
@@ -109,7 +112,7 @@ check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
 find_program(CPPCHECK_FOUND cppcheck)
 if (CPPCHECK_FOUND)
 	message(STATUS "Found cppcheck: will perform source checks")
-	set(CMAKE_CXX_CPPCHECK "cppcheck" "--enable=style" "--suppress=*:*catch.hpp" "--suppress=*:*json.hpp")
+	set(CMAKE_CXX_CPPCHECK "cppcheck" "--enable=style" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*json.hpp")
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
@@ -132,10 +135,20 @@ endif()
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 
 add_subdirectory(common/cpp)
-add_subdirectory(renderer)
 add_subdirectory(net)
-add_subdirectory(vision)
-add_subdirectory(reconstruct)
+
+if (BUILD_RENDERER)
+	add_subdirectory(renderer)
+	set(HAVE_RENDER)
+endif()
+
+if (BUILD_VISION)
+	add_subdirectory(vision)
+endif()
+
+if (BUILD_RECONSTRUCT)
+	add_subdirectory(reconstruct)
+endif()
 
 ### Generate Build Configuration Files =========================================
 

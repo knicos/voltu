@@ -29,7 +29,12 @@ class Calibrate {
 	// TODO(nick) replace or remove this class.
 	class Settings {
 		public:
-		Settings() : goodInput(false) {}
+		Settings() : calibrationPattern(CHESSBOARD), squareSize(50.0f),
+			nrFrames(30), aspectRatio(1.0f), delay(100), writePoints(false), writeExtrinsics(true),
+			writeGrid(false), calibZeroTangentDist(false), calibFixPrincipalPoint(true),
+			flipVertical(false), showUndistorsed(true), useFisheye(false), fixK1(false),
+			fixK2(false), fixK3(false), fixK4(false), fixK5(false), cameraID(0), atImageList(0),
+			inputType(INVALID), goodInput(false), flag(0) {}
 		enum Pattern { NOT_EXISTING, CHESSBOARD, CIRCLES_GRID, ASYMMETRIC_CIRCLES_GRID };
 		enum InputType { INVALID, CAMERA, VIDEO_FILE, IMAGE_LIST };
 

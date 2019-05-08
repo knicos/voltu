@@ -23,6 +23,11 @@ namespace ftl {
  */
 class Display {
 	public:
+	enum style_t {
+		STYLE_NORMAL, STYLE_DISPARITY, STYLE_DEPTH
+	};
+
+	public:
 	explicit Display(nlohmann::json &config);
 	~Display();
 	
@@ -33,6 +38,7 @@ class Display {
 #if defined HAVE_PCL
 	bool render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr);
 #endif  // HAVE_PCL
+	bool render(const cv::Mat &img, style_t s=STYLE_NORMAL);
 
 	bool active() const;
 	
