@@ -37,6 +37,7 @@ set(HAVE_OPENCV TRUE)
 
 if (PCL_FOUND)
 	set(HAVE_PCL TRUE)
+	string(REPLACE "\" \"" "" PCL_DEFINITIONS ${PCL_DEFINITIONS})
 endif()
 
 # Readline library is not required on Windows
