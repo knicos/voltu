@@ -2,7 +2,8 @@ add_library(ftlrender
 	src/display.cpp
 )
 
-target_compile_options(ftlrender PUBLIC ${PCL_DEFINITIONS})
+# These cause errors in CI build and are being removed from PCL in newer versions
+# target_compile_options(ftlrender PUBLIC ${PCL_DEFINITIONS})
 
 target_include_directories(ftlrender PUBLIC
 	${PCL_INCLUDE_DIRS}
