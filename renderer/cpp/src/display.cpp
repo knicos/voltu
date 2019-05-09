@@ -22,6 +22,37 @@ Display::Display(nlohmann::json &config) : config_(config) {
 	pclviz_->addCoordinateSystem (1.0);
 	pclviz_->setShowFPS(true);
 	pclviz_->initCameraParameters ();
+
+	pclviz_->registerKeyboardCallback (
+		[](const pcl::visualization::KeyboardEvent &event, void* viewer_void) {
+			auto viewer = *static_cast<pcl::visualization::PCLVisualizer::Ptr*>(viewer_void);
+			LOG(INFO) << "Key " << event.getKeySym ();
+			pcl::visualization::Camera cam;
+			viewer->getCameraParameters(cam);
+
+			Eigen::Vector3f pos(cam.pos[0], cam.pos[1], cam.pos[2]);
+			Eigen::Vector3f dir = Eigen::Vector3f(cam.focal[0], cam.focal[1], cam.focal[2]) - pos; //.normalize();
+			dir.normalize();
+
+			if (event.getKeySym() == "Up") {
+				pos += 20.0f*dir;
+			} else if (event.getKeySym() == "Down") {
+				pos -= 20.0f*dir;
+			} else if (event.getKeySym() == "Left") {
+				// TODO Rotate -90
+				pos += 20.0f*dir;
+			} else if (event.getKeySym() == "Right") {
+				// TODO Rotate 90
+				pos += 20.0f*dir;
+			}
+
+
+			cam.pos[0] = pos[0];
+			cam.pos[1] = pos[1];
+			cam.pos[2] = pos[2];
+			viewer->setCameraParameters(cam);
+
+		}, (void*)&pclviz_);
 #endif  // HAVE_PCL
 
 	active_ = true;
@@ -181,7 +212,7 @@ bool Display::render(const cv::Mat &img, style_t s) {
 void Display::wait(int ms) {
 	if (config_["points"] && q_.rows != 0) {
 		#if defined HAVE_PCL
-		pclviz_->spinOnce(5);
+		pclviz_->spinOnce(20);
 		#elif defined HAVE_VIZ
 		window_->spinOnce(1, true);
 		#endif  // HAVE_VIZ
