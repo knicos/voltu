@@ -26,30 +26,41 @@ Display::Display(nlohmann::json &config) : config_(config) {
 	pclviz_->registerKeyboardCallback (
 		[](const pcl::visualization::KeyboardEvent &event, void* viewer_void) {
 			auto viewer = *static_cast<pcl::visualization::PCLVisualizer::Ptr*>(viewer_void);
-			LOG(INFO) << "Key " << event.getKeySym ();
 			pcl::visualization::Camera cam;
 			viewer->getCameraParameters(cam);
 
 			Eigen::Vector3f pos(cam.pos[0], cam.pos[1], cam.pos[2]);
-			Eigen::Vector3f dir = Eigen::Vector3f(cam.focal[0], cam.focal[1], cam.focal[2]) - pos; //.normalize();
+			Eigen::Vector3f focal(cam.focal[0], cam.focal[1], cam.focal[2]);
+			Eigen::Vector3f dir = focal - pos; //.normalize();
 			dir.normalize();
 
+			const float speed = 40.0f;
+
 			if (event.getKeySym() == "Up") {
-				pos += 20.0f*dir;
+				pos += speed*dir;
+				focal += speed*dir;
 			} else if (event.getKeySym() == "Down") {
-				pos -= 20.0f*dir;
+				pos -= speed*dir;
+				focal -= speed*dir;
 			} else if (event.getKeySym() == "Left") {
-				// TODO Rotate -90
-				pos += 20.0f*dir;
+				Eigen::Matrix3f m = Eigen::AngleAxisf(-0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
+				dir = m*dir;
+				pos += speed*dir;
+				focal += speed*dir;
 			} else if (event.getKeySym() == "Right") {
-				// TODO Rotate 90
-				pos += 20.0f*dir;
+				Eigen::Matrix3f m = Eigen::AngleAxisf(0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
+				dir = m*dir;
+				pos += speed*dir;
+				focal += speed*dir;
 			}
 
 
 			cam.pos[0] = pos[0];
 			cam.pos[1] = pos[1];
 			cam.pos[2] = pos[2];
+			cam.focal[0] = focal[0];
+			cam.focal[1] = focal[1];
+			cam.focal[2] = focal[2];
 			viewer->setCameraParameters(cam);
 
 		}, (void*)&pclviz_);
