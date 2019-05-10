@@ -6,7 +6,6 @@
 
 #if defined HAVE_PCL
 #include <pcl/common/common_headers.h>
-#endif  // HAVE_PCL
 
 namespace ftl {
 namespace utility {
@@ -18,5 +17,6 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr matToPointXYZ(const cv::Mat &cvcloud, con
 
 };
 };
+#endif  // HAVE_PCL
 
 #endif  // _FTL_COMMON_OPENCV_TO_PCL_HPP_
