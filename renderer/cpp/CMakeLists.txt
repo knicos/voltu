@@ -10,6 +10,6 @@ target_include_directories(ftlrender PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlrender Threads::Threads glog::glog ${OpenCV_LIBS} ${PCL_LIBRARIES})
+target_link_libraries(ftlrender ftlcommon Threads::Threads glog::glog ${OpenCV_LIBS} ${PCL_LIBRARIES})
 
 #ADD_SUBDIRECTORY(test)
