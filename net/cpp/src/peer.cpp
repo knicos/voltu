@@ -39,6 +39,7 @@
 #include <memory>
 #include <algorithm>
 #include <tuple>
+#include <chrono>
 
 using std::tuple;
 using std::get;
@@ -46,6 +47,7 @@ using ftl::net::Peer;
 using ftl::URI;
 using ftl::net::ws_connect;
 using ftl::net::Dispatcher;
+using std::chrono::seconds;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -479,6 +481,20 @@ void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 	std::unique_lock<std::mutex> lk(send_mtx_);
 	msgpack::pack(send_buf_, res_obj);
 	_send();
+}
+
+bool Peer::waitConnection() {
+	if (status_ == kConnected) return true;
+	
+	std::unique_lock<std::mutex> lk(send_mtx_);
+	std::condition_variable cv;
+
+	onConnect([&](Peer &p) {
+		cv.notify_all();
+	});
+
+	cv.wait_for(lk, seconds(5));
+	return status_ == kConnected;
 }
 
 void Peer::onConnect(const std::function<void(Peer&)> &f) {

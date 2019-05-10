@@ -59,6 +59,8 @@ class Universe {
 	Peer *connect(const std::string &addr);
 	
 	int numberOfPeers() const { return peers_.size(); }
+
+	int waitConnections();
 	
 	Peer *getPeer(const ftl::UUID &pid) const;
 	

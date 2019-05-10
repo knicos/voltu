@@ -23,7 +23,7 @@ TEST_CASE("Universe::connect()", "[net]") {
 		auto p = b.connect("tcp://127.0.0.1:7077");
 		REQUIRE( p );
 		
-		while (!p->isConnected()) sleep_for(milliseconds(20));
+		p->waitConnection();
 		
 		REQUIRE( a.numberOfPeers() == 1 );
 		REQUIRE( b.numberOfPeers() == 1 );
@@ -33,7 +33,7 @@ TEST_CASE("Universe::connect()", "[net]") {
 		auto p = b.connect("tcp://localhost:7077");
 		REQUIRE( p );
 		
-		while (!p->isConnected()) sleep_for(milliseconds(20));
+		p->waitConnection();
 		
 		REQUIRE( a.numberOfPeers() == 1 );
 		REQUIRE( b.numberOfPeers() == 1 );
@@ -95,8 +95,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 	}
 	
 	SECTION("no arguments to one peer") {
-		b.connect("tcp://localhost:7077");
-		while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+		b.connect("tcp://localhost:7077")->waitConnection();
 		
 		bool done = false;
 		a.bind("hello", [&done]() {
@@ -111,8 +110,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 	}
 	
 	SECTION("one argument to one peer") {
-		b.connect("tcp://localhost:7077");
-		while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+		b.connect("tcp://localhost:7077")->waitConnection();
 		
 		int done = 0;
 		a.bind("hello", [&done](int v) {
@@ -129,9 +127,8 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 	SECTION("one argument to two peers") {
 		Universe c;
 		
-		b.connect("tcp://localhost:7077");
-		c.connect("tcp://localhost:7077");
-		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
+		b.connect("tcp://localhost:7077")->waitConnection();
+		c.connect("tcp://localhost:7077")->waitConnection();
 		
 		int done1 = 0;
 		b.bind("hello", [&done1](int v) {
@@ -156,8 +153,7 @@ TEST_CASE("Universe::findOwner()", "") {
 	Universe a;
 	Universe b;
 	a.listen("tcp://localhost:7077");
-	b.connect("tcp://localhost:7077");
-	while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+	b.connect("tcp://localhost:7077")->waitConnection();
 
 	SECTION("no owners exist") {
 		REQUIRE( !b.findOwner("ftl://test") );
@@ -170,9 +166,8 @@ TEST_CASE("Universe::findOwner()", "") {
 	
 	SECTION("three peers and one owner") {
 		Universe c;
-		c.connect("tcp://localhost:7077");
+		c.connect("tcp://localhost:7077")->waitConnection();
 		b.setLocalID(ftl::UUID(7));
-		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
 
 		b.createResource("ftl://test");
 		REQUIRE( *(a.findOwner("ftl://test")) == ftl::UUID(7) );
@@ -180,9 +175,8 @@ TEST_CASE("Universe::findOwner()", "") {
 
 	SECTION("three peers and one owner (2)") {
 		Universe c;
-		c.connect("tcp://localhost:7077");
+		c.connect("tcp://localhost:7077")->waitConnection();
 		c.setLocalID(ftl::UUID(7));
-		while (a.numberOfPeers() < 2) sleep_for(milliseconds(20));
 
 		c.createResource("ftl://test");
 		auto r = a.findOwner("ftl://test");
@@ -195,8 +189,7 @@ TEST_CASE("Universe::subscribe()", "") {
 	Universe a;
 	Universe b;
 	a.listen("tcp://localhost:7077");
-	b.connect("tcp://localhost:7077");
-	while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+	b.connect("tcp://localhost:7077")->waitConnection();
 
 	SECTION("no resource exists") {
 		REQUIRE( !b.subscribe("ftl://test", []() {}) );
@@ -214,8 +207,7 @@ TEST_CASE("Universe::publish()", "") {
 	Universe a;
 	Universe b;
 	a.listen("tcp://localhost:7077");
-	b.connect("tcp://localhost:7077");
-	while (a.numberOfPeers() == 0) sleep_for(milliseconds(20));
+	b.connect("tcp://localhost:7077")->waitConnection();
 
 	SECTION("no subscribers") {
 		a.createResource("ftl://test");

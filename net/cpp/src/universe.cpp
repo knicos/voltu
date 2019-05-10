@@ -84,6 +84,14 @@ Peer *Universe::connect(const string &addr) {
 	return p;
 }
 
+int Universe::waitConnections() {
+	int count = 0;
+	for (auto p : peers_) {
+		if (p->waitConnection()) count++;
+	}
+	return count;
+}
+
 int Universe::_setDescriptors() {
 	//Reset all file descriptors
 	FD_ZERO(&sfdread_);
