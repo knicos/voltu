@@ -22,5 +22,5 @@ linux job:
     - mkdir build
     - cd build
     - cmake ..
-    - make VERBOSE=1
-    - make test
+    - make
+    - ctest --output-on-failure
