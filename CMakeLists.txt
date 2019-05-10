@@ -31,6 +31,10 @@ if (WITH_FIXSTARS)
 	find_package( LibSGM )
 endif()
 
+if(${CMAKE_VERSION} VERSION_GREATER "3.12.0") 
+	cmake_policy(SET CMP0074 NEW)
+endif()
+
 if (WITH_PCL)
 	find_package( PCL QUIET COMPONENTS io common visualization registration )
 endif()
