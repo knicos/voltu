@@ -11,6 +11,8 @@ include(GNUInstallDirs)
 include(CTest)
 enable_testing()
 
+option(WITH_PCL "Use PCL if available" ON)
+option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
 option(BUILD_RENDERER "Enable the renderer component" ON)
@@ -19,15 +21,30 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 include(Findglog)
-#find_package( glog REQUIRED )
+
 find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
-find_package( LibSGM )
-#find_package( ZLIB REQUIRED )
 
+if (WITH_FIXSTARS)
+	find_package( LibSGM )
+endif()
+
+if(${CMAKE_VERSION} VERSION_GREATER "3.12.0") 
+	cmake_policy(SET CMP0074 NEW)
+endif()
+
+if (WITH_PCL)
+	find_package( PCL QUIET COMPONENTS io common visualization registration )
+endif()
+
+set(CMAKE_CXX_STANDARD 17) # For PCL/VTK https://github.com/PointCloudLibrary/pcl/issues/2686
 set(HAVE_OPENCV TRUE)
+
+if (PCL_FOUND)
+	set(HAVE_PCL TRUE)
+endif()
 
 # Readline library is not required on Windows
 # May also entirely remove dependence on this... it should be optional at least.

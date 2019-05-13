@@ -5,16 +5,68 @@
 #include <glog/logging.h>
 
 #include <ftl/display.hpp>
+#include <ftl/utility/opencv_to_pcl.hpp>
 
 using ftl::Display;
 using cv::Mat;
 using cv::Vec3f;
 
 Display::Display(nlohmann::json &config) : config_(config) {
-	#if defined HAVE_VIZ
+#if defined HAVE_VIZ
 	window_ = new cv::viz::Viz3d("FTL");
 	window_->setBackgroundColor(cv::viz::Color::white());
-	#endif  // HAVE_VIZ
+#endif  // HAVE_VIZ
+
+#if defined HAVE_PCL
+	pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud"));
+	pclviz_->setBackgroundColor (255, 255, 255);
+	pclviz_->addCoordinateSystem (1.0);
+	pclviz_->setShowFPS(true);
+	pclviz_->initCameraParameters ();
+
+	pclviz_->registerKeyboardCallback (
+		[](const pcl::visualization::KeyboardEvent &event, void* viewer_void) {
+			auto viewer = *static_cast<pcl::visualization::PCLVisualizer::Ptr*>(viewer_void);
+			pcl::visualization::Camera cam;
+			viewer->getCameraParameters(cam);
+
+			Eigen::Vector3f pos(cam.pos[0], cam.pos[1], cam.pos[2]);
+			Eigen::Vector3f focal(cam.focal[0], cam.focal[1], cam.focal[2]);
+			Eigen::Vector3f dir = focal - pos; //.normalize();
+			dir.normalize();
+
+			const float speed = 40.0f;
+
+			if (event.getKeySym() == "Up") {
+				pos += speed*dir;
+				focal += speed*dir;
+			} else if (event.getKeySym() == "Down") {
+				pos -= speed*dir;
+				focal -= speed*dir;
+			} else if (event.getKeySym() == "Left") {
+				Eigen::Matrix3f m = Eigen::AngleAxisf(-0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
+				dir = m*dir;
+				pos += speed*dir;
+				focal += speed*dir;
+			} else if (event.getKeySym() == "Right") {
+				Eigen::Matrix3f m = Eigen::AngleAxisf(0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
+				dir = m*dir;
+				pos += speed*dir;
+				focal += speed*dir;
+			}
+
+
+			cam.pos[0] = pos[0];
+			cam.pos[1] = pos[1];
+			cam.pos[2] = pos[2];
+			cam.focal[0] = focal[0];
+			cam.focal[1] = focal[1];
+			cam.focal[2] = focal[2];
+			viewer->setCameraParameters(cam);
+
+		}, (void*)&pclviz_);
+#endif  // HAVE_PCL
+
 	active_ = true;
 }
 
@@ -28,7 +80,18 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	Mat idepth;
 
 	if (config_["points"] && q_.rows != 0) {
-		#if defined HAVE_VIZ
+#if defined HAVE_PCL
+		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
+		reprojectImageTo3D(depth, XYZ, q_, false);
+		auto pc = ftl::utility::matToPointXYZ(XYZ, rgb);
+
+		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
+		if (!pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
+			pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
+			pclviz_->setCameraPosition(-878.0, -71.0, -2315.0, -0.1, -0.99, 0.068, 0.0, -1.0, 0.0);
+			pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "reconstruction");
+		}
+#elif defined HAVE_VIZ
 		//cv::Mat Q_32F;
 		//calibrate_.getQ().convertTo(Q_32F, CV_32F);
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
@@ -45,11 +108,11 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 
 		//window_->spinOnce(40, true);
 
-		#else  // HAVE_VIZ
+#else  // HAVE_VIZ
 
 		LOG(ERROR) << "Need OpenCV Viz module to display points";
 
-		#endif  // HAVE_VIZ
+#endif  // HAVE_VIZ
 	}
 
 	if (config_["left"]) {
@@ -84,6 +147,17 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	return true;
 }
 
+#if defined HAVE_PCL
+bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {
+	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
+	if (!pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
+		pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
+	}
+
+	pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "reconstruction");
+	return true;
+}
+#endif  // HAVE_PCL
 bool Display::render(const cv::Mat &img, style_t s) {
 	if (s == STYLE_NORMAL) {
 		cv::imshow("Image", img);
@@ -107,7 +181,9 @@ bool Display::render(const cv::Mat &img, style_t s) {
 
 void Display::wait(int ms) {
 	if (config_["points"] && q_.rows != 0) {
-		#if defined HAVE_VIZ
+		#if defined HAVE_PCL
+		pclviz_->spinOnce(20);
+		#elif defined HAVE_VIZ
 		window_->spinOnce(1, true);
 		#endif  // HAVE_VIZ
 	}
@@ -121,7 +197,9 @@ void Display::wait(int ms) {
 }
 
 bool Display::active() const {
-	#if defined HAVE_VIZ
+	#if defined HAVE_PCL
+	return active_ && !pclviz_->wasStopped();
+	#elif defined HAVE_VIZ
 	return active_ && !window_->wasStopped();
 	#else
 	return active_;
