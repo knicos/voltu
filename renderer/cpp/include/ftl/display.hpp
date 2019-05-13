@@ -22,13 +22,15 @@ namespace ftl {
  * Multiple local display options for disparity or point clouds.
  */
 class Display {
+	private:
+		std::string name_;
 	public:
 	enum style_t {
 		STYLE_NORMAL, STYLE_DISPARITY, STYLE_DEPTH
 	};
 
 	public:
-	explicit Display(nlohmann::json &config);
+	explicit Display(nlohmann::json &config, std::string name);
 	~Display();
 	
 	void setCalibration(const cv::Mat &q) { q_ = q; }
