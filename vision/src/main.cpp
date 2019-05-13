@@ -131,7 +131,7 @@ static void run(const string &file) {
 	vector<unsigned char> d_buf;
 	string uri = string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d");
 
-	Display display(config["display"]);
+	Display display(config["display"], "local");
 	display.setCalibration(Q_32F);
 	
 	Streamer stream(net, config["stream"]);

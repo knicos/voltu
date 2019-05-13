@@ -69,7 +69,7 @@
 		"net": {
 			"peers": ["tcp://localhost:9001"]
 		},
-		"source": "ftl://utu.fi/dummy/rgb-d",
+		"sources": ["ftl://utu.fi/node1/rgb-d"],
 		"display": {
 			"flip_vert": false,
 			"disparity": false,

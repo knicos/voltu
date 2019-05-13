@@ -11,14 +11,15 @@ using ftl::Display;
 using cv::Mat;
 using cv::Vec3f;
 
-Display::Display(nlohmann::json &config) : config_(config) {
+Display::Display(nlohmann::json &config, std::string name) : config_(config) {
+	name_ = name;
 #if defined HAVE_VIZ
-	window_ = new cv::viz::Viz3d("FTL");
+	window_ = new cv::viz::Viz3d("FTL: " + name);
 	window_->setBackgroundColor(cv::viz::Color::white());
 #endif  // HAVE_VIZ
 
 #if defined HAVE_PCL
-	pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud"));
+	pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud: " + name));
 	pclviz_->setBackgroundColor (255, 255, 255);
 	pclviz_->addCoordinateSystem (1.0);
 	pclviz_->setShowFPS(true);
@@ -116,7 +117,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 	}
 
 	if (config_["left"]) {
-		cv::imshow("RGB", rgb);
+		cv::imshow("RGB: " + name_, rgb);
 	}
 
 	if (config_["depth"]) {
@@ -137,7 +138,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
     	idepth.convertTo(idepth, CV_8U, 255.0f / 256.0f);  // TODO(nick)
 
     	applyColorMap(idepth, idepth, cv::COLORMAP_JET);
-		cv::imshow("Disparity", idepth);
+		cv::imshow("Disparity:" + name_, idepth);
 		//if(cv::waitKey(40) == 27) {
 	        // exit if ESC is pressed
 	    //    active_ = false;
