@@ -132,7 +132,6 @@ static void run(const string &file) {
 	string uri = string("ftl://utu.fi/")+(string)config["stream"]["name"]+string("/rgb-d");
 
 	Display display(config["display"], "local");
-	display.setCalibration(Q_32F);
 	
 	Streamer stream(net, config["stream"]);
 
@@ -185,7 +184,7 @@ static void run(const string &file) {
 		});
 
 		// Send RGB+Depth images for local rendering
-		if (pl.rows > 0) display.render(pl, pdisp);
+		if (pl.rows > 0) display.render(pl, pdisp, Q_32F);
 		display.wait(1);
 
 		// Wait for both pipelines to complete
