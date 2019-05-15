@@ -77,13 +77,13 @@ Display::~Display() {
 	#endif  // HAVE_VIZ
 }
 
-bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
+bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const cv::Mat &q) {
 	Mat idepth;
 
-	if (config_["points"] && q_.rows != 0) {
+	if (config_["points"] && q.rows != 0) {
 #if defined HAVE_PCL
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
-		reprojectImageTo3D(depth, XYZ, q_, false);
+		reprojectImageTo3D(depth, XYZ, q, false);
 		auto pc = ftl::utility::matToPointXYZ(XYZ, rgb);
 
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
@@ -96,7 +96,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth) {
 		//cv::Mat Q_32F;
 		//calibrate_.getQ().convertTo(Q_32F, CV_32F);
 		cv::Mat_<cv::Vec3f> XYZ(depth.rows, depth.cols);   // Output point cloud
-		reprojectImageTo3D(depth+20.0f, XYZ, q_, true);
+		reprojectImageTo3D(depth+20.0f, XYZ, q, true);
 
 		// Remove all invalid pixels from point cloud
 		XYZ.setTo(Vec3f(NAN, NAN, NAN), depth == 0.0f);
@@ -181,7 +181,7 @@ bool Display::render(const cv::Mat &img, style_t s) {
 }
 
 void Display::wait(int ms) {
-	if (config_["points"] && q_.rows != 0) {
+	if (config_["points"]) {
 		#if defined HAVE_PCL
 		pclviz_->spinOnce(20);
 		#elif defined HAVE_VIZ

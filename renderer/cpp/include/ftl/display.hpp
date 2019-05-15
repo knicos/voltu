@@ -33,9 +33,7 @@ class Display {
 	explicit Display(nlohmann::json &config, std::string name);
 	~Display();
 	
-	void setCalibration(const cv::Mat &q) { q_ = q; }
-
-	bool render(const cv::Mat &rgb, const cv::Mat &depth);
+	bool render(const cv::Mat &rgb, const cv::Mat &depth, const cv::Mat &q);
 
 #if defined HAVE_PCL
 	bool render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr);
@@ -47,7 +45,6 @@ class Display {
 	void wait(int ms);
 
 	private:
-	cv::Mat q_;
 	nlohmann::json config_;
 
 #if defined HAVE_VIZ

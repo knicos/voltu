@@ -149,10 +149,6 @@ static void run() {
 		net.subscribe(src, [&in](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 			in.recv(jpg, d);
 		});
-		
-		// todo: Display should only need processed input, depth calculation etc.
-		//       should happen somewhere else.
-		display.setCalibration(in.getQ());
 	}
 
 	int active = displays.size();
@@ -172,9 +168,10 @@ static void run() {
 			auto lk = source.lock();
 			Mat rgb = source.getRGB();
 			Mat disparity = source.getDisparity();
+			Mat q = source.getQ();
 			lk.unlock();
 			
-			display.render(rgb, disparity);
+			display.render(rgb, disparity, q);
 			display.wait(50);
 		}
 		
