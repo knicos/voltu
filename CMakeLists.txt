@@ -166,4 +166,11 @@ configure_file(${CMAKE_SOURCE_DIR}/common/cpp/src/config.cpp.in
 
 # For issue #17
 # https://gitlab.kitware.com/cmake/cmake/issues/16915#note_456382
+if ( TARGET Qt5::Core )
+	get_property( core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS )
+	string( REPLACE "-fPIC" "" new_core_options "${core_options}" )
+	set_property( TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_core_options} )
+	set_property( TARGET Qt5::Core PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE "ON" )
+	set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
+endif()
 
