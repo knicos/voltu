@@ -164,3 +164,6 @@ configure_file(${CMAKE_SOURCE_DIR}/common/cpp/src/config.cpp.in
                ${CMAKE_SOURCE_DIR}/common/cpp/src/config.cpp
 )
 
+# For issue #17
+# https://gitlab.kitware.com/cmake/cmake/issues/16915#note_456382
+
