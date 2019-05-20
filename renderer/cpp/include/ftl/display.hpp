@@ -33,7 +33,7 @@ class Display {
 	explicit Display(nlohmann::json &config, std::string name);
 	~Display();
 	
-	inline bool render(const cv::Mat &rgb, const cv::Mat &depth, const cv::Mat &q) { render(rgb, cv::Mat(), q); }
+	inline bool render(const cv::Mat &rgb, const cv::Mat &depth, const cv::Mat &q) { return render(rgb, cv::Mat(), q); }
 	bool render(const cv::Mat &rgb, const cv::Mat &rgbr, const cv::Mat &depth, const cv::Mat &q);
 
 #if defined HAVE_PCL
