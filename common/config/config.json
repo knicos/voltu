@@ -81,6 +81,15 @@
 			"depth": false,
 			"left": false,
 			"right": false
+		},
+		"registration": {
+			"reference-source" : "ftl://utu.fi/node1/rgb-d",
+			"calibration" : {
+				"run": false,
+				"iterations" : 10,
+				"delay" : 1000,
+				"patternsize" : [9, 6]
+				}
 		}
 	}
 }

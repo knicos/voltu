@@ -25,6 +25,14 @@ Display::Display(nlohmann::json &config, std::string name) : config_(config) {
 	pclviz_->setShowFPS(true);
 	pclviz_->initCameraParameters ();
 
+	pclviz_->registerPointPickingCallback(
+		[](const pcl::visualization::PointPickingEvent& event, void* viewer_void) {
+			if (event.getPointIndex () == -1) return;
+			float x, y, z;
+			event.getPoint(x, y, z);
+			LOG(INFO) << "( " << x << ", " << y << ", " << z << ")";
+		}, (void*) &pclviz_);
+	
 	pclviz_->registerKeyboardCallback (
 		[](const pcl::visualization::KeyboardEvent &event, void* viewer_void) {
 			auto viewer = *static_cast<pcl::visualization::PCLVisualizer::Ptr*>(viewer_void);
@@ -162,13 +170,13 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &rgbr, const cv::Mat &dep
 }
 
 #if defined HAVE_PCL
-bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {
+bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {	
 	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
 	if (!pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
 		pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
+		pclviz_->setCameraPosition(-878.0, -71.0, -2315.0, -0.1, -0.99, 0.068, 0.0, -1.0, 0.0);
+		pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "reconstruction");
 	}
-
-	pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "reconstruction");
 	return true;
 }
 #endif  // HAVE_PCL

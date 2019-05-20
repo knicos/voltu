@@ -3,6 +3,8 @@
 #if defined HAVE_PCL
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr ftl::utility::matToPointXYZ(const cv::Mat &cvcloud, const cv::Mat &rgbimage) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
+	point_cloud_ptr->width = cvcloud.cols * cvcloud.rows;
+	point_cloud_ptr->height = 1;
 
 	for(int i=0;i<cvcloud.rows;i++) {
 	for(int j=0;j<cvcloud.cols;j++) {
@@ -27,8 +29,6 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr ftl::utility::matToPointXYZ(const cv::Mat
 		point_cloud_ptr -> points.push_back(point);
 	}
 	}
-	point_cloud_ptr->width = cvcloud.cols;
-	point_cloud_ptr->height = cvcloud.rows;
 
 	return point_cloud_ptr;
 }
