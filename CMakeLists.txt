@@ -36,7 +36,7 @@ if(${CMAKE_VERSION} VERSION_GREATER "3.12.0")
 endif()
 
 if (WITH_PCL)
-	find_package( PCL QUIET COMPONENTS io common visualization registration )
+	find_package( PCL QUIET COMPONENTS io common visualization registration segmentation)
 endif()
 
 set(CMAKE_CXX_STANDARD 17) # For PCL/VTK https://github.com/PointCloudLibrary/pcl/issues/2686
