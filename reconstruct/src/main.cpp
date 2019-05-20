@@ -135,6 +135,14 @@ public:
 std::map<string, Eigen::Matrix4f> loadRegistration() {
 	std::map<string, Eigen::Matrix4f> registration;
 	std::ifstream file(string(FTL_LOCAL_CONFIG_ROOT) + "/registration.json");
+
+	// Use identity transform if no registration
+	if (!file.is_open()) {
+		Eigen::Matrix4f T;
+		registration["default"] = T.setIdentity();
+		return registration;
+	}
+
 	nlohmann::json load;
 	file >> load;
 	
@@ -327,7 +335,10 @@ static void run() {
 		registration = loadRegistration();
 	}
 	vector<Eigen::Matrix4f> T;
-	for (auto &input : inputs) { T.push_back(registration[input.getURI()]); }
+	for (auto &input : inputs) {
+		Eigen::Matrix4f RT = (registration.count(input.getURI()) > 0) ? registration[input.getURI()] : registration["default"];
+		T.push_back(RT);
+	}
 	
 	//
 	vector<PointCloud<PointXYZRGB>::Ptr> clouds(inputs.size());
