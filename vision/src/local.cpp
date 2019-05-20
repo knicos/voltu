@@ -58,6 +58,10 @@ LocalSource::LocalSource(nlohmann::json &config)
 		stereo_ = false;
 		LOG(WARNING) << "Not able to find second camera for stereo";
 	} else {
+		Mat frame;
+		camera_a_->grab();
+		camera_a_->retrieve(frame);
+		LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
 		stereo_ = true;
 	}
 
