@@ -336,6 +336,8 @@ static void run() {
 	int active = displays.size();
 	while (active > 0) {
 		active = 0;
+
+		net.broadcast("grab");  // To sync cameras
 		
 		PointCloud<PointXYZRGB>::Ptr cloud(new PointCloud<PointXYZRGB>);
 		
