@@ -10,7 +10,10 @@
 			"nostereo": false,
 			"scale": 1.0,
 			"flip_vert": false,
-			"max_fps": 25
+			"max_fps": 25,
+			"width": 640,
+			"height": 480,
+			"crosshair": false
 		},
 		"calibrate": false,
 		"calibration": {
@@ -55,7 +58,8 @@
 			"points": true,
 			"depth": false,
 			"left": false,
-			"right": false
+			"right": false,
+			"crosshair": false
 		},
 		"net": {
 			"listen": "tcp://*:9001",

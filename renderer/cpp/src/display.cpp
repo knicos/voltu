@@ -202,7 +202,7 @@ void Display::wait(int ms) {
 		#endif  // HAVE_VIZ
 	}
 	
-	if (config_["disparity"]) {
+	if (config_["disparity"] || config_["left"] || config_["right"]) {
 		if(cv::waitKey(ms) == 27) {
 	        // exit if ESC is pressed
 	        active_ = false;
