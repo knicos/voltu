@@ -58,6 +58,11 @@ LocalSource::LocalSource(nlohmann::json &config)
 		stereo_ = false;
 		LOG(WARNING) << "Not able to find second camera for stereo";
 	} else {
+		camera_a_->set(cv::CAP_PROP_FRAME_WIDTH,1280);
+		camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT,720);
+		camera_b_->set(cv::CAP_PROP_FRAME_WIDTH,1280);
+		camera_b_->set(cv::CAP_PROP_FRAME_HEIGHT,720);
+
 		Mat frame;
 		camera_a_->grab();
 		camera_a_->retrieve(frame);
