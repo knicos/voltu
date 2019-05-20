@@ -184,7 +184,7 @@ static void run(const string &file) {
 		});
 
 		// Send RGB+Depth images for local rendering
-		if (pl.rows > 0) display.render(pl, pdisp, Q_32F);
+		if (pl.rows > 0) display.render(pl, r, pdisp, Q_32F);
 		display.wait(1);
 
 		// Wait for both pipelines to complete

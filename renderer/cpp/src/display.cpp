@@ -77,7 +77,7 @@ Display::~Display() {
 	#endif  // HAVE_VIZ
 }
 
-bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const cv::Mat &q) {
+bool Display::render(const cv::Mat &rgb, const cv::Mat &rgbr, const cv::Mat &depth, const cv::Mat &q) {
 	Mat idepth;
 
 	if (config_["points"] && q.rows != 0) {
@@ -117,7 +117,20 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const cv::Mat &q)
 	}
 
 	if (config_["left"]) {
-		cv::imshow("RGB: " + name_, rgb);
+		if (config_["crosshair"]) {
+			cv::line(rgb, cv::Point(0, rgb.rows/2), cv::Point(rgb.cols-1, rgb.rows/2), cv::Scalar(0,0,255), 1);
+            cv::line(rgb, cv::Point(rgb.cols/2, 0), cv::Point(rgb.cols/2, rgb.rows-1), cv::Scalar(0,0,255), 1);
+		}
+		cv::namedWindow("Left: " + name_, cv::WINDOW_KEEPRATIO);
+		cv::imshow("Left: " + name_, rgb);
+	}
+	if (config_["right"]) {
+		if (config_["crosshair"]) {
+			cv::line(rgbr, cv::Point(0, rgbr.rows/2), cv::Point(rgbr.cols-1, rgbr.rows/2), cv::Scalar(0,0,255), 1);
+            cv::line(rgbr, cv::Point(rgbr.cols/2, 0), cv::Point(rgbr.cols/2, rgbr.rows-1), cv::Scalar(0,0,255), 1);
+		}
+		cv::namedWindow("Right: " + name_, cv::WINDOW_KEEPRATIO);
+		cv::imshow("Right: " + name_, rgbr);
 	}
 
 	if (config_["depth"]) {
