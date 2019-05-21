@@ -136,8 +136,8 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
     if (binding) {
         try {
             auto result = (*binding)(args);
-        } catch (int e) {
-			throw e;
+        } catch (const int &e) {
+			throw &e;
 		}
     } else {
     	LOG(ERROR) << "Missing handler for incoming message";

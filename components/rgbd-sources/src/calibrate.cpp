@@ -12,7 +12,7 @@
 #include <ctime>
 #include <cstdio>
 
-#include <ftl/calibrate.hpp>
+#include "calibrate.hpp"
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>

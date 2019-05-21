@@ -2,9 +2,9 @@
 include_directories(${PROJECT_SOURCE_DIR}/reconstruct/include)
 #include_directories(${PROJECT_BINARY_DIR})
 
-
 set(REPSRC
 	src/main.cpp
+	src/registration.cpp
 )
 
 add_executable(ftl-reconstruct ${REPSRC})

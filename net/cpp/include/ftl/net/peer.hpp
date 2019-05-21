@@ -86,6 +86,11 @@ class Peer {
 	bool isConnected() const {
 		return sock_ != INVALID_SOCKET && status_ == kConnected;
 	};
+
+	/**
+	 * Block until the connection and handshake has completed.
+	 */
+	bool waitConnection();
 	
 	bool isValid() const {
 		return status_ != kInvalid && sock_ != INVALID_SOCKET;
@@ -298,7 +303,7 @@ int Peer::asyncCall(
 	
 	// Register the CB
 	callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
-	
+
 	_send();
 	return rpcid;
 }

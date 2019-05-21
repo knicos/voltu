@@ -12,7 +12,7 @@ namespace cv {
 namespace ftl {
 class LocalSource {
 	public:
-	LocalSource(nlohmann::json &config);
+	explicit LocalSource(nlohmann::json &config);
 	LocalSource(const std::string &vid, nlohmann::json &config);
 	
 	bool left(cv::Mat &m);

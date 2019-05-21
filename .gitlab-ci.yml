@@ -1,15 +1,26 @@
-image: ubuntu:18.04
+windows job:
+  tags:
+    - win
+  script:
+    - 'call "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat"'
+    - mkdir build
+    - cd build
+    - 'cmake -DWITH_PCL=FALSE -DCMAKE_GENERATOR_PLATFORM=x64 -DOpenCV_DIR="D:/opencv-4.0.1/build/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1" ..'
+    - devenv ftl.utu.fi.sln /build Release
+  
+linux job:
+  tags:
+    - docker
 
-before_script:
- - export DEBIAN_FRONTEND=noninteractive
- - apt-get update -qq && apt-get install -y -qq g++ cmake git
- - apt-get install -y -qq libopencv-dev libgoogle-glog-dev liburiparser-dev libreadline-dev libmsgpack-dev uuid-dev
-
-ftl:
+  image: ubuntu:18.04
+  
+  before_script:
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get update -qq && apt-get install -y -qq g++ cmake git
+    - apt-get install -y -qq libopencv-dev libgoogle-glog-dev liburiparser-dev libreadline-dev libmsgpack-dev uuid-dev libpcl-dev
   script:
     - mkdir build
     - cd build
     - cmake ..
     - make
-    - make test
-
+    - ctest --output-on-failure

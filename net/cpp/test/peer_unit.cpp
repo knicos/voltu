@@ -185,7 +185,7 @@ TEST_CASE("Peer(int)", "[]") {
 		
 		sleep_for(milliseconds(50));
 		
-		REQUIRE( s.getFTLVersion() ==  (8 << 16) + (5 << 8) + 2 );
+		REQUIRE( (s.getFTLVersion() ==  (8 << 16) + (5 << 8) + 2) );
 	}
 	
 	SECTION("has correct peer id on full handshake") {
@@ -342,7 +342,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 		sleep_for(milliseconds(50));
 		
 		REQUIRE( (done == 55) );
-		REQUIRE( readRPCReturn<int>(0) == 55 );
+		REQUIRE( (readRPCReturn<int>(0) == 55) );
 	}
 
 	SECTION("vector return value") {		
@@ -361,7 +361,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
 		REQUIRE( (done == 55) );
 
 		auto res = readRPCReturn<vector<int>>(0);
-		REQUIRE( res[1] == 45 );
+		REQUIRE( (res[1] == 45) );
 	}
 }
 
