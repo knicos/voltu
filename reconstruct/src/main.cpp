@@ -173,7 +173,7 @@ void saveRegistration(std::map<string, Eigen::Matrix4f> registration) {
 }
 
 template <template<class> class Container>
-std::map<string, Eigen::Matrix4f> runRegistration(Container<InputStereo> &inputs) {
+std::map<string, Eigen::Matrix4f> runRegistration(std::net::Universe &net, Container<InputStereo> &inputs) {
 	
 	std::map<string, Eigen::Matrix4f> registration;
 	
@@ -212,6 +212,7 @@ std::map<string, Eigen::Matrix4f> runRegistration(Container<InputStereo> &inputs
 	vector<vector<PointCloud<PointXYZ>::Ptr>> patterns(inputs.size());
 	
 	while (iter > 0) {
+		net.broadcast("grab");
 		bool retval = true; // set to false if pattern not found in one of the sources
 		vector<PointCloud<PointXYZ>::Ptr> patterns_iter(inputs.size());
 		
@@ -219,17 +220,13 @@ std::map<string, Eigen::Matrix4f> runRegistration(Container<InputStereo> &inputs
 			InputStereo &input = inputs[i];
 			Mat rgb, disp, Q;
 			
-			while(true) {
-				auto lk = input.lock();
-				rgb = input.getRGB();
-				disp = input.getDisparity();
-				Q = input.getQ();
-				lk.unlock();
-				
-				// todo solve this somewhere else
-				if ((rgb.cols > 0) && (disp.cols > 0)) { break; }
-				else { sleep_for(milliseconds(500)); }
-			}
+			auto lk = input.lock();
+			rgb = input.getRGB().clone();
+			disp = input.getDisparity().clone();
+			Q = input.getQ();
+			lk.unlock();
+			
+			if ((rgb.cols == 0) || (disp.cols == 0)) { retval = false; break; }
 			
 			retval &= ftl::registration::findChessboardCorners(rgb, disp, Q, pattern_size, patterns_iter[i]);
 			
@@ -329,7 +326,7 @@ static void run() {
 #ifdef HAVE_PCL
 	std::map<string, Eigen::Matrix4f> registration;
 	if (config["registration"]["calibration"]["run"]) {
-		registration = runRegistration(inputs);
+		registration = runRegistration(net, inputs);
 	}
 	else {
 		registration = loadRegistration();
