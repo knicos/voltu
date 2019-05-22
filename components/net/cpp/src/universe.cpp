@@ -235,6 +235,8 @@ void Universe::_run() {
 			continue;
 		}
 
+		unique_lock<mutex> lk(net_mutex_);
+
 		//If connection request is waiting
 		for (auto l : listeners_) {
 			if (l && l->isListening()) {

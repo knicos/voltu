@@ -108,6 +108,7 @@ class Calibrate {
 	 * a 3D point cloud.
 	 */
 	const cv::Mat &getQ() const { return Q_; }
+	const cv::Mat &getCameraMatrix() const { return r1_; }
 
 	private:
 	bool _recalibrate(std::vector<std::vector<cv::Point2f>> *imagePoints,

@@ -46,12 +46,13 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 	else LOG(INFO) << "Calibration initiated.";
 
 	// Generate camera parameters from Q matrix
-	cv::Mat q = calib_->getQ();
+	cv::Mat q = calib_->getCameraMatrix();
 	params_ = {
-		q.at<double>(2,3),	// FX
-		q.at<double>(2,3),	// FY
-		q.at<double>(0,3),	// Cx
-		q.at<double>(1,3),	// Cy
+		// TODO(Nick) Add fx and fy
+		q.at<double>(0,0),	// Fx
+		q.at<double>(1,1),	// Fy
+		q.at<double>(0,2),	// Cx
+		q.at<double>(1,2),	// Cy
 		(unsigned int)left_.cols,  // TODO (Nick)
 		(unsigned int)left_.rows,
 		0.0f,	// 0m min
@@ -107,5 +108,5 @@ void StereoVideoSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
 	disp_->compute(left_, right_, disp);
 	rgb = left_;
 	disparityToDepth(disp, depth, calib_->getQ());
-	calib_->distort(rgb,depth);
+	//calib_->distort(rgb,depth);
 }
