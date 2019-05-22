@@ -12,7 +12,8 @@ namespace ftl {
 namespace rgbd {
 
 struct CameraParameters {
-	double f;
+	double fx;
+	double fy;
 	double cx;
 	double cy;
 	unsigned int width;

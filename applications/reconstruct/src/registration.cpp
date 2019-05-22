@@ -68,7 +68,8 @@ PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners
 
 	const double CX = p.cx;
 	const double CY = p.cy;
-	const double F = p.f;
+	const double FX = p.fx;
+	const double FY = p.fy;
 	
 	// Output point cloud
 	PointCloud<PointXYZ>::Ptr cloud(new PointCloud<PointXYZ>);
@@ -88,8 +89,8 @@ PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners
 		//cv::Vec3d p = cv::Vec3d(homg_pt.val) / homg_pt[3];
 
 		PointXYZ point;
-		point.x = (((double)x + CX) / F) * d; // / 1000.0f;
-		point.y = (((double)y + CY) / F) * d; // / 1000.0f;
+		point.x = (((double)x + CX) / FX) * d; // / 1000.0f;
+		point.y = (((double)y + CY) / FY) * d; // / 1000.0f;
 		point.z = d;
 		
 		// no check since disparities assumed to be good in the calibration pattern

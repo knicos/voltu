@@ -23,6 +23,8 @@ static bool getCalibration(Universe &net, string src, ftl::rgbd::CameraParameter
 				LOG(ERROR) << "Corrupted calibration";
 				return false;
 			}
+
+			LOG(INFO) << "Calibration received: " << p.cx << ", " << p.cy << ", " << p.fx << ", " << p.fy;
 			
 			return true;
 		} else {

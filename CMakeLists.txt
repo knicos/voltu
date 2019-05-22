@@ -123,7 +123,7 @@ if (CPPCHECK_FOUND)
 	set(CMAKE_CXX_CPPCHECK "cppcheck" "--enable=style" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*json.hpp")
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
+# include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
 
 include(git_version)
 include(ftl_paths)

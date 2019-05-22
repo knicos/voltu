@@ -92,7 +92,8 @@ Display::~Display() {
 static pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbdToPointXYZ(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::CameraParameters &p) {
 	const double CX = p.cx;
 	const double CY = p.cy;
-	const double F = p.f;
+	const double FX = p.fx;
+	const double FY = p.fy;
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
 	point_cloud_ptr->width = rgb.cols * rgb.rows;
@@ -104,8 +105,8 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbdToPointXYZ(const cv::Mat &rgb,
 			float d = sptr[j] * 1000.0f;
 
 			pcl::PointXYZRGB point;
-			point.x = (((double)j + CX) / F) * d;
-			point.y = (((double)i + CY) / F) * d;
+			point.x = (((double)j + CX) / FX) * d;
+			point.y = (((double)i + CY) / FY) * d;
 			point.z = d;
 
 			if (point.x == INFINITY || point.y == INFINITY || point.z > 20000.0f || point.z < 0.04f) {
