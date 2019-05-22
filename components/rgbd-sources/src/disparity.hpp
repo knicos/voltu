@@ -54,7 +54,7 @@ class Disparity {
 	size_t max_disp_;
 	
 	private:
-	static std::map<std::string,std::function<Disparity*(nlohmann::json&)>> algorithms__;
+	static std::map<std::string,std::function<Disparity*(nlohmann::json&)>> *algorithms__;
 };
 };
 

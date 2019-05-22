@@ -9,7 +9,7 @@
 using ftl::Disparity;
 
 std::map<std::string, std::function<Disparity*(nlohmann::json&)>>
-		Disparity::algorithms__;
+		*Disparity::algorithms__ = nullptr;
 
 Disparity::Disparity(nlohmann::json &config)
 	: 	config_(config),
@@ -17,14 +17,15 @@ Disparity::Disparity(nlohmann::json &config)
 		max_disp_(config["maximum"]) {}
 
 Disparity *Disparity::create(nlohmann::json &config) {
-	if (algorithms__.count(config["algorithm"]) != 1) return nullptr;
-	return algorithms__[config["algorithm"]](config);
+	if (algorithms__->count(config["algorithm"]) != 1) return nullptr;
+	return (*algorithms__)[config["algorithm"]](config);
 }
 
 void Disparity::_register(const std::string &n,
 		std::function<Disparity*(nlohmann::json&)> f) {
+	if (!algorithms__) algorithms__ = new std::map<std::string, std::function<Disparity*(nlohmann::json&)>>;
 	LOG(INFO) << "Register disparity algorithm: " << n;
-	algorithms__[n] = f;
+	(*algorithms__)[n] = f;
 }
 
 // TODO(Nick) Add remaining algorithms
