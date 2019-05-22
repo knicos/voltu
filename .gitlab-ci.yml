@@ -1,19 +1,24 @@
-windows job:
-  tags:
-    - win
-  script:
-    - 'call "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat"'
-    - mkdir build
-    - cd build
-    - 'cmake -DWITH_PCL=FALSE -DCMAKE_GENERATOR_PLATFORM=x64 -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/opencv-4.0.1/build/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1" ..'
-    - devenv ftl.utu.fi.sln /build Release
-  
-linux job:
+# Gitlab waits until all jobs for a stage are completed before moving to next
+# stage, so using stages for Windows/Linux builds would wait until the other is
+# finished before continuing.
+#
+# Perhaps relevant in future https://gitlab.com/gitlab-org/gitlab-ce/issues/47063
+
+stages:
+ - all
+# - build
+# - test
+# - deploy
+
+#cache:
+#  paths:
+#    - build/
+
+docker:
+  stage: all
   tags:
     - docker
-
   image: ubuntu:18.04
-  
   before_script:
     - export DEBIAN_FRONTEND=noninteractive
     - apt-get update -qq && apt-get install -y -qq g++ cmake git
@@ -24,3 +29,20 @@ linux job:
     - cmake ..
     - make
     - ctest --output-on-failure
+
+windows:
+  stage: all
+  variables:
+    CMAKE_ARGS: '-DWITH_PCL=FALSE -DCMAKE_GENERATOR_PLATFORM=x64 -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/opencv-4.0.1/build/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1"'
+    DEPLOY_DIR: 'D:/Shared/AutoDeploy'
+  tags:
+    - win
+  script:
+    - 'call "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat"'
+    - mkdir build
+    - cd build
+    - cmake %CMAKE_ARGS% ..
+    - devenv ftl.utu.fi.sln /build Release
+    - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
+    - mkdir "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
+    - 'copy "applications\vision\Release\ftl-vision.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
