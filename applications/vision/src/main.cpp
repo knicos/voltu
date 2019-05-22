@@ -160,12 +160,14 @@ static void run(const string &file) {
 }
 
 int main(int argc, char **argv) {
+	std::cout << "FTL Vision Node " << FTL_VERSION_LONG << std::endl;
 	auto paths = ftl::configure(argc, argv, "vision");
 	
 	config["paths"] = paths;
 
 	// Choose normal or middlebury modes
 	if (config["middlebury"]["dataset"] == "") {
+		std::cout << "Loading..." << std::endl;
 		run((paths.size() > 0) ? paths[0] : "");
 	} else {
 		ftl::middlebury::test(config);
