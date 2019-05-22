@@ -26,9 +26,13 @@ find_package( OpenCV REQUIRED )
 find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
+find_package( Eigen3 REQUIRED )
 
 if (WITH_FIXSTARS)
 	find_package( LibSGM )
+	if (LibSGM_FOUND)
+		set(HAVE_LIBSGM true)
+	endif()
 endif()
 
 if(${CMAKE_VERSION} VERSION_GREATER "3.12.0") 
@@ -137,31 +141,33 @@ else()
 endif()
 
 SET(CMAKE_USE_RELATIVE_PATHS ON)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-add_subdirectory(common/cpp)
-add_subdirectory(net)
+add_subdirectory(components/common/cpp)
+add_subdirectory(components/net)
+add_subdirectory(components/rgbd-sources)
 
 if (BUILD_RENDERER)
-	add_subdirectory(renderer)
+	add_subdirectory(components/renderers)
 	set(HAVE_RENDER)
 endif()
 
 if (BUILD_VISION)
-	add_subdirectory(vision)
+	add_subdirectory(applications/vision)
 endif()
 
-if (BUILD_RECONSTRUCT)
-	add_subdirectory(reconstruct)
+if (BUILD_RECONSTRUCT AND HAVE_PCL)
+	add_subdirectory(applications/reconstruct)
 endif()
 
 ### Generate Build Configuration Files =========================================
 
-configure_file(${CMAKE_SOURCE_DIR}/common/cpp/include/ftl/config.h.in
-               ${CMAKE_SOURCE_DIR}/common/cpp/include/ftl/config.h
+configure_file(${CMAKE_SOURCE_DIR}/components/common/cpp/include/ftl/config.h.in
+               ${CMAKE_SOURCE_DIR}/components/common/cpp/include/ftl/config.h
 )
 
-configure_file(${CMAKE_SOURCE_DIR}/common/cpp/src/config.cpp.in
-               ${CMAKE_SOURCE_DIR}/common/cpp/src/config.cpp
+configure_file(${CMAKE_SOURCE_DIR}/components/common/cpp/src/config.cpp.in
+               ${CMAKE_SOURCE_DIR}/components/common/cpp/src/config.cpp
 )
 
 # For issue #17

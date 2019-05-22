@@ -1,0 +1,39 @@
+#ifndef __FTL_CONFIG_H__
+#define __FTL_CONFIG_H__
+
+#ifdef WIN32
+#ifdef BUILD_SHARED
+#define FTLEXPORT __declspec(dllexport)
+#else
+#define FTLEXPORT __declspec(dllimport)
+#endif
+#else // WIN32
+#define FTLEXPORT
+#endif
+
+#cmakedefine HAVE_VIZ
+#cmakedefine HAVE_OPENCVCUDA
+#cmakedefine HAVE_URIPARSESINGLE
+#cmakedefine HAVE_CUDA
+#cmakedefine HAVE_OPENCV
+#cmakedefine HAVE_PCL
+#cmakedefine HAVE_RENDER
+#cmakedefine HAVE_LIBSGM
+
+extern const char *FTL_VERSION_LONG;
+extern const char *FTL_VERSION;
+extern const int FTL_VERSION_MAJOR;
+extern const int FTL_VERSION_MINOR;
+extern const int FTL_VERSION_PATCH;
+extern const int FTL_VERSION_COMMITS;
+extern const char *FTL_VERSION_SHA1;
+
+#define FTL_LOCAL_CONFIG_ROOT @FTL_LOCAL_CONFIG_ROOT@
+#define FTL_LOCAL_CACHE_ROOT @FTL_LOCAL_CACHE_ROOT@
+#define FTL_LOCAL_DATA_ROOT @FTL_LOCAL_DATA_ROOT@
+
+#define FTL_GLOBAL_CONFIG_ROOT @FTL_GLOBAL_CONFIG_ROOT@
+#define FTL_GLOBAL_CACHE_ROOT @FTL_GLOBAL_CACHE_ROOT@
+#define FTL_GLOBAL_DATA_ROOT @FTL_GLOBAL_DATA_ROOT@
+
+#endif // __FTL_CONFIG_H__
