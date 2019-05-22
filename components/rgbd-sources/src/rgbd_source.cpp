@@ -3,8 +3,7 @@
 using ftl::rgbd::RGBDSource;
 using ftl::Configurable;
 
-std::map<std::string, std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>>
-		RGBDSource::sources__;
+std::map<std::string, std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>> *RGBDSource::sources__ = nullptr;
 
 RGBDSource::RGBDSource(nlohmann::json &config) : Configurable(config), net_(nullptr) {
 
@@ -36,14 +35,15 @@ bool RGBDSource::snapshot(const std::string &fileprefix) {
 
 RGBDSource *RGBDSource::create(nlohmann::json &config, ftl::net::Universe *net) {
 	if (config["type"].type_name() != "string") return nullptr;
-	if (sources__.count(config["type"]) != 1) return nullptr;
-	return sources__[config["type"]](config, net);
+	if (sources__->count(config["type"]) != 1) return nullptr;
+	return (*sources__)[config["type"]](config, net);
 }
 
 void RGBDSource::_register(const std::string &n,
 		std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)> f) {
+	if (!sources__) sources__ = new std::map<std::string, std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>>;
 	LOG(INFO) << "Register RGB-D Source: " << n;
-	sources__[n] = f;
+	(*sources__)[n] = f;
 }
 
 #include <ftl/net_source.hpp>

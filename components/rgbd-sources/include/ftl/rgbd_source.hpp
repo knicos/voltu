@@ -66,6 +66,8 @@ class RGBDSource : public ftl::Configurable {
 	 * used as the instance name to construct.
 	 */
 	static RGBDSource *create(nlohmann::json &config, ftl::net::Universe *net);
+
+	static void init();
 	
 	protected:
 	static void _register(const std::string &n, std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)> f);
@@ -78,7 +80,7 @@ class RGBDSource : public ftl::Configurable {
 	Eigen::Matrix4f pose_;
 
 	private:
-	static std::map<std::string,std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>> sources__;
+	static std::map<std::string,std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>> *sources__;
 };
 
 };
