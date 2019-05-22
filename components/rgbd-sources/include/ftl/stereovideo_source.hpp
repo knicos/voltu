@@ -29,6 +29,8 @@ class StereoVideoSource : public RGBDSource {
 	void getRGBD(cv::Mat &rgb, cv::Mat &depth);
 	bool isReady();
 
+	const cv::Mat &getRight() const { return right_; }
+
 	static inline RGBDSource *create(nlohmann::json &config, ftl::net::Universe *net) {
 		return new StereoVideoSource(config, net);
 	}

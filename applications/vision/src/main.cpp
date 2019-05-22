@@ -58,7 +58,7 @@ static void run(const string &file) {
 	Universe net(config["net"]);
 	LOG(INFO) << "Net started.";
 
-	RGBDSource *source = nullptr;
+	StereoVideoSource *source = nullptr;
 	source = new StereoVideoSource(config, file);
 	
 	// Allow remote users to access camera calibration matrix
@@ -143,6 +143,7 @@ static void run(const string &file) {
 
 		// Send RGB+Depth images for local rendering
 		if (prgb.rows > 0) display.render(prgb, pdepth, source->getParameters());
+		if (config["display"]["right"]) cv::imshow("Right: ", source->getRight());
 		display.wait(1);
 
 		// Wait for both pipelines to complete

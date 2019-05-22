@@ -274,9 +274,15 @@ bool Calibrate::_loadCalibration() {
     		map1_[1], map2_[1]);
 
 	// Re-distort
-	initUndistortRectifyMap(M1, Mat(), R1.t(), P1,
+	Mat P1_cam = (cv::Mat_<double>(3,3) << P1.at<double>(0, 0), P1.at<double>(0, 1) , P1.at<double>(0, 2),
+		P1.at<double>(1, 0), P1.at<double>(1, 1), P1.at<double>(1, 2),
+		P1.at<double>(2, 0), P1.at<double>(2, 1), P1.at<double>(2, 2));
+	Mat M1_trans = (cv::Mat_<double>(3, 4) << M1.at<double>(0, 0), M1.at<double>(0, 1), M1.at<double>(0, 2), -P1.at<double>(0, 3),
+		M1.at<double>(1, 0), M1.at<double>(1, 1), M1.at<double>(1, 2), -P1.at<double>(1, 3),
+		M1.at<double>(2, 0), M1.at<double>(2, 1), M1.at<double>(2, 2), -P1.at<double>(2, 3));
+	initUndistortRectifyMap(P1_cam, Mat(), R1.t(), P1,
 			img_size, CV_16SC2, imap1_, imap2_);
-	r1_ = R1.t();
+	r1_ = P1;
     return true;
 }
 
