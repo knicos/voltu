@@ -51,8 +51,8 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 		// TODO(Nick) Add fx and fy
 		q.at<double>(0,0),	// Fx
 		q.at<double>(1,1),	// Fy
-		q.at<double>(0,2),	// Cx
-		q.at<double>(1,2),	// Cy
+		-q.at<double>(0,2),	// Cx
+		-q.at<double>(1,2),	// Cy
 		(unsigned int)left_.cols,  // TODO (Nick)
 		(unsigned int)left_.rows,
 		0.0f,	// 0m min
