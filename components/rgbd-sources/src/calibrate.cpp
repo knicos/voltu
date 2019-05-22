@@ -272,6 +272,11 @@ bool Calibrate::_loadCalibration() {
     		map1_[0], map2_[0]);
     initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_16SC2,
     		map1_[1], map2_[1]);
+
+	// Re-distort
+	initUndistortRectifyMap(M1, Mat(), R1.t(), P1,
+			img_size, CV_16SC2, imap1_, imap2_);
+	r1_ = R1.t();
     return true;
 }
 
@@ -472,6 +477,11 @@ bool Calibrate::undistort(cv::Mat &l, cv::Mat &r) {
 	remap(l, l, map1_[0], map2_[0], INTER_LINEAR);
 	if (local_->isStereo()) remap(r, r, map1_[1], map2_[1], INTER_LINEAR);
 	return true;
+}
+
+void Calibrate::distort(cv::Mat &rgb, cv::Mat &depth) {
+	remap(rgb, rgb, imap1_, imap2_, INTER_LINEAR);
+	remap(depth, depth, imap1_, imap2_, INTER_LINEAR);
 }
 
 bool Calibrate::rectified(cv::Mat &l, cv::Mat &r) {
