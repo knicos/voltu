@@ -1,0 +1,97 @@
+{
+	"vision": {
+		"type": "stereovideo",
+		"middlebury": {
+			"dataset": "",
+			"threshold": 10.0,
+			"scale": 0.25
+		},
+		"source": {
+			"flip": false,
+			"nostereo": false,
+			"scale": 1.0,
+			"flip_vert": false,
+			"max_fps": 25,
+			"width": 640,
+			"height": 480,
+			"crosshair": false
+		},
+		"calibrate": false,
+		"calibration": {
+			"board_size": [9,6],
+			"square_size": 50,
+			"frame_delay": 1.0,
+			"num_frames": 35,
+			"assume_zero_tangential_distortion": true,
+			"fix_aspect_ratio": true,
+			"fix_principal_point_at_center": true,
+			"use_fisheye_model": false,
+			"fix_k1": false,
+			"fix_k2": false,
+			"fix_k3": false,
+			"fix_k4": true,
+			"fix_k5": true,
+			"save": true,
+			"use_intrinsics": true,
+			"use_extrinsics": true,
+			"flip_vertical": false
+		},
+		"camera": {
+			"name": "Panasonic Lumix DMC-FZ300",
+			"focal_length": 25,
+			"sensor_width": 6.17,
+			"base_line": 0.1
+		},
+		"disparity": {
+			"algorithm": "rtcensus",
+			"use_cuda": true,
+			"minimum": 0,
+			"maximum": 208,
+			"tau": 0.0,
+			"gamma": 0.0,
+			"window_size": 5,
+			"sigma": 1.5,
+			"lambda": 8000.0
+		},
+		"display": {
+			"flip_vert": false,
+			"disparity": false,
+			"points": true,
+			"depth": false,
+			"left": false,
+			"right": false,
+			"crosshair": false
+		},
+		"net": {
+			"listen": "tcp://*:9001",
+			"peers": []
+		},
+		"stream": {
+			"name": "dummy"
+		}
+	},
+	"reconstruction": {
+		"net": {
+			"peers": ["tcp://localhost:9001"]
+		},
+		"sources": [{"type": "net", "uri": "ftl://utu.fi/node1/rgb-d"}],
+		"display": {
+			"flip_vert": false,
+			"disparity": false,
+			"points": true,
+			"depth": false,
+			"left": false,
+			"right": false
+		},
+		"registration": {
+			"reference-source" : "ftl://utu.fi/node1/rgb-d",
+			"calibration" : {
+				"run": false,
+				"iterations" : 10,
+				"delay" : 1000,
+				"patternsize" : [9, 6]
+				}
+		}
+	}
+}
+
