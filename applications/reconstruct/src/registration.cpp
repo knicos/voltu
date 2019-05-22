@@ -92,6 +92,8 @@ PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners
 		point.x = (((double)x + CX) / FX) * d; // / 1000.0f;
 		point.y = (((double)y + CY) / FY) * d; // / 1000.0f;
 		point.z = d;
+
+		if (d > 6000.0f) LOG(ERROR) << "Bad corner : " << i;
 		
 		// no check since disparities assumed to be good in the calibration pattern
 		// if (fabs(d-minDisparity) <= FLT_EPSILON)

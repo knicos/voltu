@@ -94,8 +94,8 @@ PointCloud<PointXYZRGB>::Ptr ftl::rgbd::createPointCloud(RGBDSource *src) {
 			point.y = (((double)i + CY) / FY) * d;
 			point.z = d;
 
-			if (point.x == INFINITY || point.y == INFINITY || point.z == INFINITY || point.z < 6.0f) {
-				point.x = 0; point.y = 0; point.z = 0;
+			if (point.x == INFINITY || point.y == INFINITY || point.z > 20000.0f || point.z < 0.04f) {
+				point.x = 0.0f; point.y = 0.0f; point.z = 0.0f;
 			}
 
 			cv::Point3_<uchar> prgb = rgb.at<cv::Point3_<uchar>>(i, j);
@@ -323,7 +323,7 @@ static void run() {
 		PointCloud<PointXYZRGB>::Ptr cloud(new PointCloud<PointXYZRGB>);
 		
 		for (size_t i = 0; i < inputs.size(); i++) {
-			Display &display = displays[i];
+			//Display &display = displays[i];
 			RGBDSource *input = inputs[i];
 			Mat rgb, depth;
 			input->getRGBD(rgb,depth);
@@ -334,8 +334,8 @@ static void run() {
 			clouds[i] = ftl::rgbd::createPointCloud(input);
 			
 			//display.render(rgb, depth,input->getParameters());
-			display.render(clouds[i]);
-			display.wait(5);
+			//display.render(clouds[i]);
+			//display.wait(5);
 		}
 		
 		for (size_t i = 0; i < clouds.size(); i++) {
