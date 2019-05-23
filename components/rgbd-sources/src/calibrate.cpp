@@ -386,92 +386,108 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 		Mat *cameraMatrix, Mat *distCoeffs, Size *imageSize) {
 	int winSize = 11;  // parser.get<int>("winSize");
 
-    float grid_width = settings_.squareSize * (settings_.boardSize.width - 1);
-    bool release_object = false;
-    double prevTimestamp = 0.0;
-    const Scalar RED(0, 0, 255), GREEN(0, 255, 0);
+	float grid_width = settings_.squareSize * (settings_.boardSize.width - 1);
+	bool release_object = false;
+	double prevTimestamp = 0.0;
+	const Scalar RED(0, 0, 255), GREEN(0, 255, 0);
 
-    int chessBoardFlags = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
+#if CV_VERSION_MAJOR >= 4
+	int chessBoardFlags = CALIB_CB_NORMALIZE_IMAGE;
+#else
+	int chessBoardFlags = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
 
-    if (!settings_.useFisheye) {
-        // fast check erroneously fails with high distortions like fisheye
-        chessBoardFlags |= CALIB_CB_FAST_CHECK;
-    }
+	if (!settings_.useFisheye) {
+		// fast check erroneously fails with high distortions like fisheye
+		chessBoardFlags |= CALIB_CB_FAST_CHECK;
+	}
+#endif
 
-    for (;;) {
-        Mat view[2];
+	for (;;) {
+		Mat view[2];
 		local_->get(view[0], view[1]);
-        LOG(INFO) << "Grabbing calibration image...";
+		LOG(INFO) << "Grabbing calibration image...";
 
-        if (view[0].empty() || (local_->isStereo() && view[1].empty()) ||
-        		imagePoints[0].size() >= (size_t)settings_.nrFrames) {
-        	settings_.outputFileName = FTL_LOCAL_CONFIG_ROOT "/cam0.xml";
-        	bool r = runCalibration(settings_, imageSize[0],
-        					cameraMatrix[0], distCoeffs[0], imagePoints[0],
-        					grid_width, release_object);
+		if (view[0].empty() || (local_->isStereo() && view[1].empty()) ||
+				imagePoints[0].size() >= (size_t)settings_.nrFrames) {
+			settings_.outputFileName = FTL_LOCAL_CONFIG_ROOT "/cam0.xml";
+			bool r = runCalibration(settings_, imageSize[0],
+							cameraMatrix[0], distCoeffs[0], imagePoints[0],
+							grid_width, release_object);
 
-        	if (local_->isStereo()) {
-		    	settings_.outputFileName = FTL_LOCAL_CONFIG_ROOT "/cam1.xml";
-		    	r &= runCalibration(settings_, imageSize[1],
-		    					cameraMatrix[1], distCoeffs[1], imagePoints[1],
-		    					grid_width, release_object);
-        	}
+			if (local_->isStereo()) {
+				settings_.outputFileName = FTL_LOCAL_CONFIG_ROOT "/cam1.xml";
+				r &= runCalibration(settings_, imageSize[1],
+								cameraMatrix[1], distCoeffs[1], imagePoints[1],
+								grid_width, release_object);
+			}
 
-        	if (!r && view[0].empty()) {
-        		LOG(ERROR) << "Not enough frames to calibrate";
-        		return false;
-        	} else if (r) {
-        		LOG(INFO) << "Calibration successful";
-        		break;
-        	}
-        }
+			if (!r && view[0].empty()) {
+				LOG(ERROR) << "Not enough frames to calibrate";
+				return false;
+			} else if (r) {
+				LOG(INFO) << "Calibration successful";
+				break;
+			}
+		}
 
-        imageSize[0] = view[0].size();  // Format input image.
-        imageSize[1] = view[1].size();
-        // if( settings_.flipVertical )    flip( view[cam], view[cam], 0 );
+		imageSize[0] = view[0].size();  // Format input image.
+		imageSize[1] = view[1].size();
+		// if( settings_.flipVertical )    flip( view[cam], view[cam], 0 );
 
-        vector<Point2f> pointBuf[2];
-        bool found1, found2;
+		vector<Point2f> pointBuf[2];
+		bool found1, found2;
+#if CV_VERSION_MAJOR >= 4
+		LOG(INFO) << "Using findChessboardCornersSB()";
+		found1 = findChessboardCornersSB(view[0], settings_.boardSize,
+				pointBuf[0], chessBoardFlags);
+		found2 = !local_->isStereo() || findChessboardCornersSB(view[1],
+			settings_.boardSize, pointBuf[1], chessBoardFlags);
+#else
+		LOG(INFO) << "Using findChessboardCorners()";
 		found1 = findChessboardCorners(view[0], settings_.boardSize,
 				pointBuf[0], chessBoardFlags);
 		found2 = !local_->isStereo() || findChessboardCorners(view[1],
 				settings_.boardSize, pointBuf[1], chessBoardFlags);
-
-        if (found1 && found2 &&
-        		local_->getTimestamp()-prevTimestamp > settings_.delay) {
+#endif
+		if (found1 && found2 &&
+				local_->getTimestamp()-prevTimestamp > settings_.delay) {
 			prevTimestamp = local_->getTimestamp();
-            // improve the found corners' coordinate accuracy for chessboard
-                Mat viewGray;
-                cvtColor(view[0], viewGray, COLOR_BGR2GRAY);
-                cornerSubPix(viewGray, pointBuf[0], Size(winSize, winSize),
-                    Size(-1, -1), TermCriteria(
-                    	TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001));
-                imagePoints[0].push_back(pointBuf[0]);
+#if CV_VERSION_MAJOR >=4
+			// findChessboardCornersSB() does not require subpixel step.
+#else
+			// improve the found corners' coordinate accuracy for chessboard.
+			Mat viewGray;
+			cvtColor(view[0], viewGray, COLOR_BGR2GRAY);
+			cornerSubPix(viewGray, pointBuf[0], Size(winSize, winSize),
+				Size(-1, -1), TermCriteria(
+					TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001));
+			
+			if (local_->isStereo()) {
+				cvtColor(view[1], viewGray, COLOR_BGR2GRAY);
+				cornerSubPix(viewGray, pointBuf[1], Size(winSize, winSize),
+					Size(-1, -1), TermCriteria(
+						TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001));
+			}
+#endif
+			imagePoints[0].push_back(pointBuf[0]);
+			if (local_->isStereo()) { imagePoints[1].push_back(pointBuf[1]); }
+			// Draw the corners.
+			
+			drawChessboardCorners(view[0], settings_.boardSize,
+					Mat(pointBuf[0]), found1);
+			if (local_->isStereo())
+				drawChessboardCorners(view[1],settings_.boardSize, Mat(pointBuf[1]), found2);
+		} else {
+			LOG(WARNING) << "No calibration pattern found";
+		}
 
-                if (local_->isStereo()) {
-                    cvtColor(view[1], viewGray, COLOR_BGR2GRAY);
-                    cornerSubPix(viewGray, pointBuf[1], Size(winSize, winSize),
-                        Size(-1, -1), TermCriteria(
-                        	TermCriteria::EPS+TermCriteria::COUNT, 30, 0.0001));
-					imagePoints[1].push_back(pointBuf[1]);
-                }
+		imshow("Left", view[0]);
+		if (local_->isStereo()) imshow("Right", view[1]);
+		char key = static_cast<char>(waitKey(50));
 
-                // Draw the corners.
-                drawChessboardCorners(view[0], settings_.boardSize,
-                		Mat(pointBuf[0]), found1);
-                if (local_->isStereo()) drawChessboardCorners(view[1],
-                		settings_.boardSize, Mat(pointBuf[1]), found2);
-        } else {
-        	LOG(WARNING) << "No calibration pattern found";
-        }
-
-        imshow("Left", view[0]);
-        if (local_->isStereo()) imshow("Right", view[1]);
-        char key = static_cast<char>(waitKey(50));
-
-        if (key  == 27)
-            break;
-    }
+		if (key  == 27)
+			break;
+	}
 
 	return true;
 }
@@ -505,52 +521,52 @@ static double computeReprojectionErrors(
 		const vector<Mat>& rvecs, const vector<Mat>& tvecs,
 		const Mat& cameraMatrix , const Mat& distCoeffs,
 		vector<float>& perViewErrors, bool fisheye) {
-    vector<Point2f> imagePoints2;
-    size_t totalPoints = 0;
-    double totalErr = 0;
-    perViewErrors.resize(objectPoints.size());
+	vector<Point2f> imagePoints2;
+	size_t totalPoints = 0;
+	double totalErr = 0;
+	perViewErrors.resize(objectPoints.size());
 
-    for (size_t i = 0; i < objectPoints.size(); ++i) {
-        if (fisheye) {
-            cv::fisheye::projectPoints(objectPoints[i], imagePoints2, rvecs[i],
-            		tvecs[i], cameraMatrix, distCoeffs);
-        } else {
-            projectPoints(objectPoints[i], rvecs[i], tvecs[i], cameraMatrix,
-            		distCoeffs, imagePoints2);
-        }
-        double err = norm(imagePoints[i], imagePoints2, NORM_L2);
+	for (size_t i = 0; i < objectPoints.size(); ++i) {
+		if (fisheye) {
+			cv::fisheye::projectPoints(objectPoints[i], imagePoints2, rvecs[i],
+					tvecs[i], cameraMatrix, distCoeffs);
+		} else {
+			projectPoints(objectPoints[i], rvecs[i], tvecs[i], cameraMatrix,
+					distCoeffs, imagePoints2);
+		}
+		double err = norm(imagePoints[i], imagePoints2, NORM_L2);
 
-        size_t n = objectPoints[i].size();
-        perViewErrors[i] = static_cast<float>(std::sqrt(err*err/n));
-        totalErr        += err*err;
-        totalPoints     += n;
-    }
+		size_t n = objectPoints[i].size();
+		perViewErrors[i] = static_cast<float>(std::sqrt(err*err/n));
+		totalErr        += err*err;
+		totalPoints     += n;
+	}
 
-    return std::sqrt(totalErr/totalPoints);
+	return std::sqrt(totalErr/totalPoints);
 }
 //! [compute_errors]
 //! [board_corners]
 static void calcBoardCornerPositions(Size boardSize, float squareSize,
 		vector<Point3f>& corners, Calibrate::Settings::Pattern patternType) {
-    corners.clear();
+	corners.clear();
 
-    switch (patternType) {
-    case Calibrate::Settings::CHESSBOARD:
-    case Calibrate::Settings::CIRCLES_GRID:
-        for (int i = 0; i < boardSize.height; ++i)
-            for (int j = 0; j < boardSize.width; ++j)
-                corners.push_back(Point3f(j*squareSize, i*squareSize, 0));
-        break;
+	switch (patternType) {
+	case Calibrate::Settings::CHESSBOARD:
+	case Calibrate::Settings::CIRCLES_GRID:
+		for (int i = 0; i < boardSize.height; ++i)
+			for (int j = 0; j < boardSize.width; ++j)
+				corners.push_back(Point3f(j*squareSize, i*squareSize, 0));
+		break;
 
-    case Calibrate::Settings::ASYMMETRIC_CIRCLES_GRID:
-        for (int i = 0; i < boardSize.height; i++)
-            for (int j = 0; j < boardSize.width; j++)
-                corners.push_back(Point3f((2*j + i % 2)*squareSize,
-                		i*squareSize, 0));
-        break;
-    default:
-        break;
-    }
+	case Calibrate::Settings::ASYMMETRIC_CIRCLES_GRID:
+		for (int i = 0; i < boardSize.height; i++)
+			for (int j = 0; j < boardSize.width; j++)
+				corners.push_back(Point3f((2*j + i % 2)*squareSize,
+						i*squareSize, 0));
+		break;
+	default:
+		break;
+	}
 }
 //! [board_corners]
 static bool _runCalibration(const Calibrate::Settings& s, Size& imageSize,
@@ -558,55 +574,55 @@ static bool _runCalibration(const Calibrate::Settings& s, Size& imageSize,
 		vector<vector<Point2f> > imagePoints, vector<Mat>& rvecs,
 		vector<Mat>& tvecs, vector<float>& reprojErrs,  double& totalAvgErr,
 		vector<Point3f>& newObjPoints, float grid_width, bool release_object) {
-    cameraMatrix = Mat::eye(3, 3, CV_64F);
-    if (s.flag & CALIB_FIX_ASPECT_RATIO)
-        cameraMatrix.at<double>(0, 0) = s.aspectRatio;
+	cameraMatrix = Mat::eye(3, 3, CV_64F);
+	if (s.flag & CALIB_FIX_ASPECT_RATIO)
+		cameraMatrix.at<double>(0, 0) = s.aspectRatio;
 
-    if (s.useFisheye) {
-        distCoeffs = Mat::zeros(4, 1, CV_64F);
-    } else {
-        distCoeffs = Mat::zeros(8, 1, CV_64F);
-    }
+	if (s.useFisheye) {
+		distCoeffs = Mat::zeros(4, 1, CV_64F);
+	} else {
+		distCoeffs = Mat::zeros(8, 1, CV_64F);
+	}
 
-    vector<vector<Point3f> > objectPoints(1);
-    calcBoardCornerPositions(s.boardSize, s.squareSize, objectPoints[0],
-    		Calibrate::Settings::CHESSBOARD);
-    objectPoints[0][s.boardSize.width - 1].x = objectPoints[0][0].x +
-    		grid_width;
-    newObjPoints = objectPoints[0];
+	vector<vector<Point3f> > objectPoints(1);
+	calcBoardCornerPositions(s.boardSize, s.squareSize, objectPoints[0],
+			Calibrate::Settings::CHESSBOARD);
+	objectPoints[0][s.boardSize.width - 1].x = objectPoints[0][0].x +
+			grid_width;
+	newObjPoints = objectPoints[0];
 
-    objectPoints.resize(imagePoints.size(), objectPoints[0]);
+	objectPoints.resize(imagePoints.size(), objectPoints[0]);
 
-    // Find intrinsic and extrinsic camera parameters
-    double rms;
+	// Find intrinsic and extrinsic camera parameters
+	double rms;
 
-    if (s.useFisheye) {
-        Mat _rvecs, _tvecs;
-        rms = cv::fisheye::calibrate(objectPoints, imagePoints, imageSize,
-        		cameraMatrix, distCoeffs, _rvecs, _tvecs, s.flag);
+	if (s.useFisheye) {
+		Mat _rvecs, _tvecs;
+		rms = cv::fisheye::calibrate(objectPoints, imagePoints, imageSize,
+				cameraMatrix, distCoeffs, _rvecs, _tvecs, s.flag);
 
-        rvecs.reserve(_rvecs.rows);
-        tvecs.reserve(_tvecs.rows);
-        for (int i = 0; i < static_cast<int>(objectPoints.size()); i++) {
-            rvecs.push_back(_rvecs.row(i));
-            tvecs.push_back(_tvecs.row(i));
-        }
-    } else {
-        rms = calibrateCamera(objectPoints, imagePoints, imageSize,
-                                cameraMatrix, distCoeffs, rvecs, tvecs,
-                                s.flag | CALIB_USE_LU);
-    }
+		rvecs.reserve(_rvecs.rows);
+		tvecs.reserve(_tvecs.rows);
+		for (int i = 0; i < static_cast<int>(objectPoints.size()); i++) {
+			rvecs.push_back(_rvecs.row(i));
+			tvecs.push_back(_tvecs.row(i));
+		}
+	} else {
+		rms = calibrateCamera(objectPoints, imagePoints, imageSize,
+								cameraMatrix, distCoeffs, rvecs, tvecs,
+								s.flag | CALIB_USE_LU);
+	}
 
-    LOG(INFO) << "Re-projection error reported by calibrateCamera: "<< rms;
+	LOG(INFO) << "Re-projection error reported by calibrateCamera: "<< rms;
 
-    bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
+	bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
 
-    objectPoints.clear();
-    objectPoints.resize(imagePoints.size(), newObjPoints);
-    totalAvgErr = computeReprojectionErrors(objectPoints, imagePoints, rvecs,
-    		tvecs, cameraMatrix, distCoeffs, reprojErrs, s.useFisheye);
+	objectPoints.clear();
+	objectPoints.resize(imagePoints.size(), newObjPoints);
+	totalAvgErr = computeReprojectionErrors(objectPoints, imagePoints, rvecs,
+			tvecs, cameraMatrix, distCoeffs, reprojErrs, s.useFisheye);
 
-    return ok;
+	return ok;
 }
 
 //! [run_and_save]
@@ -614,17 +630,17 @@ bool runCalibration(const Calibrate::Settings& s, Size imageSize,
 		Mat& cameraMatrix, Mat& distCoeffs,
 		vector<vector<Point2f> > imagePoints, float grid_width,
 		bool release_object) {
-    vector<Mat> rvecs, tvecs;
-    vector<float> reprojErrs;
-    double totalAvgErr = 0;
-    vector<Point3f> newObjPoints;
+	vector<Mat> rvecs, tvecs;
+	vector<float> reprojErrs;
+	double totalAvgErr = 0;
+	vector<Point3f> newObjPoints;
 
-    bool ok = _runCalibration(s, imageSize, cameraMatrix, distCoeffs,
-    		imagePoints, rvecs, tvecs, reprojErrs, totalAvgErr, newObjPoints,
-    		grid_width, release_object);
-    LOG(INFO) << (ok ? "Calibration succeeded" : "Calibration failed")
-         << ". avg re projection error = " << totalAvgErr;
+	bool ok = _runCalibration(s, imageSize, cameraMatrix, distCoeffs,
+			imagePoints, rvecs, tvecs, reprojErrs, totalAvgErr, newObjPoints,
+			grid_width, release_object);
+	LOG(INFO) << (ok ? "Calibration succeeded" : "Calibration failed")
+		 << ". avg re projection error = " << totalAvgErr;
 
-    return ok;
+	return ok;
 }
 //! [run_and_save]

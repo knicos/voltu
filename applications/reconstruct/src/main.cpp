@@ -195,6 +195,7 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 	
 	int iter = (int) config["registration"]["calibration"]["iterations"];
 	int delay = (int) config["registration"]["calibration"]["delay"];
+	float max_error = (int) config["registration"]["calibration"]["max_error"];
 	string ref_uri = (string) config["registration"]["reference-source"];
 	cv::Size pattern_size(	(int) config["registration"]["calibration"]["patternsize"][0],
 							(int) config["registration"]["calibration"]["patternsize"][1]);
@@ -233,7 +234,7 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 			
 			if ((rgb.cols == 0) || (depth.cols == 0)) { retval = false; break; }
 			
-			retval &= ftl::registration::findChessboardCorners(rgb, depth, input->getParameters(), pattern_size, patterns_iter[i]);
+			retval &= ftl::registration::findChessboardCorners(rgb, depth, input->getParameters(), pattern_size, patterns_iter[i], max_error);
 			
 			cv::imshow("Registration: " + (string)input->getConfig()["uri"], rgb);
 		}

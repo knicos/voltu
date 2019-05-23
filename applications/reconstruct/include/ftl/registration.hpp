@@ -26,7 +26,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr cornersToPointCloud(const std::vector<cv::Po
 
 /* Find chessboard corners from image.
  */
-bool findChessboardCorners(cv::Mat &rgb, const cv::Mat &disp, const ftl::rgbd::CameraParameters &p, const cv::Size pattern_size, pcl::PointCloud<pcl::PointXYZ>::Ptr &out);
+bool findChessboardCorners(cv::Mat &rgb, const cv::Mat &disp, const ftl::rgbd::CameraParameters &p, const cv::Size pattern_size, pcl::PointCloud<pcl::PointXYZ>::Ptr &out, float error_threshold);
 
 };
 };

@@ -18,7 +18,7 @@
 
 #include <pcl/registration/transformation_validation.h>
 #include <pcl/registration/transformation_validation_euclidean.h>
-
+#include <pcl/common/geometry.h>
 //#include <pcl/registration/icp_nl.h>
 
 namespace ftl {
@@ -36,7 +36,7 @@ using cv::Mat;
 //
 // Fit calibration pattern into plane using RANSAC + project points
 //
-void fitPlane(PointCloud<PointXYZ>::Ptr cloud_in, PointCloud<PointXYZ>::Ptr cloud_out) {
+pcl::ModelCoefficients::Ptr fitPlane(PointCloud<PointXYZ>::Ptr cloud_in, float distance_threshold=5.0) {
 	// TODO: include pattern in model (find best alignment of found points and return transformed reference?)
 	
 	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
@@ -48,16 +48,34 @@ void fitPlane(PointCloud<PointXYZ>::Ptr cloud_in, PointCloud<PointXYZ>::Ptr clou
 	seg.setOptimizeCoefficients(true);
 	seg.setModelType(pcl::SACMODEL_PLANE);
 	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setDistanceThreshold(0.01);
+	seg.setDistanceThreshold(distance_threshold);
 	seg.setInputCloud(cloud_in);
 	seg.segment(*inliers, *coefficients);
+	
+	return coefficients;
+}
+
+float fitPlaneError(PointCloud<PointXYZ>::Ptr cloud_in, float distance_threshold=5.0) {
+	auto coefficients = fitPlane(cloud_in, distance_threshold);
+	PointCloud<PointXYZ> cloud_proj;
 	
 	// Project points into plane
 	pcl::ProjectInliers<PointXYZ> proj;
 	proj.setModelType(pcl::SACMODEL_PLANE);
 	proj.setInputCloud(cloud_in);
 	proj.setModelCoefficients(coefficients);
-	proj.filter(*cloud_out);
+	proj.filter(cloud_proj); 
+	
+	LOG_ASSERT(cloud_in->size() == cloud_proj.size());
+	
+	// todo: which error score is suitable? (using MSE)
+	float score = 0.0;
+	for(size_t i = 0; i < cloud_proj.size(); i++) {
+		float d = pcl::geometry::distance(cloud_in->points[i], cloud_proj.points[i]);
+		score += d * d;
+	}
+	
+	return score / cloud_proj.size();
 }
 
 //template<typename T = PointXYZ> typename
@@ -92,8 +110,6 @@ PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners
 		point.x = (((double)x + CX) / FX) * d; // / 1000.0f;
 		point.y = (((double)y + CY) / FY) * d; // / 1000.0f;
 		point.z = d;
-
-		if (d > 6000.0f) LOG(ERROR) << "Bad corner : " << i;
 		
 		// no check since disparities assumed to be good in the calibration pattern
 		// if (fabs(d-minDisparity) <= FLT_EPSILON)
@@ -104,13 +120,28 @@ PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners
 	return cloud;
 }
 
-bool findChessboardCorners(Mat &rgb, const Mat &disp, const CameraParameters &p, const cv::Size pattern_size, PointCloud<PointXYZ>::Ptr &out) {
+bool findChessboardCorners(Mat &rgb, const Mat &disp, const CameraParameters &p, const cv::Size pattern_size, PointCloud<PointXYZ>::Ptr &out, float error_threshold) {
 	vector<cv::Point2f> corners(pattern_size.width * pattern_size.height);
-	bool retval = cv::findChessboardCorners(rgb, pattern_size, corners); // (todo) change to findChessboardCornersSB (OpenCV > 4)
-	// todo: verify that disparities are good
+
+#if CV_VERSION_MAJOR >= 4
+	bool retval = cv::findChessboardCornersSB(rgb, pattern_size, corners);
+#else
+	bool retval = cv::findChessboardCorners(rgb, pattern_size, corners);
+#endif
+
 	cv::drawChessboardCorners(rgb, pattern_size, Mat(corners), retval);
 	if (!retval) { return false; }
+	
 	auto corners_cloud = cornersToPointCloud(corners, disp, p);
+	// simple check that the values make some sense
+	float error = fitPlaneError(corners_cloud, error_threshold); // should use different parameter?
+	LOG(INFO) << "MSE against estimated plane: " << error;
+	
+	if (error > error_threshold) {
+		LOG(WARNING) << "too high error score for calibration pattern, threshold " << error_threshold;
+		return false;
+	}
+	
 	if (out) { *out += *corners_cloud; } // if cloud is valid, add the points
 	else { out = corners_cloud; }
 	return true;
