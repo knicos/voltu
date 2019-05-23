@@ -67,6 +67,7 @@ using cv::Mat;
 namespace ftl {
 namespace rgbd {
 PointCloud<PointXYZRGB>::Ptr createPointCloud(RGBDSource *src);
+PointCloud<PointXYZRGB>::Ptr createPointCloud(RGBDSource *src, const cv::Point3_<uchar> &col);
 }
 }
 
@@ -99,6 +100,44 @@ PointCloud<PointXYZRGB>::Ptr ftl::rgbd::createPointCloud(RGBDSource *src) {
 			}
 
 			cv::Point3_<uchar> prgb = rgb.at<cv::Point3_<uchar>>(i, j);
+			uint32_t rgb = (static_cast<uint32_t>(prgb.z) << 16 | static_cast<uint32_t>(prgb.y) << 8 | static_cast<uint32_t>(prgb.x));
+			point.rgb = *reinterpret_cast<float*>(&rgb);
+
+			point_cloud_ptr -> points.push_back(point);
+		}
+	}
+
+	return point_cloud_ptr;
+}
+
+PointCloud<PointXYZRGB>::Ptr ftl::rgbd::createPointCloud(RGBDSource *src, const cv::Point3_<uchar> &prgb) {
+	const double CX = src->getParameters().cx;
+	const double CY = src->getParameters().cy;
+	const double FX = src->getParameters().fx;
+	const double FY = src->getParameters().fy;
+
+	cv::Mat rgb;
+	cv::Mat depth;
+	src->getRGBD(rgb, depth);
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
+	point_cloud_ptr->width = rgb.cols * rgb.rows;
+	point_cloud_ptr->height = 1;
+
+	for(int i=0;i<rgb.rows;i++) {
+		const float *sptr = depth.ptr<float>(i);
+		for(int j=0;j<rgb.cols;j++) {
+			float d = sptr[j] * 1000.0f;
+
+			pcl::PointXYZRGB point;
+			point.x = (((double)j + CX) / FX) * d;
+			point.y = (((double)i + CY) / FY) * d;
+			point.z = d;
+
+			if (point.x == INFINITY || point.y == INFINITY || point.z > 20000.0f || point.z < 0.04f) {
+				point.x = 0.0f; point.y = 0.0f; point.z = 0.0f;
+			}
+
 			uint32_t rgb = (static_cast<uint32_t>(prgb.z) << 16 | static_cast<uint32_t>(prgb.y) << 8 | static_cast<uint32_t>(prgb.x));
 			point.rgb = *reinterpret_cast<float*>(&rgb);
 
@@ -332,7 +371,7 @@ static void run() {
 			//if (!display.active()) continue;
 			active += 1;
 
-			clouds[i] = ftl::rgbd::createPointCloud(input);
+			clouds[i] = ftl::rgbd::createPointCloud(input); //, (i==0) ? cv::Point3_<uchar>(255,0,0) : cv::Point3_<uchar>(0,0,255));
 			
 			//display.render(rgb, depth,input->getParameters());
 			//display.render(clouds[i]);
