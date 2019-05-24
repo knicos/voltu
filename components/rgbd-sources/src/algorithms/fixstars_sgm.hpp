@@ -9,6 +9,7 @@
 #include <opencv2/opencv.hpp>
 #include <libsgm.h>
 #include "../disparity.hpp"
+#include <opencv2/cudastereo.hpp>
 
 namespace ftl {
 namespace algorithms {
@@ -32,6 +33,8 @@ class FixstarsSGM : public ftl::Disparity {
 	}
 
 	private:
+	bool use_filter_;
+	cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
 	sgm::StereoSGM *ssgm_;
 };
 };
