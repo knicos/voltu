@@ -144,7 +144,7 @@ static void run(const string &file) {
 		// Send RGB+Depth images for local rendering
 		if (prgb.rows > 0) display.render(prgb, pdepth, source->getParameters());
 		if (config["display"]["right"]) {
-			Mat rgbr = source->getRight();
+			Mat rgbr = source->getRight().clone();
 			cv::namedWindow("Right: ", cv::WINDOW_KEEPRATIO);
 			cv::line(rgbr, cv::Point(0, rgbr.rows/2), cv::Point(rgbr.cols-1, rgbr.rows/2), cv::Scalar(0,0,255), 1);
             cv::line(rgbr, cv::Point(rgbr.cols/2, 0), cv::Point(rgbr.cols/2, rgbr.rows-1), cv::Scalar(0,0,255), 1);
