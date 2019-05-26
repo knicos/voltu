@@ -1,10 +1,10 @@
 #include <ftl/config.h>
 
 const char *FTL_VERSION_LONG = "@VERSION@";
-const char *FTL_VERSION = @FTL_VERSION@;
-const int FTL_VERSION_MAJOR = @ftl_VERSION_MAJOR@;
-const int FTL_VERSION_MINOR = @ftl_VERSION_MINOR@;
-const int FTL_VERSION_PATCH = @ftl_VERSION_PATCH@;
-const int FTL_VERSION_COMMITS = @ftl_VERSION_COMMITS@;
-const char *FTL_VERSION_SHA1 = "@ftl_VERSION_SHA1@";
+const char *FTL_VERSION = "";
+const int FTL_VERSION_MAJOR = 0;
+const int FTL_VERSION_MINOR = 0;
+const int FTL_VERSION_PATCH = 0;
+const int FTL_VERSION_COMMITS = 0;
+const char *FTL_VERSION_SHA1 = "";
 
