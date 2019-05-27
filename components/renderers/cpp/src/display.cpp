@@ -19,61 +19,63 @@ Display::Display(nlohmann::json &config, std::string name) : config_(config) {
 #endif  // HAVE_VIZ
 
 #if defined HAVE_PCL
-	pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud: " + name));
-	pclviz_->setBackgroundColor (255, 255, 255);
-	pclviz_->addCoordinateSystem (1.0);
-	pclviz_->setShowFPS(true);
-	pclviz_->initCameraParameters ();
+	if (config.value("points", false)) {
+		pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud: " + name));
+		pclviz_->setBackgroundColor (255, 255, 255);
+		pclviz_->addCoordinateSystem (1.0);
+		pclviz_->setShowFPS(true);
+		pclviz_->initCameraParameters ();
 
-	pclviz_->registerPointPickingCallback(
-		[](const pcl::visualization::PointPickingEvent& event, void* viewer_void) {
-			if (event.getPointIndex () == -1) return;
-			float x, y, z;
-			event.getPoint(x, y, z);
-			LOG(INFO) << "( " << x << ", " << y << ", " << z << ")";
-		}, (void*) &pclviz_);
-	
-	pclviz_->registerKeyboardCallback (
-		[](const pcl::visualization::KeyboardEvent &event, void* viewer_void) {
-			auto viewer = *static_cast<pcl::visualization::PCLVisualizer::Ptr*>(viewer_void);
-			pcl::visualization::Camera cam;
-			viewer->getCameraParameters(cam);
+		pclviz_->registerPointPickingCallback(
+			[](const pcl::visualization::PointPickingEvent& event, void* viewer_void) {
+				if (event.getPointIndex () == -1) return;
+				float x, y, z;
+				event.getPoint(x, y, z);
+				LOG(INFO) << "( " << x << ", " << y << ", " << z << ")";
+			}, (void*) &pclviz_);
+		
+		pclviz_->registerKeyboardCallback (
+			[](const pcl::visualization::KeyboardEvent &event, void* viewer_void) {
+				auto viewer = *static_cast<pcl::visualization::PCLVisualizer::Ptr*>(viewer_void);
+				pcl::visualization::Camera cam;
+				viewer->getCameraParameters(cam);
 
-			Eigen::Vector3f pos(cam.pos[0], cam.pos[1], cam.pos[2]);
-			Eigen::Vector3f focal(cam.focal[0], cam.focal[1], cam.focal[2]);
-			Eigen::Vector3f dir = focal - pos; //.normalize();
-			dir.normalize();
+				Eigen::Vector3f pos(cam.pos[0], cam.pos[1], cam.pos[2]);
+				Eigen::Vector3f focal(cam.focal[0], cam.focal[1], cam.focal[2]);
+				Eigen::Vector3f dir = focal - pos; //.normalize();
+				dir.normalize();
 
-			const float speed = 40.0f;
+				const float speed = 40.0f;
 
-			if (event.getKeySym() == "Up") {
-				pos += speed*dir;
-				focal += speed*dir;
-			} else if (event.getKeySym() == "Down") {
-				pos -= speed*dir;
-				focal -= speed*dir;
-			} else if (event.getKeySym() == "Left") {
-				Eigen::Matrix3f m = Eigen::AngleAxisf(-0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
-				dir = m*dir;
-				pos += speed*dir;
-				focal += speed*dir;
-			} else if (event.getKeySym() == "Right") {
-				Eigen::Matrix3f m = Eigen::AngleAxisf(0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
-				dir = m*dir;
-				pos += speed*dir;
-				focal += speed*dir;
-			}
+				if (event.getKeySym() == "Up") {
+					pos += speed*dir;
+					focal += speed*dir;
+				} else if (event.getKeySym() == "Down") {
+					pos -= speed*dir;
+					focal -= speed*dir;
+				} else if (event.getKeySym() == "Left") {
+					Eigen::Matrix3f m = Eigen::AngleAxisf(-0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
+					dir = m*dir;
+					pos += speed*dir;
+					focal += speed*dir;
+				} else if (event.getKeySym() == "Right") {
+					Eigen::Matrix3f m = Eigen::AngleAxisf(0.5f*M_PI, Eigen::Vector3f::UnitY()).toRotationMatrix();
+					dir = m*dir;
+					pos += speed*dir;
+					focal += speed*dir;
+				}
 
 
-			cam.pos[0] = pos[0];
-			cam.pos[1] = pos[1];
-			cam.pos[2] = pos[2];
-			cam.focal[0] = focal[0];
-			cam.focal[1] = focal[1];
-			cam.focal[2] = focal[2];
-			viewer->setCameraParameters(cam);
+				cam.pos[0] = pos[0];
+				cam.pos[1] = pos[1];
+				cam.pos[2] = pos[2];
+				cam.focal[0] = focal[0];
+				cam.focal[1] = focal[1];
+				cam.focal[2] = focal[2];
+				viewer->setCameraParameters(cam);
 
-		}, (void*)&pclviz_);
+			}, (void*)&pclviz_);
+	}
 #endif  // HAVE_PCL
 
 	active_ = true;
@@ -210,7 +212,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::
 #if defined HAVE_PCL
 bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {	
 	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(pc);
-	if (!pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
+	if (pclviz_ && !pclviz_->updatePointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction")) {
 		pclviz_->addPointCloud<pcl::PointXYZRGB> (pc, rgb, "reconstruction");
 		pclviz_->setCameraPosition(-878.0, -71.0, -2315.0, -0.1, -0.99, 0.068, 0.0, -1.0, 0.0);
 		pclviz_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "reconstruction");
@@ -242,7 +244,7 @@ bool Display::render(const cv::Mat &img, style_t s) {
 void Display::wait(int ms) {
 	if (config_["points"]) {
 		#if defined HAVE_PCL
-		pclviz_->spinOnce(20);
+		if (pclviz_) pclviz_->spinOnce(20);
 		#elif defined HAVE_VIZ
 		window_->spinOnce(1, true);
 		#endif  // HAVE_VIZ
@@ -258,7 +260,7 @@ void Display::wait(int ms) {
 
 bool Display::active() const {
 	#if defined HAVE_PCL
-	return active_ && !pclviz_->wasStopped();
+	return active_ && (!pclviz_ || !pclviz_->wasStopped());
 	#elif defined HAVE_VIZ
 	return active_ && !window_->wasStopped();
 	#else

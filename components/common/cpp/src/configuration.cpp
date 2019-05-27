@@ -115,10 +115,15 @@ static bool mergeConfig(const string &path) {
 	ifstream i;
 	i.open(path);
 	if (i.is_open()) {
-		json t;
-		i >> t;
-		config.merge_patch(t);
-		return true;
+		try {
+			json t;
+			i >> t;
+			config.merge_patch(t);
+			return true;
+		} catch (json::parse_error& e) {
+			LOG(ERROR) << "Parse error in loading config: "  << e.what();
+			return false;
+		}
 	} else {
 		return false;
 	}
