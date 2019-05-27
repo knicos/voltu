@@ -495,7 +495,10 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 bool Calibrate::undistort(cv::Mat &l, cv::Mat &r) {
 	local_->get(l, r);
 	if (!calibrated_) return false;
-	if (l.empty()) return false;
+	if (l.empty() || r.empty()) {
+		LOG(ERROR) << "l/r empty in undistort()!!!";
+		return false;
+	}
 	remap(l, l, map1_[0], map2_[0], INTER_LINEAR);
 	if (local_->isStereo()) remap(r, r, map1_[1], map2_[1], INTER_LINEAR);
 	return true;
