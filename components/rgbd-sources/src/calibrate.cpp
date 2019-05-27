@@ -264,8 +264,8 @@ bool Calibrate::_loadCalibration() {
     fs["P2"] >> P2;
     fs["Q"] >> Q_;
 
-    stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q_,
-    		CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2);
+    /*stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, Q_,
+    		CALIB_ZERO_DISPARITY, -1, img_size, &roi1, &roi2);*/
 
     Mat map11, map12, map21, map22;
     initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2,
