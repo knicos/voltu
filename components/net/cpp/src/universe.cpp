@@ -135,6 +135,7 @@ void Universe::_installBindings(Peer *p) {
 void Universe::_installBindings() {
 	bind("__subscribe__", [this](const UUID &id, const string &uri) -> bool {
 		LOG(INFO) << "Subscription to " << uri << " by " << id.to_string();
+		unique_lock<mutex> lk(net_mutex_);
 		subscribers_[ftl::URI(uri).to_string()].push_back(id);
 		return true;
 	});

@@ -111,9 +111,9 @@ optional<string> ftl::locateFile(const string &name) {
 /**
  * Combine one json config with another patch json config.
  */
-static bool mergeConfig(const string &path) {
-	ifstream i;
-	i.open(path);
+static bool mergeConfig(const string path) {
+	ifstream i(path.c_str());
+	//i.open(path);
 	if (i.is_open()) {
 		try {
 			json t;
@@ -123,6 +123,8 @@ static bool mergeConfig(const string &path) {
 		} catch (json::parse_error& e) {
 			LOG(ERROR) << "Parse error in loading config: "  << e.what();
 			return false;
+		} catch (...) {
+			LOG(ERROR) << "Unknown error opening config file";
 		}
 	} else {
 		return false;
@@ -137,32 +139,32 @@ static bool findConfiguration(const string &file, const vector<string> &paths,
 	bool f = false;
 	bool found = false;
 	
-	f = mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.json");
-	found |= f;
-	if (f) LOG(INFO) << "Loaded config: " << FTL_GLOBAL_CONFIG_ROOT "/config.json";
-	f = mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.json");
-	found |= f;
-	if (f) LOG(INFO) << "Loaded config: " << FTL_LOCAL_CONFIG_ROOT "/config.json";
-	f = mergeConfig("./config.json");
-	found |= f;
-	if (f) LOG(INFO) << "Loaded config: " << "./config.json";
-	
-	for (auto p : paths) {
-		if (is_directory(p)) {
-			f = mergeConfig(p+"/config.json");
-			found |= f;
-			if (f) LOG(INFO) << "Loaded config: " << p << "/config.json";
-		}
-	}
-	
-	if (file != "") {
-		f = mergeConfig(file);
+	if (file.length() > 0) {
+		f = mergeConfig(file.substr(1,file.length()-2));
 		found |= f;
 
 		if (!f) {
 			LOG(ERROR) << "Specific config file (" << file << ") was not found";
 		} else {
 			LOG(INFO) << "Loaded config: " << file;
+		}
+	} else {
+		f = mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.json");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << FTL_GLOBAL_CONFIG_ROOT "/config.json";
+		f = mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.json");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << FTL_LOCAL_CONFIG_ROOT "/config.json";
+		f = mergeConfig("./config.json");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << "./config.json";
+		
+		for (auto p : paths) {
+			if (is_directory(p)) {
+				f = mergeConfig(p+"/config.json");
+				found |= f;
+				if (f) LOG(INFO) << "Loaded config: " << p << "/config.json";
+			}
 		}
 	}
 

@@ -27,7 +27,7 @@ class HisteresisTexture {
 template <typename T>
 class TextureObject {
 	public:
-	TextureObject() : texobj_(0), ptr_(nullptr) {};
+	__host__ __device__ TextureObject() : texobj_(0), ptr_(nullptr) {};
 	TextureObject(const cv::cuda::PtrStepSz<T> &d);
 	TextureObject(T *ptr, int pitch, int width, int height);
 	TextureObject(size_t width, size_t height);
@@ -39,10 +39,13 @@ class TextureObject {
 	__host__ __device__ T *devicePtr(int v) { return &ptr_[v*pitch2_]; }
 	__host__ __device__ int width() const { return width_; }
 	__host__ __device__ int height() const { return height_; }
-	cudaTextureObject_t cudaTexture() const { return texobj_; }
+	__host__ __device__ cudaTextureObject_t cudaTexture() const { return texobj_; }
+
+	#ifdef __CUDACC__
 	__device__ inline T tex2D(int u, int v) { return ::tex2D<T>(texobj_, u, v); }
 	__device__ inline T tex2D(float u, float v) { return ::tex2D<T>(texobj_, u, v); }
-	
+	#endif
+
 	__host__ __device__ inline const T &operator()(int u, int v) const { return ptr_[u+v*pitch2_]; }
 	__host__ __device__ inline T &operator()(int u, int v) { return ptr_[u+v*pitch2_]; }
 	
@@ -83,7 +86,7 @@ TextureObject<T>::TextureObject(const cv::cuda::PtrStepSz<T> &d) {
 	texDesc.readMode = cudaReadModeElementType;
 
 	cudaTextureObject_t tex = 0;
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+	cudaSafeCall(cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL));
 	texobj_ = tex;
 	pitch_ = d.step;
 	pitch2_ = pitch_ / sizeof(T);
