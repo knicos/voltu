@@ -53,8 +53,8 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 		q.at<double>(1,1),	// Fy
 		-q.at<double>(0,2),	// Cx
 		-q.at<double>(1,2),	// Cy
-		(unsigned int)left_.cols,  // TODO (Nick)
-		(unsigned int)left_.rows,
+		(unsigned int)lsrc_->width(),  // TODO (Nick)
+		(unsigned int)lsrc_->height(),
 		0.0f,	// 0m min
 		15.0f	// 15m max
 	};

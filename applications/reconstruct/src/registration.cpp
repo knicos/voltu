@@ -101,7 +101,7 @@ PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners
 	for (int i = 0; i < corners_len; i++) {
 		double x = corners[i].x;
 		double y = corners[i].y;
-		double d = disp.at<float>((int) y, (int) x) * 1000.0f; // todo: better estimation
+		double d = disp.at<float>((int) y, (int) x); // * 1000.0f; // todo: better estimation
 		
 		//cv::Vec4d homg_pt = Q_ * cv::Vec4d(x, y, d, 1.0);
 		//cv::Vec3d p = cv::Vec3d(homg_pt.val) / homg_pt[3];

@@ -7,6 +7,9 @@
 #include <glog/logging.h>
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
+#include <ftl/depth_camera.hpp>
+#include <ftl/scene_rep_hash_sdf.hpp>
+#include <ftl/ray_cast_sdf.hpp>
 #include <ftl/rgbd.hpp>
 
 // #include <zlib.h>
@@ -88,14 +91,14 @@ PointCloud<PointXYZRGB>::Ptr ftl::rgbd::createPointCloud(RGBDSource *src) {
 	for(int i=0;i<rgb.rows;i++) {
 		const float *sptr = depth.ptr<float>(i);
 		for(int j=0;j<rgb.cols;j++) {
-			float d = sptr[j] * 1000.0f;
+			float d = sptr[j]; // * 1000.0f;
 
 			pcl::PointXYZRGB point;
 			point.x = (((double)j + CX) / FX) * d;
 			point.y = (((double)i + CY) / FY) * d;
 			point.z = d;
 
-			if (point.x == INFINITY || point.y == INFINITY || point.z > 20000.0f || point.z < 0.04f) {
+			if (point.x == INFINITY || point.y == INFINITY || point.z > 20.0f || point.z < 0.04f) {
 				point.x = 0.0f; point.y = 0.0f; point.z = 0.0f;
 			}
 
@@ -127,14 +130,14 @@ PointCloud<PointXYZRGB>::Ptr ftl::rgbd::createPointCloud(RGBDSource *src, const 
 	for(int i=0;i<rgb.rows;i++) {
 		const float *sptr = depth.ptr<float>(i);
 		for(int j=0;j<rgb.cols;j++) {
-			float d = sptr[j] * 1000.0f;
+			float d = sptr[j]; // * 1000.0f;
 
 			pcl::PointXYZRGB point;
 			point.x = (((double)j + CX) / FX) * d;
 			point.y = (((double)i + CY) / FY) * d;
 			point.z = d;
 
-			if (point.x == INFINITY || point.y == INFINITY || point.z > 20000.0f || point.z < 0.04f) {
+			if (point.x == INFINITY || point.y == INFINITY || point.z > 20.0f || point.z < 0.04f) {
 				point.x = 0.0f; point.y = 0.0f; point.z = 0.0f;
 			}
 
@@ -220,8 +223,14 @@ void saveRegistration(std::map<string, Eigen::Matrix4f> registration) {
 	file << save;
 }
 
+struct Cameras {
+	RGBDSource *source;
+	DepthCameraData gpu;
+	DepthCameraParams params;
+};
+
 template <template<class> class Container>
-std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Container<RGBDSource*> &inputs) {
+std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Container<Cameras> &inputs) {
 	
 	std::map<string, Eigen::Matrix4f> registration;
 	
@@ -244,17 +253,17 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 	size_t ref_i;
 	bool found = false;
 	for (size_t i = 0; i < inputs.size(); i++) {
-		if (inputs[i]->getConfig()["uri"] == ref_uri) {
+		if (inputs[i].source->getConfig()["uri"] == ref_uri) {
 			ref_i = i;
 			found = true;
 			break;
 		}
 	}
-	
+
 	if (!found) { LOG(ERROR) << "Reference input not found!"; return registration; }
 	
 	for (auto &input : inputs) { 
-		cv::namedWindow("Registration: " + (string)input->getConfig()["uri"], cv::WINDOW_KEEPRATIO|cv::WINDOW_NORMAL);
+		cv::namedWindow("Registration: " + (string)input.source->getConfig()["uri"], cv::WINDOW_KEEPRATIO|cv::WINDOW_NORMAL);
 	}
 	
 	// vector for every input: vector of point clouds of patterns
@@ -266,7 +275,7 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 		vector<PointCloud<PointXYZ>::Ptr> patterns_iter(inputs.size());
 		
 		for (size_t i = 0; i < inputs.size(); i++) {
-			RGBDSource *input = inputs[i];
+			RGBDSource *input = inputs[i].source;
 			Mat rgb, depth;
 			
 			input->getRGBD(rgb, depth);
@@ -289,7 +298,7 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 		else { LOG(WARNING) << "Pattern not detected on all inputs";}
 	}
 	
-	for (auto &input : inputs) { cv::destroyWindow("Registration: " + (string)input->getConfig()["uri"]); }
+	for (auto &input : inputs) { cv::destroyWindow("Registration: " + (string)input.source->getConfig()["uri"]); }
 	
 	for (size_t i = 0; i < inputs.size(); i++) {
 		Eigen::Matrix4f T;
@@ -299,12 +308,47 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 		else {
 			T = ftl::registration::findTransformation(patterns[i], patterns[ref_i]);
 		}
-		registration[(string)inputs[i]->getConfig()["uri"]] = T;
+		registration[(string)inputs[i].source->getConfig()["uri"]] = T;
 	}
 	saveRegistration(registration);
 	return registration;
 }
 #endif
+
+template<class T>
+Eigen::Matrix<T,4,4> lookAt
+(
+	Eigen::Matrix<T,3,1> const & eye,
+	Eigen::Matrix<T,3,1> const & center,
+	Eigen::Matrix<T,3,1> const & up
+)
+{
+	typedef Eigen::Matrix<T,4,4> Matrix4;
+	typedef Eigen::Matrix<T,3,1> Vector3;
+
+	Vector3 f = (center - eye).normalized();
+	Vector3 u = up.normalized();
+	Vector3 s = f.cross(u).normalized();
+	u = s.cross(f);
+
+	Matrix4 res;
+	res <<	s.x(),s.y(),s.z(),-s.dot(eye),
+			u.x(),u.y(),u.z(),-u.dot(eye),
+			-f.x(),-f.y(),-f.z(),f.dot(eye),
+			0,0,0,1;
+
+	return res;
+}
+
+using MouseAction = std::function<void(int, int, int, int)>;
+
+static void setMouseAction(const std::string& winName, const MouseAction &action)
+{
+  cv::setMouseCallback(winName,
+                       [] (int event, int x, int y, int flags, void* userdata) {
+    (*(MouseAction*)userdata)(event, x, y, flags);
+  }, (void*)&action);
+}
 
 static void run() {
 	Universe net(config["net"]);
@@ -317,8 +361,8 @@ static void run() {
 		return;
 	}
 	
-	std::deque<RGBDSource*> inputs;
-	std::vector<Display> displays;
+	std::deque<Cameras> inputs;
+	//std::vector<Display> displays;
 
 	// TODO Allow for non-net source types
 	for (auto &src : config["sources"]) {		
@@ -326,9 +370,20 @@ static void run() {
 		if (!in) {
 			LOG(ERROR) << "Unrecognised source: " << src;
 		} else {
-			inputs.push_back(in);
-			displays.emplace_back(config["display"], src["uri"]);
-			LOG(INFO) << (string)src["uri"] << " loaded";
+			auto &cam = inputs.emplace_back();
+			cam.source = in;
+			cam.params.fx = in->getParameters().fx;
+			cam.params.fy = in->getParameters().fy;
+			cam.params.mx = -in->getParameters().cx;
+			cam.params.my = -in->getParameters().cy;
+			cam.params.m_imageWidth = in->getParameters().width;
+			cam.params.m_imageHeight = in->getParameters().height;
+			cam.params.m_sensorDepthWorldMax = in->getParameters().maxDepth;
+			cam.params.m_sensorDepthWorldMin = in->getParameters().minDepth;
+			cam.gpu.alloc(cam.params);
+			
+			//displays.emplace_back(config["display"], src["uri"]);
+			LOG(INFO) << (string)src["uri"] << " loaded " << cam.params.m_imageWidth;
 		}
 	}
 	
@@ -336,63 +391,126 @@ static void run() {
 	
 	// load point cloud transformations
 	
-#ifdef HAVE_PCL
 	std::map<string, Eigen::Matrix4f> registration;
 	if (config["registration"]["calibration"]["run"]) {
 		registration = runRegistration(net, inputs);
 	}
 	else {
+		LOG(INFO) << "LOAD REG";
 		registration = loadRegistration();
 	}
+
+	LOG(INFO) << "Assigning poses";
 	vector<Eigen::Matrix4f> T;
 	for (auto &input : inputs) {
-		Eigen::Matrix4f RT = (registration.count((string)input->getConfig()["uri"]) > 0) ? registration[(string)input->getConfig()["uri"]] : registration["default"];
+		LOG(INFO) << (unsigned long long)input.source;
+		Eigen::Matrix4f RT = (registration.count(input.source->getConfig()["uri"].get<string>()) > 0) ? registration[(string)input.source->getConfig()["uri"]] : registration["default"];
 		T.push_back(RT);
+		input.source->setPose(RT);
 	}
 	
-	//
-	vector<PointCloud<PointXYZRGB>::Ptr> clouds(inputs.size());
+	//vector<PointCloud<PointXYZRGB>::Ptr> clouds(inputs.size());
 	Display display_merged(config["display"], "Merged"); // todo
+	CUDARayCastSDF rays(config["voxelhash"]);
+	ftl::voxhash::SceneRep scene(config["voxelhash"]);
 
-	int active = displays.size();
+	cv::Mat colour_array(cv::Size(rays.getRayCastParams().m_width,rays.getRayCastParams().m_height), CV_8UC3);
+
+	// Force window creation
+	display_merged.render(colour_array);
+	display_merged.wait(1);
+
+	unsigned char frameCount = 0;
+	bool paused = false;
+	float cam_x = 0.0f;
+	float cam_z = 0.0f;
+
+	Eigen::Vector3f eye(0.0f, 0.0f, 0.0f);
+	Eigen::Vector3f centre(0.0f, 0.0f, -4.0f);
+	Eigen::Vector3f up(0,1.0f,0);
+	Eigen::Vector3f lookPoint(0.0f,1.0f,-4.0f);
+	Eigen::Matrix4f viewPose;
+	float lerpSpeed = 0.4f;
+
+	// Keyboard camera controls
+	display_merged.onKey([&paused,&eye,&centre](int key) {
+		LOG(INFO) << "Key = " << key;
+		if (key == 32) paused = !paused;
+		else if (key == 81) eye[0] += 0.02f;
+		else if (key == 83) eye[0] -= 0.02f;
+		else if (key == 84) eye[2] += 0.02f;
+		else if (key == 82) eye[2] -= 0.02f;
+	});
+
+	// TODO(Nick) Calculate "camera" properties of viewport.
+	MouseAction mouseact = [&inputs,&lookPoint,&viewPose]( int event, int ux, int uy, int) {
+		LOG(INFO) << "Mouse " << ux << "," << uy;
+		if (event == 1) {   // click
+			const float x = ((float)ux-inputs[0].params.mx) / inputs[0].params.fx;
+			const float y = ((float)uy-inputs[0].params.my) / inputs[0].params.fy;
+			const float depth = -4.0f;
+			Eigen::Vector4f camPos(x*depth,y*depth,depth,1.0);
+			Eigen::Vector4f worldPos =  viewPose * camPos;
+			lookPoint = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
+		}
+	};
+	::setMouseAction("Image", mouseact);
+
+	int active = inputs.size();
 	while (active > 0 && display_merged.active()) {
 		active = 0;
 
-		net.broadcast("grab");  // To sync cameras
+		if (!paused) {
+			net.broadcast("grab");  // To sync cameras
+			scene.nextFrame();
 		
-		PointCloud<PointXYZRGB>::Ptr cloud(new PointCloud<PointXYZRGB>);
-		
-		for (size_t i = 0; i < inputs.size(); i++) {
-			//Display &display = displays[i];
-			RGBDSource *input = inputs[i];
-			Mat rgb, depth;
-			input->getRGBD(rgb,depth);
-			
-			//if (!display.active()) continue;
-			active += 1;
+			for (size_t i = 0; i < inputs.size(); i++) {
+				//if (i == 1) continue;
+				//Display &display = displays[i];
+				RGBDSource *input = inputs[i].source;
+				Mat rgb, depth;
+				//LOG(INFO) << "GetRGB";
+				input->getRGBD(rgb,depth);
+				
+				//if (!display.active()) continue;
+				active += 1;
 
-			clouds[i] = ftl::rgbd::createPointCloud(input); //, (i==0) ? cv::Point3_<uchar>(255,0,0) : cv::Point3_<uchar>(0,0,255));
-			
-			//display.render(rgb, depth,input->getParameters());
-			//display.render(clouds[i]);
-			//display.wait(5);
+				//clouds[i] = ftl::rgbd::createPointCloud(input);
+				
+				//display.render(rgb, depth,input->getParameters());
+				//display.render(clouds[i]);
+				//display.wait(5);
+
+				//LOG(INFO) << "Data size: " << depth.cols << "," << depth.rows;
+				if (depth.cols == 0) continue;
+
+				Mat rgba;
+				cv::cvtColor(rgb,rgba, cv::COLOR_BGR2BGRA);
+
+				inputs[i].params.flags = frameCount;
+
+				// Send to GPU and merge view into scene
+				inputs[i].gpu.updateParams(inputs[i].params);
+				inputs[i].gpu.updateData(depth, rgba);
+				scene.integrate(inputs[i].source->getPose(), inputs[i].gpu, inputs[i].params, nullptr);
+			}
+		} else {
+			active = 1;
 		}
-		
-		for (size_t i = 0; i < clouds.size(); i++) {
-			pcl::transformPointCloud(*clouds[i], *clouds[i], T[i]);
-			*cloud += *clouds[i];
-		}
-		
-		pcl::UniformSampling<PointXYZRGB> uniform_sampling;
-		uniform_sampling.setInputCloud(cloud);
-		uniform_sampling.setRadiusSearch(0.1f);
-		uniform_sampling.filter(*cloud);
-		
-		display_merged.render(cloud);
-		display_merged.wait(50);
+
+		frameCount++;
+
+		// Set virtual camera transformation matrix
+		//Eigen::Affine3f transform(Eigen::Translation3f(cam_x,0.0f,cam_z));
+		centre += (lookPoint - centre) * (lerpSpeed * 0.1f);
+		viewPose = lookAt<float>(eye,centre,up); // transform.matrix();
+
+		// Call GPU renderer and download result into OpenCV mat
+		rays.render(scene.getHashData(), scene.getHashParams(), inputs[0].gpu, viewPose);
+		rays.getRayCastData().download(nullptr, (uchar3*)colour_array.data, rays.getRayCastParams());
+		display_merged.render(colour_array);
+		display_merged.wait(1);
 	}
-#endif
-	// TODO non-PCL (?)
 }
 
 int main(int argc, char **argv) {

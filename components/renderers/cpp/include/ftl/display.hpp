@@ -6,7 +6,7 @@
 #define _FTL_DISPLAY_HPP_
 
 #include <ftl/config.h>
-#include "../../../rgbd-sources/include/ftl/rgbd_source.hpp"
+#include "../../../rgbd-sources/include/ftl/camera_params.hpp"
 
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
@@ -45,6 +45,8 @@ class Display {
 	
 	void wait(int ms);
 
+	void onKey(std::function<void(int)> h) { key_handlers_.push_back(h); }
+
 	private:
 	nlohmann::json config_;
 
@@ -57,6 +59,7 @@ class Display {
 #endif  // HAVE_PCL
 
 	bool active_;
+	std::vector<std::function<void(int)>> key_handlers_;
 };
 };
 

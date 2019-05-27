@@ -4,23 +4,13 @@
 
 #include <ftl/config.h>
 #include <ftl/configurable.hpp>
+#include <ftl/camera_params.hpp>
 #include <ftl/net/universe.hpp>
 #include <opencv2/opencv.hpp>
 #include <Eigen/Eigen>
 
 namespace ftl {
 namespace rgbd {
-
-struct CameraParameters {
-	double fx;
-	double fy;
-	double cx;
-	double cy;
-	unsigned int width;
-	unsigned int height;
-	double minDepth;
-	double maxDepth;
-};
 
 /**
  * Abstract class for any generic RGB-Depth data source. It can also store pose

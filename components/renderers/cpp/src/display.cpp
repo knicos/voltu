@@ -222,6 +222,7 @@ bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {
 #endif  // HAVE_PCL
 bool Display::render(const cv::Mat &img, style_t s) {
 	if (s == STYLE_NORMAL) {
+		cv::namedWindow("Image", cv::WINDOW_KEEPRATIO);
 		cv::imshow("Image", img);
 	} else if (s = STYLE_DISPARITY) {
 		Mat idepth;
@@ -251,10 +252,21 @@ void Display::wait(int ms) {
 	}
 	
 	if (config_["depth"] || config_["left"] || config_["right"]) {
-		if(cv::waitKey(ms) == 27) {
-	        // exit if ESC is pressed
-	        active_ = false;
-	    }
+		while (true) {
+			int key = cv::waitKey(ms);
+
+			if(key == 27) {
+				// exit if ESC is pressed
+				active_ = false;
+			} else if (key == -1) {
+				return;
+			} else {
+				ms = 1;
+				for (auto &h : key_handlers_) {
+					h(key);
+				}
+			}
+		}
 	}
 }
 

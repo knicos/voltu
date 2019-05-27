@@ -76,6 +76,8 @@ LocalSource::LocalSource(nlohmann::json &config)
 		camera_a_->grab();
 		camera_a_->retrieve(frame);
 		LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
+		width_ = frame.cols;
+		height_ = frame.rows;
 		stereo_ = true;
 	}
 
@@ -125,9 +127,13 @@ LocalSource::LocalSource(const string &vid, nlohmann::json &config)
 
 	if (frame.cols >= 2*frame.rows) {
 		LOG(INFO) << "Video size : " << frame.cols/2 << "x" << frame.rows;
+		width_ = frame.cols / 2;
+		height_ = frame.rows;
 		stereo_ = true;
 	} else {
 		LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
+		width_ = frame.cols;
+		height_ = frame.rows;
 		stereo_ = false;
 	}
 

@@ -241,7 +241,9 @@ void Universe::publish(const std::string &res, ARGS... args) {
 
 template <typename... ARGS>
 void Universe::publish(const ftl::URI &res, ARGS... args) {
+	std::unique_lock<std::mutex> lk(net_mutex_);
 	auto subs = subscribers_[res.getBaseURI()];
+	lk.unlock();
 	for (auto p : subs) {
 		auto peer = getPeer(p);
 		if (peer) {
