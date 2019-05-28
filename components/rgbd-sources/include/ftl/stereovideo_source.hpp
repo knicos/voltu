@@ -42,6 +42,7 @@ class StereoVideoSource : public RGBDSource {
 	bool ready_;
 	cv::Mat left_;
 	cv::Mat right_;
+	cv::Mat mask_l_;
 };
 
 }

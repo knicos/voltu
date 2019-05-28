@@ -17,7 +17,7 @@ FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	filter_ = cv::cuda::createDisparityBilateralFilter(max_disp_ << 4, config.value("filter_radius", 25), config.value("filter_iter", 1));
 }
 
-void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
+void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp, const cv::Mat &mask_l) {
 	Mat left_disp;
 	Mat right_disp;
 
@@ -43,6 +43,7 @@ void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	// disparity values set to (256 << 5) in libSGM consistency check 
 	Mat bad_pixels = (disp == (256 << 5)); 
 	disp.setTo(0, bad_pixels);
+	disp.setTo(0, mask_l);
 	
 	if (use_filter_) {
 		cv::cuda::GpuMat l_gpu, disp_gpu, disp_gpu_out;
@@ -56,4 +57,9 @@ void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	}
 	
 	disp.convertTo(disp, CV_32F, 1.0f/16.0f);
+}
+
+void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
+	// todo: allow using without mask
+	LOG(FATAL) << "libSGM: not using mask (required)!";
 }
