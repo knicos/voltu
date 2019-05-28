@@ -100,7 +100,8 @@
 			"SDFTruncation": 0.1,
 			"SDFTruncationScale": 0.01,
 			"SDFIntegrationWeightSample": 10,
-			"SDFIntegrationWeightMax": 255
+			"SDFIntegrationWeightMax": 255,
+			"hash_render": true
 		},
 		"registration": {
 			"reference-source" : "ftl://utu.fi/dummy/rgb-d",
