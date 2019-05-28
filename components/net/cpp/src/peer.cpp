@@ -310,7 +310,7 @@ void Peer::data() {
 }
 
 bool Peer::_data() {
-	// std::unique_lock<std::mutex> lk(recv_mtx_);
+	std::unique_lock<std::mutex> lk(recv_mtx_);
 
 	recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
@@ -556,6 +556,8 @@ int Peer::_send() {
 }
 
 Peer::~Peer() {
+	std::unique_lock<std::mutex> lk1(send_mtx_);
+	std::unique_lock<std::mutex> lk2(recv_mtx_);
 	close();
 
 	delete disp_;

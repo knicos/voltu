@@ -195,22 +195,6 @@ class Peer {
 			h(*this, args...);
 		}
 	}
-	
-	/*template <typename... ARGS>
-	int _send(const std::string &t, ARGS... args);
-	
-	template <typename... ARGS>
-	int _send(const array &b, ARGS... args);
-	
-	template <typename T, typename... ARGS>
-	int _send(const std::vector<T> &t, ARGS... args);
-	
-	template <typename... Types, typename... ARGS>
-	int _send(const std::tuple<Types...> &t, ARGS... args);
-	
-	template <typename T, typename... ARGS,
-			ENABLE_IF(std::is_trivial<T>::value && !std::is_pointer<T>::value)>
-	int _send(const T &t, ARGS... args);*/
 
 	private: // Data
 	Status status_;
