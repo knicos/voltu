@@ -207,7 +207,8 @@ TEST_CASE("Universe::publish()", "") {
 	Universe a;
 	Universe b;
 	a.listen("tcp://localhost:7077");
-	b.connect("tcp://localhost:7077")->waitConnection();
+	ftl::net::Peer *p = b.connect("tcp://localhost:7077");
+	p->waitConnection();
 
 	SECTION("no subscribers") {
 		a.createResource("ftl://test");
@@ -226,6 +227,23 @@ TEST_CASE("Universe::publish()", "") {
 		sleep_for(milliseconds(50));
 		
 		REQUIRE( done == 56 );
+	}
+
+	SECTION("publish to disconnected subscriber") {
+		int done = 0;
+		a.createResource("ftl://test2");
+		REQUIRE( b.subscribe("ftl://test2", [&done](int a) {
+			done = a;
+		}) );
+		sleep_for(milliseconds(50));
+
+		p->close();
+		sleep_for(milliseconds(100));
+
+		a.publish("ftl://test2", 56);
+		sleep_for(milliseconds(50));
+		
+		REQUIRE( done == 0 );
 	}
 }
 

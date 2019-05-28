@@ -138,6 +138,7 @@ class Universe : public ftl::Configurable {
 	void _installBindings();
 	void _installBindings(Peer *);
 	bool _subscribe(const std::string &res);
+	void _remove(Peer *);
 	
 	static void __start(Universe *u);
 	

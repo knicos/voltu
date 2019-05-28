@@ -54,7 +54,11 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
 
     cv::imencode(".png", d2, d_buf);
     LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
-    
-    net_.publish(uri_, rgb_buf, d_buf);
+
+	try {
+    	net_.publish(uri_, rgb_buf, d_buf);
+	} catch (...) {
+		LOG(ERROR) << "Exception on net publish to " << uri_;
+	}
 }
 
