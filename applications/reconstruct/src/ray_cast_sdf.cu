@@ -366,7 +366,7 @@ extern "C" void nickRenderCUDA(const ftl::voxhash::HashData& hashData, const ftl
 	cudaSafeCall( cudaGetLastError() );
 	#ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -389,8 +389,8 @@ extern "C" void resetRayIntervalSplatCUDA(RayCastData& data, const RayCastParams
 	resetRayIntervalSplatKernel<<<gridSize, blockSize>>>(data);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -477,7 +477,7 @@ extern "C" void rayIntervalSplatCUDA(const ftl::voxhash::HashData& hashData, con
 	rayIntervalSplatKernel<<<gridSize, blockSize>>>(hashData, cameraData, rayCastData, cameraData);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }  

@@ -39,8 +39,8 @@ extern "C" void copyFloatMap(float* d_output, float* d_input, unsigned int width
 	copyFloatMapDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -66,8 +66,8 @@ extern "C" void copyDepthFloatMap(float* d_output, float* d_input, unsigned int 
 	copyDepthFloatMapDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height,minDepth, maxDepth);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -95,8 +95,8 @@ extern "C" void initializeOptimizerMaps(float* d_output, float* d_input, float* 
 	initializeOptimizerMapsDevice<<<gridSize, blockSize>>>(d_output, d_input, d_input2, d_mask, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -122,8 +122,8 @@ extern "C" void copyFloat4Map(float4* d_output, float4* d_input, unsigned int wi
 	copyFloat4MapDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -155,8 +155,8 @@ extern "C" void convertColorRawToFloat4(float4* d_output, BYTE* d_input, unsigne
 	convertColorRawToFloatDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -183,8 +183,8 @@ extern "C" void convertColorFloat4ToUCHAR4(uchar4* d_output, float4* d_input, un
 	convertColorFloat4ToUCHAR4Device<<<blockSize, gridSize>>>(d_output, d_input, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -212,8 +212,8 @@ extern "C" void maskColorMapFloat4Map(float4* d_inputColor, float4* d_inputDepth
 
 	maskColorMapFloat4MapDevice<<<blockSize, gridSize>>>(d_inputColor, d_inputDepth, width, height);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -242,8 +242,8 @@ extern "C" void convertColorToIntensityFloat4(float4* d_output, float4* d_input,
 	convertColorToIntensityFloat4Device<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -270,8 +270,8 @@ extern "C" void convertColorToIntensityFloat(float* d_output, float4* d_input, u
 	convertColorToIntensityFloatDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -322,8 +322,8 @@ extern "C" void convertDepthToColorSpace(float* d_output, float* d_input, float4
 
 	convertDepthToColorSpaceDevice<<<gridSize, blockSize>>>(d_output, d_input, depthIntrinsicsInv, colorIntrinsics, depthExtrinsicsInv, colorExtrinsics, depthWidth, depthHeight, colorWidth, colorHeight);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -348,8 +348,8 @@ extern "C" void setInvalidFloatMap(float* d_output, unsigned int width, unsigned
 
 	setInvalidFloatMapDevice<<<gridSize, blockSize>>>(d_output, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -374,8 +374,8 @@ extern "C" void setInvalidFloat4Map(float4* d_output, unsigned int width, unsign
 
 	setInvalidFloat4MapDevice<<<gridSize, blockSize>>>(d_output, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -410,8 +410,8 @@ extern "C" void convertDepthFloatToCameraSpaceFloat3(float3* d_output, float* d_
 	convertDepthFloatToCameraSpaceFloat3Device<<<gridSize, blockSize>>>(d_output, d_input, intrinsicsInv, width, height, depthCameraData);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -485,8 +485,8 @@ extern "C" void bilateralFilterFloatMap(float* d_output, float* d_input, float s
 
 	bilateralFilterFloatMapDevice<<<gridSize, blockSize>>>(d_output, d_input, sigmaD, sigmaR, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -539,8 +539,8 @@ extern "C" void bilateralFilterFloat4Map(float4* d_output, float4* d_input, floa
 
 	bilateralFilterFloat4MapDevice<<<gridSize, blockSize>>>(d_output, d_input, sigmaD, sigmaR, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -595,8 +595,8 @@ extern "C" void gaussFilterFloatMap(float* d_output, float* d_input, float sigma
 
 	gaussFilterFloatMapDevice<<<gridSize, blockSize>>>(d_output, d_input, sigmaD, sigmaR, width, height);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -653,8 +653,8 @@ extern "C" void gaussFilterFloat4Map(float4* d_output, float4* d_input, float si
 
 	gaussFilterFloat4MapDevice<<<gridSize, blockSize>>>(d_output, d_input, sigmaD, sigmaR, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -700,8 +700,8 @@ extern "C" void computeNormals(float4* d_output, float3* d_input, unsigned int w
 	computeNormalsDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -745,8 +745,8 @@ extern "C" void computeNormals2(float4* d_output, float4* d_input, unsigned int 
 	computeNormalsDevice2<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -814,8 +814,8 @@ extern "C" void computeShadingValue(float* d_outShading, float* d_indepth, float
 
 	computeShadingValueDevice<<<gridSize, blockSize>>>(d_outShading, d_indepth, d_normals, d_clusterIDs, d_albedoEstimates, Intrinsic, d_lighting, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -843,8 +843,8 @@ extern "C" void computeSimpleSegmentation(float* d_output, float* d_input, float
 	computeSimpleSegmentationDevice<<<gridSize, blockSize>>>(d_output, d_input, depthThres, width, height);
 
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -924,8 +924,8 @@ extern "C" void computeMaskEdgeMapFloat4(unsigned char* d_output, float4* d_inpu
 
 	computeMaskEdgeMapFloat4Device<<<gridSize, blockSize>>>(d_output, d_input, d_indepth, threshold,width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -948,8 +948,8 @@ extern "C" void clearDecissionArrayPatchDepthMask(int* d_output, unsigned int in
 
 	clearDecissionArrayPatchDepthMaskDevice<<<gridSize, blockSize>>>(d_output, inputWidth, inputHeight);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -980,8 +980,8 @@ extern "C" void computeDecissionArrayPatchDepthMask(int* d_output, float* d_inpu
 
 	computeDecissionArrayPatchDepthMaskDevice<<<gridSize, blockSize>>>(d_output, d_input, patchSize, inputWidth, inputHeight);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1013,8 +1013,8 @@ extern "C" void computeRemappingArrayPatchDepthMask(int* d_output, float* d_inpu
 
 	computeRemappingArrayPatchDepthMaskDevice<<<gridSize, blockSize>>>(d_output, d_input, d_prefixSum, patchSize, inputWidth, inputHeight);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1054,8 +1054,8 @@ extern "C" void DebugPatchRemapArray(float* d_mask, int* d_remapArray, unsigned 
 
 	DebugPatchRemapArrayDevice<<<gridSize, blockSize>>>(d_mask, d_remapArray, patchSize, numElements, inputWidth, inputHeight);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1120,8 +1120,8 @@ extern "C" void resampleFloatMap(float* d_colorMapResampledFloat, unsigned int o
 
 	resampleFloatMapDevice<<<gridSize, blockSize>>>(d_colorMapResampledFloat, d_colorMapFloat, inputWidth, inputHeight, outputWidth, outputHeight);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1188,8 +1188,8 @@ extern "C" void resampleFloat4Map(float4* d_colorMapResampledFloat4, unsigned in
 
 	resampleFloat4MapDevice<<<gridSize, blockSize>>>(d_colorMapResampledFloat4, d_colorMapFloat4, inputWidth, inputHeight, outputWidth, outputHeight);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -1225,14 +1225,14 @@ extern "C" void downsampleUnsignedCharMap(unsigned char* d_MapResampled, unsigne
 
 	downsampleUnsignedCharMapDevice<<<gridSize, blockSize>>>(d_MapResampled, d_Map, inputWidth, inputHeight, outputWidth, outputHeight, 0, 0);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 
 	downsampleUnsignedCharMapDevice<<<gridSize, blockSize>>>(d_MapResampled, d_Map, inputWidth, inputHeight, outputWidth, outputHeight, inputWidth*inputHeight, outputWidth*outputHeight);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1257,8 +1257,8 @@ extern "C" void convertEdgeMaskToFloat(float* d_output, unsigned char* d_input, 
 
 	convertEdgeMaskToFloatDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1309,8 +1309,8 @@ extern "C" void dilateDepthMapMask(float* d_output, float* d_input, float* d_inp
 
 	dilateDepthMapDevice<<<gridSize, blockSize>>>(d_output, d_input, d_inputOrig, structureSize, width, height);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1373,8 +1373,8 @@ extern "C" void removeDevMeanMapMask(float* d_output, float* d_input, int struct
 
 	removeDevMeanMapMaskDevice<<<gridSize, blockSize>>>(d_output, d_input, structureSize, width, height);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -1475,8 +1475,8 @@ extern "C" void computeDerivativesCameraSpace(float4* d_positions, unsigned int 
 
 	computeDerivativesCameraSpaceDevice<<<gridSize, blockSize>>>(d_positions, imageWidth, imageHeight, d_positionsDU, d_positionsDV);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -1531,8 +1531,8 @@ extern "C" void computeIntensityAndDerivatives(float* d_intensity, unsigned int 
 
 	computeIntensityAndDerivativesDevice<<<gridSize, blockSize>>>(d_intensity, imageWidth, imageHeight, d_intensityAndDerivatives);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -1571,8 +1571,8 @@ extern "C" void computeGradientIntensityMagnitude(float4* d_inputDU, float4* d_i
 
 	computeGradientIntensityMagnitudeDevice<<<gridSize, blockSize>>>(d_inputDU, d_inputDV, imageWidth, imageHeight, d_ouput);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -1605,8 +1605,8 @@ extern "C" void transformCameraSpaceMap(float4* d_positions, unsigned int imageW
 
 	transformCameraSpaceMapDevice<<<gridSize, blockSize>>>(d_positions, imageWidth, imageHeight, d_output);
 	#ifdef _DEBUG
-		cutilSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		cudaSafeCall(cudaDeviceSynchronize());
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -1671,8 +1671,8 @@ extern "C" void erodeDepthMap(float* d_output, float* d_input, int structureSize
 
 	erodeDepthMapDevice<<<gridSize, blockSize>>>(d_output, d_input, structureSize, width, height, dThresh, fracReq);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -1757,8 +1757,8 @@ extern "C" void depthToHSV(float4* d_output, float* d_input, unsigned int width,
 
 	depthToHSVDevice<<<gridSize, blockSize>>>(d_output, d_input, width, height, minDepth, maxDepth);
 #ifdef _DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 

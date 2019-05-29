@@ -35,7 +35,7 @@ extern "C" void updateConstantHashParams(const HashParams& params) {
 	
 #ifdef DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 	}
 
@@ -47,8 +47,8 @@ extern "C" void updateConstantRayCastParams(const RayCastParams& params) {
 	cudaSafeCall(cudaMemcpyToSymbol(c_rayCastParams, &params, size, 0, cudaMemcpyHostToDevice));
 	
 #ifdef DEBUG
-	cutilSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 
 }
@@ -61,7 +61,7 @@ extern "C" void updateConstantDepthCameraParams(const DepthCameraParams& params)
 	
 #ifdef DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 
 }
@@ -126,7 +126,7 @@ extern "C" void resetCUDA(HashData& hashData, const HashParams& hashParams)
 
 		#ifdef _DEBUG
 			cudaSafeCall(cudaDeviceSynchronize());
-			cutilCheckMsg(__FUNCTION__);
+			//cutilCheckMsg(__FUNCTION__);
 		#endif
 
 	}
@@ -140,7 +140,7 @@ extern "C" void resetCUDA(HashData& hashData, const HashParams& hashParams)
 
 		#ifdef _DEBUG
 			cudaSafeCall(cudaDeviceSynchronize());
-			cutilCheckMsg(__FUNCTION__);
+			//cutilCheckMsg(__FUNCTION__);
 		#endif
 	}
 
@@ -153,7 +153,7 @@ extern "C" void resetCUDA(HashData& hashData, const HashParams& hashParams)
 
 		#ifdef _DEBUG
 			cudaSafeCall(cudaDeviceSynchronize());
-			cutilCheckMsg(__FUNCTION__);
+			//cutilCheckMsg(__FUNCTION__);
 		#endif
 	}
 
@@ -169,7 +169,7 @@ extern "C" void resetHashBucketMutexCUDA(HashData& hashData, const HashParams& h
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -318,7 +318,7 @@ extern "C" void allocCUDA(HashData& hashData, const HashParams& hashParams, cons
 
 	#ifdef _DEBUG
 		cudaSafeCall(cudaDeviceSynchronize());
-		cutilCheckMsg(__FUNCTION__);
+		//cutilCheckMsg(__FUNCTION__);
 	#endif
 }
 
@@ -348,7 +348,7 @@ extern "C" void fillDecisionArrayCUDA(HashData& hashData, const HashParams& hash
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 
 }
@@ -373,7 +373,7 @@ extern "C" void compactifyHashCUDA(HashData& hashData, const HashParams& hashPar
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -437,7 +437,7 @@ extern "C" unsigned int compactifyHashAllInOneCUDA(HashData& hashData, const Has
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 	return res;
 }
@@ -607,7 +607,7 @@ extern "C" void integrateDepthMapCUDA(HashData& hashData, const HashParams& hash
 	cudaSafeCall( cudaGetLastError() );
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -635,7 +635,7 @@ extern "C" void starveVoxelsKernelCUDA(HashData& hashData, const HashParams& has
 	}
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -711,7 +711,7 @@ extern "C" void garbageCollectIdentifyCUDA(HashData& hashData, const HashParams&
 	}
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
 
@@ -750,6 +750,6 @@ extern "C" void garbageCollectFreeCUDA(HashData& hashData, const HashParams& has
 	}
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
-	cutilCheckMsg(__FUNCTION__);
+	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
