@@ -189,8 +189,7 @@ std::map<string, Eigen::Matrix4f> loadRegistration() {
 
 	// Use identity transform if no registration
 	if (!file.is_open()) {
-		Eigen::Matrix4f T;
-		registration["default"] = T.setIdentity();
+		LOG(ERROR) << "Error loading registration from file!";
 		return registration;
 	}
 
@@ -231,7 +230,6 @@ struct Cameras {
 
 template <template<class> class Container>
 std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Container<Cameras> &inputs) {
-	
 	std::map<string, Eigen::Matrix4f> registration;
 	
 	// NOTE: uses config["registration"]
@@ -361,7 +359,7 @@ static void run() {
 		return;
 	}
 	
-	std::deque<Cameras> inputs;
+	std::vector<Cameras> inputs;
 	//std::vector<Display> displays;
 
 	// TODO Allow for non-net source types
@@ -399,15 +397,59 @@ static void run() {
 		LOG(INFO) << "LOAD REG";
 		registration = loadRegistration();
 	}
-
-	LOG(INFO) << "Assigning poses";
-	vector<Eigen::Matrix4f> T;
+	
+	// verify that registration and configuration is valid
+	// (registration includes every camera)
+	
+	bool valid_registration = true;
+	string ref_input = config["registration"]["reference-source"];
+	
+	// check every camera is included in registration
 	for (auto &input : inputs) {
-		LOG(INFO) << (unsigned long long)input.source;
-		Eigen::Matrix4f RT = (registration.count(input.source->getConfig()["uri"].get<string>()) > 0) ? registration[(string)input.source->getConfig()["uri"]] : registration["default"];
-		T.push_back(RT);
-		input.source->setPose(RT);
+		string uri = input.source->getConfig()["uri"];
+		if (registration.find(uri) == registration.end()) {
+			valid_registration = false;
+			LOG(ERROR) << "Camera pose for " + uri + " not found in registration!";
+		}
 	}
+	
+	if (registration.find(ref_input) == registration.end()) {
+		LOG(WARNING) << "reference input " + ref_input + " not found in registration";
+	}
+	
+	// if registration not valid, use reference input or first input
+	if (!valid_registration) {
+		vector<Cameras> inputs_;
+		
+		for (auto &input : inputs) {
+			if ((string) input.source->getConfig()["uri"] == ref_input) {
+				inputs_.push_back(input);
+				break;
+			}
+		}
+		
+		if (inputs_.size() == 0) {
+			LOG(ERROR) << "Reference input not found in configured inputs, using first input: " + (string) inputs[0].source->getConfig()["uri"];
+			inputs_.push_back(inputs[0]);
+		}
+		
+		inputs = inputs_;
+		inputs[0].source->setPose(Eigen::Matrix4f::Identity());
+	}
+	else {
+		LOG(INFO) << "Registration valid, assigning poses";
+		vector<Eigen::Matrix4f> T;
+		for (auto &input : inputs) {
+			LOG(INFO) << (unsigned long long)input.source;
+			Eigen::Matrix4f RT = (registration.count(input.source->getConfig()["uri"].get<string>()) > 0) ?
+								  registration[(string)input.source->getConfig()["uri"]] : Eigen::Matrix4f::Identity();
+			T.push_back(RT);
+			input.source->setPose(RT);
+		}
+	}
+	
+	LOG(INFO) << "Using sources:";
+	for (auto &input : inputs) { LOG(INFO) << "    " + (string) input.source->getConfig()["uri"]; }
 	
 	//vector<PointCloud<PointXYZRGB>::Ptr> clouds(inputs.size());
 	Display display_merged(config["display"], "Merged"); // todo
