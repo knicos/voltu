@@ -6,6 +6,10 @@
 #pragma comment(lib, "Rpcrt4.lib")
 #endif
 
+#ifndef WIN32
+#include <signal.h>
+#endif
+
 using std::string;
 using std::vector;
 using std::thread;
@@ -122,6 +126,8 @@ int Universe::_setDescriptors() {
 				FD_SET(s->_socket(), &sfdread_);
 			}
 			FD_SET(s->_socket(), &sfderror_);
+		} else if (s) {
+			_remove(s);
 		}
 	}
 
@@ -145,6 +151,20 @@ void Universe::_installBindings() {
 		if (owned_.count(res) > 0) return this_peer;
 		else return {};
 	});
+}
+
+// Note: should be called inside a net lock
+void Universe::_remove(Peer *p) {
+	LOG(INFO) << "Removing disconnected peer: " << p->id().to_string();
+	for (auto i=peers_.begin(); i!=peers_.end(); i++) {
+		if ((*i) == p) {
+			peers_.erase(i); break;
+		}
+	}
+
+	auto ix = peer_ids_.find(p->id());
+	if (ix != peer_ids_.end()) peer_ids_.erase(ix);
+	delete p;
 }
 
 Peer *Universe::getPeer(const UUID &id) const {
@@ -197,6 +217,9 @@ bool Universe::_subscribe(const std::string &res) {
 }
 
 void Universe::__start(Universe * u) {
+#ifndef WIN32
+	signal(SIGPIPE,SIG_IGN);
+#endif  // WIN32
 	u->_run();
 }
 
@@ -228,8 +251,10 @@ void Universe::_run() {
 
 		//Some kind of error occured, it is usually possible to recover from this.
 		if (selres < 0) {
-			std::cout << "SELECT ERROR " << selres << " - " << strerror(errno) << std::endl;
-			//return false;
+			switch (errno) {
+			case 9	: continue;  // Bad file descriptor = socket closed
+			default	: std::cout << "Unknown select error: " << strerror(errno) << std::endl;
+			}
 			continue;
 		} else if (selres == 0) {
 			// Timeout, nothing to do...
@@ -245,24 +270,17 @@ void Universe::_run() {
 					int rsize = sizeof(sockaddr_storage);
 					sockaddr_storage addr;
 
-					//int freeclient = freeSocket();
+					//Finally accept this client connection.
+					int csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
 
-					//if (freeclient >= 0) {
-						// TODO Limit connection rate or allow a pause in accepting
-						// TODO Send auto reject message under heavy load
-
-						//Finally accept this client connection.
-						int csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
-
-						if (csock != INVALID_SOCKET) {
-							auto p = new Peer(csock, &disp_);
-							peers_.push_back(p);
-							_installBindings(p);
-							p->onConnect([this](Peer &p) {
-								peer_ids_[p.id()] = &p;
-							});
-						}
-					//}
+					if (csock != INVALID_SOCKET) {
+						auto p = new Peer(csock, &disp_);
+						peers_.push_back(p);
+						_installBindings(p);
+						p->onConnect([this](Peer &p) {
+							peer_ids_[p.id()] = &p;
+						});
+					}
 				}
 			}
 		}
@@ -272,25 +290,15 @@ void Universe::_run() {
 			if (s != NULL && s->isValid()) {
 				//If message received from this client then deal with it
 				if (FD_ISSET(s->_socket(), &sfdread_)) {
-					//s->data();
-					//std::cout << "QUEUE DATA PROC" << std::endl;
-					//p.push([](int id, Peer *s) {
-					//	std::cout << "Processing in thread " << std::to_string(id) << std::endl;
-						s->data();
-					//}, s);
+					s->data();
 				}
 				if (FD_ISSET(s->_socket(), &sfderror_)) {
 					s->socketError();
+					s->close();
 				}
 			} else if (s != NULL) {
 				// Erase it
-				
-				for (auto i=peers_.begin(); i!=peers_.end(); i++) {
-					if ((*i) == s) {
-						LOG(INFO) << "REMOVING SOCKET";
-						peers_.erase(i); break;
-					}
-				}
+				_remove(s);
 			}
 		}
 	}

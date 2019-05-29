@@ -492,6 +492,11 @@ bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 	return true;
 }
 
+void Calibrate::rectifyStereo(cv::Mat &l, cv::Mat &r) {
+	remap(l, l, map1_[0], map2_[0], INTER_LINEAR);
+	remap(r, r, map1_[1], map2_[1], INTER_LINEAR);
+}
+
 bool Calibrate::undistort(cv::Mat &l, cv::Mat &r) {
 	Mat l_tmp, r_tmp;
 	local_->get(l_tmp, r_tmp);

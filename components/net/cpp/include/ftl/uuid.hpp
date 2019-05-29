@@ -51,13 +51,16 @@ namespace ftl {
 		 * Get a pretty string.
 		 */
 		std::string to_string() const {
-			char b[37];
 #ifdef WIN32
-			UuidToString(&guid_, (RPC_CSTR*)b);
+			RPC_CSTR szUuid = NULL;
+			if (::UuidToStringA(&guid_, &szUuid) == RPC_S_OK) {
+				return std::string((char*)szUuid);
+			}
 #else
+			char b[37];
 			uuid_unparse(uuid_, b);
-#endif
 			return std::string(b);
+#endif
 		}
 		
 		/* Allow the UUID to be packed into an RPC message. */

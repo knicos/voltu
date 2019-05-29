@@ -58,7 +58,14 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 		0.0f,	// 0m min
 		15.0f	// 15m max
 	};
-
+	
+	// left and right masks (areas outside rectified images)
+	// only left mask used
+	cv::Mat mask_r(lsrc_->height(), lsrc_->width(), CV_8U, 255);
+	cv::Mat mask_l(lsrc_->height(), lsrc_->width(), CV_8U, 255);
+	calib_->rectifyStereo(mask_l, mask_r);
+	mask_l_ = (mask_l == 0);
+	
 	disp_ = Disparity::create(config["disparity"]);
     if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << config["disparity"];
 
@@ -105,7 +112,7 @@ static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv:
 
 void StereoVideoSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
 	cv::Mat disp;
-	disp_->compute(left_, right_, disp);
+	disp_->compute(left_, right_, disp, mask_l_);
 	rgb = left_;
 	disparityToDepth(disp, depth, calib_->getQ());
 	//calib_->distort(rgb,depth);

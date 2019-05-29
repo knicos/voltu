@@ -28,7 +28,10 @@ class Disparity {
 	 * disparity from left and right images to be implemented.
 	 */
 	virtual void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp)=0;
-	
+	virtual void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp, const cv::Mat &mask_l) {
+		compute(l, r, disp);
+	}
+
 	/**
 	 * Factory registration class.
 	 */

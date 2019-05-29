@@ -101,6 +101,11 @@ class Calibrate {
 	 */
 	bool rectified(cv::Mat &l, cv::Mat &r);
 
+	/**
+	 * Rectify and remove distortions from from images l and r using cv::remap()
+	 */
+	void rectifyStereo(cv::Mat &l, cv::Mat &r);
+
 	bool isCalibrated();
 
 	/**
