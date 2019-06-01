@@ -18,6 +18,8 @@ Display::Display(nlohmann::json &config, std::string name) : config_(config) {
 	window_->setBackgroundColor(cv::viz::Color::white());
 #endif  // HAVE_VIZ
 
+	cv::namedWindow("Image", cv::WINDOW_KEEPRATIO);
+
 #if defined HAVE_PCL
 	if (config.value("points", false)) {
 		pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud: " + name));
@@ -222,7 +224,6 @@ bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {
 #endif  // HAVE_PCL
 bool Display::render(const cv::Mat &img, style_t s) {
 	if (s == STYLE_NORMAL) {
-		cv::namedWindow("Image", cv::WINDOW_KEEPRATIO);
 		cv::imshow("Image", img);
 	} else if (s = STYLE_DISPARITY) {
 		Mat idepth;

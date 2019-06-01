@@ -9,6 +9,7 @@ set(REPSRC
 	src/camera_util.cu
 	src/ray_cast_sdf.cpp
 	src/registration.cpp
+	src/virtual_source.cpp
 )
 
 add_executable(ftl-reconstruct ${REPSRC})

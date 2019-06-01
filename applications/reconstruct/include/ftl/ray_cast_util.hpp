@@ -196,7 +196,7 @@ struct RayCastData {
 	}
 
 	__device__
-	void traverseCoarseGridSimpleSampleAll(const ftl::voxhash::HashData& hash, const DepthCameraData& cameraData, const float3& worldCamPos, const float3& worldDir, const float3& camDir, const int3& dTid, float minInterval, float maxInterval) const
+	void traverseCoarseGridSimpleSampleAll(const ftl::voxhash::HashData& hash, const float3& worldCamPos, const float3& worldDir, const float3& camDir, const int3& dTid, float minInterval, float maxInterval) const
 	{
 		const RayCastParams& rayCastParams = c_rayCastParams;
 
@@ -236,7 +236,7 @@ struct RayCastData {
 							float depth = alpha / depthToRayLength; // Convert ray length to depth depthToRayLength
 
 							d_depth[dTid.y*rayCastParams.m_width+dTid.x] = depth;
-							d_depth3[dTid.y*rayCastParams.m_width+dTid.x] = cameraData.kinectDepthToSkeleton(dTid.x, dTid.y, depth);
+							d_depth3[dTid.y*rayCastParams.m_width+dTid.x] = DepthCameraData::kinectDepthToSkeleton(dTid.x, dTid.y, depth);
 							d_colors[dTid.y*rayCastParams.m_width+dTid.x] = make_uchar3(color2.x, color2.y, color2.z);
 
 							if(rayCastParams.m_useGradients)
