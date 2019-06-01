@@ -59,10 +59,10 @@ struct RayCastData {
 		updateConstantRayCastParams(params);
 	}
 
-	__host__ void download(float3 *points, uchar3 *colours, const RayCastParams& params) const {
+	__host__ void download(int *depth, uchar3 *colours, const RayCastParams& params) const {
 		//printf("Download: %d,%d\n", params.m_width, params.m_height);
-		//cudaSafeCall(cudaMemcpy(points, d_depth3, sizeof(float3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(colours, d_colors, sizeof(uchar3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
+		if (depth) cudaSafeCall(cudaMemcpy(depth, d_depth_i, sizeof(int) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
+		if (colours) cudaSafeCall(cudaMemcpy(colours, d_colors, sizeof(uchar3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
 	}
 
 	__host__
