@@ -4,11 +4,14 @@
 #include "calibrate.hpp"
 #include "local.hpp"
 #include "disparity.hpp"
+#include <mutex>
 
 using ftl::Calibrate;
 using ftl::LocalSource;
 using ftl::rgbd::StereoVideoSource;
 using std::string;
+using std::mutex;
+using std::unique_lock;
 
 StereoVideoSource::StereoVideoSource(nlohmann::json &config, ftl::net::Universe *net)
 		: RGBDSource(config, net) {
@@ -79,14 +82,6 @@ StereoVideoSource::~StereoVideoSource() {
 	delete lsrc_;
 }
 
-void StereoVideoSource::grab() {
-	calib_->rectified(left_, right_);
-}
-
-bool StereoVideoSource::isReady() {
-	return ready_;
-}
-
 static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q) {
 	cv::Matx44d _Q;
     q.convertTo(_Q, CV_64F);
@@ -110,10 +105,17 @@ static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv:
 	}
 }
 
-void StereoVideoSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
+void StereoVideoSource::grab() {
+	calib_->rectified(left_, right_);
+
 	cv::Mat disp;
 	disp_->compute(left_, right_, disp, mask_l_);
-	rgb = left_;
-	disparityToDepth(disp, depth, calib_->getQ());
-	//calib_->distort(rgb,depth);
+
+	unique_lock<mutex> lk(mutex_);
+	left_.copyTo(rgb_);
+	disparityToDepth(disp, depth_, calib_->getQ());
+}
+
+bool StereoVideoSource::isReady() {
+	return ready_;
 }

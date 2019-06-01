@@ -38,8 +38,7 @@ class VirtualSource : public RGBDSource {
 	ftl::voxhash::SceneRep *scene_;
 	CUDARayCastSDF *rays_;
 	bool ready_;
-	cv::Mat rgb_;
-	cv::Mat depth_;
+	cv::Mat idepth_;
 };
 
 }

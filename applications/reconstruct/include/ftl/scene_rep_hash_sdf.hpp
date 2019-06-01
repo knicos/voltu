@@ -336,7 +336,7 @@ private:
 
 		//t.startEvent("compactifyAllInOne");
 		m_hashParams.m_numOccupiedBlocks = compactifyHashAllInOneCUDA(m_hashData, m_hashParams);		//this version uses atomics over prefix sums, which has a much better performance
-		std::cout << "Occ blocks = " << m_hashParams.m_numOccupiedBlocks << std::endl;
+		//std::cout << "Occ blocks = " << m_hashParams.m_numOccupiedBlocks << std::endl;
 		m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 		//t.endEvent();
 		//t.evaluate();

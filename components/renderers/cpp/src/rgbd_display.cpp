@@ -72,10 +72,10 @@ void Display::init() {
 
 	// Keyboard camera controls
 	onKey([this](int key) {
-		LOG(INFO) << "Key = " << key;
+		//LOG(INFO) << "Key = " << key;
 		if (key == 81 || key == 83) {
 			// TODO Should rotate around lookAt object, but requires correct depth
-			Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, Eigen::Vector3f(0.0,1.0f,0.0f));
+			Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, up_);
 			eye_ = (q * (eye_ - centre_)) + centre_;
 		} else if (key == 84 || key == 82) {
 			float scalar = (key == 84) ? 0.99f : 1.01f;
@@ -85,16 +85,13 @@ void Display::init() {
 
 	// TODO(Nick) Calculate "camera" properties of viewport.
 	mouseaction_ = [this]( int event, int ux, int uy, int) {
-		LOG(INFO) << "Mouse " << ux << "," << uy;
+		//LOG(INFO) << "Mouse " << ux << "," << uy;
 		if (event == 1 && source_) {   // click
-			const auto params = source_->getParameters();
-			const float x = ((float)ux-params.width/2) / params.fx;
-			const float y = ((float)uy-params.height/2) / params.fy;
-			const float depth = -4.0f;
-			Eigen::Vector4f camPos(x*depth,y*depth,depth,1.0);
+			Eigen::Vector4f camPos = source_->point(ux,uy);
+			camPos *= -1.0f;
 			Eigen::Vector4f worldPos =  source_->getPose() * camPos;
 			lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
-			LOG(INFO) << "Look at: " << worldPos;
+			LOG(INFO) << "Depth at click = " << -camPos[2];
 		}
 	};
 	::setMouseAction(name_, mouseaction_);
@@ -128,6 +125,6 @@ void Display::update() {
 	Mat rgb, depth;
 	source_->grab();
 	source_->getRGBD(rgb, depth);
-	cv::imshow(name_, rgb);
+	if (rgb.rows > 0) cv::imshow(name_, rgb);
 	wait(1);
 }

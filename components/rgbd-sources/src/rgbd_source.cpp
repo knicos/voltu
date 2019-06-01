@@ -3,6 +3,8 @@
 using ftl::rgbd::RGBDSource;
 using ftl::Configurable;
 using std::string;
+using std::mutex;
+using std::unique_lock;
 
 std::map<std::string, std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>> *RGBDSource::sources__ = nullptr;
 
@@ -20,6 +22,22 @@ RGBDSource::~RGBDSource() {
 
 bool RGBDSource::isReady() {
 	return false;
+}
+
+void RGBDSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
+	unique_lock<mutex> lk(mutex_);
+	rgb_.copyTo(rgb);
+	depth_.copyTo(depth);
+}
+
+Eigen::Vector4f RGBDSource::point(uint ux, uint uy) {
+	const auto &params = getParameters();
+	const float x = ((float)ux-params.width/2) / params.fx;
+	const float y = ((float)uy-params.height/2) / params.fy;
+
+	unique_lock<mutex> lk(mutex_);
+	const float depth = depth_.at<float>(uy,ux);
+	return Eigen::Vector4f(x*depth,y*depth,depth,1.0);
 }
 
 bool RGBDSource::snapshot(const std::string &fileprefix) {

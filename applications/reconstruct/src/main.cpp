@@ -444,6 +444,7 @@ static void run() {
 				// Get the RGB-Depth frame from input
 				RGBDSource *input = inputs[i].source;
 				Mat rgb, depth;
+				input->grab();
 				input->getRGBD(rgb,depth);
 				
 				active += 1;

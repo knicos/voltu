@@ -5,7 +5,6 @@
 #include <ftl/net/universe.hpp>
 #include <ftl/rgbd_source.hpp>
 #include <string>
-#include <mutex>
 
 namespace ftl {
 namespace rgbd {
@@ -23,7 +22,6 @@ class NetSource : public RGBDSource {
 	~NetSource();
 
 	void grab();
-	void getRGBD(cv::Mat &rgb, cv::Mat &depth);
 	bool isReady();
 
 	static inline RGBDSource *create(nlohmann::json &config, ftl::net::Universe *net) {
@@ -32,9 +30,6 @@ class NetSource : public RGBDSource {
 
 	private:
 	bool has_calibration_;
-	cv::Mat rgb_;
-	cv::Mat depth_;
-	std::mutex m_;
 };
 
 }

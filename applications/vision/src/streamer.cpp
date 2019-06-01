@@ -53,7 +53,7 @@ void Streamer::send(const Mat &rgb, const Mat &depth) {
     // d_buf.resize(s);
 
     cv::imencode(".png", d2, d_buf);
-    LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
+    //LOG(INFO) << "Depth Size = " << ((float)d_buf.size() / (1024.0f*1024.0f));
 
 	try {
     	net_.publish(uri_, rgb_buf, d_buf);

@@ -26,7 +26,6 @@ class StereoVideoSource : public RGBDSource {
 	~StereoVideoSource();
 
 	void grab();
-	void getRGBD(cv::Mat &rgb, cv::Mat &depth);
 	bool isReady();
 
 	const cv::Mat &getRight() const { return right_; }

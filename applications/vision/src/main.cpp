@@ -149,7 +149,7 @@ static void run(const string &file) {
 
 			std::chrono::duration<double> elapsed =
 				std::chrono::high_resolution_clock::now() - start;
-			LOG(INFO) << "Disparity in " << elapsed.count() << "s";
+			//LOG(INFO) << "Disparity in " << elapsed.count() << "s";
 		});
 
 		// Pipeline for stream compression
@@ -163,7 +163,7 @@ static void run(const string &file) {
 
 			std::chrono::duration<double> elapsed =
 				std::chrono::high_resolution_clock::now() - start;
-			LOG(INFO) << "Stream in " << elapsed.count() << "s";
+			//LOG(INFO) << "Stream in " << elapsed.count() << "s";
 		});
 
 		// Send RGB+Depth images for local rendering

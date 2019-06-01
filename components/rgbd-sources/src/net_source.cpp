@@ -44,7 +44,7 @@ NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
 	has_calibration_ = getCalibration(*net, config["uri"].get<string>(), params_);
 	
 	net->subscribe(config["uri"].get<string>(), [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-		unique_lock<mutex> lk(m_);
+		unique_lock<mutex> lk(mutex_);
 		cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb_);
 		//Mat(rgb_.size(), CV_16UC1);
 		cv::imdecode(d, cv::IMREAD_UNCHANGED, &depth_);
@@ -62,10 +62,4 @@ void NetSource::grab() {
 
 bool NetSource::isReady() {
 	return has_calibration_ && !rgb_.empty();
-}
-
-void NetSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
-	unique_lock<mutex> lk(m_);
-	rgb_.copyTo(rgb);
-	depth_.copyTo(depth);
 }

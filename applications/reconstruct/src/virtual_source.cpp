@@ -6,6 +6,8 @@
 #include <glog/logging.h>
 
 using ftl::rgbd::VirtualSource;
+using std::mutex;
+using std::unique_lock;
 
 VirtualSource::VirtualSource(nlohmann::json &config, ftl::net::Universe *net)
 		: RGBDSource(config, net) {
@@ -22,7 +24,7 @@ VirtualSource::VirtualSource(nlohmann::json &config, ftl::net::Universe *net)
 	params_.minDepth = config.value("min_depth", 0.1f);
 
 	rgb_ = cv::Mat(cv::Size(params_.width,params_.height), CV_8UC3);
-	// init depth
+	idepth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32SC1);
 }
 
 VirtualSource::~VirtualSource() {
@@ -47,13 +49,11 @@ void VirtualSource::grab() {
 		params.m_sensorDepthWorldMax = params_.maxDepth;
 
 		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, getPose());
-		rays_->getRayCastData().download(nullptr, (uchar3*)rgb_.data, rays_->getRayCastParams());
-	}
-}
 
-void VirtualSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
-	rgb_.copyTo(rgb);
-	depth_.copyTo(depth);
+		unique_lock<mutex> lk(mutex_);
+		rays_->getRayCastData().download((int*)idepth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams());
+		idepth_.convertTo(depth_, CV_32FC1, 1.0f / 100.0f);
+	}
 }
 
 bool VirtualSource::isReady() {
