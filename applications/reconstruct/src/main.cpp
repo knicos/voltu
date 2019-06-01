@@ -470,7 +470,7 @@ static void run() {
 	Eigen::Vector3f eye(0.0f, 0.0f, 0.0f);
 	Eigen::Vector3f centre(0.0f, 0.0f, -4.0f);
 	Eigen::Vector3f up(0,1.0f,0);
-	Eigen::Vector3f lookPoint(0.0f,1.0f,-4.0f);
+	Eigen::Vector3f lookPoint(0.0f,0.0f,-4.0f);
 	Eigen::Matrix4f viewPose;
 	float lerpSpeed = 0.4f;
 
@@ -478,22 +478,27 @@ static void run() {
 	display_merged.onKey([&paused,&eye,&centre](int key) {
 		LOG(INFO) << "Key = " << key;
 		if (key == 32) paused = !paused;
-		else if (key == 81) eye[0] += 0.02f;
-		else if (key == 83) eye[0] -= 0.02f;
-		else if (key == 84) eye[2] += 0.02f;
-		else if (key == 82) eye[2] -= 0.02f;
+		else if (key == 81 || key == 83) {
+			// TODO Should rotate around lookAt object, but requires correct depth
+			Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, Eigen::Vector3f(0.0,1.0f,0.0f));
+			eye = (q * (eye - centre)) + centre;
+		} else if (key == 84 || key == 82) {
+			float scalar = (key == 84) ? 0.99f : 1.01f;
+			eye = ((eye - centre) * scalar) + centre;
+		}
 	});
 
 	// TODO(Nick) Calculate "camera" properties of viewport.
 	MouseAction mouseact = [&inputs,&lookPoint,&viewPose]( int event, int ux, int uy, int) {
 		LOG(INFO) << "Mouse " << ux << "," << uy;
 		if (event == 1) {   // click
-			const float x = ((float)ux-inputs[0].params.mx) / inputs[0].params.fx;
-			const float y = ((float)uy-inputs[0].params.my) / inputs[0].params.fy;
+			const float x = ((float)ux-inputs[0].params.m_imageWidth/2) / inputs[0].params.fx;
+			const float y = ((float)uy-inputs[0].params.m_imageHeight/2) / inputs[0].params.fy;
 			const float depth = -4.0f;
 			Eigen::Vector4f camPos(x*depth,y*depth,depth,1.0);
 			Eigen::Vector4f worldPos =  viewPose * camPos;
 			lookPoint = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
+			LOG(INFO) << "Look at: " << worldPos;
 		}
 	};
 	::setMouseAction("Image", mouseact);
@@ -545,7 +550,7 @@ static void run() {
 		// Set virtual camera transformation matrix
 		//Eigen::Affine3f transform(Eigen::Translation3f(cam_x,0.0f,cam_z));
 		centre += (lookPoint - centre) * (lerpSpeed * 0.1f);
-		viewPose = lookAt<float>(eye,centre,up); // transform.matrix();
+		viewPose = lookAt<float>(eye,centre,up).inverse(); // transform.matrix();
 
 		// Call GPU renderer and download result into OpenCV mat
 		rays.render(scene.getHashData(), scene.getHashParams(), inputs[0].gpu, viewPose);
