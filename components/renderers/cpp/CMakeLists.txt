@@ -1,5 +1,6 @@
 add_library(ftlrender
 	src/display.cpp
+	src/rgbd_display.cpp
 )
 
 # These cause errors in CI build and are being removed from PCL in newer versions
@@ -10,6 +11,6 @@ target_include_directories(ftlrender PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlrender ftlcommon ftlnet Eigen3::Eigen Threads::Threads glog::glog ${OpenCV_LIBS} ${PCL_LIBRARIES})
+target_link_libraries(ftlrender ftlrgbd ftlcommon ftlnet Eigen3::Eigen Threads::Threads glog::glog ${OpenCV_LIBS} ${PCL_LIBRARIES})
 
 #ADD_SUBDIRECTORY(test)
