@@ -13,7 +13,7 @@
 //texture<float, cudaTextureType2D, cudaReadModeElementType> rayMinTextureRef;
 //texture<float, cudaTextureType2D, cudaReadModeElementType> rayMaxTextureRef;
 
-__global__ void renderKernel(ftl::voxhash::HashData hashData, RayCastData rayCastData, DepthCameraData cameraData) 
+__global__ void renderKernel(ftl::voxhash::HashData hashData, RayCastData rayCastData) 
 {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -26,7 +26,7 @@ __global__ void renderKernel(ftl::voxhash::HashData hashData, RayCastData rayCas
 		rayCastData.d_normals[y*rayCastParams.m_width+x] = make_float4(MINF,MINF,MINF,MINF);
 		rayCastData.d_colors[y*rayCastParams.m_width+x] = make_uchar3(0,0,0);
 
-		float3 camDir = normalize(cameraData.kinectProjToCamera(x, y, 1.0f));
+		float3 camDir = normalize(DepthCameraData::kinectProjToCamera(x, y, 1.0f));
 		float3 worldCamPos = rayCastParams.m_viewMatrixInverse * make_float3(0.0f, 0.0f, 0.0f);
 		float4 w = rayCastParams.m_viewMatrixInverse * make_float4(camDir, 0.0f);
 		float3 worldDir = normalize(make_float3(w.x, w.y, w.z));
@@ -50,11 +50,11 @@ __global__ void renderKernel(ftl::voxhash::HashData hashData, RayCastData rayCas
 		//	printf("ERROR (%d,%d): [ %f, %f ]\n", x, y, minInterval, maxInterval);
 		//}
 
-		rayCastData.traverseCoarseGridSimpleSampleAll(hashData, cameraData, worldCamPos, worldDir, camDir, make_int3(x,y,1), minInterval, maxInterval);
+		rayCastData.traverseCoarseGridSimpleSampleAll(hashData, worldCamPos, worldDir, camDir, make_int3(x,y,1), minInterval, maxInterval);
 	} 
 }
 
-extern "C" void renderCS(const ftl::voxhash::HashData& hashData, const RayCastData &rayCastData, const DepthCameraData &cameraData, const RayCastParams &rayCastParams) 
+extern "C" void renderCS(const ftl::voxhash::HashData& hashData, const RayCastData &rayCastData, const RayCastParams &rayCastParams) 
 {
 
 	const dim3 gridSize((rayCastParams.m_width + T_PER_BLOCK - 1)/T_PER_BLOCK, (rayCastParams.m_height + T_PER_BLOCK - 1)/T_PER_BLOCK);
@@ -66,7 +66,7 @@ extern "C" void renderCS(const ftl::voxhash::HashData& hashData, const RayCastDa
 
 	//printf("Ray casting render...\n");
 
-	renderKernel<<<gridSize, blockSize>>>(hashData, rayCastData, cameraData);
+	renderKernel<<<gridSize, blockSize>>>(hashData, rayCastData);
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
@@ -78,7 +78,7 @@ extern "C" void renderCS(const ftl::voxhash::HashData& hashData, const RayCastDa
 //  Nicks render approach
 ////////////////////////////////////////////////////////////////////////////////
 
-__global__ void clearDepthKernel(ftl::voxhash::HashData hashData, RayCastData rayCastData, DepthCameraData cameraData) 
+__global__ void clearDepthKernel(ftl::voxhash::HashData hashData, RayCastData rayCastData) 
 {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -169,7 +169,7 @@ __device__ inline void trilinearInterp(const ftl::voxhash::HashData &hashData, c
 	colour = make_uchar3(colorFloat);
 }
 
-__global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData rayCastData, DepthCameraData cameraData, RayCastParams params) {
+__global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData rayCastData, RayCastParams params) {
 	// TODO(Nick) Reduce bank conflicts by aligning these
 	__shared__ ftl::voxhash::Voxel voxels[SDF_BLOCK_BUFFER];
 	__shared__ ftl::voxhash::HashEntry blocks[8];
@@ -295,7 +295,7 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 	if (!is_surface) return;
 
 	const float3 camPos = params.m_viewMatrix * worldPos;
-	const float2 screenPosf = cameraData.cameraToKinectScreenFloat(camPos);
+	const float2 screenPosf = DepthCameraData::cameraToKinectScreenFloat(camPos);
 	const uint2 screenPos = make_uint2(make_int2(screenPosf)); //  + make_float2(0.5f, 0.5f)
 
 	/*if (screenPos.x < params.m_width && screenPos.y < params.m_height && 
@@ -316,7 +316,7 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 		for (int x=0; x<pixsizeX; x++) {
 			// TODO(Nick) Within a window, check pixels that have same voxel id
 			// Then trilinear interpolate between current voxel and neighbors.
-			const float3 pixelWorldPos = params.m_viewMatrixInverse * cameraData.kinectDepthToSkeleton(screenPos.x+x,screenPos.y+y, camPos.z);
+			const float3 pixelWorldPos = params.m_viewMatrixInverse * DepthCameraData::kinectDepthToSkeleton(screenPos.x+x,screenPos.y+y, camPos.z);
 			const float3 posInVoxel = (pixelWorldPos - worldPos) / make_float3(c_hashParams.m_virtualVoxelSize,c_hashParams.m_virtualVoxelSize,c_hashParams.m_virtualVoxelSize);
 
 			if (posInVoxel.x >= 1.0f || posInVoxel.y >= 1.0f || posInVoxel.z >= 1.0f) {
@@ -348,19 +348,19 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 	}
 }
 
-extern "C" void nickRenderCUDA(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const RayCastData &rayCastData, const DepthCameraData &cameraData, const RayCastParams &params)
+extern "C" void nickRenderCUDA(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const RayCastData &rayCastData, const RayCastParams &params)
 {
 	const dim3 clear_gridSize((params.m_width + T_PER_BLOCK - 1)/T_PER_BLOCK, (params.m_height + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 clear_blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	clearDepthKernel<<<clear_gridSize, clear_blockSize>>>(hashData, rayCastData, cameraData);
+	clearDepthKernel<<<clear_gridSize, clear_blockSize>>>(hashData, rayCastData);
 
 	const unsigned int threadsPerBlock = SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;
 	const dim3 gridSize(hashParams.m_numOccupiedBlocks, 1);
 	const dim3 blockSize(threadsPerBlock, 1);
 
 	if (hashParams.m_numOccupiedBlocks > 0) {	//this guard is important if there is no depth in the current frame (i.e., no blocks were allocated)
-		nickRenderKernel << <gridSize, blockSize >> >(hashData, rayCastData, cameraData, params);
+		nickRenderKernel << <gridSize, blockSize >> >(hashData, rayCastData, params);
 	}
 
 	cudaSafeCall( cudaGetLastError() );

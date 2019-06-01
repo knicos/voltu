@@ -23,23 +23,23 @@ public:
 
 	static RayCastParams parametersFromConfig(const nlohmann::json& gas) {
 		RayCastParams params;
-		params.m_width = gas["adapterWidth"].get<unsigned int>();
-		params.m_height = gas["adapterHeight"].get<unsigned int>();
+		params.m_width = gas["width"].get<unsigned int>();
+		params.m_height = gas["height"].get<unsigned int>();
 		params.m_intrinsics = MatrixConversion::toCUDA(Eigen::Matrix4f());
 		params.m_intrinsicsInverse = MatrixConversion::toCUDA(Eigen::Matrix4f());
-		params.m_minDepth = gas["sensorDepthMin"].get<float>();
-		params.m_maxDepth = gas["sensorDepthMax"].get<float>();
+		params.m_minDepth = gas["min_depth"].get<float>();
+		params.m_maxDepth = gas["max_depth"].get<float>();
 		params.m_rayIncrement = gas["SDFRayIncrementFactor"].get<float>() * gas["SDFTruncation"].get<float>();
 		params.m_thresSampleDist = gas["SDFRayThresSampleDistFactor"].get<float>() * params.m_rayIncrement;
 		params.m_thresDist = gas["SDFRayThresDistFactor"].get<float>() * params.m_rayIncrement;
 		params.m_useGradients = gas["SDFUseGradients"].get<bool>();
 
-		params.m_maxNumVertices = gas["hashNumSDFBlocks"].get<unsigned int>() * 6;
+		//params.m_maxNumVertices = gas["hashNumSDFBlocks"].get<unsigned int>() * 6;
 
 		return params;
 	}
 
-	void render(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& cameraData, const Eigen::Matrix4f& lastRigidTransform);
+	void render(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform);
 
 	const RayCastData& getRayCastData(void) {
 		return m_data;
@@ -57,7 +57,7 @@ private:
 	void create(const RayCastParams& params);
 	void destroy(void);
 
-	void rayIntervalSplatting(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& cameraData, const Eigen::Matrix4f& lastRigidTransform); // rasterize
+	void rayIntervalSplatting(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const Eigen::Matrix4f& lastRigidTransform); // rasterize
 
 	RayCastParams m_params;
 	RayCastData m_data;

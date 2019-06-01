@@ -59,10 +59,10 @@ struct RayCastData {
 		updateConstantRayCastParams(params);
 	}
 
-	__host__ void download(float3 *points, uchar3 *colours, const RayCastParams& params) const {
+	__host__ void download(int *depth, uchar3 *colours, const RayCastParams& params) const {
 		//printf("Download: %d,%d\n", params.m_width, params.m_height);
-		//cudaSafeCall(cudaMemcpy(points, d_depth3, sizeof(float3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(colours, d_colors, sizeof(uchar3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
+		if (depth) cudaSafeCall(cudaMemcpy(depth, d_depth_i, sizeof(int) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
+		if (colours) cudaSafeCall(cudaMemcpy(colours, d_colors, sizeof(uchar3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
 	}
 
 	__host__
@@ -196,7 +196,7 @@ struct RayCastData {
 	}
 
 	__device__
-	void traverseCoarseGridSimpleSampleAll(const ftl::voxhash::HashData& hash, const DepthCameraData& cameraData, const float3& worldCamPos, const float3& worldDir, const float3& camDir, const int3& dTid, float minInterval, float maxInterval) const
+	void traverseCoarseGridSimpleSampleAll(const ftl::voxhash::HashData& hash, const float3& worldCamPos, const float3& worldDir, const float3& camDir, const int3& dTid, float minInterval, float maxInterval) const
 	{
 		const RayCastParams& rayCastParams = c_rayCastParams;
 
@@ -236,7 +236,7 @@ struct RayCastData {
 							float depth = alpha / depthToRayLength; // Convert ray length to depth depthToRayLength
 
 							d_depth[dTid.y*rayCastParams.m_width+dTid.x] = depth;
-							d_depth3[dTid.y*rayCastParams.m_width+dTid.x] = cameraData.kinectDepthToSkeleton(dTid.x, dTid.y, depth);
+							d_depth3[dTid.y*rayCastParams.m_width+dTid.x] = DepthCameraData::kinectDepthToSkeleton(dTid.x, dTid.y, depth);
 							d_colors[dTid.y*rayCastParams.m_width+dTid.x] = make_uchar3(color2.x, color2.y, color2.z);
 
 							if(rayCastParams.m_useGradients)

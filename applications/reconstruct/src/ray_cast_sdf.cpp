@@ -9,18 +9,17 @@
 
 extern "C" void renderCS(
 	const ftl::voxhash::HashData& hashData,
-	const RayCastData &rayCastData, 
-	const DepthCameraData &cameraData,
+	const RayCastData &rayCastData,
 	const RayCastParams &rayCastParams);
 
 extern "C" void computeNormals(float4* d_output, float3* d_input, unsigned int width, unsigned int height);
 extern "C" void convertDepthFloatToCameraSpaceFloat3(float3* d_output, float* d_input, float4x4 intrinsicsInv, unsigned int width, unsigned int height, const DepthCameraData& depthCameraData);
 
 extern "C" void resetRayIntervalSplatCUDA(RayCastData& data, const RayCastParams& params);
-extern "C" void rayIntervalSplatCUDA(const ftl::voxhash::HashData& hashData, const DepthCameraData& cameraData,
+extern "C" void rayIntervalSplatCUDA(const ftl::voxhash::HashData& hashData,
 								 const RayCastData &rayCastData, const RayCastParams &rayCastParams);
 
-extern "C" void nickRenderCUDA(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const RayCastData &rayCastData, const DepthCameraData &cameraData, const RayCastParams &params);
+extern "C" void nickRenderCUDA(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const RayCastData &rayCastData, const RayCastParams &params);
 
 
 
@@ -37,14 +36,20 @@ void CUDARayCastSDF::destroy(void)
 	//m_rayIntervalSplatting.OnD3D11DestroyDevice();
 }
 
-void CUDARayCastSDF::render(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& cameraData, const Eigen::Matrix4f& lastRigidTransform)
+void CUDARayCastSDF::render(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform)
 {
-	rayIntervalSplatting(hashData, hashParams, cameraData, lastRigidTransform);
+	updateConstantDepthCameraParams(cameraParams);
+	//rayIntervalSplatting(hashData, hashParams, lastRigidTransform);
 	//m_data.d_rayIntervalSplatMinArray = m_rayIntervalSplatting.mapMinToCuda();
 	//m_data.d_rayIntervalSplatMaxArray = m_rayIntervalSplatting.mapMaxToCuda();
 
-	if (hash_render_) nickRenderCUDA(hashData, hashParams, m_data, cameraData, m_params);
-	else renderCS(hashData, m_data, cameraData, m_params);
+	m_params.m_numOccupiedSDFBlocks = hashParams.m_numOccupiedBlocks;
+	m_params.m_viewMatrix = MatrixConversion::toCUDA(lastRigidTransform.inverse());
+	m_params.m_viewMatrixInverse = MatrixConversion::toCUDA(lastRigidTransform);
+	m_data.updateParams(m_params);
+
+	if (hash_render_) nickRenderCUDA(hashData, hashParams, m_data, m_params);
+	else renderCS(hashData, m_data, m_params);
 
 	//convertToCameraSpace(cameraData);
 	if (!m_params.m_useGradients)
@@ -66,7 +71,7 @@ void CUDARayCastSDF::convertToCameraSpace(const DepthCameraData& cameraData)
 	}
 }
 
-void CUDARayCastSDF::rayIntervalSplatting(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& cameraData, const Eigen::Matrix4f& lastRigidTransform)
+void CUDARayCastSDF::rayIntervalSplatting(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const Eigen::Matrix4f& lastRigidTransform)
 {
 	if (hashParams.m_numOccupiedBlocks == 0)	return;
 

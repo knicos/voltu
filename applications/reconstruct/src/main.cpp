@@ -9,8 +9,8 @@
 #include <ftl/configuration.hpp>
 #include <ftl/depth_camera.hpp>
 #include <ftl/scene_rep_hash_sdf.hpp>
-#include <ftl/ray_cast_sdf.hpp>
 #include <ftl/rgbd.hpp>
+#include <ftl/virtual_source.hpp>
 
 // #include <zlib.h>
 // #include <lz4.h>
@@ -23,7 +23,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <ftl/net/universe.hpp>
-#include <ftl/display.hpp>
+#include <ftl/rgbd_display.hpp>
 #include <nlohmann/json.hpp>
 
 #include <opencv2/imgproc.hpp>
@@ -45,7 +45,7 @@
 #endif
 
 using ftl::net::Universe;
-using ftl::Display;
+using ftl::rgbd::Display;
 using ftl::config;
 using std::string;
 using std::vector;
@@ -313,41 +313,6 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 }
 #endif
 
-template<class T>
-Eigen::Matrix<T,4,4> lookAt
-(
-	Eigen::Matrix<T,3,1> const & eye,
-	Eigen::Matrix<T,3,1> const & center,
-	Eigen::Matrix<T,3,1> const & up
-)
-{
-	typedef Eigen::Matrix<T,4,4> Matrix4;
-	typedef Eigen::Matrix<T,3,1> Vector3;
-
-	Vector3 f = (center - eye).normalized();
-	Vector3 u = up.normalized();
-	Vector3 s = f.cross(u).normalized();
-	u = s.cross(f);
-
-	Matrix4 res;
-	res <<	s.x(),s.y(),s.z(),-s.dot(eye),
-			u.x(),u.y(),u.z(),-u.dot(eye),
-			-f.x(),-f.y(),-f.z(),f.dot(eye),
-			0,0,0,1;
-
-	return res;
-}
-
-using MouseAction = std::function<void(int, int, int, int)>;
-
-static void setMouseAction(const std::string& winName, const MouseAction &action)
-{
-  cv::setMouseCallback(winName,
-                       [] (int event, int x, int y, int flags, void* userdata) {
-    (*(MouseAction*)userdata)(event, x, y, flags);
-  }, (void*)&action);
-}
-
 static void run() {
 	Universe net(config["net"]);
 	
@@ -381,7 +346,7 @@ static void run() {
 			cam.gpu.alloc(cam.params);
 			
 			//displays.emplace_back(config["display"], src["uri"]);
-			LOG(INFO) << (string)src["uri"] << " loaded " << cam.params.m_imageWidth;
+			LOG(INFO) << (string)src["uri"] << " loaded " << cam.params.fx;
 		}
 	}
 	
@@ -452,59 +417,23 @@ static void run() {
 	for (auto &input : inputs) { LOG(INFO) << "    " + (string) input.source->getConfig()["uri"]; }
 	
 	//vector<PointCloud<PointXYZRGB>::Ptr> clouds(inputs.size());
-	Display display_merged(config["display"], "Merged"); // todo
-	CUDARayCastSDF rays(config["voxelhash"]);
+	ftl::rgbd::Display display(config["display"]); // todo
+	ftl::rgbd::VirtualSource *virt = new ftl::rgbd::VirtualSource(config["virtual"], &net);
 	ftl::voxhash::SceneRep scene(config["voxelhash"]);
+	virt->setScene(&scene);
+	display.setSource(virt);
 
-	cv::Mat colour_array(cv::Size(rays.getRayCastParams().m_width,rays.getRayCastParams().m_height), CV_8UC3);
-
-	// Force window creation
-	display_merged.render(colour_array);
-	display_merged.wait(1);
 
 	unsigned char frameCount = 0;
 	bool paused = false;
-	float cam_x = 0.0f;
-	float cam_z = 0.0f;
-
-	Eigen::Vector3f eye(0.0f, 0.0f, 0.0f);
-	Eigen::Vector3f centre(0.0f, 0.0f, -4.0f);
-	Eigen::Vector3f up(0,1.0f,0);
-	Eigen::Vector3f lookPoint(0.0f,0.0f,-4.0f);
-	Eigen::Matrix4f viewPose;
-	float lerpSpeed = 0.4f;
 
 	// Keyboard camera controls
-	display_merged.onKey([&paused,&eye,&centre](int key) {
-		LOG(INFO) << "Key = " << key;
+	display.onKey([&paused](int key) {
 		if (key == 32) paused = !paused;
-		else if (key == 81 || key == 83) {
-			// TODO Should rotate around lookAt object, but requires correct depth
-			Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, Eigen::Vector3f(0.0,1.0f,0.0f));
-			eye = (q * (eye - centre)) + centre;
-		} else if (key == 84 || key == 82) {
-			float scalar = (key == 84) ? 0.99f : 1.01f;
-			eye = ((eye - centre) * scalar) + centre;
-		}
 	});
 
-	// TODO(Nick) Calculate "camera" properties of viewport.
-	MouseAction mouseact = [&inputs,&lookPoint,&viewPose]( int event, int ux, int uy, int) {
-		LOG(INFO) << "Mouse " << ux << "," << uy;
-		if (event == 1) {   // click
-			const float x = ((float)ux-inputs[0].params.m_imageWidth/2) / inputs[0].params.fx;
-			const float y = ((float)uy-inputs[0].params.m_imageHeight/2) / inputs[0].params.fy;
-			const float depth = -4.0f;
-			Eigen::Vector4f camPos(x*depth,y*depth,depth,1.0);
-			Eigen::Vector4f worldPos =  viewPose * camPos;
-			lookPoint = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
-			LOG(INFO) << "Look at: " << worldPos;
-		}
-	};
-	::setMouseAction("Image", mouseact);
-
 	int active = inputs.size();
-	while (active > 0 && display_merged.active()) {
+	while (active > 0 && display.active()) {
 		active = 0;
 
 		if (!paused) {
@@ -512,25 +441,16 @@ static void run() {
 			scene.nextFrame();
 		
 			for (size_t i = 0; i < inputs.size(); i++) {
-				//if (i == 1) continue;
-				//Display &display = displays[i];
+				// Get the RGB-Depth frame from input
 				RGBDSource *input = inputs[i].source;
 				Mat rgb, depth;
-				//LOG(INFO) << "GetRGB";
 				input->getRGBD(rgb,depth);
 				
-				//if (!display.active()) continue;
 				active += 1;
 
-				//clouds[i] = ftl::rgbd::createPointCloud(input);
-				
-				//display.render(rgb, depth,input->getParameters());
-				//display.render(clouds[i]);
-				//display.wait(5);
-
-				//LOG(INFO) << "Data size: " << depth.cols << "," << depth.rows;
 				if (depth.cols == 0) continue;
 
+				// Must be in RGBA for GPU
 				Mat rgba;
 				cv::cvtColor(rgb,rgba, cv::COLOR_BGR2BGRA);
 
@@ -547,16 +467,7 @@ static void run() {
 
 		frameCount++;
 
-		// Set virtual camera transformation matrix
-		//Eigen::Affine3f transform(Eigen::Translation3f(cam_x,0.0f,cam_z));
-		centre += (lookPoint - centre) * (lerpSpeed * 0.1f);
-		viewPose = lookAt<float>(eye,centre,up).inverse(); // transform.matrix();
-
-		// Call GPU renderer and download result into OpenCV mat
-		rays.render(scene.getHashData(), scene.getHashParams(), inputs[0].gpu, viewPose);
-		rays.getRayCastData().download(nullptr, (uchar3*)colour_array.data, rays.getRayCastParams());
-		display_merged.render(colour_array);
-		display_merged.wait(1);
+		display.update();
 	}
 }
 
