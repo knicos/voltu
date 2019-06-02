@@ -437,7 +437,7 @@ static void run() {
 		active = 0;
 
 		if (!paused) {
-			net.broadcast("grab");  // To sync cameras
+			//net.broadcast("grab");  // To sync cameras
 			scene.nextFrame();
 		
 			for (size_t i = 0; i < inputs.size(); i++) {

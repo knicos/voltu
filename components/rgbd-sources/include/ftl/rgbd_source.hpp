@@ -29,6 +29,7 @@ class RGBDSource : public ftl::Configurable {
 	void getRGBD(cv::Mat &rgb, cv::Mat &depth);
 
 	const CameraParameters &getParameters() { return params_; };
+	std::string getURI() const { return config_["uri"].get<std::string>(); }
 
 	virtual void setPose(const Eigen::Matrix4f &pose) { pose_ = pose; };
 	const Eigen::Matrix4f &getPose() { return pose_; };

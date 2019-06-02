@@ -5,6 +5,7 @@
 
 using ftl::rgbd::NetSource;
 using ftl::net::Universe;
+using ftl::UUID;
 using std::string;
 using ftl::rgbd::CameraParameters;
 using std::mutex;
@@ -13,13 +14,13 @@ using std::vector;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 
-static bool getCalibration(Universe &net, string src, ftl::rgbd::CameraParameters &p) {
+bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::CameraParameters &p) {
 	while(true) {
-		auto buf = net.findOne<vector<unsigned char>>((string) src +"/calibration");
-		if (buf) {
-			memcpy((char*)&p, (*buf).data(), (*buf).size());
+		auto buf = net.call<vector<unsigned char>>(peer_, "source_calibration", src);
+		if (buf.size() > 0) {
+			memcpy((char*)&p, buf.data(), buf.size());
 			
-			if (sizeof(p) != (*buf).size()) {
+			if (sizeof(p) != buf.size()) {
 				LOG(ERROR) << "Corrupted calibration";
 				return false;
 			}
@@ -41,19 +42,41 @@ NetSource::NetSource(nlohmann::json &config) : RGBDSource(config) {
 NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
 		: RGBDSource(config, net) {
 
-	has_calibration_ = getCalibration(*net, config["uri"].get<string>(), params_);
+	auto p = net->findOne<ftl::UUID>("find_stream", getURI());
+	if (!p) {
+		LOG(ERROR) << "Could not find stream: " << getURI();
+		return;
+	}
+	peer_ = *p;
+
+	has_calibration_ = _getCalibration(*net, peer_, getURI(), params_);
 	
-	net->subscribe(config["uri"].get<string>(), [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+	net->bind(getURI(), [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 		unique_lock<mutex> lk(mutex_);
-		cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb_);
-		//Mat(rgb_.size(), CV_16UC1);
-		cv::imdecode(d, cv::IMREAD_UNCHANGED, &depth_);
-		depth_.convertTo(depth_, CV_32FC1, 1.0f/(16.0f*100.0f));
+		_recv(jpg, d);
 	});
+
+	N_ = 10;
+
+	// Initiate stream with request for first 10 frames
+	net->send(peer_, "get_stream", getURI(), 10, 0, net->id(), getURI());
 }
 
 NetSource::~NetSource() {
 	// TODO Unsubscribe
+}
+
+void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+	cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb_);
+	//Mat(rgb_.size(), CV_16UC1);
+	cv::imdecode(d, cv::IMREAD_UNCHANGED, &depth_);
+	depth_.convertTo(depth_, CV_32FC1, 1.0f/(16.0f*100.0f));
+
+	N_--;
+	if (N_ == 0) {
+		N_ += 10;
+		net_->send(peer_, "get_stream", getURI(), 10, 0, net_->id(), getURI());
+	}
 }
 
 void NetSource::grab() {

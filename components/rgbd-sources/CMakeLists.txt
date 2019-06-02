@@ -5,6 +5,7 @@ set(RGBDSRC
 	src/rgbd_source.cpp
 	src/stereovideo_source.cpp
 	src/net_source.cpp
+	src/rgbd_streamer.cpp
 	src/algorithms/rtcensus.cpp
 	src/algorithms/rtcensus_sgm.cpp
 	src/algorithms/opencv_sgbm.cpp
