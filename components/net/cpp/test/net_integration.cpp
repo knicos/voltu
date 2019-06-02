@@ -149,6 +149,42 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 	}
 }
 
+TEST_CASE("Universe::findAll()", "") {
+	Universe a;
+	Universe b;
+	Universe c;
+	a.listen("tcp://localhost:7077");
+	b.connect("tcp://localhost:7077")->waitConnection();
+	c.connect("tcp://localhost:7077")->waitConnection();
+
+	SECTION("no values exist") {
+		REQUIRE( (c.findAll<int>("test_all").size() == 0) );
+	}
+
+	SECTION("one set exists") {
+		a.bind("test_all", []() -> std::vector<int> {
+			return {3,4,5};
+		});
+
+		auto res = c.findAll<int>("test_all");
+		REQUIRE( (res.size() == 3) );
+		REQUIRE( (res[0] == 3) );
+	}
+
+	SECTION("two sets exists") {
+		b.bind("test_all", []() -> std::vector<int> {
+			return {3,4,5};
+		});
+		c.bind("test_all", []() -> std::vector<int> {
+			return {6,7,8};
+		});
+
+		auto res = a.findAll<int>("test_all");
+		REQUIRE( (res.size() == 6) );
+		REQUIRE( (res[0] == 3 || res[0] == 6) );
+	}
+}
+
 TEST_CASE("Universe::findOwner()", "") {
 	Universe a;
 	Universe b;

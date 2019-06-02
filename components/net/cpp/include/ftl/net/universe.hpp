@@ -103,14 +103,21 @@ class Universe : public ftl::Configurable {
 	template <typename R, typename... ARGS>
 	R call(const UUID &pid, const std::string &name, ARGS... args);
 	
+	template <typename... ARGS>
+	void send(const UUID &pid, const std::string &name, ARGS... args);
+
 	template <typename R, typename... ARGS>
 	std::optional<R> findOne(const std::string &name, ARGS... args);
+
+	template <typename R, typename... ARGS>
+	std::vector<R> findAll(const std::string &name, ARGS... args);
 	
 	/**
 	 * Send a non-blocking RPC call with no return value to all subscribers
 	 * of a resource. There may be no subscribers. Note that query parameter
 	 * order in the URI string is not important.
 	 */
+	//[[deprecated("Pub sub no longer to be used")]]
 	template <typename... ARGS>
 	void publish(const std::string &res, ARGS... args);
 
@@ -119,6 +126,7 @@ class Universe : public ftl::Configurable {
 	 * of a resource. There may be no subscribers. This overload accepts a
 	 * URI object directly to enable more efficient modification of parameters.
 	 */
+	//[[deprecated("Pub sub no longer to be used")]]
 	template <typename... ARGS>
 	void publish(const ftl::URI &res, ARGS... args);
 	
@@ -126,11 +134,14 @@ class Universe : public ftl::Configurable {
 	 * Register your ownership of a new resource. This must be called before
 	 * publishing to this resource and before any peers attempt to subscribe.
 	 */
+	//[[deprecated("Pub sub no longer to be used")]]
 	bool createResource(const std::string &uri);
 
+	//[[deprecated("Pub sub no longer to be used")]]
 	std::optional<ftl::UUID> findOwner(const std::string &res);
 
 	void setLocalID(const ftl::UUID &u) { this_peer = u; };
+	const ftl::UUID &id() const { return this_peer; }
 	
 	private:
 	void _run();
@@ -225,6 +236,45 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 }
 
 template <typename R, typename... ARGS>
+std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
+	int returncount = 0;
+	int sentcount = 0;
+	std::mutex m;
+	std::condition_variable cv;
+	
+	std::vector<R> results;
+
+	auto handler = [&](const std::vector<R> &r) {
+		std::unique_lock<std::mutex> lk(m);
+		returncount++;
+		results.insert(results.end(), r.begin(), r.end());
+		lk.unlock();
+		cv.notify_one();
+	};
+
+	std::map<Peer*, int> record;
+	for (auto p : peers_) {
+		sentcount++;
+		record[p] = p->asyncCall<std::vector<R>>(name, handler, args...);
+	}
+	
+	{  // Block thread until async callback notifies us
+		std::unique_lock<std::mutex> lk(m);
+		cv.wait_for(lk, std::chrono::seconds(1), [&returncount,&sentcount]{return returncount == sentcount;});
+
+		// Cancel any further results
+		for (auto p : peers_) {
+			auto m = record.find(p);
+			if (m != record.end()) {
+				p->cancelCall(m->second);
+			}
+		}
+	}
+
+	return results;
+}
+
+template <typename R, typename... ARGS>
 R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
 	if (p == nullptr) {
@@ -232,6 +282,16 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 		throw -1;
 	}
 	return p->call<R>(name, args...);
+}
+
+template <typename... ARGS>
+void Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
+	Peer *p = getPeer(pid);
+	if (p == nullptr) {
+		LOG(ERROR) << "Attempting to call an unknown peer : " << pid.to_string();
+		throw -1;
+	}
+	p->send(name, args...);
 }
 
 template <typename... ARGS>

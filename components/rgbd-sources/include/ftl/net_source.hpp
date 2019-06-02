@@ -30,6 +30,11 @@ class NetSource : public RGBDSource {
 
 	private:
 	bool has_calibration_;
+	ftl::UUID peer_;
+	int N_;
+
+	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::CameraParameters &p);
+	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
 };
 
 }
