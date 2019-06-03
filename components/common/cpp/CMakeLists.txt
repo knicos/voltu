@@ -1,6 +1,7 @@
 set(COMMONSRC
 	src/config.cpp
 	src/configuration.cpp
+	src/configurable.cpp
 	src/opencv_to_pcl.cpp
 )
 
