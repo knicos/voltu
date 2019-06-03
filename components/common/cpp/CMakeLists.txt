@@ -16,3 +16,5 @@ target_include_directories(ftlcommon PUBLIC
 	PRIVATE src)
 target_link_libraries(ftlcommon glog::glog ${OpenCV_LIBS} ${PCL_LIBRARIES})
 
+add_subdirectory(test)
+
