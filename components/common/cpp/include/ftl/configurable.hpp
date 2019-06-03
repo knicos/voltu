@@ -9,6 +9,7 @@
 #include <map>
 #include <list>
 #include <functional>
+#include <optional>
 
 #define REQUIRED(...) required(__func__, __VA_ARGS__)
 
