@@ -1,6 +1,7 @@
 {
 	"vision": {
 		"type": "stereovideo",
+		"uri": "ftl://utu.fi/dummy/rgb-d",
 		"middlebury": {
 			"dataset": "",
 			"threshold": 2.0,

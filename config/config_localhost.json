@@ -1,6 +1,7 @@
 {
 	"vision": {
 		"type": "stereovideo",
+		"uri": "ftl://utu.fi/dummy/rgb-d",
 		"middlebury": {
 			"dataset": "",
 			"threshold": 2.0,
@@ -52,7 +53,10 @@
 			"window_size": 5,
 			"sigma": 1.5,
 			"lambda": 8000.0,
-			"filter": true
+			"filter": true,
+			"use_filter": false,
+			"filter_radius": 7,
+			"filter_iter": 3
 		},
 		"display": {
 			"flip_vert": false,
@@ -72,6 +76,7 @@
 	},
 	"reconstruction": {
 		"net": {
+			"listen": "tcp://*:9002",
 			"peers": ["tcp://localhost:9001"]
 		},
 		"sources": [{"type": "net", "uri": "ftl://utu.fi/dummy/rgb-d"}],
@@ -83,6 +88,40 @@
 			"left": false,
 			"right": false
 		},
+		"virtual": {
+			"hash_renderer": true,
+			"SDFRayIncrementFactor": 0.8,
+			"SDFTruncation": 0.1,
+			"SDFRayThresSampleDistFactor": 50.5,
+			"SDFRayThresDistFactor": 50.0,
+			"focal": 400,
+			"width": 640,
+			"height": 480,
+			"max_depth": 10.0,
+			"min_depth": 0.1,
+			"SDFUseGradients": false,
+			"uri": "ftl://utu.fi/virt1/rgb-d"
+		},
+		"voxelhash": {
+			"adapterWidth": 852,
+			"adapterHeight": 480,
+			"sensorDepthMax": 8.0,
+			"sensorDepthMin": 1.0,
+			"SDFRayIncrementFactor": 0.8,
+			"SDFRayThresSampleDistFactor": 50.5,
+			"SDFRayThresDistFactor": 50.0,
+			"SDFUseGradients": false,
+			"hashNumBuckets": 500000,
+			"hashMaxCollisionLinkedListSize": 7,
+			"hashNumSDFBlocks": 300000,
+			"SDFVoxelSize": 0.01,
+			"SDFMaxIntegrationDistance": 15.0,
+			"SDFTruncation": 0.1,
+			"SDFTruncationScale": 0.05,
+			"SDFIntegrationWeightSample": 10,
+			"SDFIntegrationWeightMax": 255,
+			"hash_renderer": true
+		},
 		"registration": {
 			"reference-source" : "ftl://utu.fi/dummy/rgb-d",
 			"calibration" : {
@@ -91,6 +130,12 @@
 				"delay" : 1000,
 				"patternsize" : [9, 6]
 				}
+		},
+		"gui": {
+			"net": {
+				"peers": ["tcp://localhost:9002"]
+			},
+			"sources": [{"type": "net", "uri": "ftl://utu.fi/virt1/rgb-d"}]
 		}
 	}
 }
