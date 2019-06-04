@@ -76,6 +76,7 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 	
 	disp_ = Disparity::create(this, "disparity");
     if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << *get<ftl::config::json_t>("disparity");
+	disp_->setMask(mask_l_);
 
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
@@ -114,7 +115,7 @@ void StereoVideoSource::grab() {
 	calib_->rectified(left_, right_);
 
 	cv::Mat disp;
-	disp_->compute(left_, right_, disp, mask_l_);
+	disp_->compute(left_, right_, disp);
 
 	unique_lock<mutex> lk(mutex_);
 	left_.copyTo(rgb_);
