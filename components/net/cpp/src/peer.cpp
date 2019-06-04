@@ -160,6 +160,7 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 				status_ = kConnected;
 				version_ = version;
 				peerid_ = pid;
+				if (version != ftl::net::kVersion) LOG(WARNING) << "Net protocol using different versions!";
 				
 				_trigger(open_handlers_);
 			}
@@ -212,6 +213,7 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 				status_ = kConnected;
 				version_ = version;
 				peerid_ = pid;
+				if (version != ftl::net::kVersion) LOG(WARNING) << "Net protocol using different versions!";
 				send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer);
 				
 				_trigger(open_handlers_);
