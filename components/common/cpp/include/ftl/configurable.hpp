@@ -15,6 +15,15 @@
 
 namespace ftl {
 
+class Configurable;
+
+namespace config {
+struct Event {
+	Configurable *entity;
+	std::string name;
+};
+}
+
 /**
  * The Configurable class should be inherited by any entity that is to be
  * configured using json objects. Additionally, any such object can then be
@@ -39,6 +48,9 @@ class Configurable {
 	 */
 	void required(const char *f, const std::vector<std::tuple<std::string, std::string, std::string>> &r);
 
+	/**
+	 * Return raw JSON entity for this Configurable.
+	 */
 	nlohmann::json &getConfig() { return config_; }
 
 	/**
@@ -69,17 +81,25 @@ class Configurable {
 	}
 
 	/**
+	 * Create or find existing configurable object of given type from the
+	 * given property name. Additional constructor arguments can also be
+	 * provided. Any kind of failure results in a nullptr being returned.
+	 */
+	template <typename T, typename... ARGS>
+	T *create(const std::string &name, ARGS ...args);
+
+	/**
 	 * Add callback for whenever a specified property changes value.
 	 * @param prop Name of property to watch
 	 * @param callback A function object that will be called on change.
 	 */
-	void on(const std::string &prop, std::function<void(Configurable*, const std::string&)>);
+	void on(const std::string &prop, std::function<void(const config::Event&)>);
 
 	protected:
 	nlohmann::json config_;
 
 	private:
-	std::map<std::string, std::list<std::function<void(Configurable*, const std::string&)>>> observers_; 
+	std::map<std::string, std::list<std::function<void(const config::Event&)>>> observers_; 
 
 	void _trigger(const std::string &name);
 
@@ -122,6 +142,11 @@ std::optional<T> ftl::Configurable::get(const std::string &name) {
 	} else {
 		return {};
 	}
+}
+
+template <typename T, typename... ARGS>
+T *ftl::Configurable::create(const std::string &name, ARGS ...args) {
+	return ftl::config::create<T>(this, name, args...);
 }
 
 #endif  // _FTL_CONFIGURABLE_HPP_

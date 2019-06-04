@@ -30,7 +30,7 @@ void Configurable::_trigger(const string &name) {
 	if (ix != observers_.end()) {
 		for (auto &f : (*ix).second) {
 			try {
-				f(this, name);
+				f({this, name});
 			} catch(...) {
 				LOG(ERROR) << "Exception in event handler for '" << name << "'";
 			}
@@ -38,7 +38,7 @@ void Configurable::_trigger(const string &name) {
 	}
 }
 
-void Configurable::on(const string &prop, function<void(Configurable*, const string&)> f) {
+void Configurable::on(const string &prop, function<void(const ftl::config::Event&)> f) {
 	auto ix = observers_.find(prop);
 	if (ix == observers_.end()) {
 		observers_[prop] = {f};
