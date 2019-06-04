@@ -24,14 +24,13 @@ class Disparity : public ftl::Configurable {
 	virtual void setMinDisparity(size_t min) { min_disp_ = min; }
 	virtual void setMaxDisparity(size_t max) { max_disp_ = max; }
 	
+	virtual void setMask(cv::Mat &mask) { mask_l_ = mask; }
+	
 	/**
 	 * Pure virtual function representing the actual computation of
 	 * disparity from left and right images to be implemented.
 	 */
 	virtual void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp)=0;
-	virtual void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp, const cv::Mat &mask_l) {
-		compute(l, r, disp);
-	}
 
 	/**
 	 * Factory registration class.
@@ -56,6 +55,7 @@ class Disparity : public ftl::Configurable {
 	//nlohmann::json &config_;
 	size_t min_disp_;
 	size_t max_disp_;
+	cv::Mat mask_l_;
 	
 	private:
 	static std::map<std::string,std::function<Disparity*(ftl::Configurable *, const std::string &)>> *algorithms__;

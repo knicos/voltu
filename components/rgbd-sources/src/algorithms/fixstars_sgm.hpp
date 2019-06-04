@@ -27,7 +27,7 @@ class FixstarsSGM : public ftl::Disparity {
 	explicit FixstarsSGM(nlohmann::json &config);
 
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) override;
-	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp, const cv::Mat &mask_l) override;
+	void setMask(cv::Mat &mask) override;
 	
 	/* Factory creator */
 	static inline Disparity *create(ftl::Configurable *p, const std::string &name) {
