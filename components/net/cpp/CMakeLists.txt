@@ -9,6 +9,7 @@ add_library(ftlnet
 	src/dispatcher.cpp
 	src/universe.cpp
 	src/ws_internal.cpp
+	src/slave.cpp
 )
 
 target_include_directories(ftlnet PUBLIC

@@ -24,6 +24,7 @@
 #include <ftl/display.hpp>
 #include <ftl/rgbd_streamer.hpp>
 #include <ftl/net/universe.hpp>
+#include <ftl/net/slave.hpp>
 #include <nlohmann/json.hpp>
 
 #include "opencv2/imgproc.hpp"
@@ -80,7 +81,7 @@ void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
-	LOG(INFO) << "Net started.";
+	ftl::net::Slave slave(net, root);
 
 	auto paths = root->get<vector<string>>("paths");
 	string file = "";
