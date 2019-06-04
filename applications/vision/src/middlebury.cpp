@@ -1,5 +1,5 @@
 #include <ftl/middlebury.hpp>
-#include <glog/logging.h>
+#include <loguru.hpp>
 #include <ftl/rgbd.hpp>
 
 #include <string>

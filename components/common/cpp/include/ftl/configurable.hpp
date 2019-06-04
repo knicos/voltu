@@ -2,7 +2,8 @@
 #ifndef _FTL_CONFIGURABLE_HPP_
 #define _FTL_CONFIGURABLE_HPP_
 
-#include <glog/logging.h>
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <tuple>

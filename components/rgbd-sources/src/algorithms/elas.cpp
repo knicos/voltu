@@ -1,7 +1,7 @@
 /* Copyright 2019 Nicolas Pope */
 
 #include <ftl/algorithms/elas.hpp>
-#include <glog/logging.h>
+#include <loguru.hpp>
 
 #include <chrono>
 

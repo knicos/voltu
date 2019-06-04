@@ -1,5 +1,5 @@
-#define GLOG_NO_ABBREVIATED_SEVERITIES
-#include <glog/logging.h>
+//#define GLOG_NO_ABBREVIATED_SEVERITIES
+#include <loguru.hpp>
 #include <ctpl_stl.h>
 
 #ifndef NOMINMAX

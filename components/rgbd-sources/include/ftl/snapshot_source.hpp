@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_SNAPSHOT_SOURCE_HPP_
 #define _FTL_RGBD_SNAPSHOT_SOURCE_HPP_
 
-#include <glog/logging.h>
+#include <loguru.hpp>
 
 #include "ftl/rgbd_source.hpp"
 #include "ftl/snapshot.hpp"

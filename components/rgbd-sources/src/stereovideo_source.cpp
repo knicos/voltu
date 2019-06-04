@@ -1,4 +1,4 @@
-#include <glog/logging.h>
+#include <loguru.hpp>
 #include <ftl/stereovideo_source.hpp>
 #include <ftl/configuration.hpp>
 #include "calibrate.hpp"

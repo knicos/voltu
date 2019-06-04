@@ -2,7 +2,7 @@
 #define _FTL_RGBD_STREAMER_HPP_
 
 #include <ctpl_stl.h>
-#include <glog/logging.h>
+#include <loguru.hpp>
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/rgbd_source.hpp>

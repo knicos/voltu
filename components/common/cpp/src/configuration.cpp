@@ -1,4 +1,5 @@
-#include <glog/logging.h>
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
 #include <ftl/config.h>
 
 #ifdef WIN32
@@ -7,6 +8,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
+
+#ifndef WIN32
+#include <signal.h>
 #endif
 
 #include <nlohmann/json.hpp>
@@ -378,9 +383,27 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 	}
 }
 
+static void signalIntHandler( int signum ) {
+   std::cout << "Closing...\n";
+
+   // cleanup and close up stuff here  
+   // terminate program  
+
+   exit(0);
+}
+
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
+	loguru::init(argc, argv, "--verbosity");
 	argc--;
 	argv++;
+
+	loguru::g_preamble_date = false;
+	loguru::g_preamble_uptime = false;
+	loguru::g_preamble_thread = false;
+
+#ifndef WIN32
+	signal(SIGINT,signalIntHandler);
+#endif  // WIN32
 
 	// Process Arguments
 	auto options = read_options(&argv, &argc);
