@@ -23,7 +23,7 @@ namespace ftl {
  * load any existing cached camera calibration unless explicitely told to
  * redo the calibration.
  */
-class Calibrate {
+class Calibrate : public ftl::Configurable {
 	public:
 	
 	// TODO(nick) replace or remove this class.
@@ -39,7 +39,7 @@ class Calibrate {
 		enum InputType { INVALID, CAMERA, VIDEO_FILE, IMAGE_LIST };
 
 		void write(cv::FileStorage& fs) const;
-		void read(const nlohmann::json& node);
+		void read(ftl::Configurable *node);
 		void validate();
 		//Mat nextImage();
 
@@ -83,7 +83,7 @@ class Calibrate {
 
 	};
 	public:
-	Calibrate(ftl::LocalSource *s, nlohmann::json &config);
+	Calibrate(nlohmann::json &config, ftl::LocalSource *s);
 	
 	/**
 	 * Perform a new camera calibration. Ignore and replace any existing

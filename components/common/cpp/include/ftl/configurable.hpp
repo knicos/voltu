@@ -27,27 +27,17 @@ namespace ftl {
  */
 class Configurable {
 	public:
-	Configurable() {}
+	Configurable();
 	explicit Configurable(nlohmann::json &config) : config_(config) {
 		if (config["uri"].is_string()) __changeURI(config["uri"].get<std::string>(), this);
 	}
+	virtual ~Configurable() {}
 
 	/**
 	 * Force the JSON object to have specific properties with a specific type.
 	 * If not, emit errors and terminate the application.
 	 */
-	void required(const char *f, const std::vector<std::tuple<std::string, std::string, std::string>> &r) {
-		bool diderror = false;
-		for (auto i : r) {
-			auto [name, desc, type] = i;
-			if (config_[name].type_name() != type) {
-				LOG(ERROR) << "Missing required option in \"" << f << "\": \"" << name << "\" - " << desc;
-				LOG(ERROR) << "    Got type " << config_[name].type_name() << " but expected " << type;
-				diderror = true;
-			}
-		}
-		if (diderror) LOG(FATAL) << "Cannot continue without required option";
-	}
+	void required(const char *f, const std::vector<std::tuple<std::string, std::string, std::string>> &r);
 
 	nlohmann::json &getConfig() { return config_; }
 
@@ -57,12 +47,15 @@ class Configurable {
 	 * the requested type.
 	 */
 	template <typename T>
-	std::optional<T> get(const std::string &name) {
-		try {
-			return config_[name].get<T>();
-		} catch (...) {
-			return {};
-		}
+	std::optional<T> get(const std::string &name);
+
+	/**
+	 * Get a configuration property, but return a default if not found.
+	 */
+	template <typename T>
+	T value(const std::string &name, T def) {
+		auto r = get<T>(name);
+		return (r) ? *r : def;
 	}
 
 	/**
@@ -100,6 +93,35 @@ void Configurable::set<const std::string&>(const std::string &name, const std::s
 	_trigger(name);
 }*/
 
+}
+
+#include <ftl/configuration.hpp>
+
+template <typename T>
+std::optional<T> ftl::Configurable::get(const std::string &name) {
+	if (!config_[name].is_null()) {
+		try {
+			return config_[name].get<T>();
+		} catch (...) {
+			return {};
+		}
+	} else if (config_["$ref"].is_string()) {
+		// TODO(Nick) Add # if missing
+		// TODO(Nick) Cache result of ref loopkup
+		std::string res_uri = config_["$ref"].get<std::string>()+"/"+name;
+		auto &r = ftl::config::resolve(res_uri);
+
+		LOG(INFO) << "GET Resolve: " << res_uri << " = " << r;
+
+		try {
+			return r.get<T>();
+		} catch (...) {
+			LOG(ERROR) << "Missing: " << config_["$id"].get<std::string>()+"/"+name;
+			return {};
+		}
+	} else {
+		return {};
+	}
 }
 
 #endif  // _FTL_CONFIGURABLE_HPP_

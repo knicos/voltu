@@ -5,25 +5,34 @@
 #include "disparity.hpp"
 #include <glog/logging.h>
 #include <ftl/config.h>
+#include <ftl/configuration.hpp>
 
 using ftl::Disparity;
 
-std::map<std::string, std::function<Disparity*(nlohmann::json&)>>
+std::map<std::string, std::function<Disparity*(ftl::Configurable *, const std::string &)>>
 		*Disparity::algorithms__ = nullptr;
 
 Disparity::Disparity(nlohmann::json &config)
-	: 	config_(config),
-		min_disp_(config["minimum"]),
-		max_disp_(config["maximum"]) {}
+	: 	ftl::Configurable(config),
+		min_disp_(value("minimum",0)),
+		max_disp_(value("maximum", 256)) {}
 
-Disparity *Disparity::create(nlohmann::json &config) {
-	if (algorithms__->count(config["algorithm"]) != 1) return nullptr;
-	return (*algorithms__)[config["algorithm"]](config);
+Disparity *Disparity::create(ftl::Configurable *parent, const std::string &name) {
+	nlohmann::json &config = ftl::config::resolve(parent->getConfig()[name]);
+
+	//auto alg = parent->get<std::string>("algorithm");
+	if (!config["algorithm"].is_string()) {
+		return nullptr;
+	}
+	std::string alg = config["algorithm"].get<std::string>();
+
+	if (algorithms__->count(alg) != 1) return nullptr;
+	return (*algorithms__)[alg](parent, name);
 }
 
 void Disparity::_register(const std::string &n,
-		std::function<Disparity*(nlohmann::json&)> f) {
-	if (!algorithms__) algorithms__ = new std::map<std::string, std::function<Disparity*(nlohmann::json&)>>;
+		std::function<Disparity*(ftl::Configurable *, const std::string &)> f) {
+	if (!algorithms__) algorithms__ = new std::map<std::string, std::function<Disparity*(ftl::Configurable *, const std::string &)>>;
 	LOG(INFO) << "Register disparity algorithm: " << n;
 	(*algorithms__)[n] = f;
 }

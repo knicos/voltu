@@ -21,6 +21,7 @@ URI::URI(const URI &c) {
     m_pathseg = c.m_pathseg;
     m_qmap = c.m_qmap;
     m_base = c.m_base;
+	m_frag = c.m_frag;
 }
 
 void URI::_parse(uri_t puri) {
@@ -39,6 +40,7 @@ void URI::_parse(uri_t puri) {
         m_port = -1;
         m_proto = SCHEME_NONE;
         m_path = "";
+		m_frag = "";
     } else {
         m_host = std::string(uri.hostText.first, uri.hostText.afterLast - uri.hostText.first);
         
@@ -50,6 +52,7 @@ void URI::_parse(uri_t puri) {
         else if (prototext == "ws") m_proto = SCHEME_WS;
         else if (prototext == "ipc") m_proto = SCHEME_IPC;
         else m_proto = SCHEME_OTHER;
+        m_protostr = prototext;
 
         std::string porttext = std::string(uri.portText.first, uri.portText.afterLast - uri.portText.first);
         m_port = atoi(porttext.c_str());
@@ -83,10 +86,16 @@ void URI::_parse(uri_t puri) {
 
         uriFreeUriMembersA(&uri);
 
+		auto fraglast = (uri.query.first != NULL) ? uri.query.first : uri.fragment.afterLast;
+		if (uri.fragment.first != NULL && fraglast - uri.fragment.first > 0) {
+			m_frag = std::string(uri.fragment.first, fraglast - uri.fragment.first);
+		}
+
         m_valid = m_proto != SCHEME_NONE && m_host.size() > 0;
 
         if (m_valid) {
             if (m_qmap.size() > 0) m_base = std::string(uri.scheme.first, uri.query.first - uri.scheme.first - 1);
+			else if (uri.fragment.first != NULL) m_base = std::string(uri.scheme.first, uri.fragment.first - uri.scheme.first - 1);
             else m_base = std::string(uri.scheme.first);
         }
     }
@@ -94,6 +103,34 @@ void URI::_parse(uri_t puri) {
 
 string URI::to_string() const {
     return (m_qmap.size() > 0) ? m_base + "?" + getQuery() : m_base;
+}
+
+string URI::getPathSegment(int n) const {
+	int N = (n < 0) ? m_pathseg.size()+n : n;
+	if (N < 0 || N >= m_pathseg.size()) return "";
+	else return m_pathseg[N];
+}
+
+string URI::getBaseURI(int n) {
+    if (n >= (int)m_pathseg.size()) return m_base;
+    if (n >= 0) {
+        string r = m_protostr + string("://") + m_host + ((m_port != 0) ? string(":") + std::to_string(m_port) : "");
+        for (int i=0; i<n; i++) {
+			r += "/";
+            r += getPathSegment(i);
+        }
+
+        return r;
+    } else if (m_pathseg.size()+n >= 0) {
+        string r = m_protostr + string("://") + m_host + ((m_port != 0) ? string(":") + std::to_string(m_port) : "");
+        int N = m_pathseg.size()+n;
+        for (int i=0; i<N; i++) {
+			r += "/";
+            r += getPathSegment(i);
+        }
+
+        return r;
+    } else return "";
 }
 
 string URI::getQuery() const {

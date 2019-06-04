@@ -75,22 +75,22 @@ void Calibrate::Settings::write(FileStorage& fs) const {
 		<< "}";
 }
 
-void Calibrate::Settings::read(const nlohmann::json& node) {
-    boardSize.width = node["board_size"][0];
-    boardSize.height = node["board_size"][1];
-    squareSize = node["square_size"];
-    nrFrames = node["num_frames"];
-    aspectRatio = node["fix_aspect_ratio"];
-    calibZeroTangentDist = node["assume_zero_tangential_distortion"];
-    calibFixPrincipalPoint = node["fix_principal_point_at_center"];
-    useFisheye =  node["use_fisheye_model"];
-    flipVertical = node["flip_vertical"];
-    delay = node["frame_delay"];
-    fixK1 = node["fix_k1"];
-    fixK2 = node["fix_k2"];
-    fixK3 = node["fix_k3"];
-    fixK4 = node["fix_k4"];
-    fixK5 = node["fix_k5"];
+void Calibrate::Settings::read(ftl::Configurable *node) {
+    boardSize.width = node->value<vector<int>>("board_size", {10,10})[0];
+    boardSize.height = node->value<vector<int>>("board_size", {10,10})[1];
+    squareSize = node->value("square_size", 50);
+    nrFrames = node->value("num_frames", 20);
+    aspectRatio = node->value("fix_aspect_ratio", false);
+    calibZeroTangentDist = node->value("assume_zero_tangential_distortion", false);
+    calibFixPrincipalPoint = node->value("fix_principal_point_at_center", false);
+    useFisheye =  node->value("use_fisheye_model", false);
+    flipVertical = node->value("flip_vertical", false);
+    delay = node->value("frame_delay", 1.0f);
+    fixK1 = node->value("fix_k1", false);
+    fixK2 = node->value("fix_k2", false);
+    fixK3 = node->value("fix_k3", false);
+    fixK4 = node->value("fix_k4", true);
+    fixK5 = node->value("fix_k5", true);
 
     validate();
 }
@@ -181,7 +181,7 @@ bool runCalibration(const Calibrate::Settings& s, Size imageSize,
 		bool release_object);
 
 
-Calibrate::Calibrate(ftl::LocalSource *s, nlohmann::json &config) : local_(s) {
+Calibrate::Calibrate(nlohmann::json &config, ftl::LocalSource *s) : ftl::Configurable(config), local_(s) {
     /*FileStorage fs(cal, FileStorage::READ); // Read the settings
     if (!fs.isOpened())
     {
@@ -189,7 +189,7 @@ Calibrate::Calibrate(ftl::LocalSource *s, nlohmann::json &config) : local_(s) {
         return;
     }*/
     // fs["Settings"] >> settings_;
-    settings_.read(config);
+    settings_.read(this);
     // fs.release();
 
     if (!settings_.goodInput) {

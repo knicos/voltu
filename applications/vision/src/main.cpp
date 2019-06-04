@@ -50,7 +50,6 @@ using std::mutex;
 using std::unique_lock;
 using cv::Mat;
 using json = nlohmann::json;
-using ftl::config;
 
 namespace ftl {
 void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q) {
@@ -78,44 +77,51 @@ void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q
 };
 
 
-static void run(const string &file) {
-	ctpl::thread_pool pool(2);
-	Universe net(config["net"]);
+static void run(ftl::Configurable *root) {
+	Universe *net = ftl::create<Universe>(root, "net");
 	LOG(INFO) << "Net started.";
 
-	StereoVideoSource *source = nullptr;
-	source = new StereoVideoSource(config, file);
-	
-	Display display(config["display"], "local");
-	
-	Streamer stream(config["stream"], &net);
-	stream.add(source);
-	stream.run();
+	auto paths = root->get<vector<string>>("paths");
+	string file = "";
+	if (paths && (*paths).size() > 0) file = (*paths)[0];
 
-	while (display.active()) {
+	StereoVideoSource *source = nullptr;
+	source = ftl::create<StereoVideoSource>(root, "source", file);
+	
+	Display *display = ftl::create<Display>(root, "display", "local");
+	
+	Streamer *stream = ftl::create<Streamer>(root, "stream", net);
+	stream->add(source);
+	stream->run();
+
+	while (display->active()) {
 		cv::Mat rgb, depth;
 		source->getRGBD(rgb, depth);
-		if (!rgb.empty()) display.render(rgb, depth, source->getParameters());
-		display.wait(10);
+		if (!rgb.empty()) display->render(rgb, depth, source->getParameters());
+		display->wait(10);
 	}
 
-	stream.stop();
+	stream->stop();
 
 	LOG(INFO) << "Finished.";
+	delete stream;
+	delete display;
+	delete source;
+	delete net;
 }
 
 int main(int argc, char **argv) {
 	std::cout << "FTL Vision Node " << FTL_VERSION_LONG << std::endl;
-	auto paths = ftl::configure(argc, argv, "vision");
+	auto root = ftl::configure(argc, argv, "vision_default");
 	
-	config["paths"] = paths;
+	//config["ftl://vision/default"]["paths"] = paths;
 
 	// Choose normal or middlebury modes
-	if (config["middlebury"]["dataset"] == "") {
+	//if (config["middlebury"]["dataset"] == "") {
 		std::cout << "Loading..." << std::endl;
-		run((paths.size() > 0) ? paths[0] : "");
-	} else {
-		ftl::middlebury::test(config);
-	}
+		run(root);
+	//} else {
+	//	ftl::middlebury::test(config);
+	//}
 }
 

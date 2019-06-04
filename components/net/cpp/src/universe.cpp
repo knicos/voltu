@@ -21,6 +21,7 @@ using ftl::UUID;
 using std::optional;
 using std::unique_lock;
 using std::mutex;
+using ftl::config::json_t;
 
 Universe::Universe() : Configurable(), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this) {
 	_installBindings();
@@ -28,17 +29,21 @@ Universe::Universe() : Configurable(), active_(true), this_peer(ftl::net::this_p
 
 Universe::Universe(nlohmann::json &config) :
 		Configurable(config), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this) {
-	if (config["listen"].is_array()) {
-		for (auto &l : config["listen"]) {
-			listen(l);
+
+	auto l = get<json_t>("listen");
+
+	if (l && (*l).is_array()) {
+		for (auto &ll : *l) {
+			listen(ll);
 		}
-	} else if (config["listen"].is_string()) {
-		listen(config["listen"]);
+	} else if (l && (*l).is_string()) {
+		listen((*l).get<string>());
 	}
 	
-	if (config["peers"].is_array()) {
-		for (auto &p : config["peers"]) {
-			connect(p);
+	auto p = get<json_t>("peers");
+	if (p && (*p).is_array()) {
+		for (auto &pp : *p) {
+			connect(pp);
 		}
 	}
 	

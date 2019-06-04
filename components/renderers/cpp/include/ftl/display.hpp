@@ -6,6 +6,7 @@
 #define _FTL_DISPLAY_HPP_
 
 #include <ftl/config.h>
+#include <ftl/configurable.hpp>
 #include "../../../rgbd-sources/include/ftl/camera_params.hpp"
 
 #include <nlohmann/json.hpp>
@@ -22,7 +23,7 @@ namespace ftl {
 /**
  * Multiple local display options for disparity or point clouds.
  */
-class Display {
+class Display : public ftl::Configurable {
 	private:
 		std::string name_;
 	public:
@@ -48,8 +49,6 @@ class Display {
 	void onKey(std::function<void(int)> h) { key_handlers_.push_back(h); }
 
 	private:
-	nlohmann::json config_;
-
 #if defined HAVE_VIZ
 	cv::viz::Viz3d *window_;
 #endif  // HAVE_VIZ

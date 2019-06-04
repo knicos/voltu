@@ -81,6 +81,8 @@ void Streamer::add(RGBDSource *src) {
 	s->src = src;
 	s->state = 0;
 	sources_[src->getURI()] = s;
+
+	LOG(INFO) << "Streaming: " << src->getURI();
 }
 
 void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID &peer, const string &dest) {

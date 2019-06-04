@@ -1,0 +1,11 @@
+{
+	"$id": "ftl://utu.fi/node1",
+	"$schema": "http://json-schema.org/draft-07/schema",
+	"title": "Node 1",
+	"description": "Dev lab camera node 1",
+	"net": {
+		"peers": [],
+		"listen": ["tcp://*:9001"]
+	},
+	"sources": { "$ref": "ftl://utu.fi/dev_lab#sources" }
+}
