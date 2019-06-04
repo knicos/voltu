@@ -3,7 +3,8 @@
 #include <ftl/scene_rep_hash_sdf.hpp>
 #include <ftl/ray_cast_sdf.hpp>
 
-#include <glog/logging.h>
+#define LOGURU_WITH_STREAMS 1
+#include <loguru.hpp>
 
 using ftl::rgbd::VirtualSource;
 using std::mutex;

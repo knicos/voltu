@@ -2,7 +2,7 @@
  * Copyright 2019 Nicolas Pope
  */
 
-#include <glog/logging.h>
+#include <loguru.hpp>
 
 #include <ftl/display.hpp>
 #include <ftl/utility/opencv_to_pcl.hpp>

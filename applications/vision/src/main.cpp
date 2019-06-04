@@ -4,7 +4,8 @@
  * See LICENSE.
  */
 
-#include <glog/logging.h>
+#define LOGURU_WITH_STREAMS 1
+#include <loguru.hpp>
 #include <ftl/configuration.hpp>
 #include <ctpl_stl.h>
 // #include <zlib.h>

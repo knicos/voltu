@@ -3,6 +3,7 @@ set(COMMONSRC
 	src/uri.cpp
 	src/configuration.cpp
 	src/configurable.cpp
+	src/loguru.cpp
 	src/opencv_to_pcl.cpp
 )
 
@@ -17,7 +18,7 @@ target_include_directories(ftlcommon PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlcommon glog::glog ${OpenCV_LIBS} ${PCL_LIBRARIES} ${URIPARSER_LIBRARIES})
+target_link_libraries(ftlcommon Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${PCL_LIBRARIES} ${URIPARSER_LIBRARIES})
 
 add_subdirectory(test)
 

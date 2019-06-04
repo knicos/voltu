@@ -12,8 +12,8 @@
 #include <winsock2.h>
 #endif
 
-#define GLOG_NO_ABBREVIATED_SEVERITIES
-#include <glog/logging.h>
+//#define GLOG_NO_ABBREVIATED_SEVERITIES
+#include <loguru.hpp>
 #include <ftl/net/protocol.hpp>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/uri.hpp>

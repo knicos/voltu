@@ -2,6 +2,8 @@
 #ifndef _FTL_COMMON_CONFIGURATION_HPP_
 #define _FTL_COMMON_CONFIGURATION_HPP_
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
 #include <nlohmann/json.hpp>
 //#include <ftl/configurable.hpp>
 #include <string>

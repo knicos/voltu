@@ -2,7 +2,7 @@
  * Copyright 2019 Nicolas Pope
  */
 
-#include <glog/logging.h>
+#include <loguru.hpp>
 
 #include <string>
 #include <chrono>

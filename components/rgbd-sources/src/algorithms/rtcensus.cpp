@@ -14,7 +14,7 @@
  * Equation numbering uses [1] unless otherwise stated
  */
 
-#include <glog/logging.h>
+#include <loguru.hpp>
 #include <cmath>
 
 #include <vector>

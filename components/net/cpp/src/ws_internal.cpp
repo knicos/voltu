@@ -2,8 +2,8 @@
  * Copyright 2019 Nicolas Pope.
  */
 
-#define GLOG_NO_ABBREVIATED_SEVERITIES
-#include <glog/logging.h>
+//#define GLOG_NO_ABBREVIATED_SEVERITIES
+#include <loguru.hpp>
 
 #include <cstring>
 #include <ftl/net/ws_internal.hpp>

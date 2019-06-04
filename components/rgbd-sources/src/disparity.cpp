@@ -3,7 +3,7 @@
  */
 
 #include "disparity.hpp"
-#include <glog/logging.h>
+#include <loguru.hpp>
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
 

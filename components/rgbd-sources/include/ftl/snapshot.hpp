@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_SNAPSHOT_HPP_
 #define _FTL_RGBD_SNAPSHOT_HPP_
 
-#include <glog/logging.h>
+#include <loguru.hpp>
 
 #include <opencv2/opencv.hpp>
 

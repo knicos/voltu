@@ -2,7 +2,8 @@
 
 #ifdef HAVE_PCL
 
-#include <glog/logging.h>
+#define LOGURU_WITH_STREAMS 1
+#include <loguru.hpp>
 #include <pcl/common/transforms.h>
 
 #include <pcl/registration/transformation_estimation_svd.h>
@@ -66,7 +67,7 @@ float fitPlaneError(PointCloud<PointXYZ>::Ptr cloud_in, float distance_threshold
 	proj.setModelCoefficients(coefficients);
 	proj.filter(cloud_proj); 
 	
-	LOG_ASSERT(cloud_in->size() == cloud_proj.size());
+	CHECK(cloud_in->size() == cloud_proj.size());
 	
 	// todo: which error score is suitable? (using MSE)
 	float score = 0.0;

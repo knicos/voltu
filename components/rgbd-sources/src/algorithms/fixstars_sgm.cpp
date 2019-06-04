@@ -1,7 +1,7 @@
 /* Copyright 2019 Nicolas Pope */
 
 #include "fixstars_sgm.hpp"
-#include <glog/logging.h>
+#include <loguru.hpp>
 #include <opencv2/cudastereo.hpp>
 
 using ftl::algorithms::FixstarsSGM;
@@ -59,7 +59,7 @@ void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 }
 
 void FixstarsSGM::setMask(Mat &mask) {
-	LOG_ASSERT(mask.type() == CV_8UC1) << "mask type must be CV_8U";
+	CHECK(mask.type() == CV_8UC1) << "mask type must be CV_8U";
 	
 	if (!ssgm_) { // todo: move to constructor
 		ssgm_ = new sgm::StereoSGM(mask.cols, mask.rows, max_disp_, 8, 16,

@@ -18,7 +18,7 @@
 #include <tuple>
 #include <bitset>
 #include <cmath>
-#include <glog/logging.h>
+#include <loguru.hpp>
 
 using ftl::algorithms::RTCensusSGM;
 using std::vector;
