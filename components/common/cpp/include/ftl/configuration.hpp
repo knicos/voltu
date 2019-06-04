@@ -103,12 +103,18 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 
 template <typename T, typename... ARGS>
 T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
-    nlohmann::json &entity = ftl::config::resolve(parent->getConfig()[name]);
+    //nlohmann::json &entity = ftl::config::resolve(parent->getConfig()[name]);
+    nlohmann::json &entity = (parent->getConfig()[name].is_structured()) ? parent->getConfig()[name] : ftl::config::resolve(parent->getConfig())[name];
 
     if (entity.is_object()) {
         if (!entity["$id"].is_string()) {
 			// TODO(Nick) Check for # in URI
-            entity["$id"] = *parent->get<std::string>("$id") + std::string("/") + name;
+            std::string id_str = *parent->get<std::string>("$id");
+            if (id_str.find('#') != std::string::npos) {
+                entity["$id"] = id_str + std::string("/") + name;
+            } else {
+                entity["$id"] = id_str + std::string("#") + name;
+            }
         }
     } /*else {
 		nlohmann::json &res = resolve(entity);

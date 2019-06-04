@@ -192,7 +192,12 @@ json_t &ftl::config::resolve(const std::string &puri) {
 
 	// TODO(Nick) Must support alternative root (last $id)
 	if (uri_str.at(0) == '#') {
-		uri_str = config["$id"].get<string>() + uri_str;
+		string id_str = config["$id"].get<string>();
+		if (id_str.find('#') != string::npos) {
+			uri_str[0] = '/';
+		} // else {
+			uri_str = id_str + uri_str;
+		//}
 	}
 
 	ftl::URI uri(uri_str);
@@ -355,15 +360,18 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 		}
 
 		try {
-			auto ptr = nlohmann::json::json_pointer("/"+opt.first);
-			// TODO(nick) Allow strings without quotes
+			//auto ptr = nlohmann::json::json_pointer("/"+opt.first);
+			auto ptr = ftl::config::resolve(*root->get<string>("$id") + string("/") + opt.first);
+
+			LOG(INFO) << "PARAM RES TO " << (*root->get<string>("$id") + string("/") + opt.first);
+
 			auto v = nlohmann::json::parse(opt.second);
-			std::string type = root->getConfig().at(ptr).type_name();
+			std::string type = ptr.type_name();
 			if (type != "null" && v.type_name() != type) {
 				LOG(ERROR) << "Incorrect type for argument " << opt.first << " - expected '" << type << "', got '" << v.type_name() << "'";
 				continue;
 			}
-			root->getConfig().at(ptr) = v;
+			ptr.update(v);
 		} catch(...) {
 			LOG(ERROR) << "Unrecognised option: " << *root->get<string>("$id") << "#" << opt.first;
 		}
