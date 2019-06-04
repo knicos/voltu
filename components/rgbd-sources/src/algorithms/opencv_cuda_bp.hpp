@@ -9,6 +9,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/cudastereo.hpp>
 #include "../disparity.hpp"
+#include <ftl/configuration.hpp>
 
 namespace ftl {
 namespace algorithms {
@@ -22,8 +23,8 @@ class OpenCVCudaBP : public ftl::Disparity {
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create(nlohmann::json &config) {
-		return new OpenCVCudaBP(config);
+	static inline Disparity *create(ftl::Configurable *p, const std::string &name) {
+		return ftl::create<OpenCVCudaBP>(p, name);
 	}
 	
 	private:

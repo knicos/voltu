@@ -5,6 +5,25 @@ using std::string;
 using std::map;
 using std::list;
 using std::function;
+using ftl::config::json_t;
+
+extern nlohmann::json null_json;
+
+Configurable::Configurable() : config_(null_json) {}
+
+void Configurable::required(const char *f, const std::vector<std::tuple<std::string, std::string, std::string>> &r) {
+	bool diderror = false;
+	for (auto i : r) {
+		auto [name, desc, type] = i;
+		auto ent = get<json_t>(name);
+		if (!ent || (*ent).type_name() != type) {
+			LOG(ERROR) << "Missing required option in \"" << f << "\": \"" << name << "\" - " << desc;
+			//LOG(ERROR) << "    Got type " << (*ent).type_name() << " but expected " << type;
+			diderror = true;
+		}
+	}
+	if (diderror) LOG(FATAL) << "Cannot continue without required option";
+}
 
 void Configurable::_trigger(const string &name) {
 	auto ix = observers_.find(name);

@@ -22,29 +22,34 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 		: RGBDSource(config), ready_(false) {
 
 	REQUIRED({
-		{"source","Details on source video [object]","object"}
+		{"feed","Details on source video [object]","object"}
 	});
 	
 	if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";
-		lsrc_ = new LocalSource(file, config["source"]);
+		//lsrc_ = new LocalSource(file, config["source"]);
+		lsrc_ = ftl::create<LocalSource>(this, "feed", file);
 	} else if (file != "") {
 		auto vid = ftl::locateFile("video.mp4");
 		if (!vid) {
-			LOG(FATAL) << "No video.mp4 file found in provided paths";
+			LOG(FATAL) << "No video.mp4 file found in provided paths (" << file << ")";
 		} else {
 			LOG(INFO) << "Using test directory...";
-			lsrc_ = new LocalSource(*vid, config["source"]);
+			//lsrc_ = new LocalSource(*vid, config["source"]);
+			lsrc_ = ftl::create<LocalSource>(this, "feed", *vid);
 		}
 	} else {
 		// Use cameras
 		LOG(INFO) << "Using cameras...";
-		lsrc_ = new LocalSource(config["source"]);
+		//lsrc_ = new LocalSource(config["source"]);
+		lsrc_ = ftl::create<LocalSource>(this, "feed");
 	}
 
-	calib_ = new Calibrate(lsrc_, config["calibration"]);
-	if (config["calibrate"]) calib_->recalibrate();
+	//calib_ = new Calibrate(lsrc_, ftl::resolve(config["calibration"]));
+	calib_ = ftl::create<Calibrate>(this, "calibration", lsrc_);
+
+	if (value("calibrate", false)) calib_->recalibrate();
 	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 	else LOG(INFO) << "Calibration initiated.";
 
@@ -69,7 +74,7 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 	calib_->rectifyStereo(mask_l, mask_r);
 	mask_l_ = (mask_l == 0);
 	
-	disp_ = Disparity::create(config["disparity"]);
+	disp_ = Disparity::create(this, "disparity");
     if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << config["disparity"];
 
 	LOG(INFO) << "StereoVideo source ready...";

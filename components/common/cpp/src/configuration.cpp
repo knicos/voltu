@@ -11,13 +11,15 @@
 
 #include <nlohmann/json.hpp>
 #include <ftl/configuration.hpp>
+#include <ftl/configurable.hpp>
+#include <ftl/uri.hpp>
 
 #include <fstream>
 #include <string>
 #include <map>
 #include <iostream>
 
-using nlohmann::json;
+using ftl::config::json_t;
 using std::ifstream;
 using std::string;
 using std::map;
@@ -25,13 +27,20 @@ using std::vector;
 using std::optional;
 using ftl::is_file;
 using ftl::is_directory;
+using ftl::Configurable;
 
 // Store loaded configuration
 namespace ftl {
-json config;
+namespace config {
+json_t config;
+//json_t root_config;
+};
 };
 
-using ftl::config;
+using ftl::config::config;
+//using ftl::config::root_config;
+
+static Configurable *rootCFG = nullptr;
 
 bool ftl::is_directory(const std::string &path) {
 #ifdef WIN32
@@ -85,11 +94,14 @@ bool ftl::create_directory(const std::string &path) {
 #endif
 }
 
-optional<string> ftl::locateFile(const string &name) {
-	auto paths = config["paths"];
+optional<string> ftl::config::locateFile(const string &name) {
+	if (is_file(name)) return name;
+
+	auto paths = rootCFG->getConfig()["paths"];
 	
-	if (!paths.is_null()) {
-		for (string p : paths) {
+	if (paths.is_array()) {
+		vector<string> vpaths = paths.get<vector<string>>();
+		for (string p : vpaths) {
 			if (is_directory(p)) {
 				if (is_file(p+"/"+name)) {
 					return p+"/"+name;
@@ -116,11 +128,11 @@ static bool mergeConfig(const string path) {
 	//i.open(path);
 	if (i.is_open()) {
 		try {
-			json t;
+			nlohmann::json t;
 			i >> t;
 			config.merge_patch(t);
 			return true;
-		} catch (json::parse_error& e) {
+		} catch (nlohmann::json::parse_error& e) {
 			LOG(ERROR) << "Parse error in loading config: "  << e.what();
 			return false;
 		} catch (...) {
@@ -131,11 +143,128 @@ static bool mergeConfig(const string path) {
 	}
 }
 
+static std::map<std::string, json_t*> config_index;
+static std::map<std::string, ftl::Configurable*> config_instance;
+
+/*
+ * Recursively URI index the JSON structure.
+ */
+static void _indexConfig(json_t &cfg) {
+	if (cfg.is_object()) {
+		auto id = cfg["$id"];
+		if (id.is_string()) {
+			LOG(INFO) << "Indexing: " << id.get<string>();
+			config_index[id.get<string>()] = &cfg;
+		}
+
+		for (auto i : cfg.items()) {
+			if (i.value().is_structured()) {
+				_indexConfig(cfg[i.key()]);
+			}
+		}
+	} // TODO(Nick) Arrays....
+}
+
+ftl::Configurable *ftl::config::find(const std::string &uri) {
+	auto ix = config_instance.find(uri);
+	if (ix == config_instance.end()) return nullptr;
+	else return (*ix).second;
+}
+
+void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
+	auto uri = cfg->get<string>("$id");
+	if (!uri) {
+		LOG(FATAL) << "Configurable object is missing $id property";
+		return;
+	}
+	auto ix = config_instance.find(*uri);
+	if (ix == config_instance.end()) {
+		LOG(FATAL) << "Attempting to create a duplicate object: " << *uri;
+	} else {
+		config_instance[*uri] = cfg;
+	}
+}
+
+json_t null_json;
+
+json_t &ftl::config::resolve(const std::string &puri) {
+	string uri_str = puri;
+
+	// TODO(Nick) Must support alternative root (last $id)
+	if (uri_str.at(0) == '#') {
+		uri_str = config["$id"].get<string>() + uri_str;
+	}
+
+	ftl::URI uri(uri_str);
+	if (uri.isValid()) {
+		std::string u = uri.getBaseURI();
+		LOG(INFO) << "Resolve URI: " << u;
+		auto ix = config_index.find(u);
+		if (ix == config_index.end()) {
+			LOG(FATAL) << "Cannot find resource: " << u;
+		}
+
+		auto ptr = nlohmann::json::json_pointer("/"+uri.getFragment());
+		try {
+			return resolve((*ix).second->at(ptr));
+		} catch(...) {
+			return null_json;
+		}
+	//}
+/*
+
+		int n = 0;
+		while (u.size() != 0) {
+			LOG(INFO) << "Resolve URI: " << u;
+			auto ix = config_index.find(u);
+			if (ix == config_index.end()) {
+				u = uri.getBaseURI(--n);
+				continue;
+			}
+			//LOG(INFO) << "FOUND URI " << *(*ix).second;
+
+			if (n == 0) {
+				return *(*ix).second;
+			} else {
+				// Must apply path segments again...
+				nlohmann::json *c = (*ix).second;
+				while (n < 0) {
+					auto seg = uri.getPathSegment(n++);
+					c = &(*c)[seg];
+					
+					// Recursive resolve...
+					if ((*c).is_string()) {
+						c = &resolve(*c);
+					}
+				}
+
+				// Give it the correct URI
+				if (!(*c)["$id"].is_string()) {
+					(*c)["$id"] = uri.getBaseURI();
+				}
+
+				return *c;
+			}
+		}
+		LOG(FATAL) << "Unresolvable configuration URI: " << uri.getBaseURI();
+		return null_json;*/
+	} else {
+		return null_json;
+	}
+}
+
+json_t &ftl::config::resolve(json_t &j) {
+	if (j.is_object() && j["$ref"].is_string()) {
+		return resolve(j["$ref"].get<string>());
+	} else {
+		return j;
+	}
+}
+
 /**
  * Find and load a JSON configuration file
  */
-static bool findConfiguration(const string &file, const vector<string> &paths,
-		const std::string &app) {
+static bool findConfiguration(const string &file, const vector<string> &paths) {
 	bool f = false;
 	bool found = false;
 	
@@ -169,7 +298,7 @@ static bool findConfiguration(const string &file, const vector<string> &paths,
 	}
 
 	if (found) {
-		config = config[app];
+		_indexConfig(config);
 		return true;
 	} else {
 		return false;
@@ -214,9 +343,10 @@ static map<string, string> read_options(char ***argv, int *argc) {
  * Put command line options into json config. If config element does not exist
  * or is of a different type then report an error.
  */
-static void process_options(const map<string, string> &opts) {
+static void process_options(Configurable *root, const map<string, string> &opts) {
 	for (auto opt : opts) {
 		if (opt.first == "config") continue;
+		if (opt.first == "root") continue;
 
 		if (opt.first == "version") {
 			std::cout << "Future-Tech Lab - v" << FTL_VERSION << std::endl;
@@ -225,21 +355,22 @@ static void process_options(const map<string, string> &opts) {
 		}
 
 		try {
-			auto ptr = json::json_pointer("/"+opt.first);
+			auto ptr = nlohmann::json::json_pointer("/"+opt.first);
 			// TODO(nick) Allow strings without quotes
-			auto v = json::parse(opt.second);
-			if (v.type() != config.at(ptr).type()) {
-				LOG(ERROR) << "Incorrect type for argument " << opt.first;
+			auto v = nlohmann::json::parse(opt.second);
+			std::string type = root->getConfig().at(ptr).type_name();
+			if (type != "null" && v.type_name() != type) {
+				LOG(ERROR) << "Incorrect type for argument " << opt.first << " - expected '" << type << "', got '" << v.type_name() << "'";
 				continue;
 			}
-			config.at(ptr) = v;
+			root->getConfig().at(ptr) = v;
 		} catch(...) {
-			LOG(ERROR) << "Unrecognised option: " << opt.first;
+			LOG(ERROR) << "Unrecognised option: " << *root->get<string>("$id") << "#" << opt.first;
 		}
 	}
 }
 
-vector<string> ftl::configure(int argc, char **argv, const std::string &app) {
+Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
 	argc--;
 	argv++;
 
@@ -251,11 +382,22 @@ vector<string> ftl::configure(int argc, char **argv, const std::string &app) {
 		paths.push_back(argv[0]);
 	}
 	
-	if (!findConfiguration(options["config"], paths, app)) {
+	if (!findConfiguration(options["config"], paths)) {
 		LOG(FATAL) << "Could not find any configuration!";
 	}
-	process_options(options);
 
-	return paths;
+	string root_str = (options.find("root") != options.end()) ? nlohmann::json::parse(options["root"]).get<string>() : root;
+
+	Configurable *rootcfg = create<Configurable>(config);
+	if (root_str.size() > 0) {
+		LOG(INFO) << "Setting root to " << root_str;
+		rootcfg = create<Configurable>(rootcfg, root_str);
+	}
+
+	//root_config = rootcfg->getConfig();
+	rootCFG = rootcfg;
+	rootcfg->set("paths", paths);
+	process_options(rootcfg, options);
+	return rootcfg;
 }
 

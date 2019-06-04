@@ -42,16 +42,21 @@ NetSource::NetSource(nlohmann::json &config) : RGBDSource(config) {
 NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
 		: RGBDSource(config, net) {
 
-	auto p = net->findOne<ftl::UUID>("find_stream", getURI());
+	auto uri = get<string>("uri");
+	if (!uri) {
+		LOG(ERROR) << "NetSource does not have a URI";
+		return;
+	}
+	auto p = net->findOne<ftl::UUID>("find_stream", *uri);
 	if (!p) {
-		LOG(ERROR) << "Could not find stream: " << getURI();
+		LOG(ERROR) << "Could not find stream: " << *uri;
 		return;
 	}
 	peer_ = *p;
 
-	has_calibration_ = _getCalibration(*net, peer_, getURI(), params_);
+	has_calibration_ = _getCalibration(*net, peer_, *uri, params_);
 	
-	net->bind(getURI(), [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+	net->bind(*uri, [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 		unique_lock<mutex> lk(mutex_);
 		_recv(jpg, d);
 	});
@@ -59,7 +64,7 @@ NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
 	N_ = 10;
 
 	// Initiate stream with request for first 10 frames
-	net->send(peer_, "get_stream", getURI(), 10, 0, net->id(), getURI());
+	net->send(peer_, "get_stream", *uri, 10, 0, net->id(), *uri);
 }
 
 NetSource::~NetSource() {
@@ -75,7 +80,7 @@ void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned ch
 	N_--;
 	if (N_ == 0) {
 		N_ += 10;
-		net_->send(peer_, "get_stream", getURI(), 10, 0, net_->id(), getURI());
+		net_->send(peer_, "get_stream", *get<string>("uri"), 10, 0, net_->id(), *get<string>("uri"));
 	}
 }
 

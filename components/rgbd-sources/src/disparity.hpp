@@ -7,6 +7,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <nlohmann/json.hpp>
+#include <ftl/configurable.hpp>
 
 namespace ftl {
 
@@ -16,7 +17,7 @@ namespace ftl {
  * interface, for this to work a static instance of the Register class must
  * be created in the algorithms cpp file.
  */
-class Disparity {
+class Disparity : public ftl::Configurable {
 	public:
 	explicit Disparity(nlohmann::json &config);
 	
@@ -37,7 +38,7 @@ class Disparity {
 	 */
 	class Register {
 		public:
-		Register(const std::string &n, std::function<Disparity*(nlohmann::json&)> f) {
+		Register(const std::string &n, std::function<Disparity*(ftl::Configurable *, const std::string &)> f) {
 			Disparity::_register(n,f);
 		};
 	};
@@ -46,18 +47,18 @@ class Disparity {
 	 * Factory instance creator where config contains an "algorithm" property
 	 * used as the instance name to construct.
 	 */
-	static Disparity *create(nlohmann::json &config);
+	static Disparity *create(ftl::Configurable *, const std::string &);
 	
 	protected:
-	static void _register(const std::string &n, std::function<Disparity*(nlohmann::json&)> f);
+	static void _register(const std::string &n, std::function<Disparity*(ftl::Configurable *, const std::string &)> f);
 	
 	protected:
-	nlohmann::json &config_;
+	//nlohmann::json &config_;
 	size_t min_disp_;
 	size_t max_disp_;
 	
 	private:
-	static std::map<std::string,std::function<Disparity*(nlohmann::json&)>> *algorithms__;
+	static std::map<std::string,std::function<Disparity*(ftl::Configurable *, const std::string &)>> *algorithms__;
 };
 };
 

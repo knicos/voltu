@@ -39,9 +39,17 @@ namespace ftl {
 		scheme_t getProtocol() const { return m_proto; };
 		scheme_t getScheme() const { return m_proto; };
 		const std::string &getPath() const { return m_path; };
+		const std::string &getFragment() const { return m_frag; }
 		std::string getQuery() const;
 		const std::string &getBaseURI() const { return m_base; };
-		const std::string &getPathSegment(int n) const { return m_pathseg[n]; };
+
+		/**
+		 * Get the URI without query parameters, and limit path to length N.
+		 * If N is negative then it is taken from full path length.
+		 */
+		std::string getBaseURI(int n);
+
+		std::string getPathSegment(int n) const;
 
 		void setAttribute(const std::string &key, const std::string &value);
 		void setAttribute(const std::string &key, int value);
@@ -60,10 +68,12 @@ namespace ftl {
 		bool m_valid;
 		std::string m_host;
 		std::string m_path;
+		std::string m_frag;
 		std::string m_base;
 		std::vector<std::string> m_pathseg;
 		int m_port;
 		scheme_t m_proto;
+		std::string m_protostr;
 		// std::string m_query;
 		std::map<std::string, std::string> m_qmap;
 	};

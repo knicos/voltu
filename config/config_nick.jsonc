@@ -1,0 +1,137 @@
+{
+	"$id": "ftl://utu.fi",
+	"$schema": "",
+	"calibrations": {
+		"default": {
+			"board_size": [9,6],
+			"square_size": 50,
+			"frame_delay": 1.0,
+			"num_frames": 35,
+			"assume_zero_tangential_distortion": true,
+			"fix_aspect_ratio": true,
+			"fix_principal_point_at_center": true,
+			"use_fisheye_model": false,
+			"fix_k1": false,
+			"fix_k2": false,
+			"fix_k3": false,
+			"fix_k4": true,
+			"fix_k5": true,
+			"save": true,
+			"use_intrinsics": true,
+			"use_extrinsics": true,
+			"flip_vertical": false
+		}
+	},
+	"disparity": {
+		"libsgm": {
+			"algorithm": "libsgm",
+			"use_cuda": true,
+			"minimum": 0,
+			"maximum": 256,
+			"tau": 0.0,
+			"gamma": 0.0,
+			"window_size": 5,
+			"sigma": 1.5,
+			"lambda": 8000.0
+		}
+	},
+	"sources": {
+		"stereocam": {},
+		"stereovid": {},
+		"localhost": {}
+		
+	},
+	// Listen to localhost
+	"net": {
+		"default": {
+			"listen": "tcp://*:9001",
+			"peers": []
+		}
+	},
+	"vision_default": {
+		"source": {
+			"type": "stereovideo",
+			"feed": {
+				"flip": false,
+				"nostereo": false,
+				"scale": 1.0,
+				"flip_vert": false,
+				"max_fps": 500,
+				"width": 640,
+				"height": 480,
+				"crosshair": false
+			},
+			"calibrate": false,
+			"calibration": { "$ref": "#calibrations/default" },
+			"disparity": { "$ref": "#disparity/libsgm" }
+		},
+		"middlebury": {
+			"dataset": "",
+			"threshold": 10.0,
+			"scale": 0.25
+		},
+		"display": {
+			"flip_vert": false,
+			"disparity": false,
+			"points": false,
+			"depth": false,
+			"left": false,
+			"right": false
+		},
+		"net": { "$ref": "#net/default" },
+		"stream": {
+		}
+	},
+	"ftl://reconstruction/default": {
+		"net": {
+			"peers": ["tcp://ftl-node-5:9001"]
+		},
+		"sources": [
+			{"type": "net", "uri":"ftl://utu.fi/node5/rgb-d"}
+		],
+		"display": {
+			"flip_vert": false,
+			"disparity": false,
+			"points": false,
+			"depth": false,
+			"left": true,
+			"right": false
+		},
+		"voxelhash": {
+			"adapterWidth": 640,
+			"adapterHeight": 480,
+			"sensorDepthMax": 20.0,
+			"sensorDepthMin": 0.2,
+			"SDFRayIncrementFactor": 0.8,
+			"SDFRayThresSampleDistFactor": 50.5,
+			"SDFRayThresDistFactor": 50.0,
+			"SDFUseGradients": false,
+			"hashNumBuckets": 50000,
+			"hashMaxCollisionLinkedListSize": 7,
+			"hashNumSDFBlocks": 1000000,
+			"SDFVoxelSize": 0.005,
+			"SDFMaxIntegrationDistance": 12.0,
+			"SDFTruncation": 0.1,
+			"SDFTruncationScale": 0.05,
+			"SDFIntegrationWeightSample": 10,
+			"SDFIntegrationWeightMax": 255,
+			"hash_renderer": true
+		},
+		"registration": {
+			"reference-source" : "ftl://utu.fi/node5/rgb-d",
+			"calibration" : {
+				"max_error": 25,
+				"run": false,
+				"iterations" : 10,
+				"delay" : 500,
+				"patternsize" : [9, 6]
+				}
+		}
+	},
+	"ftl://gui/default": {
+		"net": {
+			"peers": ["tcp://ftl-node-4:9001"]
+		},
+		"sources": [{"type": "net", "uri": "ftl://utu.fi/node/rgb-d"}]
+	}
+}

@@ -11,7 +11,7 @@ using ftl::Display;
 using cv::Mat;
 using cv::Vec3f;
 
-Display::Display(nlohmann::json &config, std::string name) : config_(config) {
+Display::Display(nlohmann::json &config, std::string name) : ftl::Configurable(config) {
 	name_ = name;
 #if defined HAVE_VIZ
 	window_ = new cv::viz::Viz3d("FTL: " + name);

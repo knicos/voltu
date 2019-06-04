@@ -25,6 +25,53 @@ SCENARIO( "URI() can parse valid URIs", "[utility]" ) {
 		REQUIRE( uri.getPath() == "/test/case.html" );
 	}
 
+	GIVEN( "a valid fragment" ) {
+		URI uri("http://localhost:8080/test/case.html#frag");
+
+		REQUIRE( uri.isValid() );
+		REQUIRE( uri.getScheme() == URI::SCHEME_HTTP );
+		REQUIRE( uri.getHost() == "localhost" );
+		REQUIRE( (uri.getPort() == 8080) );
+		REQUIRE( uri.getPath() == "/test/case.html" );
+		REQUIRE( uri.getFragment() == "frag");
+	}
+
+	GIVEN( "a multipart valid fragment" ) {
+		URI uri("http://localhost:8080/test/case.html#frag/second");
+
+		REQUIRE( uri.isValid() );
+		REQUIRE( uri.getScheme() == URI::SCHEME_HTTP );
+		REQUIRE( uri.getHost() == "localhost" );
+		REQUIRE( (uri.getPort() == 8080) );
+		REQUIRE( uri.getPath() == "/test/case.html" );
+		REQUIRE( uri.getFragment() == "frag/second");
+		REQUIRE( uri.getBaseURI() == "http://localhost:8080/test/case.html");
+	}
+
+	GIVEN( "an empty fragment" ) {
+		URI uri("http://localhost:8080/test/case.html#");
+
+		REQUIRE( uri.isValid() );
+		REQUIRE( uri.getScheme() == URI::SCHEME_HTTP );
+		REQUIRE( uri.getHost() == "localhost" );
+		REQUIRE( (uri.getPort() == 8080) );
+		REQUIRE( uri.getPath() == "/test/case.html" );
+		REQUIRE( uri.getFragment() == "");
+		REQUIRE( uri.getBaseURI() == "http://localhost:8080/test/case.html");
+	}
+
+	/*GIVEN( "a valid fragment with query" ) {
+		URI uri("http://localhost:8080/test/case.html#frag?q=4");
+
+		REQUIRE( uri.isValid() );
+		REQUIRE( uri.getScheme() == URI::SCHEME_HTTP );
+		REQUIRE( uri.getHost() == "localhost" );
+		REQUIRE( (uri.getPort() == 8080) );
+		REQUIRE( uri.getPath() == "/test/case.html" );
+		REQUIRE( uri.getQuery() == "q=4" );
+		REQUIRE( uri.getFragment() == "frag");
+	}*/
+
 	GIVEN( "a valid scheme with path and query" ) {
 		URI uri("ftl://utu.fi/test/case.html?v=1");
 
@@ -86,6 +133,28 @@ SCENARIO( "URI::getAttribute() from query" ) {
 	GIVEN( "an integer value" ) {
 		URI uri("http://localhost:1000/hello?x=56");
 		REQUIRE( (uri.getAttribute<int>("x") == 56) );
+	}
+}
+
+SCENARIO( "URI::getBaseURI(N)" ) {
+	GIVEN( "an N of 0" ) {
+		URI uri("http://localhost:1000/hello/world");
+		REQUIRE( uri.getBaseURI(0) == "http://localhost:1000" );
+	}
+
+	GIVEN( "an N of -1" ) {
+		URI uri("http://localhost:1000/hello/world");
+		REQUIRE( uri.getBaseURI(-1) == "http://localhost:1000/hello" );
+	}
+
+	GIVEN( "an N of 1" ) {
+		URI uri("http://localhost:1000/hello/world");
+		REQUIRE( uri.getBaseURI(1) == "http://localhost:1000/hello" );
+	}
+
+	GIVEN( "an N of 2" ) {
+		URI uri("http://localhost:1000/hello/world");
+		REQUIRE( uri.getBaseURI(2) == "http://localhost:1000/hello/world" );
 	}
 }
 

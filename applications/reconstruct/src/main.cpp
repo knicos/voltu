@@ -46,10 +46,10 @@
 
 using ftl::net::Universe;
 using ftl::rgbd::Display;
-using ftl::config;
 using std::string;
 using std::vector;
 using ftl::rgbd::RGBDSource;
+using ftl::config::json_t;
 
 using json = nlohmann::json;
 using std::this_thread::sleep_for;
@@ -229,22 +229,22 @@ struct Cameras {
 };
 
 template <template<class> class Container>
-std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Container<Cameras> &inputs) {
+std::map<string, Eigen::Matrix4f> runRegistration(ftl::Configurable *root, ftl::net::Universe &net, Container<Cameras> &inputs) {
 	std::map<string, Eigen::Matrix4f> registration;
 	
 	// NOTE: uses config["registration"]
 	
-	if (!config["registration"].is_object()) {
+	if (!root->getConfig()["registration"].is_object()) {
 		LOG(FATAL) << "Configuration missing \"registration\" entry!";
 		return registration;
 	}
 	
-	int iter = (int) config["registration"]["calibration"]["iterations"];
-	int delay = (int) config["registration"]["calibration"]["delay"];
-	float max_error = (int) config["registration"]["calibration"]["max_error"];
-	string ref_uri = (string) config["registration"]["reference-source"];
-	cv::Size pattern_size(	(int) config["registration"]["calibration"]["patternsize"][0],
-							(int) config["registration"]["calibration"]["patternsize"][1]);
+	int iter = (int) root->getConfig()["registration"]["calibration"]["iterations"];
+	int delay = (int) root->getConfig()["registration"]["calibration"]["delay"];
+	float max_error = (int) root->getConfig()["registration"]["calibration"]["max_error"];
+	string ref_uri = (string) root->getConfig()["registration"]["reference-source"];
+	cv::Size pattern_size(	(int) root->getConfig()["registration"]["calibration"]["patternsize"][0],
+							(int) root->getConfig()["registration"]["calibration"]["patternsize"][1]);
 	
 	// config["registration"] done
 	
@@ -313,23 +313,25 @@ std::map<string, Eigen::Matrix4f> runRegistration(ftl::net::Universe &net, Conta
 }
 #endif
 
-static void run() {
-	Universe net(config["net"]);
+static void run(ftl::Configurable *root) {
+	Universe *net = ftl::create<Universe>(root, "net");
 	
 	// Make sure connections are complete
-	sleep_for(milliseconds(500));
+	//sleep_for(milliseconds(500));
+	net->waitConnections();
 	
-	if (!config["sources"].is_array()) {
+	std::vector<Cameras> inputs;
+	auto sources = root->get<vector<json_t>>("sources");
+
+	if (!sources) {
 		LOG(ERROR) << "No sources configured!";
 		return;
 	}
-	
-	std::vector<Cameras> inputs;
 	//std::vector<Display> displays;
 
 	// TODO Allow for non-net source types
-	for (auto &src : config["sources"]) {		
-		RGBDSource *in = ftl::rgbd::RGBDSource::create(src, &net); //new ftl::rgbd::NetSource(src, &net);
+	for (auto &src : *sources) {		
+		RGBDSource *in = ftl::rgbd::RGBDSource::create(src, net); //new ftl::rgbd::NetSource(src, &net);
 		if (!in) {
 			LOG(ERROR) << "Unrecognised source: " << src;
 		} else {
@@ -355,8 +357,8 @@ static void run() {
 	// load point cloud transformations
 	
 	std::map<string, Eigen::Matrix4f> registration;
-	if (config["registration"]["calibration"]["run"]) {
-		registration = runRegistration(net, inputs);
+	if (root->getConfig()["registration"]["calibration"]["run"]) {
+		registration = runRegistration(root, *net, inputs);
 	}
 	else {
 		LOG(INFO) << "LOAD REG";
@@ -367,7 +369,7 @@ static void run() {
 	// (registration includes every camera)
 	
 	bool valid_registration = true;
-	string ref_input = config["registration"]["reference-source"];
+	string ref_input = root->getConfig()["registration"]["reference-source"];
 	
 	// check every camera is included in registration
 	for (auto &input : inputs) {
@@ -417,28 +419,28 @@ static void run() {
 	for (auto &input : inputs) { LOG(INFO) << "    " + (string) input.source->getConfig()["uri"]; }
 	
 	//vector<PointCloud<PointXYZRGB>::Ptr> clouds(inputs.size());
-	ftl::rgbd::Display display(config["display"]); // todo
-	ftl::rgbd::VirtualSource *virt = new ftl::rgbd::VirtualSource(config["virtual"], &net);
-	ftl::voxhash::SceneRep scene(config["voxelhash"]);
-	virt->setScene(&scene);
-	display.setSource(virt);
+	ftl::rgbd::Display *display = ftl::create<ftl::rgbd::Display>(root, "display");
+	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual", net);
+	ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
+	virt->setScene(scene);
+	display->setSource(virt);
 
 
 	unsigned char frameCount = 0;
 	bool paused = false;
 
 	// Keyboard camera controls
-	display.onKey([&paused](int key) {
+	display->onKey([&paused](int key) {
 		if (key == 32) paused = !paused;
 	});
 
 	int active = inputs.size();
-	while (active > 0 && display.active()) {
+	while (active > 0 && display->active()) {
 		active = 0;
 
 		if (!paused) {
 			//net.broadcast("grab");  // To sync cameras
-			scene.nextFrame();
+			scene->nextFrame();
 		
 			for (size_t i = 0; i < inputs.size(); i++) {
 				// Get the RGB-Depth frame from input
@@ -460,7 +462,7 @@ static void run() {
 				// Send to GPU and merge view into scene
 				inputs[i].gpu.updateParams(inputs[i].params);
 				inputs[i].gpu.updateData(depth, rgba);
-				scene.integrate(inputs[i].source->getPose(), inputs[i].gpu, inputs[i].params, nullptr);
+				scene->integrate(inputs[i].source->getPose(), inputs[i].gpu, inputs[i].params, nullptr);
 			}
 		} else {
 			active = 1;
@@ -468,11 +470,10 @@ static void run() {
 
 		frameCount++;
 
-		display.update();
+		display->update();
 	}
 }
 
 int main(int argc, char **argv) {
-	ftl::configure(argc, argv, "reconstruction");
-	run();
+	run(ftl::configure(argc, argv, "reconstruction_default"));
 }

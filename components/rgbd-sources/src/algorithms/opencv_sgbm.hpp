@@ -10,6 +10,7 @@
 #include "opencv2/ximgproc.hpp"
 #include <opencv2/calib3d.hpp>
 #include "../disparity.hpp"
+#include <ftl/configuration.hpp>
 
 namespace ftl {
 namespace algorithms {
@@ -23,7 +24,9 @@ class OpenCVSGBM : public ftl::Disparity {
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create(nlohmann::json &config) { return new OpenCVSGBM(config); }
+	static inline Disparity *create(ftl::Configurable *p, const std::string &name) {
+		return ftl::create<OpenCVSGBM>(p, name);
+	}
 	
 	private:
 	cv::Ptr<cv::StereoSGBM> left_matcher_;

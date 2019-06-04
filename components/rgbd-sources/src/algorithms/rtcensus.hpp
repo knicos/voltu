@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 
 #include <ftl/config.h>
+#include <ftl/configuration.hpp>
 
 #if defined HAVE_CUDA
 #include <opencv2/core/cuda.hpp>
@@ -31,8 +32,8 @@ class RTCensus : public ftl::Disparity {
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create(nlohmann::json &config) {
-		return new RTCensus(config);
+	static inline Disparity *create(ftl::Configurable *p, const std::string &name) {
+		return ftl::create<RTCensus>(p, name);
 	}
 	
 	private:

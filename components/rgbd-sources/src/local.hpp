@@ -14,7 +14,7 @@ namespace ftl {
 class LocalSource : public Configurable {
 	public:
 	explicit LocalSource(nlohmann::json &config);
-	LocalSource(const std::string &vid, nlohmann::json &config);
+	LocalSource(nlohmann::json &config, const std::string &vid);
 	
 	bool left(cv::Mat &m);
 	bool right(cv::Mat &m);

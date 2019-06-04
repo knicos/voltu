@@ -10,6 +10,7 @@
 #include <libsgm.h>
 #include "../disparity.hpp"
 #include <opencv2/cudastereo.hpp>
+#include <ftl/configuration.hpp>
 
 namespace ftl {
 namespace algorithms {
@@ -29,8 +30,8 @@ class FixstarsSGM : public ftl::Disparity {
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp, const cv::Mat &mask_l) override;
 	
 	/* Factory creator */
-	static inline Disparity *create(nlohmann::json &config) {
-		return new FixstarsSGM(config);
+	static inline Disparity *create(ftl::Configurable *p, const std::string &name) {
+		return ftl::create<FixstarsSGM>(p, name);
 	}
 
 	private:

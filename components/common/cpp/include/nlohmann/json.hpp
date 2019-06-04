@@ -3977,12 +3977,24 @@ scan_number_done:
             return token_type::parse_error;
         }
 
+		bool incomment = false;
+
         // read next character and ignore whitespace
         do
         {
             get();
+
+			// Nick: Add support for inline comments
+			if (!incomment && current == '/') {
+				get();
+				if (current != '/') {
+					error_message = "missing / for inline comment";
+					return token_type::parse_error;
+				}
+				incomment = true;
+			} else if (incomment && (current == '\n' || current == '\r')) incomment = false;
         }
-        while (current == ' ' or current == '\t' or current == '\n' or current == '\r');
+        while (incomment or current == ' ' or current == '\t' or current == '\n' or current == '\r');
 
         switch (current)
         {

@@ -9,6 +9,7 @@
 #include <opencv2/opencv.hpp>
 #include "../disparity.hpp"
 #include <nlohmann/json.hpp>
+#include <ftl/configuration.hpp>
 
 #if defined HAVE_CUDA
 #include <opencv2/core/cuda.hpp>
@@ -29,8 +30,8 @@ class RTCensusSGM : public ftl::Disparity {
 	
 	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp);
 
-	static inline Disparity *create(nlohmann::json &config) {
-		return new RTCensusSGM(config);
+	static inline Disparity *create(ftl::Configurable *p, const std::string &name) {
+		return ftl::create<RTCensusSGM>(p, name);
 	}
 	
 	private:

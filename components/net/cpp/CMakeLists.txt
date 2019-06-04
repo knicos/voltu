@@ -4,7 +4,6 @@
 
 
 add_library(ftlnet
-	src/uri.cpp
 	src/listener.cpp
 	src/peer.cpp
 	src/dispatcher.cpp
@@ -12,13 +11,11 @@ add_library(ftlnet
 	src/ws_internal.cpp
 )
 
-check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
-
 target_include_directories(ftlnet PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlnet ftlcommon Threads::Threads glog::glog ${UUID_LIBRARIES} ${URIPARSER_LIBRARIES})
+target_link_libraries(ftlnet ftlcommon Threads::Threads glog::glog ${UUID_LIBRARIES})
 
 install(TARGETS ftlnet EXPORT ftlnet-config
 	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -27,7 +24,7 @@ install(TARGETS ftlnet EXPORT ftlnet-config
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 add_executable(net-cli src/main.cpp)
-target_link_libraries(net-cli ftlnet ftlcommon glog::glog ${URIPARSER_LIBRARIES} Threads::Threads ${READLINE_LIBRARY} ${UUID_LIBRARIES})
+target_link_libraries(net-cli ftlnet ftlcommon glog::glog Threads::Threads ${READLINE_LIBRARY} ${UUID_LIBRARIES})
 add_dependencies(net-cli ftlnet)
 
 ADD_SUBDIRECTORY(test)
