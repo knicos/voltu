@@ -53,12 +53,13 @@ bool RGBDSource::snapshot(const std::string &fileprefix) {
 }
 
 RGBDSource *RGBDSource::create(nlohmann::json &config, ftl::net::Universe *net) {
-	if (config["type"].type_name() != "string") {
-		LOG(ERROR) << "Missing RGB-D source type: " << config["type"].type_name();
+	auto &cfg = ftl::config::resolve(config);
+	if (cfg["type"].type_name() != "string") {
+		LOG(ERROR) << "Missing RGB-D source type: " << cfg["type"].type_name();
 		//return nullptr;
 	}
-	if (sources__->count(config["type"].get<string>()) != 1) return nullptr;
-	return (*sources__)[config["type"].get<string>()](config, net);
+	if (sources__->count(cfg["type"].get<string>()) != 1) return nullptr;
+	return (*sources__)[cfg["type"].get<string>()](config, net);
 }
 
 void RGBDSource::_register(const std::string &n,

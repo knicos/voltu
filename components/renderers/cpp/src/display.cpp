@@ -132,7 +132,7 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbdToPointXYZ(const cv::Mat &rgb,
 bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::CameraParameters &p) {
 	Mat idepth;
 
-	if (config_["points"] && rgb.rows != 0) {
+	if (value("points", false) && rgb.rows != 0) {
 #if defined HAVE_PCL
 		auto pc = rgbdToPointXYZ(rgb, depth, p);
 
@@ -166,15 +166,15 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::
 #endif  // HAVE_VIZ
 	}
 
-	if (config_["left"]) {
-		if (config_["crosshair"]) {
+	if (value("left", false)) {
+		if (value("crosshair", false)) {
 			cv::line(rgb, cv::Point(0, rgb.rows/2), cv::Point(rgb.cols-1, rgb.rows/2), cv::Scalar(0,0,255), 1);
             cv::line(rgb, cv::Point(rgb.cols/2, 0), cv::Point(rgb.cols/2, rgb.rows-1), cv::Scalar(0,0,255), 1);
 		}
 		cv::namedWindow("Left: " + name_, cv::WINDOW_KEEPRATIO);
 		cv::imshow("Left: " + name_, rgb);
 	}
-	if (config_["right"]) {
+	if (value("right", false)) {
 		/*if (config_["crosshair"]) {
 			cv::line(rgbr, cv::Point(0, rgbr.rows/2), cv::Point(rgbr.cols-1, rgbr.rows/2), cv::Scalar(0,0,255), 1);
             cv::line(rgbr, cv::Point(rgbr.cols/2, 0), cv::Point(rgbr.cols/2, rgbr.rows-1), cv::Scalar(0,0,255), 1);
@@ -183,7 +183,7 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::
 		cv::imshow("Right: " + name_, rgbr);*/
 	}
 
-	if (config_["disparity"]) {
+	if (value("disparity", false)) {
 		/*Mat depth32F = (focal * (float)l.cols * base_line) / depth;
 		normalize(depth32F, depth32F, 0, 255, NORM_MINMAX, CV_8U);
 		cv::imshow("Depth", depth32F);
@@ -191,8 +191,8 @@ bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::
 	        //exit if ESC is pressed
 	       	active_ = false;
 	    }*/
-    } else if (config_["depth"]) {
-		if ((bool)config_["flip_vert"]) {
+    } else if (value("depth", false)) {
+		if (value("flip_vert", false)) {
 			cv::flip(depth, idepth, 0);
 		} else {
 			idepth = depth;
@@ -228,7 +228,7 @@ bool Display::render(const cv::Mat &img, style_t s) {
 	} else if (s = STYLE_DISPARITY) {
 		Mat idepth;
 
-		if ((bool)config_["flip_vert"]) {
+		if (value("flip_vert", false)) {
 			cv::flip(img, idepth, 0);
 		} else {
 			idepth = img;
@@ -244,7 +244,7 @@ bool Display::render(const cv::Mat &img, style_t s) {
 }
 
 void Display::wait(int ms) {
-	if (config_["points"]) {
+	if (value("points", false)) {
 		#if defined HAVE_PCL
 		if (pclviz_) pclviz_->spinOnce(20);
 		#elif defined HAVE_VIZ
@@ -252,7 +252,7 @@ void Display::wait(int ms) {
 		#endif  // HAVE_VIZ
 	}
 	
-	if (config_["depth"] || config_["left"] || config_["right"]) {
+	if (value("depth", false) || value("left", false) || value("right", false)) {
 		while (true) {
 			int key = cv::waitKey(ms);
 

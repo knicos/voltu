@@ -54,22 +54,23 @@ class SceneRep : public ftl::Configurable {
 	}
 
 	static HashParams parametersFromConfig(nlohmann::json &config) {
+		auto &cfg = ftl::config::resolve(config);
 		HashParams params;
 		// First camera view is set to identity pose to be at the centre of
 		// the virtual coordinate space.
 		params.m_rigidTransform.setIdentity();
 		params.m_rigidTransformInverse.setIdentity();
-		params.m_hashNumBuckets = config["hashNumBuckets"];
+		params.m_hashNumBuckets = cfg["hashNumBuckets"];
 		params.m_hashBucketSize = HASH_BUCKET_SIZE;
-		params.m_hashMaxCollisionLinkedListSize = config["hashMaxCollisionLinkedListSize"];
+		params.m_hashMaxCollisionLinkedListSize = cfg["hashMaxCollisionLinkedListSize"];
 		params.m_SDFBlockSize = SDF_BLOCK_SIZE;
-		params.m_numSDFBlocks = config["hashNumSDFBlocks"];
-		params.m_virtualVoxelSize = config["SDFVoxelSize"];
-		params.m_maxIntegrationDistance = config["SDFMaxIntegrationDistance"];
-		params.m_truncation = config["SDFTruncation"];
-		params.m_truncScale = config["SDFTruncationScale"];
-		params.m_integrationWeightSample = config["SDFIntegrationWeightSample"];
-		params.m_integrationWeightMax = config["SDFIntegrationWeightMax"];
+		params.m_numSDFBlocks = cfg["hashNumSDFBlocks"];
+		params.m_virtualVoxelSize = cfg["SDFVoxelSize"];
+		params.m_maxIntegrationDistance = cfg["SDFMaxIntegrationDistance"];
+		params.m_truncation = cfg["SDFTruncation"];
+		params.m_truncScale = cfg["SDFTruncationScale"];
+		params.m_integrationWeightSample = cfg["SDFIntegrationWeightSample"];
+		params.m_integrationWeightMax = cfg["SDFIntegrationWeightMax"];
 		// Note (Nick): We are not streaming voxels in/out of GPU
 		//params.m_streamingVoxelExtents = MatrixConversion::toCUDA(gas.s_streamingVoxelExtents);
 		//params.m_streamingGridDimensions = MatrixConversion::toCUDA(gas.s_streamingGridDimensions);

@@ -18,7 +18,7 @@ Disparity::Disparity(nlohmann::json &config)
 		max_disp_(value("maximum", 256)) {}
 
 Disparity *Disparity::create(ftl::Configurable *parent, const std::string &name) {
-	nlohmann::json &config = ftl::config::resolve(parent->getConfig()[name]);
+	nlohmann::json &config = ftl::config::resolve((!parent->getConfig()[name].is_null()) ? parent->getConfig()[name] : ftl::config::resolve(parent->getConfig())[name]); // ftl::config::resolve(parent->getConfig()[name]);
 
 	//auto alg = parent->get<std::string>("algorithm");
 	if (!config["algorithm"].is_string()) {

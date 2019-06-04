@@ -13,8 +13,9 @@ class CUDARayCastSDF : public ftl::Configurable
 {
 public:
 	CUDARayCastSDF(nlohmann::json& config) : ftl::Configurable(config) {
-		create(parametersFromConfig(config));
-		hash_render_ = config.value("hash_renderer", false);
+		auto &cfg = ftl::config::resolve(config);
+		create(parametersFromConfig(cfg));
+		hash_render_ = cfg.value("hash_renderer", false);
 	}
 
 	~CUDARayCastSDF(void) {

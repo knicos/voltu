@@ -104,7 +104,7 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 template <typename T, typename... ARGS>
 T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
     //nlohmann::json &entity = ftl::config::resolve(parent->getConfig()[name]);
-    nlohmann::json &entity = (parent->getConfig()[name].is_structured()) ? parent->getConfig()[name] : ftl::config::resolve(parent->getConfig())[name];
+    nlohmann::json &entity = (!parent->getConfig()[name].is_null()) ? parent->getConfig()[name] : ftl::config::resolve(parent->getConfig())[name];
 
     if (entity.is_object()) {
         if (!entity["$id"].is_string()) {
