@@ -28,6 +28,11 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
 
+find_package( LibArchive )
+if (LibArchive_FOUND)
+	set(HAVE_LIBARCHIVE true)
+endif()
+
 if (WITH_FIXSTARS)
 	find_package( LibSGM )
 	if (LibSGM_FOUND)
