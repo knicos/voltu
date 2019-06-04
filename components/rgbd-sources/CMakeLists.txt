@@ -12,6 +12,13 @@ set(RGBDSRC
 	src/algorithms/opencv_bm.cpp
 )
 
+if (LIBARCHIVE_FOUND)
+	list(APPEND RGBDSRC
+		"src/snapshot.cpp"
+		"src/snapshot_source.cpp"
+	)
+endif (LIBARCHIVE_FOUND)
+
 if (LIBSGM_FOUND)
 	list(APPEND RGBDSRC "src/algorithms/fixstars_sgm.cpp")
 endif (LIBSGM_FOUND)
@@ -44,6 +51,6 @@ set_property(TARGET ftlrgbd PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftlrgbd ftlcommon Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen glog::glog ftlnet)
+target_link_libraries(ftlrgbd ftlcommon Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen glog::glog ftlnet ${LibArchive_LIBRARIES})
 
 
