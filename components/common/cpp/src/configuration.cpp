@@ -208,7 +208,6 @@ json_t &ftl::config::resolve(const std::string &puri) {
 	ftl::URI uri(uri_str);
 	if (uri.isValid()) {
 		std::string u = uri.getBaseURI();
-		LOG(INFO) << "Resolve URI: " << u;
 		auto ix = config_index.find(u);
 		if (ix == config_index.end()) {
 			LOG(FATAL) << "Cannot find resource: " << u;
@@ -393,13 +392,12 @@ static void signalIntHandler( int signum ) {
 }
 
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
-	loguru::init(argc, argv, "--verbosity");
-	argc--;
-	argv++;
-
 	loguru::g_preamble_date = false;
 	loguru::g_preamble_uptime = false;
 	loguru::g_preamble_thread = false;
+	loguru::init(argc, argv, "--verbosity");
+	argc--;
+	argv++;
 
 #ifndef WIN32
 	signal(SIGINT,signalIntHandler);

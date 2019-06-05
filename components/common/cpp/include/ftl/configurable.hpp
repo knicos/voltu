@@ -132,7 +132,7 @@ std::optional<T> ftl::Configurable::get(const std::string &name) {
 		std::string res_uri = config_["$ref"].get<std::string>()+"/"+name;
 		auto &r = ftl::config::resolve(res_uri);
 
-		LOG(INFO) << "GET Resolve: " << res_uri << " = " << r;
+		DLOG(1) << "GET: " << res_uri << " = " << r;
 
 		try {
 			return r.get<T>();
