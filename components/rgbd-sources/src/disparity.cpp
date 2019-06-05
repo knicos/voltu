@@ -33,7 +33,7 @@ Disparity *Disparity::create(ftl::Configurable *parent, const std::string &name)
 void Disparity::_register(const std::string &n,
 		std::function<Disparity*(ftl::Configurable *, const std::string &)> f) {
 	if (!algorithms__) algorithms__ = new std::map<std::string, std::function<Disparity*(ftl::Configurable *, const std::string &)>>;
-	LOG(INFO) << "Register disparity algorithm: " << n;
+	//LOG(INFO) << "Register disparity algorithm: " << n;
 	(*algorithms__)[n] = f;
 }
 

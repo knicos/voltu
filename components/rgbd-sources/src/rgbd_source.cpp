@@ -65,7 +65,7 @@ RGBDSource *RGBDSource::create(nlohmann::json &config, ftl::net::Universe *net) 
 void RGBDSource::_register(const std::string &n,
 		std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)> f) {
 	if (!sources__) sources__ = new std::map<std::string, std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>>;
-	LOG(INFO) << "Register RGB-D Source: " << n;
+	//LOG(INFO) << "Register RGB-D Source: " << n;
 	(*sources__)[n] = f;
 }
 
