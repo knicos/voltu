@@ -37,7 +37,7 @@ bool update(const std::string &puri, const json_t &value);
  * Resolve a JSON schema reference, but do not wait for a remote reference
  * if it is not available. A null entity is returned if not resolved.
  */
-json_t &resolve(const std::string &);
+json_t &resolve(const std::string &, bool eager=true);
 
 /**
  * Resolve a reference object, or if not a reference object it simply returns
@@ -85,17 +85,17 @@ using config::configure;
 
 template <typename T, typename... ARGS>
 T *ftl::config::create(json_t &link, ARGS ...args) {
-    auto &r = link; // = ftl::config::resolve(link);
+    //auto &r = link; // = ftl::config::resolve(link);
 
-    if (!r["$id"].is_string()) {
-        LOG(FATAL) << "Entity does not have $id or parent: " << r;
+    if (!link["$id"].is_string()) {
+        LOG(FATAL) << "Entity does not have $id or parent: " << link;
         return nullptr;
     }
 
-    ftl::Configurable *cfg = ftl::config::find(r["$id"].get<std::string>());
+    ftl::Configurable *cfg = ftl::config::find(link["$id"].get<std::string>());
     if (!cfg) {
        // try {
-            cfg = new T(r, args...);
+            cfg = new T(link, args...);
         //} catch(...) {
        //     LOG(FATAL) << "Could not construct " << link;
         //}

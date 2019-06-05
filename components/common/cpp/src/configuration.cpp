@@ -218,7 +218,8 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 		cfg->set<json_t>(tail, value);
 	} else {
 		DLOG(1) << "Updating: " << head << "[" << tail << "] = " << value;
-		auto r = resolve(head);
+		auto &r = resolve(head, false);
+
 		if (!r.is_structured()) {
 			LOG(ERROR) << "Cannot update property '" << tail << "' of '" << head << "'";
 			return false;
@@ -229,7 +230,7 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 	}
 }
 
-json_t &ftl::config::resolve(const std::string &puri) {
+json_t &ftl::config::resolve(const std::string &puri, bool eager) {
 	string uri_str = puri;
 
 	// TODO(Nick) Must support alternative root (last $id)
@@ -252,11 +253,13 @@ json_t &ftl::config::resolve(const std::string &puri) {
 
 		auto ptr = nlohmann::json::json_pointer("/"+uri.getFragment());
 		try {
-			return resolve((*ix).second->at(ptr));
+			return (eager) ? resolve((*ix).second->at(ptr)) : (*ix).second->at(ptr);
 		} catch(...) {
+			LOG(WARNING) << "Resolve failed for " << puri;
 			return null_json;
 		}
 	} else {
+		LOG(WARNING) << "Resolve failed for " << puri;
 		return null_json;
 	}
 }
@@ -429,6 +432,10 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	rootCFG = rootcfg;
 	rootcfg->set("paths", paths);
 	process_options(rootcfg, options);
+
+	//LOG(INFO) << "CONFIG: " << config["vision_default"];
+	CHECK_EQ( &config, config_index["ftl://utu.fi"] );
+
 	return rootcfg;
 }
 
