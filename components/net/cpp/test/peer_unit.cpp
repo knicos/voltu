@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 
+#include <ftl/net/common.hpp>
 #include <ftl/net/peer.hpp>
 #include <ftl/net/protocol.hpp>
 #include <ftl/config.h>
@@ -34,7 +35,7 @@ using std::chrono::milliseconds;
 
 class MockPeer : public Peer {
 	public:
-	MockPeer() : Peer(INVALID_SOCKET) {}
+	MockPeer() : Peer((SOCKET)0) {}
 	void mock_data() { data(); }
 };
 
