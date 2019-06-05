@@ -34,7 +34,7 @@ using std::chrono::milliseconds;
 
 class MockPeer : public Peer {
 	public:
-	MockPeer() : Peer(0) {}
+	MockPeer() : Peer(INVALID_SOCKET) {}
 	void mock_data() { data(); }
 };
 
@@ -45,7 +45,7 @@ static std::map<int, std::string> fakedata;
 #ifdef WIN32
 int ftl::net::internal::recv(SOCKET sd, char *buf, int n, int f) {
 #else
-ssize_t ftl::net::internal::recv(int sd, void *buf, size_t n, int f) {
+ssize_t ftl::net::internal::recv(SOCKET sd, void *buf, size_t n, int f) {
 #endif
 	if (fakedata.count(sd) == 0) {
 		std::cout << "Unrecognised socket" << std::endl;

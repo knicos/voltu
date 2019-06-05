@@ -6,6 +6,8 @@
 #include <functional>
 #include <ftl/uri.hpp>
 
+#include <ftl/net/common.hpp>
+
 using std::size_t;
 
 namespace ftl {
@@ -44,7 +46,7 @@ int ws_dispatch(const char *data, size_t len, std::function<void(const wsheader_
  */
 int ws_prepare(wsheader_type::opcode_type, bool useMask, size_t len, char *buffer, size_t maxlen);
 
-bool ws_connect(int sockfd, const ftl::URI &uri);
+bool ws_connect(SOCKET sockfd, const ftl::URI &uri);
 
 };
 };

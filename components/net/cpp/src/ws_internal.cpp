@@ -5,8 +5,6 @@
 //#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <loguru.hpp>
 
-#include <ftl/net/common.hpp>
-
 #include <cstring>
 #include <ftl/net/ws_internal.hpp>
 #include <memory>
