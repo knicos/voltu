@@ -34,7 +34,7 @@ class TextureObject {
 	TextureObject(const TextureObject &t);
 	~TextureObject();
 	
-	int pitch() const { return pitch_; }
+	size_t pitch() const { return pitch_; }
 	T *devicePtr() { return ptr_; };
 	__host__ __device__ T *devicePtr(int v) { return &ptr_[v*pitch2_]; }
 	__host__ __device__ int width() const { return width_; }
@@ -148,8 +148,8 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 	cudaTextureObject_t tex = 0;
 	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
 	texobj_ = tex;
-	width_ = width;
-	height_ = height;
+	width_ = (int)width;
+	height_ = (int)height;
 	needsfree_ = true;
 	pitch2_ = pitch_ / sizeof(T);
 	//needsdestroy_ = true;

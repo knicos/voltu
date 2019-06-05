@@ -111,7 +111,7 @@ static SOCKET tcpConnect(URI &uri) {
 	
 	// TODO(Nick) - Check all returned addresses.
 	auto addr = addrs;
-	rc = ::connect(csocket, addr->ai_addr, addr->ai_addrlen);
+	rc = ::connect(csocket, addr->ai_addr, (socklen_t)addr->ai_addrlen);
 
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {

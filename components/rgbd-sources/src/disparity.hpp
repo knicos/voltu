@@ -53,8 +53,8 @@ class Disparity : public ftl::Configurable {
 	
 	protected:
 	//nlohmann::json &config_;
-	size_t min_disp_;
-	size_t max_disp_;
+	int min_disp_;
+	int max_disp_;
 	cv::Mat mask_l_;
 	
 	private:
