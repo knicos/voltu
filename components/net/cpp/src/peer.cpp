@@ -59,7 +59,7 @@ static ctpl::thread_pool pool(5);
 // TODO(nick) Move to tcp_internal.cpp
 static SOCKET tcpConnect(URI &uri) {
 	int rc;
-	sockaddr_in destAddr;
+	//sockaddr_in destAddr;
 
 	#ifdef WIN32
 	WSAData wsaData;
@@ -77,13 +77,19 @@ static SOCKET tcpConnect(URI &uri) {
 		return INVALID_SOCKET;
 	}
 
-	#ifdef WIN32
+	/*#ifdef WIN32
 	HOSTENT *host = gethostbyname(uri.getHost().c_str());
 	#else
 	hostent *host = gethostbyname(uri.getHost().c_str());
-	#endif
+	#endif*/
 
-	if (host == NULL) {
+	addrinfo hints = {}, *addrs;
+	hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+	rc = getaddrinfo(uri.getHost().c_str(), std::to_string(uri.getPort()).c_str(), &hints, &addrs);
+
+	if (rc != 0 || addrs == nullptr) {
 		#ifndef WIN32
 		close(csocket);
 		#else
@@ -94,16 +100,18 @@ static SOCKET tcpConnect(URI &uri) {
 		return INVALID_SOCKET;
 	}
 
-	destAddr.sin_family = AF_INET;
-	destAddr.sin_addr.s_addr = ((in_addr *)(host->h_addr))->s_addr;
-	destAddr.sin_port = htons(uri.getPort());
+	//destAddr.sin_family = AF_INET;
+	//destAddr.sin_addr.s_addr = ((in_addr *)(host->h_addr))->s_addr;
+	//destAddr.sin_port = htons(uri.getPort());
 
 	// Make nonblocking
 	/*long arg = fcntl(csocket, F_GETFL, NULL));
 	arg |= O_NONBLOCK;
 	fcntl(csocket, F_SETFL, arg) < 0)*/
 	
-	rc = ::connect(csocket, (struct sockaddr*)&destAddr, sizeof(destAddr));
+	// TODO(Nick) - Check all returned addresses.
+	auto addr = addrs;
+	rc = ::connect(csocket, addr->ai_addr, addr->ai_addrlen);
 
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {
