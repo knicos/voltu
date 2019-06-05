@@ -1,9 +1,9 @@
-#include <ftl/net/slave.hpp>
+#include <ftl/slave.hpp>
 #include <loguru.hpp>
 
 using ftl::Configurable;
 using ftl::net::Universe;
-using ftl::net::Slave;
+using ftl::ctrl::Slave;
 
 static void netLog(void* user_data, const loguru::Message& message) {
 	Universe *net = (Universe*)user_data;

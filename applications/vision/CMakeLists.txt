@@ -22,6 +22,6 @@ set_property(TARGET ftl-vision PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-vision ftlrgbd ftlcommon ftlrender Threads::Threads ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} glog::glog ftlnet)
+target_link_libraries(ftl-vision ftlrgbd ftlcommon ftlctrl ftlrender ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} ftlnet)
 
 

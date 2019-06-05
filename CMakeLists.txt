@@ -153,6 +153,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 add_subdirectory(components/common/cpp)
 add_subdirectory(components/net)
 add_subdirectory(components/rgbd-sources)
+add_subdirectory(components/control/cpp)
 
 if (BUILD_RENDERER)
 	add_subdirectory(components/renderers)
