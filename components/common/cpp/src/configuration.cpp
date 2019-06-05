@@ -292,18 +292,36 @@ static bool findConfiguration(const string &file, const vector<string> &paths) {
 		f = mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.json");
 		found |= f;
 		if (f) LOG(INFO) << "Loaded config: " << FTL_GLOBAL_CONFIG_ROOT "/config.json";
+
+		f = mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.jsonc");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << FTL_GLOBAL_CONFIG_ROOT "/config.jsonc";
+
 		f = mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.json");
 		found |= f;
 		if (f) LOG(INFO) << "Loaded config: " << FTL_LOCAL_CONFIG_ROOT "/config.json";
+
+		f = mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.jsonc");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << FTL_LOCAL_CONFIG_ROOT "/config.jsonc";
+
 		f = mergeConfig("./config.json");
 		found |= f;
 		if (f) LOG(INFO) << "Loaded config: " << "./config.json";
+
+		f = mergeConfig("./config.jsonc");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << "./config.jsonc";
 		
 		for (auto p : paths) {
 			if (is_directory(p)) {
 				f = mergeConfig(p+"/config.json");
 				found |= f;
 				if (f) LOG(INFO) << "Loaded config: " << p << "/config.json";
+
+				f = mergeConfig(p+"/config.jsonc");
+				found |= f;
+				if (f) LOG(INFO) << "Loaded config: " << p << "/config.jsonc";
 			}
 		}
 	}
