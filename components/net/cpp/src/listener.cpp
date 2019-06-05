@@ -91,7 +91,7 @@ SOCKET tcpListen(URI &uri) {
 	return ssock;
 }
 
-int wsListen(URI &uri) {
+SOCKET wsListen(URI &uri) {
 	return INVALID_SOCKET;
 }
 

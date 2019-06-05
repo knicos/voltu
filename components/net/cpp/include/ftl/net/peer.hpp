@@ -5,12 +5,7 @@
 #define NOMINMAX
 #endif
 
-#ifndef WIN32
-#define INVALID_SOCKET -1
-#include <netinet/in.h>
-#else
-#include <winsock2.h>
-#endif
+#include <ftl/net/common.hpp>
 
 //#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <loguru.hpp>
@@ -74,7 +69,7 @@ class Peer {
 
 	public:
 	explicit Peer(const char *uri, ftl::net::Dispatcher *d=nullptr);
-	explicit Peer(int s, ftl::net::Dispatcher *d=nullptr);
+	explicit Peer(SOCKET s, ftl::net::Dispatcher *d=nullptr);
 	~Peer();
 	
 	/**
@@ -172,7 +167,7 @@ class Peer {
 	 * Get the internal OS dependent socket.
 	 * TODO(nick) Work out if this should be private.
 	 */
-	int _socket() const { return sock_; };
+	SOCKET _socket() const { return sock_; };
 	
 	/**
 	 * Internal handlers for specific event types. This should be private but
@@ -198,7 +193,7 @@ class Peer {
 
 	private: // Data
 	Status status_;
-	int sock_;
+	SOCKET sock_;
 	ftl::URI::scheme_t scheme_;
 	uint32_t version_;
 	

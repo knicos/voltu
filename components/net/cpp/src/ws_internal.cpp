@@ -5,25 +5,15 @@
 //#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <loguru.hpp>
 
+#include <ftl/net/common.hpp>
+
 #include <cstring>
 #include <ftl/net/ws_internal.hpp>
 #include <memory>
 
-#ifndef WIN32
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-#endif
 
 #ifdef WIN32
-#include <winsock2.h>
 #include <Ws2tcpip.h>
-#include <windows.h>
 #endif
 
 #include <string>
@@ -88,7 +78,7 @@ int ftl::net::ws_dispatch(const char *data, size_t len, std::function<void(const
 	return (int)(ws.header_size+ws.N);
 }
 
-size_t ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t len, char *data, size_t maxlen) {
+int ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t len, char *data, size_t maxlen) {
 	// TODO:
 	// Masking key should (must) be derived from a high quality random
 	// number generator, to mitigate attacks on non-WebSocket friendly
@@ -138,10 +128,10 @@ size_t ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t 
 		}
 	}
 	
-	return header_size;
+	return (int)header_size;
 }
 
-bool ftl::net::ws_connect(int sockfd, const URI &uri) {
+bool ftl::net::ws_connect(SOCKET sockfd, const URI &uri) {
 	string http = "";
 	int status;
 	int i;
@@ -158,7 +148,7 @@ bool ftl::net::ws_connect(int sockfd, const URI &uri) {
 	http += "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n";
 	http += "Sec-WebSocket-Version: 13\r\n";
 	http += "\r\n";
-	int rc = (int)::send(sockfd, http.c_str(), http.length(), 0);
+	int rc = ::send(sockfd, http.c_str(), (int)http.length(), 0);
 	if (rc != (int)http.length()) {
 		LOG(ERROR) << "Could not send Websocket http request...";
 		std::cout << http;

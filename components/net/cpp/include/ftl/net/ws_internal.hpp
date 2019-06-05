@@ -42,7 +42,7 @@ int ws_dispatch(const char *data, size_t len, std::function<void(const wsheader_
  * Websocket header constructor. Fills a buffer with the correct websocket
  * header for a given opcode, mask setting and message length.
  */
-size_t ws_prepare(wsheader_type::opcode_type, bool useMask, size_t len, char *buffer, size_t maxlen);
+int ws_prepare(wsheader_type::opcode_type, bool useMask, size_t len, char *buffer, size_t maxlen);
 
 bool ws_connect(int sockfd, const ftl::URI &uri);
 

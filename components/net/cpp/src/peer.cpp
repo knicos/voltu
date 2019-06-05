@@ -6,11 +6,11 @@
 #define NOMINMAX
 #endif
 
+#include <ftl/net/common.hpp>
+
 #include <fcntl.h>
 #ifdef WIN32
-#include <winsock2.h>
 #include <Ws2tcpip.h>
-#include <windows.h>
 #endif
 
 #ifdef WIN32
@@ -23,17 +23,6 @@
 #include <ftl/net/ws_internal.hpp>
 #include <ftl/config.h>
 #include "net_internal.hpp"
-
-#ifndef WIN32
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-#endif
 
 #include <iostream>
 #include <memory>
@@ -68,7 +57,7 @@ ftl::UUID ftl::net::this_peer;
 static ctpl::thread_pool pool(5);
 
 // TODO(nick) Move to tcp_internal.cpp
-static int tcpConnect(URI &uri) {
+static SOCKET tcpConnect(URI &uri) {
 	int rc;
 	sockaddr_in destAddr;
 
@@ -81,7 +70,7 @@ static int tcpConnect(URI &uri) {
 	#endif
 	
 	//We want a TCP socket
-	int csocket = socket(AF_INET, SOCK_STREAM, 0);
+	SOCKET csocket = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (csocket == INVALID_SOCKET) {
 		LOG(ERROR) << "Unable to create TCP socket";
@@ -140,7 +129,7 @@ static int tcpConnect(URI &uri) {
 	return csocket;
 }
 
-Peer::Peer(int s, Dispatcher *d) : sock_(s) {
+Peer::Peer(SOCKET s, Dispatcher *d) : sock_(s) {
 	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
 	
@@ -541,10 +530,10 @@ int Peer::_send() {
 	auto send_size = send_buf_.vector_size();
 	int c = 0;
 	for (int i = 0; i < send_size; i++) {
-		c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, send_vec[i].iov_len, 0);
+		c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, (int)send_vec[i].iov_len, 0);
 	}
 #else
-	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), send_buf_.vector_size());
+	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
 #endif
 	send_buf_.clear();
 	
