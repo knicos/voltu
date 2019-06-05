@@ -225,6 +225,15 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 			return false;
 		}
 
+		// If there is an ID it still may be a configurable so check!
+		if (r["$id"].is_string()) {
+			Configurable *cfg = find(r["$id"].get<string>());
+			if (cfg) {
+				cfg->set<json_t>(tail, value);
+				return true;
+			}
+		}
+
 		r[tail] = value;
 		return true;
 	}
