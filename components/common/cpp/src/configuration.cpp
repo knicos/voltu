@@ -143,6 +143,7 @@ static bool mergeConfig(const string path) {
 		} catch (...) {
 			LOG(ERROR) << "Unknown error opening config file";
 		}
+		return false;
 	} else {
 		return false;
 	}

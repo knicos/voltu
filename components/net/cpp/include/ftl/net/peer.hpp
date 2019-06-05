@@ -269,6 +269,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 template <typename T, typename... ARGS>
 int Peer::asyncCall(
 		const std::string &name,
+		// cppcheck-suppress *
 		std::function<void(const T&)> cb,
 		ARGS... args) {
 	auto args_obj = std::make_tuple(args...);

@@ -37,6 +37,7 @@ class Disparity : public ftl::Configurable {
 	 */
 	class Register {
 		public:
+		// cppcheck-suppress *
 		Register(const std::string &n, std::function<Disparity*(ftl::Configurable *, const std::string &)> f) {
 			Disparity::_register(n,f);
 		};

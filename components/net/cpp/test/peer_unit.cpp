@@ -238,8 +238,8 @@ TEST_CASE("Peer::call()", "[rpc]") {
 		std::thread thr([&s]() {
 			while (fakedata[0].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			
-			auto [id,value] = readRPC<tuple<>>(0);
-			auto res_obj = std::make_tuple(1,id,"__return__",77);
+			auto res = readRPC<tuple<>>(0);
+			auto res_obj = std::make_tuple(1,std::get<0>(res),"__return__",77);
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);
 			fakedata[0] = buf.str();
@@ -263,9 +263,9 @@ TEST_CASE("Peer::call()", "[rpc]") {
 		std::thread thr([&s]() {
 			while (fakedata[0].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			
-			auto [id,value] = readRPC<tuple<>>(0);
+			auto res = readRPC<tuple<>>(0);
 			vector<int> data = {44,55,66};
-			auto res_obj = std::make_tuple(1,id,"__return__",data);
+			auto res_obj = std::make_tuple(1,std::get<0>(res),"__return__",data);
 			std::stringstream buf;
 			msgpack::pack(buf, res_obj);
 			fakedata[0] = buf.str();
