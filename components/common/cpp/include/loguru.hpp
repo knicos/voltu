@@ -536,7 +536,7 @@ namespace loguru
 	class LOGURU_EXPORT LogScopeRAII
 	{
 	public:
-		LogScopeRAII() : _file(nullptr), _line(0), _indent_stderr(false), _start_time_ns(0), _name({}) {} // No logging
+		LogScopeRAII() : _file(nullptr), _line(0), _indent_stderr(false), _start_time_ns(0), _name({0}) {} // No logging
 		LogScopeRAII(Verbosity verbosity, const char* file, unsigned line, LOGURU_FORMAT_STRING_TYPE format, ...) LOGURU_PRINTF_LIKE(5, 6);
 		~LogScopeRAII();
 
