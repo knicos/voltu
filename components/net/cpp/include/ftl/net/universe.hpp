@@ -59,7 +59,7 @@ class Universe : public ftl::Configurable {
 	 */
 	Peer *connect(const std::string &addr);
 	
-	int numberOfPeers() const { return peers_.size(); }
+	size_t numberOfPeers() const { return peers_.size(); }
 
 	int waitConnections();
 	

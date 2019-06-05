@@ -106,7 +106,7 @@ int Universe::_setDescriptors() {
 	FD_ZERO(&sfdread_);
 	FD_ZERO(&sfderror_);
 
-	int n = 0;
+	SOCKET n = 0;
 
 	unique_lock<mutex> lk(net_mutex_);
 
@@ -193,7 +193,7 @@ bool Universe::createResource(const std::string &uri) {
 int Universe::numberOfSubscribers(const std::string &res) const {
 	auto s = subscribers_.find(res);
 	if (s != subscribers_.end()) {
-		return s->second.size();
+		return (int)s->second.size();
 	} else {
 		return -1;
 	}
@@ -276,7 +276,7 @@ void Universe::_run() {
 					sockaddr_storage addr;
 
 					//Finally accept this client connection.
-					int csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
+					SOCKET csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
 
 					if (csock != INVALID_SOCKET) {
 						auto p = new Peer(csock, &disp_);

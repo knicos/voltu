@@ -40,7 +40,7 @@ class MockPeer : public Peer {
 
 // --- Support -----------------------------------------------------------------
 
-static std::map<int, std::string> fakedata;
+static std::map<SOCKET, std::string> fakedata;
 
 #ifdef WIN32
 int ftl::net::internal::recv(SOCKET sd, char *buf, int n, int f) {
@@ -52,7 +52,7 @@ ssize_t ftl::net::internal::recv(SOCKET sd, void *buf, size_t n, int f) {
 		return 0;
 	}
 	
-	int l = fakedata[sd].size();
+	size_t l = fakedata[sd].size();
 	
 	std::memcpy(buf, fakedata[sd].c_str(), l);
 	fakedata.erase(sd);
