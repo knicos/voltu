@@ -21,6 +21,14 @@ Slave::Slave(Universe *net, ftl::Configurable *root) {
 		exit(0);
 	});
 
+	net->bind("update_cfg", [](const std::string &uri, const std::string &value) {
+		ftl::config::update(uri, nlohmann::json::parse(value));
+	});
+
+	net->bind("get_cfg", [](const std::string &uri) -> std::string {
+		return ftl::config::resolve(uri);
+	});
+
 	loguru::add_callback("net_log", netLog, net, loguru::Verbosity_INFO);
 }
 
