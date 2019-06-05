@@ -112,12 +112,15 @@ static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv:
 }
 
 void StereoVideoSource::grab() {
+	// TODO(Nick) find a way to move this to last part ... but grab can't
+	// be called twice by different threads and it is currently
+	// FIXME Call to grab from multiple threads
+	unique_lock<mutex> lk(mutex_);
 	calib_->rectified(left_, right_);
 
 	cv::Mat disp;
 	disp_->compute(left_, right_, disp);
 
-	unique_lock<mutex> lk(mutex_);
 	left_.copyTo(rgb_);
 	disparityToDepth(disp, depth_, calib_->getQ());
 }
