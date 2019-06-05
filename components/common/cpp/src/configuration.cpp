@@ -216,6 +216,7 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 	if (cfg) {
 		DLOG(1) << "Updating CFG: " << head << "[" << tail << "] = " << value;
 		cfg->set<json_t>(tail, value);
+		return true;
 	} else {
 		DLOG(1) << "Updating: " << head << "[" << tail << "] = " << value;
 		auto &r = resolve(head, false);

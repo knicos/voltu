@@ -85,10 +85,10 @@ int ftl::net::ws_dispatch(const char *data, size_t len, std::function<void(const
 
 	// Perform dispatch
 	d(ws, &data[ws.header_size], ws.N);
-	return ws.header_size+ws.N;
+	return (int)(ws.header_size+ws.N);
 }
 
-int ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t len, char *data, size_t maxlen) {
+size_t ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t len, char *data, size_t maxlen) {
 	// TODO:
 	// Masking key should (must) be derived from a high quality random
 	// number generator, to mitigate attacks on non-WebSocket friendly
@@ -158,7 +158,7 @@ bool ftl::net::ws_connect(int sockfd, const URI &uri) {
 	http += "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n";
 	http += "Sec-WebSocket-Version: 13\r\n";
 	http += "\r\n";
-	int rc = ::send(sockfd, http.c_str(), http.length(), 0);
+	int rc = (int)::send(sockfd, http.c_str(), http.length(), 0);
 	if (rc != (int)http.length()) {
 		LOG(ERROR) << "Could not send Websocket http request...";
 		std::cout << http;

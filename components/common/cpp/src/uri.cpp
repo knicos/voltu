@@ -106,7 +106,7 @@ string URI::to_string() const {
 }
 
 string URI::getPathSegment(int n) const {
-	int N = (n < 0) ? m_pathseg.size()+n : n;
+	size_t N = (n < 0) ? m_pathseg.size()+n : n;
 	if (N < 0 || N >= m_pathseg.size()) return "";
 	else return m_pathseg[N];
 }
