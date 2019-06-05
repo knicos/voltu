@@ -434,7 +434,7 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	process_options(rootcfg, options);
 
 	//LOG(INFO) << "CONFIG: " << config["vision_default"];
-	CHECK_EQ( &config, config_index["ftl://utu.fi"] );
+	//CHECK_EQ( &config, config_index["ftl://utu.fi"] );
 
 	return rootcfg;
 }
