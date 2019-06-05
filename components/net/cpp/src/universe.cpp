@@ -258,7 +258,8 @@ void Universe::_run() {
 		if (selres < 0) {
 			switch (errno) {
 			case 9	: continue;  // Bad file descriptor = socket closed
-			default	: std::cout << "Unknown select error: " << strerror(errno) << std::endl;
+			case 4	: continue;  // Interrupted system call ... no problem
+			default	: LOG(WARNING) << "Unhandled select error: " << strerror(errno) << "(" << errno << ")";
 			}
 			continue;
 		} else if (selres == 0) {
