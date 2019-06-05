@@ -47,23 +47,23 @@ void Master::set(const ftl::UUID &peer, const string &uri, json_t &value) {
 }
 
 vector<string> Master::getConfigurables() {
-
+	return {};
 }
 
 vector<string> Master::getConfigurables(const ftl::UUID &peer) {
-
+	return {};
 }
 
 vector<json_t> Master::get(const string &uri) {
-
+	return {};
 }
 
 json_t Master::getOne(const string &uri) {
-
+	return {};
 }
 
 json_t Master::get(const ftl::UUID &peer, const string &uri) {
-
+	return {};
 }
 
 void Master::watch(const string &uri, function<void()> f) {
