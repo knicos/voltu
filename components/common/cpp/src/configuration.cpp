@@ -192,6 +192,43 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 
 json_t null_json;
 
+bool ftl::config::update(const std::string &puri, const json_t &value) {
+	// Remove last component of URI
+	string tail = "";
+	string head = "";
+	size_t last_hash = puri.find_last_of('#');
+	if (last_hash != string::npos) {
+		size_t last = puri.find_last_of('/');
+		if (last != string::npos && last > last_hash) {
+			tail = puri.substr(last+1);
+			head = puri.substr(0, last);
+		} else {
+			tail = puri.substr(last_hash+1);
+			head = puri.substr(0, last_hash);
+		}
+	} else {
+		LOG(WARNING) << "Expected a # in an update URI: " << puri;
+		return false;
+	}
+
+	Configurable *cfg = find(head);
+
+	if (cfg) {
+		DLOG(1) << "Updating CFG: " << head << "[" << tail << "] = " << value;
+		cfg->set<json_t>(tail, value);
+	} else {
+		DLOG(1) << "Updating: " << head << "[" << tail << "] = " << value;
+		auto r = resolve(head);
+		if (!r.is_structured()) {
+			LOG(ERROR) << "Cannot update property '" << tail << "' of '" << head << "'";
+			return false;
+		}
+
+		r[tail] = value;
+		return true;
+	}
+}
+
 json_t &ftl::config::resolve(const std::string &puri) {
 	string uri_str = puri;
 
@@ -219,44 +256,6 @@ json_t &ftl::config::resolve(const std::string &puri) {
 		} catch(...) {
 			return null_json;
 		}
-	//}
-/*
-
-		int n = 0;
-		while (u.size() != 0) {
-			LOG(INFO) << "Resolve URI: " << u;
-			auto ix = config_index.find(u);
-			if (ix == config_index.end()) {
-				u = uri.getBaseURI(--n);
-				continue;
-			}
-			//LOG(INFO) << "FOUND URI " << *(*ix).second;
-
-			if (n == 0) {
-				return *(*ix).second;
-			} else {
-				// Must apply path segments again...
-				nlohmann::json *c = (*ix).second;
-				while (n < 0) {
-					auto seg = uri.getPathSegment(n++);
-					c = &(*c)[seg];
-					
-					// Recursive resolve...
-					if ((*c).is_string()) {
-						c = &resolve(*c);
-					}
-				}
-
-				// Give it the correct URI
-				if (!(*c)["$id"].is_string()) {
-					(*c)["$id"] = uri.getBaseURI();
-				}
-
-				return *c;
-			}
-		}
-		LOG(FATAL) << "Unresolvable configuration URI: " << uri.getBaseURI();
-		return null_json;*/
 	} else {
 		return null_json;
 	}
@@ -364,7 +363,7 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 		}
 
 		try {
-			//auto ptr = nlohmann::json::json_pointer("/"+opt.first);
+			/* //auto ptr = nlohmann::json::json_pointer("/"+opt.first);
 			auto ptr = ftl::config::resolve(*root->get<string>("$id") + string("/") + opt.first);
 
 			LOG(INFO) << "PARAM RES TO " << (*root->get<string>("$id") + string("/") + opt.first);
@@ -375,7 +374,10 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 				LOG(ERROR) << "Incorrect type for argument " << opt.first << " - expected '" << type << "', got '" << v.type_name() << "'";
 				continue;
 			}
-			ptr.update(v);
+			ptr.swap(v);*/
+
+			auto v = nlohmann::json::parse(opt.second);
+			ftl::config::update(*root->get<string>("$id") + string("/") + opt.first, v);
 		} catch(...) {
 			LOG(ERROR) << "Unrecognised option: " << *root->get<string>("$id") << "#" << opt.first;
 		}

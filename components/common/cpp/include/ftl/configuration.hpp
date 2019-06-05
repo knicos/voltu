@@ -28,6 +28,12 @@ std::optional<std::string> locateFile(const std::string &name);
 Configurable *configure(int argc, char **argv, const std::string &root);
 
 /**
+ * Change a configuration value based upon a URI. Return true if changed,
+ * false if it was not able to change.
+ */
+bool update(const std::string &puri, const json_t &value);
+
+/**
  * Resolve a JSON schema reference, but do not wait for a remote reference
  * if it is not available. A null entity is returned if not resolved.
  */

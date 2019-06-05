@@ -161,7 +161,7 @@ void Streamer::_schedule() {
 
 		shared_lock<shared_mutex> slk(s.second->mutex);
 		if (s.second->state != 0) {
-			LOG(ERROR) << "Stream not ready to schedule on time: " << uri;
+			LOG(WARNING) << "Stream not ready to schedule on time: " << uri;
 			continue;
 		}
 		if (s.second->clients[0].size() == 0) {

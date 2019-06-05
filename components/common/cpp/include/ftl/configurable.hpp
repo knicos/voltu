@@ -97,7 +97,7 @@ class Configurable {
 	void on(const std::string &prop, std::function<void(const config::Event&)>);
 
 	protected:
-	nlohmann::json config_;
+	nlohmann::json &config_;
 
 	private:
 	std::map<std::string, std::list<std::function<void(const config::Event&)>>> observers_; 
@@ -132,7 +132,7 @@ std::optional<T> ftl::Configurable::get(const std::string &name) {
 		std::string res_uri = config_["$ref"].get<std::string>()+"/"+name;
 		auto &r = ftl::config::resolve(res_uri);
 
-		DLOG(1) << "GET: " << res_uri << " = " << r;
+		DLOG(2) << "GET: " << res_uri << " = " << r;
 
 		try {
 			return r.get<T>();
