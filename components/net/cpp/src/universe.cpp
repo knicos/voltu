@@ -96,6 +96,11 @@ Peer *Universe::connect(const string &addr) {
 	return p;
 }
 
+void Universe::unbind(const std::string &name) {
+	unique_lock<mutex> lk(net_mutex_);
+	disp_.unbind(name);
+}
+
 int Universe::waitConnections() {
 	int count = 0;
 	for (auto p : peers_) {

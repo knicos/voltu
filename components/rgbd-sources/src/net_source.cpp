@@ -68,7 +68,12 @@ NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
 }
 
 NetSource::~NetSource() {
-	// TODO Unsubscribe
+	auto uri = get<string>("uri");
+
+	// TODO(Nick) If URI changes then must unbind + rebind.
+	if (uri) {
+		net_->unbind(*uri);
+	}
 }
 
 void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
