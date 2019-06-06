@@ -260,7 +260,6 @@ void Streamer::_schedule() {
 		});
 	}
 
-	// TODO Wait until all jobs completed...
 	unique_lock<mutex> lk(job_mtx);
 	job_cv.wait(lk, [&jobs]{ return jobs == 0; });
 }

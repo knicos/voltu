@@ -77,12 +77,6 @@ static SOCKET tcpConnect(URI &uri) {
 		return INVALID_SOCKET;
 	}
 
-	/*#ifdef WIN32
-	HOSTENT *host = gethostbyname(uri.getHost().c_str());
-	#else
-	hostent *host = gethostbyname(uri.getHost().c_str());
-	#endif*/
-
 	addrinfo hints = {}, *addrs;
 	hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -99,10 +93,6 @@ static SOCKET tcpConnect(URI &uri) {
 		LOG(ERROR) << "Address not found : " << uri.getHost() << std::endl;
 		return INVALID_SOCKET;
 	}
-
-	//destAddr.sin_family = AF_INET;
-	//destAddr.sin_addr.s_addr = ((in_addr *)(host->h_addr))->s_addr;
-	//destAddr.sin_port = htons(uri.getPort());
 
 	// Make nonblocking
 	/*long arg = fcntl(csocket, F_GETFL, NULL));

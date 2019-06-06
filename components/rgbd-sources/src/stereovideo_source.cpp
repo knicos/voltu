@@ -56,12 +56,11 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 	// Generate camera parameters from Q matrix
 	cv::Mat q = calib_->getCameraMatrix();
 	params_ = {
-		// TODO(Nick) Add fx and fy
 		q.at<double>(0,0),	// Fx
 		q.at<double>(1,1),	// Fy
 		-q.at<double>(0,2),	// Cx
 		-q.at<double>(1,2),	// Cy
-		(unsigned int)lsrc_->width(),  // TODO (Nick)
+		(unsigned int)lsrc_->width(),
 		(unsigned int)lsrc_->height(),
 		0.0f,	// 0m min
 		15.0f	// 15m max

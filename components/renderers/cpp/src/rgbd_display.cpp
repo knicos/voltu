@@ -74,7 +74,6 @@ void Display::init() {
 	onKey([this](int key) {
 		//LOG(INFO) << "Key = " << key;
 		if (key == 81 || key == 83) {
-			// TODO Should rotate around lookAt object, but requires correct depth
 			Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, up_);
 			eye_ = (q * (eye_ - centre_)) + centre_;
 		} else if (key == 84 || key == 82) {
