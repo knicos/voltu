@@ -10,7 +10,7 @@ static void netLog(void* user_data, const loguru::Message& message) {
 	//net->publish("log", message.preamble, message.message);
 }
 
-Slave::Slave(Universe *net, ftl::Configurable *root) {
+Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net) {
 	net->bind("restart", []() {
 		LOG(WARNING) << "Remote restart...";
 		//exit(1);
@@ -36,5 +36,8 @@ Slave::Slave(Universe *net, ftl::Configurable *root) {
 }
 
 Slave::~Slave() {
-
+	net_->unbind("restart");
+	net_->unbind("shutdown");
+	net_->unbind("update_cfg");
+	net_->unbind("get_cfg");
 }

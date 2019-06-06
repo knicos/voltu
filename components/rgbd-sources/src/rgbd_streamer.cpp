@@ -69,7 +69,12 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 }
 
 Streamer::~Streamer() {
-	// TODO Unbind everything from net....
+	net_->unbind("find_stream");
+	net_->unbind("list_streams");
+	net_->unbind("source_calibration");
+	net_->unbind("get_stream");
+	net_->unbind("sync_streams");
+	net_->unbind("ping_streamer");
 	pool_.stop();
 }
 

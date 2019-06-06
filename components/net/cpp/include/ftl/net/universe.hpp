@@ -80,7 +80,9 @@ class Universe : public ftl::Configurable {
 	 */
 	template <typename F>
 	void bind(const std::string &name, F func);
-	
+
+	void unbind(const std::string &name);
+
 	/**
 	 * Subscribe a function to a resource. The subscribed function is
 	 * triggered whenever that resource is published to. It is akin to
@@ -205,6 +207,7 @@ class Universe : public ftl::Configurable {
 
 template <typename F>
 void Universe::bind(const std::string &name, F func) {
+	// CHECK Need mutex?
 	disp_.bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
 	    typename ftl::internal::func_kind_info<F>::args_kind());

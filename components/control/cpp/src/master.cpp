@@ -19,7 +19,7 @@ Master::Master(Configurable *root, Universe *net)
 }
 
 Master::~Master() {
-
+	net_->unbind("log");
 }
 
 void Master::restart() {

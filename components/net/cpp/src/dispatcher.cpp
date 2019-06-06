@@ -155,7 +155,7 @@ void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_
 void ftl::net::Dispatcher::enforce_unique_name(std::string const &func) {
     auto pos = funcs_.find(func);
     if (pos != end(funcs_)) {
-    	LOG(ERROR) << "RPC non unique binding for " << func;
+    	LOG(FATAL) << "RPC non unique binding for '" << func << "'";
         throw -1;
     }
 }

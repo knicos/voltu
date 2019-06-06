@@ -11,6 +11,9 @@ class Slave {
 	public:
 	Slave(ftl::net::Universe *, ftl::Configurable *);
 	~Slave();
+
+	private:
+	ftl::net::Universe *net_;
 };
 
 }
