@@ -13,12 +13,15 @@ static void netLog(void* user_data, const loguru::Message& message) {
 Slave::Slave(Universe *net, ftl::Configurable *root) {
 	net->bind("restart", []() {
 		LOG(WARNING) << "Remote restart...";
-		exit(1);
+		//exit(1);
+		ftl::exit_code = 1;
+		ftl::running = false;
 	});
 
 	net->bind("shutdown", []() {
 		LOG(WARNING) << "Remote shutdown...";
-		exit(0);
+		//exit(0);
+		ftl::running = false;
 	});
 
 	net->bind("update_cfg", [](const std::string &uri, const std::string &value) {
