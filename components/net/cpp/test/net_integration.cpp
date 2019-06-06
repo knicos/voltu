@@ -5,6 +5,7 @@
 #include <chrono>
 
 using ftl::net::Universe;
+using ftl::net::Peer;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 
@@ -74,6 +75,74 @@ TEST_CASE("Universe::connect()", "[net]") {
 	}*/
 	
 	//fin_server();
+}
+
+TEST_CASE("Universe::onConnect()", "[net]") {
+	Universe a;
+	Universe b;
+	
+	a.listen("tcp://localhost:7077");
+
+	SECTION("single valid remote init connection") {
+		bool done = false;
+
+		a.onConnect("test", [&done](Peer *p) {
+			done = true;
+		});
+
+		b.connect("tcp://localhost:7077")->waitConnection();
+		sleep_for(milliseconds(100));
+		REQUIRE( done );
+	}
+
+	SECTION("single valid init connection") {
+		bool done = false;
+
+		b.onConnect("test", [&done](Peer *p) {
+			done = true;
+		});
+
+		b.connect("tcp://localhost:7077")->waitConnection();
+		sleep_for(milliseconds(100));
+		REQUIRE( done );
+	}
+}
+
+TEST_CASE("Universe::onDisconnect()", "[net]") {
+	Universe a;
+	Universe b;
+	
+	a.listen("tcp://localhost:7077");
+
+	SECTION("single valid remote close") {
+		bool done = false;
+
+		a.onDisconnect("test", [&done](Peer *p) {
+			done = true;
+		});
+
+		Peer *p = b.connect("tcp://localhost:7077");
+		p->waitConnection();
+		sleep_for(milliseconds(100));
+		p->close();
+		sleep_for(milliseconds(1100));
+		REQUIRE( done );
+	}
+
+	SECTION("single valid close") {
+		bool done = false;
+
+		b.onDisconnect("test", [&done](Peer *p) {
+			done = true;
+		});
+
+		Peer *p = b.connect("tcp://localhost:7077");
+		p->waitConnection();
+		sleep_for(milliseconds(100));
+		p->close();
+		sleep_for(milliseconds(1100));
+		REQUIRE( done );
+	}
 }
 
 TEST_CASE("Universe::broadcast()", "[net]") {

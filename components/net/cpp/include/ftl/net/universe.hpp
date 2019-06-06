@@ -20,6 +20,10 @@
 namespace ftl {
 namespace net {
 
+struct Error {
+	int errno;
+};
+
 /**
  * Represents a group of network peers and their resources, managing the
  * searching of and sharing of resources across peers. Each universe can
@@ -142,6 +146,14 @@ class Universe : public ftl::Configurable {
 
 	void setLocalID(const ftl::UUID &u) { this_peer = u; };
 	const ftl::UUID &id() const { return this_peer; }
+
+	// --- Event Handlers ------------------------------------------------------
+
+	void onConnect(const std::string &, std::function<void(ftl::net::Peer*)>);
+	void onDisconnect(const std::string &, std::function<void(ftl::net::Peer*)>);
+	void onError(const std::string &, std::function<void(ftl::net::Peer*, const ftl::net::Error &)>);
+
+	void removeCallbacks(const std::string &);
 	
 	private:
 	void _run();
@@ -149,7 +161,10 @@ class Universe : public ftl::Configurable {
 	void _installBindings();
 	void _installBindings(Peer *);
 	bool _subscribe(const std::string &res);
-	void _remove(Peer *);
+	void _cleanupPeers();
+	void _notifyConnect(Peer *);
+	void _notifyDisconnect(Peer *);
+	void _notifyError(Peer *, const ftl::net::Error &);
 	
 	static void __start(Universe *u);
 	
@@ -167,6 +182,22 @@ class Universe : public ftl::Configurable {
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
 	std::thread thread_;
+
+	struct ConnHandler {
+		std::string name;
+		std::function<void(ftl::net::Peer*)> h;
+	};
+
+	struct ErrHandler {
+		std::string name;
+		std::function<void(ftl::net::Peer*, const ftl::net::Error &)> h;
+	};
+
+	// Handlers
+	std::list<ConnHandler> on_connect_;
+	std::list<ConnHandler> on_disconnect_;
+	std::list<ErrHandler> on_error_;
+
 	// std::map<std::string, std::vector<ftl::net::Peer*>> subscriptions_;
 };
 
