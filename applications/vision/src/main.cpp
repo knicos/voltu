@@ -96,16 +96,16 @@ static void run(ftl::Configurable *root) {
 	stream->add(source);
 	stream->run();
 
-	while (display->active()) {
+	while (ftl::running && display->active()) {
 		cv::Mat rgb, depth;
 		source->getRGBD(rgb, depth);
 		if (!rgb.empty()) display->render(rgb, depth, source->getParameters());
 		display->wait(10);
 	}
 
+	LOG(INFO) << "Stopping...";
 	stream->stop();
 
-	LOG(INFO) << "Finished.";
 	delete stream;
 	delete display;
 	delete source;
@@ -125,5 +125,7 @@ int main(int argc, char **argv) {
 	//} else {
 	//	ftl::middlebury::test(config);
 	//}
+
+	return ftl::exit_code;
 }
 

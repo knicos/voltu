@@ -113,6 +113,7 @@ void Streamer::remove(const std::string &) {
 
 void Streamer::stop() {
 	active_ = false;
+	pool_.stop();
 }
 
 void Streamer::run(bool block) {
@@ -128,7 +129,11 @@ void Streamer::run(bool block) {
 			std::chrono::duration<double> elapsed =
 				std::chrono::high_resolution_clock::now() - start;
 
-			sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
+			if (elapsed.count() >= wait) {
+				LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
+			} else {
+				sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
+			}
 		}
 	} else {
 		// Create thread job for frame ticking
@@ -142,7 +147,11 @@ void Streamer::run(bool block) {
 				std::chrono::duration<double> elapsed =
 					std::chrono::high_resolution_clock::now() - start;
 
-				sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
+				if (elapsed.count() >= wait) {
+					LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
+				} else {
+					sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
+				}
 			}
 		});
 	}
@@ -156,12 +165,16 @@ void Streamer::_swap(StreamSource &src) {
 }
 
 void Streamer::_schedule() {
+	std::mutex job_mtx;
+	std::condition_variable job_cv;
+	int jobs = 0;
+
 	for (auto s : sources_) {
 		string uri = s.first;
 
 		shared_lock<shared_mutex> slk(s.second->mutex);
 		if (s.second->state != 0) {
-			LOG(WARNING) << "Stream not ready to schedule on time: " << uri;
+			LOG(WARNING) << "Stream not ready to schedule on time: " << uri << " (" << s.second->state << ")";
 			continue;
 		}
 		if (s.second->clients[0].size() == 0) {
@@ -170,19 +183,34 @@ void Streamer::_schedule() {
 		}
 		slk.unlock();
 
+		unique_lock<mutex> lk(job_mtx);
+		jobs += 2;
+		lk.unlock();
+
 		// Grab job
-		pool_.push([this,uri](int id) {
+		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
 			StreamSource *src = sources_[uri];
-			src->src->grab();
+
+			try {
+				src->src->grab();
+			} catch(...) {
+				LOG(ERROR) << "Grab Exception for: " << uri;
+			}
 
 			unique_lock<shared_mutex> lk(src->mutex);
 			src->state |= ftl::rgbd::detail::kGrabbed;
 			_swap(*src);
+			lk.unlock();
+
+			unique_lock<mutex> ulk(job_mtx);
+			jobs--;
+			ulk.unlock();
+			job_cv.notify_one();
 		});
 
 		// Transmit job
 		// TODO, could do one for each bitrate...
-		pool_.push([this,uri](int id) {
+		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
 			StreamSource *src = sources_[uri];
 
 			if (src->rgb.rows > 0 && src->depth.rows > 0 && src->clients[0].size() > 0) {
@@ -197,13 +225,16 @@ void Streamer::_schedule() {
 				auto i = src->clients[0].begin();
 				while (i != src->clients[0].end()) {
 					try {
-						net_->send((*i).peerid, (*i).uri, rgb_buf, d_buf);
+						if (!net_->send((*i).peerid, (*i).uri, rgb_buf, d_buf)) {
+							(*i).txcount = (*i).txmax;
+						}
 					} catch(...) {
 						(*i).txcount = (*i).txmax;
 					}
 					(*i).txcount++;
 					if ((*i).txcount >= (*i).txmax) {
-						LOG(INFO) << "Remove client";
+						DLOG(2) << "Remove client";
+						unique_lock<shared_mutex> lk(src->mutex);
 						i = src->clients[0].erase(i);
 					} else {
 						i++;
@@ -212,11 +243,21 @@ void Streamer::_schedule() {
 			}
 
 			unique_lock<shared_mutex> lk(src->mutex);
-			LOG(INFO) << "Tx Frame: " << uri;
+			DLOG(1) << "Tx Frame: " << uri;
 			src->state |= ftl::rgbd::detail::kTransmitted;
 			_swap(*src);
+			lk.unlock();
+
+			unique_lock<mutex> ulk(job_mtx);
+			jobs--;
+			ulk.unlock();
+			job_cv.notify_one();
 		});
 	}
+
+	// TODO Wait until all jobs completed...
+	unique_lock<mutex> lk(job_mtx);
+	job_cv.wait(lk, [&jobs]{ return jobs == 0; });
 }
 
 RGBDSource *Streamer::get(const std::string &uri) {

@@ -12,6 +12,9 @@
 
 namespace ftl {
 
+extern bool running;
+extern int exit_code;
+
 class Configurable;
 
 bool is_directory(const std::string &path);

@@ -7,7 +7,7 @@ using ftl::ctrl::Slave;
 
 static void netLog(void* user_data, const loguru::Message& message) {
 	Universe *net = (Universe*)user_data;
-	net->publish("log", message.preamble, message.message);
+	//net->publish("log", message.preamble, message.message);
 }
 
 Slave::Slave(Universe *net, ftl::Configurable *root) {

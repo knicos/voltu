@@ -47,6 +47,9 @@ using ftl::config::config;
 
 static Configurable *rootCFG = nullptr;
 
+bool ftl::running = true;
+int ftl::exit_code = 0;
+
 bool ftl::is_directory(const std::string &path) {
 #ifdef WIN32
 	DWORD attrib = GetFileAttributesA(path.c_str());
@@ -413,7 +416,7 @@ static void signalIntHandler( int signum ) {
    // cleanup and close up stuff here  
    // terminate program  
 
-   exit(0);
+   ftl::running = false;
 }
 
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {

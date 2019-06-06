@@ -108,7 +108,7 @@ class Universe : public ftl::Configurable {
 	R call(const UUID &pid, const std::string &name, ARGS... args);
 	
 	template <typename... ARGS>
-	void send(const UUID &pid, const std::string &name, ARGS... args);
+	bool send(const UUID &pid, const std::string &name, ARGS... args);
 
 	template <typename R, typename... ARGS>
 	std::optional<R> findOne(const std::string &name, ARGS... args);
@@ -316,13 +316,13 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 }
 
 template <typename... ARGS>
-void Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
+bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
 	if (p == nullptr) {
 		LOG(ERROR) << "Attempting to call an unknown peer : " << pid.to_string();
 		throw -1;
 	}
-	p->send(name, args...);
+	return p->send(name, args...) > 0;
 }
 
 template <typename... ARGS>

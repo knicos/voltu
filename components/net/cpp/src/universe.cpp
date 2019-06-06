@@ -253,6 +253,7 @@ void Universe::_run() {
 		int n = _setDescriptors();
 		int selres = 1;
 
+		// It is an error to use "select" with no sockets ... so just sleep
 		if (n == 0) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(300));
 			continue;
@@ -294,6 +295,8 @@ void Universe::_run() {
 						_installBindings(p);
 						p->onConnect([this](Peer &p) {
 							peer_ids_[p.id()] = &p;
+							// Note, called in another thread so above lock
+							// does not apply.
 							_notifyConnect(&p);
 						});
 					}
@@ -314,6 +317,7 @@ void Universe::_run() {
 				}
 			}
 		}
+		// TODO(Nick) Don't always need to call this
 		_cleanupPeers();
 	}
 }
@@ -381,8 +385,8 @@ void Universe::_notifyConnect(Peer *p) {
 }
 
 void Universe::_notifyDisconnect(Peer *p) {
+	// In all cases, should already be locked outside this function call
 	//unique_lock<mutex> lk(net_mutex_);
-	LOG(INFO) << "NOTIFY DISCONNECT";
 	for (auto &i : on_disconnect_) {
 		try {
 			i.h(p);
@@ -393,5 +397,5 @@ void Universe::_notifyDisconnect(Peer *p) {
 }
 
 void Universe::_notifyError(Peer *p, const ftl::net::Error &e) {
-
+	// TODO(Nick)
 }
