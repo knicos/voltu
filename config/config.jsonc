@@ -183,10 +183,24 @@
 	},
 
 
-	"gui_default": {
+	"gui_node5": {
 		"net": {
 			"peers": ["tcp://ftl-node-5:9001"]
 		},
 		"sources": [{"type": "net", "uri": "ftl://utu.fi/node5#vision_default/source"}]
+	},
+
+	"gui_node4": {
+		"net": {
+			"peers": ["tcp://ftl-node-4:9001"]
+		},
+		"sources": [{"type": "net", "uri": "ftl://utu.fi/node4#vision_default/source"}]
+	},
+
+	"gui_default": {
+		"net": {
+			"peers": ["tcp://localhost:9001"]
+		},
+		"sources": [{"type": "net", "uri": "ftl://utu.fi#vision_default/source"}]
 	}
 }

@@ -66,6 +66,15 @@ else()
 endif()
 endif()
 
+find_library( NANOGUI_LIBRARY NAMES nanogui libnanogui)
+if (NANOGUI_LIBRARY)
+	set(HAVE_NANOGUI TRUE)
+	add_library(nanogui UNKNOWN IMPORTED)
+	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+	set_property(TARGET nanogui PROPERTY IMPORTED_LOCATION ${NANOGUI_LIBRARY})
+    message(STATUS "Found NanoGUI: ${NANOGUI_LIBRARY}")
+endif()
+
 find_program( NODE_NPM NAMES npm )
 if (NODE_NPM)
 	message(STATUS "Found NPM: ${NODE_NPM}")
@@ -166,6 +175,10 @@ endif()
 
 if (BUILD_RECONSTRUCT AND HAVE_PCL)
 	add_subdirectory(applications/reconstruct)
+endif()
+
+if (HAVE_NANOGUI)
+	add_subdirectory(applications/gui)
 endif()
 
 ### Generate Build Configuration Files =========================================

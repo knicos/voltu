@@ -51,13 +51,18 @@ Universe::Universe(nlohmann::json &config) :
 }
 
 Universe::~Universe() {
+	shutdown();
+}
+
+void Universe::shutdown() {
+	if (!active_) return;
 	LOG(INFO) << "Cleanup Network ...";
 
 	active_ = false;
 	thread_.join();
 	
 	for (auto s : peers_) {
-		s->close();
+		s->rawClose();
 	}
 	
 	peers_.clear();

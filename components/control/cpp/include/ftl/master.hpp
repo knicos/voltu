@@ -12,6 +12,7 @@ namespace ftl {
 namespace ctrl {
 
 struct LogEvent {
+	int verbosity;
 	std::string preamble;
 	std::string message;
 };
@@ -37,6 +38,8 @@ class Master {
 
 	std::vector<std::string> getConfigurables(const ftl::UUID &peer);
 
+	std::vector<ftl::config::json_t> getSlaves();
+
 	std::vector<ftl::config::json_t> get(const std::string &uri);
 
 	ftl::config::json_t getOne(const std::string &uri);
@@ -52,6 +55,9 @@ class Master {
 	//void onFailure();
 	//void onStatus();
 	// void onChange();
+
+	ftl::net::Universe *getNet() { return net_; }
+	ftl::Configurable *getRoot() { return root_; }
 
 	private:
 	std::vector<std::function<void(const LogEvent&)>> log_handlers_;

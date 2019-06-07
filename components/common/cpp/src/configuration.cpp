@@ -183,14 +183,15 @@ ftl::Configurable *ftl::config::find(const std::string &uri) {
 void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 	auto uri = cfg->get<string>("$id");
 	if (!uri) {
-		LOG(FATAL) << "Configurable object is missing $id property";
+		LOG(ERROR) << "Configurable object is missing $id property: " << cfg->getConfig();
 		return;
 	}
 	auto ix = config_instance.find(*uri);
-	if (ix == config_instance.end()) {
-		LOG(FATAL) << "Attempting to create a duplicate object: " << *uri;
+	if (ix != config_instance.end()) {
+		LOG(ERROR) << "Attempting to create a duplicate object: " << *uri;
 	} else {
 		config_instance[*uri] = cfg;
+		LOG(INFO) << "Registering instance: " << *uri;
 	}
 }
 

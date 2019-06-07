@@ -28,13 +28,18 @@ class NetSource : public RGBDSource {
 		return new NetSource(config, net);
 	}
 
+	void setPose(const Eigen::Matrix4f &pose);
+
 	private:
 	bool has_calibration_;
 	ftl::UUID peer_;
 	int N_;
+	bool active_;
+	std::string uri_;
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::CameraParameters &p);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
+	void _updateURI();
 };
 
 }

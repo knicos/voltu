@@ -25,8 +25,17 @@ namespace ftl {
 			uuid_generate(uuid_);
 #endif
 		}
-		explicit UUID(int u) { memset(&uuid_,u,16); }
-		UUID(const ftl::UUID &u) { memcpy(&uuid_,&u.uuid_,16); }
+		explicit UUID(int u) { memset(uuid_,u,16); }
+		UUID(const ftl::UUID &u) { memcpy(uuid_,u.uuid_,16); }
+		explicit UUID(const std::string &s) {
+#ifdef WIN32
+			// TODO(Nick) Windows UUID parse
+#else
+			if (uuid_parse(s.c_str(), uuid_) < 0) {
+				memset(uuid_,0,16);
+			}
+#endif
+		}
 		
 		UUID &operator=(const UUID &u)  {
 			memcpy(&uuid_,&u.uuid_,16); return *this;

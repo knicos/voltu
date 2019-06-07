@@ -98,6 +98,7 @@ Website: www.ilikebigbits.com
 #define LOGURU_VERSION_PATCH 0
 
 #define LOGURU_REPLACE_GLOG 1
+#define LOGURU_CATCH_SIGABRT 0
 
 #if defined(_MSC_VER)
 #include <sal.h>	// Needed for _In_z_ etc annotations

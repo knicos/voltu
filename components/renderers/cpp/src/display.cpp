@@ -18,7 +18,7 @@ Display::Display(nlohmann::json &config, std::string name) : ftl::Configurable(c
 	window_->setBackgroundColor(cv::viz::Color::white());
 #endif  // HAVE_VIZ
 
-	cv::namedWindow("Image", cv::WINDOW_KEEPRATIO);
+	//cv::namedWindow("Image", cv::WINDOW_KEEPRATIO);
 
 #if defined HAVE_PCL
 	if (config.value("points", false)) {
