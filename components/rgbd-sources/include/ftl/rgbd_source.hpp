@@ -19,7 +19,7 @@ namespace rgbd {
  */
 class RGBDSource : public ftl::Configurable {
 	public:
-	RGBDSource(nlohmann::json &config);
+	explicit RGBDSource(nlohmann::json &config);
 	RGBDSource(nlohmann::json &config, ftl::net::Universe *net);
 	virtual ~RGBDSource();
 
@@ -57,6 +57,7 @@ class RGBDSource : public ftl::Configurable {
 	 */
 	class Register {
 		public:
+		// cppcheck-suppress *
 		Register(const std::string &n, std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)> f) {
 			RGBDSource::_register(n,f);
 		};

@@ -119,6 +119,13 @@ class Dispatcher {
 		    return std::make_unique<msgpack::object_handle>(result, std::move(z));
 		}));
 	}
+
+	void unbind(const std::string &name) {
+		auto i = funcs_.find(name);
+		if (i != funcs_.end()) {
+			funcs_.erase(i);
+		}
+	}
 	
 	std::vector<std::string> getBindings() const;
 	

@@ -6,11 +6,11 @@
 #define NOMINMAX
 #endif
 
+#include <ftl/net/common.hpp>
+
 #include <fcntl.h>
 #ifdef WIN32
-#include <winsock2.h>
 #include <Ws2tcpip.h>
-#include <windows.h>
 #endif
 
 #ifdef WIN32
@@ -23,17 +23,6 @@
 #include <ftl/net/ws_internal.hpp>
 #include <ftl/config.h>
 #include "net_internal.hpp"
-
-#ifndef WIN32
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-#endif
 
 #include <iostream>
 #include <memory>
@@ -68,9 +57,9 @@ ftl::UUID ftl::net::this_peer;
 static ctpl::thread_pool pool(5);
 
 // TODO(nick) Move to tcp_internal.cpp
-static int tcpConnect(URI &uri) {
+static SOCKET tcpConnect(URI &uri) {
 	int rc;
-	sockaddr_in destAddr;
+	//sockaddr_in destAddr;
 
 	#ifdef WIN32
 	WSAData wsaData;
@@ -81,20 +70,20 @@ static int tcpConnect(URI &uri) {
 	#endif
 	
 	//We want a TCP socket
-	int csocket = socket(AF_INET, SOCK_STREAM, 0);
+	SOCKET csocket = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (csocket == INVALID_SOCKET) {
 		LOG(ERROR) << "Unable to create TCP socket";
 		return INVALID_SOCKET;
 	}
 
-	#ifdef WIN32
-	HOSTENT *host = gethostbyname(uri.getHost().c_str());
-	#else
-	hostent *host = gethostbyname(uri.getHost().c_str());
-	#endif
+	addrinfo hints = {}, *addrs;
+	hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+	rc = getaddrinfo(uri.getHost().c_str(), std::to_string(uri.getPort()).c_str(), &hints, &addrs);
 
-	if (host == NULL) {
+	if (rc != 0 || addrs == nullptr) {
 		#ifndef WIN32
 		close(csocket);
 		#else
@@ -105,16 +94,14 @@ static int tcpConnect(URI &uri) {
 		return INVALID_SOCKET;
 	}
 
-	destAddr.sin_family = AF_INET;
-	destAddr.sin_addr.s_addr = ((in_addr *)(host->h_addr))->s_addr;
-	destAddr.sin_port = htons(uri.getPort());
-
 	// Make nonblocking
 	/*long arg = fcntl(csocket, F_GETFL, NULL));
 	arg |= O_NONBLOCK;
 	fcntl(csocket, F_SETFL, arg) < 0)*/
 	
-	rc = ::connect(csocket, (struct sockaddr*)&destAddr, sizeof(destAddr));
+	// TODO(Nick) - Check all returned addresses.
+	auto addr = addrs;
+	rc = ::connect(csocket, addr->ai_addr, (socklen_t)addr->ai_addrlen);
 
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {
@@ -140,7 +127,7 @@ static int tcpConnect(URI &uri) {
 	return csocket;
 }
 
-Peer::Peer(int s, Dispatcher *d) : sock_(s) {
+Peer::Peer(SOCKET s, Dispatcher *d) : sock_(s) {
 	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
 	
@@ -154,7 +141,7 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
 			LOG(INFO) << "Handshake 2 received";
 			if (magic != ftl::net::kMagic) {
-				close();
+				_badClose(false);
 				LOG(ERROR) << "Invalid magic during handshake";
 			} else {
 				status_ = kConnected;
@@ -164,6 +151,10 @@ Peer::Peer(int s, Dispatcher *d) : sock_(s) {
 				
 				_trigger(open_handlers_);
 			}
+		});
+
+		bind("__disconnect__", [this]() {
+			_badClose(false);
 		});
 
 		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer); 
@@ -189,7 +180,7 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 		if (sock_ != INVALID_SOCKET) {
 			if (!ws_connect(sock_, uri)) {
 				LOG(ERROR) << "Websocket connection failed";
-				close();
+				_badClose(false);
 			}
 		} else {
 			LOG(ERROR) << "Connection refused to " << uri.getHost() << ":" << uri.getPort();
@@ -207,7 +198,7 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
 			LOG(INFO) << "Handshake 1 received";
 			if (magic != ftl::net::kMagic) {
-				close();
+				_badClose(false);
 				LOG(ERROR) << "Invalid magic during handshake";
 			} else {
 				status_ = kConnected;
@@ -251,6 +242,16 @@ void Peer::_updateURI() {
 
 void Peer::close(bool retry) {
 	if (sock_ != INVALID_SOCKET) {
+
+		// Attempt to inform about disconnect
+		send("__disconnect__");
+
+		_badClose(retry);
+	}
+}
+
+void Peer::_badClose(bool retry) {
+	if (sock_ != INVALID_SOCKET) {
 		#ifndef WIN32
 		::close(sock_);
 		#else
@@ -260,6 +261,7 @@ void Peer::close(bool retry) {
 		status_ = kDisconnected;
 
 		// Attempt auto reconnect?
+		if (retry) LOG(INFO) << "Should attempt reconnect...";
 		
 		//auto i = find(sockets.begin(),sockets.end(),this);
 		//sockets.erase(i);
@@ -333,12 +335,12 @@ bool Peer::_data() {
 				obj.convert(hs);
 				
 				if (get<1>(hs) != "__handshake__") {
-					close();
+					_badClose(false);
 					LOG(ERROR) << "Missing handshake";
 					return false;
 				}
 			} catch(...) {
-				close();
+				_badClose(false);
 				LOG(ERROR) << "Bad first message format";
 				return false;
 			}
@@ -347,116 +349,6 @@ bool Peer::_data() {
 	}
 	return false;
 }
-
-/*bool Socket::data() {
-	//Read data from socket
-	size_t n = 0;
-	int c = 0;
-	uint32_t len = 0;
-
-	if (pos_ < 4) {
-		n = 4 - pos_;
-	} else {
-		len = *(int*)buffer_;
-		n = len+4-pos_;
-	}
-
-	while (pos_ < len+4) {
-		if (len > MAX_MESSAGE) {
-			close();
-			LOG(ERROR) << "Socket: " << uri_ << " - message attack";
-			return false;
-		}
-
-		const int rc = ftl::net::internal::recv(sock_, buffer_+pos_, n, 0);
-
-		if (rc > 0) {
-			pos_ += static_cast<size_t>(rc);
-
-			if (pos_ < 4) {
-				n = 4 - pos_;
-			} else {
-				len = *(int*)buffer_;
-				n = len+4-pos_;
-			}
-		} else if (rc == EWOULDBLOCK || rc == 0) {
-			// Data not yet available
-			if (c == 0) {
-				LOG(INFO) << "Socket disconnected " << uri_;
-				close();
-			}
-			return false;
-		} else {
-			LOG(ERROR) << "Socket: " << uri_ << " - error " << rc;
-			close();
-			return false;
-		}
-		c++;
-	}
-
-	// Route the message...
-	uint32_t service = ((uint32_t*)buffer_)[1];
-	auto d = std::string(buffer_+8, len-4);
-	
-	pos_ = 0; // DODGY, processing messages inside handlers is dangerous.
-	gpos_ = 0;
-	
-	if (service == FTL_PROTOCOL_HS1 && !connected_) {
-		handshake1();
-	} else if (service == FTL_PROTOCOL_HS2 && !connected_) {
-		handshake2();
-	} else if (service == FTL_PROTOCOL_RPC) {
-		if (proto_) proto_->dispatchRPC(*this, d);
-		else LOG(WARNING) << "No protocol set for socket " << uri_;
-	} else if (service == FTL_PROTOCOL_RPCRETURN) {
-		_dispatchReturn(d);
-	} else {
-		if (proto_) proto_->dispatchRaw(service, *this);
-		else LOG(WARNING) << "No protocol set for socket " << uri_;
-	}
-
-	return true;
-}*/
-
-/*int Socket::read(char *b, size_t count) {
-	if (count > size()) LOG(WARNING) << "Reading too much data for service " << header_->service;
-	count = (count > size() || count==0) ? size() : count;
-	// TODO, utilise recv directly here...
-	memcpy(b,data_+gpos_,count);
-	gpos_+=count;
-	return count;
-}
-
-int Socket::read(std::string &s, size_t count) {
-	count = (count > size() || count==0) ? size() : count;
-	s = std::string(data_+gpos_,count);
-	return count;
-}
-
-void Socket::handshake1() {
-	Handshake header;
-	read(header);
-
-	std::string peer;
-	if (header.name_size > 0) read(peer,header.name_size);
-
-	std::string protouri;
-	if (header.proto_size > 0) read(protouri,header.proto_size);
-
-	if (protouri.size() > 0) {
-		remote_proto_ = protouri;
-		// TODO Validate protocols with local protocol?
-	}
-
-	send(FTL_PROTOCOL_HS2); // TODO Counterpart protocol.
-	LOG(INFO) << "Handshake (" << protouri << ") confirmed from " << uri_;
-	_connected();
-}
-
-void Socket::handshake2() {
-	LOG(INFO) << "Handshake finalised for " << uri_;
-	_connected();
-}*/
 
 void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
 	// TODO Handle error reporting...
@@ -541,17 +433,17 @@ int Peer::_send() {
 	auto send_size = send_buf_.vector_size();
 	int c = 0;
 	for (int i = 0; i < send_size; i++) {
-		c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, send_vec[i].iov_len, 0);
+		c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, (int)send_vec[i].iov_len, 0);
 	}
 #else
-	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), send_buf_.vector_size());
+	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
 #endif
 	send_buf_.clear();
 	
 	// We are blocking, so -1 should mean actual error
 	if (c == -1) {
 		socketError();
-		close();
+		_badClose();
 	}
 	
 	return c;
@@ -560,7 +452,7 @@ int Peer::_send() {
 Peer::~Peer() {
 	std::unique_lock<std::mutex> lk1(send_mtx_);
 	std::unique_lock<std::mutex> lk2(recv_mtx_);
-	close();
+	_badClose(false);
 
 	delete disp_;
 }

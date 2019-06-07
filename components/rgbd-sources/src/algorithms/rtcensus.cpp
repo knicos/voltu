@@ -43,8 +43,8 @@ static vector<uint64_t> sparse_census_16x16(const Mat &arr) {
 	result.resize(arr.cols*arr.rows, 0);
 
 	/* Loops adapted to avoid edge out-of-bounds checks */
-	for (size_t v=7; v < arr.rows-7; v++) {
-	for (size_t u=7; u < arr.cols-7; u++) {
+	for (int v=7; v < arr.rows-7; v++) {
+	for (int u=7; u < arr.cols-7; u++) {
 		uint64_t r = 0;
 
 		/* 16x16 sparse kernel to 8x8 mask (64 bits) */

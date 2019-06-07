@@ -1,4 +1,5 @@
 // Disable all warnings from gcc/clang:
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpragmas"
 
@@ -15,6 +16,7 @@
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #pragma GCC diagnostic ignored "-Wunused-macros"
 #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
+#endif  // __GNUC__
 
 #define LOGURU_REPLACE_GLOG 1
 #include "loguru.hpp"
@@ -508,6 +510,7 @@ namespace loguru
 
 	Text errno_as_text()
 	{
+		// cppcheck-suppress unusedVariable
 		char buff[256];
 	#if defined(__GLIBC__) && defined(_GNU_SOURCE)
 		// GNU Version
@@ -1067,7 +1070,7 @@ namespace loguru
 						 i - skip, int(2 + sizeof(void*) * 2), callstack[i],
 						 status == 0 ? demangled :
 						 info.dli_sname == 0 ? symbols[i] : info.dli_sname,
-						 static_cast<char*>(callstack[i]) - static_cast<char*>(info.dli_saddr));
+						 (ssize_t)(static_cast<char*>(callstack[i]) - static_cast<char*>(info.dli_saddr)));
 				free(demangled);
 			} else {
 				snprintf(buf, sizeof(buf), "%-3d %*p %s\n",

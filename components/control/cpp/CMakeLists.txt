@@ -1,5 +1,6 @@
 add_library(ftlctrl
 	src/slave.cpp
+	src/master.cpp
 )
 
 target_include_directories(ftlctrl PUBLIC

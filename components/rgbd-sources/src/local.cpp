@@ -263,9 +263,9 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 	}
 
 	if (downsize_ != 1.0f) {
-		cv::resize(l, l, cv::Size(l.cols * downsize_, l.rows * downsize_),
+		cv::resize(l, l, cv::Size((int)(l.cols * downsize_), (int)(l.rows * downsize_)),
 				0, 0, cv::INTER_LINEAR);
-		cv::resize(r, r, cv::Size(r.cols * downsize_, r.rows * downsize_),
+		cv::resize(r, r, cv::Size((int)(r.cols * downsize_), (int)(r.rows * downsize_)),
 				0, 0, cv::INTER_LINEAR);
 	}
 

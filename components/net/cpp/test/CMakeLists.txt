@@ -13,19 +13,6 @@ target_link_libraries(peer_unit
 	Threads::Threads
 	${UUID_LIBRARIES})
 
-### P2P Base Unit ##############################################################
-# TODO(nick) Actually make this a unit test
-
-#add_executable(p2p_base_unit
-#	./tests.cpp
-#	./p2p_base_unit.cpp)
-#add_dependencies(p2p_base_unit ftlnet)
-#target_link_libraries(p2p_base_unit
-#	ftlnet
-#	${URIPARSER_LIBRARIES}
-#	glog::glog
-#	${UUID_LIBRARIES})
-
 ### Net Integration ############################################################
 add_executable(net_integration
 	./tests.cpp

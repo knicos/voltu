@@ -78,7 +78,7 @@ void Calibrate::Settings::write(FileStorage& fs) const {
 void Calibrate::Settings::read(ftl::Configurable *node) {
     boardSize.width = node->value<vector<int>>("board_size", {10,10})[0];
     boardSize.height = node->value<vector<int>>("board_size", {10,10})[1];
-    squareSize = node->value("square_size", 50);
+    squareSize = node->value("square_size", 50.0f);
     nrFrames = node->value("num_frames", 20);
     aspectRatio = node->value("fix_aspect_ratio", false);
     calibZeroTangentDist = node->value("assume_zero_tangential_distortion", false);

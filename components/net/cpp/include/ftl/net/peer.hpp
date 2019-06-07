@@ -5,12 +5,7 @@
 #define NOMINMAX
 #endif
 
-#ifndef WIN32
-#define INVALID_SOCKET -1
-#include <netinet/in.h>
-#else
-#include <winsock2.h>
-#endif
+#include <ftl/net/common.hpp>
 
 //#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <loguru.hpp>
@@ -74,12 +69,15 @@ class Peer {
 
 	public:
 	explicit Peer(const char *uri, ftl::net::Dispatcher *d=nullptr);
-	explicit Peer(int s, ftl::net::Dispatcher *d=nullptr);
+	explicit Peer(SOCKET s, ftl::net::Dispatcher *d=nullptr);
 	~Peer();
 	
 	/**
 	 * Close the peer if open. Setting retry parameter to true will initiate
-	 * backoff retry attempts.
+	 * backoff retry attempts. This is used to deliberately close a connection
+	 * and not for error conditions where different close semantics apply.
+	 * 
+	 * @param retry Should reconnection be attempted?
 	 */
 	void close(bool retry=false);
 
@@ -88,10 +86,19 @@ class Peer {
 	};
 
 	/**
-	 * Block until the connection and handshake has completed.
+	 * Block until the connection and handshake has completed. You should use
+	 * onConnect callbacks instead of blocking, mostly this is intended for
+	 * the unit tests to keep them synchronous.
+	 * 
+	 * @return True if all connections were successful, false if timeout or error.
 	 */
 	bool waitConnection();
 	
+	/**
+	 * Test if the connection is valid. This returns true in all conditions
+	 * except where the socket has been disconnected permenantly or was never
+	 * able to connect, perhaps due to an invalid address.
+	 */
 	bool isValid() const {
 		return status_ != kInvalid && sock_ != INVALID_SOCKET;
 	};
@@ -121,6 +128,8 @@ class Peer {
 			
 	/**
 	 * Non-blocking Remote Procedure Call using a callback function.
+	 * 
+	 * @return A call id for use with cancelCall() if needed.
 	 */
 	template <typename T, typename... ARGS>
 	int asyncCall(const std::string &name,
@@ -164,6 +173,8 @@ class Peer {
 	void error(int e);
 	
 	bool _data();
+
+	void _badClose(bool retry=true);
 	
 	void _dispatchResponse(uint32_t id, msgpack::object &obj);
 	void _sendResponse(uint32_t id, const msgpack::object &obj);
@@ -172,7 +183,7 @@ class Peer {
 	 * Get the internal OS dependent socket.
 	 * TODO(nick) Work out if this should be private.
 	 */
-	int _socket() const { return sock_; };
+	SOCKET _socket() const { return sock_; };
 	
 	/**
 	 * Internal handlers for specific event types. This should be private but
@@ -198,7 +209,7 @@ class Peer {
 
 	private: // Data
 	Status status_;
-	int sock_;
+	SOCKET sock_;
 	ftl::URI::scheme_t scheme_;
 	uint32_t version_;
 	
@@ -274,6 +285,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 template <typename T, typename... ARGS>
 int Peer::asyncCall(
 		const std::string &name,
+		// cppcheck-suppress *
 		std::function<void(const T&)> cb,
 		ARGS... args) {
 	auto args_obj = std::make_tuple(args...);

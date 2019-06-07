@@ -16,6 +16,7 @@
 #include <arpa/inet.h>
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
+#define SOCKET int
 #endif
 
 #ifdef WIN32
@@ -29,8 +30,8 @@ using std::shared_ptr;
 using ftl::net::Peer;
 using ftl::URI;
 
-int tcpListen(URI &uri) {
-	int ssock;
+SOCKET tcpListen(URI &uri) {
+	SOCKET ssock;
 	//std::cerr << "TCP Listen: " << uri.getHost() << " : " << uri.getPort() << std::endl;
 	#ifdef WIN32
 	WSAData wsaData;
@@ -90,7 +91,7 @@ int tcpListen(URI &uri) {
 	return ssock;
 }
 
-int wsListen(URI &uri) {
+SOCKET wsListen(URI &uri) {
 	return INVALID_SOCKET;
 }
 

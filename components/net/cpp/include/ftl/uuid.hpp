@@ -56,6 +56,7 @@ namespace ftl {
 			if (::UuidToStringA(&guid_, &szUuid) == RPC_S_OK) {
 				return std::string((char*)szUuid);
 			}
+			return "00000000-0000-0000-0000-000000000000";
 #else
 			char b[37];
 			uuid_unparse(uuid_, b);

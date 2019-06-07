@@ -32,8 +32,8 @@ void RGBDSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
 
 Eigen::Vector4f RGBDSource::point(uint ux, uint uy) {
 	const auto &params = getParameters();
-	const float x = ((float)ux-params.width/2) / params.fx;
-	const float y = ((float)uy-params.height/2) / params.fy;
+	const float x = ((float)ux-params.width/2) / (float)params.fx;
+	const float y = ((float)uy-params.height/2) / (float)params.fy;
 
 	unique_lock<mutex> lk(mutex_);
 	const float depth = depth_.at<float>(uy,ux);
@@ -50,11 +50,12 @@ bool RGBDSource::snapshot(const std::string &fileprefix) {
 
 	cv::imwrite(fileprefix+"-RGB.jpg", rgb);
 	cv::imwrite(fileprefix+"-DEPTH.png",depth);
+	return true;
 }
 
 RGBDSource *RGBDSource::create(nlohmann::json &config, ftl::net::Universe *net) {
 	auto &cfg = ftl::config::resolve(config);
-	if (cfg["type"].type_name() != "string") {
+	if (!cfg["type"].is_string()) {
 		LOG(ERROR) << "Missing RGB-D source type: " << cfg["type"].type_name();
 		//return nullptr;
 	}

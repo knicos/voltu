@@ -56,12 +56,11 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 	// Generate camera parameters from Q matrix
 	cv::Mat q = calib_->getCameraMatrix();
 	params_ = {
-		// TODO(Nick) Add fx and fy
 		q.at<double>(0,0),	// Fx
 		q.at<double>(1,1),	// Fy
 		-q.at<double>(0,2),	// Cx
 		-q.at<double>(1,2),	// Cy
-		(unsigned int)lsrc_->width(),  // TODO (Nick)
+		(unsigned int)lsrc_->width(),
 		(unsigned int)lsrc_->height(),
 		0.0f,	// 0m min
 		15.0f	// 15m max
@@ -103,7 +102,7 @@ static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv:
 			cv::Vec4d homg_pt = _Q*cv::Vec4d(x, y, d, 1.0);
 			//dptr[x] = Vec3d(homg_pt.val);
 			//dptr[x] /= homg_pt[3];
-			dptr[x] = (homg_pt[2] / homg_pt[3]) / 1000.0f; // Depth in meters
+			dptr[x] = (float)(homg_pt[2] / homg_pt[3]) / 1000.0f; // Depth in meters
 
 			if( fabs(d) <= FLT_EPSILON )
 				dptr[x] = 1000.0f;
@@ -112,12 +111,15 @@ static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv:
 }
 
 void StereoVideoSource::grab() {
+	// TODO(Nick) find a way to move this to last part ... but grab can't
+	// be called twice by different threads and it is currently
+	// FIXME Call to grab from multiple threads
+	unique_lock<mutex> lk(mutex_);
 	calib_->rectified(left_, right_);
 
 	cv::Mat disp;
 	disp_->compute(left_, right_, disp);
 
-	unique_lock<mutex> lk(mutex_);
 	left_.copyTo(rgb_);
 	disparityToDepth(disp, depth_, calib_->getQ());
 }

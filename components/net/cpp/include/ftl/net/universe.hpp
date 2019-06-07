@@ -20,6 +20,10 @@
 namespace ftl {
 namespace net {
 
+struct Error {
+	int errno;
+};
+
 /**
  * Represents a group of network peers and their resources, managing the
  * searching of and sharing of resources across peers. Each universe can
@@ -59,7 +63,7 @@ class Universe : public ftl::Configurable {
 	 */
 	Peer *connect(const std::string &addr);
 	
-	int numberOfPeers() const { return peers_.size(); }
+	size_t numberOfPeers() const { return peers_.size(); }
 
 	int waitConnections();
 	
@@ -76,7 +80,9 @@ class Universe : public ftl::Configurable {
 	 */
 	template <typename F>
 	void bind(const std::string &name, F func);
-	
+
+	void unbind(const std::string &name);
+
 	/**
 	 * Subscribe a function to a resource. The subscribed function is
 	 * triggered whenever that resource is published to. It is akin to
@@ -104,7 +110,7 @@ class Universe : public ftl::Configurable {
 	R call(const UUID &pid, const std::string &name, ARGS... args);
 	
 	template <typename... ARGS>
-	void send(const UUID &pid, const std::string &name, ARGS... args);
+	bool send(const UUID &pid, const std::string &name, ARGS... args);
 
 	template <typename R, typename... ARGS>
 	std::optional<R> findOne(const std::string &name, ARGS... args);
@@ -142,6 +148,14 @@ class Universe : public ftl::Configurable {
 
 	void setLocalID(const ftl::UUID &u) { this_peer = u; };
 	const ftl::UUID &id() const { return this_peer; }
+
+	// --- Event Handlers ------------------------------------------------------
+
+	void onConnect(const std::string &, std::function<void(ftl::net::Peer*)>);
+	void onDisconnect(const std::string &, std::function<void(ftl::net::Peer*)>);
+	void onError(const std::string &, std::function<void(ftl::net::Peer*, const ftl::net::Error &)>);
+
+	void removeCallbacks(const std::string &);
 	
 	private:
 	void _run();
@@ -149,7 +163,10 @@ class Universe : public ftl::Configurable {
 	void _installBindings();
 	void _installBindings(Peer *);
 	bool _subscribe(const std::string &res);
-	void _remove(Peer *);
+	void _cleanupPeers();
+	void _notifyConnect(Peer *);
+	void _notifyDisconnect(Peer *);
+	void _notifyError(Peer *, const ftl::net::Error &);
 	
 	static void __start(Universe *u);
 	
@@ -167,6 +184,22 @@ class Universe : public ftl::Configurable {
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
 	std::thread thread_;
+
+	struct ConnHandler {
+		std::string name;
+		std::function<void(ftl::net::Peer*)> h;
+	};
+
+	struct ErrHandler {
+		std::string name;
+		std::function<void(ftl::net::Peer*, const ftl::net::Error &)> h;
+	};
+
+	// Handlers
+	std::list<ConnHandler> on_connect_;
+	std::list<ConnHandler> on_disconnect_;
+	std::list<ErrHandler> on_error_;
+
 	// std::map<std::string, std::vector<ftl::net::Peer*>> subscriptions_;
 };
 
@@ -174,6 +207,7 @@ class Universe : public ftl::Configurable {
 
 template <typename F>
 void Universe::bind(const std::string &name, F func) {
+	// CHECK Need mutex?
 	disp_.bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
 	    typename ftl::internal::func_kind_info<F>::args_kind());
@@ -285,13 +319,13 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 }
 
 template <typename... ARGS>
-void Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
+bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
 	if (p == nullptr) {
 		LOG(ERROR) << "Attempting to call an unknown peer : " << pid.to_string();
 		throw -1;
 	}
-	p->send(name, args...);
+	return p->send(name, args...) > 0;
 }
 
 template <typename... ARGS>

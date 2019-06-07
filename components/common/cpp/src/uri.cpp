@@ -106,7 +106,7 @@ string URI::to_string() const {
 }
 
 string URI::getPathSegment(int n) const {
-	int N = (n < 0) ? m_pathseg.size()+n : n;
+	size_t N = (n < 0) ? m_pathseg.size()+n : n;
 	if (N < 0 || N >= m_pathseg.size()) return "";
 	else return m_pathseg[N];
 }
@@ -123,8 +123,8 @@ string URI::getBaseURI(int n) {
         return r;
     } else if (m_pathseg.size()+n >= 0) {
         string r = m_protostr + string("://") + m_host + ((m_port != 0) ? string(":") + std::to_string(m_port) : "");
-        int N = m_pathseg.size()+n;
-        for (int i=0; i<N; i++) {
+        size_t N = m_pathseg.size()+n;
+        for (size_t i=0; i<N; i++) {
 			r += "/";
             r += getPathSegment(i);
         }

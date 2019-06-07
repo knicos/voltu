@@ -47,6 +47,9 @@ using ftl::config::config;
 
 static Configurable *rootCFG = nullptr;
 
+bool ftl::running = true;
+int ftl::exit_code = 0;
+
 bool ftl::is_directory(const std::string &path) {
 #ifdef WIN32
 	DWORD attrib = GetFileAttributesA(path.c_str());
@@ -143,6 +146,7 @@ static bool mergeConfig(const string path) {
 		} catch (...) {
 			LOG(ERROR) << "Unknown error opening config file";
 		}
+		return false;
 	} else {
 		return false;
 	}
@@ -216,6 +220,7 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 	if (cfg) {
 		DLOG(1) << "Updating CFG: " << head << "[" << tail << "] = " << value;
 		cfg->set<json_t>(tail, value);
+		return true;
 	} else {
 		DLOG(1) << "Updating: " << head << "[" << tail << "] = " << value;
 		auto &r = resolve(head, false);
@@ -301,18 +306,36 @@ static bool findConfiguration(const string &file, const vector<string> &paths) {
 		f = mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.json");
 		found |= f;
 		if (f) LOG(INFO) << "Loaded config: " << FTL_GLOBAL_CONFIG_ROOT "/config.json";
+
+		f = mergeConfig(FTL_GLOBAL_CONFIG_ROOT "/config.jsonc");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << FTL_GLOBAL_CONFIG_ROOT "/config.jsonc";
+
 		f = mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.json");
 		found |= f;
 		if (f) LOG(INFO) << "Loaded config: " << FTL_LOCAL_CONFIG_ROOT "/config.json";
+
+		f = mergeConfig(FTL_LOCAL_CONFIG_ROOT "/config.jsonc");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << FTL_LOCAL_CONFIG_ROOT "/config.jsonc";
+
 		f = mergeConfig("./config.json");
 		found |= f;
 		if (f) LOG(INFO) << "Loaded config: " << "./config.json";
+
+		f = mergeConfig("./config.jsonc");
+		found |= f;
+		if (f) LOG(INFO) << "Loaded config: " << "./config.jsonc";
 		
 		for (auto p : paths) {
 			if (is_directory(p)) {
 				f = mergeConfig(p+"/config.json");
 				found |= f;
 				if (f) LOG(INFO) << "Loaded config: " << p << "/config.json";
+
+				f = mergeConfig(p+"/config.jsonc");
+				found |= f;
+				if (f) LOG(INFO) << "Loaded config: " << p << "/config.jsonc";
 			}
 		}
 	}
@@ -402,7 +425,7 @@ static void signalIntHandler( int signum ) {
    // cleanup and close up stuff here  
    // terminate program  
 
-   exit(0);
+   ftl::running = false;
 }
 
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
