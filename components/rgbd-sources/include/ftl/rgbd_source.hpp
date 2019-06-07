@@ -82,7 +82,7 @@ class RGBDSource : public ftl::Configurable {
 	cv::Mat depth_;
 
 	private:
-	Eigen::Matrix4f pose_;
+	Eigen::Matrix4f pose_ = Eigen::Matrix4f::Identity();
 
 	private:
 	static std::map<std::string,std::function<RGBDSource*(nlohmann::json&,ftl::net::Universe*)>> *sources__;
