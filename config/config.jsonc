@@ -149,15 +149,13 @@
 		"display": { "$ref": "#displays/left" },
 		"virtual": { "$ref": "#virtual_cams/default" },
 		"voxelhash": { "$ref": "#hash_conf/default" },
-		"registration": {
-			"reference-source" : "ftl://utu.fi#vision_default/source",
-			"calibration" : {
-				"max_error": 25,
-				"run": false,
-				"iterations" : 10,
-				"delay" : 500,
-				"patternsize" : [9, 6]
-				}
+		"merge": {
+			"register": false,
+			"targetsource" : "ftl://utu.fi#vision_default/source",
+			"maxerror": 25,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
 		}
 	},
 
@@ -172,15 +170,14 @@
 		"display": { "$ref": "#displays/left" },
 		"virtual": { "$ref": "#virtual_cams/default" },
 		"voxelhash": { "$ref": "#hash_conf/default" },
-		"registration": {
-			"reference-source" : "ftl://utu.fi/node4#vision_default/source",
-			"calibration" : {
-				"max_error": 25,
-				"run": false,
-				"iterations" : 10,
-				"delay" : 500,
-				"patternsize" : [9, 6]
-				}
+		"merge": {
+			"targetsource" : "ftl://utu.fi/node4#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 25,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
 		},
 		"stream": {}
 	},
