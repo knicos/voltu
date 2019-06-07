@@ -196,11 +196,15 @@ void Streamer::_schedule() {
 		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
 			StreamSource *src = sources_[uri];
 
-			try {
+			//auto start = std::chrono::high_resolution_clock::now();
+			//try {
 				src->src->grab();
-			} catch(...) {
-				LOG(ERROR) << "Grab Exception for: " << uri;
-			}
+			//} catch(...) {
+			//	LOG(ERROR) << "Grab Exception for: " << uri;
+			//}
+			/*std::chrono::duration<double> elapsed =
+					std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "GRAB Elapsed: " << elapsed.count();*/
 
 			unique_lock<shared_mutex> lk(src->mutex);
 			src->state |= ftl::rgbd::detail::kGrabbed;
@@ -217,6 +221,8 @@ void Streamer::_schedule() {
 		// TODO, could do one for each bitrate...
 		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
 			StreamSource *src = sources_[uri];
+
+			//auto start = std::chrono::high_resolution_clock::now();
 
 			if (src->rgb.rows > 0 && src->depth.rows > 0 && src->clients[0].size() > 0) {
 				vector<unsigned char> rgb_buf;
@@ -246,6 +252,10 @@ void Streamer::_schedule() {
 					}
 				}
 			}
+
+			/*std::chrono::duration<double> elapsed =
+					std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "Stream Elapsed: " << elapsed.count();*/
 
 			unique_lock<shared_mutex> lk(src->mutex);
 			DLOG(1) << "Tx Frame: " << uri;
