@@ -20,6 +20,7 @@
 #cmakedefine HAVE_RENDER
 #cmakedefine HAVE_LIBSGM
 #cmakedefine HAVE_NANOGUI
+#cmakedefine HAVE_LIBARCHIVE
 
 extern const char *FTL_VERSION_LONG;
 extern const char *FTL_VERSION;

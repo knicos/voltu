@@ -8,6 +8,10 @@
 #include <nanogui/screen.h>
 #include <nanogui/layout.h>
 
+#ifdef HAVE_LIBARCHIVE
+#include "ftl/snapshot.hpp"
+#endif
+
 using ftl::gui::SourceWindow;
 using ftl::rgbd::RGBDSource;
 using std::string;
@@ -175,11 +179,36 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		image_->setDepth(state);
 	});
 
+#ifdef HAVE_LIBARCHIVE
+	auto snapshot = new Button(tools, "Snapshot");
+	snapshot->setCallback([this] {
+		try {
+			char timestamp[18];
+			std::time_t t=std::time(NULL);
+			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
+			cv::Mat rgb, depth;
+			this->src_->getRGBD(rgb, depth);
+			if (!writer.addCameraRGBD(
+					"0", // TODO
+					rgb,
+					depth,
+					this->src_->getPose(),
+					this->src_->getParameters()
+				)) {
+				LOG(ERROR) << "Snapshot failed";
+			}
+		}
+		catch(std::runtime_error) {
+			LOG(ERROR) << "Snapshot failed (file error)";
+		}
+	});
+#endif
 
-    auto imageView = new VirtualCameraView(this);
-    //cam.view = imageView;
-    imageView->setGridThreshold(20);
-    imageView->setSource(src_);
+	auto imageView = new VirtualCameraView(this);
+	//cam.view = imageView;
+	imageView->setGridThreshold(20);
+	imageView->setSource(src_);
 	image_ = imageView;
 }
 

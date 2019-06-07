@@ -12,12 +12,12 @@ set(RGBDSRC
 	src/algorithms/opencv_bm.cpp
 )
 
-if (LIBARCHIVE_FOUND)
+if (LibArchive_FOUND)
 	list(APPEND RGBDSRC
-		"src/snapshot.cpp"
-		"src/snapshot_source.cpp"
+		src/snapshot.cpp
+		src/snapshot_source.cpp
 	)
-endif (LIBARCHIVE_FOUND)
+endif (LibArchive_FOUND)
 
 if (LIBSGM_FOUND)
 	list(APPEND RGBDSRC "src/algorithms/fixstars_sgm.cpp")
