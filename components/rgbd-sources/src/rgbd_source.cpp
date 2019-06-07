@@ -24,6 +24,10 @@ bool RGBDSource::isReady() {
 	return false;
 }
 
+/*void RGBDSource::setURI(const std::string &uri) {
+	config_["uri"] = uri;
+}*/
+
 void RGBDSource::getRGBD(cv::Mat &rgb, cv::Mat &depth) {
 	unique_lock<mutex> lk(mutex_);
 	rgb_.copyTo(rgb);

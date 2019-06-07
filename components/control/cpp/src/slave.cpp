@@ -1,16 +1,19 @@
 #include <ftl/slave.hpp>
-#include <loguru.hpp>
 
 using ftl::Configurable;
 using ftl::net::Universe;
 using ftl::ctrl::Slave;
+using std::string;
+using std::mutex;
+using std::unique_lock;
+using std::recursive_mutex;
 
 static void netLog(void* user_data, const loguru::Message& message) {
-	Universe *net = (Universe*)user_data;
-	//net->publish("log", message.preamble, message.message);
+	Slave *slave = static_cast<Slave*>(user_data);
+	slave->sendLog(message);
 }
 
-Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net) {
+Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false), active_(true) {
 	net->bind("restart", []() {
 		LOG(WARNING) << "Remote restart...";
 		//exit(1);
@@ -32,12 +35,52 @@ Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net) {
 		return ftl::config::resolve(uri);
 	});
 
-	loguru::add_callback("net_log", netLog, net, loguru::Verbosity_INFO);
+	net->bind("slave_details", [net,root]() -> std::vector<std::string> {
+		ftl::config::json_t json {
+			{"id", net->id().to_string()},
+			{"title", root->value("title", *root->get<string>("$id"))}
+		};
+		return {json.dump()};
+	});
+
+	net->bind("log_subscribe", [this](const ftl::UUID &peer) {
+		unique_lock<recursive_mutex> lk(mutex_);
+		log_peers_.push_back(peer);
+	});
+
+	loguru::add_callback("net_log", netLog, this, loguru::Verbosity_INFO);
 }
 
 Slave::~Slave() {
+	stop();
+}
+
+void Slave::stop() {
+	if (!active_) return;
+	active_ = false;
+	loguru::remove_all_callbacks();
 	net_->unbind("restart");
 	net_->unbind("shutdown");
 	net_->unbind("update_cfg");
 	net_->unbind("get_cfg");
+	net_->unbind("slave_details");
+	net_->unbind("log_subscribe");
+}
+
+void Slave::sendLog(const loguru::Message& message) {
+	unique_lock<recursive_mutex> lk(mutex_);
+	if (in_log_) return;
+	in_log_ = true;
+
+	for (auto &p : log_peers_) {
+		auto peer = net_->getPeer(p);
+		if (!peer || !peer->isConnected()) continue;
+
+		std::cout << "sending log to master..." << std::endl;
+		if (!net_->send(p, "log", message.verbosity, message.preamble, message.message)) {
+			// TODO(Nick) Remove peer from loggers list...
+		}
+	}
+
+	in_log_ = false;
 }

@@ -11,11 +11,13 @@ using ftl::ctrl::LogEvent;
 
 Master::Master(Configurable *root, Universe *net)
 		: root_(root), net_(net) {
-	net_->bind("log", [this](const std::string &pre, const std::string &msg) {
+	net->bind("log", [this](int v, const std::string &pre, const std::string &msg) {
 		for (auto f : log_handlers_) {
-			f({pre,msg});
+			f({v,pre,msg});
 		}
 	});
+
+	net->broadcast("log_subscribe", net->id());
 }
 
 Master::~Master() {
@@ -44,6 +46,15 @@ void Master::set(const string &uri, json_t &value) {
 
 void Master::set(const ftl::UUID &peer, const string &uri, json_t &value) {
 	net_->send(peer, "update_cfg", uri, (string)value);
+}
+
+vector<json_t> Master::getSlaves() {
+	auto response = net_->findAll<string>("slave_details");
+	vector<json_t> result;
+	for (auto &r : response) {
+		result.push_back(json_t::parse(r));
+	}
+	return result;
 }
 
 vector<string> Master::getConfigurables() {
