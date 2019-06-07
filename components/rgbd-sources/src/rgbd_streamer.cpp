@@ -24,14 +24,16 @@ using std::chrono::milliseconds;
 #define THREAD_POOL_SIZE 6
 
 Streamer::Streamer(nlohmann::json &config, Universe *net)
-		: ftl::Configurable(config), pool_(THREAD_POOL_SIZE) {
+		: ftl::Configurable(config), pool_(THREAD_POOL_SIZE), late_(false) {
 
 	active_ = false;
 	net_ = net;
 	
 	net->bind("find_stream", [this](const std::string &uri) -> optional<UUID> {
-		if (sources_.find(uri) != sources_.end()) return net_->id();
-		else return {};
+		if (sources_.find(uri) != sources_.end()) {
+			LOG(INFO) << "Valid source request received: " << uri;
+			return net_->id();
+		} else return {};
 	});
 
 	net->bind("list_streams", [this]() -> vector<string> {
@@ -40,6 +42,16 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 			streams.push_back(i.first);
 		}
 		return streams;
+	});
+
+	net->bind("set_pose", [this](const std::string &uri, const std::vector<unsigned char> &buf) {
+		shared_lock<shared_mutex> slk(mutex_);
+
+		if (sources_.find(uri) != sources_.end()) {
+			Eigen::Matrix4f pose;
+			memcpy(pose.data(), buf.data(), buf.size());
+			sources_[uri]->src->setPose(pose);
+		}
 	});
 
 	// Allow remote users to access camera calibration matrix
@@ -82,7 +94,7 @@ void Streamer::add(RGBDSource *src) {
 	unique_lock<shared_mutex> ulk(mutex_);
 	if (sources_.find(src->getURI()) != sources_.end()) return;
 
-	StreamSource *s = new StreamSource; // = sources_.emplace(std::make_pair<std::string,StreamSource>(src->getURI(),{}));
+	StreamSource *s = new StreamSource;
 	s->src = src;
 	s->state = 0;
 	sources_[src->getURI()] = s;
@@ -121,42 +133,36 @@ void Streamer::stop() {
 	pool_.stop();
 }
 
+void Streamer::poll() {
+	double wait = 1.0f / 25.0f;
+	auto start = std::chrono::high_resolution_clock::now();
+	// Create frame jobs at correct FPS interval
+	_schedule();
+
+	std::chrono::duration<double> elapsed =
+		std::chrono::high_resolution_clock::now() - start;
+
+	if (elapsed.count() >= wait) {
+		LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
+	} else {
+		// Otherwise, wait until next frame should start.
+		// CHECK(Nick) Is this accurate enough?
+		sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
+	}
+}
+
 void Streamer::run(bool block) {
 	active_ = true;
 
 	if (block) {
-		while (active_) {
-			double wait = 1.0f / 25.0f;
-			auto start = std::chrono::high_resolution_clock::now();
-			// Create frame jobs at correct FPS interval
-			_schedule();
-
-			std::chrono::duration<double> elapsed =
-				std::chrono::high_resolution_clock::now() - start;
-
-			if (elapsed.count() >= wait) {
-				LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
-			} else {
-				sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
-			}
+		while (ftl::running && active_) {
+			poll();
 		}
 	} else {
 		// Create thread job for frame ticking
 		pool_.push([this](int id) {
-			while (active_) {
-				double wait = 1.0f / 25.0f;
-				auto start = std::chrono::high_resolution_clock::now();
-				// Create frame jobs at correct FPS interval
-				_schedule();
-
-				std::chrono::duration<double> elapsed =
-					std::chrono::high_resolution_clock::now() - start;
-
-				if (elapsed.count() >= wait) {
-					LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
-				} else {
-					sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
-				}
+			while (ftl::running && active_) {
+				poll();
 			}
 		});
 	}
@@ -178,16 +184,23 @@ void Streamer::_schedule() {
 		string uri = s.first;
 
 		shared_lock<shared_mutex> slk(s.second->mutex);
+		// CHECK Should never be true now
 		if (s.second->state != 0) {
-			LOG(WARNING) << "Stream not ready to schedule on time: " << uri << " (" << s.second->state << ")";
+			if (!late_) LOG(WARNING) << "Stream not ready to schedule on time: " << uri;
+			late_ = true;
 			continue;
+		} else {
+			late_ = false;
 		}
+
+		// No point in doing work if no clients
 		if (s.second->clients[0].size() == 0) {
 			//LOG(ERROR) << "Stream has no clients: " << uri;
 			continue;
 		}
 		slk.unlock();
 
+		// There will be two jobs for this source...
 		unique_lock<mutex> lk(job_mtx);
 		jobs += 2;
 		lk.unlock();
@@ -207,10 +220,12 @@ void Streamer::_schedule() {
 			LOG(INFO) << "GRAB Elapsed: " << elapsed.count();*/
 
 			unique_lock<shared_mutex> lk(src->mutex);
+			//LOG(INFO) << "Grab frame";
 			src->state |= ftl::rgbd::detail::kGrabbed;
 			_swap(*src);
 			lk.unlock();
 
+			// Mark job as finished
 			unique_lock<mutex> ulk(job_mtx);
 			jobs--;
 			ulk.unlock();
@@ -222,9 +237,8 @@ void Streamer::_schedule() {
 		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
 			StreamSource *src = sources_[uri];
 
-			//auto start = std::chrono::high_resolution_clock::now();
-
-			if (src->rgb.rows > 0 && src->depth.rows > 0 && src->clients[0].size() > 0) {
+			try {
+			if (src && src->rgb.rows > 0 && src->depth.rows > 0 && src->clients[0].size() > 0) {
 				vector<unsigned char> rgb_buf;
 				cv::imencode(".jpg", src->rgb, rgb_buf);
 				
@@ -252,17 +266,21 @@ void Streamer::_schedule() {
 					}
 				}
 			}
+			} catch(...) {
+				LOG(ERROR) << "Error in transmission loop";
+			}
 
 			/*std::chrono::duration<double> elapsed =
 					std::chrono::high_resolution_clock::now() - start;
 			LOG(INFO) << "Stream Elapsed: " << elapsed.count();*/
 
 			unique_lock<shared_mutex> lk(src->mutex);
-			DLOG(1) << "Tx Frame: " << uri;
+			DLOG(2) << "Tx Frame: " << uri;
 			src->state |= ftl::rgbd::detail::kTransmitted;
 			_swap(*src);
 			lk.unlock();
 
+			// Mark job as finished
 			unique_lock<mutex> ulk(job_mtx);
 			jobs--;
 			ulk.unlock();
@@ -270,6 +288,7 @@ void Streamer::_schedule() {
 		});
 	}
 
+	// Wait for all jobs to complete before finishing frame
 	unique_lock<mutex> lk(job_mtx);
 	job_cv.wait(lk, [&jobs]{ return jobs == 0; });
 }

@@ -12,6 +12,7 @@
 #include <ftl/scene_rep_hash_sdf.hpp>
 #include <ftl/rgbd.hpp>
 #include <ftl/virtual_source.hpp>
+#include <ftl/rgbd_streamer.hpp>
 
 // #include <zlib.h>
 // #include <lz4.h>
@@ -177,6 +178,13 @@ static void run(ftl::Configurable *root) {
 	virt->setScene(scene);
 	display->setSource(virt);
 
+	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
+	stream->add(virt);
+	// Also proxy all inputs
+	for (auto &in : inputs) {
+		stream->add(in.source);
+	}
+
 	unsigned char frameCount = 0;
 	bool paused = false;
 
@@ -220,7 +228,10 @@ static void run(ftl::Configurable *root) {
 		}
 
 		frameCount++;
+
+		stream->poll();
 		display->update();
+		//sleep_for(milliseconds(10));
 	}
 }
 

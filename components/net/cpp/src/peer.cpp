@@ -155,6 +155,7 @@ Peer::Peer(SOCKET s, Dispatcher *d) : sock_(s) {
 
 		bind("__disconnect__", [this]() {
 			_badClose(false);
+			LOG(INFO) << "Peer elected to disconnect: " << id().to_string();
 		});
 
 		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer); 
@@ -247,6 +248,7 @@ void Peer::close(bool retry) {
 		send("__disconnect__");
 
 		_badClose(retry);
+		LOG(INFO) << "Deliberate disconnect of peer.";
 	}
 }
 
@@ -259,35 +261,16 @@ void Peer::_badClose(bool retry) {
 		#endif
 		sock_ = INVALID_SOCKET;
 		status_ = kDisconnected;
-
-		// Attempt auto reconnect?
-		if (retry) LOG(INFO) << "Should attempt reconnect...";
 		
 		//auto i = find(sockets.begin(),sockets.end(),this);
 		//sockets.erase(i);
 		
 		_trigger(close_handlers_);
+
+		// Attempt auto reconnect?
+		if (retry) LOG(INFO) << "Should attempt reconnect...";
 	}
 }
-
-/*void Peer::setProtocol(Protocol *p) {
-	if (p != NULL) {
-		if (proto_ == p) return;
-		if (proto_ && proto_->id() == p->id()) return;
-		
-		if (remote_proto_ != "") {
-			Handshake hs1;
-			hs1.magic = ftl::net::MAGIC;
-			//hs1.name_size = 0;
-			hs1.proto_size = p->id().size();
-			send(FTL_PROTOCOL_HS1, hs1, p->id());
-			LOG(INFO) << "Handshake initiated with " << uri_;
-		}
-		
-		proto_ = p;
-	} else {
-	}
-}*/
 
 void Peer::socketError() {
 	int err;
@@ -297,6 +280,11 @@ void Peer::socketError() {
 	uint32_t optlen = sizeof(err);
 #endif
 	getsockopt(sock_, SOL_SOCKET, SO_ERROR, (char*)&err, &optlen);
+
+	// Must close before log since log may try to send over net causing
+	// more socket errors...
+	_badClose();
+
 	LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
 }
 
@@ -405,6 +393,8 @@ void Peer::_connected() {
 }
 
 int Peer::_send() {
+	if (sock_ == INVALID_SOCKET) return -1;
+
 	// Are we using a websocket?
 	if (scheme_ == ftl::URI::SCHEME_WS) {
 		// Create a websocket header as well.
@@ -443,7 +433,7 @@ int Peer::_send() {
 	// We are blocking, so -1 should mean actual error
 	if (c == -1) {
 		socketError();
-		_badClose();
+		//_badClose();
 	}
 	
 	return c;
@@ -453,6 +443,7 @@ Peer::~Peer() {
 	std::unique_lock<std::mutex> lk1(send_mtx_);
 	std::unique_lock<std::mutex> lk2(recv_mtx_);
 	_badClose(false);
+	LOG(INFO) << "Deleting peer object";
 
 	delete disp_;
 }

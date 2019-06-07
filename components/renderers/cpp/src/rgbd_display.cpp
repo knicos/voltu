@@ -119,10 +119,10 @@ void Display::update() {
 
 	centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * 0.1f);
 	Eigen::Matrix4f viewPose = lookAt<float>(eye_,centre_,up_).inverse();
-	source_->setPose(viewPose);
+	//source_->setPose(viewPose);
 
 	Mat rgb, depth;
-	source_->grab();
+	//source_->grab();
 	source_->getRGBD(rgb, depth);
 	if (rgb.rows > 0) cv::imshow(name_, rgb);
 	wait(1);

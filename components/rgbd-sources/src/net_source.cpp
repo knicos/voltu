@@ -15,23 +15,28 @@ using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 
 bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::CameraParameters &p) {
-	while(true) {
-		auto buf = net.call<vector<unsigned char>>(peer_, "source_calibration", src);
-		if (buf.size() > 0) {
-			memcpy((char*)&p, buf.data(), buf.size());
-			
-			if (sizeof(p) != buf.size()) {
-				LOG(ERROR) << "Corrupted calibration";
-				return false;
-			}
+	try {
+		while(true) {
+			auto buf = net.call<vector<unsigned char>>(peer_, "source_calibration", src);
 
-			LOG(INFO) << "Calibration received: " << p.cx << ", " << p.cy << ", " << p.fx << ", " << p.fy;
-			
-			return true;
-		} else {
-			LOG(INFO) << "Could not get calibration, retrying";
-			sleep_for(milliseconds(500));
+			if (buf.size() > 0) {
+				memcpy((char*)&p, buf.data(), buf.size());
+				
+				if (sizeof(p) != buf.size()) {
+					LOG(ERROR) << "Corrupted calibration";
+					return false;
+				}
+
+				LOG(INFO) << "Calibration received: " << p.cx << ", " << p.cy << ", " << p.fx << ", " << p.fy;
+				
+				return true;
+			} else {
+				LOG(INFO) << "Could not get calibration, retrying";
+				sleep_for(milliseconds(500));
+			}
 		}
+	} catch (...) {
+		return false;
 	}
 }
 
@@ -40,39 +45,18 @@ NetSource::NetSource(nlohmann::json &config) : RGBDSource(config) {
 }
 
 NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
-		: RGBDSource(config, net) {
+		: RGBDSource(config, net), active_(false) {
 
-	auto uri = get<string>("uri");
-	if (!uri) {
-		LOG(ERROR) << "NetSource does not have a URI";
-		return;
-	}
-	auto p = net->findOne<ftl::UUID>("find_stream", *uri);
-	if (!p) {
-		LOG(ERROR) << "Could not find stream: " << *uri;
-		return;
-	}
-	peer_ = *p;
-
-	has_calibration_ = _getCalibration(*net, peer_, *uri, params_);
-	
-	net->bind(*uri, [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-		unique_lock<mutex> lk(mutex_);
-		_recv(jpg, d);
+	on("uri", [this](const config::Event &e) {
+		_updateURI();
 	});
 
-	N_ = 10;
-
-	// Initiate stream with request for first 10 frames
-	net->send(peer_, "get_stream", *uri, 10, 0, net->id(), *uri);
+	_updateURI();
 }
 
 NetSource::~NetSource() {
-	auto uri = get<string>("uri");
-
-	// TODO(Nick) If URI changes then must unbind + rebind.
-	if (uri) {
-		net_->unbind(*uri);
+	if (uri_.size() > 0) {
+		net_->unbind(uri_);
 	}
 }
 
@@ -86,6 +70,59 @@ void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned ch
 	if (N_ == 0) {
 		N_ += 10;
 		net_->send(peer_, "get_stream", *get<string>("uri"), 10, 0, net_->id(), *get<string>("uri"));
+	}
+}
+
+void NetSource::setPose(const Eigen::Matrix4f &pose) {
+	if (!active_) return;
+
+	vector<unsigned char> vec((unsigned char*)pose.data(), (unsigned char*)(pose.data()+(pose.size())));
+	try {
+		net_->send(peer_, "set_pose", *get<string>("uri"), vec);
+	} catch (...) {
+
+	}
+	RGBDSource::setPose(pose);
+}
+
+void NetSource::_updateURI() {
+	active_ = false;
+	auto uri = get<string>("uri");
+
+	// TODO(Nick) If URI changes then must unbind + rebind.
+	if (uri_.size() > 0) {
+		net_->unbind(uri_);
+	}
+
+	if (uri) {
+		auto p = net_->findOne<ftl::UUID>("find_stream", *uri);
+		if (!p) {
+			LOG(ERROR) << "Could not find stream: " << *uri;
+			return;
+		}
+		peer_ = *p;
+
+		has_calibration_ = _getCalibration(*net_, peer_, *uri, params_);
+
+		net_->bind(*uri, [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+			unique_lock<mutex> lk(mutex_);
+			_recv(jpg, d);
+		});
+
+		N_ = 10;
+
+		// Initiate stream with request for first 10 frames
+		try {
+			net_->send(peer_, "get_stream", *uri, 10, 0, net_->id(), *uri);
+		} catch(...) {
+			LOG(ERROR) << "Could not connect to stream " << *uri;
+		}
+
+		uri_ = *uri;
+		active_ = true;
+	} else {
+		uri_ = "";
+		LOG(WARNING) << "NetSource URI is missing";
 	}
 }
 

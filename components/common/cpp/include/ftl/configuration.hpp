@@ -126,15 +126,23 @@ T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS 
                 entity["$id"] = id_str + std::string("#") + name;
             }
         }
-    } /*else {
-		nlohmann::json &res = resolve(entity);
-		if (!res["uri"].is_string()) {
-            res["uri"] = *parent->get<std::string>("uri") + std::string("/") + name;
-			LOG(WARNING) << "Creating false URI!!! - " << res["uri"].get<std::string>();
-        }
-	}*/
 
-    return create<T>(entity, args...);
+        return create<T>(entity, args...);
+    } else if (entity.is_null()) {
+        // Must create the object from scratch...
+        std::string id_str = *parent->get<std::string>("$id");
+        if (id_str.find('#') != std::string::npos) {
+            id_str = id_str + std::string("/") + name;
+        } else {
+            id_str = id_str + std::string("#") + name;
+        }
+        parent->getConfig()[name] = {
+            {"$id", id_str}
+        };
+
+        nlohmann::json &entity2 = parent->getConfig()[name];
+        return create<T>(entity2, args...);
+    }
 }
 
 #endif  // _FTL_COMMON_CONFIGURATION_HPP_

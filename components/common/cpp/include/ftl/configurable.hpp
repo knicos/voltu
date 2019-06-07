@@ -38,9 +38,7 @@ struct Event {
 class Configurable {
 	public:
 	Configurable();
-	explicit Configurable(nlohmann::json &config) : config_(config) {
-		if (config["uri"].is_string()) __changeURI(config["uri"].get<std::string>(), this);
-	}
+	explicit Configurable(nlohmann::json &config);
 	virtual ~Configurable() {}
 
 	/**

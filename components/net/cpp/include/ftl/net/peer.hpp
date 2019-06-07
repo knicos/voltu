@@ -129,6 +129,10 @@ class Peer {
 	/**
 	 * Non-blocking Remote Procedure Call using a callback function.
 	 * 
+	 * @param name RPC Function name.
+	 * @param cb Completion callback.
+	 * @param args A variable number of arguments for RPC function.
+	 * 
 	 * @return A call id for use with cancelCall() if needed.
 	 */
 	template <typename T, typename... ARGS>
@@ -136,6 +140,11 @@ class Peer {
 			std::function<void(const T&)> cb,
 			ARGS... args);
 
+	/**
+	 * Used to terminate an async call if the response is not required.
+	 * 
+	 * @param id The ID returned by the original asyncCall request.
+	 */
 	void cancelCall(int id);
 	
 	/**
@@ -146,6 +155,11 @@ class Peer {
 	
 	/**
 	 * Non-blocking send using RPC function, but with no return value.
+	 * 
+	 * @param name RPC Function name
+	 * @param args Variable number of arguments for function
+	 * 
+	 * @return Number of bytes sent or -1 if error
 	 */
 	template <typename... ARGS>
 	int send(const std::string &name, ARGS... args);
@@ -154,6 +168,9 @@ class Peer {
 	 * Bind a function to an RPC call name. Note: if an overriding dispatcher
 	 * is used then these bindings will propagate to all peers sharing that
 	 * dispatcher.
+	 * 
+	 * @param name RPC name to bind to
+	 * @param func A function object to act as callback
 	 */
 	template <typename F>
 	void bind(const std::string &name, F func);
@@ -163,6 +180,8 @@ class Peer {
 	void onDisconnect(std::function<void(Peer &)> &f) {}
 	
 	bool isWaiting() const { return is_waiting_; }
+
+	void rawClose() { _badClose(false); }
 	
 	public:
 	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently

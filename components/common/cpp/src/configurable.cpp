@@ -9,7 +9,14 @@ using ftl::config::json_t;
 
 extern nlohmann::json null_json;
 
-Configurable::Configurable() : config_(null_json) {}
+Configurable::Configurable() : config_(null_json) {
+	ftl::config::registerConfigurable(this);
+}
+
+Configurable::Configurable(nlohmann::json &config) : config_(config) {
+	//if (config["uri"].is_string()) __changeURI(config["uri"].get<std::string>(), this);
+	ftl::config::registerConfigurable(this);
+}
 
 void Configurable::required(const char *f, const std::vector<std::tuple<std::string, std::string, std::string>> &r) {
 	bool diderror = false;

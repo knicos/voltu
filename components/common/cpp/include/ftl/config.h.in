@@ -19,6 +19,7 @@
 #cmakedefine HAVE_PCL
 #cmakedefine HAVE_RENDER
 #cmakedefine HAVE_LIBSGM
+#cmakedefine HAVE_NANOGUI
 
 extern const char *FTL_VERSION_LONG;
 extern const char *FTL_VERSION;

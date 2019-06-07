@@ -104,7 +104,9 @@ static void run(ftl::Configurable *root) {
 	}
 
 	LOG(INFO) << "Stopping...";
+	slave.stop();
 	stream->stop();
+	net->shutdown();
 
 	delete stream;
 	delete display;
@@ -126,6 +128,8 @@ int main(int argc, char **argv) {
 	//	ftl::middlebury::test(config);
 	//}
 
+	delete root;
+	LOG(INFO) << "Terminating with code " << ftl::exit_code;
 	return ftl::exit_code;
 }
 
