@@ -14,6 +14,7 @@ namespace ftl {
 
 extern bool running;
 extern int exit_code;
+extern std::string branch_name;
 
 class Configurable;
 

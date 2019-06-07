@@ -96,6 +96,8 @@ static void run(ftl::Configurable *root) {
 	stream->add(source);
 	stream->run();
 
+	LOG(INFO) << "Running...";
+
 	while (ftl::running && display->active()) {
 		cv::Mat rgb, depth;
 		source->getRGBD(rgb, depth);
@@ -130,6 +132,7 @@ int main(int argc, char **argv) {
 
 	delete root;
 	LOG(INFO) << "Terminating with code " << ftl::exit_code;
+	LOG(INFO) << "Branch: " << ftl::branch_name;
 	return ftl::exit_code;
 }
 

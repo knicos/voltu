@@ -49,6 +49,7 @@ static Configurable *rootCFG = nullptr;
 
 bool ftl::running = true;
 int ftl::exit_code = 0;
+std::string ftl::branch_name = "";
 
 bool ftl::is_directory(const std::string &path) {
 #ifdef WIN32
@@ -465,6 +466,15 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	rootCFG = rootcfg;
 	rootcfg->set("paths", paths);
 	process_options(rootcfg, options);
+
+	if (rootcfg->get<std::string>("branch")) {
+		ftl::branch_name = *rootcfg->get<std::string>("branch");
+	}
+	rootcfg->on("branch", [](const ftl::config::Event &e) {
+		if (e.entity->get<std::string>("branch")) {
+			ftl::branch_name = *e.entity->get<std::string>("branch");
+		}
+	});
 
 	//LOG(INFO) << "CONFIG: " << config["vision_default"];
 	//CHECK_EQ( &config, config_index["ftl://utu.fi"] );
