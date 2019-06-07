@@ -12,6 +12,9 @@
 
 namespace ftl {
 
+extern bool running;
+extern int exit_code;
+
 class Configurable;
 
 bool is_directory(const std::string &path);
@@ -116,7 +119,6 @@ T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS 
 
     if (entity.is_object()) {
         if (!entity["$id"].is_string()) {
-			// TODO(Nick) Check for # in URI
             std::string id_str = *parent->get<std::string>("$id");
             if (id_str.find('#') != std::string::npos) {
                 entity["$id"] = id_str + std::string("/") + name;

@@ -47,6 +47,9 @@ using ftl::config::config;
 
 static Configurable *rootCFG = nullptr;
 
+bool ftl::running = true;
+int ftl::exit_code = 0;
+
 bool ftl::is_directory(const std::string &path) {
 #ifdef WIN32
 	DWORD attrib = GetFileAttributesA(path.c_str());
@@ -225,6 +228,15 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 		if (!r.is_structured()) {
 			LOG(ERROR) << "Cannot update property '" << tail << "' of '" << head << "'";
 			return false;
+		}
+
+		// If there is an ID it still may be a configurable so check!
+		if (r["$id"].is_string()) {
+			Configurable *cfg = find(r["$id"].get<string>());
+			if (cfg) {
+				cfg->set<json_t>(tail, value);
+				return true;
+			}
 		}
 
 		r[tail] = value;
@@ -413,7 +425,7 @@ static void signalIntHandler( int signum ) {
    // cleanup and close up stuff here  
    // terminate program  
 
-   exit(0);
+   ftl::running = false;
 }
 
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
