@@ -62,8 +62,8 @@ int main(int argc, char **argv) {
 	net->start();
 	//net->waitConnections();
 
-	ftl::ctrl::Master controller(root, net);
-	controller.onLog([](const ftl::ctrl::LogEvent &e){
+	ftl::ctrl::Master *controller = new ftl::ctrl::Master(root, net);
+	controller->onLog([](const ftl::ctrl::LogEvent &e){
 		const int v = e.verbosity;
 		switch (v) {
 		case -2:	LOG(ERROR) << "Remote log: " << e.message; break;
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 		nanogui::init();
 
 		/* scoped variables */ {
-			nanogui::ref<FTLApplication> app = new FTLApplication(root, net, &controller);
+			nanogui::ref<FTLApplication> app = new FTLApplication(root, net, controller);
 			app->drawAll();
 			app->setVisible(true);
 			nanogui::mainloop();
@@ -98,6 +98,8 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
+	net->shutdown();
+	delete controller;
 	delete net;
 	delete root;
 
