@@ -20,7 +20,7 @@ class Display : public ftl::Configurable {
 
 	bool active() const { return active_; }
 
-	void onKey(std::function<void(int)> h) { key_handlers_.push_back(h); }
+	void onKey(const std::function<void(int)> &h) { key_handlers_.push_back(h); }
 
 	void wait(int ms);
 

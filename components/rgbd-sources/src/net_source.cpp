@@ -52,12 +52,19 @@ NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
 	});
 
 	_updateURI();
+
+	h_ = net->onConnect([this](ftl::net::Peer *p) {
+		LOG(INFO) << "NetSource restart...";
+		_updateURI();
+	});
 }
 
 NetSource::~NetSource() {
 	if (uri_.size() > 0) {
 		net_->unbind(uri_);
 	}
+
+	net_->removeCallback(h_);
 }
 
 void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
@@ -69,7 +76,9 @@ void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned ch
 	N_--;
 	if (N_ == 0) {
 		N_ += 10;
-		net_->send(peer_, "get_stream", *get<string>("uri"), 10, 0, net_->id(), *get<string>("uri"));
+		if (!net_->send(peer_, "get_stream", *get<string>("uri"), 10, 0, net_->id(), *get<string>("uri"))) {
+			active_ = false;
+		}
 	}
 }
 
@@ -78,7 +87,9 @@ void NetSource::setPose(const Eigen::Matrix4f &pose) {
 
 	vector<unsigned char> vec((unsigned char*)pose.data(), (unsigned char*)(pose.data()+(pose.size())));
 	try {
-		net_->send(peer_, "set_pose", *get<string>("uri"), vec);
+		if (!net_->send(peer_, "set_pose", *get<string>("uri"), vec)) {
+			active_ = false;
+		}
 	} catch (...) {
 
 	}
@@ -86,6 +97,7 @@ void NetSource::setPose(const Eigen::Matrix4f &pose) {
 }
 
 void NetSource::_updateURI() {
+	unique_lock<mutex> lk(mutex_);
 	active_ = false;
 	auto uri = get<string>("uri");
 

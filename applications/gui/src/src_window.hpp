@@ -5,6 +5,8 @@
 #include <ftl/master.hpp>
 #include <ftl/uuid.hpp>
 #include <ftl/net_source.hpp>
+#include <vector>
+#include <string>
 
 class VirtualCameraView;
 
@@ -23,6 +25,7 @@ class SourceWindow : public nanogui::Window {
 	ftl::ctrl::Master *ctrl_;
 	ftl::rgbd::NetSource *src_;
 	VirtualCameraView *image_;
+	std::vector<std::string> available_;
 
 };
 

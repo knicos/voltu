@@ -36,6 +36,7 @@ class NetSource : public RGBDSource {
 	int N_;
 	bool active_;
 	std::string uri_;
+	ftl::net::callback_t h_;
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::CameraParameters &p);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);

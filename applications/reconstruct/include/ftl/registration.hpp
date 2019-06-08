@@ -44,7 +44,7 @@ bool findChessboardCorners(cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::
  */
 class Registration : public ftl::Configurable {
 public:
-	Registration(nlohmann::json &config);
+	explicit Registration(nlohmann::json &config);
 	void addSource(ftl::rgbd::RGBDSource* source);
 	size_t getSourcesCount() { return sources_.size(); }
 
@@ -161,7 +161,7 @@ private:
  */
 class ChessboardRegistration : public Registration {
 public:
-	ChessboardRegistration(nlohmann::json &config);
+	explicit ChessboardRegistration(nlohmann::json &config);
 	/** 
 	 * @brief	Creates new ChessboardRegistration or ChessboardRegistrationChain
 	 * 			object depending on chain option in config. User of the method
@@ -189,7 +189,7 @@ protected:
  */
 class ChessboardRegistrationChain : public ChessboardRegistration {
 public:
-	ChessboardRegistrationChain(nlohmann::json &config);
+	explicit ChessboardRegistrationChain(nlohmann::json &config);
 	
 	bool findTransformations(std::vector<Eigen::Matrix4f> &data) override;
 

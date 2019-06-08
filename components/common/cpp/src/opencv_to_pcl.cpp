@@ -24,6 +24,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr ftl::utility::matToPointXYZ(const cv::Mat
 
 		// when color needs to be added:
 		uint32_t rgb = (static_cast<uint32_t>(prgb.z) << 16 | static_cast<uint32_t>(prgb.y) << 8 | static_cast<uint32_t>(prgb.x));
+		// cppcheck-suppress invalidPointerCast
 		point.rgb = *reinterpret_cast<float*>(&rgb);
 
 		point_cloud_ptr -> points.push_back(point);

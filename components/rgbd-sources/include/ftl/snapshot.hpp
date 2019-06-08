@@ -21,7 +21,7 @@ namespace rgbd {
 
 class SnapshotWriter {
 public:
-	SnapshotWriter(const std::string &filename);
+	explicit SnapshotWriter(const std::string &filename);
 	~SnapshotWriter();
 	
 	bool addCameraRGBD(const std::string &name, const cv::Mat &rgb, const cv::Mat &depth, const Eigen::Matrix4f &pose, const ftl::rgbd::CameraParameters &params);
@@ -46,7 +46,7 @@ struct SnapshotEntry {
 
 class SnapshotReader {
 public:
-	SnapshotReader(const std::string &filename);
+	explicit SnapshotReader(const std::string &filename);
 	~SnapshotReader();
 	
 	bool getCameraRGBD(const std::string &id, cv::Mat &rgb, cv::Mat &depth, Eigen::Matrix4f &pose, ftl::rgbd::CameraParameters &params);

@@ -96,6 +96,7 @@ static void run(ftl::Configurable *root) {
 	stream->add(source);
 	stream->run();
 
+	net->start();
 	LOG(INFO) << "Running...";
 
 	while (ftl::running && display->active()) {

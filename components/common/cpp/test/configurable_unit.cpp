@@ -8,6 +8,7 @@ using std::string;
 
 SCENARIO( "Configurable::get()" ) {
 	GIVEN( "a non-existent property" ) {
+		// cppcheck-suppress constStatement
 		nlohmann::json json = {{"test",5}};
 		Configurable cfg(json);
 
@@ -16,6 +17,7 @@ SCENARIO( "Configurable::get()" ) {
 	}
 
 	GIVEN( "a valid property" ) {
+		// cppcheck-suppress constStatement
 		nlohmann::json json = {{"test",5}};
 		Configurable cfg(json);
 
@@ -27,6 +29,7 @@ SCENARIO( "Configurable::get()" ) {
 
 SCENARIO( "Configurable::on()" ) {
 	GIVEN( "a changed property with no handlers" ) {
+		// cppcheck-suppress constStatement
 		nlohmann::json json = {{"test",5}};
 		Configurable cfg(json);
 
@@ -36,6 +39,7 @@ SCENARIO( "Configurable::on()" ) {
 	}
 
 	GIVEN( "a changed property one handler" ) {
+		// cppcheck-suppress constStatement
 		nlohmann::json json = {{"test",5}};
 		Configurable cfg(json);
 		bool trig = false;
@@ -50,6 +54,7 @@ SCENARIO( "Configurable::on()" ) {
 	}
 
 	GIVEN( "a changed property two handlers" ) {
+		// cppcheck-suppress constStatement
 		nlohmann::json json = {{"test",5}};
 		Configurable cfg(json);
 		bool trig1 = false;

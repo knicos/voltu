@@ -18,7 +18,6 @@ TEST_CASE("Universe::connect()", "[net]") {
 	Universe b;
 	
 	a.listen("tcp://localhost:7077");
-	//sleep_for(milliseconds(100));
 
 	SECTION("valid tcp connection using ipv4") {
 		auto p = b.connect("tcp://127.0.0.1:7077");
@@ -86,7 +85,7 @@ TEST_CASE("Universe::onConnect()", "[net]") {
 	SECTION("single valid remote init connection") {
 		bool done = false;
 
-		a.onConnect("test", [&done](Peer *p) {
+		a.onConnect([&done](Peer *p) {
 			done = true;
 		});
 
@@ -98,7 +97,7 @@ TEST_CASE("Universe::onConnect()", "[net]") {
 	SECTION("single valid init connection") {
 		bool done = false;
 
-		b.onConnect("test", [&done](Peer *p) {
+		b.onConnect([&done](Peer *p) {
 			done = true;
 		});
 
@@ -111,13 +110,13 @@ TEST_CASE("Universe::onConnect()", "[net]") {
 TEST_CASE("Universe::onDisconnect()", "[net]") {
 	Universe a;
 	Universe b;
-	
+
 	a.listen("tcp://localhost:7077");
 
 	SECTION("single valid remote close") {
 		bool done = false;
 
-		a.onDisconnect("test", [&done](Peer *p) {
+		a.onDisconnect([&done](Peer *p) {
 			done = true;
 		});
 
@@ -132,7 +131,7 @@ TEST_CASE("Universe::onDisconnect()", "[net]") {
 	SECTION("single valid close") {
 		bool done = false;
 
-		b.onDisconnect("test", [&done](Peer *p) {
+		b.onDisconnect([&done](Peer *p) {
 			done = true;
 		});
 
@@ -208,6 +207,9 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		c.bind("hello", [&done2](int v) {
 			done2 = v;
 		});
+
+		REQUIRE( a.numberOfPeers() == 2 );
+		sleep_for(milliseconds(100)); // NOTE: Binding might not be ready
 		
 		a.broadcast("hello", 676);
 		
@@ -222,6 +224,7 @@ TEST_CASE("Universe::findAll()", "") {
 	Universe a;
 	Universe b;
 	Universe c;
+
 	a.listen("tcp://localhost:7077");
 	b.connect("tcp://localhost:7077")->waitConnection();
 	c.connect("tcp://localhost:7077")->waitConnection();
@@ -248,107 +251,10 @@ TEST_CASE("Universe::findAll()", "") {
 			return {6,7,8};
 		});
 
+		sleep_for(milliseconds(100)); // NOTE: Binding might not be ready
+
 		auto res = a.findAll<int>("test_all");
 		REQUIRE( (res.size() == 6) );
 		REQUIRE( (res[0] == 3 || res[0] == 6) );
 	}
 }
-
-TEST_CASE("Universe::findOwner()", "") {
-	Universe a;
-	Universe b;
-	a.listen("tcp://localhost:7077");
-	b.connect("tcp://localhost:7077")->waitConnection();
-
-	SECTION("no owners exist") {
-		REQUIRE( !b.findOwner("ftl://test") );
-	}
-
-	SECTION("one owner exists") {
-		a.createResource("ftl://test");
-		REQUIRE( *(b.findOwner("ftl://test")) == ftl::net::this_peer );
-	}
-	
-	SECTION("three peers and one owner") {
-		Universe c;
-		c.connect("tcp://localhost:7077")->waitConnection();
-		b.setLocalID(ftl::UUID(7));
-
-		b.createResource("ftl://test");
-		REQUIRE( *(a.findOwner("ftl://test")) == ftl::UUID(7) );
-	}
-
-	SECTION("three peers and one owner (2)") {
-		Universe c;
-		c.connect("tcp://localhost:7077")->waitConnection();
-		c.setLocalID(ftl::UUID(7));
-
-		c.createResource("ftl://test");
-		auto r = a.findOwner("ftl://test");
-		REQUIRE( r );
-		REQUIRE( *r == ftl::UUID(7) );
-	}
-}
-
-TEST_CASE("Universe::subscribe()", "") {
-	Universe a;
-	Universe b;
-	a.listen("tcp://localhost:7077");
-	b.connect("tcp://localhost:7077")->waitConnection();
-
-	SECTION("no resource exists") {
-		REQUIRE( !b.subscribe("ftl://test", []() {}) );
-	}
-
-	SECTION("one resource exists") {
-		a.createResource("ftl://test");
-		REQUIRE( b.subscribe("ftl://test", []() {}) );
-		sleep_for(milliseconds(50));
-		REQUIRE( a.numberOfSubscribers("ftl://test") == 1);
-	}
-}
-
-TEST_CASE("Universe::publish()", "") {
-	Universe a;
-	Universe b;
-	a.listen("tcp://localhost:7077");
-	ftl::net::Peer *p = b.connect("tcp://localhost:7077");
-	p->waitConnection();
-
-	SECTION("no subscribers") {
-		a.createResource("ftl://test");
-		a.publish("ftl://test", 55);
-	}
-
-	SECTION("one subscriber") {
-		int done = 0;
-		a.createResource("ftl://test");
-		REQUIRE( b.subscribe("ftl://test", [&done](int a) {
-			done = a;
-		}) );
-		sleep_for(milliseconds(50));
-
-		a.publish("ftl://test", 56);
-		sleep_for(milliseconds(50));
-		
-		REQUIRE( done == 56 );
-	}
-
-	SECTION("publish to disconnected subscriber") {
-		int done = 0;
-		a.createResource("ftl://test2");
-		REQUIRE( b.subscribe("ftl://test2", [&done](int a) {
-			done = a;
-		}) );
-		sleep_for(milliseconds(50));
-
-		p->close();
-		sleep_for(milliseconds(100));
-
-		a.publish("ftl://test2", 56);
-		sleep_for(milliseconds(50));
-		
-		REQUIRE( done == 0 );
-	}
-}
-

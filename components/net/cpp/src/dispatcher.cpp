@@ -140,7 +140,7 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 			throw &e;
 		}
     } else {
-    	LOG(ERROR) << "Missing handler for incoming message";
+    	LOG(ERROR) << "Missing handler for incoming message (" << name << ")";
     }
 }
 
