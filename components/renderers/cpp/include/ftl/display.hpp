@@ -46,7 +46,7 @@ class Display : public ftl::Configurable {
 	
 	void wait(int ms);
 
-	void onKey(std::function<void(int)> h) { key_handlers_.push_back(h); }
+	void onKey(const std::function<void(int)> &h) { key_handlers_.push_back(h); }
 
 	private:
 #if defined HAVE_VIZ

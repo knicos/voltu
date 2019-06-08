@@ -195,7 +195,7 @@ class SceneRep : public ftl::Configurable {
 
 
 		std::unordered_set<unsigned int> pointersFreeHash;
-		std::vector<unsigned int> pointersFreeVec(m_hashParams.m_numSDFBlocks, 0);
+		std::vector<int> pointersFreeVec(m_hashParams.m_numSDFBlocks, 0);  // CHECK Nick Changed to int from unsigned in
 		for (unsigned int i = 0; i < heapCounterCPU; i++) {
 			pointersFreeHash.insert(heapCPU[i]);
 			pointersFreeVec[heapCPU[i]] = FREE_ENTRY;
@@ -207,7 +207,7 @@ class SceneRep : public ftl::Configurable {
 
 		unsigned int numOccupied = 0;
 		unsigned int numMinusOne = 0;
-		unsigned int listOverallFound = 0;
+		//unsigned int listOverallFound = 0;
 
 		std::list<myint3Voxel> l;
 		//std::vector<myint3Voxel> v;

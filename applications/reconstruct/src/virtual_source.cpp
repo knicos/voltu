@@ -58,5 +58,5 @@ void VirtualSource::grab() {
 }
 
 bool VirtualSource::isReady() {
-
+	return true;
 }

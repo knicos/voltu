@@ -23,6 +23,7 @@
 #include <ftl/net/ws_internal.hpp>
 #include <ftl/config.h>
 #include "net_internal.hpp"
+#include <ftl/net/universe.hpp>
 
 #include <iostream>
 #include <memory>
@@ -37,6 +38,10 @@ using ftl::URI;
 using ftl::net::ws_connect;
 using ftl::net::Dispatcher;
 using std::chrono::seconds;
+using ftl::net::Universe;
+using ftl::net::callback_t;
+using std::mutex;
+using std::unique_lock;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -127,7 +132,7 @@ static SOCKET tcpConnect(URI &uri) {
 	return csocket;
 }
 
-Peer::Peer(SOCKET s, Dispatcher *d) : sock_(s) {
+Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(false), universe_(u) {
 	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
 	
@@ -149,7 +154,10 @@ Peer::Peer(SOCKET s, Dispatcher *d) : sock_(s) {
 				peerid_ = pid;
 				if (version != ftl::net::kVersion) LOG(WARNING) << "Net protocol using different versions!";
 				
-				_trigger(open_handlers_);
+				// Ensure handlers called later or in new thread
+				pool.push([this](int id) {
+					universe_->_notifyConnect(this);
+				});
 			}
 		});
 
@@ -158,17 +166,24 @@ Peer::Peer(SOCKET s, Dispatcher *d) : sock_(s) {
 			LOG(INFO) << "Peer elected to disconnect: " << id().to_string();
 		});
 
+		bind("__ping__", [this](unsigned long long timestamp) {
+			return timestamp;
+		});
+
 		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer); 
 	}
 }
 
-Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {	
+Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true), universe_(u), uri_(pUri) {	
 	URI uri(pUri);
 	
 	status_ = kInvalid;
 	sock_ = INVALID_SOCKET;
 	
 	disp_ = new Dispatcher(d);
+
+	// Must to to prevent receiving message before handlers are installed
+	unique_lock<mutex> lk(recv_mtx_);
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
@@ -194,7 +209,7 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 	
 	is_waiting_ = true;
 	
-	if (status_ == kConnecting) {
+	if (status_ == kConnecting || status_ == kReconnecting) {
 		// Install return handshake handler.
 		bind("__handshake__", [this](uint64_t magic, uint32_t version, UUID pid) {
 			LOG(INFO) << "Handshake 1 received";
@@ -208,10 +223,44 @@ Peer::Peer(const char *pUri, Dispatcher *d) : uri_(pUri) {
 				if (version != ftl::net::kVersion) LOG(WARNING) << "Net protocol using different versions!";
 				send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer);
 				
-				_trigger(open_handlers_);
+				// Ensure handlers called later or in new thread
+				pool.push([this](int id) {
+					universe_->_notifyConnect(this);
+				});
 			}
 		}); 
+
+		bind("__disconnect__", [this]() {
+			_badClose(false);
+			LOG(INFO) << "Peer elected to disconnect: " << id().to_string();
+		});
+
+		bind("__ping__", [this](unsigned long long timestamp) {
+			return timestamp;
+		});
 	}
+}
+
+bool Peer::reconnect() {
+	if (status_ != kReconnecting || !can_reconnect_) return false;
+
+	URI uri(uri_);
+
+	LOG(INFO) << "Reconnecting to " << uri_ << " ...";
+
+	if (scheme_ == URI::SCHEME_TCP) {
+		sock_ = tcpConnect(uri);
+		if (sock_ != INVALID_SOCKET) {
+			status_ = kConnecting;
+			is_waiting_ = true;
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	// TODO(Nick) allow for other protocols in reconnect
+	return false;
 }
 
 void Peer::_updateURI() {
@@ -264,11 +313,13 @@ void Peer::_badClose(bool retry) {
 		
 		//auto i = find(sockets.begin(),sockets.end(),this);
 		//sockets.erase(i);
-		
-		_trigger(close_handlers_);
+
+		universe_->_notifyDisconnect(this);
 
 		// Attempt auto reconnect?
-		if (retry) LOG(INFO) << "Should attempt reconnect...";
+		if (retry && can_reconnect_) {
+			status_ = kReconnecting;
+		}
 	}
 }
 
@@ -324,7 +375,7 @@ bool Peer::_data() {
 				
 				if (get<1>(hs) != "__handshake__") {
 					_badClose(false);
-					LOG(ERROR) << "Missing handshake";
+					LOG(ERROR) << "Missing handshake - got '" << get<1>(hs) << "'";
 					return false;
 				}
 			} catch(...) {
@@ -368,24 +419,28 @@ void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 bool Peer::waitConnection() {
 	if (status_ == kConnected) return true;
 	
-	std::unique_lock<std::mutex> lk(send_mtx_);
+	std::mutex m;
+	std::unique_lock<std::mutex> lk(m);
 	std::condition_variable cv;
 
-	onConnect([&](Peer &p) {
-		cv.notify_all();
+	callback_t h = universe_->onConnect([this,&cv](Peer *p) {
+		if (p == this) {
+			cv.notify_one();
+		}
 	});
 
 	cv.wait_for(lk, seconds(5));
+	universe_->removeCallback(h);
 	return status_ == kConnected;
 }
 
-void Peer::onConnect(const std::function<void(Peer&)> &f) {
+/*void Peer::onConnect(const std::function<void(Peer&)> &f) {
 	if (status_ == kConnected) {
 		f(*this);
 	} else {
 		open_handlers_.push_back(f);
 	}
-}
+}*/
 
 void Peer::_connected() {
 	status_ = kConnected;

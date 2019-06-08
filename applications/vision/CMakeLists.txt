@@ -6,7 +6,6 @@
 
 set(CVNODESRC
 	src/main.cpp
-	src/streamer.cpp
 	src/middlebury.cpp
 )
 

@@ -6,6 +6,7 @@
 #include <tuple>
 #include <thread>
 #include <chrono>
+#include <functional>
 
 #include <ftl/net/common.hpp>
 #include <ftl/net/peer.hpp>
@@ -18,6 +19,7 @@
 
 /* Allow socket functions to be mocked */
 #define TEST_MOCKS
+#define _FTL_NET_UNIVERSE_HPP_
 #include "../src/net_internal.hpp"
 
 using std::tuple;
@@ -33,9 +35,28 @@ using std::chrono::milliseconds;
 
 // --- Mock --------------------------------------------------------------------
 
+namespace ftl {
+namespace net {
+
+typedef unsigned int callback_t;
+
+class Universe {
+	public:
+	Universe() {};
+
+	void _notifyConnect(Peer*) {}
+	void _notifyDisconnect(Peer*) {}
+	void removeCallback(callback_t id) {}
+
+	callback_t onConnect(const std::function<void(Peer*)> &f) { return 0; }
+	callback_t onDisconnect(const std::function<void(Peer*)> &f) { return 0; }
+};
+}
+}
+
 class MockPeer : public Peer {
 	public:
-	MockPeer() : Peer((SOCKET)0) {}
+	MockPeer() : Peer((SOCKET)0, new ftl::net::Universe()) {}
 	void mock_data() { data(); }
 };
 

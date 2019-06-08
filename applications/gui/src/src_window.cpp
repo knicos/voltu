@@ -166,12 +166,17 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
                                        Alignment::Middle, 0, 6));
 
     new Label(tools, "Select source","sans-bold");
-    auto available = ctrl->getNet()->findAll<string>("list_streams");
-    auto select = new ComboBox(tools, available);
-    select->setCallback([this,available](int ix) {
+    available_ = ctrl->getNet()->findAll<string>("list_streams");
+    auto select = new ComboBox(tools, available_);
+    select->setCallback([this,select](int ix) {
         LOG(INFO) << "Change source: " << ix;
-        src_->set("uri", available[ix]);
+        src_->set("uri", available_[ix]);
     });
+
+	ctrl->getNet()->onConnect([this,select](ftl::net::Peer *p) {
+		 available_ = ctrl_->getNet()->findAll<string>("list_streams");
+		 select->setItems(available_);
+	});
 
 	auto depth = new Button(tools, "Depth");
 	depth->setFlags(Button::ToggleButton);

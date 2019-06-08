@@ -68,11 +68,24 @@ Configurable *find(const std::string &uri);
  */
 void registerConfigurable(Configurable *cfg);
 
+/**
+ * Create a new configurable directly from a raw object. This should not be used.
+ */
 template <typename T, typename... ARGS>
 T *create(json_t &link, ARGS ...args);
 
+/**
+ * Create a configurable from an attribute of a parent configurable.
+ */
 template <typename T, typename... ARGS>
 T *create(ftl::Configurable *parent, const std::string &name, ARGS ...args);
+
+/**
+ * Create a configurable rooted on a parent but with a specific object
+ * that is not directly a child of the parent. Used by RGB-D Factory.
+ */
+template <typename T, typename... ARGS>
+T *create(ftl::Configurable *parent, json_t &obj, const std::string &name, ARGS ...args);
 
 void set(const std::string &uri, const nlohmann::json &);
 
@@ -138,11 +151,37 @@ T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS 
             id_str = id_str + std::string("#") + name;
         }
         parent->getConfig()[name] = {
+			// cppcheck-suppress constStatement
             {"$id", id_str}
         };
 
         nlohmann::json &entity2 = parent->getConfig()[name];
         return create<T>(entity2, args...);
+    }
+
+	LOG(ERROR) << "Unable to create Configurable entity '" << name << "'";
+	return nullptr;
+}
+
+template <typename T, typename... ARGS>
+T *ftl::config::create(ftl::Configurable *parent, json_t &obj, const std::string &name, ARGS ...args) {
+    //nlohmann::json &entity = ftl::config::resolve(parent->getConfig()[name]);
+    nlohmann::json &entity = obj;
+
+    if (entity.is_object()) {
+        if (!entity["$id"].is_string()) {
+            std::string id_str = *parent->get<std::string>("$id");
+            if (id_str.find('#') != std::string::npos) {
+                entity["$id"] = id_str + std::string("/") + name;
+            } else {
+                entity["$id"] = id_str + std::string("#") + name;
+            }
+        }
+
+        return create<T>(entity, args...);
+    } else if (entity.is_null()) {
+        LOG(FATAL) << "Invalid raw object in Configurable construction";
+        return nullptr;
     }
 }
 

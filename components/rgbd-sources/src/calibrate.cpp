@@ -384,7 +384,7 @@ bool Calibrate::recalibrate() {
 
 bool Calibrate::_recalibrate(vector<vector<Point2f>> *imagePoints,
 		Mat *cameraMatrix, Mat *distCoeffs, Size *imageSize) {
-	int winSize = 11;  // parser.get<int>("winSize");
+	//int winSize = 11;  // parser.get<int>("winSize");
 
 	float grid_width = settings_.squareSize * (settings_.boardSize.width - 1);
 	bool release_object = false;

@@ -59,7 +59,8 @@ int main(int argc, char **argv) {
 	auto root = ftl::configure(argc, argv, "gui_default");
 	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
 
-	net->waitConnections();
+	net->start();
+	//net->waitConnections();
 
 	ftl::ctrl::Master controller(root, net);
 	controller.onLog([](const ftl::ctrl::LogEvent &e){

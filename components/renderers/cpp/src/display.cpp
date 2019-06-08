@@ -225,7 +225,7 @@ bool Display::render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc) {
 bool Display::render(const cv::Mat &img, style_t s) {
 	if (s == STYLE_NORMAL) {
 		cv::imshow("Image", img);
-	} else if (s = STYLE_DISPARITY) {
+	} else if (s == STYLE_DISPARITY) {
 		Mat idepth;
 
 		if (value("flip_vert", false)) {

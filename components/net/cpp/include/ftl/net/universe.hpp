@@ -12,9 +12,10 @@
 #include <ftl/uuid.hpp>
 #include <nlohmann/json.hpp>
 #include <vector>
+#include <list>
 #include <string>
 #include <thread>
-#include <mutex>
+#include <shared_mutex>
 #include <map>
 
 namespace ftl {
@@ -23,6 +24,14 @@ namespace net {
 struct Error {
 	int errno;
 };
+
+struct ReconnectInfo {
+	int tries;
+	float delay;
+	Peer *peer;
+};
+
+typedef unsigned int callback_t;
 
 /**
  * Represents a group of network peers and their resources, managing the
@@ -34,6 +43,9 @@ struct Error {
  * their actions.
  */
 class Universe : public ftl::Configurable {
+	public:
+	friend class Peer;
+
 	public:
 	Universe();
 	/**
@@ -48,6 +60,8 @@ class Universe : public ftl::Configurable {
 	 * The destructor will terminate the network thread before completing.
 	 */
 	~Universe();
+
+	void start();
 	
 	/**
 	 * Open a new listening port on a given interfaces.
@@ -82,10 +96,10 @@ class Universe : public ftl::Configurable {
 	
 	Peer *getPeer(const ftl::UUID &pid) const;
 	
-	int numberOfSubscribers(const std::string &res) const;
+	//int numberOfSubscribers(const std::string &res) const;
 
-	bool hasSubscribers(const std::string &res) const;
-	bool hasSubscribers(const ftl::URI &res) const;
+	//bool hasSubscribers(const std::string &res) const;
+	//bool hasSubscribers(const ftl::URI &res) const;
 	
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
@@ -101,16 +115,18 @@ class Universe : public ftl::Configurable {
 	 * triggered whenever that resource is published to. It is akin to
 	 * RPC broadcast (no return value) to a subgroup of peers.
 	 */
-	template <typename F>
-	bool subscribe(const std::string &res, F func);
+	//template <typename F>
+	//[[deprecated("Pub sub no longer to be used")]]
+	//bool subscribe(const std::string &res, F func);
 
 	/**
 	 * Subscribe a function to a resource. The subscribed function is
 	 * triggered whenever that resource is published to. It is akin to
 	 * RPC broadcast (no return value) to a subgroup of peers.
 	 */
-	template <typename F>
-	bool subscribe(const ftl::URI &res, F func);
+	//template <typename F>
+	//[[deprecated("Pub sub no longer to be used")]]
+	//bool subscribe(const ftl::URI &res, F func);
 	
 	/**
 	 * Send a non-blocking RPC call with no return value to all connected
@@ -136,75 +152,78 @@ class Universe : public ftl::Configurable {
 	 * of a resource. There may be no subscribers. Note that query parameter
 	 * order in the URI string is not important.
 	 */
+	//template <typename... ARGS>
 	//[[deprecated("Pub sub no longer to be used")]]
-	template <typename... ARGS>
-	void publish(const std::string &res, ARGS... args);
+	//void publish(const std::string &res, ARGS... args);
 
 	/**
 	 * Send a non-blocking RPC call with no return value to all subscribers
 	 * of a resource. There may be no subscribers. This overload accepts a
 	 * URI object directly to enable more efficient modification of parameters.
 	 */
+	//template <typename... ARGS>
 	//[[deprecated("Pub sub no longer to be used")]]
-	template <typename... ARGS>
-	void publish(const ftl::URI &res, ARGS... args);
+	//void publish(const ftl::URI &res, ARGS... args);
 	
 	/**
 	 * Register your ownership of a new resource. This must be called before
 	 * publishing to this resource and before any peers attempt to subscribe.
 	 */
 	//[[deprecated("Pub sub no longer to be used")]]
-	bool createResource(const std::string &uri);
+	//bool createResource(const std::string &uri);
 
 	//[[deprecated("Pub sub no longer to be used")]]
-	std::optional<ftl::UUID> findOwner(const std::string &res);
+	//std::optional<ftl::UUID> findOwner(const std::string &res);
 
 	void setLocalID(const ftl::UUID &u) { this_peer = u; };
 	const ftl::UUID &id() const { return this_peer; }
 
 	// --- Event Handlers ------------------------------------------------------
 
-	void onConnect(const std::string &, std::function<void(ftl::net::Peer*)>);
-	void onDisconnect(const std::string &, std::function<void(ftl::net::Peer*)>);
-	void onError(const std::string &, std::function<void(ftl::net::Peer*, const ftl::net::Error &)>);
+	ftl::net::callback_t onConnect(const std::function<void(ftl::net::Peer*)>&);
+	ftl::net::callback_t onDisconnect(const std::function<void(ftl::net::Peer*)>&);
+	ftl::net::callback_t onError(const std::function<void(ftl::net::Peer*, const ftl::net::Error &)>&);
 
-	void removeCallbacks(const std::string &);
+	void removeCallback(ftl::net::callback_t cbid);
 	
 	private:
 	void _run();
 	int _setDescriptors();
 	void _installBindings();
 	void _installBindings(Peer *);
-	bool _subscribe(const std::string &res);
+	//bool _subscribe(const std::string &res);
 	void _cleanupPeers();
 	void _notifyConnect(Peer *);
 	void _notifyDisconnect(Peer *);
 	void _notifyError(Peer *, const ftl::net::Error &);
+	void _periodic();
 	
 	static void __start(Universe *u);
 	
 	private:
 	bool active_;
 	ftl::UUID this_peer;
-	std::mutex net_mutex_;
+	std::shared_mutex net_mutex_;
+	std::shared_mutex handler_mutex_;
 	fd_set sfderror_;
 	fd_set sfdread_;
 	std::vector<ftl::net::Listener*> listeners_;
 	std::vector<ftl::net::Peer*> peers_;
-	std::map<std::string, std::vector<ftl::UUID>> subscribers_;
-	std::unordered_set<std::string> owned_;
+	//std::map<std::string, std::vector<ftl::UUID>> subscribers_;
+	//std::unordered_set<std::string> owned_;
 	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
 	std::thread thread_;
+	std::list<ReconnectInfo> reconnects_;
 
 	struct ConnHandler {
-		std::string name;
+		callback_t id;
 		std::function<void(ftl::net::Peer*)> h;
 	};
 
 	struct ErrHandler {
-		std::string name;
+		callback_t id;
 		std::function<void(ftl::net::Peer*, const ftl::net::Error &)> h;
 	};
 
@@ -213,6 +232,8 @@ class Universe : public ftl::Configurable {
 	std::list<ConnHandler> on_disconnect_;
 	std::list<ErrHandler> on_error_;
 
+	static callback_t cbid__;
+
 	// std::map<std::string, std::vector<ftl::net::Peer*>> subscriptions_;
 };
 
@@ -220,13 +241,13 @@ class Universe : public ftl::Configurable {
 
 template <typename F>
 void Universe::bind(const std::string &name, F func) {
-	// CHECK Need mutex?
+	std::unique_lock<std::shared_mutex> lk(net_mutex_);
 	disp_.bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
 	    typename ftl::internal::func_kind_info<F>::args_kind());
 }
 
-template <typename F>
+/*template <typename F>
 bool Universe::subscribe(const std::string &res, F func) {
 	return subscribe(ftl::URI(res), func);
 }
@@ -235,12 +256,13 @@ template <typename F>
 bool Universe::subscribe(const ftl::URI &res, F func) {
 	bind(res.to_string(), func);
 	return _subscribe(res.to_string());
-}
+}*/
 
 template <typename... ARGS>
 void Universe::broadcast(const std::string &name, ARGS... args) {
+	std::shared_lock<std::shared_mutex> lk(net_mutex_);
 	for (auto p : peers_) {
-		p->send(name, args...);
+		if (p->isConnected()) p->send(name, args...);
 	}
 }
 
@@ -262,15 +284,18 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	};
 
 	std::map<Peer*, int> record;
+	std::shared_lock<std::shared_mutex> lk(net_mutex_);
 	for (auto p : peers_) {
-		record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
+		if (p->isConnected()) record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
 	}
+	lk.unlock();
 	
 	{  // Block thread until async callback notifies us
-		std::unique_lock<std::mutex> lk(m);
-		cv.wait_for(lk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
+		std::unique_lock<std::mutex> llk(m);
+		cv.wait_for(llk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
 
 		// Cancel any further results
+		lk.lock();
 		for (auto p : peers_) {
 			auto m = record.find(p);
 			if (m != record.end()) {
@@ -300,16 +325,20 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	};
 
 	std::map<Peer*, int> record;
+	std::shared_lock<std::shared_mutex> lk(net_mutex_);
 	for (auto p : peers_) {
+		if (!p->isConnected()) continue;
 		sentcount++;
 		record[p] = p->asyncCall<std::vector<R>>(name, handler, args...);
 	}
+	lk.unlock();
 	
 	{  // Block thread until async callback notifies us
-		std::unique_lock<std::mutex> lk(m);
-		cv.wait_for(lk, std::chrono::seconds(1), [&returncount,&sentcount]{return returncount == sentcount;});
+		std::unique_lock<std::mutex> llk(m);
+		cv.wait_for(llk, std::chrono::seconds(1), [&returncount,&sentcount]{return returncount == sentcount;});
 
 		// Cancel any further results
+		lk.lock();
 		for (auto p : peers_) {
 			auto m = record.find(p);
 			if (m != record.end()) {
@@ -324,7 +353,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 template <typename R, typename... ARGS>
 R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
-	if (p == nullptr) {
+	if (p == nullptr || !p->isConnected()) {
 		DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
 		throw -1;
 	}
@@ -336,12 +365,12 @@ bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args)
 	Peer *p = getPeer(pid);
 	if (p == nullptr) {
 		DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
-		throw -1;
+		return false;
 	}
-	return p->send(name, args...) > 0;
+	return p->isConnected() && p->send(name, args...) > 0;
 }
 
-template <typename... ARGS>
+/*template <typename... ARGS>
 void Universe::publish(const std::string &res, ARGS... args) {
 	ftl::URI uri(res);
 	publish(uri, args...);
@@ -349,7 +378,7 @@ void Universe::publish(const std::string &res, ARGS... args) {
 
 template <typename... ARGS>
 void Universe::publish(const ftl::URI &res, ARGS... args) {
-	std::unique_lock<std::mutex> lk(net_mutex_);
+	std::unique_lock<std::shared_mutex> lk(net_mutex_);
 	auto subs = subscribers_[res.getBaseURI()];
 	lk.unlock();
 	for (auto p : subs) {
@@ -358,7 +387,7 @@ void Universe::publish(const ftl::URI &res, ARGS... args) {
 			peer->send(res.getBaseURI(), args...);
 		}
 	}
-}
+}*/
 
 };  // namespace net
 };  // namespace ftl

@@ -68,8 +68,8 @@ class Peer {
 	};
 
 	public:
-	explicit Peer(const char *uri, ftl::net::Dispatcher *d=nullptr);
-	explicit Peer(SOCKET s, ftl::net::Dispatcher *d=nullptr);
+	explicit Peer(const char *uri, ftl::net::Universe *, ftl::net::Dispatcher *d=nullptr);
+	explicit Peer(SOCKET s, ftl::net::Universe *, ftl::net::Dispatcher *d=nullptr);
 	~Peer();
 	
 	/**
@@ -93,6 +93,11 @@ class Peer {
 	 * @return True if all connections were successful, false if timeout or error.
 	 */
 	bool waitConnection();
+
+	/**
+	 * Make a reconnect attempt. Called internally by Universe object.
+	 */
+	bool reconnect();
 	
 	/**
 	 * Test if the connection is valid. This returns true in all conditions
@@ -176,8 +181,8 @@ class Peer {
 	void bind(const std::string &name, F func);
 
 	// void onError(std::function<void(Peer &, int err, const char *msg)> &f) {}
-	void onConnect(const std::function<void(Peer &)> &f);
-	void onDisconnect(std::function<void(Peer &)> &f) {}
+	//void onConnect(const std::function<void(Peer &)> &f);
+	//void onDisconnect(std::function<void(Peer &)> &f) {}
 	
 	bool isWaiting() const { return is_waiting_; }
 
@@ -226,11 +231,13 @@ class Peer {
 		}
 	}
 
-	private: // Data
-	Status status_;
-	SOCKET sock_;
-	ftl::URI::scheme_t scheme_;
-	uint32_t version_;
+	private:
+	Status status_;					// Connected, errored, reconnecting...
+	SOCKET sock_;					// Raw OS socket
+	ftl::URI::scheme_t scheme_;		// TCP / WS / UDP...
+	uint32_t version_;				// Received protocol version in handshake
+	bool can_reconnect_;			// Client connections can retry
+	ftl::net::Universe *universe_;	// Origin net universe
 	
 	// Receive buffers
 	bool is_waiting_;
@@ -241,16 +248,16 @@ class Peer {
 	msgpack::vrefbuffer send_buf_;
 	std::mutex send_mtx_;
 	
-	std::string uri_;
-	ftl::UUID peerid_;
+	std::string uri_;				// Original connection URI, or assumed URI
+	ftl::UUID peerid_;				// Received in handshake or allocated
 	
-	ftl::net::Dispatcher *disp_;
-	std::vector<std::function<void(Peer &)>> open_handlers_;
+	ftl::net::Dispatcher *disp_;	// For RPC call dispatch
+	//std::vector<std::function<void(Peer &)>> open_handlers_;
 	//std::vector<std::function<void(const ftl::net::Error &)>> error_handlers_
-	std::vector<std::function<void(Peer &)>> close_handlers_;
+	//std::vector<std::function<void(Peer &)>> close_handlers_;
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 	
-	static int rpcid__;
+	static int rpcid__;				// Return ID for RPC calls
 };
 
 // --- Inline Template Implementations -----------------------------------------

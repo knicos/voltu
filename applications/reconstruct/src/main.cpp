@@ -75,9 +75,7 @@ struct Cameras {
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	
-	// Make sure connections are complete
-	// sleep_for(milliseconds(500));
-	// TODO: possible to do more reliably?
+	net->start();
 	net->waitConnections();
 	
 	std::vector<Cameras> inputs;
