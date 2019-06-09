@@ -76,7 +76,7 @@ static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	
 	net->start();
-	//net->waitConnections();
+	net->waitConnections();
 	
 	std::vector<Cameras> inputs;
 	auto sources = ftl::createArray<Source>(root, "sources", net); //root->get<vector<json_t>>("sources");
