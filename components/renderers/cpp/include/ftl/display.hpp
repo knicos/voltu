@@ -7,7 +7,7 @@
 
 #include <ftl/config.h>
 #include <ftl/configurable.hpp>
-#include "../../../rgbd-sources/include/ftl/camera_params.hpp"
+#include "../../../rgbd-sources/include/ftl/rgbd/camera.hpp"
 
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
@@ -35,7 +35,7 @@ class Display : public ftl::Configurable {
 	explicit Display(nlohmann::json &config, std::string name);
 	~Display();
 	
-	bool render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::CameraParameters &p);
+	bool render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::Camera &p);
 
 #if defined HAVE_PCL
 	bool render(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr);

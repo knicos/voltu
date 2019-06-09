@@ -51,6 +51,8 @@ void URI::_parse(uri_t puri) {
         else if (prototext == "http") m_proto = SCHEME_HTTP;
         else if (prototext == "ws") m_proto = SCHEME_WS;
         else if (prototext == "ipc") m_proto = SCHEME_IPC;
+		else if (prototext == "device") m_proto = SCHEME_DEVICE;
+		else if (prototext == "file") m_proto = SCHEME_FILE;
         else m_proto = SCHEME_OTHER;
         m_protostr = prototext;
 
@@ -91,7 +93,7 @@ void URI::_parse(uri_t puri) {
 			m_frag = std::string(uri.fragment.first, fraglast - uri.fragment.first);
 		}
 
-        m_valid = m_proto != SCHEME_NONE && m_host.size() > 0;
+        m_valid = m_proto != SCHEME_NONE && (m_host.size() > 0 || m_path.size() > 0);
 
         if (m_valid) {
             if (m_qmap.size() > 0) m_base = std::string(uri.scheme.first, uri.query.first - uri.scheme.first - 1);

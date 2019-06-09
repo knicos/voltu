@@ -12,7 +12,7 @@
 #include <ftl/scene_rep_hash_sdf.hpp>
 #include <ftl/rgbd.hpp>
 #include <ftl/virtual_source.hpp>
-#include <ftl/rgbd_streamer.hpp>
+#include <ftl/rgbd/streamer.hpp>
 
 // #include <zlib.h>
 // #include <lz4.h>
@@ -50,7 +50,7 @@ using ftl::net::Universe;
 using ftl::rgbd::Display;
 using std::string;
 using std::vector;
-using ftl::rgbd::RGBDSource;
+using ftl::rgbd::Source;
 using ftl::config::json_t;
 
 using json = nlohmann::json;
@@ -67,7 +67,7 @@ using ftl::registration::loadTransformations;
 using ftl::registration::saveTransformations;
 
 struct Cameras {
-	RGBDSource *source;
+	Source *source;
 	DepthCameraData gpu;
 	DepthCameraParams params;
 };
@@ -76,36 +76,21 @@ static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	
 	net->start();
-	net->waitConnections();
+	//net->waitConnections();
 	
 	std::vector<Cameras> inputs;
-	auto sources = root->get<vector<json_t>>("sources");
+	auto sources = ftl::createArray<Source>(root, "sources", net); //root->get<vector<json_t>>("sources");
 
-	if (!sources) {
+	if (sources.size() == 0) {
 		LOG(ERROR) << "No sources configured!";
 		return;
 	}
 
-	// TODO Allow for non-net source types
-	for (auto &src : *sources) {
-		RGBDSource *in = ftl::rgbd::RGBDSource::create(src, net);
-		if (!in) {
-			LOG(ERROR) << "Unrecognized source: " << src;
-		} else {
-			auto &cam = inputs.emplace_back();
-			cam.source = in;
-			cam.params.fx = in->getParameters().fx;
-			cam.params.fy = in->getParameters().fy;
-			cam.params.mx = -in->getParameters().cx;
-			cam.params.my = -in->getParameters().cy;
-			cam.params.m_imageWidth = in->getParameters().width;
-			cam.params.m_imageHeight = in->getParameters().height;
-			cam.params.m_sensorDepthWorldMax = in->getParameters().maxDepth;
-			cam.params.m_sensorDepthWorldMin = in->getParameters().minDepth;
-			cam.gpu.alloc(cam.params);
-			
-			LOG(INFO) << (string) src["uri"] << " loaded " << cam.params.fx;
-		}
+	for (int i=0; i<sources.size(); i++) {
+		Source *in = sources[i];
+		auto &cam = inputs.emplace_back();
+		cam.source = in;
+		cam.params.m_imageWidth = 0;
 	}
 
 	// TODO	move this block in its own method and add automated tests
@@ -115,6 +100,7 @@ static void run(ftl::Configurable *root) {
 	if (!merge) {
 		LOG(WARNING) << "Input merging not configured, using only first input in configuration";
 		inputs = { inputs[0] };
+		inputs[0].source->setPose(Eigen::Matrix4f::Identity());
 	}
 
 	if (inputs.size() > 1) {
@@ -171,9 +157,13 @@ static void run(ftl::Configurable *root) {
 	for (auto &input : inputs) { LOG(INFO) << "    " + (string) input.source->getURI(); }
 	
 	ftl::rgbd::Display *display = ftl::create<ftl::rgbd::Display>(root, "display");
-	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual", net);
+	ftl::rgbd::Source *virt = ftl::create<ftl::rgbd::Source>(root, "virtual", net);
+
+	auto virtimpl = new ftl::rgbd::VirtualSource(virt);
+	virt->customImplementation(virtimpl);
+
 	ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
-	virt->setScene(scene);
+	virtimpl->setScene(scene);
 	display->setSource(virt);
 
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
@@ -192,7 +182,12 @@ static void run(ftl::Configurable *root) {
 	});
 
 	int active = inputs.size();
-	while (active > 0 && display->active()) {
+	while (ftl::running && display->active()) {
+		if (active == 0) {
+			LOG(INFO) << "Waiting for sources...";
+			sleep_for(milliseconds(1000));
+		}
+
 		active = 0;
 
 		if (!paused) {
@@ -200,11 +195,34 @@ static void run(ftl::Configurable *root) {
 			scene->nextFrame();
 		
 			for (size_t i = 0; i < inputs.size(); i++) {
+				if (!inputs[i].source->isReady()) {
+					inputs[i].params.m_imageWidth = 0;
+					// TODO(Nick) : Free gpu allocs if was ready before
+					continue;
+				} else {
+					auto &cam = inputs[i];
+					auto in = inputs[i].source;
+					if (cam.params.m_imageWidth == 0) {
+						LOG(INFO) << "SETTING UP CAM PARAMS: " << in->parameters().fx;
+						cam.params.fx = in->parameters().fx;
+						cam.params.fy = in->parameters().fy;
+						cam.params.mx = -in->parameters().cx;
+						cam.params.my = -in->parameters().cy;
+						cam.params.m_imageWidth = in->parameters().width;
+						cam.params.m_imageHeight = in->parameters().height;
+						cam.params.m_sensorDepthWorldMax = in->parameters().maxDepth;
+						cam.params.m_sensorDepthWorldMin = in->parameters().minDepth;
+						cam.gpu.alloc(cam.params);
+					}
+					
+					//LOG(INFO) << in->getURI() << " loaded " << cam.params.fx;
+				}
+
 				// Get the RGB-Depth frame from input
-				RGBDSource *input = inputs[i].source;
+				Source *input = inputs[i].source;
 				Mat rgb, depth;
 				input->grab();
-				input->getRGBD(rgb,depth);
+				input->getFrames(rgb,depth);
 				
 				active += 1;
 

@@ -10,6 +10,8 @@
 #include <ftl/configurable.hpp>
 
 namespace ftl {
+namespace rgbd {
+namespace detail {
 
 /**
  * Virtual base class for disparity algorithms. An automatic factory is used
@@ -61,7 +63,10 @@ class Disparity : public ftl::Configurable {
 	private:
 	static std::map<std::string,std::function<Disparity*(ftl::Configurable *, const std::string &)>> *algorithms__;
 };
-};
+
+}
+}
+}
 
 #endif // _FTL_DISPARITY_HPP_
 

@@ -5,7 +5,7 @@
 namespace ftl{
 namespace rgbd {
 
-struct CameraParameters {
+struct Camera {
 	double fx;
 	double fy;
 	double cx;

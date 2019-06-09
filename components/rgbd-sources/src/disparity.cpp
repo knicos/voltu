@@ -7,7 +7,7 @@
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
 
-using ftl::Disparity;
+using ftl::rgbd::detail::Disparity;
 
 std::map<std::string, std::function<Disparity*(ftl::Configurable *, const std::string &)>>
 		*Disparity::algorithms__ = nullptr;
@@ -40,10 +40,10 @@ void Disparity::_register(const std::string &n,
 // TODO(Nick) Add remaining algorithms
 
 #include "algorithms/rtcensus.hpp"
-static ftl::Disparity::Register rtcensus("rtcensus", ftl::algorithms::RTCensus::create);
+static ftl::rgbd::detail::Disparity::Register rtcensus("rtcensus", ftl::algorithms::RTCensus::create);
 
 #ifdef HAVE_LIBSGM
 #include "algorithms/fixstars_sgm.hpp"
-static ftl::Disparity::Register fixstarssgm("libsgm", ftl::algorithms::FixstarsSGM::create);
+static ftl::rgbd::detail::Disparity::Register fixstarssgm("libsgm", ftl::algorithms::FixstarsSGM::create);
 #endif  // HAVE_LIBSGM
 

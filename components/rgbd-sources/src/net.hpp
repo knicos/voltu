@@ -3,11 +3,13 @@
 #define _FTL_RGBD_NET_HPP_
 
 #include <ftl/net/universe.hpp>
-#include <ftl/rgbd_source.hpp>
+#include <ftl/rgbd/source.hpp>
 #include <string>
+#include <mutex>
 
 namespace ftl {
 namespace rgbd {
+namespace detail {
 
 /**
  * RGBD source from either a stereo video file with left + right images, or
@@ -15,20 +17,17 @@ namespace rgbd {
  * calculating disparity, before converting to depth.  Calibration of the images
  * is also performed.
  */
-class NetSource : public RGBDSource {
+class NetSource : public detail::Source {
 	public:
-	explicit NetSource(nlohmann::json &config);
-	NetSource(nlohmann::json &config, ftl::net::Universe *net);
+	explicit NetSource(ftl::rgbd::Source *);
 	~NetSource();
 
-	void grab();
+	bool grab();
 	bool isReady();
 
-	static inline RGBDSource *create(nlohmann::json &config, ftl::net::Universe *net) {
-		return new NetSource(config, net);
-	}
-
 	void setPose(const Eigen::Matrix4f &pose);
+
+	void reset();
 
 	private:
 	bool has_calibration_;
@@ -37,12 +36,14 @@ class NetSource : public RGBDSource {
 	bool active_;
 	std::string uri_;
 	ftl::net::callback_t h_;
+	std::mutex mutex_;
 
-	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::CameraParameters &p);
+	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
 	void _updateURI();
 };
 
+}
 }
 }
 

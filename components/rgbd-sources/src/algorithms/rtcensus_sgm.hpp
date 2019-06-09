@@ -21,7 +21,7 @@ namespace algorithms {
 /**
  * WORK IN PROGRESS
  */
-class RTCensusSGM : public ftl::Disparity {
+class RTCensusSGM : public ftl::rgbd::detail::Disparity {
 	public:
 	explicit RTCensusSGM(nlohmann::json &config);
 	

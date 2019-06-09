@@ -1,11 +1,11 @@
-#include <ftl/rgbd_streamer.hpp>
+#include <ftl/rgbd/streamer.hpp>
 #include <vector>
 #include <optional>
 #include <thread>
 #include <chrono>
 
 using ftl::rgbd::Streamer;
-using ftl::rgbd::RGBDSource;
+using ftl::rgbd::Source;
 using ftl::rgbd::detail::StreamSource;
 using ftl::rgbd::detail::StreamClient;
 using ftl::net::Universe;
@@ -60,9 +60,9 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		shared_lock<shared_mutex> slk(mutex_);
 
 		if (sources_.find(uri) != sources_.end()) {
-			buf.resize(sizeof(CameraParameters));
+			buf.resize(sizeof(Camera));
 			LOG(INFO) << "Calib buf size = " << buf.size();
-			memcpy(buf.data(), &sources_[uri]->src->getParameters(), buf.size());
+			memcpy(buf.data(), &sources_[uri]->src->parameters(), buf.size());
 		}
 		return buf;
 	});
@@ -90,16 +90,16 @@ Streamer::~Streamer() {
 	pool_.stop();
 }
 
-void Streamer::add(RGBDSource *src) {
+void Streamer::add(Source *src) {
 	unique_lock<shared_mutex> ulk(mutex_);
-	if (sources_.find(src->getURI()) != sources_.end()) return;
+	if (sources_.find(src->getID()) != sources_.end()) return;
 
 	StreamSource *s = new StreamSource;
 	s->src = src;
 	s->state = 0;
-	sources_[src->getURI()] = s;
+	sources_[src->getID()] = s;
 
-	LOG(INFO) << "Streaming: " << src->getURI();
+	LOG(INFO) << "Streaming: " << src->getID();
 }
 
 void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID &peer, const string &dest) {
@@ -120,7 +120,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	s->clients[rate].push_back(c);
 }
 
-void Streamer::remove(RGBDSource *) {
+void Streamer::remove(Source *) {
 
 }
 
@@ -170,7 +170,7 @@ void Streamer::run(bool block) {
 
 void Streamer::_swap(StreamSource &src) {
 	if (src.state == (ftl::rgbd::detail::kGrabbed | ftl::rgbd::detail::kTransmitted)) {
-		src.src->getRGBD(src.rgb, src.depth);
+		src.src->getFrames(src.rgb, src.depth);
 		src.state = 0;
 	}
 }
@@ -293,7 +293,7 @@ void Streamer::_schedule() {
 	job_cv.wait(lk, [&jobs]{ return jobs == 0; });
 }
 
-RGBDSource *Streamer::get(const std::string &uri) {
+Source *Streamer::get(const std::string &uri) {
 	shared_lock<shared_mutex> slk(mutex_);
 	if (sources_.find(uri) != sources_.end()) return sources_[uri]->src;
 	else return nullptr;

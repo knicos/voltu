@@ -93,7 +93,7 @@ Display::~Display() {
 /**
  * Convert an OpenCV RGB and Depth Mats to a PCL XYZRGB point cloud.
  */
-static pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbdToPointXYZ(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::CameraParameters &p) {
+static pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbdToPointXYZ(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::Camera &p) {
 	const double CX = p.cx;
 	const double CY = p.cy;
 	const double FX = p.fx;
@@ -129,7 +129,7 @@ static pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbdToPointXYZ(const cv::Mat &rgb,
 }
 #endif  // HAVE_PCL
 
-bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::CameraParameters &p) {
+bool Display::render(const cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::Camera &p) {
 	Mat idepth;
 
 	if (value("points", false) && rgb.rows != 0) {

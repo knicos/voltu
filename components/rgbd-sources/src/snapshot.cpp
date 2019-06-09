@@ -1,4 +1,4 @@
-#include <ftl/snapshot.hpp>
+#include <ftl/rgbd/snapshot.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -16,9 +16,9 @@ using std::vector;
 using Eigen::Matrix4f;
 
 // TODO: move to camera_params
-using ftl::rgbd::CameraParameters;
+using ftl::rgbd::Camera;
 
-void to_json(nlohmann::json& j, const CameraParameters &p) {
+void to_json(nlohmann::json& j, const Camera &p) {
 	j = nlohmann::json{
 		{"fx", p.fx},
 		{"fy", p.fy},
@@ -31,7 +31,7 @@ void to_json(nlohmann::json& j, const CameraParameters &p) {
 	};
 }
 
-void from_json(const nlohmann::json& j, CameraParameters &p) {
+void from_json(const nlohmann::json& j, Camera &p) {
 	j.at("fx").get_to(p.fx);
 	j.at("fy").get_to(p.fy);
 	j.at("cx").get_to(p.cx);
@@ -127,7 +127,7 @@ bool SnapshotWriter::addEigenMatrix4f(const string &name, const Matrix4f &m, con
 }
 
 bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat &depth,
-							 const Matrix4f &pose, const CameraParameters &params) {
+							 const Matrix4f &pose, const Camera &params) {
 	bool retval = true;
 	retval &= addMat(name + "-RGB", rgb);
 	retval &= addMat(name + "-D", depth);
@@ -256,7 +256,7 @@ vector<string> SnapshotReader::getIds() {
 }
 
 bool SnapshotReader::getCameraRGBD(const string &id, Mat &rgb, Mat &depth,
-							 Matrix4f &pose, CameraParameters &params) {
+							 Matrix4f &pose, Camera &params) {
 	if (data_.find(id) == data_.end()) {
 		LOG(ERROR) << "entry not found: " << id;
 		return false;

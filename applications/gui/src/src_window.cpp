@@ -9,11 +9,11 @@
 #include <nanogui/layout.h>
 
 #ifdef HAVE_LIBARCHIVE
-#include "ftl/snapshot.hpp"
+#include "ftl/rgbd/snapshot.hpp"
 #endif
 
 using ftl::gui::SourceWindow;
-using ftl::rgbd::RGBDSource;
+using ftl::rgbd::Source;
 using std::string;
 
 class GLTexture {
@@ -84,7 +84,7 @@ class VirtualCameraView : public nanogui::ImageView {
 		depth_ = false;
 	}
 
-	void setSource(RGBDSource *src) { src_ = src; }
+	void setSource(Source *src) { src_ = src; }
 
 	bool mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {
 		//LOG(INFO) << "Mouse move: " << p[0];
@@ -118,7 +118,7 @@ class VirtualCameraView : public nanogui::ImageView {
 
 			src_->setPose(viewPose);
 			src_->grab();
-			src_->getRGBD(rgb, depth);
+			src_->getFrames(rgb, depth);
 
 			if (depth_) {
 				if (depth.rows > 0) {
@@ -143,7 +143,7 @@ class VirtualCameraView : public nanogui::ImageView {
 	void setDepth(bool d) { depth_ = d; }
 
 	private:
-	RGBDSource *src_;
+	Source *src_;
 	GLTexture texture_;
 	Eigen::Vector3f eye_;
 	Eigen::Vector3f centre_;
@@ -159,7 +159,7 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 
 	using namespace nanogui;
 
-    src_ = ftl::create<ftl::rgbd::NetSource>(ctrl->getRoot(), "source", ctrl->getNet());
+    src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
 
 	Widget *tools = new Widget(this);
         tools->setLayout(new BoxLayout(Orientation::Horizontal,
@@ -193,13 +193,13 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
 			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
 			cv::Mat rgb, depth;
-			this->src_->getRGBD(rgb, depth);
+			this->src_->getFrames(rgb, depth);
 			if (!writer.addCameraRGBD(
 					"0", // TODO
 					rgb,
 					depth,
 					this->src_->getPose(),
-					this->src_->getParameters()
+					this->src_->parameters()
 				)) {
 				LOG(ERROR) << "Snapshot failed";
 			}

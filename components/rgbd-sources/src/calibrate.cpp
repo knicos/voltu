@@ -22,7 +22,8 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 
-using ftl::Calibrate;
+using ftl::rgbd::detail::Calibrate;
+using ftl::rgbd::detail::LocalSource;
 using cv::FileStorage;
 using cv::CALIB_FIX_PRINCIPAL_POINT;
 using cv::CALIB_ZERO_TANGENT_DIST;
@@ -181,7 +182,7 @@ bool runCalibration(const Calibrate::Settings& s, Size imageSize,
 		bool release_object);
 
 
-Calibrate::Calibrate(nlohmann::json &config, ftl::LocalSource *s) : ftl::Configurable(config), local_(s) {
+Calibrate::Calibrate(nlohmann::json &config, LocalSource *s) : ftl::Configurable(config), local_(s) {
     /*FileStorage fs(cal, FileStorage::READ); // Read the settings
     if (!fs.isOpened())
     {

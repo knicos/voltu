@@ -11,6 +11,9 @@ namespace cv {
 };
 
 namespace ftl {
+namespace rgbd {
+namespace detail {
+
 class LocalSource : public Configurable {
 	public:
 	explicit LocalSource(nlohmann::json &config);
@@ -44,7 +47,10 @@ class LocalSource : public Configurable {
 	unsigned int width_;
 	unsigned int height_;
 };
-};
+
+}
+}
+}
 
 #endif // _FTL_LOCAL_HPP_
 

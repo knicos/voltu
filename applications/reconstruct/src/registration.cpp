@@ -25,8 +25,8 @@
 namespace ftl {
 namespace registration {
 
-using ftl::rgbd::CameraParameters;
-using ftl::rgbd::RGBDSource;
+using ftl::rgbd::Camera;
+using ftl::rgbd::Source;
 
 using std::string;
 using std::vector;
@@ -132,7 +132,7 @@ float fitPlaneError(PointCloud<PointXYZ>::Ptr cloud_in, float distance_threshold
 }
 
 //template<typename T = PointXYZ> typename
-PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners, const Mat &depth, const CameraParameters &p) {
+PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners, const Mat &depth, const Camera &p) {
 	
 	int corners_len = corners.size();
 	vector<cv::Vec3f> points(corners_len);
@@ -170,7 +170,7 @@ PointCloud<PointXYZ>::Ptr cornersToPointCloud(const vector<cv::Point2f> &corners
 	return cloud;
 }
 
-bool findChessboardCorners(Mat &rgb, const Mat &depth, const CameraParameters &p, const cv::Size pattern_size, PointCloud<PointXYZ>::Ptr &out, float error_threshold) {
+bool findChessboardCorners(Mat &rgb, const Mat &depth, const Camera &p, const cv::Size pattern_size, PointCloud<PointXYZ>::Ptr &out, float error_threshold) {
 	vector<cv::Point2f> corners(pattern_size.width * pattern_size.height);
 
 #if CV_VERSION_MAJOR >= 4
@@ -257,7 +257,7 @@ Registration::Registration(nlohmann::json &config) :
 	}
 }
 
-RGBDSource* Registration::getSource(size_t idx) {
+Source* Registration::getSource(size_t idx) {
 	return sources_[idx];
 }
 
@@ -266,14 +266,14 @@ bool Registration::isTargetSourceSet() {
 }
 
 bool Registration::isTargetSourceFound() {
-	for (RGBDSource* source : sources_ ) {
+	for (Source* source : sources_ ) {
 		if (isTargetSource(source)) return true;
 	}
 	return false;
 }
 
-bool Registration::isTargetSource(RGBDSource *source) {
-	if (target_source_) { return source->getURI() == *target_source_; }
+bool Registration::isTargetSource(Source *source) {
+	if (target_source_) { return source->getID() == *target_source_; }
 	return false;
 }
 
@@ -291,7 +291,7 @@ size_t Registration::getTargetSourceIdx() {
 	return 0;
 }
 
-void Registration::addSource(RGBDSource *source) {
+void Registration::addSource(Source *source) {
 	// TODO: check that source is not already included
 	sources_.push_back(source);
 }
@@ -390,7 +390,7 @@ bool Registration::findTransformations(map<string, Matrix4f> &data) {
 
 	if (!findTransformations(T)) return false;
 	for (size_t i = 0; i < sources_.size(); ++i) {
-		data[sources_[i]->getURI()] = T[i];
+		data[sources_[i]->getID()] = T[i];
 	}
 	return true;
 }
@@ -438,31 +438,31 @@ void ChessboardRegistration::run() {
 
 	// TODO: Move GUI elsewhere. Also applies to processData() and findFeatures()
 	for (size_t i = 0; i < getSourcesCount(); ++i) { 
-		cv::namedWindow("Registration: " + getSource(i)->getURI(),
+		cv::namedWindow("Registration: " + getSource(i)->getID(),
 						cv::WINDOW_KEEPRATIO|cv::WINDOW_NORMAL);
 	}
 
 	Registration::run();
 
 	for (size_t i = 0; i < getSourcesCount(); ++i) { 
-		cv::destroyWindow("Registration: " + getSource(i)->getURI());
+		cv::destroyWindow("Registration: " + getSource(i)->getID());
 	}
 }
 
-bool ChessboardRegistration::findFeatures(RGBDSource *source, size_t idx) {
+bool ChessboardRegistration::findFeatures(Source *source, size_t idx) {
 	optional<PointCloud<PointXYZ>::Ptr> result;
 	PointCloud<PointXYZ>::Ptr cloud(new PointCloud<PointXYZ>);
 
 	Mat rgb, depth;
-	source->getRGBD(rgb, depth);
+	source->getFrames(rgb, depth);
 
-	bool retval = findChessboardCorners(rgb, depth, source->getParameters(), pattern_size_, cloud, error_threshold_);
+	bool retval = findChessboardCorners(rgb, depth, source->parameters(), pattern_size_, cloud, error_threshold_);
 	if (retval) {
 		result.emplace(cloud);
 	}
 	data_[idx].push_back(result);
 	
-	cv::imshow("Registration: " + source->getURI(), rgb);
+	cv::imshow("Registration: " + source->getID(), rgb);
 
 	return retval;
 }
@@ -546,11 +546,11 @@ bool ChessboardRegistrationChain::findTransformations(vector<Matrix4f> &data) {
 	for (vector<pair<size_t, size_t>> level : edges_) {
 		for (pair<size_t, size_t> edge : level) {
 			LOG(INFO) 	<< "Registering source "
-						<< getSource(edge.second)->getURI() << " to source"
-						<< getSource(edge.first)->getURI();
+						<< getSource(edge.second)->getID() << " to source"
+						<< getSource(edge.first)->getID();
 			
 			nlohmann::json conf(config_);
-			conf["targetsource"] = getSource(edge.first)->getURI();
+			conf["targetsource"] = getSource(edge.first)->getID();
 			conf["chain"] = false;
 
 			vector<Matrix4f> result;
