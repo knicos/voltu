@@ -22,7 +22,7 @@
 #include <ftl/rgbd.hpp>
 #include <ftl/middlebury.hpp>
 #include <ftl/display.hpp>
-#include <ftl/rgbd_streamer.hpp>
+#include <ftl/rgbd/streamer.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/slave.hpp>
 #include <nlohmann/json.hpp>
@@ -36,9 +36,8 @@
 #pragma comment(lib, "Rpcrt4.lib")
 #endif
 
-using ftl::rgbd::RGBDSource;
-using ftl::rgbd::CameraParameters;
-using ftl::rgbd::StereoVideoSource;
+using ftl::rgbd::Source;
+using ftl::rgbd::Camera;
 using ftl::Display;
 using ftl::rgbd::Streamer;
 using ftl::net::Universe;
@@ -87,8 +86,10 @@ static void run(ftl::Configurable *root) {
 	string file = "";
 	if (paths && (*paths).size() > 0) file = (*paths)[0];
 
-	StereoVideoSource *source = nullptr;
-	source = ftl::create<StereoVideoSource>(root, "source", file);
+	Source *source = nullptr;
+	source = ftl::create<Source>(root, "source");
+
+	if (file != "") source->set("uri", file);
 	
 	Display *display = ftl::create<Display>(root, "display", "local");
 	
@@ -101,8 +102,8 @@ static void run(ftl::Configurable *root) {
 
 	while (ftl::running && display->active()) {
 		cv::Mat rgb, depth;
-		source->getRGBD(rgb, depth);
-		if (!rgb.empty()) display->render(rgb, depth, source->getParameters());
+		source->getFrames(rgb, depth);
+		if (!rgb.empty()) display->render(rgb, depth, source->parameters());
 		display->wait(10);
 	}
 
@@ -113,7 +114,7 @@ static void run(ftl::Configurable *root) {
 
 	delete stream;
 	delete display;
-	delete source;
+	//delete source;  // TODO(Nick) Add ftl::destroy
 	delete net;
 }
 

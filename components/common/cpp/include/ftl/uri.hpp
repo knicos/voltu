@@ -30,7 +30,8 @@ namespace ftl {
 			SCHEME_WS,
 			SCHEME_IPC,
 			SCHEME_FILE,
-			SCHEME_OTHER
+			SCHEME_OTHER,
+			SCHEME_DEVICE
 		};
 
 		bool isValid() const { return m_valid; };

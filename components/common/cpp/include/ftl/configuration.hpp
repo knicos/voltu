@@ -31,6 +31,8 @@ std::optional<std::string> locateFile(const std::string &name);
 
 Configurable *configure(int argc, char **argv, const std::string &root);
 
+Configurable *configure(json_t &);
+
 /**
  * Change a configuration value based upon a URI. Return true if changed,
  * false if it was not able to change.
@@ -84,8 +86,13 @@ T *create(ftl::Configurable *parent, const std::string &name, ARGS ...args);
  * Create a configurable rooted on a parent but with a specific object
  * that is not directly a child of the parent. Used by RGB-D Factory.
  */
+//template <typename T, typename... ARGS>
+//T *create(ftl::Configurable *parent, json_t &obj, const std::string &name, ARGS ...args);
+
 template <typename T, typename... ARGS>
-T *create(ftl::Configurable *parent, json_t &obj, const std::string &name, ARGS ...args);
+std::vector<T*> createArray(ftl::Configurable *parent, const std::string &name, ARGS ...args);
+
+void destroy(ftl::Configurable *);
 
 void set(const std::string &uri, const nlohmann::json &);
 
@@ -93,6 +100,7 @@ void set(const std::string &uri, const nlohmann::json &);
 
 // Deprecated
 using config::create;
+using config::createArray;
 using config::locateFile;
 using config::configure;
 
@@ -128,8 +136,9 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 
 template <typename T, typename... ARGS>
 T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
-    //nlohmann::json &entity = ftl::config::resolve(parent->getConfig()[name]);
-    nlohmann::json &entity = (!parent->getConfig()[name].is_null()) ? parent->getConfig()[name] : ftl::config::resolve(parent->getConfig())[name];
+    nlohmann::json &entity = (!parent->getConfig()[name].is_null())
+			? parent->getConfig()[name]
+			: ftl::config::resolve(parent->getConfig())[name];
 
     if (entity.is_object()) {
         if (!entity["$id"].is_string()) {
@@ -164,26 +173,51 @@ T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS 
 }
 
 template <typename T, typename... ARGS>
-T *ftl::config::create(ftl::Configurable *parent, json_t &obj, const std::string &name, ARGS ...args) {
-    //nlohmann::json &entity = ftl::config::resolve(parent->getConfig()[name]);
-    nlohmann::json &entity = obj;
+std::vector<T*> ftl::config::createArray(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
+    nlohmann::json &base = (!parent->getConfig()[name].is_null())
+			? parent->getConfig()[name]
+			: ftl::config::resolve(parent->getConfig())[name];
 
-    if (entity.is_object()) {
-        if (!entity["$id"].is_string()) {
-            std::string id_str = *parent->get<std::string>("$id");
-            if (id_str.find('#') != std::string::npos) {
-                entity["$id"] = id_str + std::string("/") + name;
-            } else {
-                entity["$id"] = id_str + std::string("#") + name;
-            }
-        }
+	std::vector<T*> result;
 
-        return create<T>(entity, args...);
-    } else if (entity.is_null()) {
-        LOG(FATAL) << "Invalid raw object in Configurable construction";
-        return nullptr;
-    }
+	if (base.is_array()) {
+		for (auto &entity : base) {
+			if (entity.is_object()) {
+				if (!entity["$id"].is_string()) {
+					std::string id_str = *parent->get<std::string>("$id");
+					if (id_str.find('#') != std::string::npos) {
+						entity["$id"] = id_str + std::string("/") + name;
+					} else {
+						entity["$id"] = id_str + std::string("#") + name;
+					}
+				}
+
+				result.push_back(create<T>(entity, args...));
+			} else if (entity.is_null()) {
+				// Must create the object from scratch...
+				std::string id_str = *parent->get<std::string>("$id");
+				if (id_str.find('#') != std::string::npos) {
+					id_str = id_str + std::string("/") + name;
+				} else {
+					id_str = id_str + std::string("#") + name;
+				}
+				parent->getConfig()[name] = {
+					// cppcheck-suppress constStatement
+					{"$id", id_str}
+				};
+
+				nlohmann::json &entity2 = parent->getConfig()[name];
+				result.push_back(create<T>(entity2, args...));
+			}
+		}
+	} else {
+		LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();
+	}
+
+	return result;
 }
+
+
 
 #endif  // _FTL_COMMON_CONFIGURATION_HPP_
 

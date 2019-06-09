@@ -1,35 +1,31 @@
 #include <loguru.hpp>
-#include <ftl/stereovideo_source.hpp>
+#include "stereovideo.hpp"
 #include <ftl/configuration.hpp>
 #include "calibrate.hpp"
 #include "local.hpp"
 #include "disparity.hpp"
 #include <mutex>
 
-using ftl::Calibrate;
-using ftl::LocalSource;
-using ftl::rgbd::StereoVideoSource;
+using ftl::rgbd::detail::Calibrate;
+using ftl::rgbd::detail::LocalSource;
+using ftl::rgbd::detail::StereoVideoSource;
 using std::string;
 using std::mutex;
 using std::unique_lock;
 
-StereoVideoSource::StereoVideoSource(nlohmann::json &config, ftl::net::Universe *net)
-		: RGBDSource(config, net) {
+StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
+		: ftl::rgbd::detail::Source(host) {
 
 }
 
-StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
-		: RGBDSource(config), ready_(false) {
+StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file)
+		: ftl::rgbd::detail::Source(host), ready_(false) {
 
-	REQUIRED({
-		{"feed","Details on source video [object]","object"}
-	});
-	
 	if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";
 		//lsrc_ = new LocalSource(file, config["source"]);
-		lsrc_ = ftl::create<LocalSource>(this, "feed", file);
+		lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
 	} else if (file != "") {
 		auto vid = ftl::locateFile("video.mp4");
 		if (!vid) {
@@ -37,19 +33,19 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 		} else {
 			LOG(INFO) << "Using test directory...";
 			//lsrc_ = new LocalSource(*vid, config["source"]);
-			lsrc_ = ftl::create<LocalSource>(this, "feed", *vid);
+			lsrc_ = ftl::create<LocalSource>(host_, "feed", *vid);
 		}
 	} else {
 		// Use cameras
 		LOG(INFO) << "Using cameras...";
 		//lsrc_ = new LocalSource(config["source"]);
-		lsrc_ = ftl::create<LocalSource>(this, "feed");
+		lsrc_ = ftl::create<LocalSource>(host_, "feed");
 	}
 
 	//calib_ = new Calibrate(lsrc_, ftl::resolve(config["calibration"]));
-	calib_ = ftl::create<Calibrate>(this, "calibration", lsrc_);
+	calib_ = ftl::create<Calibrate>(host_, "calibration", lsrc_);
 
-	if (value("calibrate", false)) calib_->recalibrate();
+	if (host_->value("calibrate", false)) calib_->recalibrate();
 	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 	else LOG(INFO) << "Calibration initiated.";
 
@@ -73,8 +69,8 @@ StereoVideoSource::StereoVideoSource(nlohmann::json &config, const string &file)
 	calib_->rectifyStereo(mask_l, mask_r);
 	mask_l_ = (mask_l == 0);
 	
-	disp_ = Disparity::create(this, "disparity");
-    if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << *get<ftl::config::json_t>("disparity");
+	disp_ = Disparity::create(host_, "disparity");
+    if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << *host_->get<ftl::config::json_t>("disparity");
 	disp_->setMask(mask_l_);
 
 	LOG(INFO) << "StereoVideo source ready...";
@@ -110,15 +106,16 @@ static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv:
 	}
 }
 
-void StereoVideoSource::grab() {
+bool StereoVideoSource::grab() {
 	calib_->rectified(left_, right_);
 
 	cv::Mat disp;
 	disp_->compute(left_, right_, disp);
 
-	unique_lock<mutex> lk(mutex_);
+	//unique_lock<mutex> lk(mutex_);
 	left_.copyTo(rgb_);
 	disparityToDepth(disp, depth_, calib_->getQ());
+	return true;
 }
 
 bool StereoVideoSource::isReady() {

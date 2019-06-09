@@ -17,6 +17,8 @@ class FileNode;
 };
 
 namespace ftl {
+namespace rgbd {
+namespace detail {
 
 /**
  * Manage both performing and applying camera calibration. It will attempt to
@@ -83,7 +85,7 @@ class Calibrate : public ftl::Configurable {
 
 	};
 	public:
-	Calibrate(nlohmann::json &config, ftl::LocalSource *s);
+	Calibrate(nlohmann::json &config, LocalSource *s);
 	
 	/**
 	 * Perform a new camera calibration. Ignore and replace any existing
@@ -122,7 +124,7 @@ class Calibrate : public ftl::Configurable {
 	bool _loadCalibration();
 	
 	private:
-	ftl::LocalSource *local_;
+	LocalSource *local_;
 	Settings settings_;
 	bool calibrated_;
 	std::vector<cv::Mat> map1_;
@@ -132,7 +134,10 @@ class Calibrate : public ftl::Configurable {
 	cv::Mat r1_;
 	cv::Mat Q_;
 };
-};
+
+}
+}
+}
 
 #endif // _FTL_CALIBRATION_HPP_
 

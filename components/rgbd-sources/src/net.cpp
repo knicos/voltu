@@ -1,20 +1,21 @@
-#include <ftl/net_source.hpp>
+#include "net.hpp"
 #include <vector>
 #include <thread>
 #include <chrono>
+#include <shared_mutex>
 
-using ftl::rgbd::NetSource;
+using ftl::rgbd::detail::NetSource;
 using ftl::net::Universe;
 using ftl::UUID;
 using std::string;
-using ftl::rgbd::CameraParameters;
-using std::mutex;
+using ftl::rgbd::Camera;
+using std::shared_mutex;
 using std::unique_lock;
 using std::vector;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 
-bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::CameraParameters &p) {
+bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p) {
 	try {
 		while(true) {
 			auto buf = net.call<vector<unsigned char>>(peer_, "source_calibration", src);
@@ -40,20 +41,13 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 	}
 }
 
-NetSource::NetSource(nlohmann::json &config) : RGBDSource(config) {
-
-}
-
-NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
-		: RGBDSource(config, net), active_(false) {
-
-	on("uri", [this](const config::Event &e) {
-		_updateURI();
-	});
+NetSource::NetSource(ftl::rgbd::Source *host)
+		: ftl::rgbd::detail::Source(host), active_(false) {
 
 	_updateURI();
 
-	h_ = net->onConnect([this](ftl::net::Peer *p) {
+	h_ = host_->getNet()->onConnect([this](ftl::net::Peer *p) {
+		if (active_) return;
 		LOG(INFO) << "NetSource restart...";
 		_updateURI();
 	});
@@ -61,13 +55,15 @@ NetSource::NetSource(nlohmann::json &config, ftl::net::Universe *net)
 
 NetSource::~NetSource() {
 	if (uri_.size() > 0) {
-		net_->unbind(uri_);
+		host_->getNet()->unbind(uri_);
 	}
 
-	net_->removeCallback(h_);
+	host_->getNet()->removeCallback(h_);
 }
 
 void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+	unique_lock<shared_mutex> lk(host_->mutex());
+
 	cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb_);
 	//Mat(rgb_.size(), CV_16UC1);
 	cv::imdecode(d, cv::IMREAD_UNCHANGED, &depth_);
@@ -76,7 +72,7 @@ void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned ch
 	N_--;
 	if (N_ == 0) {
 		N_ += 10;
-		if (!net_->send(peer_, "get_stream", *get<string>("uri"), 10, 0, net_->id(), *get<string>("uri"))) {
+		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), 10, 0, host_->getNet()->id(), *host_->get<string>("uri"))) {
 			active_ = false;
 		}
 	}
@@ -87,37 +83,36 @@ void NetSource::setPose(const Eigen::Matrix4f &pose) {
 
 	vector<unsigned char> vec((unsigned char*)pose.data(), (unsigned char*)(pose.data()+(pose.size())));
 	try {
-		if (!net_->send(peer_, "set_pose", *get<string>("uri"), vec)) {
+		if (!host_->getNet()->send(peer_, "set_pose", *host_->get<string>("uri"), vec)) {
 			active_ = false;
 		}
 	} catch (...) {
 
 	}
-	RGBDSource::setPose(pose);
+	Source::setPose(pose);
 }
 
 void NetSource::_updateURI() {
-	unique_lock<mutex> lk(mutex_);
+	//unique_lock<mutex> lk(mutex_);
 	active_ = false;
-	auto uri = get<string>("uri");
+	auto uri = host_->get<string>("uri");
 
 	// TODO(Nick) If URI changes then must unbind + rebind.
 	if (uri_.size() > 0) {
-		net_->unbind(uri_);
+		host_->getNet()->unbind(uri_);
 	}
 
 	if (uri) {
-		auto p = net_->findOne<ftl::UUID>("find_stream", *uri);
+		auto p = host_->getNet()->findOne<ftl::UUID>("find_stream", *uri);
 		if (!p) {
 			LOG(ERROR) << "Could not find stream: " << *uri;
 			return;
 		}
 		peer_ = *p;
 
-		has_calibration_ = _getCalibration(*net_, peer_, *uri, params_);
+		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_);
 
-		net_->bind(*uri, [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-			unique_lock<mutex> lk(mutex_);
+		host_->getNet()->bind(*uri, [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 			_recv(jpg, d);
 		});
 
@@ -125,7 +120,7 @@ void NetSource::_updateURI() {
 
 		// Initiate stream with request for first 10 frames
 		try {
-			net_->send(peer_, "get_stream", *uri, 10, 0, net_->id(), *uri);
+			host_->getNet()->send(peer_, "get_stream", *uri, 10, 0, host_->getNet()->id(), *uri);
 		} catch(...) {
 			LOG(ERROR) << "Could not connect to stream " << *uri;
 		}
@@ -138,8 +133,9 @@ void NetSource::_updateURI() {
 	}
 }
 
-void NetSource::grab() {
+bool NetSource::grab() {
 	// net_.broadcast("grab");
+	return true;
 }
 
 bool NetSource::isReady() {

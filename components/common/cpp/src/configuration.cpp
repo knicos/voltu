@@ -189,7 +189,7 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 	}
 	auto ix = config_instance.find(*uri);
 	if (ix != config_instance.end()) {
-		LOG(ERROR) << "Attempting to create a duplicate object: " << *uri;
+		LOG(FATAL) << "Attempting to create a duplicate object: " << *uri;
 	} else {
 		config_instance[*uri] = cfg;
 		LOG(INFO) << "Registering instance: " << *uri;
@@ -429,6 +429,24 @@ static void signalIntHandler( int signum ) {
 
    ftl::running = false;
 }
+
+Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
+	loguru::g_preamble_date = false;
+	loguru::g_preamble_uptime = false;
+	loguru::g_preamble_thread = false;
+	int argc = 1;
+	const char *argv[] = {"d",0};
+	loguru::init(argc, const_cast<char**>(argv), "--verbosity");
+
+	config_index.clear();
+	config_instance.clear();
+
+	config = cfg;
+	_indexConfig(config);
+	Configurable *rootcfg = create<Configurable>(config);
+	return rootcfg;
+}
+
 
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
 	loguru::g_preamble_date = false;

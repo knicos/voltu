@@ -2,7 +2,7 @@
 #define _FTL_RGBD_DISPLAY_HPP_
 
 #include <nlohmann/json.hpp>
-#include <ftl/rgbd_source.hpp>
+#include <ftl/rgbd/source.hpp>
 
 using MouseAction = std::function<void(int, int, int, int)>;
 
@@ -12,10 +12,10 @@ namespace rgbd {
 class Display : public ftl::Configurable {
 	public:
 	explicit Display(nlohmann::json &);
-	Display(nlohmann::json &, RGBDSource *);
+	Display(nlohmann::json &, Source *);
 	~Display();
 
-	void setSource(RGBDSource *src) { source_ = src; }
+	void setSource(Source *src) { source_ = src; }
 	void update();
 
 	bool active() const { return active_; }
@@ -25,7 +25,7 @@ class Display : public ftl::Configurable {
 	void wait(int ms);
 
 	private:
-	RGBDSource *source_;
+	Source *source_;
 	std::string name_;
 	std::vector<std::function<void(int)>> key_handlers_;
 	Eigen::Vector3f eye_;

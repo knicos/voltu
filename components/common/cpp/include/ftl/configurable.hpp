@@ -60,6 +60,8 @@ class Configurable {
 	template <typename T>
 	std::optional<T> get(const std::string &name);
 
+	std::string getID() { return *get<std::string>("$id"); }
+
 	/**
 	 * Get a configuration property, but return a default if not found.
 	 */

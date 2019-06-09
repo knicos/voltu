@@ -28,12 +28,12 @@ Eigen::Matrix4f findTransformation(	std::vector<pcl::PointCloud<pcl::PointXYZ>::
 
 
 /** @brief Convert chessboard corners found with OpenCV's findChessboardCorners to PCL point cloud. */
-pcl::PointCloud<pcl::PointXYZ>::Ptr cornersToPointCloud(const std::vector<cv::Point2f> &corners, const cv::Mat &disp, const ftl::rgbd::CameraParameters &p);
+pcl::PointCloud<pcl::PointXYZ>::Ptr cornersToPointCloud(const std::vector<cv::Point2f> &corners, const cv::Mat &disp, const ftl::rgbd::Camera &p);
 
 /** @brief 	Find chessboard corners from image and store them in PCL PointCloud.
  * 	@note	Corners will be drawn in rgb.
  */
-bool findChessboardCorners(cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::CameraParameters &p, const cv::Size pattern_size, pcl::PointCloud<pcl::PointXYZ>::Ptr &out, float error_threshold);
+bool findChessboardCorners(cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::Camera &p, const cv::Size pattern_size, pcl::PointCloud<pcl::PointXYZ>::Ptr &out, float error_threshold);
 
 /**
  * @brief	Abstract class for registration
@@ -45,7 +45,7 @@ bool findChessboardCorners(cv::Mat &rgb, const cv::Mat &depth, const ftl::rgbd::
 class Registration : public ftl::Configurable {
 public:
 	explicit Registration(nlohmann::json &config);
-	void addSource(ftl::rgbd::RGBDSource* source);
+	void addSource(ftl::rgbd::Source* source);
 	size_t getSourcesCount() { return sources_.size(); }
 
 	/**
@@ -75,11 +75,11 @@ public:
 	virtual bool findTransformations(std::map<std::string, Eigen::Matrix4f> &data);
 
 protected:
-	ftl::rgbd::RGBDSource* getSource(size_t idx);
+	ftl::rgbd::Source* getSource(size_t idx);
 
 	bool isTargetSourceSet();
 	bool isTargetSourceFound();
-	bool isTargetSource(ftl::rgbd::RGBDSource* source); 
+	bool isTargetSource(ftl::rgbd::Source* source); 
 	bool isTargetSource(size_t idx); 
 	
 	/**
@@ -124,13 +124,13 @@ protected:
 	 * 			always have same idx. Implementations may choose to ignore it.
 	 * @return	True/false if feature was found. Used to build adjacency matrix.
 	 */
-	virtual bool findFeatures(ftl::rgbd::RGBDSource* source, size_t idx)=0;
+	virtual bool findFeatures(ftl::rgbd::Source* source, size_t idx)=0;
 
 	std::vector<std::vector<bool>> visibility_; /*< Adjacency matrix for sources (feature visibility). */
 
 private:
 	std::optional<std::string> target_source_; /*< Reference coordinate system for transformations. */
-	std::vector<ftl::rgbd::RGBDSource*> sources_;
+	std::vector<ftl::rgbd::Source*> sources_;
 };
 
 /**
@@ -173,7 +173,7 @@ public:
 	bool findTransformations(std::vector<Eigen::Matrix4f> &data) override;
 
 protected:
-	bool findFeatures(ftl::rgbd::RGBDSource* source, size_t idx) override;
+	bool findFeatures(ftl::rgbd::Source* source, size_t idx) override;
 	bool processData() override;
 	cv::Size pattern_size_;
 	std::vector<std::vector<std::optional<pcl::PointCloud<pcl::PointXYZ>::Ptr>>> data_;
