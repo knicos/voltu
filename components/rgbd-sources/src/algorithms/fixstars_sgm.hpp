@@ -22,7 +22,7 @@ namespace algorithms {
  * NOTE: We are using a modified version that supports disparity of 256.
  * @see https://github.com/knicos/libSGM
  */
-class FixstarsSGM : public ftl::Disparity {
+class FixstarsSGM : public ftl::rgbd::detail::Disparity {
 	public:
 	explicit FixstarsSGM(nlohmann::json &config);
 

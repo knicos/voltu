@@ -30,7 +30,7 @@ using std::get;
 using std::make_tuple;
 using std::bitset;
 
-static ftl::Disparity::Register rtcensus("rtcensus_sgm", RTCensusSGM::create);
+//static ftl::Disparity::Register rtcensus("rtcensus_sgm", RTCensusSGM::create);
 
 RTCensusSGM::RTCensusSGM(nlohmann::json &config)
 	:	Disparity(config),

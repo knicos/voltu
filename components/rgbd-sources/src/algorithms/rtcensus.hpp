@@ -23,7 +23,7 @@ namespace algorithms {
 /**
  * Real-time Sparse Census disparity algorithm.
  */
-class RTCensus : public ftl::Disparity {
+class RTCensus : public ftl::rgbd::detail::Disparity {
 	public:
 	explicit RTCensus(nlohmann::json &config);
 	

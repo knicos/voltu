@@ -533,6 +533,9 @@ namespace loguru
 		CHECK_GT_F(argc,       0,       "Expected proper argc/argv");
 		CHECK_EQ_F(argv[argc], nullptr, "Expected proper argc/argv");
 
+		// Nick: Added to allow for multiple calls to init during tests
+		if (s_argv0_filename.size() > 0) return;
+
 		s_argv0_filename = filename(argv[0]);
 
 		#ifdef _WIN32

@@ -20,7 +20,7 @@
 #include "src_window.hpp"
 
 using std::string;
-using ftl::rgbd::RGBDSource;
+using ftl::rgbd::Source;
 
 /*struct SourceViews {
 	ftl::rgbd::RGBDSource *source;

@@ -12,7 +12,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 
-using ftl::LocalSource;
+using ftl::rgbd::detail::LocalSource;
 using cv::Mat;
 using cv::VideoCapture;
 using cv::Rect;

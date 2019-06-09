@@ -6,7 +6,7 @@
 #include <cuda_runtime.h>
 
 #include <ftl/cuda_matrix_util.hpp>
-#include <ftl/camera_params.hpp>
+#include <ftl/rgbd/camera.hpp>
 
 struct __align__(16) DepthCameraParams {
 	float fx;

@@ -5,7 +5,7 @@
 #include <loguru.hpp>
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
-#include <ftl/rgbd_source.hpp>
+#include <ftl/rgbd/source.hpp>
 #include <ftl/net/universe.hpp>
 #include <string>
 #include <list>
@@ -28,7 +28,7 @@ static const unsigned int kGrabbed = 0x1;
 static const unsigned int kTransmitted = 0x2; 
 
 struct StreamSource {
-	ftl::rgbd::RGBDSource *src;
+	ftl::rgbd::Source *src;
 	unsigned int state;								// Busy or ready to swap?
 	cv::Mat rgb;									// Tx buffer
 	cv::Mat depth;									// Tx buffer
@@ -69,9 +69,9 @@ class Streamer : public ftl::Configurable {
 	/**
 	 * Add an RGB-Depth source to be made available for streaming.
 	 */
-	void add(RGBDSource *);
+	void add(Source *);
 
-	void remove(RGBDSource *);
+	void remove(Source *);
 	void remove(const std::string &);
 
 	/**
@@ -91,7 +91,7 @@ class Streamer : public ftl::Configurable {
 	 */
 	void poll();
 
-	RGBDSource *get(const std::string &uri);
+	Source *get(const std::string &uri);
 
 	private:
 	std::map<std::string, detail::StreamSource*> sources_;

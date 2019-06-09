@@ -4,7 +4,7 @@
 #include <nanogui/window.h>
 #include <ftl/master.hpp>
 #include <ftl/uuid.hpp>
-#include <ftl/net_source.hpp>
+#include <ftl/rgbd/source.hpp>
 #include <vector>
 #include <string>
 
@@ -23,7 +23,7 @@ class SourceWindow : public nanogui::Window {
 
 	private:
 	ftl::ctrl::Master *ctrl_;
-	ftl::rgbd::NetSource *src_;
+	ftl::rgbd::Source *src_;
 	VirtualCameraView *image_;
 	std::vector<std::string> available_;
 

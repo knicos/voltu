@@ -10,19 +10,19 @@ using ftl::rgbd::VirtualSource;
 using std::mutex;
 using std::unique_lock;
 
-VirtualSource::VirtualSource(nlohmann::json &config, ftl::net::Universe *net)
-		: RGBDSource(config, net) {
-	rays_ = new CUDARayCastSDF(config);
+VirtualSource::VirtualSource(ftl::rgbd::Source *host)
+		: ftl::rgbd::detail::Source(host) {
+	rays_ = ftl::create<CUDARayCastSDF>(host, "raycaster"); //new CUDARayCastSDF(host->getConfig());
 	scene_ = nullptr;
 
-	params_.fx = config.value("focal", 430.0f);
+	params_.fx = rays_->value("focal", 430.0f);
 	params_.fy = params_.fx;
-	params_.width = config.value("width", 640);
-	params_.height = config.value("height", 480);
+	params_.width = rays_->value("width", 640);
+	params_.height = rays_->value("height", 480);
 	params_.cx = params_.width / 2;
 	params_.cy = params_.height / 2;
-	params_.maxDepth = config.value("max_depth", 10.0f);
-	params_.minDepth = config.value("min_depth", 0.1f);
+	params_.maxDepth = rays_->value("max_depth", 10.0f);
+	params_.minDepth = rays_->value("min_depth", 0.1f);
 
 	rgb_ = cv::Mat(cv::Size(params_.width,params_.height), CV_8UC3);
 	idepth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32SC1);
@@ -37,7 +37,7 @@ void VirtualSource::setScene(ftl::voxhash::SceneRep *scene) {
 	scene_ = scene;
 }
 
-void VirtualSource::grab() {
+bool VirtualSource::grab() {
 	if (scene_) {
 		DepthCameraParams params;
 		params.fx = params_.fx;
@@ -49,12 +49,13 @@ void VirtualSource::grab() {
 		params.m_sensorDepthWorldMin = params_.minDepth;
 		params.m_sensorDepthWorldMax = params_.maxDepth;
 
-		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, getPose());
+		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, host_->getPose());
 
-		unique_lock<mutex> lk(mutex_);
+		//unique_lock<mutex> lk(mutex_);
 		rays_->getRayCastData().download((int*)idepth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams());
 		idepth_.convertTo(depth_, CV_32FC1, 1.0f / 100.0f);
 	}
+	return true;
 }
 
 bool VirtualSource::isReady() {

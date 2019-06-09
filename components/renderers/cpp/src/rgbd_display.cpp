@@ -1,7 +1,7 @@
 #include <ftl/rgbd_display.hpp>
 #include <opencv2/opencv.hpp>
 
-using ftl::rgbd::RGBDSource;
+using ftl::rgbd::Source;
 using ftl::rgbd::Display;
 using std::string;
 using cv::Mat;
@@ -48,7 +48,7 @@ Display::Display(nlohmann::json &config) : ftl::Configurable(config) {
 	init();
 }
 
-Display::Display(nlohmann::json &config, RGBDSource *source)
+Display::Display(nlohmann::json &config, Source *source)
 		: ftl::Configurable(config) {
 	name_ = config.value("name", string("View [")+std::to_string(viewcount__)+string("]"));
 	viewcount__++;
@@ -122,8 +122,8 @@ void Display::update() {
 	source_->setPose(viewPose);
 
 	Mat rgb, depth;
-	//source_->grab();
-	source_->getRGBD(rgb, depth);
+	source_->grab();
+	source_->getFrames(rgb, depth);
 	if (rgb.rows > 0) cv::imshow(name_, rgb);
 	wait(1);
 }
