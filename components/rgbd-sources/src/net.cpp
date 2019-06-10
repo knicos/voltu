@@ -89,7 +89,7 @@ void NetSource::setPose(const Eigen::Matrix4f &pose) {
 	} catch (...) {
 
 	}
-	Source::setPose(pose);
+	//Source::setPose(pose);
 }
 
 void NetSource::_updateURI() {

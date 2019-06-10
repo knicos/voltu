@@ -156,7 +156,7 @@ static void run(ftl::Configurable *root) {
 	LOG(INFO) << "Using sources:";
 	for (auto &input : inputs) { LOG(INFO) << "    " + (string) input.source->getURI(); }
 	
-	ftl::rgbd::Display *display = ftl::create<ftl::rgbd::Display>(root, "display");
+	//ftl::rgbd::Display *display = ftl::create<ftl::rgbd::Display>(root, "display");
 	ftl::rgbd::Source *virt = ftl::create<ftl::rgbd::Source>(root, "virtual", net);
 
 	auto virtimpl = new ftl::rgbd::VirtualSource(virt);
@@ -164,7 +164,7 @@ static void run(ftl::Configurable *root) {
 
 	ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	virtimpl->setScene(scene);
-	display->setSource(virt);
+	//display->setSource(virt);
 
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	stream->add(virt);
@@ -177,12 +177,12 @@ static void run(ftl::Configurable *root) {
 	bool paused = false;
 
 	// Keyboard camera controls
-	display->onKey([&paused](int key) {
-		if (key == 32) paused = !paused;
-	});
+	//display->onKey([&paused](int key) {
+	//	if (key == 32) paused = !paused;
+	//});
 
 	int active = inputs.size();
-	while (ftl::running && display->active()) {
+	while (ftl::running) {
 		if (active == 0) {
 			LOG(INFO) << "Waiting for sources...";
 			sleep_for(milliseconds(1000));
@@ -203,7 +203,6 @@ static void run(ftl::Configurable *root) {
 					auto &cam = inputs[i];
 					auto in = inputs[i].source;
 					if (cam.params.m_imageWidth == 0) {
-						LOG(INFO) << "SETTING UP CAM PARAMS: " << in->parameters().fx;
 						cam.params.fx = in->parameters().fx;
 						cam.params.fy = in->parameters().fy;
 						cam.params.mx = -in->parameters().cx;
@@ -246,7 +245,7 @@ static void run(ftl::Configurable *root) {
 		frameCount++;
 
 		stream->poll();
-		display->update();
+		//display->update();
 		//sleep_for(milliseconds(10));
 	}
 }

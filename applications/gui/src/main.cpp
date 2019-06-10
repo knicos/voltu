@@ -128,6 +128,7 @@ class FTLApplication : public nanogui::Screen {
 		lookPoint_ = Eigen::Vector3f(0.0f,0.0f,-4.0f);
 		lerpSpeed_ = 0.4f;
 		depth_ = false;
+		ftime_ = (float)glfwGetTime();
 
 		mShader.init("RGBDShader", defaultImageViewVertexShader,
                  defaultImageViewFragmentShader);
@@ -175,14 +176,14 @@ class FTLApplication : public nanogui::Screen {
 		if (Screen::keyboardEvent(key, scancode, action, modifiers)) {
 			return true;
 		} else {
-			LOG(INFO) << "Key press" << key << " - " << action;
-			if (key == 81 || key == 83) {
+			LOG(INFO) << "Key press " << key << " - " << action;
+			if (key == 263 || key == 262) {
 				// TODO Should rotate around lookAt object, but requires correct depth
-				Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, up_);
+				Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 262) ? 0.01f : -0.01f, up_);
 				eye_ = (q * (eye_ - centre_)) + centre_;
 				return true;
-			} else if (key == 84 || key == 82) {
-				float scalar = (key == 84) ? 0.99f : 1.01f;
+			} else if (key == 264 || key == 265) {
+				float scalar = (key == 264) ? 0.99f : 1.01f;
 				eye_ = ((eye_ - centre_) * scalar) + centre_;
 				return true;
 			}
@@ -196,9 +197,13 @@ class FTLApplication : public nanogui::Screen {
 		auto src_ = swindow_->getSource();
 		Vector2f imageSize(0, 0);
 
+		float now = (float)glfwGetTime();
+		float delta = now - ftime_;
+		ftime_ = now;
+
 		if (src_) {
 			cv::Mat rgb, depth;
-			centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * 0.1f);
+			centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * delta);
 			Eigen::Matrix4f viewPose = lookAt<float>(eye_,centre_,up_).inverse();
 
 			src_->setPose(viewPose);
@@ -267,6 +272,7 @@ class FTLApplication : public nanogui::Screen {
 	Eigen::Vector3f lookPoint_;
 	float lerpSpeed_;
 	bool depth_;
+	float ftime_;
 };
 
 int main(int argc, char **argv) {
