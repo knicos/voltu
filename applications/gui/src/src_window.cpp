@@ -159,15 +159,16 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 
 	using namespace nanogui;
 
+	depth_ = false;
     src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
 
-	Widget *tools = new Widget(this);
-        tools->setLayout(new BoxLayout(Orientation::Horizontal,
-                                       Alignment::Middle, 0, 6));
+	//Widget *tools = new Widget(this);
+    //    tools->setLayout(new BoxLayout(Orientation::Horizontal,
+    //                                   Alignment::Middle, 0, 6));
 
-    new Label(tools, "Select source","sans-bold");
+    new Label(this, "Select source","sans-bold");
     available_ = ctrl->getNet()->findAll<string>("list_streams");
-    auto select = new ComboBox(tools, available_);
+    auto select = new ComboBox(this, available_);
     select->setCallback([this,select](int ix) {
         LOG(INFO) << "Change source: " << ix;
         src_->set("uri", available_[ix]);
@@ -178,10 +179,11 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		 select->setItems(available_);
 	});
 
-	auto depth = new Button(tools, "Depth");
+	auto depth = new Button(this, "Depth");
 	depth->setFlags(Button::ToggleButton);
 	depth->setChangeCallback([this](bool state) {
-		image_->setDepth(state);
+		//image_->setDepth(state);
+		depth_ = state;
 	});
 
 #ifdef HAVE_LIBARCHIVE
@@ -210,11 +212,11 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	});
 #endif
 
-	auto imageView = new VirtualCameraView(this);
+	//auto imageView = new VirtualCameraView(this);
 	//cam.view = imageView;
-	imageView->setGridThreshold(20);
-	imageView->setSource(src_);
-	image_ = imageView;
+	//imageView->setGridThreshold(20);
+	//imageView->setSource(src_);
+	//image_ = imageView;
 }
 
 SourceWindow::~SourceWindow() {

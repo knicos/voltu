@@ -21,9 +21,13 @@ class SourceWindow : public nanogui::Window {
 	SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl);
 	~SourceWindow();
 
+	ftl::rgbd::Source *getSource() const { return src_; }
+	bool getDepth() const { return depth_; }
+
 	private:
 	ftl::ctrl::Master *ctrl_;
 	ftl::rgbd::Source *src_;
+	bool depth_;
 	VirtualCameraView *image_;
 	std::vector<std::string> available_;
 
