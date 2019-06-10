@@ -14,7 +14,7 @@ using std::mutex;
 using std::unique_lock;
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
-		: ftl::rgbd::detail::Source(host) {
+		: ftl::rgbd::detail::Source(host), ready_(false) {
 	init("");
 }
 

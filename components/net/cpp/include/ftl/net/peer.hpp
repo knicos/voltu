@@ -242,11 +242,11 @@ class Peer {
 	// Receive buffers
 	bool is_waiting_;
 	msgpack::unpacker recv_buf_;
-	std::mutex recv_mtx_;
+	std::recursive_mutex recv_mtx_;
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;
-	std::mutex send_mtx_;
+	std::recursive_mutex send_mtx_;
 	
 	std::string uri_;				// Original connection URI, or assumed URI
 	ftl::UUID peerid_;				// Received in handshake or allocated
@@ -264,7 +264,7 @@ class Peer {
 
 template <typename... ARGS>
 int Peer::send(const std::string &s, ARGS... args) {
-	std::unique_lock<std::mutex> lk(send_mtx_);
+	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
 	// Leave a blank entry for websocket header
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	auto args_obj = std::make_tuple(args...);
@@ -315,17 +315,21 @@ int Peer::asyncCall(
 		std::function<void(const T&)> cb,
 		ARGS... args) {
 	auto args_obj = std::make_tuple(args...);
-	auto rpcid = rpcid__++;
+	auto rpcid = 0;
+	
+	DLOG(1) << "RPC " << name << "() -> " << uri_;
+
+	{
+		std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
+		// Register the CB
+		rpcid = rpcid__++;
+		callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
+	}
+
 	auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 	
-	LOG(INFO) << "RPC " << name << "() -> " << uri_;
-	
-	std::unique_lock<std::mutex> lk(send_mtx_);
+	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
 	msgpack::pack(send_buf_, call_obj);
-	
-	// Register the CB
-	callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
-
 	_send();
 	return rpcid;
 }

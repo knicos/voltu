@@ -41,6 +41,7 @@ using std::chrono::seconds;
 using ftl::net::Universe;
 using ftl::net::callback_t;
 using std::mutex;
+using std::recursive_mutex;
 using std::unique_lock;
 
 /*static std::string hexStr(const std::string &s)
@@ -100,17 +101,36 @@ static SOCKET tcpConnect(URI &uri) {
 	}
 
 	// Make nonblocking
-	/*long arg = fcntl(csocket, F_GETFL, NULL));
+#ifndef WIN32
+	long arg = fcntl(csocket, F_GETFL, NULL);
 	arg |= O_NONBLOCK;
-	fcntl(csocket, F_SETFL, arg) < 0)*/
-	
+	fcntl(csocket, F_SETFL, arg);
+#endif
+
 	// TODO(Nick) - Check all returned addresses.
 	auto addr = addrs;
 	rc = ::connect(csocket, addr->ai_addr, (socklen_t)addr->ai_addrlen);
 
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {
+			fd_set myset; 
+			struct timeval tv;
+			tv.tv_sec = 1; 
+			tv.tv_usec = 0; 
+			FD_ZERO(&myset); 
+			FD_SET(csocket, &myset); 
+			rc = select(csocket+1, NULL, &myset, NULL, &tv); 
+			if (rc <= 0) { //} && errno != EINTR) { 
+				#ifndef WIN32
+				close(csocket);
+				#else
+				closesocket(csocket);
+				#endif
 
+				LOG(ERROR) << "Could not connect to " << uri.getBaseURI();
+
+				return INVALID_SOCKET;
+			}
 		} else {
 			#ifndef WIN32
 			close(csocket);
@@ -125,9 +145,11 @@ static SOCKET tcpConnect(URI &uri) {
 	}
 
 	// Make blocking again
-	/*long arg = fcntl(csocket, F_GETFL, NULL);
+#ifndef WIN32
+	arg = fcntl(csocket, F_GETFL, NULL);
 	arg &= (~O_NONBLOCK);
-	fcntl(csocket, F_SETFL, arg);*/
+	fcntl(csocket, F_SETFL, arg);
+#endif
 
 	return csocket;
 }
@@ -183,7 +205,7 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 	disp_ = new Dispatcher(d);
 
 	// Must to to prevent receiving message before handlers are installed
-	unique_lock<mutex> lk(recv_mtx_);
+	unique_lock<recursive_mutex> lk(recv_mtx_);
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
@@ -353,7 +375,7 @@ void Peer::data() {
 }
 
 bool Peer::_data() {
-	std::unique_lock<std::mutex> lk(recv_mtx_);
+	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
 
 	recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
@@ -393,7 +415,7 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 	// TODO Handle error reporting...
 	
 	if (callbacks_.count(id) > 0) {
-		LOG(INFO) << "Received return RPC value";
+		DLOG(1) << "Received return RPC value";
 		
 		// Call the callback with unpacked return value
 		(*callbacks_[id])(res);
@@ -411,7 +433,7 @@ void Peer::cancelCall(int id) {
 
 void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
-	std::unique_lock<std::mutex> lk(send_mtx_);
+	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
 	msgpack::pack(send_buf_, res_obj);
 	_send();
 }
@@ -495,8 +517,8 @@ int Peer::_send() {
 }
 
 Peer::~Peer() {
-	std::unique_lock<std::mutex> lk1(send_mtx_);
-	std::unique_lock<std::mutex> lk2(recv_mtx_);
+	std::unique_lock<std::recursive_mutex> lk1(send_mtx_);
+	std::unique_lock<std::recursive_mutex> lk2(recv_mtx_);
 	_badClose(false);
 	LOG(INFO) << "Deleting peer object";
 
