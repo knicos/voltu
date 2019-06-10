@@ -15,12 +15,22 @@ using std::unique_lock;
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host) {
-
+	init("");
 }
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file)
 		: ftl::rgbd::detail::Source(host), ready_(false) {
 
+	init(file);
+}
+
+StereoVideoSource::~StereoVideoSource() {
+	delete disp_;
+	delete calib_;
+	delete lsrc_;
+}
+
+void StereoVideoSource::init(const string &file) {
 	if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";
@@ -75,12 +85,6 @@ StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file
 
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
-}
-
-StereoVideoSource::~StereoVideoSource() {
-	delete disp_;
-	delete calib_;
-	delete lsrc_;
 }
 
 static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q) {

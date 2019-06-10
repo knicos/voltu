@@ -39,6 +39,8 @@ class StereoVideoSource : public detail::Source {
 	cv::Mat left_;
 	cv::Mat right_;
 	cv::Mat mask_l_;
+
+	void init(const std::string &);
 };
 
 }
