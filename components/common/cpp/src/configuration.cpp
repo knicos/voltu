@@ -49,7 +49,7 @@ static Configurable *rootCFG = nullptr;
 
 bool ftl::running = true;
 int ftl::exit_code = 0;
-std::string ftl::branch_name = "";
+std::string ftl::branch_name = FTL_BRANCH;
 
 bool ftl::is_directory(const std::string &path) {
 #ifdef WIN32

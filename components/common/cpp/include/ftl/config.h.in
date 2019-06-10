@@ -22,6 +22,7 @@
 #cmakedefine HAVE_NANOGUI
 #cmakedefine HAVE_LIBARCHIVE
 
+extern const char *FTL_BRANCH;
 extern const char *FTL_VERSION_LONG;
 extern const char *FTL_VERSION;
 extern const int FTL_VERSION_MAJOR;
