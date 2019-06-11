@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <functional>
 #include <ftl/uri.hpp>
+#include <msgpack.hpp>
 
 #include <ftl/net/common.hpp>
 
@@ -39,6 +40,8 @@ struct wsheader_type {
  * from the buffer is returned.
  */
 int ws_dispatch(const char *data, size_t len, std::function<void(const wsheader_type&,const char*,size_t)> d);
+
+int ws_parse(msgpack::unpacker &buf, wsheader_type &ws);
 
 /**
  * Websocket header constructor. Fills a buffer with the correct websocket

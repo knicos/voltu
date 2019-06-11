@@ -35,10 +35,11 @@ Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false)
 		return ftl::config::resolve(uri);
 	});
 
-	net->bind("slave_details", [net,root]() -> std::vector<std::string> {
+	net->bind("node_details", [net,root]() -> std::vector<std::string> {
 		ftl::config::json_t json {
 			{"id", net->id().to_string()},
-			{"title", root->value("title", *root->get<string>("$id"))}
+			{"title", root->value("title", *root->get<string>("$id"))},
+			{"kind", "slave"}
 		};
 		return {json.dump()};
 	});
@@ -46,6 +47,10 @@ Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false)
 	net->bind("log_subscribe", [this](const ftl::UUID &peer) {
 		unique_lock<recursive_mutex> lk(mutex_);
 		log_peers_.push_back(peer);
+	});
+
+	net->bind("connect", [this](const std::string &url) {
+		net_->connect(url);
 	});
 
 	loguru::add_callback("net_log", netLog, this, loguru::Verbosity_INFO);

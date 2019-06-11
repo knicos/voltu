@@ -109,6 +109,8 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	if (rate < 0 || rate >= 10) return;
 	if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
 
+	LOG(INFO) << "Adding Stream Peer: " << peer.to_string();
+
 	StreamClient c;
 	c.peerid = peer;
 	c.uri = dest;

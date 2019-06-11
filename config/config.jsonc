@@ -205,5 +205,11 @@
 			"peers": ["tcp://localhost:9001", "tcp://localhost:9002"]
 		},
 		"source": {"uri": "ftl://utu.fi#vision_default/source"}
+	},
+
+	"gui_web": {
+		"net": {
+			"peers": ["ws://localhost:8080/"]
+		}
 	}
 }

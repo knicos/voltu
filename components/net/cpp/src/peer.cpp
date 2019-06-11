@@ -154,7 +154,7 @@ static SOCKET tcpConnect(URI &uri) {
 	return csocket;
 }
 
-Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(false), universe_(u) {
+Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(false), universe_(u), ws_read_header_(false) {
 	status_ = (s == INVALID_SOCKET) ? kInvalid : kConnecting;
 	_updateURI();
 	
@@ -196,7 +196,7 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	}
 }
 
-Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true), universe_(u), uri_(pUri) {	
+Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true), universe_(u), ws_read_header_(false), uri_(pUri) {	
 	URI uri(pUri);
 	
 	status_ = kInvalid;
@@ -219,6 +219,9 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 			if (!ws_connect(sock_, uri)) {
 				LOG(ERROR) << "Websocket connection failed";
 				_badClose(false);
+			} else {
+				status_ = kConnecting;
+				LOG(INFO) << "WEB SOCK CONNECTED";
 			}
 		} else {
 			LOG(ERROR) << "Connection refused to " << uri.getHost() << ":" << uri.getPort();
@@ -374,20 +377,44 @@ void Peer::data() {
 	}, this);
 }
 
+inline std::ostream& hex_dump(std::ostream& o, std::string const& v) {
+    std::ios::fmtflags f(o.flags());
+    o << std::hex;
+    for (auto c : v) {
+        o << "0x" << std::setw(2) << std::setfill('0') << (static_cast<int>(c) & 0xff) << ' ';
+    }
+    o.flags(f);
+    return o;
+}
+
 bool Peer::_data() {
 	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
 
 	recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
 
-	if (rc < 0) {
+	if (rc <= 0) {
 		return false;
 	}
 	
 	recv_buf_.buffer_consumed(rc);
-	
+
+	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
+		wsheader_type ws;
+		if (ws_parse(recv_buf_, ws) < 0) {
+			return false;
+		}
+		ws_read_header_ = true;
+	}
+
+	/*if (rc > 0) {
+		hex_dump(std::cout, std::string((char*)recv_buf_.nonparsed_buffer(), recv_buf_.nonparsed_size()));
+		std::cout << std::endl;
+	}*/
+
 	msgpack::object_handle msg;
 	while (recv_buf_.next(msg)) {
+		ws_read_header_ = false;
 		msgpack::object obj = msg.get();
 		if (status_ != kConnected) {
 			// First message must be a handshake
@@ -407,6 +434,14 @@ bool Peer::_data() {
 			}
 		}
 		disp_->dispatch(*this, obj);
+
+		if (recv_buf_.nonparsed_size() > 0 && scheme_ == ftl::URI::SCHEME_WS) {
+			wsheader_type ws;
+			if (ws_parse(recv_buf_, ws) < 0) {
+				return false;
+			}
+			ws_read_header_ = true;	
+		}
 	}
 	return false;
 }
@@ -434,6 +469,7 @@ void Peer::cancelCall(int id) {
 void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
 	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
+	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	msgpack::pack(send_buf_, res_obj);
 	_send();
 }
@@ -481,9 +517,11 @@ int Peer::_send() {
 		char buf[20];  // TODO(nick) Should not be a stack buffer.
 		
 		// Calculate total size of message
-		for (size_t i=0; i < size; i++) {
+		for (size_t i=1; i < size; i++) {
 			len += sendvec[i].iov_len;
 		}
+
+		//LOG(INFO) << "SEND SIZE = " << len;
 		
 		// Pack correct websocket header into buffer
 		int rc = ws_prepare(wsheader_type::BINARY_FRAME, false, len, buf, 20);
