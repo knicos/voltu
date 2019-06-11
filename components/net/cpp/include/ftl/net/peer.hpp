@@ -243,6 +243,7 @@ class Peer {
 	bool is_waiting_;
 	msgpack::unpacker recv_buf_;
 	std::recursive_mutex recv_mtx_;
+	bool ws_read_header_;
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;
@@ -317,7 +318,7 @@ int Peer::asyncCall(
 	auto args_obj = std::make_tuple(args...);
 	auto rpcid = 0;
 	
-	DLOG(1) << "RPC " << name << "() -> " << uri_;
+	LOG(INFO) << "RPC " << name << "() -> " << uri_;
 
 	{
 		std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
@@ -329,6 +330,7 @@ int Peer::asyncCall(
 	auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 	
 	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
+	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	msgpack::pack(send_buf_, call_obj);
 	_send();
 	return rpcid;

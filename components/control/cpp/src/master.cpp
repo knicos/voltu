@@ -17,7 +17,20 @@ Master::Master(Configurable *root, Universe *net)
 		}
 	});
 
+	net->bind("node_details", [net,root]() -> std::vector<std::string> {
+		ftl::config::json_t json {
+			{"id", net->id().to_string()},
+			{"title", root->value("title", *root->get<string>("$id"))},
+			{"kind", "master"}
+		};
+		return {json.dump()};
+	});
+
 	net->broadcast("log_subscribe", net->id());
+
+	net->onConnect([this](ftl::net::Peer*) {
+		net_->broadcast("log_subscribe", net_->id());
+	});
 }
 
 Master::~Master() {

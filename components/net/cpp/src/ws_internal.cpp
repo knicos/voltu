@@ -76,6 +76,61 @@ int ftl::net::ws_dispatch(const char *data, size_t len, std::function<void(const
 	return (int)(ws.header_size+ws.N);
 }
 
+/* Taken from easywsclient. */
+int ftl::net::ws_parse(msgpack::unpacker &buf, wsheader_type &ws) {
+	//wsheader_type ws;
+	unsigned char *data = (unsigned char*)(buf.nonparsed_buffer());
+	auto len = buf.nonparsed_size();
+
+	if (len < 2) return -1;
+	
+	ws.fin = (data[0] & 0x80) == 0x80;
+	ws.opcode = (wsheader_type::opcode_type) (data[0] & 0x0f);
+	ws.mask = (data[1] & 0x80) == 0x80;
+	ws.N0 = (data[1] & 0x7f);
+	ws.header_size = 2 + (ws.N0 == 126? 2 : 0) + (ws.N0 == 127? 8 : 0) + (ws.mask? 4 : 0);
+
+	if (len < ws.header_size) return -1;
+
+	int i = 0;
+	if (ws.N0 < 126) {
+		ws.N = ws.N0;
+		i = 2;
+	} else if (ws.N0 == 126) {
+		ws.N = 0;
+		ws.N |= ((uint64_t) data[2]) << 8;
+		ws.N |= ((uint64_t) data[3]) << 0;
+		i = 4;
+	} else if (ws.N0 == 127) {
+		ws.N = 0;
+		ws.N |= ((uint64_t) data[2]) << 56;
+		ws.N |= ((uint64_t) data[3]) << 48;
+		ws.N |= ((uint64_t) data[4]) << 40;
+		ws.N |= ((uint64_t) data[5]) << 32;
+		ws.N |= ((uint64_t) data[6]) << 24;
+		ws.N |= ((uint64_t) data[7]) << 16;
+		ws.N |= ((uint64_t) data[8]) << 8;
+		ws.N |= ((uint64_t) data[9]) << 0;
+		i = 10;
+	}
+	
+	if (ws.mask) {
+		ws.masking_key[0] = ((uint8_t) data[i+0]) << 0;
+		ws.masking_key[1] = ((uint8_t) data[i+1]) << 0;
+		ws.masking_key[2] = ((uint8_t) data[i+2]) << 0;
+		ws.masking_key[3] = ((uint8_t) data[i+3]) << 0;
+	} else {
+		ws.masking_key[0] = 0;
+		ws.masking_key[1] = 0;
+		ws.masking_key[2] = 0;
+		ws.masking_key[3] = 0;
+	}
+	
+	//if (len < ws.header_size+ws.N) return -1;
+	buf.skip_nonparsed_buffer(ws.header_size);
+	return (int)(ws.header_size+ws.N);
+}
+
 int ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t len, char *data, size_t maxlen) {
 	// TODO:
 	// Masking key should (must) be derived from a high quality random
@@ -125,7 +180,7 @@ int ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t len
 		    header[13] = masking_key[3];
 		}
 	}
-	
+
 	return (int)header_size;
 }
 

@@ -128,16 +128,18 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 
     auto &&name = std::get<1>(the_call);
     auto &&args = std::get<2>(the_call);
-    
-    // LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
 
     auto binding = _locateHandler(name);
+	//LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
 
     if (binding) {
         try {
             auto result = (*binding)(args);
         } catch (const int &e) {
+			LOG(ERROR) << "Exception in bound function";
 			throw &e;
+		} catch (const std::exception &e) {
+			LOG(ERROR) << "Exception for '" << name << "' - " << e.what();
 		}
     } else {
     	LOG(ERROR) << "Missing handler for incoming message (" << name << ")";

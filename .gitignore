@@ -9,3 +9,4 @@ build/
 lab-designs/viewer
 .vscode
 doc/
+web-service/npm-debug.log

@@ -327,7 +327,9 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	std::map<Peer*, int> record;
 	std::shared_lock<std::shared_mutex> lk(net_mutex_);
 	for (auto p : peers_) {
-		if (!p->isConnected()) continue;
+		if (!p->isConnected()) {
+			continue;
+		}
 		sentcount++;
 		record[p] = p->asyncCall<std::vector<R>>(name, handler, args...);
 	}
