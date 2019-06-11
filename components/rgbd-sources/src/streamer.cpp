@@ -109,7 +109,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	if (rate < 0 || rate >= 10) return;
 	if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
 
-	LOG(INFO) << "Adding Stream Peer: " << peer.to_string();
+	//LOG(INFO) << "Adding Stream Peer: " << peer.to_string();
 
 	StreamClient c;
 	c.peerid = peer;
@@ -260,7 +260,7 @@ void Streamer::_schedule() {
 					}
 					(*i).txcount++;
 					if ((*i).txcount >= (*i).txmax) {
-						DLOG(2) << "Remove client";
+						LOG(INFO) << "Remove client";
 						unique_lock<shared_mutex> lk(src->mutex);
 						i = src->clients[0].erase(i);
 					} else {
