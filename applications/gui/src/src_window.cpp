@@ -187,7 +187,7 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	});
 
 #ifdef HAVE_LIBARCHIVE
-	auto snapshot = new Button(this, "Snapshot");
+	auto snapshot = new Button(tools, "Snapshot");
 	snapshot->setCallback([this] {
 		try {
 			char timestamp[18];
