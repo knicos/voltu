@@ -28,9 +28,9 @@ Master::Master(Configurable *root, Universe *net)
 
 	net->broadcast("log_subscribe", net->id());
 
-	net->onConnect([this](ftl::net::Peer*) {
-		net_->broadcast("log_subscribe", net_->id());
-	});
+	//net->onConnect([this](ftl::net::Peer*) {
+	//	net_->broadcast("log_subscribe", net_->id());
+	//});
 }
 
 Master::~Master() {
