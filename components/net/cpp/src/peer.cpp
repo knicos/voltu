@@ -290,6 +290,9 @@ bool Peer::reconnect() {
 
 void Peer::_updateURI() {
 	sockaddr_storage addr;
+
+	scheme_ = ftl::URI::SCHEME_TCP;
+
 	int rsize = sizeof(sockaddr_storage);
 	if (getpeername(sock_, (sockaddr*)&addr, (socklen_t*)&rsize) == 0) {
 		char addrbuf[INET6_ADDRSTRLEN];
@@ -435,7 +438,7 @@ bool Peer::_data() {
 		}
 		disp_->dispatch(*this, obj);
 
-		if (recv_buf_.nonparsed_size() > 0 && scheme_ == ftl::URI::SCHEME_WS) {
+		if (scheme_ == ftl::URI::SCHEME_WS && recv_buf_.nonparsed_size() > 0) {
 			wsheader_type ws;
 			if (ws_parse(recv_buf_, ws) < 0) {
 				return false;
