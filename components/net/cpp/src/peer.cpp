@@ -393,7 +393,7 @@ bool Peer::_data() {
 	recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
 
-	if (rc <= 0) {
+	if (rc < 0) {
 		return false;
 	}
 	

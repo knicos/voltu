@@ -62,7 +62,7 @@ void Master::set(const ftl::UUID &peer, const string &uri, json_t &value) {
 }
 
 vector<json_t> Master::getSlaves() {
-	auto response = net_->findAll<string>("slave_details");
+	auto response = net_->findAll<string>("node_details");
 	vector<json_t> result;
 	for (auto &r : response) {
 		result.push_back(json_t::parse(r));

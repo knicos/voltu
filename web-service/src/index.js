@@ -41,12 +41,33 @@ app.get('/stream/depth', (req, res) => {
 
 //app.get('/stream', (req, res))
 
+function checkStreams(peer) {
+	if (!peer.master) {
+		peer.rpc("list_streams", (streams) => {
+			console.log("STREAMS", streams);
+			for (let i=0; i<streams.length; i++) {
+				//uri_to_peer[streams[i]] = peer;
+				peer_uris[peer.string_id].push(streams[i]);
+
+				uri_data[streams[i]] = {
+					peer: peer,
+					title: "",
+					rgb: null,
+					depth: null,
+					pose: null
+				};
+			}
+		});
+	}
+}
+
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
 
 	let p = new Peer(ws);
 
 	p.on("connect", (peer) => {
+		console.log("Node connected...");
 		peer.rpc("node_details", (details) => {
 			let obj = JSON.parse(details[0]);
 
@@ -58,23 +79,7 @@ app.ws('/', (ws, req) => {
 			peer_uris[peer.string_id] = [];
 			peer_by_id[peer.string_id] = peer;
 
-			if (!peer.master) {
-				peer.rpc("list_streams", (streams) => {
-					console.log("STREAMS", streams);
-					for (let i=0; i<streams.length; i++) {
-						//uri_to_peer[streams[i]] = peer;
-						peer_uris[peer.string_id].push(streams[i]);
-
-						uri_data[streams[i]] = {
-							peer: peer,
-							title: "",
-							rgb: null,
-							depth: null,
-							pose: null
-						};
-					}
-				});
-			}
+			checkStreams(peer);
 		});
 	});
 
@@ -94,14 +99,20 @@ app.ws('/', (ws, req) => {
 		if (peer_by_id.hasOwnProperty(peer.string_id)) delete peer_by_id[peer.string_id];
 	});
 
+	p.bind("new_peer", (id) => {
+		checkStreams(p);
+	});
+
 	p.bind("list_streams", () => {
 		return Object.keys(uri_data);
 	});
 
 	p.bind("find_stream", (uri) => {
 		if (uri_data.hasOwnProperty(uri)) {
+			console.log("Stream found: ", uri);
 			return [Peer.uuid];
 		} else {
+			console.log("Stream not found: ", uri)
 			return null; // or []??
 		}
 	});
@@ -136,5 +147,5 @@ app.ws('/', (ws, req) => {
 });
 
 console.log("Listening or port 8080");
-app.listen(8080);
+app.listen(80);
 
