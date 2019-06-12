@@ -42,7 +42,7 @@ static void setMouseAction(const std::string& winName, const MouseAction &action
 }
 
 Display::Display(nlohmann::json &config) : ftl::Configurable(config) {
-	name_ = config.value("name", string("View [")+std::to_string(viewcount__)+string("]"));
+	name_ = value("name", string("View [")+std::to_string(viewcount__)+string("]"));
 	viewcount__++;
 
 	init();
@@ -50,7 +50,7 @@ Display::Display(nlohmann::json &config) : ftl::Configurable(config) {
 
 Display::Display(nlohmann::json &config, Source *source)
 		: ftl::Configurable(config) {
-	name_ = config.value("name", string("View [")+std::to_string(viewcount__)+string("]"));
+	name_ = value("name", string("View [")+std::to_string(viewcount__)+string("]"));
 	viewcount__++;
 	init();
 }

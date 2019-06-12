@@ -21,7 +21,7 @@ Display::Display(nlohmann::json &config, std::string name) : ftl::Configurable(c
 	//cv::namedWindow("Image", cv::WINDOW_KEEPRATIO);
 
 #if defined HAVE_PCL
-	if (config.value("points", false)) {
+	if (value("points", false)) {
 		pclviz_ = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("FTL Cloud: " + name));
 		pclviz_->setBackgroundColor (255, 255, 255);
 		pclviz_->addCoordinateSystem (1.0);

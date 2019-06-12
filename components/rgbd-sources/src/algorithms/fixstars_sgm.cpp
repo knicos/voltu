@@ -11,10 +11,10 @@ using cv::Mat;
 
 FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	ssgm_ = nullptr;
-	use_filter_ = config.value("use_filter", false);
+	use_filter_ = value("use_filter", false);
 	// note: (max_disp_ << 4) libsgm subpixel accuracy.
 	//       What is the impact in the filter? (possible artifacts)
-	filter_ = cv::cuda::createDisparityBilateralFilter(max_disp_ << 4, config.value("filter_radius", 25), config.value("filter_iter", 1));
+	filter_ = cv::cuda::createDisparityBilateralFilter(max_disp_ << 4, value("filter_radius", 25), value("filter_iter", 1));
 }
 
 void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
