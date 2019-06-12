@@ -128,8 +128,8 @@ void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
 
 Eigen::Vector4f Source::point(uint ux, uint uy) {
 	const auto &params = parameters();
-	const float x = ((float)ux-params.width/2) / (float)params.fx;
-	const float y = ((float)uy-params.height/2) / (float)params.fy;
+	const float x = ((float)ux-(float)params.cx) / (float)params.fx;
+	const float y = ((float)uy-(float)params.cy) / (float)params.fy;
 
 	shared_lock<shared_mutex> lk(mutex_);
 	const float depth = depth_.at<float>(uy,ux);
