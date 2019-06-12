@@ -181,14 +181,15 @@ std::vector<T*> ftl::config::createArray(ftl::Configurable *parent, const std::s
 	std::vector<T*> result;
 
 	if (base.is_array()) {
+		int i=0;
 		for (auto &entity : base) {
 			if (entity.is_object()) {
 				if (!entity["$id"].is_string()) {
 					std::string id_str = *parent->get<std::string>("$id");
 					if (id_str.find('#') != std::string::npos) {
-						entity["$id"] = id_str + std::string("/") + name;
+						entity["$id"] = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
 					} else {
-						entity["$id"] = id_str + std::string("#") + name;
+						entity["$id"] = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
 					}
 				}
 
@@ -197,9 +198,9 @@ std::vector<T*> ftl::config::createArray(ftl::Configurable *parent, const std::s
 				// Must create the object from scratch...
 				std::string id_str = *parent->get<std::string>("$id");
 				if (id_str.find('#') != std::string::npos) {
-					id_str = id_str + std::string("/") + name;
+					id_str = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
 				} else {
-					id_str = id_str + std::string("#") + name;
+					id_str = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
 				}
 				parent->getConfig()[name] = {
 					// cppcheck-suppress constStatement
@@ -209,6 +210,7 @@ std::vector<T*> ftl::config::createArray(ftl::Configurable *parent, const std::s
 				nlohmann::json &entity2 = parent->getConfig()[name];
 				result.push_back(create<T>(entity2, args...));
 			}
+			i++;
 		}
 	} else {
 		LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();

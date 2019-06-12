@@ -150,6 +150,14 @@ Peer.prototype.rpc = function(name, cb, ...args) {
 	}
 }
 
+Peer.prototype.sendB = function(name, args) {
+	try {
+		this.sock.send(encode([0, name, args]));
+	} catch(e) {
+		this.close();
+	}
+}
+
 Peer.prototype.send = function(name, ...args) {
 	try {
 		this.sock.send(encode([0, name, args]));

@@ -30,6 +30,8 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	net_ = net;
 	
 	net->bind("find_stream", [this](const std::string &uri) -> optional<UUID> {
+		shared_lock<shared_mutex> slk(mutex_);
+
 		if (sources_.find(uri) != sources_.end()) {
 			LOG(INFO) << "Valid source request received: " << uri;
 			return net_->id();
@@ -100,16 +102,17 @@ void Streamer::add(Source *src) {
 	sources_[src->getID()] = s;
 
 	LOG(INFO) << "Streaming: " << src->getID();
+	net_->broadcast("add_stream", src->getID());
 }
 
 void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID &peer, const string &dest) {
-	shared_lock<shared_mutex> slk(mutex_);
+	unique_lock<shared_mutex> slk(mutex_);
 	if (sources_.find(source) == sources_.end()) return;
 
 	if (rate < 0 || rate >= 10) return;
 	if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
 
-	//LOG(INFO) << "Adding Stream Peer: " << peer.to_string();
+	LOG(INFO) << "Adding Stream Peer: " << peer.to_string();
 
 	StreamClient c;
 	c.peerid = peer;
@@ -118,7 +121,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	c.txmax = N;
 
 	StreamSource *s = sources_[source];
-	unique_lock<shared_mutex> ulk(s->mutex);
+	//unique_lock<shared_mutex> ulk(s->mutex);
 	s->clients[rate].push_back(c);
 }
 
@@ -148,7 +151,9 @@ void Streamer::poll() {
 		LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
 	} else {
 		// Otherwise, wait until next frame should start.
-		// CHECK(Nick) Is this accurate enough?
+		// CHECK(Nick) Is this accurate enough? Almost certainly not
+		// TODO(Nick) Synchronise by time corrections and use of fixed time points
+		// but this only works if framerate can be achieved.
 		sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
 	}
 }
@@ -170,6 +175,7 @@ void Streamer::run(bool block) {
 	}
 }
 
+// Must be called in source locked state or src.state must be atomic
 void Streamer::_swap(StreamSource &src) {
 	if (src.state == (ftl::rgbd::detail::kGrabbed | ftl::rgbd::detail::kTransmitted)) {
 		src.src->getFrames(src.rgb, src.depth);
@@ -182,25 +188,28 @@ void Streamer::_schedule() {
 	std::condition_variable job_cv;
 	int jobs = 0;
 
+	// Prevent new clients during processing.
+	shared_lock<shared_mutex> slk(mutex_);
+
 	for (auto s : sources_) {
 		string uri = s.first;
 
-		shared_lock<shared_mutex> slk(s.second->mutex);
+		//shared_lock<shared_mutex> slk(s.second->mutex);
 		// CHECK Should never be true now
-		if (s.second->state != 0) {
+		/*if (s.second->state != 0) {
 			if (!late_) LOG(WARNING) << "Stream not ready to schedule on time: " << uri;
 			late_ = true;
 			continue;
 		} else {
 			late_ = false;
-		}
+		}*/
 
 		// No point in doing work if no clients
 		if (s.second->clients[0].size() == 0) {
 			//LOG(ERROR) << "Stream has no clients: " << uri;
 			continue;
 		}
-		slk.unlock();
+		//slk.unlock();
 
 		// There will be two jobs for this source...
 		unique_lock<mutex> lk(job_mtx);
@@ -221,8 +230,8 @@ void Streamer::_schedule() {
 					std::chrono::high_resolution_clock::now() - start;
 			LOG(INFO) << "GRAB Elapsed: " << elapsed.count();*/
 
+			// CHECK (Nick) Can state be an atomic instead?
 			unique_lock<shared_mutex> lk(src->mutex);
-			//LOG(INFO) << "Grab frame";
 			src->state |= ftl::rgbd::detail::kGrabbed;
 			_swap(*src);
 			lk.unlock();
@@ -235,6 +244,9 @@ void Streamer::_schedule() {
 		});
 
 		// Transmit job
+		// For any single source and bitrate there is only one thread
+		// meaning that no lock is required here since outer shared_lock
+		// prevents addition of new clients.
 		// TODO, could do one for each bitrate...
 		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
 			StreamSource *src = sources_[uri];
@@ -252,6 +264,7 @@ void Streamer::_schedule() {
 				auto i = src->clients[0].begin();
 				while (i != src->clients[0].end()) {
 					try {
+						// TODO(Nick) Send pose and timestamp
 						if (!net_->send((*i).peerid, (*i).uri, rgb_buf, d_buf)) {
 							(*i).txcount = (*i).txmax;
 						}
@@ -260,8 +273,8 @@ void Streamer::_schedule() {
 					}
 					(*i).txcount++;
 					if ((*i).txcount >= (*i).txmax) {
-						LOG(INFO) << "Remove client";
-						unique_lock<shared_mutex> lk(src->mutex);
+						LOG(INFO) << "Remove client: " << (*i).uri;
+						//unique_lock<shared_mutex> lk(src->mutex);
 						i = src->clients[0].erase(i);
 					} else {
 						i++;
@@ -276,6 +289,7 @@ void Streamer::_schedule() {
 					std::chrono::high_resolution_clock::now() - start;
 			LOG(INFO) << "Stream Elapsed: " << elapsed.count();*/
 
+			// CHECK (Nick) Could state be an atomic?
 			unique_lock<shared_mutex> lk(src->mutex);
 			DLOG(2) << "Tx Frame: " << uri;
 			src->state |= ftl::rgbd::detail::kTransmitted;

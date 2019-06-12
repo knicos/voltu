@@ -61,6 +61,14 @@ function checkStreams(peer) {
 	}
 }
 
+function broadcastExcept(exc, name, ...args) {
+	for (let p in peer_by_id) {
+		let peer = peer_by_id[p];
+		if (peer === exc) continue;
+		peer.sendB(name, args);
+	}
+}
+
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
 
@@ -68,6 +76,9 @@ app.ws('/', (ws, req) => {
 
 	p.on("connect", (peer) => {
 		console.log("Node connected...");
+		peer_uris[peer.string_id] = [];
+		peer_by_id[peer.string_id] = peer;
+
 		peer.rpc("node_details", (details) => {
 			let obj = JSON.parse(details[0]);
 
@@ -75,9 +86,6 @@ app.ws('/', (ws, req) => {
 			peer.name = obj.title;
 			peer.master = (obj.kind == "master");
 			console.log("Peer name = ", peer.name);
-
-			peer_uris[peer.string_id] = [];
-			peer_by_id[peer.string_id] = peer;
 
 			checkStreams(peer);
 		});
@@ -136,6 +144,7 @@ app.ws('/', (ws, req) => {
 	p.bind("get_stream", (uri, N, rate, pid, dest) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
+			// FIXME (NICK) BUG HERE, can't have multiple peers listening to same stream...
 			peer.bind(uri, (rgb, depth) => {
 				uri_data[uri].rgb = rgb;
 				uri_data[uri].depth = depth;
@@ -144,8 +153,24 @@ app.ws('/', (ws, req) => {
 			peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);
 		}
 	});
+
+	p.bind("add_stream", (uri) => {
+		console.log("Adding stream: ", uri);
+		//uri_to_peer[streams[i]] = peer;
+		peer_uris[p.string_id].push(uri);
+
+		uri_data[uri] = {
+			peer: p,
+			title: "",
+			rgb: null,
+			depth: null,
+			pose: null
+		};
+
+		broadcastExcept(p, "add_stream", uri);
+	});
 });
 
 console.log("Listening or port 8080");
-app.listen(80);
+app.listen(8080);
 
