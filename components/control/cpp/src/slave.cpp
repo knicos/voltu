@@ -57,7 +57,7 @@ Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false)
 	//	net_->broadcast("new_peer", peer->id());
 	//});
 
-	loguru::add_callback("net_log", netLog, this, loguru::Verbosity_INFO);
+	//loguru::add_callback("net_log", netLog, this, loguru::Verbosity_INFO);
 }
 
 Slave::~Slave() {
