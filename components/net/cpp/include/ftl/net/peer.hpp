@@ -248,6 +248,8 @@ class Peer {
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;
 	std::recursive_mutex send_mtx_;
+
+	std::recursive_mutex cb_mtx_;
 	
 	std::string uri_;				// Original connection URI, or assumed URI
 	ftl::UUID peerid_;				// Received in handshake or allocated
@@ -321,7 +323,8 @@ int Peer::asyncCall(
 	LOG(INFO) << "RPC " << name << "() -> " << uri_;
 
 	{
-		std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
+		// Could this be the problem????
+		std::unique_lock<std::recursive_mutex> lk(cb_mtx_);
 		// Register the CB
 		rpcid = rpcid__++;
 		callbacks_[rpcid] = std::make_unique<caller<T>>(cb);

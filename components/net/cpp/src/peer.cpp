@@ -161,6 +161,7 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	disp_ = new Dispatcher(d);
 	
 	is_waiting_ = true;
+	scheme_ = ftl::URI::SCHEME_TCP;
 	
 	// Send the initiating handshake if valid
 	if (status_ == kConnecting) {
@@ -204,7 +205,7 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 	
 	disp_ = new Dispatcher(d);
 
-	// Must to to prevent receiving message before handlers are installed
+	// Must do to prevent receiving message before handlers are installed
 	unique_lock<recursive_mutex> lk(recv_mtx_);
 
 	scheme_ = uri.getProtocol();
@@ -225,11 +226,13 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 			}
 		} else {
 			LOG(ERROR) << "Connection refused to " << uri.getHost() << ":" << uri.getPort();
+			status_ = kReconnecting;
 		}
 
-		status_ = kConnecting;
+		//status_ = kConnecting;
 	} else {
 		LOG(ERROR) << "Unrecognised connection protocol: " << pUri;
+		return;
 	}
 	
 	is_waiting_ = true;
@@ -282,6 +285,19 @@ bool Peer::reconnect() {
 		} else {
 			return false;
 		}
+	} else if (scheme_ == URI::SCHEME_WS) {
+		sock_ = tcpConnect(uri);
+		if (sock_ != INVALID_SOCKET) {
+			if (!ws_connect(sock_, uri)) {
+				return false;
+			} else {
+				status_ = kConnecting;
+				LOG(INFO) << "WEB SOCK CONNECTED";
+				return true;
+			}
+		} else {
+			return false;
+		}
 	}
 
 	// TODO(Nick) allow for other protocols in reconnect
@@ -291,6 +307,7 @@ bool Peer::reconnect() {
 void Peer::_updateURI() {
 	sockaddr_storage addr;
 
+	// TODO(Nick) Get actual protocol...
 	scheme_ = ftl::URI::SCHEME_TCP;
 
 	int rsize = sizeof(sockaddr_storage);
@@ -320,7 +337,6 @@ void Peer::_updateURI() {
 
 void Peer::close(bool retry) {
 	if (sock_ != INVALID_SOCKET) {
-
 		// Attempt to inform about disconnect
 		send("__disconnect__");
 
@@ -380,7 +396,7 @@ void Peer::data() {
 	}, this);
 }
 
-inline std::ostream& hex_dump(std::ostream& o, std::string const& v) {
+/*inline std::ostream& hex_dump(std::ostream& o, std::string const& v) {
     std::ios::fmtflags f(o.flags());
     o << std::hex;
     for (auto c : v) {
@@ -388,7 +404,7 @@ inline std::ostream& hex_dump(std::ostream& o, std::string const& v) {
     }
     o.flags(f);
     return o;
-}
+}*/
 
 bool Peer::_data() {
 	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
@@ -396,7 +412,7 @@ bool Peer::_data() {
 	recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
 
-	if (rc < 0) {
+	if (rc <= 0) {
 		return false;
 	}
 	
@@ -451,19 +467,24 @@ bool Peer::_data() {
 
 void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
 	// TODO Handle error reporting...
-	
+	unique_lock<recursive_mutex> lk(cb_mtx_);
 	if (callbacks_.count(id) > 0) {
 		DLOG(1) << "Received return RPC value";
 		
-		// Call the callback with unpacked return value
-		(*callbacks_[id])(res);
+		// Allow for unlock before callback
+		auto cb = std::move(callbacks_[id]);
 		callbacks_.erase(id);
+		lk.unlock();
+
+		// Call the callback with unpacked return value
+		(*cb)(res);
 	} else {
 		LOG(WARNING) << "Missing RPC callback for result - discarding";
 	}
 }
 
 void Peer::cancelCall(int id) {
+	unique_lock<recursive_mutex> lk(cb_mtx_);
 	if (callbacks_.count(id) > 0) {
 		callbacks_.erase(id);
 	}
@@ -522,6 +543,10 @@ int Peer::_send() {
 		// Calculate total size of message
 		for (size_t i=1; i < size; i++) {
 			len += sendvec[i].iov_len;
+		}
+
+		if (sendvec[0].iov_len != 0) {
+			LOG(FATAL) << "CORRUPTION in websocket header buffer";
 		}
 
 		//LOG(INFO) << "SEND SIZE = " << len;
