@@ -191,8 +191,6 @@ void Streamer::_schedule() {
 	// Prevent new clients during processing.
 	shared_lock<shared_mutex> slk(mutex_);
 
-	LOG(INFO) << "SCHEDULE FRAME";
-
 	for (auto s : sources_) {
 		string uri = s.first;
 
@@ -233,9 +231,7 @@ void Streamer::_schedule() {
 			LOG(INFO) << "GRAB Elapsed: " << elapsed.count();*/
 
 			// CHECK (Nick) Can state be an atomic instead?
-			LOG(INFO) << "Wait to finish grab";
 			unique_lock<shared_mutex> lk(src->mutex);
-			LOG(INFO) << "Grab finished";
 			src->state |= ftl::rgbd::detail::kGrabbed;
 			_swap(*src);
 			lk.unlock();
@@ -294,9 +290,8 @@ void Streamer::_schedule() {
 			LOG(INFO) << "Stream Elapsed: " << elapsed.count();*/
 
 			// CHECK (Nick) Could state be an atomic?
-			LOG(INFO) << "Wait Tx frame";
 			unique_lock<shared_mutex> lk(src->mutex);
-			LOG(INFO) << "Tx Frame: " << uri;
+			//LOG(INFO) << "Tx Frame: " << uri;
 			src->state |= ftl::rgbd::detail::kTransmitted;
 			_swap(*src);
 			lk.unlock();
@@ -310,10 +305,8 @@ void Streamer::_schedule() {
 	}
 
 	// Wait for all jobs to complete before finishing frame
-	LOG(INFO) << "WAIT FRAME";
 	unique_lock<mutex> lk(job_mtx);
 	job_cv.wait(lk, [&jobs]{ return jobs == 0; });
-	LOG(INFO) << "END FRAME";
 }
 
 Source *Streamer::get(const std::string &uri) {
