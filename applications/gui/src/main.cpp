@@ -161,7 +161,24 @@ class FTLApplication : public nanogui::Screen {
 		} else {
 			auto src_ = swindow_->getSource();
 			if (src_ && src_->isReady() && down) {
-				Eigen::Vector4f camPos = src_->point(p[0],p[1]);
+				Eigen::Vector2f screenSize = size().cast<float>();
+				auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
+				Eigen::Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
+				Eigen::Vector2f positionInScreen(0.0f, 0.0f);
+				auto mOffset = (screenSize - (screenSize.cwiseProduct(scaleFactor))) / 2;
+				Eigen::Vector2f positionAfterOffset = positionInScreen + mOffset;
+
+				float sx = ((float)p[0] - positionAfterOffset[0]) / mScale;
+				float sy = ((float)p[1] - positionAfterOffset[1]) / mScale;
+
+				Eigen::Vector4f camPos;
+
+				try {
+					camPos = src_->point(sx,sy);
+				} catch(...) {
+					return true;
+				}
+				
 				camPos *= -1.0f;
 				Eigen::Vector4f worldPos =  src_->getPose() * camPos;
 				lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
@@ -195,7 +212,7 @@ class FTLApplication : public nanogui::Screen {
 		using namespace Eigen;
 
 		auto src_ = swindow_->getSource();
-		Vector2f imageSize(0, 0);
+		imageSize = {0, 0};
 
 		float now = (float)glfwGetTime();
 		float delta = now - ftime_;
@@ -273,6 +290,7 @@ class FTLApplication : public nanogui::Screen {
 	float lerpSpeed_;
 	bool depth_;
 	float ftime_;
+	Eigen::Vector2f imageSize;
 };
 
 int main(int argc, char **argv) {
