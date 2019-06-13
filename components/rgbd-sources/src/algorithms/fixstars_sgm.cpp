@@ -44,8 +44,8 @@ void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	Mat bad_pixels = (disp == (256 << 5)); 
 	
 	disp.setTo(0, bad_pixels);
-	Mat left_pixels(disp, cv::Rect(0, 0, max_disp_, disp.rows));
-	left_pixels = 0;
+	//Mat left_pixels(disp, cv::Rect(0, 0, max_disp_, disp.rows));
+	//left_pixels = 0;
 
 	if (use_filter_) {
 		cv::cuda::GpuMat l_gpu, disp_gpu, disp_gpu_out;
