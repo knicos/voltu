@@ -18,6 +18,8 @@ public:
 		hash_render_ = value("hash_renderer", false);
 	}
 
+	bool isIntegerDepth() const { return hash_render_; }
+
 	~CUDARayCastSDF(void) {
 		destroy();
 	}

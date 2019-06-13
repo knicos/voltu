@@ -26,6 +26,7 @@ VirtualSource::VirtualSource(ftl::rgbd::Source *host)
 
 	rgb_ = cv::Mat(cv::Size(params_.width,params_.height), CV_8UC3);
 	idepth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32SC1);
+	depth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32FC1);
 }
 
 VirtualSource::~VirtualSource() {
@@ -52,8 +53,12 @@ bool VirtualSource::grab() {
 		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, host_->getPose());
 
 		//unique_lock<mutex> lk(mutex_);
-		rays_->getRayCastData().download((int*)idepth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams());
-		idepth_.convertTo(depth_, CV_32FC1, 1.0f / 100.0f);
+		if (rays_->isIntegerDepth()) {
+			rays_->getRayCastData().download((int*)idepth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams());
+			idepth_.convertTo(depth_, CV_32FC1, 1.0f / 100.0f);
+		} else {
+			rays_->getRayCastData().download((int*)depth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams());
+		}
 	}
 	return true;
 }
