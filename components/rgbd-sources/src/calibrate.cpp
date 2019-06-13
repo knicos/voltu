@@ -219,7 +219,7 @@ bool Calibrate::_loadCalibration() {
     FileStorage fs;
 
     // reading intrinsic parameters
-    auto ifile = ftl::locateFile("intrinsics.yml");
+    auto ifile = ftl::locateFile(value("intrinsics", std::string("intrinsics.yml")));
     if (ifile) {
 		fs.open((*ifile).c_str(), FileStorage::READ);
 		if (!fs.isOpened()) {
@@ -234,13 +234,16 @@ bool Calibrate::_loadCalibration() {
     }
 
     Mat M1, D1, M2, D2;
-    fs["M1"] >> M1;
-    fs["D1"] >> D1;
-    fs["M2"] >> M2;
-    fs["D2"] >> D2;
+    fs["M"] >> M1;
+    fs["D"] >> D1;
+    //fs["M2"] >> M2;
+    //fs["D2"] >> D2;
 
     M1 *= scale;
-    M2 *= scale;
+    //M2 *= scale;
+
+	M2 = M1;
+	D2 = D1;
 
 	auto efile = ftl::locateFile("extrinsics.yml");
 	if (efile) {

@@ -163,6 +163,7 @@ add_subdirectory(components/common/cpp)
 add_subdirectory(components/net)
 add_subdirectory(components/rgbd-sources)
 add_subdirectory(components/control/cpp)
+add_subdirectory(applications/calibration)
 
 if (BUILD_RENDERER)
 	add_subdirectory(components/renderers)

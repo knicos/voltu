@@ -29,6 +29,8 @@ typedef nlohmann::json json_t;
 
 std::optional<std::string> locateFile(const std::string &name);
 
+std::map<std::string, std::string> read_options(char ***argv, int *argc);
+
 Configurable *configure(int argc, char **argv, const std::string &root);
 
 Configurable *configure(json_t &);
