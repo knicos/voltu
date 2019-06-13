@@ -43,6 +43,8 @@ class Display : public ftl::Configurable {
 	bool render(const cv::Mat &img, style_t s=STYLE_NORMAL);
 
 	bool active() const;
+
+	bool hasDisplays();
 	
 	void wait(int ms);
 

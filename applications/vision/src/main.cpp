@@ -95,16 +95,20 @@ static void run(ftl::Configurable *root) {
 	
 	Streamer *stream = ftl::create<Streamer>(root, "stream", net);
 	stream->add(source);
-	stream->run();
-
+	
 	net->start();
-	LOG(INFO) << "Running...";
 
-	while (ftl::running && display->active()) {
-		cv::Mat rgb, depth;
-		source->getFrames(rgb, depth);
-		if (!rgb.empty()) display->render(rgb, depth, source->parameters());
-		display->wait(10);
+	LOG(INFO) << "Running...";
+	if (display->hasDisplays()) {
+		stream->run();
+		while (ftl::running && display->active()) {
+			cv::Mat rgb, depth;
+			source->getFrames(rgb, depth);
+			if (!rgb.empty()) display->render(rgb, depth, source->parameters());
+			display->wait(10);
+		}
+	} else {
+		stream->run(true);
 	}
 
 	LOG(INFO) << "Stopping...";

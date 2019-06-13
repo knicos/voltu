@@ -243,6 +243,10 @@ bool Display::render(const cv::Mat &img, style_t s) {
 	return true;
 }
 
+bool Display::hasDisplays() {
+	return value("depth", false) || value("left", false) || value("right", false) || value("points", false);
+}
+
 void Display::wait(int ms) {
 	if (value("points", false)) {
 		#if defined HAVE_PCL
