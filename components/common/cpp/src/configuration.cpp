@@ -353,7 +353,7 @@ static bool findConfiguration(const string &file, const vector<string> &paths) {
 /**
  * Generate a map from command line option to value
  */
-static map<string, string> read_options(char ***argv, int *argc) {
+map<string, string> ftl::config::read_options(char ***argv, int *argc) {
 	map<string, string> opts;
 
 	while (*argc > 0) {
@@ -461,7 +461,7 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 #endif  // WIN32
 
 	// Process Arguments
-	auto options = read_options(&argv, &argc);
+	auto options = ftl::config::read_options(&argv, &argc);
 	
 	vector<string> paths;
 	while (argc-- > 0) {
