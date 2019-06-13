@@ -42,8 +42,11 @@ void FixstarsSGM::compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) {
 	// todo: fix libSGM (return float data or provide mask separately)
 	// disparity values set to (256 << 5) in libSGM consistency check 
 	Mat bad_pixels = (disp == (256 << 5)); 
-	disp.setTo(0, bad_pixels);
 	
+	disp.setTo(0, bad_pixels);
+	Mat left_pixels(cv::Rect(0, 0, max_disp_, disp.rows));
+	left_pixels = 0;
+
 	if (use_filter_) {
 		cv::cuda::GpuMat l_gpu, disp_gpu, disp_gpu_out;
 		// parameters need benchmarking, impact of image
