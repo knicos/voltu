@@ -47,6 +47,16 @@ class NetSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
+class RealsenseSource : public ftl::rgbd::detail::Source {
+	public:
+	RealsenseSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+		last_type = "realsense";
+	}
+
+	bool grab() { return true; };
+	bool isReady() { return true; };
+};
+
 }	
 }	
 }
@@ -58,6 +68,7 @@ class NetSource : public ftl::rgbd::detail::Source {
 #define _FTL_RGBD_NET_HPP_
 #define _FTL_RGBD_SNAPSHOT_SOURCE_HPP_
 #define _FTL_RGBD_IMAGE_HPP_
+#define _FTL_RGBD_REALSENSE_HPP_
 
 #include "../src/source.cpp"
 

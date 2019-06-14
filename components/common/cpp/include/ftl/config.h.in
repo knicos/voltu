@@ -19,6 +19,7 @@
 #cmakedefine HAVE_PCL
 #cmakedefine HAVE_RENDER
 #cmakedefine HAVE_LIBSGM
+#cmakedefine HAVE_REALSENSE
 #cmakedefine HAVE_NANOGUI
 #cmakedefine HAVE_LIBARCHIVE
 
