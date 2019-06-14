@@ -298,6 +298,8 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 	const float2 screenPosf = DepthCameraData::cameraToKinectScreenFloat(camPos);
 	const uint2 screenPos = make_uint2(make_int2(screenPosf)); //  + make_float2(0.5f, 0.5f)
 
+	if (camPos.z < 0.0f) return;
+
 	/*if (screenPos.x < params.m_width && screenPos.y < params.m_height && 
 			rayCastData.d_depth[(screenPos.y)*params.m_width+screenPos.x] > camPos.z) {
 		rayCastData.d_depth[(screenPos.y)*params.m_width+screenPos.x] = camPos.z;

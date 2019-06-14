@@ -98,7 +98,7 @@ class SceneRep : public ftl::Configurable {
 		alloc(depthCameraData, depthCameraParams, d_bitMask);
 
 		//generate a linear hash array with only occupied entries
-		compactifyHashEntries(depthCameraData);
+		compactifyHashEntries();
 
 		//volumetrically integrate the depth data into the depth SDFBlocks
 		integrateDepthMap(depthCameraData, depthCameraParams);
@@ -115,7 +115,7 @@ class SceneRep : public ftl::Configurable {
 
 	void setLastRigidTransformAndCompactify(const Eigen::Matrix4f& lastRigidTransform, const DepthCameraData& depthCameraData) {
 		setLastRigidTransform(lastRigidTransform);
-		compactifyHashEntries(depthCameraData);
+		compactifyHashEntries();
 	}
 
 
@@ -145,7 +145,7 @@ class SceneRep : public ftl::Configurable {
 		return m_hashData;
 	} 
 
-	const HashParams& getHashParams() const {
+	HashParams& getHashParams() {
 		return m_hashParams;
 	}
 
@@ -312,7 +312,7 @@ private:
 	}
 
 
-	void compactifyHashEntries(const DepthCameraData& depthCameraData) {
+	void compactifyHashEntries() { //const DepthCameraData& depthCameraData) {
 		//Start Timing
 		//if(GlobalAppState::get().s_timingsDetailledEnabled) { cutilSafeCall(cudaDeviceSynchronize()); m_timer.start(); }
 
