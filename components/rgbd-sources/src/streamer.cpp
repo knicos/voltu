@@ -139,7 +139,7 @@ void Streamer::stop() {
 }
 
 void Streamer::poll() {
-	double wait = 1.0f / 25.0f;
+	double wait = 1.0f / 25.0f;  // TODO(Nick) Should be in config
 	auto start = std::chrono::high_resolution_clock::now();
 	// Create frame jobs at correct FPS interval
 	_schedule();
@@ -194,22 +194,10 @@ void Streamer::_schedule() {
 	for (auto s : sources_) {
 		string uri = s.first;
 
-		//shared_lock<shared_mutex> slk(s.second->mutex);
-		// CHECK Should never be true now
-		/*if (s.second->state != 0) {
-			if (!late_) LOG(WARNING) << "Stream not ready to schedule on time: " << uri;
-			late_ = true;
-			continue;
-		} else {
-			late_ = false;
-		}*/
-
 		// No point in doing work if no clients
 		if (s.second->clients[0].size() == 0) {
-			//LOG(ERROR) << "Stream has no clients: " << uri;
 			continue;
 		}
-		//slk.unlock();
 
 		// There will be two jobs for this source...
 		unique_lock<mutex> lk(job_mtx);
@@ -220,15 +208,7 @@ void Streamer::_schedule() {
 		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
 			StreamSource *src = sources_[uri];
 
-			//auto start = std::chrono::high_resolution_clock::now();
-			//try {
-				src->src->grab();
-			//} catch(...) {
-			//	LOG(ERROR) << "Grab Exception for: " << uri;
-			//}
-			/*std::chrono::duration<double> elapsed =
-					std::chrono::high_resolution_clock::now() - start;
-			LOG(INFO) << "GRAB Elapsed: " << elapsed.count();*/
+			src->src->grab();
 
 			// CHECK (Nick) Can state be an atomic instead?
 			unique_lock<shared_mutex> lk(src->mutex);
@@ -259,7 +239,15 @@ void Streamer::_schedule() {
 				cv::Mat d2;
 				src->depth.convertTo(d2, CV_16UC1, 16*100);
 				vector<unsigned char> d_buf;
-				cv::imencode(".png", d2, d_buf);
+
+				// Setting 1 = fast but large
+				// Setting 9 = small but slow
+				// Anything up to 8 causes minimal if any impact on frame rate
+				// on my (Nicks) laptop, but 9 halves the frame rate.
+				vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, 5}; // Default is 1 for fast, 9 = small but slow.
+				cv::imencode(".png", d2, d_buf, pngparams);
+
+				//LOG(INFO) << "Data size: " << ((rgb_buf.size() + d_buf.size()) / 1024) << "kb";
 
 				auto i = src->clients[0].begin();
 				while (i != src->clients[0].end()) {
@@ -274,7 +262,6 @@ void Streamer::_schedule() {
 					(*i).txcount++;
 					if ((*i).txcount >= (*i).txmax) {
 						LOG(INFO) << "Remove client: " << (*i).uri;
-						//unique_lock<shared_mutex> lk(src->mutex);
 						i = src->clients[0].erase(i);
 					} else {
 						i++;
