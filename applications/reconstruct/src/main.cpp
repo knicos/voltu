@@ -194,6 +194,11 @@ static void run(ftl::Configurable *root) {
 			//net.broadcast("grab");  // To sync cameras
 			scene->nextFrame();
 		
+			// TODO(Nick) Improve sync further...
+			for (size_t i = 0; i < inputs.size(); i++) {
+				if (inputs[i].source->isReady()) inputs[i].source->grab();
+			}
+
 			for (size_t i = 0; i < inputs.size(); i++) {
 				if (!inputs[i].source->isReady()) {
 					inputs[i].params.m_imageWidth = 0;
@@ -220,7 +225,6 @@ static void run(ftl::Configurable *root) {
 				// Get the RGB-Depth frame from input
 				Source *input = inputs[i].source;
 				Mat rgb, depth;
-				input->grab();
 				input->getFrames(rgb,depth);
 				
 				active += 1;

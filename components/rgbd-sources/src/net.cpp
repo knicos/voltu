@@ -70,12 +70,6 @@ void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned ch
 	depth_.convertTo(depth_, CV_32FC1, 1.0f/(16.0f*100.0f));
 
 	N_--;
-	if (N_ == 0) {
-		N_ += 10;
-		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), 10, 0, host_->getNet()->id(), *host_->get<string>("uri"))) {
-			active_ = false;
-		}
-	}
 }
 
 void NetSource::setPose(const Eigen::Matrix4f &pose) {
@@ -134,7 +128,12 @@ void NetSource::_updateURI() {
 }
 
 bool NetSource::grab() {
-	// net_.broadcast("grab");
+	if (N_ == 0) {
+		N_ += 10;
+		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), 10, 0, host_->getNet()->id(), *host_->get<string>("uri"))) {
+			active_ = false;
+		}
+	}
 	return true;
 }
 

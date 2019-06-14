@@ -307,6 +307,9 @@ void Universe::_run() {
 		block.tv_usec = 10000;
 		selres = select(n+1, &sfdread_, 0, &sfderror_, &block);
 
+		// NOTE Nick: Is it possible that not all the recvs have been called before I
+		// again reach a select call!? What are the consequences of this? A double recv attempt?
+
 		//Some kind of error occured, it is usually possible to recover from this.
 		if (selres < 0) {
 			switch (errno) {

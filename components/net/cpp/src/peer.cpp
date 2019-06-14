@@ -389,6 +389,8 @@ void Peer::error(int e) {
 }
 
 void Peer::data() {
+	// TODO(Nick) Should not enter here twice if recv call has yet to be
+	// processed.
 	//if (!is_waiting_) return;
 	//is_waiting_ = false;
 	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
