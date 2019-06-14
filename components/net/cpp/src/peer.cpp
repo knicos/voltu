@@ -113,6 +113,7 @@ static SOCKET tcpConnect(URI &uri) {
 
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {
+			// TODO(Nick) Move to main select thread to prevent blocking
 			fd_set myset; 
 			struct timeval tv;
 			tv.tv_sec = 1; 
@@ -398,7 +399,7 @@ void Peer::data() {
 		return;
 	}
 
-	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
+	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), recv_buf_.buffer_capacity(), 0);
 
 	if (rc <= 0) {
 		return;
@@ -412,16 +413,6 @@ void Peer::data() {
 		//p->is_waiting_ = true;
 	}, this);
 }
-
-/*inline std::ostream& hex_dump(std::ostream& o, std::string const& v) {
-    std::ios::fmtflags f(o.flags());
-    o << std::hex;
-    for (auto c : v) {
-        o << "0x" << std::setw(2) << std::setfill('0') << (static_cast<int>(c) & 0xff) << ' ';
-    }
-    o.flags(f);
-    return o;
-}*/
 
 bool Peer::_data() {
 	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
@@ -442,11 +433,6 @@ bool Peer::_data() {
 		}
 		ws_read_header_ = true;
 	}
-
-	/*if (rc > 0) {
-		hex_dump(std::cout, std::string((char*)recv_buf_.nonparsed_buffer(), recv_buf_.nonparsed_size()));
-		std::cout << std::endl;
-	}*/
 
 	msgpack::object_handle msg;
 	while (recv_buf_.next(msg)) {
