@@ -189,7 +189,8 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 	}
 	auto ix = config_instance.find(*uri);
 	if (ix != config_instance.end()) {
-		LOG(FATAL) << "Attempting to create a duplicate object: " << *uri;
+		// FIXME HACK NOTE TODO SHOULD BE FATAL
+		LOG(ERROR) << "Attempting to create a duplicate object: " << *uri;
 	} else {
 		config_instance[*uri] = cfg;
 		LOG(INFO) << "Registering instance: " << *uri;
