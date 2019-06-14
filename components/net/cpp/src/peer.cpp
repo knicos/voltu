@@ -389,10 +389,27 @@ void Peer::error(int e) {
 
 void Peer::data() {
 	//if (!is_waiting_) return;
-	is_waiting_ = false;
+	//is_waiting_ = false;
+	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
+	recv_buf_.reserve_buffer(kMaxMessage);
+
+	if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
+		LOG(WARNING) << "Net buffer at capacity";
+		return;
+	}
+
+	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
+
+	if (rc <= 0) {
+		return;
+	}
+	
+	recv_buf_.buffer_consumed(rc);
+	lk.unlock();
+
 	pool.push([](int id, Peer *p) {
 		p->_data();
-		p->is_waiting_ = true;
+		//p->is_waiting_ = true;
 	}, this);
 }
 
@@ -409,14 +426,14 @@ void Peer::data() {
 bool Peer::_data() {
 	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
 
-	recv_buf_.reserve_buffer(kMaxMessage);
+	/*recv_buf_.reserve_buffer(kMaxMessage);
 	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
 
 	if (rc <= 0) {
 		return false;
 	}
 	
-	recv_buf_.buffer_consumed(rc);
+	recv_buf_.buffer_consumed(rc);*/
 
 	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
 		wsheader_type ws;
