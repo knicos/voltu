@@ -36,7 +36,17 @@ void CUDARayCastSDF::destroy(void)
 	//m_rayIntervalSplatting.OnD3D11DestroyDevice();
 }
 
-void CUDARayCastSDF::render(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform)
+extern "C" unsigned int compactifyHashAllInOneCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
+
+
+void CUDARayCastSDF::compactifyHashEntries(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams) { //const DepthCameraData& depthCameraData) {
+		
+	hashParams.m_numOccupiedBlocks = compactifyHashAllInOneCUDA(hashData, hashParams);		//this version uses atomics over prefix sums, which has a much better performance
+	std::cout << "Ray blocks = " << hashParams.m_numOccupiedBlocks << std::endl;
+	hashData.updateParams(hashParams);	//make sure numOccupiedBlocks is updated on the GPU
+}
+
+void CUDARayCastSDF::render(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform)
 {
 	updateConstantDepthCameraParams(cameraParams);
 	//rayIntervalSplatting(hashData, hashParams, lastRigidTransform);
@@ -47,6 +57,8 @@ void CUDARayCastSDF::render(const ftl::voxhash::HashData& hashData, const ftl::v
 	m_params.m_viewMatrix = MatrixConversion::toCUDA(lastRigidTransform.inverse());
 	m_params.m_viewMatrixInverse = MatrixConversion::toCUDA(lastRigidTransform);
 	m_data.updateParams(m_params);
+
+	compactifyHashEntries(hashData, hashParams);
 
 	if (hash_render_) nickRenderCUDA(hashData, hashParams, m_data, m_params);
 	else renderCS(hashData, m_data, m_params);

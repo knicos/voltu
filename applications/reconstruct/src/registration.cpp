@@ -454,6 +454,7 @@ bool ChessboardRegistration::findFeatures(Source *source, size_t idx) {
 	PointCloud<PointXYZ>::Ptr cloud(new PointCloud<PointXYZ>);
 
 	Mat rgb, depth;
+	source->grab();
 	source->getFrames(rgb, depth);
 
 	bool retval = findChessboardCorners(rgb, depth, source->parameters(), pattern_size_, cloud, error_threshold_);
