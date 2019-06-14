@@ -390,7 +390,7 @@ bool Registration::findTransformations(map<string, Matrix4f> &data) {
 
 	if (!findTransformations(T)) return false;
 	for (size_t i = 0; i < sources_.size(); ++i) {
-		data[sources_[i]->getID()] = T[i];
+		data[sources_[i]->getURI()] = T[i];
 	}
 	return true;
 }
