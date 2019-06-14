@@ -66,6 +66,18 @@ else()
 endif()
 endif()
 
+find_library( REALSENSE_LIBRARY NAMES realsense2 librealsense2)
+if (REALSENSE_LIBRARY)
+	set(HAVE_REALSENSE TRUE)
+	add_library(realsense UNKNOWN IMPORTED)
+	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+	set_property(TARGET realsense PROPERTY IMPORTED_LOCATION ${REALSENSE_LIBRARY})
+    message(STATUS "Found Realsense SDK: ${REALSENSE_LIBRARY}")
+else()
+	set(REALSENSE_LIBRARY "")
+endif()
+
+
 find_library( NANOGUI_LIBRARY NAMES nanogui libnanogui)
 if (NANOGUI_LIBRARY)
 	set(HAVE_NANOGUI TRUE)

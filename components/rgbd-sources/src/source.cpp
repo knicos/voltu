@@ -9,6 +9,11 @@
 #include "snapshot_source.hpp"
 #endif
 
+#ifdef HAVE_REALSENSE
+#include "realsense_source.hpp"
+using ftl::rgbd::detail::RealsenseSource;
+#endif
+
 using ftl::rgbd::Source;
 using ftl::Configurable;
 using std::string;
@@ -20,7 +25,7 @@ using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::capability_t;
 
-Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), net_(nullptr) {
+Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4f::Identity()), net_(nullptr) {
 	impl_ = nullptr;
 	params_ = {0};
 	reset();
@@ -31,7 +36,7 @@ Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), net_(nullptr) {
 	});
 }
 
-Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), net_(net) {
+Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4f::Identity()), net_(net) {
 	impl_ = nullptr;
 	params_ = {0};
 	reset();
@@ -116,6 +121,12 @@ ftl::rgbd::detail::Source *Source::_createNetImpl(const ftl::URI &uri) {
 ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 	if (uri.getPathSegment(0) == "video") {
 		return new StereoVideoSource(this);
+	} else if (uri.getPathSegment(0) == "realsense") {
+#ifdef HAVE_REALSENSE
+		return new RealsenseSource(this);
+#else
+		LOG(ERROR) << "You do not have 'librealsense2' installed";
+#endif
 	}
 	return nullptr;
 }
