@@ -4,8 +4,8 @@
 
 #include <loguru.hpp>
 
-#include "ftl/rgbd/source.hpp"
-#include "ftl/rgbd/snapshot.hpp"
+#include <ftl/rgbd/source.hpp>
+#include <ftl/rgbd/snapshot.hpp>
 
 namespace ftl {
 namespace rgbd {

@@ -9,6 +9,12 @@ static std::string last_type = "";
 
 namespace ftl {
 namespace rgbd {
+
+class SnapshotReader {
+	public:
+	SnapshotReader(const std::string &) {}
+};
+
 namespace detail {
 
 class ImageSource : public ftl::rgbd::detail::Source {
@@ -47,6 +53,16 @@ class NetSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
+class SnapshotSource : public ftl::rgbd::detail::Source {
+	public:
+	SnapshotSource(ftl::rgbd::Source *host, ftl::rgbd::SnapshotReader &r, const std::string &) : ftl::rgbd::detail::Source(host) {
+		last_type = "snapshot";
+	}
+
+	bool grab() { return true; };
+	bool isReady() { return true; };
+};
+
 class RealsenseSource : public ftl::rgbd::detail::Source {
 	public:
 	RealsenseSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
@@ -66,6 +82,7 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 // Prevent these headers...
 #define _FTL_RGBD_STEREOVIDEO_HPP_
 #define _FTL_RGBD_NET_HPP_
+#define _FTL_RGBD_SNAPSHOT_HPP_
 #define _FTL_RGBD_SNAPSHOT_SOURCE_HPP_
 #define _FTL_RGBD_IMAGE_HPP_
 #define _FTL_RGBD_REALSENSE_HPP_

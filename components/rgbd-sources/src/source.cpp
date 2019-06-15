@@ -6,6 +6,7 @@
 #include "image.hpp"
 
 #ifdef HAVE_LIBARCHIVE
+#include <ftl/rgbd/snapshot.hpp>
 #include "snapshot_source.hpp"
 #endif
 
@@ -101,8 +102,14 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 			return new ImageSource(this, path);
 		} else if (ext == "mp4") {
 			return new StereoVideoSource(this, path);
-		} else if (ext == "tar") {
+		} else if (ext == "tar" || ext == "gz") {
+#ifdef HAVE_LIBARCHIVE
+			ftl::rgbd::SnapshotReader reader(path);
+			return new ftl::rgbd::detail::SnapshotSource(this, reader, "0");  // TODO Get ID from config
+#else
+			LOG(ERROR) << "Cannot read snapshots, libarchive not installed";
 			return nullptr;
+#endif  // HAVE_LIBARCHIVE
 		} else {
 			LOG(WARNING) << "Unrecognised file type: " << path;	
 		}
