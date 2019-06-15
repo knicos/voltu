@@ -24,13 +24,13 @@ using std::chrono::milliseconds;
 #define THREAD_POOL_SIZE 6
 
 Streamer::Streamer(nlohmann::json &config, Universe *net)
-		: ftl::Configurable(config), pool_(THREAD_POOL_SIZE), late_(false) {
+		: ftl::Configurable(config), pool_(THREAD_POOL_SIZE), late_(false), jobs_(0) {
 
 	active_ = false;
 	net_ = net;
 	
 	net->bind("find_stream", [this](const std::string &uri) -> optional<UUID> {
-		shared_lock<shared_mutex> slk(mutex_);
+		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
 			LOG(INFO) << "Valid source request received: " << uri;
@@ -47,7 +47,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	});
 
 	net->bind("set_pose", [this](const std::string &uri, const std::vector<unsigned char> &buf) {
-		shared_lock<shared_mutex> slk(mutex_);
+		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
 			Eigen::Matrix4f pose;
@@ -59,7 +59,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	// Allow remote users to access camera calibration matrix
 	net->bind("source_calibration", [this](const std::string &uri) -> vector<unsigned char> {
 		vector<unsigned char> buf;
-		shared_lock<shared_mutex> slk(mutex_);
+		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
 			buf.resize(sizeof(Camera));
@@ -93,26 +93,48 @@ Streamer::~Streamer() {
 }
 
 void Streamer::add(Source *src) {
-	unique_lock<shared_mutex> ulk(mutex_);
-	if (sources_.find(src->getID()) != sources_.end()) return;
+	StreamSource *s = nullptr;
 
-	StreamSource *s = new StreamSource;
-	s->src = src;
-	s->state = 0;
-	sources_[src->getID()] = s;
+	{
+		UNIQUE_LOCK(mutex_,ulk);
+		if (sources_.find(src->getID()) != sources_.end()) return;
+
+		StreamSource *s = new StreamSource;
+		s->src = src;
+		s->state = 0;
+		sources_[src->getID()] = s;
+	}
 
 	LOG(INFO) << "Streaming: " << src->getID();
 	net_->broadcast("add_stream", src->getID());
 }
 
 void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID &peer, const string &dest) {
-	unique_lock<shared_mutex> slk(mutex_);
-	if (sources_.find(source) == sources_.end()) return;
+	StreamSource *s = nullptr;
 
-	if (rate < 0 || rate >= 10) return;
-	if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
+	//{
+		UNIQUE_LOCK(mutex_,slk);
+		if (sources_.find(source) == sources_.end()) return;
 
-	LOG(INFO) << "Adding Stream Peer: " << peer.to_string();
+		if (rate < 0 || rate >= 10) return;
+		if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
+
+		DLOG(INFO) << "Adding Stream Peer: " << peer.to_string();
+
+		s = sources_[source];
+	//}
+
+	if (!s) return;
+
+	UNIQUE_LOCK(s->mutex, lk2);
+	for (int i=0; i<s->clients[rate].size(); i++) {
+		if (s->clients[rate][i].peerid == peer) {
+			StreamClient &c = s->clients[rate][i];
+			c.txmax = N;
+			c.txcount = 0;
+			return;
+		}
+	}
 
 	StreamClient c;
 	c.peerid = peer;
@@ -120,8 +142,6 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	c.txcount = 0;
 	c.txmax = N;
 
-	StreamSource *s = sources_[source];
-	//unique_lock<shared_mutex> ulk(s->mutex);
 	s->clients[rate].push_back(c);
 }
 
@@ -150,6 +170,7 @@ void Streamer::poll() {
 	if (elapsed.count() >= wait) {
 		LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
 	} else {
+		//LOG(INFO) << "Frame rate @ " << (1.0f / elapsed.count());
 		// Otherwise, wait until next frame should start.
 		// CHECK(Nick) Is this accurate enough? Almost certainly not
 		// TODO(Nick) Synchronise by time corrections and use of fixed time points
@@ -176,20 +197,55 @@ void Streamer::run(bool block) {
 }
 
 // Must be called in source locked state or src.state must be atomic
-void Streamer::_swap(StreamSource &src) {
-	if (src.state == (ftl::rgbd::detail::kGrabbed | ftl::rgbd::detail::kTransmitted)) {
-		src.src->getFrames(src.rgb, src.depth);
-		src.state = 0;
+void Streamer::_swap(StreamSource *src) {
+	if (src->state == (ftl::rgbd::detail::kGrabbed | ftl::rgbd::detail::kRGB | ftl::rgbd::detail::kDepth)) {
+		UNIQUE_LOCK(src->mutex,lk);
+
+		if (src->rgb_buf.size() > 0 && src->d_buf.size() > 0) {
+			auto i = src->clients[0].begin();
+			while (i != src->clients[0].end()) {
+				try {
+					// TODO(Nick) Send pose and timestamp
+					if (!net_->send((*i).peerid, (*i).uri, src->rgb_buf, src->d_buf)) {
+						(*i).txcount = (*i).txmax;
+					}
+				} catch(...) {
+					(*i).txcount = (*i).txmax;
+				}
+				(*i).txcount++;
+				if ((*i).txcount >= (*i).txmax) {
+					LOG(INFO) << "Remove client: " << (*i).uri;
+					i = src->clients[0].erase(i);
+				} else {
+					i++;
+				}
+			}
+		}
+		src->src->getFrames(src->rgb, src->depth);
+		src->state = 0;
 	}
 }
 
+void Streamer::wait() {
+	// Do some jobs in this thread, might as well...
+	std::function<void(int)> j;
+	while ((bool)(j=pool_.pop())) {
+		j(-1);
+	}
+
+	// Wait for all jobs to complete before finishing frame
+	UNIQUE_LOCK(job_mtx_, lk);
+	job_cv_.wait(lk, [this]{ return jobs_ == 0; });
+}
+
 void Streamer::_schedule() {
-	std::mutex job_mtx;
-	std::condition_variable job_cv;
-	int jobs = 0;
+	wait();
+	//std::mutex job_mtx;
+	//std::condition_variable job_cv;
+	//int jobs = 0;
 
 	// Prevent new clients during processing.
-	shared_lock<shared_mutex> slk(mutex_);
+	SHARED_LOCK(mutex_,slk);
 
 	for (auto s : sources_) {
 		string uri = s.first;
@@ -200,27 +256,62 @@ void Streamer::_schedule() {
 		}
 
 		// There will be two jobs for this source...
-		unique_lock<mutex> lk(job_mtx);
-		jobs += 2;
-		lk.unlock();
+		//UNIQUE_LOCK(job_mtx_,lk);
+		jobs_ += 3;
+		//lk.unlock();
+
+		StreamSource *src = sources_[uri];
+		if (src == nullptr || src->state != 0) continue;
 
 		// Grab job
-		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
-			StreamSource *src = sources_[uri];
-
+		pool_.push([this,src](int id) {
+			//StreamSource *src = sources_[uri];
 			src->src->grab();
 
 			// CHECK (Nick) Can state be an atomic instead?
-			unique_lock<shared_mutex> lk(src->mutex);
+			//UNIQUE_LOCK(src->mutex, lk);
 			src->state |= ftl::rgbd::detail::kGrabbed;
-			_swap(*src);
-			lk.unlock();
+			_swap(src);
 
 			// Mark job as finished
-			unique_lock<mutex> ulk(job_mtx);
-			jobs--;
-			ulk.unlock();
-			job_cv.notify_one();
+			--jobs_;
+			job_cv_.notify_one();
+		});
+
+		// Compress colour job
+		pool_.push([this,src](int id) {
+			if (!src->rgb.empty()) {
+				auto start = std::chrono::high_resolution_clock::now();
+
+				//vector<unsigned char> src->rgb_buf;
+				cv::imencode(".jpg", src->rgb, src->rgb_buf);
+			}
+
+			src->state |= ftl::rgbd::detail::kRGB;
+			_swap(src);
+			--jobs_;
+			job_cv_.notify_one();
+		});
+
+		// Compress depth job
+		pool_.push([this,src](int id) {
+			if (!src->depth.empty()) {
+				cv::Mat d2;
+				src->depth.convertTo(d2, CV_16UC1, 16*100);
+				//vector<unsigned char> d_buf;
+
+				// Setting 1 = fast but large
+				// Setting 9 = small but slow
+				// Anything up to 8 causes minimal if any impact on frame rate
+				// on my (Nicks) laptop, but 9 halves the frame rate.
+				vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, 1}; // Default is 1 for fast, 9 = small but slow.
+				cv::imencode(".png", d2, src->d_buf, pngparams);
+			}
+
+			src->state |= ftl::rgbd::detail::kDepth;
+			_swap(src);
+			--jobs_;
+			job_cv_.notify_one();
 		});
 
 		// Transmit job
@@ -228,13 +319,19 @@ void Streamer::_schedule() {
 		// meaning that no lock is required here since outer shared_lock
 		// prevents addition of new clients.
 		// TODO, could do one for each bitrate...
-		pool_.push([this,uri,&jobs,&job_mtx,&job_cv](int id) {
-			StreamSource *src = sources_[uri];
+		/* pool_.push([this,src](int id) {
+			//StreamSource *src = sources_[uri];
 
 			try {
 			if (src && src->rgb.rows > 0 && src->depth.rows > 0 && src->clients[0].size() > 0) {
+				auto start = std::chrono::high_resolution_clock::now();
+
 				vector<unsigned char> rgb_buf;
 				cv::imencode(".jpg", src->rgb, rgb_buf);
+
+				std::chrono::duration<double> elapsed =
+					std::chrono::high_resolution_clock::now() - start;
+				LOG(INFO) << "JPG in " << elapsed.count() << "s";
 				
 				cv::Mat d2;
 				src->depth.convertTo(d2, CV_16UC1, 16*100);
@@ -244,60 +341,37 @@ void Streamer::_schedule() {
 				// Setting 9 = small but slow
 				// Anything up to 8 causes minimal if any impact on frame rate
 				// on my (Nicks) laptop, but 9 halves the frame rate.
-				vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, 5}; // Default is 1 for fast, 9 = small but slow.
+				vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, 1}; // Default is 1 for fast, 9 = small but slow.
 				cv::imencode(".png", d2, d_buf, pngparams);
 
 				//LOG(INFO) << "Data size: " << ((rgb_buf.size() + d_buf.size()) / 1024) << "kb";
 
-				auto i = src->clients[0].begin();
-				while (i != src->clients[0].end()) {
-					try {
-						// TODO(Nick) Send pose and timestamp
-						if (!net_->send((*i).peerid, (*i).uri, rgb_buf, d_buf)) {
-							(*i).txcount = (*i).txmax;
-						}
-					} catch(...) {
-						(*i).txcount = (*i).txmax;
-					}
-					(*i).txcount++;
-					if ((*i).txcount >= (*i).txmax) {
-						LOG(INFO) << "Remove client: " << (*i).uri;
-						i = src->clients[0].erase(i);
-					} else {
-						i++;
-					}
-				}
+				
 			}
 			} catch(...) {
 				LOG(ERROR) << "Error in transmission loop";
 			}
 
-			/*std::chrono::duration<double> elapsed =
-					std::chrono::high_resolution_clock::now() - start;
-			LOG(INFO) << "Stream Elapsed: " << elapsed.count();*/
-
 			// CHECK (Nick) Could state be an atomic?
-			unique_lock<shared_mutex> lk(src->mutex);
+			//UNIQUE_LOCK(src->mutex,lk);
 			//LOG(INFO) << "Tx Frame: " << uri;
 			src->state |= ftl::rgbd::detail::kTransmitted;
 			_swap(*src);
-			lk.unlock();
+			//lk.unlock();
 
 			// Mark job as finished
-			unique_lock<mutex> ulk(job_mtx);
-			jobs--;
-			ulk.unlock();
-			job_cv.notify_one();
-		});
-	}
+			//UNIQUE_LOCK(job_mtx_,ulk);
+			//jobs_--;
+			//ulk.unlock();
 
-	// Wait for all jobs to complete before finishing frame
-	unique_lock<mutex> lk(job_mtx);
-	job_cv.wait(lk, [&jobs]{ return jobs == 0; });
+			--jobs_;
+			job_cv_.notify_one();
+		});*/
+	}
 }
 
 Source *Streamer::get(const std::string &uri) {
-	shared_lock<shared_mutex> slk(mutex_);
+	SHARED_LOCK(mutex_,slk);
 	if (sources_.find(uri) != sources_.end()) return sources_[uri]->src;
 	else return nullptr;
 }

@@ -207,7 +207,7 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 	disp_ = new Dispatcher(d);
 
 	// Must do to prevent receiving message before handlers are installed
-	unique_lock<recursive_mutex> lk(recv_mtx_);
+	UNIQUE_LOCK(recv_mtx_,lk);
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
@@ -393,7 +393,7 @@ void Peer::data() {
 	// processed.
 	//if (!is_waiting_) return;
 	//is_waiting_ = false;
-	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
+	UNIQUE_LOCK(recv_mtx_,lk);
 	recv_buf_.reserve_buffer(kMaxMessage);
 
 	if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
@@ -401,32 +401,39 @@ void Peer::data() {
 		return;
 	}
 
-	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), recv_buf_.buffer_capacity(), 0);
+	int cap = recv_buf_.buffer_capacity();
+	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), cap, 0);
 
-	if (rc <= 0) {
+	if (rc >= cap) {
+		LOG(WARNING) << "More than buffers worth of data received"; 
+	}
+	if (cap < (kMaxMessage / 10)) LOG(WARNING) << "NO BUFFER";
+
+	if (rc == 0) {
+		close();
+		return;
+	} else if (rc < 0) {
+		socketError();
 		return;
 	}
 	
 	recv_buf_.buffer_consumed(rc);
+
+	// No thread currently processing messages so start one
+	if (is_waiting_) {
+		pool.push([](int id, Peer *p) {
+			p->_data();
+			//p->is_waiting_ = true;
+		}, this);
+		is_waiting_ = false;
+	}
 	lk.unlock();
 
-	pool.push([](int id, Peer *p) {
-		p->_data();
-		//p->is_waiting_ = true;
-	}, this);
+	//LOG(INFO) << "Received " << rc << " bytes";
 }
 
 bool Peer::_data() {
-	std::unique_lock<std::recursive_mutex> lk(recv_mtx_);
-
-	/*recv_buf_.reserve_buffer(kMaxMessage);
-	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), kMaxMessage, 0);
-
-	if (rc <= 0) {
-		return false;
-	}
-	
-	recv_buf_.buffer_consumed(rc);*/
+	UNIQUE_LOCK(recv_mtx_,lk);
 
 	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
 		wsheader_type ws;
@@ -457,7 +464,14 @@ bool Peer::_data() {
 				return false;
 			}
 		}
+
+		// CHECK Safe to unlock here?
+		is_waiting_ = true;
+		lk.unlock();
 		disp_->dispatch(*this, obj);
+		// Relock before next loop of while
+		lk.lock();
+		is_waiting_ = false;
 
 		if (scheme_ == ftl::URI::SCHEME_WS && recv_buf_.nonparsed_size() > 0) {
 			wsheader_type ws;
@@ -467,12 +481,13 @@ bool Peer::_data() {
 			ws_read_header_ = true;	
 		}
 	}
+	is_waiting_ = true;  // Can start another thread...
 	return false;
 }
 
 void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
 	// TODO Handle error reporting...
-	unique_lock<recursive_mutex> lk(cb_mtx_);
+	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
 		DLOG(1) << "Received return RPC value";
 		
@@ -489,7 +504,7 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 }
 
 void Peer::cancelCall(int id) {
-	unique_lock<recursive_mutex> lk(cb_mtx_);
+	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
 		callbacks_.erase(id);
 	}
@@ -497,7 +512,7 @@ void Peer::cancelCall(int id) {
 
 void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
-	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
+	UNIQUE_LOCK(send_mtx_,lk);
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	msgpack::pack(send_buf_, res_obj);
 	_send();
@@ -507,7 +522,7 @@ bool Peer::waitConnection() {
 	if (status_ == kConnected) return true;
 	
 	std::mutex m;
-	std::unique_lock<std::mutex> lk(m);
+	UNIQUE_LOCK(m,lk);
 	std::condition_variable cv;
 
 	callback_t h = universe_->onConnect([this,&cv](Peer *p) {
@@ -567,6 +582,7 @@ int Peer::_send() {
 	
 #ifdef WIN32
 	// TODO(nick) Use WSASend instead as equivalent to writev
+
 	auto send_vec = send_buf_.vector();
 	auto send_size = send_buf_.vector_size();
 	int c = 0;
@@ -576,6 +592,7 @@ int Peer::_send() {
 #else
 	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
 #endif
+
 	send_buf_.clear();
 	
 	// We are blocking, so -1 should mean actual error
@@ -588,8 +605,8 @@ int Peer::_send() {
 }
 
 Peer::~Peer() {
-	std::unique_lock<std::recursive_mutex> lk1(send_mtx_);
-	std::unique_lock<std::recursive_mutex> lk2(recv_mtx_);
+	UNIQUE_LOCK(send_mtx_,lk1);
+	UNIQUE_LOCK(recv_mtx_,lk2);
 	_badClose(false);
 	LOG(INFO) << "Deleting peer object";
 

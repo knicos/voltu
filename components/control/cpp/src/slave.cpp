@@ -1,12 +1,11 @@
 #include <ftl/slave.hpp>
 
+#include <ftl/threads.hpp>
+
 using ftl::Configurable;
 using ftl::net::Universe;
 using ftl::ctrl::Slave;
 using std::string;
-using std::mutex;
-using std::unique_lock;
-using std::recursive_mutex;
 
 static void netLog(void* user_data, const loguru::Message& message) {
 	Slave *slave = static_cast<Slave*>(user_data);
@@ -45,7 +44,7 @@ Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false)
 	});
 
 	net->bind("log_subscribe", [this](const ftl::UUID &peer) {
-		unique_lock<recursive_mutex> lk(mutex_);
+		UNIQUE_LOCK(mutex_, lk);
 		log_peers_.push_back(peer);
 	});
 
@@ -77,7 +76,7 @@ void Slave::stop() {
 }
 
 void Slave::sendLog(const loguru::Message& message) {
-	unique_lock<recursive_mutex> lk(mutex_);
+	UNIQUE_LOCK(mutex_, lk);
 	if (in_log_) return;
 	in_log_ = true;
 

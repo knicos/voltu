@@ -196,8 +196,10 @@ static void run(ftl::Configurable *root) {
 		
 			// TODO(Nick) Improve sync further...
 			for (size_t i = 0; i < inputs.size(); i++) {
-				if (inputs[i].source->isReady()) inputs[i].source->grab();
+				inputs[i].source->grab();
 			}
+
+			stream->wait();
 
 			for (size_t i = 0; i < inputs.size(); i++) {
 				if (!inputs[i].source->isReady()) {

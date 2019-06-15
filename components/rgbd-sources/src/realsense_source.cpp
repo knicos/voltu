@@ -39,20 +39,16 @@ RealsenseSource::~RealsenseSource() {
 bool RealsenseSource::grab() {
     rs2::frameset frames = pipe_.wait_for_frames();
     //rs2::align align(RS2_STREAM_DEPTH);
-    frames = align_to_depth_.process(frames); //align_to_depth_.process(frames);
+    //frames = align_to_depth_.process(frames); //align_to_depth_.process(frames);
 
     rs2::depth_frame depth = frames.get_depth_frame();
     float w = depth.get_width();
     float h = depth.get_height();
-    rs2::frame colour = frames.first(RS2_STREAM_COLOR); //.get_color_frame();
+    rscolour_ = frames.first(RS2_STREAM_COLOR); //.get_color_frame();
 
-    //LOG(INFO) << " RS Frame size = " << w << "x" << h;
-
-    //std::unique_lock<std::mutex> lk(mutex_);
     cv::Mat tmp(cv::Size((int)w, (int)h), CV_16UC1, (void*)depth.get_data(), depth.get_stride_in_bytes());
     tmp.convertTo(depth_, CV_32FC1, scale_);
-    rgb_ = cv::Mat(cv::Size(w, h), CV_8UC4, (void*)colour.get_data(), cv::Mat::AUTO_STEP);
-    //LOG(INFO) << "RS FRAME GRABBED: " << rgb_.cols << "x" << rgb_.rows;
+    rgb_ = cv::Mat(cv::Size(w, h), CV_8UC4, (void*)rscolour_.get_data(), cv::Mat::AUTO_STEP);
     return true;
 }
 

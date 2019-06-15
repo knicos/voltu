@@ -84,7 +84,7 @@ void Universe::shutdown() {
 bool Universe::listen(const string &addr) {
 	auto l = new Listener(addr.c_str());
 	if (!l) return false;
-	unique_lock<shared_mutex> lk(net_mutex_);
+	UNIQUE_LOCK(net_mutex_,lk);
 	listeners_.push_back(l);
 	return l->isListening();
 }
@@ -94,7 +94,7 @@ Peer *Universe::connect(const string &addr) {
 	if (!p) return nullptr;
 	
 	if (p->status() != Peer::kInvalid) {
-		unique_lock<shared_mutex> lk(net_mutex_);
+		UNIQUE_LOCK(net_mutex_,lk);
 		peers_.push_back(p);
 	}
 	
@@ -103,7 +103,7 @@ Peer *Universe::connect(const string &addr) {
 }
 
 void Universe::unbind(const std::string &name) {
-	unique_lock<shared_mutex> lk(net_mutex_);
+	UNIQUE_LOCK(net_mutex_,lk);
 	disp_.unbind(name);
 }
 
@@ -122,7 +122,8 @@ int Universe::_setDescriptors() {
 
 	SOCKET n = 0;
 
-	unique_lock<shared_mutex> lk(net_mutex_);
+	// TODO Shared lock for some of the time...
+	UNIQUE_LOCK(net_mutex_,lk);
 
 	//Set file descriptor for the listening sockets.
 	for (auto l : listeners_) {
@@ -141,9 +142,9 @@ int Universe::_setDescriptors() {
 				n = s->_socket();
 			}
 
-			if (s->isWaiting()) {
+			//if (s->isWaiting()) {
 				FD_SET(s->_socket(), &sfdread_);
-			}
+			//}
 			FD_SET(s->_socket(), &sfderror_);
 		}
 	}
@@ -249,7 +250,7 @@ void Universe::_periodic() {
 	auto i = reconnects_.begin();
 	while (i != reconnects_.end()) {
 		if ((*i).peer->reconnect()) {
-			unique_lock<shared_mutex> lk(net_mutex_);
+			UNIQUE_LOCK(net_mutex_,lk);
 			peers_.push_back((*i).peer);
 			i = reconnects_.erase(i);
 		} else if ((*i).tries > 0) {
@@ -304,7 +305,7 @@ void Universe::_run() {
 
 		//Wait for a network event or timeout in 3 seconds
 		block.tv_sec = 0;
-		block.tv_usec = 10000;
+		block.tv_usec = 100000;
 		selres = select(n+1, &sfdread_, 0, &sfderror_, &block);
 
 		// NOTE Nick: Is it possible that not all the recvs have been called before I
@@ -323,70 +324,83 @@ void Universe::_run() {
 			continue;
 		}
 
-		unique_lock<shared_mutex> lk(net_mutex_);
+		// CHECK Could this mutex be the problem!?
+		{
+			UNIQUE_LOCK(net_mutex_,lk);
 
-		//If connection request is waiting
-		for (auto l : listeners_) {
-			if (l && l->isListening()) {
-				if (FD_ISSET(l->_socket(), &sfdread_)) {
-					int rsize = sizeof(sockaddr_storage);
-					sockaddr_storage addr;
+			//If connection request is waiting
+			for (auto l : listeners_) {
+				if (l && l->isListening()) {
+					if (FD_ISSET(l->_socket(), &sfdread_)) {
+						int rsize = sizeof(sockaddr_storage);
+						sockaddr_storage addr;
 
-					//Finally accept this client connection.
-					SOCKET csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
+						//Finally accept this client connection.
+						SOCKET csock = accept(l->_socket(), (sockaddr*)&addr, (socklen_t*)&rsize);
 
-					if (csock != INVALID_SOCKET) {
-						auto p = new Peer(csock, this, &disp_);
-						peers_.push_back(p);
-						_installBindings(p);
+						if (csock != INVALID_SOCKET) {
+							auto p = new Peer(csock, this, &disp_);
+							peers_.push_back(p);
+							_installBindings(p);
+						}
 					}
 				}
 			}
 		}
 
 		// TODO(Nick) Might switch to shared lock here?
+		{
+			SHARED_LOCK(net_mutex_, lk);
 
-		//Also check each clients socket to see if any messages or errors are waiting
-		for (auto s : peers_) {
-			if (s != NULL && s->isValid()) {
-				//If message received from this client then deal with it
-				if (FD_ISSET(s->_socket(), &sfdread_)) {
-					s->data();
-				}
-				if (FD_ISSET(s->_socket(), &sfderror_)) {
-					s->socketError();
-					s->close();
+			// Also check each clients socket to see if any messages or errors are waiting
+			for (auto s : peers_) {
+				if (s != NULL && s->isValid()) {
+					// Note: It is possible that the socket becomes invalid after check but before
+					// looking at the FD sets, therefore cache the original socket
+					SOCKET sock = s->_socket();
+					if (sock == INVALID_SOCKET) continue;
+
+					if (FD_ISSET(sock, &sfderror_)) {
+						s->socketError();
+						s->close();
+						continue;  // No point in reading data...
+					}
+					//If message received from this client then deal with it
+					if (FD_ISSET(sock, &sfdread_)) {
+						s->data();
+					}
 				}
 			}
 		}
+
 		// TODO(Nick) Don't always need to call this
-		_cleanupPeers();
+		//_cleanupPeers();
 	}
 }
 
 callback_t Universe::onConnect(const std::function<void(ftl::net::Peer*)> &cb) {
-	unique_lock<shared_mutex> lk(handler_mutex_);
+	UNIQUE_LOCK(handler_mutex_,lk);
 	callback_t id = cbid__++;
 	on_connect_.push_back({id, cb});
 	return id;
 }
 
 callback_t Universe::onDisconnect(const std::function<void(ftl::net::Peer*)> &cb) {
-	unique_lock<shared_mutex> lk(handler_mutex_);
+	UNIQUE_LOCK(handler_mutex_,lk);
 	callback_t id = cbid__++;
 	on_disconnect_.push_back({id, cb});
 	return id;
 }
 
 callback_t Universe::onError(const std::function<void(ftl::net::Peer*, const ftl::net::Error &)> &cb) {
-	unique_lock<shared_mutex> lk(handler_mutex_);
+	UNIQUE_LOCK(handler_mutex_,lk);
 	callback_t id = cbid__++;
 	on_error_.push_back({id, cb});
 	return id;
 }
 
 void Universe::removeCallback(callback_t cbid) {
-	unique_lock<shared_mutex> lk(handler_mutex_);
+	UNIQUE_LOCK(handler_mutex_,lk);
 	{
 		auto i = on_connect_.begin();
 		while (i != on_connect_.end()) {
@@ -422,7 +436,7 @@ void Universe::removeCallback(callback_t cbid) {
 }
 
 void Universe::_notifyConnect(Peer *p) {
-	shared_lock<shared_mutex> lk(handler_mutex_);
+	SHARED_LOCK(handler_mutex_,lk);
 	peer_ids_[p->id()] = p;
 
 	for (auto &i : on_connect_) {
@@ -437,7 +451,7 @@ void Universe::_notifyConnect(Peer *p) {
 void Universe::_notifyDisconnect(Peer *p) {
 	// In all cases, should already be locked outside this function call
 	//unique_lock<mutex> lk(net_mutex_);
-	shared_lock<shared_mutex> lk(handler_mutex_);
+	SHARED_LOCK(handler_mutex_,lk);
 	for (auto &i : on_disconnect_) {
 		try {
 			i.h(p);

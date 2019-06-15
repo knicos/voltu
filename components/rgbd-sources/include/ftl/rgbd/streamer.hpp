@@ -8,9 +8,10 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/net/universe.hpp>
 #include <string>
-#include <list>
+#include <vector>
 #include <map>
 #include <shared_mutex>
+#include <atomic>
 
 namespace ftl {
 namespace rgbd {
@@ -25,14 +26,17 @@ struct StreamClient {
 };
 
 static const unsigned int kGrabbed = 0x1;
-static const unsigned int kTransmitted = 0x2; 
+static const unsigned int kRGB = 0x2;
+static const unsigned int kDepth = 0x4; 
 
 struct StreamSource {
 	ftl::rgbd::Source *src;
-	unsigned int state;								// Busy or ready to swap?
+	std::atomic<unsigned int> state;				// Busy or ready to swap?
 	cv::Mat rgb;									// Tx buffer
 	cv::Mat depth;									// Tx buffer
-	std::list<detail::StreamClient> clients[10];	// One list per bitrate
+	std::vector<unsigned char> rgb_buf;
+	std::vector<unsigned char> d_buf;
+	std::vector<detail::StreamClient> clients[10];	// One list per bitrate
 	std::shared_mutex mutex;
 };
 
@@ -85,6 +89,8 @@ class Streamer : public ftl::Configurable {
 	 */
 	void stop();
 
+	void wait();
+
 	/**
 	 * Alternative to calling run(), it will operate a single frame capture,
 	 * compress and stream cycle.
@@ -100,9 +106,12 @@ class Streamer : public ftl::Configurable {
 	bool active_;
 	ftl::net::Universe *net_;
 	bool late_;
+	std::mutex job_mtx_;
+	std::condition_variable job_cv_;
+	std::atomic<int> jobs_;
 
 	void _schedule();
-	void _swap(detail::StreamSource &);
+	void _swap(detail::StreamSource *);
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
 };
 
