@@ -62,14 +62,18 @@ NetSource::~NetSource() {
 }
 
 void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-	unique_lock<shared_mutex> lk(host_->mutex());
+	cv::Mat tmp_rgb, tmp_depth;
 
-	cv::imdecode(jpg, cv::IMREAD_COLOR, &rgb_);
-	//Mat(rgb_.size(), CV_16UC1);
-	cv::imdecode(d, cv::IMREAD_UNCHANGED, &depth_);
-	depth_.convertTo(depth_, CV_32FC1, 1.0f/(16.0f*100.0f));
+	// Decode in temporary buffers to prevent long locks
+	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
+	cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
 
+	// Lock host to prevent grab
+	UNIQUE_LOCK(host_->mutex(),lk);
+	rgb_ = tmp_rgb;
+	tmp_depth.convertTo(depth_, CV_32FC1, 1.0f/(16.0f*100.0f));
 	N_--;
+	//lk.unlock();
 }
 
 void NetSource::setPose(const Eigen::Matrix4f &pose) {
@@ -128,8 +132,9 @@ void NetSource::_updateURI() {
 }
 
 bool NetSource::grab() {
-	if (N_ == 0) {
-		N_ += 10;
+	// Send one frame before end to prevent unwanted pause
+	if (N_ <= 2) {
+		N_ = 10;
 		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), 10, 0, host_->getNet()->id(), *host_->get<string>("uri"))) {
 			active_ = false;
 		}

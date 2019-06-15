@@ -13,6 +13,7 @@
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/uuid.hpp>
+#include <ftl/threads.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -20,7 +21,6 @@
 #include <vector>
 #include <type_traits>
 #include <thread>
-#include <mutex>
 #include <condition_variable>
 #include <chrono>
 
@@ -267,13 +267,14 @@ class Peer {
 
 template <typename... ARGS>
 int Peer::send(const std::string &s, ARGS... args) {
-	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
+	UNIQUE_LOCK(send_mtx_, lk);
 	// Leave a blank entry for websocket header
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	auto args_obj = std::make_tuple(args...);
 	auto call_obj = std::make_tuple(0,s,args_obj);
 	msgpack::pack(send_buf_, call_obj);
-	return _send();
+	int rc = _send();
+	return rc;
 }
 
 template <typename F>
@@ -291,7 +292,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 	
 	R result;
 	int id = asyncCall<R>(name, [&](const R &r) {
-		std::unique_lock<std::mutex> lk(m);
+		UNIQUE_LOCK(m,lk);
 		hasreturned = true;
 		result = r;
 		lk.unlock();
@@ -299,7 +300,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 	}, std::forward<ARGS>(args)...);
 	
 	{  // Block thread until async callback notifies us
-		std::unique_lock<std::mutex> lk(m);
+		UNIQUE_LOCK(m,lk);
 		cv.wait_for(lk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
 	}
 	
@@ -319,20 +320,20 @@ int Peer::asyncCall(
 		ARGS... args) {
 	auto args_obj = std::make_tuple(args...);
 	auto rpcid = 0;
-	
-	LOG(INFO) << "RPC " << name << "() -> " << uri_;
 
 	{
 		// Could this be the problem????
-		std::unique_lock<std::recursive_mutex> lk(cb_mtx_);
+		UNIQUE_LOCK(cb_mtx_,lk);
 		// Register the CB
 		rpcid = rpcid__++;
 		callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
 	}
 
+	LOG(INFO) << "RPC " << name << "(" << rpcid << ") -> " << uri_;
+
 	auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 	
-	std::unique_lock<std::recursive_mutex> lk(send_mtx_);
+	UNIQUE_LOCK(send_mtx_,lk);
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	msgpack::pack(send_buf_, call_obj);
 	_send();

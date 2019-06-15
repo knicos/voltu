@@ -25,6 +25,7 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
     float scale_;
     rs2::pipeline pipe_;
     rs2::align align_to_depth_;
+	rs2::frame rscolour_;
 };
 
 }

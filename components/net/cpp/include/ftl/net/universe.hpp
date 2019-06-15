@@ -10,12 +10,12 @@
 #include <ftl/net/listener.hpp>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/uuid.hpp>
+#include <ftl/threads.hpp>
 #include <nlohmann/json.hpp>
 #include <vector>
 #include <list>
 #include <string>
 #include <thread>
-#include <shared_mutex>
 #include <map>
 
 namespace ftl {
@@ -241,7 +241,7 @@ class Universe : public ftl::Configurable {
 
 template <typename F>
 void Universe::bind(const std::string &name, F func) {
-	std::unique_lock<std::shared_mutex> lk(net_mutex_);
+	UNIQUE_LOCK(net_mutex_,lk);
 	disp_.bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
 	    typename ftl::internal::func_kind_info<F>::args_kind());
@@ -260,7 +260,7 @@ bool Universe::subscribe(const ftl::URI &res, F func) {
 
 template <typename... ARGS>
 void Universe::broadcast(const std::string &name, ARGS... args) {
-	std::shared_lock<std::shared_mutex> lk(net_mutex_);
+	SHARED_LOCK(net_mutex_,lk);
 	for (auto p : peers_) {
 		if (p->isConnected()) p->send(name, args...);
 	}
@@ -275,7 +275,7 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	std::optional<R> result;
 
 	auto handler = [&](const std::optional<R> &r) {
-		std::unique_lock<std::mutex> lk(m);
+		UNIQUE_LOCK(m,lk);
 		if (hasreturned || !r) return;
 		hasreturned = true;
 		result = r;
@@ -284,14 +284,15 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	};
 
 	std::map<Peer*, int> record;
-	std::shared_lock<std::shared_mutex> lk(net_mutex_);
+	SHARED_LOCK(net_mutex_,lk);
+
 	for (auto p : peers_) {
 		if (p->isConnected()) record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
 	}
 	lk.unlock();
 	
 	{  // Block thread until async callback notifies us
-		std::unique_lock<std::mutex> llk(m);
+		UNIQUE_LOCK(m,llk);
 		cv.wait_for(llk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
 
 		// Cancel any further results
@@ -317,7 +318,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	std::vector<R> results;
 
 	auto handler = [&](const std::vector<R> &r) {
-		std::unique_lock<std::mutex> lk(m);
+		UNIQUE_LOCK(m,lk);
 		returncount++;
 		results.insert(results.end(), r.begin(), r.end());
 		lk.unlock();
@@ -325,7 +326,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	};
 
 	std::map<Peer*, int> record;
-	std::shared_lock<std::shared_mutex> lk(net_mutex_);
+	SHARED_LOCK(net_mutex_,lk);
 	for (auto p : peers_) {
 		if (!p->isConnected()) {
 			continue;
@@ -336,7 +337,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	lk.unlock();
 	
 	{  // Block thread until async callback notifies us
-		std::unique_lock<std::mutex> llk(m);
+		UNIQUE_LOCK(m,llk);
 		cv.wait_for(llk, std::chrono::seconds(1), [&returncount,&sentcount]{return returncount == sentcount;});
 
 		// Cancel any further results
