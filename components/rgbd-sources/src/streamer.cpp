@@ -21,10 +21,9 @@ using std::shared_lock;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 
-#define THREAD_POOL_SIZE 6
 
 Streamer::Streamer(nlohmann::json &config, Universe *net)
-		: ftl::Configurable(config), pool_(THREAD_POOL_SIZE), late_(false), jobs_(0) {
+		: ftl::Configurable(config), late_(false), jobs_(0) {
 
 	active_ = false;
 	net_ = net;
@@ -89,7 +88,7 @@ Streamer::~Streamer() {
 	net_->unbind("get_stream");
 	net_->unbind("sync_streams");
 	net_->unbind("ping_streamer");
-	pool_.stop();
+	//pool_.stop();
 }
 
 void Streamer::add(Source *src) {
@@ -155,7 +154,7 @@ void Streamer::remove(const std::string &) {
 
 void Streamer::stop() {
 	active_ = false;
-	pool_.stop();
+	//pool_.stop();
 }
 
 void Streamer::poll() {
@@ -188,7 +187,7 @@ void Streamer::run(bool block) {
 		}
 	} else {
 		// Create thread job for frame ticking
-		pool_.push([this](int id) {
+		ftl::pool.push([this](int id) {
 			while (ftl::running && active_) {
 				poll();
 			}
@@ -229,7 +228,7 @@ void Streamer::_swap(StreamSource *src) {
 void Streamer::wait() {
 	// Do some jobs in this thread, might as well...
 	std::function<void(int)> j;
-	while ((bool)(j=pool_.pop())) {
+	while ((bool)(j=ftl::pool.pop())) {
 		j(-1);
 	}
 
@@ -264,7 +263,7 @@ void Streamer::_schedule() {
 		if (src == nullptr || src->state != 0) continue;
 
 		// Grab job
-		pool_.push([this,src](int id) {
+		ftl::pool.push([this,src](int id) {
 			//StreamSource *src = sources_[uri];
 			try {
 				src->src->grab();
@@ -283,7 +282,7 @@ void Streamer::_schedule() {
 		});
 
 		// Compress colour job
-		pool_.push([this,src](int id) {
+		ftl::pool.push([this,src](int id) {
 			if (!src->rgb.empty()) {
 				auto start = std::chrono::high_resolution_clock::now();
 
@@ -298,7 +297,7 @@ void Streamer::_schedule() {
 		});
 
 		// Compress depth job
-		pool_.push([this,src](int id) {
+		ftl::pool.push([this,src](int id) {
 			auto start = std::chrono::high_resolution_clock::now();
 
 			if (!src->depth.empty()) {

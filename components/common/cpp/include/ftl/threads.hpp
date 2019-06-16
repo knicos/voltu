@@ -3,6 +3,9 @@
 
 #include <mutex>
 #include <shared_mutex>
+#include <ctpl_stl.h>
+
+#define POOL_SIZE 10
 
 #if defined _DEBUG && DEBUG_MUTEX
 #include <loguru.hpp>
@@ -24,7 +27,7 @@
 #endif  // _DEBUG && DEBUG_MUTEX
 
 namespace ftl {
-
+	extern ctpl::thread_pool pool;
 }
 
 #endif  // _FTL_THREADS_HPP_

@@ -18,6 +18,7 @@
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/uri.hpp>
+#include <ftl/threads.hpp>
 
 #include <fstream>
 #include <string>
@@ -33,6 +34,8 @@ using std::optional;
 using ftl::is_file;
 using ftl::is_directory;
 using ftl::Configurable;
+
+ctpl::thread_pool ftl::pool(POOL_SIZE);
 
 // Store loaded configuration
 namespace ftl {

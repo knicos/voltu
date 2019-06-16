@@ -1,12 +1,12 @@
 #ifndef _FTL_RGBD_STREAMER_HPP_
 #define _FTL_RGBD_STREAMER_HPP_
 
-#include <ctpl_stl.h>
 #include <loguru.hpp>
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/rgbd/source.hpp>
 #include <ftl/net/universe.hpp>
+#include <ftl/threads.hpp>
 #include <string>
 #include <vector>
 #include <map>
@@ -101,7 +101,7 @@ class Streamer : public ftl::Configurable {
 
 	private:
 	std::map<std::string, detail::StreamSource*> sources_;
-	ctpl::thread_pool pool_;
+	//ctpl::thread_pool pool_;
 	std::shared_mutex mutex_;
 	bool active_;
 	ftl::net::Universe *net_;
