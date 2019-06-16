@@ -186,6 +186,10 @@ if (BUILD_VISION)
 	add_subdirectory(applications/vision)
 endif()
 
+if (HAVE_PCL)
+	add_subdirectory(applications/registration)
+endif()
+
 if (BUILD_RECONSTRUCT AND HAVE_PCL)
 	add_subdirectory(applications/reconstruct)
 endif()
