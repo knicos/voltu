@@ -123,6 +123,9 @@ static void run(ftl::Configurable *root) {
 }
 
 int main(int argc, char **argv) {
+#ifdef WIN32
+	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+#endif
 	std::cout << "FTL Vision Node " << FTL_VERSION_LONG << std::endl;
 	auto root = ftl::configure(argc, argv, "vision_default");
 	
