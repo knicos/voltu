@@ -60,7 +60,7 @@ int Peer::rpcid__ = 0;
 // Global peer UUID
 ftl::UUID ftl::net::this_peer;
 
-static ctpl::thread_pool pool(5);
+//static ctpl::thread_pool pool(5);
 
 // TODO(nick) Move to tcp_internal.cpp
 static SOCKET tcpConnect(URI &uri) {
@@ -179,7 +179,7 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 				if (version != ftl::net::kVersion) LOG(WARNING) << "Net protocol using different versions!";
 				
 				// Ensure handlers called later or in new thread
-				pool.push([this](int id) {
+				ftl::pool.push([this](int id) {
 					universe_->_notifyConnect(this);
 				});
 			}
@@ -253,7 +253,7 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 				send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer);
 				
 				// Ensure handlers called later or in new thread
-				pool.push([this](int id) {
+				ftl::pool.push([this](int id) {
 					universe_->_notifyConnect(this);
 				});
 			}
@@ -421,7 +421,7 @@ void Peer::data() {
 
 	// No thread currently processing messages so start one
 	if (is_waiting_) {
-		pool.push([](int id, Peer *p) {
+		ftl::pool.push([](int id, Peer *p) {
 			p->_data();
 			//p->is_waiting_ = true;
 		}, this);

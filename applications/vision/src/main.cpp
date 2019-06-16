@@ -116,6 +116,8 @@ static void run(ftl::Configurable *root) {
 	stream->stop();
 	net->shutdown();
 
+	ftl::pool.stop();
+
 	delete stream;
 	delete display;
 	//delete source;  // TODO(Nick) Add ftl::destroy
