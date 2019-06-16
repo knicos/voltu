@@ -295,6 +295,8 @@ void Streamer::_schedule() {
 
 		// Compress depth job
 		pool_.push([this,src](int id) {
+			auto start = std::chrono::high_resolution_clock::now();
+
 			if (!src->depth.empty()) {
 				cv::Mat d2;
 				src->depth.convertTo(d2, CV_16UC1, 16*100);
@@ -307,6 +309,10 @@ void Streamer::_schedule() {
 				vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, 1}; // Default is 1 for fast, 9 = small but slow.
 				cv::imencode(".png", d2, src->d_buf, pngparams);
 			}
+
+			std::chrono::duration<double> elapsed =
+				std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "Depth Compress in " << elapsed.count() << "s";
 
 			src->state |= ftl::rgbd::detail::kDepth;
 			_swap(src);
