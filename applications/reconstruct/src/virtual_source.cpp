@@ -19,8 +19,8 @@ VirtualSource::VirtualSource(ftl::rgbd::Source *host)
 	params_.fy = params_.fx;
 	params_.width = rays_->value("width", 640);
 	params_.height = rays_->value("height", 480);
-	params_.cx = params_.width / 2;
-	params_.cy = params_.height / 2;
+	params_.cx =  -((double)params_.width / 2);
+	params_.cy = -((double)params_.height / 2);
 	params_.maxDepth = rays_->value("max_depth", 10.0f);
 	params_.minDepth = rays_->value("min_depth", 0.1f);
 
@@ -43,8 +43,8 @@ bool VirtualSource::grab() {
 		DepthCameraParams params;
 		params.fx = params_.fx;
 		params.fy = params_.fy;
-		params.mx = params_.cx;
-		params.my = params_.cy;
+		params.mx = -params_.cx;
+		params.my = -params_.cy;
 		params.m_imageWidth = params_.width;
 		params.m_imageHeight = params_.height;
 		params.m_sensorDepthWorldMin = params_.minDepth;

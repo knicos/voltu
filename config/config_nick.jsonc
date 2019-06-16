@@ -171,11 +171,13 @@
 
 	"registration_default": {
 		"net": {
-			"peers": ["tcp://ftl-node-2:9001"]
+			"peers": []
 		},
 		"sources": [
-			{"uri":"ftl://utu.fi/node2#vision_default/source"}
-		]
+			{"uri":"file:///home/nick/Pictures/FTL/snap.tar.gz#0", "index": 0},
+			{"uri":"file:///home/nick/Pictures/FTL/snap.tar.gz#1", "index": 1}
+		],
+		"origin": 0
 	},
 
 	"reconstruction_rs": {

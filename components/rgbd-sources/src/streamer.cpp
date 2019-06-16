@@ -266,7 +266,11 @@ void Streamer::_schedule() {
 		// Grab job
 		pool_.push([this,src](int id) {
 			//StreamSource *src = sources_[uri];
-			src->src->grab();
+			try {
+				src->src->grab();
+			} catch (...) {
+				LOG(ERROR) << "Exception when grabbing frame";
+			}
 
 			// CHECK (Nick) Can state be an atomic instead?
 			//UNIQUE_LOCK(src->mutex, lk);
