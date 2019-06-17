@@ -118,7 +118,7 @@ class FTLApplication : public nanogui::Screen {
 		using namespace nanogui;
 		net_ = net;
 
-		auto cwindow = new ftl::gui::ControlWindow(this, controller);
+		cwindow_ = new ftl::gui::ControlWindow(this, controller);
 		swindow_ = new ftl::gui::SourceWindow(this, controller);
 
 		//src_ = nullptr;
@@ -203,6 +203,9 @@ class FTLApplication : public nanogui::Screen {
 				float scalar = (key == 264) ? 0.99f : 1.01f;
 				eye_ = ((eye_ - centre_) * scalar) + centre_;
 				return true;
+			} else if (action == 1 && key == 'H') {
+				swindow_->setVisible(!swindow_->visible());
+				cwindow_->setVisible(!cwindow_->visible());
 			}
 			return false;
 		}
@@ -277,6 +280,7 @@ class FTLApplication : public nanogui::Screen {
 
 	private:
 	ftl::gui::SourceWindow *swindow_;
+	ftl::gui::ControlWindow *cwindow_;
 	//std::vector<SourceViews> sources_;
 	ftl::net::Universe *net_;
 	nanogui::GLShader mShader;

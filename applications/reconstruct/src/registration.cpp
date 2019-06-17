@@ -233,7 +233,7 @@ Eigen::Matrix4f findTransformation(vector<PointCloud<PointXYZ>::Ptr> clouds_sour
 		// score new transformation
 		double score = 0.0;
 		for (size_t j = 0; j < n_clouds; ++j) {
-			score += validate.validateTransformation(clouds_source[j], clouds_target[j], T); // CHECK Is use of T here a mistake??
+			score += validate.validateTransformation(clouds_source[j], clouds_target[j], T_tmp); // CHECK Is use of T here a mistake??
 		}
 		score /= n_clouds;
 		
