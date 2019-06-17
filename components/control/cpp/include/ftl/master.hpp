@@ -30,6 +30,10 @@ class Master {
 
 	void shutdown(const ftl::UUID &peer);
 
+	void pause();
+
+	void pause(const ftl::UUID &peer);
+
 	void set(const std::string &uri, ftl::config::json_t &value);
 
 	void set(const ftl::UUID &peer, const std::string &uri, ftl::config::json_t &value);

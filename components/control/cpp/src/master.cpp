@@ -53,6 +53,14 @@ void Master::shutdown(const ftl::UUID &peer) {
 	net_->send(peer, "shutdown");
 }
 
+void Master::pause() {
+	net_->broadcast("pause");
+}
+
+void Master::pause(const ftl::UUID &peer) {
+	net_->send(peer, "pause");
+}
+
 void Master::set(const string &uri, json_t &value) {
 	net_->broadcast("update_cfg", uri, (string)value);
 }

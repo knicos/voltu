@@ -9,6 +9,10 @@
 namespace ftl {
 namespace ctrl {
 
+struct SystemState {
+	bool paused;
+};
+
 /**
  * Allows a node to be remote controlled and observed over the network. All
  * such nodes should create a single instance of this class, but must call
@@ -29,12 +33,15 @@ class Slave {
 	 */
 	void sendLog(const loguru::Message& message);
 
+	bool isPaused() const { return state_.paused; }
+
 	private:
 	std::vector<ftl::UUID> log_peers_;
 	ftl::net::Universe *net_;
 	std::recursive_mutex mutex_;
 	bool in_log_;
 	bool active_;
+	SystemState state_;
 };
 
 }

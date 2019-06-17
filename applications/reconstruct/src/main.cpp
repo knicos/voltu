@@ -13,6 +13,7 @@
 #include <ftl/rgbd.hpp>
 #include <ftl/virtual_source.hpp>
 #include <ftl/rgbd/streamer.hpp>
+#include <ftl/slave.hpp>
 
 // #include <zlib.h>
 // #include <lz4.h>
@@ -74,6 +75,7 @@ struct Cameras {
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
+	ftl::ctrl::Slave slave(net, root);
 	
 	net->start();
 	net->waitConnections();
@@ -190,7 +192,7 @@ static void run(ftl::Configurable *root) {
 
 		active = 0;
 
-		if (!paused) {
+		if (!slave.isPaused()) {
 			//net.broadcast("grab");  // To sync cameras
 			scene->nextFrame();
 		

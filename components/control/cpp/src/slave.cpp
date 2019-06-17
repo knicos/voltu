@@ -13,6 +13,10 @@ static void netLog(void* user_data, const loguru::Message& message) {
 }
 
 Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false), active_(true) {
+
+	// Init system state
+	state_.paused = false;
+
 	net->bind("restart", []() {
 		LOG(WARNING) << "Remote restart...";
 		//exit(1);
@@ -24,6 +28,10 @@ Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false)
 		LOG(WARNING) << "Remote shutdown...";
 		//exit(0);
 		ftl::running = false;
+	});
+
+	net->bind("pause", [this]() {
+		state_.paused = !state_.paused;
 	});
 
 	net->bind("update_cfg", [](const std::string &uri, const std::string &value) {

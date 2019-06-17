@@ -30,9 +30,9 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	button->setCallback([this] {
 		ctrl_->restart();
 	});
-	button = new Button(this, "Shutdown All", ENTYPO_ICON_POWER_PLUG);
+	button = new Button(this, "Pause All", ENTYPO_ICON_POWER_PLUG);
 	button->setCallback([this] {
-		ctrl_->shutdown();
+		ctrl_->pause();
 	});
 
 	new Label(this, "Select Node","sans-bold");
@@ -47,9 +47,9 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		ctrl_->restart(_getActiveID());
 	});
 
-	button = new Button(this, "Shutdown Node", ENTYPO_ICON_POWER_PLUG);
+	button = new Button(this, "Pause Node", ENTYPO_ICON_POWER_PLUG);
 	button->setCallback([this] {
-		ctrl_->shutdown(_getActiveID());
+		ctrl_->pause(_getActiveID());
 	});
 
 	_changeActive(0);
