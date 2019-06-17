@@ -61,6 +61,8 @@ class Correspondances {
 	 */
 	Eigen::Matrix4f transform();
 
+	void setTransform(Eigen::Matrix4f &t) { transform_ = t; }
+
 	private:
 	Correspondances *parent_;
 	ftl::rgbd::Source *targ_;

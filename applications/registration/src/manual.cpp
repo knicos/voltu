@@ -43,6 +43,14 @@ static void setMouseAction(const std::string& winName, const MouseAction &action
 static MouseAction tmouse;
 static MouseAction smouse;
 
+void from_json(nlohmann::json &json, map<string, Eigen::Matrix4f> &transformations) {
+	for (auto it = json.begin(); it != json.end(); ++it) {
+		Eigen::Matrix4f m;
+		auto data = m.data();
+		for(size_t i = 0; i < 16; i++) { data[i] = it.value()[i]; }
+		transformations[it.key()] = m;
+	}
+}
 
 static void to_json(nlohmann::json &json, map<string, Eigen::Matrix4f> &transformations) {
 	for (auto &item : transformations) {
@@ -66,7 +74,20 @@ static bool saveTransformations(const string &path, map<string, Eigen::Matrix4f>
 	return true;
 }
 
-static void build_correspondances(const vector<Source*> &sources, map<string, Correspondances*> &cs, int origin) {
+bool loadTransformations(const string &path, map<string, Eigen::Matrix4f> &data) {
+	std::ifstream file(path);
+	if (!file.is_open()) {
+		LOG(ERROR) << "Error loading transformations from file " << path;
+		return false;
+	}
+	
+	nlohmann::json json_registration;
+	file >> json_registration;
+	from_json(json_registration, data);
+	return true;
+}
+
+static void build_correspondances(const vector<Source*> &sources, map<string, Correspondances*> &cs, int origin, map<string, Eigen::Matrix4f> &old) {
 	Correspondances *last = nullptr;
 
 	cs[sources[origin]->getURI()] = nullptr;
@@ -76,10 +97,16 @@ static void build_correspondances(const vector<Source*> &sources, map<string, Co
 			auto *c = new Correspondances(sources[i], sources[origin]);
 			last = c;
 			cs[sources[i]->getURI()] = c;
+			if (old.find(sources[i]->getURI()) != old.end()) {
+				c->setTransform(old[sources[i]->getURI()]);
+			}
 		} else {
 			auto *c = new Correspondances(last, sources[i]);
 			last = c;
 			cs[sources[i]->getURI()] = c;
+			if (old.find(sources[i]->getURI()) != old.end()) {
+				c->setTransform(old[sources[i]->getURI()]);
+			}
 		}
 	}
 
@@ -122,9 +149,12 @@ void ftl::registration::manual(ftl::Configurable *root) {
 	cv::namedWindow("Target", cv::WINDOW_KEEPRATIO);
 	cv::namedWindow("Source", cv::WINDOW_KEEPRATIO);
 
+	map<string, Eigen::Matrix4f> oldTransforms;
+	loadTransformations(root->value("output", string("./test.json")), oldTransforms);
+
 	//Correspondances c(sources[targsrc], sources[cursrc]);
 	map<string, Correspondances*> corrs;
-	build_correspondances(sources, corrs, root->value("origin", 0));
+	build_correspondances(sources, corrs, root->value("origin", 0), oldTransforms);
 
 	int lastTX = 0;
 	int lastTY = 0;
@@ -242,8 +272,9 @@ void ftl::registration::manual(ftl::Configurable *root) {
 
 			saveTransformations(root->value("output", string("./test.json")), transforms);
 			LOG(INFO) << "Saved!";
-		}
-		else if (key == 32) freeze = !freeze;
+		} else if (key == 't') {
+			current->source()->setPose(current->transform());
+		} else if (key == 32) freeze = !freeze;
 	}
 
 	// store transformations in map<string Matrix4f>
