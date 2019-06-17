@@ -318,7 +318,7 @@ void Streamer::_schedule() {
 
 					//LOG(INFO) << "Sending chunk " << chunk << " : size = " << (d_buf.size()+rgb_buf.size()) / 1024 << "kb";
 
-					UNIQUE_LOCK(src->mutex,lk);
+					SHARED_LOCK(src->mutex,lk);
 					auto i = src->clients[0].begin();
 					while (i != src->clients[0].end()) {
 						try {
