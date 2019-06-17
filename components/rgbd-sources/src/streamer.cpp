@@ -27,6 +27,8 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	active_ = false;
 	net_ = net;
+
+	compress_level_ = value("compression", 1);
 	
 	net->bind("find_stream", [this](const std::string &uri) -> optional<UUID> {
 		SHARED_LOCK(mutex_,slk);
@@ -100,7 +102,9 @@ void Streamer::add(Source *src) {
 
 		StreamSource *s = new StreamSource;
 		s->src = src;
-		s->state = 0;
+		//s->prev_depth = cv::Mat(cv::Size(src->parameters().width, src->parameters().height), CV_16SC1, 0);
+		s->jobs = 0;
+		s->frame = 0;
 		sources_[src->getID()] = s;
 	}
 
@@ -197,31 +201,27 @@ void Streamer::run(bool block) {
 
 // Must be called in source locked state or src.state must be atomic
 void Streamer::_swap(StreamSource *src) {
-	if (src->state == (ftl::rgbd::detail::kGrabbed | ftl::rgbd::detail::kRGB | ftl::rgbd::detail::kDepth)) {
+	if (src->jobs == 0) {
 		UNIQUE_LOCK(src->mutex,lk);
 
-		if (src->rgb_buf.size() > 0 && src->d_buf.size() > 0) {
-			auto i = src->clients[0].begin();
-			while (i != src->clients[0].end()) {
-				try {
-					// TODO(Nick) Send pose and timestamp
-					if (!net_->send((*i).peerid, (*i).uri, src->rgb_buf, src->d_buf)) {
-						(*i).txcount = (*i).txmax;
-					}
-				} catch(...) {
-					(*i).txcount = (*i).txmax;
-				}
-				(*i).txcount++;
-				if ((*i).txcount >= (*i).txmax) {
-					LOG(INFO) << "Remove client: " << (*i).uri;
-					i = src->clients[0].erase(i);
-				} else {
-					i++;
-				}
+		auto i = src->clients[0].begin();
+		while (i != src->clients[0].end()) {
+			(*i).txcount++;
+			if ((*i).txcount >= (*i).txmax) {
+				LOG(INFO) << "Remove client: " << (*i).uri;
+				i = src->clients[0].erase(i);
+			} else {
+				i++;
 			}
 		}
+
 		src->src->getFrames(src->rgb, src->depth);
-		src->state = 0;
+		//if (!src->rgb.empty() && src->prev_depth.empty()) {
+			//src->prev_depth = cv::Mat(src->rgb.size(), CV_16UC1, cv::Scalar(0));
+			//LOG(INFO) << "Creating prevdepth: " << src->rgb.cols << "," << src->rgb.rows;
+		//}
+		src->jobs = 0;
+		src->frame++;
 	}
 }
 
@@ -256,11 +256,12 @@ void Streamer::_schedule() {
 
 		// There will be two jobs for this source...
 		//UNIQUE_LOCK(job_mtx_,lk);
-		jobs_ += 3;
+		jobs_ += 1 + kChunkDim*kChunkDim;
 		//lk.unlock();
 
 		StreamSource *src = sources_[uri];
-		if (src == nullptr || src->state != 0) continue;
+		if (src == nullptr || src->jobs != 0) continue;
+		src->jobs = 1 + kChunkDim*kChunkDim;
 
 		// Grab job
 		ftl::pool.push([this,src](int id) {
@@ -273,7 +274,8 @@ void Streamer::_schedule() {
 
 			// CHECK (Nick) Can state be an atomic instead?
 			//UNIQUE_LOCK(src->mutex, lk);
-			src->state |= ftl::rgbd::detail::kGrabbed;
+			src->jobs--;
+			//src->state |= ftl::rgbd::detail::kGrabbed;
 			_swap(src);
 
 			// Mark job as finished
@@ -281,8 +283,62 @@ void Streamer::_schedule() {
 			job_cv_.notify_one();
 		});
 
+		// Create jobs for each chunk
+		for (int i=0; i<(kChunkDim*kChunkDim); i++) {
+			ftl::pool.push([this,src](int id, int chunk) {
+				if (!src->rgb.empty() && !src->depth.empty()) {
+					bool delta = (chunk+src->frame) % 8 > 0;
+					int chunk_width = src->rgb.cols / kChunkDim;
+					int chunk_height = src->rgb.rows / kChunkDim;
+
+					// Build chunk head
+					int cx = (chunk % kChunkDim) * chunk_width;
+					int cy = (chunk / kChunkDim) * chunk_height;
+
+					cv::Rect roi(cx,cy,chunk_width,chunk_height);
+					vector<unsigned char> rgb_buf;
+					cv::Mat chunkRGB = src->rgb(roi);
+					cv::Mat chunkDepth = src->depth(roi);
+					//cv::Mat chunkDepthPrev = src->prev_depth(roi);
+
+					cv::imencode(".jpg", chunkRGB, rgb_buf);
+
+					cv::Mat d2, d3;
+					vector<unsigned char> d_buf;
+					chunkDepth.convertTo(d2, CV_16UC1, 16*10);
+					//if (delta) d3 = (d2 * 2) - chunkDepthPrev;
+					//else d3 = d2;
+					//d2.copyTo(chunkDepthPrev);
+					vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, compress_level_}; // Default is 1 for fast, 9 = small but slow.
+					cv::imencode(".png", d2, d_buf, pngparams);
+
+					//LOG(INFO) << "Sending chunk " << chunk << " : size = " << (d_buf.size()+rgb_buf.size()) / 1024 << "kb";
+
+					UNIQUE_LOCK(src->mutex,lk);
+					auto i = src->clients[0].begin();
+					while (i != src->clients[0].end()) {
+						try {
+							// TODO(Nick) Send pose and timestamp
+							if (!net_->send((*i).peerid, (*i).uri, 0, chunk, delta, rgb_buf, d_buf)) {
+								(*i).txcount = (*i).txmax;
+							}
+						} catch(...) {
+							(*i).txcount = (*i).txmax;
+						}
+						i++;
+					}
+				}
+
+				//src->state |= ftl::rgbd::detail::kRGB;
+				src->jobs--;
+				_swap(src);
+				--jobs_;
+				job_cv_.notify_one();
+			}, i);
+		}
+
 		// Compress colour job
-		ftl::pool.push([this,src](int id) {
+		/*pool_.push([this,src](int id) {
 			if (!src->rgb.empty()) {
 				auto start = std::chrono::high_resolution_clock::now();
 
@@ -321,7 +377,7 @@ void Streamer::_schedule() {
 			_swap(src);
 			--jobs_;
 			job_cv_.notify_one();
-		});
+		});*/
 
 		// Transmit job
 		// For any single source and bitrate there is only one thread
