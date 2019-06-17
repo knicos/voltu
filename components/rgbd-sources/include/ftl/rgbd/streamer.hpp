@@ -16,6 +16,8 @@
 namespace ftl {
 namespace rgbd {
 
+static const int kChunkDim = 4;
+
 namespace detail {
 
 struct StreamClient {
@@ -31,13 +33,14 @@ static const unsigned int kDepth = 0x4;
 
 struct StreamSource {
 	ftl::rgbd::Source *src;
-	std::atomic<unsigned int> state;				// Busy or ready to swap?
+	std::atomic<unsigned int> jobs;				// Busy or ready to swap?
 	cv::Mat rgb;									// Tx buffer
 	cv::Mat depth;									// Tx buffer
-	std::vector<unsigned char> rgb_buf;
-	std::vector<unsigned char> d_buf;
+	cv::Mat prev_rgb;
+	cv::Mat prev_depth;
 	std::vector<detail::StreamClient> clients[10];	// One list per bitrate
 	std::shared_mutex mutex;
+	unsigned long long frame;
 };
 
 }
@@ -109,6 +112,7 @@ class Streamer : public ftl::Configurable {
 	std::mutex job_mtx_;
 	std::condition_variable job_cv_;
 	std::atomic<int> jobs_;
+	int compress_level_;
 
 	void _schedule();
 	void _swap(detail::StreamSource *);

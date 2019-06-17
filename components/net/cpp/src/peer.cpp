@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <tuple>
 #include <chrono>
+#include <vector>
 
 using std::tuple;
 using std::get;
@@ -41,6 +42,7 @@ using std::chrono::seconds;
 using ftl::net::Universe;
 using ftl::net::callback_t;
 using std::mutex;
+using std::vector;
 using std::recursive_mutex;
 using std::unique_lock;
 
@@ -82,6 +84,9 @@ static SOCKET tcpConnect(URI &uri) {
 		LOG(ERROR) << "Unable to create TCP socket";
 		return INVALID_SOCKET;
 	}
+
+	//int flags =1; 
+    //if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 
 	addrinfo hints = {}, *addrs;
 	hints.ai_family = AF_INET;
@@ -163,6 +168,9 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	
 	is_waiting_ = true;
 	scheme_ = ftl::URI::SCHEME_TCP;
+
+	//int flags =1; 
+    //if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 	
 	// Send the initiating handshake if valid
 	if (status_ == kConnecting) {
@@ -585,10 +593,16 @@ int Peer::_send() {
 
 	auto send_vec = send_buf_.vector();
 	auto send_size = send_buf_.vector_size();
-	int c = 0;
+	vector<WSABUF> wsabuf(send_size);
+
 	for (int i = 0; i < send_size; i++) {
-		c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, (int)send_vec[i].iov_len, 0);
+		wsabuf[i].len = (ULONG)send_vec[i].iov_len;
+		wsabuf[i].buf = (char*)send_vec[i].iov_base;
+		//c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, (int)send_vec[i].iov_len, 0);
 	}
+
+	DWORD bytessent;
+	int c = WSASend(sock_, wsabuf.data(), send_size, (LPDWORD)&bytessent, 0, NULL, NULL);
 #else
 	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
 #endif

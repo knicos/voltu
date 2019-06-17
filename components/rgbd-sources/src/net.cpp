@@ -4,6 +4,8 @@
 #include <chrono>
 #include <shared_mutex>
 
+#include <ftl/rgbd/streamer.hpp>
+
 using ftl::rgbd::detail::NetSource;
 using ftl::net::Universe;
 using ftl::UUID;
@@ -76,6 +78,42 @@ void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned ch
 	//lk.unlock();
 }
 
+void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+	cv::Mat tmp_rgb, tmp_depth;
+
+	if (!active_) return;
+
+	//LOG(INFO) << "Received chunk " << (int)chunk;
+
+	//try {
+	// Decode in temporary buffers to prevent long locks
+	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
+	cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
+
+	// Build chunk head
+	int cx = (chunk % chunks_dim_) * chunk_width_;
+	int cy = (chunk / chunks_dim_) * chunk_height_;
+
+	cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
+	cv::Mat chunkRGB = rgb_(roi);
+	//cv::Mat ichunkDepth = idepth_(roi);
+	cv::Mat chunkDepth = depth_(roi);
+
+	// Lock host to prevent grab
+	UNIQUE_LOCK(host_->mutex(),lk);
+	tmp_rgb.copyTo(chunkRGB);
+	//tmp_depth.convertTo(tmp_depth, CV_16UC1);
+	//if (delta) ichunkDepth = tmp_depth - ichunkDepth;
+	//tmp_depth.copyTo(ichunkDepth);
+	tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/(16.0f*10.0f));
+	if (chunk == 0) N_--;
+	//lk.unlock();
+	//} catch(...) {
+	//	LOG(ERROR) << "Decode exception";
+	//	return;
+	//}
+}
+
 void NetSource::setPose(const Eigen::Matrix4f &pose) {
 	if (!active_) return;
 
@@ -110,8 +148,8 @@ void NetSource::_updateURI() {
 
 		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_);
 
-		host_->getNet()->bind(*uri, [this](const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-			_recv(jpg, d);
+		host_->getNet()->bind(*uri, [this](int frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+			_recvChunk(frame, chunk, delta, jpg, d);
 		});
 
 		N_ = 10;
@@ -122,6 +160,14 @@ void NetSource::_updateURI() {
 		} catch(...) {
 			LOG(ERROR) << "Could not connect to stream " << *uri;
 		}
+
+		// Update chunk details
+		chunks_dim_ = ftl::rgbd::kChunkDim;
+		chunk_width_ = params_.width / chunks_dim_;
+		chunk_height_ = params_.height / chunks_dim_;
+		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
+		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
+		//idepth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_16UC1, cv::Scalar(0));
 
 		uri_ = *uri;
 		active_ = true;

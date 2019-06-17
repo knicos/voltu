@@ -370,7 +370,12 @@ bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args)
 		DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
 		return false;
 	}
+#ifdef WIN32
+	return p->isConnected() && p->send(name, args...) >= 0;
+#else
 	return p->isConnected() && p->send(name, args...) > 0;
+#endif
+
 }
 
 /*template <typename... ARGS>
