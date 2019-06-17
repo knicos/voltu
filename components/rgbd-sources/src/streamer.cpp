@@ -266,11 +266,15 @@ void Streamer::_schedule() {
 		// Grab job
 		ftl::pool.push([this,src](int id) {
 			//StreamSource *src = sources_[uri];
+			auto start = std::chrono::high_resolution_clock::now();
 			try {
 				src->src->grab();
 			} catch (...) {
 				LOG(ERROR) << "Exception when grabbing frame";
 			}
+			std::chrono::duration<double> elapsed =
+				std::chrono::high_resolution_clock::now() - start;
+			LOG(INFO) << "Grab in " << elapsed.count() << "s";
 
 			// CHECK (Nick) Can state be an atomic instead?
 			//UNIQUE_LOCK(src->mutex, lk);
