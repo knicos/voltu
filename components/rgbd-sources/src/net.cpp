@@ -94,13 +94,14 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 	int cx = (chunk % chunks_dim_) * chunk_width_;
 	int cy = (chunk / chunks_dim_) * chunk_height_;
 
+	// Lock host to prevent grab
+	UNIQUE_LOCK(host_->mutex(),lk);
+	
 	cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
 	cv::Mat chunkRGB = rgb_(roi);
 	//cv::Mat ichunkDepth = idepth_(roi);
 	cv::Mat chunkDepth = depth_(roi);
 
-	// Lock host to prevent grab
-	UNIQUE_LOCK(host_->mutex(),lk);
 	tmp_rgb.copyTo(chunkRGB);
 	//tmp_depth.convertTo(tmp_depth, CV_16UC1);
 	//if (delta) ichunkDepth = tmp_depth - ichunkDepth;
@@ -129,7 +130,7 @@ void NetSource::setPose(const Eigen::Matrix4f &pose) {
 }
 
 void NetSource::_updateURI() {
-	//unique_lock<mutex> lk(mutex_);
+	UNIQUE_LOCK(mutex_,lk);
 	active_ = false;
 	auto uri = host_->get<string>("uri");
 
@@ -165,6 +166,7 @@ void NetSource::_updateURI() {
 		chunks_dim_ = ftl::rgbd::kChunkDim;
 		chunk_width_ = params_.width / chunks_dim_;
 		chunk_height_ = params_.height / chunks_dim_;
+		// TODO(Nick) Must lock before changing these below since some thread may still be updating chunk
 		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
 		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
 		//idepth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_16UC1, cv::Scalar(0));
