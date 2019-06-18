@@ -11,6 +11,7 @@
 #include "local.hpp"
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
+#include <opencv2/xphoto.hpp>
 
 using ftl::rgbd::detail::LocalSource;
 using cv::Mat;
@@ -268,6 +269,11 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 		cv::resize(r, r, cv::Size((int)(r.cols * downsize_), (int)(r.rows * downsize_)),
 				0, 0, cv::INTER_LINEAR);
 	}
+
+	cv::Ptr<cv::xphoto::WhiteBalancer> wb;
+	wb = cv::xphoto::createSimpleWB();
+	wb->balanceWhite(l, l);
+	wb->balanceWhite(r, r);
 
 	if (flip_v_) {
 		Mat tl, tr;
