@@ -48,6 +48,8 @@ class Correspondances {
 
 	const std::vector<std::tuple<int,int,int,int>> &screenPoints() const { return log_; }
 
+	void setPoints(const std::vector<std::tuple<int,int,int,int>> &p) { log_ = p; }
+
 	/**
 	 * Calculate a transform using current set of correspondances.
 	 * 
@@ -55,13 +57,17 @@ class Correspondances {
 	 */
 	double estimateTransform();
 
+	double findBest(Eigen::Matrix4f &tr, const std::vector<std::tuple<int,int,int,int>> &p, const std::vector<std::pair<pcl::PointXYZ, pcl::PointXYZ>> &p2, int K, int N);
+
+	void convertToPCL(const std::vector<std::tuple<int,int,int,int>> &p, std::vector<std::pair<pcl::PointXYZ, pcl::PointXYZ>> &p2);
+
 	/**
 	 * Get the estimated transform. This includes any parent transforms to make
 	 * it relative to root camera.
 	 */
 	Eigen::Matrix4f transform();
 
-	void setTransform(Eigen::Matrix4f &t) { transform_ = t; }
+	void setTransform(Eigen::Matrix4f &t) { uptodate_ = true; transform_ = t; }
 
 	private:
 	Correspondances *parent_;

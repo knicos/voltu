@@ -1,5 +1,7 @@
 #include "correspondances.hpp"
 #include <nlohmann/json.hpp>
+#include <random>
+#include <chrono>
 
 using ftl::registration::Correspondances;
 using std::string;
@@ -54,6 +56,15 @@ bool Correspondances::add(int tx, int ty, int sx, int sy) {
 	return true;
 }
 
+PointXYZ makePCL(Source *s, int x, int y) {
+	Eigen::Vector4f p1 = s->point(x,y);
+	PointXYZ pcl_p1;
+	pcl_p1.x = p1[0];
+	pcl_p1.y = p1[1];
+	pcl_p1.z = p1[2];
+	return pcl_p1;
+}
+
 void Correspondances::removeLast() {
 	uptodate_ = false;
 	targ_cloud_->erase(targ_cloud_->end()-1);
@@ -74,6 +85,75 @@ double Correspondances::estimateTransform() {
 	svd.estimateRigidTransformation(*src_cloud_, idx, *targ_cloud_, idx, transform_);
 
 	return validate.validateTransformation(src_cloud_, targ_cloud_, transform_);
+}
+
+static std::default_random_engine generator;
+
+void Correspondances::convertToPCL(const std::vector<std::tuple<int,int,int,int>> &p, std::vector<std::pair<pcl::PointXYZ, pcl::PointXYZ>> &pp) {
+	for (size_t i=0; i<p.size(); i++) {
+		auto [sx,sy,tx,ty] = p[i];
+		//LOG(INFO) << "POINT " << sx << "," << sy;
+		auto p1 = makePCL(src_, sx, sy);
+		auto p2 = makePCL(targ_, tx, ty);
+		pp.push_back(std::make_pair(p1,p2));
+	}
+}
+
+double Correspondances::findBest(Eigen::Matrix4f &tr, const std::vector<std::tuple<int,int,int,int>> &p, const std::vector<std::pair<pcl::PointXYZ, pcl::PointXYZ>> &pp, int K, int N) {
+	double score = 10000.0f;
+	vector<tuple<int,int,int,int>> best;
+	Eigen::Matrix4f bestT;
+
+	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ> validate;
+	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ> svd;
+
+	std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+	std::uniform_int_distribution<int> distribution(0,p.size()-1);
+	//int dice_roll = distribution(generator);
+	auto dice = std::bind ( distribution, rng );
+
+	vector<int> idx(K);
+	for (int i = 0; i < K; i++) { idx[i] = i; }
+
+	for (int n=0; n<N; n++) {
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_t(new PointCloud<PointXYZ>);
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_s(new PointCloud<PointXYZ>);
+
+		vector<tuple<int,int,int,int>> ps;
+
+		for (int k=0; k<K; k++) {
+			int r = dice();
+			//LOG(INFO) << "DICE " << r << "  -  " << K;
+			//ps.push_back(p[r]);
+			auto [sx,sy,tx,ty] = p[r];
+			//LOG(INFO) << "POINT " << sx << "," << sy;
+			//auto p1 = makePCL(src_, sx, sy);
+			//auto p2 = makePCL(targ_, tx, ty);
+
+			auto [p1,p2] = pp[r];
+
+			if (p1.z >= 30.0f || p2.z >= 30.0f) { k--; continue; }
+			ps.push_back(std::make_tuple(tx,ty,sx,sy));
+			cloud_s->push_back(p1);
+			cloud_t->push_back(p2);
+		}
+
+		Eigen::Matrix4f T;
+		svd.estimateRigidTransformation(*cloud_s, idx, *cloud_t, idx, T);
+		float scoreT = validate.validateTransformation(cloud_s, cloud_t, T);
+
+		if (scoreT < score) {
+			score = scoreT;
+			best = ps;
+			bestT = T;
+		}
+	}
+
+	// TODO Add these best points to actual clouds.
+	log_ = best;
+	tr = bestT;
+	//uptodate_ = true;
+	return score;
 }
 
 Eigen::Matrix4f Correspondances::transform() {
