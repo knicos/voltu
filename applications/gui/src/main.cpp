@@ -219,6 +219,17 @@ namespace {
 }
 
 
+static Eigen::Affine3f create_rotation_matrix(float ax, float ay, float az) {
+  Eigen::Affine3f rx =
+      Eigen::Affine3f(Eigen::AngleAxisf(ax, Eigen::Vector3f(1, 0, 0)));
+  Eigen::Affine3f ry =
+      Eigen::Affine3f(Eigen::AngleAxisf(ay, Eigen::Vector3f(0, 1, 0)));
+  Eigen::Affine3f rz =
+      Eigen::Affine3f(Eigen::AngleAxisf(az, Eigen::Vector3f(0, 0, 1)));
+  return ry * rz * rx;
+}
+
+
 class FTLApplication : public nanogui::Screen {
 	public:
 	explicit FTLApplication(ftl::Configurable *root, ftl::net::Universe *net, ftl::ctrl::Master *controller) : nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab GUI") {
@@ -230,9 +241,9 @@ class FTLApplication : public nanogui::Screen {
 
 		//src_ = nullptr;
 		eye_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
-		centre_ = Eigen::Vector3f(0.0f, 0.0f, -4.0f);
+		orientation_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
 		up_ = Eigen::Vector3f(0,1.0f,0);
-		lookPoint_ = Eigen::Vector3f(0.0f,0.0f,-4.0f);
+		//lookPoint_ = Eigen::Vector3f(0.0f,0.0f,-4.0f);
 		lerpSpeed_ = 0.4f;
 		depth_ = false;
 		ftime_ = (float)glfwGetTime();
@@ -262,6 +273,18 @@ class FTLApplication : public nanogui::Screen {
 		mShader.free();
 	}
 
+	bool mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers) {
+		if (Screen::mouseMotionEvent(p, rel, button, modifiers)) {
+			return true;
+		} else {
+			if (button == 1) {
+				orientation_[0] += ((float)rel[1] * 0.2f * delta_);
+				//orientation_[2] += std::cos(orientation_[1])*((float)rel[1] * 0.2f * delta_);
+				orientation_[1] -= (float)rel[0] * 0.2f * delta_;
+			}
+		}
+	}
+
 	bool mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {
 		if (Screen::mouseButtonEvent(p, button, down, modifiers)) {
 			return true;
@@ -288,7 +311,7 @@ class FTLApplication : public nanogui::Screen {
 				
 				camPos *= -1.0f;
 				Eigen::Vector4f worldPos =  src_->getPose() * camPos;
-				lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
+				//lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
 				LOG(INFO) << "Depth at click = " << -camPos[2];
 				return true;
 			}
@@ -297,18 +320,34 @@ class FTLApplication : public nanogui::Screen {
 	}
 
 	bool keyboardEvent(int key, int scancode, int action, int modifiers) {
+		using namespace Eigen;
 		if (Screen::keyboardEvent(key, scancode, action, modifiers)) {
 			return true;
 		} else {
 			LOG(INFO) << "Key press " << key << " - " << action;
 			if (key == 263 || key == 262) {
-				// TODO Should rotate around lookAt object, but requires correct depth
-				Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 262) ? 0.01f : -0.01f, up_);
-				eye_ = (q * (eye_ - centre_)) + centre_;
+				float scalar = (key == 263) ? -0.1f : 0.1f;
+				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
+				Vector4f neye = r.matrix()*Vector4f(scalar,0.0,0.0,1.0);
+				eye_[0] += neye[0];
+				eye_[1] += neye[1];
+				eye_[2] += neye[2];
 				return true;
 			} else if (key == 264 || key == 265) {
-				float scalar = (key == 264) ? 0.99f : 1.01f;
-				eye_ = ((eye_ - centre_) * scalar) + centre_;
+				float scalar = (key == 264) ? -0.1f : 0.1f;
+				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
+				Vector4f neye = r.matrix()*Vector4f(0.0,0.0,scalar,1.0);
+				eye_[0] += neye[0];
+				eye_[1] += neye[1];
+				eye_[2] += neye[2];
+				return true;
+			} else if (key == 266 || key == 267) {
+				float scalar = (key == 266) ? -0.1f : 0.1f;
+				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
+				Vector4f neye = r.matrix()*Vector4f(0.0,scalar,0.0,1.0);
+				eye_[0] += neye[0];
+				eye_[1] += neye[1];
+				eye_[2] += neye[2];
 				return true;
 			} else if (action == 1 && key == 'H') {
 				swindow_->setVisible(!swindow_->visible());
@@ -327,13 +366,21 @@ class FTLApplication : public nanogui::Screen {
 		imageSize = {0, 0};
 
 		float now = (float)glfwGetTime();
-		float delta = now - ftime_;
+		delta_ = now - ftime_;
 		ftime_ = now;
 
 		if (src_) {
 			cv::Mat rgb, depth;
-			centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * delta);
-			Eigen::Matrix4f viewPose = lookAt<float>(eye_,centre_,up_).inverse();
+			//centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * delta);
+			//Eigen::Matrix4f viewPose = lookAt<float>(eye_,centre_,up_).inverse();
+
+			Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
+			Eigen::Translation3f trans(eye_);
+			Eigen::Affine3f t(trans);
+			Eigen::Matrix4f viewPose = (t * r).matrix();
+
+			//Eigen::Matrix4f viewPose = t.matrix();
+  			//viewPose *= r.matrix();
 
 			src_->setPose(viewPose);
 			src_->grab();
@@ -416,12 +463,13 @@ class FTLApplication : public nanogui::Screen {
 	//Source *src_;
 	GLTexture texture_;
 	Eigen::Vector3f eye_;
-	Eigen::Vector3f centre_;
+	Eigen::Vector3f orientation_;
 	Eigen::Vector3f up_;
-	Eigen::Vector3f lookPoint_;
+	//Eigen::Vector3f lookPoint_;
 	float lerpSpeed_;
 	bool depth_;
 	float ftime_;
+	float delta_;
 	Eigen::Vector2f imageSize;
 };
 
