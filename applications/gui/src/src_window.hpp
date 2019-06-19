@@ -18,16 +18,18 @@ namespace gui {
  */
 class SourceWindow : public nanogui::Window {
 	public:
+	enum class Mode { rgb, depth, stddev };
 	SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl);
 	~SourceWindow();
 
 	ftl::rgbd::Source *getSource() const { return src_; }
-	bool getDepth() const { return depth_; }
+	bool getDepth() const { return mode_ == Mode::depth; }
+	Mode getMode() { return mode_; }
 
 	private:
 	ftl::ctrl::Master *ctrl_;
 	ftl::rgbd::Source *src_;
-	bool depth_;
+	Mode mode_;
 	VirtualCameraView *image_;
 	std::vector<std::string> available_;
 

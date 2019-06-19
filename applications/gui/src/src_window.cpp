@@ -1,6 +1,8 @@
 #include "src_window.hpp"
 
 #include <nanogui/imageview.h>
+#include <nanogui/textbox.h>
+#include <nanogui/slider.h>
 #include <nanogui/combobox.h>
 #include <nanogui/label.h>
 #include <nanogui/opengl.h>
@@ -158,37 +160,43 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	setLayout(new nanogui::GroupLayout());
 
 	using namespace nanogui;
-
-	depth_ = false;
-    src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
+	
+	mode_ = Mode::rgb;
+	src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
 
 	//Widget *tools = new Widget(this);
-    //    tools->setLayout(new BoxLayout(Orientation::Horizontal,
-    //                                   Alignment::Middle, 0, 6));
+	//    tools->setLayout(new BoxLayout(Orientation::Horizontal,
+	//                                   Alignment::Middle, 0, 6));
 
-    new Label(this, "Select source","sans-bold");
-    available_ = ctrl->getNet()->findAll<string>("list_streams");
-    auto select = new ComboBox(this, available_);
-    select->setCallback([this,select](int ix) {
-        LOG(INFO) << "Change source: " << ix;
-        src_->set("uri", available_[ix]);
-    });
+	new Label(this, "Select source","sans-bold");
+	available_ = ctrl->getNet()->findAll<string>("list_streams");
+	auto select = new ComboBox(this, available_);
+	select->setCallback([this,select](int ix) {
+		LOG(INFO) << "Change source: " << ix;
+		src_->set("uri", available_[ix]);
+});
 
 	ctrl->getNet()->onConnect([this,select](ftl::net::Peer *p) {
-		 available_ = ctrl_->getNet()->findAll<string>("list_streams");
-		 select->setItems(available_);
+		available_ = ctrl_->getNet()->findAll<string>("list_streams");
+		select->setItems(available_);
 	});
 
-	auto depth = new Button(this, "Depth");
-	depth->setFlags(Button::ToggleButton);
-	depth->setChangeCallback([this](bool state) {
-		//image_->setDepth(state);
-		depth_ = state;
-	});
+	auto button_rgb = new Button(this, "RGB (left)");
+	button_rgb->setFlags(Button::RadioButton);
+	button_rgb->setPushed(true);
+	button_rgb->setChangeCallback([this](bool state) { mode_ = Mode::rgb; });
+
+	auto button_depth = new Button(this, "Depth");
+	button_depth->setFlags(Button::RadioButton);
+	button_depth->setChangeCallback([this](bool state) { mode_ = Mode::depth; });
+
+	auto button_stddev = new Button(this, "Standard Deviation (25 frames)");
+	button_stddev->setFlags(Button::RadioButton);
+	button_stddev->setChangeCallback([this](bool state) { mode_ = Mode::stddev; });
 
 #ifdef HAVE_LIBARCHIVE
-	auto snapshot = new Button(this, "Snapshot");
-	snapshot->setCallback([this] {
+	auto button_snapshot = new Button(this, "Snapshot");
+	button_snapshot->setCallback([this] {
 		try {
 			char timestamp[18];
 			std::time_t t=std::time(NULL);
