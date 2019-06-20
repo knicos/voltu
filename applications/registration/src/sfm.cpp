@@ -109,7 +109,7 @@ bool ftl::registration::featuresChess(cv::Mat &frame1, cv::Mat &frame2, std::vec
 
 bool ftl::registration::featuresSIFT(cv::Mat &frame1, cv::Mat &frame2, std::vector<std::tuple<int,int,int,int>> &points, int K) {
 	int minHessian = 400;
-	Ptr<SIFT> detector = SIFT::create();
+	Ptr<SIFT> detector = SIFT::create(10000,3,0.04,10);
 	//detector->setHessianThreshold(minHessian);
 
 	vector<vector<KeyPoint>> keypoints;
@@ -139,7 +139,7 @@ bool ftl::registration::featuresSIFT(cv::Mat &frame1, cv::Mat &frame2, std::vect
 	std::vector<std::vector< DMatch >> matches;
 	matcher.knnMatch( descriptors[0], descriptors[1], matches, K );
 	
-	const float ratio_thresh = 0.7f;
+	const float ratio_thresh = 0.9f;
     std::vector<DMatch> good_matches;
     for (size_t i = 0; i < matches.size(); i++)
     {

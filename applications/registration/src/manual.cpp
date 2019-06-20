@@ -328,7 +328,7 @@ void ftl::registration::manual(ftl::Configurable *root) {
 					lastScore = 1000.0;
 					do {
 						Eigen::Matrix4d tr;
-						float s = current->findBestSubset(tr, (int)(current->screenPoints().size() * 0.4f), 100);
+						float s = current->findBestSubset(tr, 20, 100); // (int)(current->screenPoints().size() * 0.4f)
 						LOG(INFO) << "SCORE = " << s;
 						if (s < lastScore) {
 							lastScore = s;
@@ -353,7 +353,7 @@ void ftl::registration::manual(ftl::Configurable *root) {
 				current->capture(f1,f2);
 
 				vector<tuple<int,int,int,int>> feat;
-				if (ftl::registration::featuresSIFT(f1, f2, feat, 2)) {
+				if (ftl::registration::featuresSIFT(f1, f2, feat, 10)) {
 					for (int j=0; j<feat.size(); j++) {
 						auto [sx,sy,tx,ty] = feat[j];
 						current->add(tx, ty, sx, sy);

@@ -37,6 +37,7 @@ Correspondances::Correspondances(Correspondances *parent, Source *src)
 static void averageDepth(vector<Mat> &in, Mat &out, float varThresh) {
 	const int rows = in[0].rows;
 	const int cols = in[0].cols;
+	float varThresh2 = varThresh*varThresh;
 
 	// todo: create new only if out is empty (or wrong shape/type)
 	out = Mat(rows, cols, CV_32FC1);
@@ -62,16 +63,16 @@ static void averageDepth(vector<Mat> &in, Mat &out, float varThresh) {
 			for (int i_in = 0; i_in < in.size(); ++i_in) {
 				double d = in[i_in].at<float>(i);
 				if (d < 40.0) {
-					double delta = (d*1000.0 - sum*1000.0);
+					double delta = (d - sum);
 					var += delta*delta;
+
+					//LOG(INFO) << "VAR " << delta;
 				}
 			}
 			if (good_values > 1) var /= (double)(good_values-1);
 			else var = 0.0;
 
-			//LOG(INFO) << "VAR " << var;
-
-			if (var < varThresh) {
+			if (var < varThresh2) {
 				out.at<float>(i) = (float)sum;
 			} else {
 				out.at<float>(i) = 41.0f;
@@ -119,13 +120,14 @@ bool Correspondances::capture(cv::Mat &rgb1, cv::Mat &rgb2) {
 		targ_->grab();
 		src_->getFrames(rgb1, d1);
 		targ_->getFrames(rgb2, d2);
-		buffer[0][i] = d1;
-		buffer[1][i] = d2;
+
+		d1.copyTo(buffer[0][i]);
+		d2.copyTo(buffer[1][i]);
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	}
-	averageDepth(buffer[0], d1, 0.00000005f);
-	averageDepth(buffer[1], d2, 0.00000005f);
+	averageDepth(buffer[0], d1, 0.01f);
+	averageDepth(buffer[1], d2, 0.01f);
 	Mat d1_v, d2_v;
 	d1.convertTo(d1_v, CV_8U, 255.0f / 10.0f);
 	d2.convertTo(d2_v, CV_8U, 255.0f / 10.0f);
