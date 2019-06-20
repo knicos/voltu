@@ -22,6 +22,8 @@
 using std::string;
 using ftl::rgbd::Source;
 
+using ftl::rgbd::isValidDepth;
+
 /*struct SourceViews {
 	ftl::rgbd::RGBDSource *source;
 	GLTexture texture;
@@ -49,12 +51,12 @@ public:
 void StatisticsImage::update(const cv::Mat &in) {
 	DCHECK(in.type() == CV_32F);
 	DCHECK(in.size() == size_);
-	// Knuth's method 
+	// Welford's Method
 
 	n_++;
 	for (int i = 0; i < size_.width * size_.height; i++) {
 		float x = ((float*) in.data)[i];
-		if (x > 30.0f || x < 0.001) { continue; } // invalid value
+		if (!isValidDepth(x)) { continue; } // invalid value
 		float &m = data_[2*i];
 		float &S = data_[2*i+1];
 		float m_prev = m;
@@ -98,6 +100,7 @@ public:
 
 	void update(const cv::Mat &in);
 	void getStdDev(cv::Mat &out);
+	void getVariance(cv::Mat &out);
 	void getMean(cv::Mat &out);
 };
 
@@ -109,13 +112,20 @@ void StatisticsImageNSamples::update(const cv::Mat &in) {
 	in.copyTo(samples_[i_]);
 }
 
-void StatisticsImageNSamples::getStdDev(cv::Mat &in) {
-	// Knuth's method
+void StatisticsImageNSamples::getStdDev(cv::Mat &out) {
+	cv::Mat var;
+	getVariance(var);
+	cv::sqrt(var, out);
+}
+
+void StatisticsImageNSamples::getVariance(cv::Mat &out) {
+	// Welford's Method
 	cv::Mat mat_m(size_, CV_32F, 0.0f);
 	cv::Mat mat_S(size_, CV_32F, 0.0f);
 
 	float n = 0.0f;
 	for (int i_sample = (i_ + 1) % n_; i_sample != i_; i_sample = (i_sample + 1) % n_) {
+		if (samples_[i_sample].size() != size_) continue;
 		n += 1.0f;
 		for (int i = 0; i < size_.width * size_.height; i++) {
 			float &x = ((float*) samples_[i_sample].data)[i];
@@ -123,15 +133,14 @@ void StatisticsImageNSamples::getStdDev(cv::Mat &in) {
 			float &S = ((float*) mat_S.data)[i];
 			float m_prev = m;
 
-			if (x > 30.0 || x < 0.001) continue;
+			if (!isValidDepth(x)) continue;
 
 			m = m + (x - m) / n;
 			S = S + (x - m) * (x - m_prev);
 		}
 	}
 
-	mat_S.copyTo(in);
-	cv::sqrt(in, in);
+	mat_S.copyTo(out);
 }
 
 void StatisticsImageNSamples::getMean(cv::Mat &in) {}
