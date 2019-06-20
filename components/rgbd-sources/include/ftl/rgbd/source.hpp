@@ -19,6 +19,8 @@ class Universe;
 
 namespace rgbd {
 
+static inline bool isValidDepth(float d) { return (d > 0.0f) && (d <= 40.0f); }
+
 class SnapshotReader;
 
 enum capability_t {
