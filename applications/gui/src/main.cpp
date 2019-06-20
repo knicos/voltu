@@ -241,10 +241,11 @@ class FTLApplication : public nanogui::Screen {
 
 		//src_ = nullptr;
 		eye_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
+		neye_ = Eigen::Vector4f(0.0f, 0.0f, 0.0f, 0.0f);
 		orientation_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
 		up_ = Eigen::Vector3f(0,1.0f,0);
 		//lookPoint_ = Eigen::Vector3f(0.0f,0.0f,-4.0f);
-		lerpSpeed_ = 0.4f;
+		lerpSpeed_ = 0.999f;
 		depth_ = false;
 		ftime_ = (float)glfwGetTime();
 
@@ -324,30 +325,21 @@ class FTLApplication : public nanogui::Screen {
 		if (Screen::keyboardEvent(key, scancode, action, modifiers)) {
 			return true;
 		} else {
-			LOG(INFO) << "Key press " << key << " - " << action;
+			//LOG(INFO) << "Key press " << key << " - " << action;
 			if (key == 263 || key == 262) {
 				float scalar = (key == 263) ? -0.1f : 0.1f;
 				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
-				Vector4f neye = r.matrix()*Vector4f(scalar,0.0,0.0,1.0);
-				eye_[0] += neye[0];
-				eye_[1] += neye[1];
-				eye_[2] += neye[2];
+				neye_ += r.matrix()*Vector4f(scalar,0.0,0.0,1.0);
 				return true;
 			} else if (key == 264 || key == 265) {
 				float scalar = (key == 264) ? -0.1f : 0.1f;
 				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
-				Vector4f neye = r.matrix()*Vector4f(0.0,0.0,scalar,1.0);
-				eye_[0] += neye[0];
-				eye_[1] += neye[1];
-				eye_[2] += neye[2];
+				neye_ += r.matrix()*Vector4f(0.0,0.0,scalar,1.0);
 				return true;
 			} else if (key == 266 || key == 267) {
 				float scalar = (key == 266) ? -0.1f : 0.1f;
 				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
-				Vector4f neye = r.matrix()*Vector4f(0.0,scalar,0.0,1.0);
-				eye_[0] += neye[0];
-				eye_[1] += neye[1];
-				eye_[2] += neye[2];
+				neye_ += r.matrix()*Vector4f(0.0,scalar,0.0,1.0);
 				return true;
 			} else if (action == 1 && key == 'H') {
 				swindow_->setVisible(!swindow_->visible());
@@ -371,16 +363,16 @@ class FTLApplication : public nanogui::Screen {
 
 		if (src_) {
 			cv::Mat rgb, depth;
-			//centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * delta);
-			//Eigen::Matrix4f viewPose = lookAt<float>(eye_,centre_,up_).inverse();
+
+			// Lerp the Eye
+			eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+			eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+			eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
 
 			Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
 			Eigen::Translation3f trans(eye_);
 			Eigen::Affine3f t(trans);
 			Eigen::Matrix4f viewPose = (t * r).matrix();
-
-			//Eigen::Matrix4f viewPose = t.matrix();
-  			//viewPose *= r.matrix();
 
 			src_->setPose(viewPose);
 			src_->grab();
@@ -399,7 +391,7 @@ class FTLApplication : public nanogui::Screen {
 				case SourceWindow::Mode::depth:
 					if (depth.rows == 0) { break; }
 					imageSize = Vector2f(depth.cols,depth.rows);
-					depth.convertTo(tmp, CV_8U, 255.0f / 10.0f);  // TODO(nick)
+					depth.convertTo(tmp, CV_8U, 255.0f / 10.0f);
 					applyColorMap(tmp, tmp, cv::COLORMAP_JET);
 					texture_.update(tmp);
 					mImageID = texture_.texture();
@@ -463,6 +455,7 @@ class FTLApplication : public nanogui::Screen {
 	//Source *src_;
 	GLTexture texture_;
 	Eigen::Vector3f eye_;
+	Eigen::Vector4f neye_;
 	Eigen::Vector3f orientation_;
 	Eigen::Vector3f up_;
 	//Eigen::Vector3f lookPoint_;
