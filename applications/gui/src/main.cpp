@@ -305,13 +305,13 @@ class FTLApplication : public nanogui::Screen {
 				Eigen::Vector4f camPos;
 
 				try {
-					camPos = src_->point(sx,sy);
+					camPos = src_->point(sx,sy).cast<float>();
 				} catch(...) {
 					return true;
 				}
 				
 				camPos *= -1.0f;
-				Eigen::Vector4f worldPos =  src_->getPose() * camPos;
+				Eigen::Vector4f worldPos =  src_->getPose().cast<float>() * camPos;
 				//lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
 				LOG(INFO) << "Depth at click = " << -camPos[2];
 				return true;
@@ -374,7 +374,7 @@ class FTLApplication : public nanogui::Screen {
 			Eigen::Affine3f t(trans);
 			Eigen::Matrix4f viewPose = (t * r).matrix();
 
-			src_->setPose(viewPose);
+			src_->setPose(viewPose.cast<double>());
 			src_->grab();
 			src_->getFrames(rgb, depth);
 

@@ -64,20 +64,20 @@ void Display::init() {
 	source_ = nullptr;
 	cv::namedWindow(name_, cv::WINDOW_KEEPRATIO);
 
-	eye_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
-	centre_ = Eigen::Vector3f(0.0f, 0.0f, -4.0f);
-	up_ = Eigen::Vector3f(0,1.0f,0);
-	lookPoint_ = Eigen::Vector3f(0.0f,0.0f,-4.0f);
+	eye_ = Eigen::Vector3d(0.0, 0.0, 0.0);
+	centre_ = Eigen::Vector3d(0.0, 0.0, -4.0);
+	up_ = Eigen::Vector3d(0,1.0,0);
+	lookPoint_ = Eigen::Vector3d(0.0,0.0,-4.0);
 	lerpSpeed_ = 0.4f;
 
 	// Keyboard camera controls
 	onKey([this](int key) {
 		//LOG(INFO) << "Key = " << key;
 		if (key == 81 || key == 83) {
-			Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, up_);
+			Eigen::Quaternion<double> q;  q = Eigen::AngleAxis<double>((key == 81) ? 0.01 : -0.01, up_);
 			eye_ = (q * (eye_ - centre_)) + centre_;
 		} else if (key == 84 || key == 82) {
-			float scalar = (key == 84) ? 0.99f : 1.01f;
+			double scalar = (key == 84) ? 0.99 : 1.01;
 			eye_ = ((eye_ - centre_) * scalar) + centre_;
 		}
 	});
@@ -86,10 +86,10 @@ void Display::init() {
 	mouseaction_ = [this]( int event, int ux, int uy, int) {
 		//LOG(INFO) << "Mouse " << ux << "," << uy;
 		if (event == 1 && source_) {   // click
-			Eigen::Vector4f camPos = source_->point(ux,uy);
+			Eigen::Vector4d camPos = source_->point(ux,uy);
 			camPos *= -1.0f;
-			Eigen::Vector4f worldPos =  source_->getPose() * camPos;
-			lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
+			Eigen::Vector4d worldPos =  source_->getPose() * camPos;
+			lookPoint_ = Eigen::Vector3d(worldPos[0],worldPos[1],worldPos[2]);
 			LOG(INFO) << "Depth at click = " << -camPos[2];
 		}
 	};
@@ -118,7 +118,7 @@ void Display::update() {
 	if (!source_) return;
 
 	centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * 0.1f);
-	Eigen::Matrix4f viewPose = lookAt<float>(eye_,centre_,up_).inverse();
+	Eigen::Matrix4d viewPose = lookAt<double>(eye_,centre_,up_).inverse();
 	source_->setPose(viewPose);
 
 	Mat rgb, depth;

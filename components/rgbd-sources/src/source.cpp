@@ -27,7 +27,7 @@ using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::capability_t;
 
-Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4f::Identity()), net_(nullptr) {
+Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
 	params_ = {0};
 	reset();
@@ -38,7 +38,7 @@ Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matri
 	});
 }
 
-Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4f::Identity()), net_(net) {
+Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(net) {
 	impl_ = nullptr;
 	params_ = {0};
 	reset();
@@ -147,22 +147,38 @@ void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
 	depth = depth_;
 }
 
-Eigen::Vector4f Source::point(uint ux, uint uy) {
+Eigen::Vector4d Source::point(uint ux, uint uy) {
 	const auto &params = parameters();
-	const float x = ((float)ux+(float)params.cx) / (float)params.fx;
-	const float y = ((float)uy+(float)params.cy) / (float)params.fy;
+	const double x = ((double)ux+params.cx) / params.fx;
+	const double y = ((double)uy+params.cy) / params.fy;
 
 	SHARED_LOCK(mutex_,lk);
-	const float depth = depth_.at<float>(uy,ux);
-	return Eigen::Vector4f(x*depth,y*depth,depth,1.0);
+	const double depth = depth_.at<float>(uy,ux);
+	return Eigen::Vector4d(x*depth,y*depth,depth,1.0);
 }
 
-void Source::setPose(const Eigen::Matrix4f &pose) {
+Eigen::Vector4d Source::point(uint ux, uint uy, double d) {
+	const auto &params = parameters();
+	const double x = ((double)ux+params.cx) / params.fx;
+	const double y = ((double)uy+params.cy) / params.fy;
+	return Eigen::Vector4d(x*d,y*d,d,1.0);
+}
+
+Eigen::Vector2i Source::point(const Eigen::Vector4d &p) {
+	const auto &params = parameters();
+	double x = p[0] / p[2];
+	double y = p[1] / p[2];
+	x *= params.fx;
+	y *= params.fy;
+	return Eigen::Vector2i((int)(x - params.cx), (int)(y - params.cy));
+}
+
+void Source::setPose(const Eigen::Matrix4d &pose) {
 	pose_ = pose;
 	if (impl_) impl_->setPose(pose);
 }
 
-const Eigen::Matrix4f &Source::getPose() const {
+const Eigen::Matrix4d &Source::getPose() const {
 	return pose_;
 }
 

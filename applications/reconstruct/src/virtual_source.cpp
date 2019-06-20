@@ -50,7 +50,8 @@ bool VirtualSource::grab() {
 		params.m_sensorDepthWorldMin = params_.minDepth;
 		params.m_sensorDepthWorldMax = params_.maxDepth;
 
-		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, host_->getPose());
+		// TODO(Nick) Use double precision pose here
+		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, host_->getPose().cast<float>());
 
 		//unique_lock<mutex> lk(mutex_);
 		if (rays_->isIntegerDepth()) {
