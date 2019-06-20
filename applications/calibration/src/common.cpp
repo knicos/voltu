@@ -22,14 +22,28 @@ namespace ftl {
 namespace calibration {
 
 // Options
-
-string getOption(map<string, string> &options, const string &opt) {
-	auto str = options[opt];
-	return str.substr(1,str.size()-2);
+string getOption(const map<string, string> &options, const string &opt) {
+	const string str = options.at(opt);
+	return str.substr(1, str.size() - 2);
 }
 
 bool hasOption(const map<string, string> &options, const string &opt) {
 	return options.find(opt) != options.end();
+}
+
+int getOptionInt(const map<string, string> &options, const string &opt, int default_value) {
+	if (!hasOption(options, opt)) return default_value;
+	return std::stoi(getOption(options, opt));
+}
+
+double getOptionDouble(const map<string, string> &options, const string &opt, double default_value) {
+	if (!hasOption(options, opt)) return default_value;
+	return std::stod(getOption(options, opt));
+}
+
+string getOptionString(const map<string, string> &options, const string &opt, string default_value) {
+	if (!hasOption(options, opt)) return default_value;
+	return getOption(options, opt);
 }
 
 // Save/load files
@@ -81,13 +95,100 @@ bool loadIntrinsics(const string &ifile, Mat &M1, Mat &D1) {
 	return true;
 }
 
+Grid::Grid(int rows, int cols, int width, int height, 
+		   int offset_x, int offset_y) {
+	rows_ = rows;
+	cols_ = cols;
+	width_ = width;
+	height_ = height;
+	offset_x_ = offset_x;
+	offset_y_ = offset_y;
+	cell_width_ = width_ / cols_;
+	cell_height_ = height_ / rows_;
+	reset();
+
+	corners_ = vector<std::pair<cv::Point, cv::Point>>();
+
+	for (int r = 0; r < rows_; r++) {
+	for (int c = 0; c < cols_; c++) {
+		int x1 = offset_x_ + c * cell_width_;
+		int y1 = offset_y_ + r * cell_height_;
+		int x2 = offset_x_ + (c + 1) * cell_width_ - 1;
+		int y2 = offset_y_ + (r + 1) * cell_height_ - 1;
+		corners_.push_back(std::pair(cv::Point(x1, y1), cv::Point(x2, y2)));
+	}}
+}
+
+void Grid::drawGrid(Mat &rgb) {
+	for (size_t i = 0; i < rows_ * cols_; ++i) {	
+		bool visited = visited_[i];
+		cv::Scalar color = visited ? cv::Scalar(24, 255, 24) : cv::Scalar(24, 24, 255);
+		cv::rectangle(rgb, corners_[i].first, corners_[i].second, color, 2);
+	}
+}
+
+int Grid::checkGrid(cv::Point p1, cv::Point p2) {
+	// TODO calculate directly
+
+	for (size_t i = 0; i < rows_ * cols_; ++i) {
+		auto &corners = corners_[i];
+		if (p1.x >= corners.first.x &&
+			p1.x <= corners.second.x &&
+			p1.y >= corners.first.y &&
+			p1.y <= corners.second.y && 
+			p2.x >= corners.first.x &&
+			p2.x <= corners.second.x &&
+			p2.y >= corners.first.y &&
+			p2.y <= corners.second.y) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+void Grid::updateGrid(int i) {
+	if (i >= 0 && i < visited_.size() && !visited_[i]) {
+		visited_[i] = true;
+		visited_count_ += 1;
+	}
+}
+
+bool Grid::isVisited(int i) {
+	if (i >= 0 && i < visited_.size()) {
+		return visited_[i];
+	}
+	return false;
+}
+
+bool Grid::isComplete() {
+	return visited_count_ == visited_.size();
+}
+
+void Grid::reset() {
+	visited_count_ = 0;
+	visited_ = vector<bool>(rows_ * cols_, false);
+	// reset visited
+}
+
 // Calibration classes for different patterns
 
 CalibrationChessboard::CalibrationChessboard(const map<string, string> &opt) {
-	pattern_size_ = Size(9, 6);
-	image_size_ = Size(1280, 720);
-	pattern_square_size_ = 36.0;//0.036;
-	// CALIB_CB_NORMALIZE_IMAfE | CALIB_CB_EXHAUSTIVE | CALIB_CB_ACCURACY 
+	pattern_size_ = Size(	getOptionInt(opt, "cols", 9),
+							getOptionInt(opt, "rows", 6));
+	image_size_ = Size(	getOptionInt(opt, "width", 1280),
+						getOptionInt(opt, "height", 720));
+	pattern_square_size_ = getOptionDouble(opt, "square_size", 36.0);
+
+	LOG(INFO) << "Chessboard calibration parameters";
+	LOG(INFO) << "         rows: " << pattern_size_.width;
+	LOG(INFO) << "         cols: " << pattern_size_.height;
+	LOG(INFO) << "        width: " << image_size_.width;
+	LOG(INFO) << "       height: " << image_size_.height;
+	LOG(INFO) << "  square_size: " << pattern_square_size_;
+	LOG(INFO) << "-----------------------------------";
+
+	// CALIB_CB_NORMALIZE_IMAGE | CALIB_CB_EXHAUSTIVE | CALIB_CB_ACCURACY 
 	chessboard_flags_ = cv::CALIB_CB_NORMALIZE_IMAGE | cv::CALIB_CB_ACCURACY;
 }
 
