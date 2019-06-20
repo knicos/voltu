@@ -28,10 +28,10 @@ class Display : public ftl::Configurable {
 	Source *source_;
 	std::string name_;
 	std::vector<std::function<void(int)>> key_handlers_;
-	Eigen::Vector3f eye_;
-	Eigen::Vector3f centre_;
-	Eigen::Vector3f up_;
-	Eigen::Vector3f lookPoint_;
+	Eigen::Vector3d eye_;
+	Eigen::Vector3d centre_;
+	Eigen::Vector3d up_;
+	Eigen::Vector3d lookPoint_;
 	float lerpSpeed_;
 	bool active_;
 	MouseAction mouseaction_;

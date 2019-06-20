@@ -270,10 +270,11 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 				0, 0, cv::INTER_LINEAR);
 	}
 
-	cv::Ptr<cv::xphoto::WhiteBalancer> wb;
+	// Note: this seems to be too slow on CPU...
+	/*cv::Ptr<cv::xphoto::WhiteBalancer> wb;
 	wb = cv::xphoto::createSimpleWB();
 	wb->balanceWhite(l, l);
-	wb->balanceWhite(r, r);
+	wb->balanceWhite(r, r);*/
 
 	if (flip_v_) {
 		Mat tl, tr;

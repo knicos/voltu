@@ -118,12 +118,12 @@ class Source : public ftl::Configurable {
 	 * cameras this will move the camera, for physical cameras it is set by the
 	 * registration process as it attempts to work out a cameras relative pose.
 	 */
-	virtual void setPose(const Eigen::Matrix4f &pose);
+	virtual void setPose(const Eigen::Matrix4d &pose);
 
 	/**
 	 * Get the camera position as a pose matrix.
 	 */
-	const Eigen::Matrix4f &getPose() const;
+	const Eigen::Matrix4d &getPose() const;
 
 	/**
 	 * Check what features this source has available.
@@ -133,7 +133,15 @@ class Source : public ftl::Configurable {
 	/**
 	 * Get a point in camera coordinates at specified pixel location.
 	 */
-	Eigen::Vector4f point(uint x, uint y);
+	Eigen::Vector4d point(uint x, uint y);
+
+	/**
+	 * Get a point in camera coordinates at specified pixel location, with a
+	 * given depth value.
+	 */
+	Eigen::Vector4d point(uint x, uint y, double d);
+
+	Eigen::Vector2i point(const Eigen::Vector4d &p);
 
 	/**
 	 * Force the internal implementation to be reconstructed.
@@ -153,7 +161,7 @@ class Source : public ftl::Configurable {
 	cv::Mat rgb_;
 	cv::Mat depth_;
 	Camera params_;		// TODO Find better solution
-	Eigen::Matrix4f pose_;
+	Eigen::Matrix4d pose_;
 	ftl::net::Universe *net_;
 	std::shared_mutex mutex_;
 

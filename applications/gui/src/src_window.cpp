@@ -1,6 +1,8 @@
 #include "src_window.hpp"
 
 #include <nanogui/imageview.h>
+#include <nanogui/textbox.h>
+#include <nanogui/slider.h>
 #include <nanogui/combobox.h>
 #include <nanogui/label.h>
 #include <nanogui/opengl.h>
@@ -72,123 +74,48 @@ Eigen::Matrix<T,4,4> lookAt
 	return res;
 }
 
-class VirtualCameraView : public nanogui::ImageView {
-	public:
-	VirtualCameraView(nanogui::Widget *parent) : nanogui::ImageView(parent, 0) {
-		src_ = nullptr;
-		eye_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
-		centre_ = Eigen::Vector3f(0.0f, 0.0f, -4.0f);
-		up_ = Eigen::Vector3f(0,1.0f,0);
-		lookPoint_ = Eigen::Vector3f(0.0f,0.0f,-4.0f);
-		lerpSpeed_ = 0.4f;
-		depth_ = false;
-	}
-
-	void setSource(Source *src) { src_ = src; }
-
-	bool mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {
-		//LOG(INFO) << "Mouse move: " << p[0];
-		if (src_ && down) {
-			Eigen::Vector4f camPos = src_->point(p[0],p[1]);
-			camPos *= -1.0f;
-			Eigen::Vector4f worldPos =  src_->getPose() * camPos;
-			lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
-			LOG(INFO) << "Depth at click = " << -camPos[2];
-		}
-	}
-
-	bool keyboardEvent(int key, int scancode, int action, int modifiers) {
-		LOG(INFO) << "Key press" << key << " - " << action;
-		if (key == 81 || key == 83) {
-			// TODO Should rotate around lookAt object, but requires correct depth
-			Eigen::Quaternion<float> q;  q = Eigen::AngleAxis<float>((key == 81) ? 0.01f : -0.01f, up_);
-			eye_ = (q * (eye_ - centre_)) + centre_;
-		} else if (key == 84 || key == 82) {
-			float scalar = (key == 84) ? 0.99f : 1.01f;
-			eye_ = ((eye_ - centre_) * scalar) + centre_;
-		}
-	}
-
-	void draw(NVGcontext *ctx) {
-		//net_->broadcast("grab");
-		if (src_) {
-			cv::Mat rgb, depth;
-			centre_ += (lookPoint_ - centre_) * (lerpSpeed_ * 0.1f);
-			Eigen::Matrix4f viewPose = lookAt<float>(eye_,centre_,up_).inverse();
-
-			src_->setPose(viewPose);
-			src_->grab();
-			src_->getFrames(rgb, depth);
-
-			if (depth_) {
-				if (depth.rows > 0) {
-					cv::Mat idepth;
-					depth.convertTo(idepth, CV_8U, 255.0f / 10.0f);  // TODO(nick)
-    				applyColorMap(idepth, idepth, cv::COLORMAP_JET);
-					texture_.update(idepth);
-					bindImage(texture_.texture());
-				}
-			} else {
-				if (rgb.rows > 0) {
-					texture_.update(rgb);
-					bindImage(texture_.texture());
-				}
-			}
-
-			screen()->performLayout(ctx);
-		}
-		ImageView::draw(ctx);
-	}
-
-	void setDepth(bool d) { depth_ = d; }
-
-	private:
-	Source *src_;
-	GLTexture texture_;
-	Eigen::Vector3f eye_;
-	Eigen::Vector3f centre_;
-	Eigen::Vector3f up_;
-	Eigen::Vector3f lookPoint_;
-	float lerpSpeed_;
-	bool depth_;
-};
-
 SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		: nanogui::Window(parent, "Source View"), ctrl_(ctrl) {
 	setLayout(new nanogui::GroupLayout());
 
 	using namespace nanogui;
-
-	depth_ = false;
-    src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
+	
+	mode_ = Mode::rgb;
+	src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
 
 	//Widget *tools = new Widget(this);
-    //    tools->setLayout(new BoxLayout(Orientation::Horizontal,
-    //                                   Alignment::Middle, 0, 6));
+	//    tools->setLayout(new BoxLayout(Orientation::Horizontal,
+	//                                   Alignment::Middle, 0, 6));
 
-    new Label(this, "Select source","sans-bold");
-    available_ = ctrl->getNet()->findAll<string>("list_streams");
-    auto select = new ComboBox(this, available_);
-    select->setCallback([this,select](int ix) {
-        LOG(INFO) << "Change source: " << ix;
-        src_->set("uri", available_[ix]);
-    });
+	new Label(this, "Select source","sans-bold");
+	available_ = ctrl->getNet()->findAll<string>("list_streams");
+	auto select = new ComboBox(this, available_);
+	select->setCallback([this,select](int ix) {
+		LOG(INFO) << "Change source: " << ix;
+		src_->set("uri", available_[ix]);
+});
 
 	ctrl->getNet()->onConnect([this,select](ftl::net::Peer *p) {
-		 available_ = ctrl_->getNet()->findAll<string>("list_streams");
-		 select->setItems(available_);
+		available_ = ctrl_->getNet()->findAll<string>("list_streams");
+		select->setItems(available_);
 	});
 
-	auto depth = new Button(this, "Depth");
-	depth->setFlags(Button::ToggleButton);
-	depth->setChangeCallback([this](bool state) {
-		//image_->setDepth(state);
-		depth_ = state;
-	});
+	auto button_rgb = new Button(this, "RGB (left)");
+	button_rgb->setFlags(Button::RadioButton);
+	button_rgb->setPushed(true);
+	button_rgb->setChangeCallback([this](bool state) { mode_ = Mode::rgb; });
+
+	auto button_depth = new Button(this, "Depth");
+	button_depth->setFlags(Button::RadioButton);
+	button_depth->setChangeCallback([this](bool state) { mode_ = Mode::depth; });
+
+	auto button_stddev = new Button(this, "Standard Deviation (25 frames)");
+	button_stddev->setFlags(Button::RadioButton);
+	button_stddev->setChangeCallback([this](bool state) { mode_ = Mode::stddev; });
 
 #ifdef HAVE_LIBARCHIVE
-	auto snapshot = new Button(this, "Snapshot");
-	snapshot->setCallback([this] {
+	auto button_snapshot = new Button(this, "Snapshot");
+	button_snapshot->setCallback([this] {
 		try {
 			char timestamp[18];
 			std::time_t t=std::time(NULL);

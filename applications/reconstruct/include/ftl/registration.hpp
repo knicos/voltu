@@ -14,11 +14,11 @@
 namespace ftl {
 namespace registration {
 
-void to_json(nlohmann::json &json, std::map<std::string, Eigen::Matrix4f> &transformations);
-void from_json(nlohmann::json &json, std::map<std::string, Eigen::Matrix4f> &transformations);
+void to_json(nlohmann::json &json, std::map<std::string, Eigen::Matrix4d> &transformations);
+void from_json(nlohmann::json &json, std::map<std::string, Eigen::Matrix4d> &transformations);
 
-bool loadTransformations(const std::string &path, std::map<std::string, Eigen::Matrix4f> &data);
-bool saveTransformations(const std::string &path, std::map<std::string, Eigen::Matrix4f> &data);
+bool loadTransformations(const std::string &path, std::map<std::string, Eigen::Matrix4d> &data);
+bool saveTransformations(const std::string &path, std::map<std::string, Eigen::Matrix4d> &data);
 
 /** @brief	Find transformation matrix for transforming clouds_source to clouds_target.
  *			Assumes that corresponding points in clouds_source[i] and clouds_target[i] have same indices.

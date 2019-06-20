@@ -10,7 +10,7 @@ using ftl::rgbd::detail::SnapshotSource;
 using std::string;
 
 SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, const string &id) : detail::Source(host) {
-    Eigen::Matrix4f pose;
+    Eigen::Matrix4d pose;
     reader.getCameraRGBD(id, rgb_, depth_, pose, params_);
     setPose(pose);
 }

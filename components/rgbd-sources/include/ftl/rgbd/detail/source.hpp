@@ -22,7 +22,7 @@ class Source {
 
 	virtual bool grab()=0;
 	virtual bool isReady() { return false; };
-	virtual void setPose(const Eigen::Matrix4f &pose) { };
+	virtual void setPose(const Eigen::Matrix4d &pose) { };
 
 	protected:
 	ftl::rgbd::Source *host_;

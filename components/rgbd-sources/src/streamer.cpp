@@ -51,7 +51,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
-			Eigen::Matrix4f pose;
+			Eigen::Matrix4d pose;
 			memcpy(pose.data(), buf.data(), buf.size());
 			sources_[uri]->src->setPose(pose);
 		}
