@@ -25,7 +25,7 @@ class NetSource : public detail::Source {
 	bool grab();
 	bool isReady();
 
-	void setPose(const Eigen::Matrix4f &pose);
+	void setPose(const Eigen::Matrix4d &pose);
 
 	void reset();
 

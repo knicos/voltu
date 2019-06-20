@@ -2,6 +2,9 @@
 #include <nlohmann/json.hpp>
 #include <random>
 #include <chrono>
+#include <thread>
+#include <opencv2/xphoto.hpp>
+#include <pcl/registration/icp.h>
 
 using ftl::registration::Correspondances;
 using std::string;
@@ -14,6 +17,7 @@ using pcl::PointXYZRGB;
 using nlohmann::json;
 using std::tuple;
 using std::make_tuple;
+using cv::Mat;
 
 
 Correspondances::Correspondances(Source *src, Source *targ)
@@ -30,34 +34,56 @@ Correspondances::Correspondances(Correspondances *parent, Source *src)
 	transform_.setIdentity();
 }
 
-bool Correspondances::add(int tx, int ty, int sx, int sy) {
-	Eigen::Vector4f p1 = targ_->point(tx,ty);
-	Eigen::Vector4f p2 = src_->point(sx,sy);
-	PointXYZ pcl_p1;
-	pcl_p1.x = p1[0];
-	pcl_p1.y = p1[1];
-	pcl_p1.z = p1[2];
+static void averageDepth(vector<Mat> &in, Mat &out, float varThresh) {
+	const int rows = in[0].rows;
+	const int cols = in[0].cols;
 
-	PointXYZ pcl_p2;
-	pcl_p2.x = p2[0];
-	pcl_p2.y = p2[1];
-	pcl_p2.z = p2[2];
+	// todo: create new only if out is empty (or wrong shape/type)
+	out = Mat(rows, cols, CV_32FC1);
 
-	if (pcl_p2.z >= 40.0f || pcl_p1.z >= 40.0f) {
-		LOG(WARNING) << "Bad point choosen";
-		return false;
+	for (int i = 0; i < rows * cols; ++i) {
+		double sum = 0;
+		int good_values = 0;
+
+		// Calculate mean
+		for (int i_in = 0; i_in < in.size(); ++i_in) {
+			double d = in[i_in].at<float>(i);
+			if (d < 40.0) {
+				good_values++;
+				sum += d;
+			}
+		}
+
+		if (good_values > 0) {
+			sum /= (double)good_values;
+
+			// Calculate variance
+			double var = 0.0;
+			for (int i_in = 0; i_in < in.size(); ++i_in) {
+				double d = in[i_in].at<float>(i);
+				if (d < 40.0) {
+					double delta = (d*1000.0 - sum*1000.0);
+					var += delta*delta;
+				}
+			}
+			if (good_values > 1) var /= (double)(good_values-1);
+			else var = 0.0;
+
+			//LOG(INFO) << "VAR " << var;
+
+			if (var < varThresh) {
+				out.at<float>(i) = (float)sum;
+			} else {
+				out.at<float>(i) = 41.0f;
+			}
+		} else {
+			out.at<float>(i) = 41.0f;
+		}
 	}
-
-	targ_cloud_->push_back(pcl_p1);
-	src_cloud_->push_back(pcl_p2);
-	log_.push_back(make_tuple(tx,ty,sx,sy));
-
-	uptodate_ = false;
-	return true;
 }
 
-PointXYZ makePCL(Source *s, int x, int y) {
-	Eigen::Vector4f p1 = s->point(x,y);
+static PointXYZ makePCL(Source *s, int x, int y) {
+	Eigen::Vector4d p1 = s->point(x,y);
 	PointXYZ pcl_p1;
 	pcl_p1.x = p1[0];
 	pcl_p1.y = p1[1];
@@ -65,26 +91,213 @@ PointXYZ makePCL(Source *s, int x, int y) {
 	return pcl_p1;
 }
 
+void Correspondances::clear() {
+	targ_cloud_->clear();
+	src_cloud_->clear();
+	src_index_ = cv::Mat(cv::Size(src_->parameters().width, src_->parameters().height), CV_32SC1, cv::Scalar(-1));
+	targ_index_ = cv::Mat(cv::Size(targ_->parameters().width, targ_->parameters().height), CV_32SC1, cv::Scalar(-1));
+	src_feat_.clear();
+	targ_feat_.clear();
+	log_.clear();
+}
+
+void Correspondances::clearCorrespondances() {
+	src_feat_.clear();
+	targ_feat_.clear();
+	log_.clear();
+	uptodate_ = false;
+}
+
+bool Correspondances::capture(cv::Mat &rgb1, cv::Mat &rgb2) {
+	Mat d1, d2;
+	size_t buffer_size = 10;
+	size_t buffer_i = 0;
+	vector<vector<Mat>> buffer(2, vector<Mat>(buffer_size));
+
+	for (size_t i = 0; i < buffer_size; ++i) {
+		src_->grab();
+		targ_->grab();
+		src_->getFrames(rgb1, d1);
+		targ_->getFrames(rgb2, d2);
+		buffer[0][i] = d1;
+		buffer[1][i] = d2;
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	}
+	averageDepth(buffer[0], d1, 0.00000005f);
+	averageDepth(buffer[1], d2, 0.00000005f);
+	Mat d1_v, d2_v;
+	d1.convertTo(d1_v, CV_8U, 255.0f / 10.0f);
+	d2.convertTo(d2_v, CV_8U, 255.0f / 10.0f);
+	applyColorMap(d1_v, d1_v, cv::COLORMAP_JET);
+	applyColorMap(d2_v, d2_v, cv::COLORMAP_JET);
+
+	cv::imshow("smooth d1", d1_v);
+	cv::imshow("smooth d2", d2_v);
+
+	// Should be done in RGB-Depth source class
+	cv::Ptr<cv::xphoto::WhiteBalancer> wb;
+	wb = cv::xphoto::createSimpleWB();
+	wb->balanceWhite(rgb1, rgb1);
+	wb->balanceWhite(rgb2, rgb2);
+
+	// Build point clouds
+	clear();
+	int six=0;
+	int tix=0;
+
+	for (int y=0; y<rgb1.rows; y++) {
+		//unsigned char *rgb1ptr = rgb1.ptr(y);
+		//unsigned char *rgb2ptr = rgb2.ptr(y);
+		float *d1ptr = (float*)d1.ptr(y);
+		float *d2ptr = (float*)d2.ptr(y);
+
+		for (int x=0; x<rgb1.cols; x++) {
+			float d1_value = d1ptr[x];
+			float d2_value = d2ptr[x];
+
+			if (d1_value < 39.0f) {
+				// Make PCL points with specific depth value
+				pcl::PointXYZ p1;
+				Eigen::Vector4d p1e = src_->point(x,y,d1_value);
+				p1.x = p1e[0];
+				p1.y = p1e[1];
+				p1.z = p1e[2];
+				src_cloud_->push_back(p1);
+				src_index_.at<int>(y,x) = six;
+				six++;
+			}
+
+			if (d2_value < 39.0f) {
+				// Make PCL points with specific depth value
+				pcl::PointXYZ p2;
+				Eigen::Vector4d p2e = targ_->point(x,y,d2_value);
+				p2.x = p2e[0];
+				p2.y = p2e[1];
+				p2.z = p2e[2];
+				targ_cloud_->push_back(p2);
+				targ_index_.at<int>(y,x) = tix;
+				tix++;
+			}
+		}
+	}
+}
+
+bool Correspondances::add(int tx, int ty, int sx, int sy) {
+	LOG(INFO) << "Adding...";
+	int tix = targ_index_.at<int>(ty,tx);
+	int six = src_index_.at<int>(sy,sx);
+
+	// Validate feature
+	if (tix == -1 || six == -1) {
+		LOG(WARNING) << "Bad point";
+		return false;
+	}
+
+	log_.push_back(make_tuple(tx,ty,sx,sy));
+
+	// Record correspondance point cloud point indexes
+	src_feat_.push_back(six);
+	targ_feat_.push_back(tix);
+
+	uptodate_ = false;
+	LOG(INFO) << "Point added: " << tx << "," << ty << " and " << sx << "," << sy;
+	return true;
+}
+
 void Correspondances::removeLast() {
 	uptodate_ = false;
-	targ_cloud_->erase(targ_cloud_->end()-1);
-	src_cloud_->erase(src_cloud_->end()-1);
+	targ_feat_.erase(targ_feat_.end()-1);
+	src_feat_.erase(src_feat_.end()-1);
 	log_.pop_back();
 }
 
-double Correspondances::estimateTransform() {
+double Correspondances::estimateTransform(Eigen::Matrix4d &T) {
+	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ, double> validate;
+	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ, double> svd;
+
+	validate.setMaxRange(0.1);
+
+	svd.estimateRigidTransformation(*src_cloud_, src_feat_, *targ_cloud_, targ_feat_, T);
+	return validate.validateTransformation(src_cloud_, targ_cloud_, T);
+}
+
+double Correspondances::estimateTransform(Eigen::Matrix4d &T, const vector<int> &src_feat, const vector<int> &targ_feat) {
+	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ, double> validate;
+	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ, double> svd;
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr targ_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr src_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr tsrc_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+	vector<int> idx;
+
+	for (int i=0; i<src_feat.size(); i++) {
+		idx.push_back(i);
+		src_cloud->push_back(src_cloud_->at(src_feat[i]));
+		targ_cloud->push_back(targ_cloud_->at(targ_feat[i]));
+	}
+
+	pcl::transformPointCloud(*src_cloud, *tsrc_cloud, transform_);
+
+	validate.setMaxRange(0.1);
+
+	svd.estimateRigidTransformation(*tsrc_cloud, idx, *targ_cloud, idx, T);
+	T = T * transform_;
 	uptodate_ = true;
-	int n_points = targ_cloud_->size();
+	float score = validate.validateTransformation(src_cloud, targ_cloud, T);
+	return score;
+}
 
-	vector<int> idx(n_points);
-	for (int i = 0; i < n_points; i++) { idx[i] = i; }
+double Correspondances::icp() {
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr tsrc_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ> validate;
-	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ> svd;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr targ_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr src_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr tsrc_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-	svd.estimateRigidTransformation(*src_cloud_, idx, *targ_cloud_, idx, transform_);
+	vector<int> idx;
 
-	return validate.validateTransformation(src_cloud_, targ_cloud_, transform_);
+	for (int i=0; i<src_feat_.size(); i++) {
+		idx.push_back(i);
+		src_cloud->push_back(src_cloud_->at(src_feat_[i]));
+		targ_cloud->push_back(targ_cloud_->at(targ_feat_[i]));
+	}
+
+	pcl::transformPointCloud(*src_cloud, *tsrc_cloud, transform_);
+
+	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ, double> icp;
+	icp.setInputSource(tsrc_cloud);
+	icp.setInputTarget(targ_cloud);
+	icp.align(*final_cloud);
+	LOG(INFO) << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore();
+	transform_ *= icp.getFinalTransformation();
+	return icp.getFitnessScore();
+}
+
+double Correspondances::icp(const Eigen::Matrix4d &T_in, Eigen::Matrix4d &T_out, const vector<int> &idx) {
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr tsrc_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr targ_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr src_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr tsrc_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+	for (int i=0; i<idx.size(); i++) {
+		src_cloud->push_back(src_cloud_->at(src_feat_[idx[i]]));
+		targ_cloud->push_back(targ_cloud_->at(targ_feat_[idx[i]]));
+	}
+
+	pcl::transformPointCloud(*src_cloud, *tsrc_cloud, T_in);
+
+	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ, double> icp;
+	icp.setInputSource(tsrc_cloud);
+	icp.setInputTarget(targ_cloud);
+	icp.align(*final_cloud);
+	LOG(INFO) << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore();
+	T_out = T_in * icp.getFinalTransformation();
+	return icp.getFitnessScore();
 }
 
 static std::default_random_engine generator;
@@ -99,64 +312,94 @@ void Correspondances::convertToPCL(const std::vector<std::tuple<int,int,int,int>
 	}
 }
 
-double Correspondances::findBest(Eigen::Matrix4f &tr, const std::vector<std::tuple<int,int,int,int>> &p, const std::vector<std::pair<pcl::PointXYZ, pcl::PointXYZ>> &pp, int K, int N) {
-	double score = 10000.0f;
-	vector<tuple<int,int,int,int>> best;
-	Eigen::Matrix4f bestT;
+void Correspondances::getFeatures3D(std::vector<Eigen::Vector4d> &f) {
+	for (int i=0; i<src_feat_.size(); i++) {
+		Eigen::Vector4d p;
+		const pcl::PointXYZ &pp = src_cloud_->at(src_feat_[i]);
+		p[0] = pp.x;
+		p[1] = pp.y;
+		p[2] = pp.z;
+		p[3] = 1.0;
+		f.push_back(p);
+	}
+}
 
-	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ> validate;
-	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ> svd;
+void Correspondances::getTransformedFeatures(std::vector<Eigen::Vector4d> &f) {
+	for (int i=0; i<src_feat_.size(); i++) {
+		Eigen::Vector4d p;
+		const pcl::PointXYZ &pp = src_cloud_->at(src_feat_[i]);
+		p[0] = pp.x;
+		p[1] = pp.y;
+		p[2] = pp.z;
+		p[3] = 1.0;
+		f.push_back(transform_ * p);
+	}
+}
+
+void Correspondances::getTransformedFeatures2D(std::vector<Eigen::Vector2i> &f) {
+	for (int i=0; i<src_feat_.size(); i++) {
+		Eigen::Vector4d p;
+		const pcl::PointXYZ &pp = src_cloud_->at(src_feat_[i]);
+		p[0] = pp.x;
+		p[1] = pp.y;
+		p[2] = pp.z;
+		p[3] = 1.0;
+		f.push_back(src_->point(transform_ * p));
+	}
+}
+
+double Correspondances::findBestSubset(Eigen::Matrix4d &tr, int K, int N) {
+	double score = 10000.0f;
+	vector<int> best;
+	Eigen::Matrix4d bestT;
 
 	std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
-	std::uniform_int_distribution<int> distribution(0,p.size()-1);
+	std::uniform_int_distribution<int> distribution(0,src_feat_.size()-1);
 	//int dice_roll = distribution(generator);
 	auto dice = std::bind ( distribution, rng );
 
-	vector<int> idx(K);
-	for (int i = 0; i < K; i++) { idx[i] = i; }
+	vector<int> sidx(K);
+	vector<int> tidx(K);
+	//for (int i = 0; i < K; i++) { idx[i] = i; }
+
+	// 1. Build complete point clouds using filtered and smoothed depth maps
+	// 2. Build a full index map of x,y to point cloud index.
+	// 3. Generate random subsets of features using index map
+	// 4. Find minimum
 
 	for (int n=0; n<N; n++) {
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_t(new PointCloud<PointXYZ>);
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_s(new PointCloud<PointXYZ>);
 
-		vector<tuple<int,int,int,int>> ps;
+		sidx.clear();
+		tidx.clear();
 
+		vector<int> idx;
 		for (int k=0; k<K; k++) {
 			int r = dice();
-			//LOG(INFO) << "DICE " << r << "  -  " << K;
-			//ps.push_back(p[r]);
-			auto [sx,sy,tx,ty] = p[r];
-			//LOG(INFO) << "POINT " << sx << "," << sy;
-			//auto p1 = makePCL(src_, sx, sy);
-			//auto p2 = makePCL(targ_, tx, ty);
-
-			auto [p1,p2] = pp[r];
-
-			if (p1.z >= 30.0f || p2.z >= 30.0f) { k--; continue; }
-			ps.push_back(std::make_tuple(tx,ty,sx,sy));
-			cloud_s->push_back(p1);
-			cloud_t->push_back(p2);
+			idx.push_back(r);
+			sidx.push_back(src_feat_[r]);
+			tidx.push_back(targ_feat_[r]);
 		}
 
-		Eigen::Matrix4f T;
-		svd.estimateRigidTransformation(*cloud_s, idx, *cloud_t, idx, T);
-		float scoreT = validate.validateTransformation(cloud_s, cloud_t, T);
+		Eigen::Matrix4d T;
+		float scoreT = estimateTransform(T, sidx, tidx);
 
 		if (scoreT < score) {
 			score = scoreT;
-			best = ps;
 			bestT = T;
+			best = idx;
 		}
 	}
 
+	return icp(bestT, tr, best);
+
 	// TODO Add these best points to actual clouds.
-	log_ = best;
-	tr = bestT;
+	//log_ = best;
+	//tr = bestT;
 	//uptodate_ = true;
-	return score;
+	//return score;
 }
 
-Eigen::Matrix4f Correspondances::transform() {
-	if (!uptodate_) estimateTransform();
+Eigen::Matrix4d Correspondances::transform() {
+	if (!uptodate_) estimateTransform(transform_);
 	return (parent_) ? parent_->transform() * transform_ : transform_;
 }

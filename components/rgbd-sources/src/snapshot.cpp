@@ -5,15 +5,13 @@
 using namespace ftl::rgbd;
 
 using cv::Mat;
-using Eigen::Matrix4f;
+using Eigen::Matrix4d;
 
 using cv::imencode;
 using cv::imdecode;
 
 using std::string;
 using std::vector;
-
-using Eigen::Matrix4f;
 
 // TODO: move to camera_params
 using ftl::rgbd::Camera;
@@ -120,18 +118,18 @@ bool SnapshotWriter::addMat(const string &name, const Mat &mat, const std::strin
 	return retval;
 }
 
-bool SnapshotWriter::addEigenMatrix4f(const string &name, const Matrix4f &m, const string &format) {
+bool SnapshotWriter::addEigenMatrix4d(const string &name, const Matrix4d &m, const string &format) {
 	Mat tmp;
 	cv::eigen2cv(m, tmp);
 	return addMat(name, tmp, format);
 }
 
 bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat &depth,
-							 const Matrix4f &pose, const Camera &params) {
+							 const Matrix4d &pose, const Camera &params) {
 	bool retval = true;
 	retval &= addMat(name + "-RGB", rgb);
 	retval &= addMat(name + "-D", depth);
-	retval &= addEigenMatrix4f(name + "-POSE", pose);
+	retval &= addEigenMatrix4d(name + "-POSE", pose);
 
 	nlohmann::json j;
 	to_json(j, params);
@@ -223,7 +221,7 @@ bool SnapshotReader::readArchive() {
 			if (!readEntry(data)) continue;
 			Mat m_ = cv::imdecode(Mat(data), 0);
 			if ((m_.rows != 4) || (m_.cols != 4)) continue;
-			cv::Matx44f pose_(m_);
+			cv::Matx44d pose_(m_);
 			cv::cv2eigen(pose_, snapshot.pose);
 			snapshot.status &= ~(1 << 2);
 		}
@@ -256,7 +254,7 @@ vector<string> SnapshotReader::getIds() {
 }
 
 bool SnapshotReader::getCameraRGBD(const string &id, Mat &rgb, Mat &depth,
-							 Matrix4f &pose, Camera &params) {
+							 Matrix4d &pose, Camera &params) {
 	if (data_.find(id) == data_.end()) {
 		LOG(ERROR) << "entry not found: " << id;
 		return false;

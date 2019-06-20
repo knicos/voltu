@@ -32,6 +32,11 @@ class Correspondances {
 	ftl::rgbd::Source *source() { return src_; }
 	ftl::rgbd::Source *target() { return targ_; }
 
+	void clear();
+	void clearCorrespondances();
+
+	bool capture(cv::Mat &rgb1, cv::Mat &rgb2);
+
 	/**
 	 * Add a new correspondance point. The point will only be added if there is
 	 * a valid depth value at that location.
@@ -47,6 +52,9 @@ class Correspondances {
 	void removeLast();
 
 	const std::vector<std::tuple<int,int,int,int>> &screenPoints() const { return log_; }
+	void getFeatures3D(std::vector<Eigen::Vector4d> &f);
+	void getTransformedFeatures(std::vector<Eigen::Vector4d> &f);
+	void getTransformedFeatures2D(std::vector<Eigen::Vector2i> &f);
 
 	void setPoints(const std::vector<std::tuple<int,int,int,int>> &p) { log_ = p; }
 
@@ -55,9 +63,13 @@ class Correspondances {
 	 * 
 	 * @return Validation score of the transform.
 	 */
-	double estimateTransform();
+	double estimateTransform(Eigen::Matrix4d &);
+	double estimateTransform(Eigen::Matrix4d &T, const std::vector<int> &src_feat, const std::vector<int> &targ_feat);
 
-	double findBest(Eigen::Matrix4f &tr, const std::vector<std::tuple<int,int,int,int>> &p, const std::vector<std::pair<pcl::PointXYZ, pcl::PointXYZ>> &p2, int K, int N);
+	double findBestSubset(Eigen::Matrix4d &tr, int K, int N);
+
+	double icp();
+	double icp(const Eigen::Matrix4d &T_in, Eigen::Matrix4d &T_out, const std::vector<int> &idx);
 
 	void convertToPCL(const std::vector<std::tuple<int,int,int,int>> &p, std::vector<std::pair<pcl::PointXYZ, pcl::PointXYZ>> &p2);
 
@@ -65,9 +77,9 @@ class Correspondances {
 	 * Get the estimated transform. This includes any parent transforms to make
 	 * it relative to root camera.
 	 */
-	Eigen::Matrix4f transform();
+	Eigen::Matrix4d transform();
 
-	void setTransform(Eigen::Matrix4f &t) { uptodate_ = true; transform_ = t; }
+	void setTransform(Eigen::Matrix4d &t) { uptodate_ = true; transform_ = t; }
 
 	private:
 	Correspondances *parent_;
@@ -75,9 +87,13 @@ class Correspondances {
 	ftl::rgbd::Source *src_;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr targ_cloud_;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr src_cloud_;
-	Eigen::Matrix4f transform_;
+	Eigen::Matrix4d transform_;
 	bool uptodate_;
 	std::vector<std::tuple<int,int,int,int>> log_;
+	cv::Mat src_index_;
+	cv::Mat targ_index_;
+	std::vector<int> targ_feat_;
+	std::vector<int> src_feat_;
 };
 
 }

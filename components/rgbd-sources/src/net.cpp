@@ -115,7 +115,7 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 	//}
 }
 
-void NetSource::setPose(const Eigen::Matrix4f &pose) {
+void NetSource::setPose(const Eigen::Matrix4d &pose) {
 	if (!active_) return;
 
 	vector<unsigned char> vec((unsigned char*)pose.data(), (unsigned char*)(pose.data()+(pose.size())));

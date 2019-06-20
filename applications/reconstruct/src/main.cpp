@@ -102,13 +102,13 @@ static void run(ftl::Configurable *root) {
 	if (!merge) {
 		LOG(WARNING) << "Input merging not configured, using only first input in configuration";
 		inputs = { inputs[0] };
-		inputs[0].source->setPose(Eigen::Matrix4f::Identity());
+		inputs[0].source->setPose(Eigen::Matrix4d::Identity());
 	}
 
 	if (inputs.size() > 1) {
-		std::map<std::string, Eigen::Matrix4f> transformations;
+		std::map<std::string, Eigen::Matrix4d> transformations;
 
-		if ((*merge)["register"]) {
+		/*if ((*merge)["register"]) {
 			LOG(INFO) << "Registration requested";
 
 			ftl::registration::Registration *reg = ftl::registration::ChessboardRegistration::create(*merge);
@@ -129,14 +129,14 @@ static void run(ftl::Configurable *root) {
 
 			free(reg);
 		}
-		else {
+		else {*/
 			if (loadTransformations(string(FTL_LOCAL_CONFIG_ROOT) + "/registration.json", transformations)) {
 				LOG(INFO) << "Loaded camera trasformations from file";
 			}
 			else {
 				LOG(ERROR) << "Error loading camera transformations from file";
 			}
-		}
+		//}
 
 		for (auto &input : inputs) {
 			string uri = input.source->getURI();
@@ -146,7 +146,7 @@ static void run(ftl::Configurable *root) {
 				LOG(WARNING) << "Using only first configured source";
 				// TODO: use target source if configured and found
 				inputs = { inputs[0] };
-				inputs[0].source->setPose(Eigen::Matrix4f::Identity());
+				inputs[0].source->setPose(Eigen::Matrix4d::Identity());
 				break;
 			}
 			input.source->setPose(T->second);
@@ -244,7 +244,8 @@ static void run(ftl::Configurable *root) {
 				// Send to GPU and merge view into scene
 				inputs[i].gpu.updateParams(inputs[i].params);
 				inputs[i].gpu.updateData(depth, rgba);
-				scene->integrate(inputs[i].source->getPose(), inputs[i].gpu, inputs[i].params, nullptr);
+				// TODO(Nick): Use double pose
+				scene->integrate(inputs[i].source->getPose().cast<float>(), inputs[i].gpu, inputs[i].params, nullptr);
 			}
 		} else {
 			active = 1;
