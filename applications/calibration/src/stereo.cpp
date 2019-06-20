@@ -24,12 +24,46 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	LOG(INFO) << "Begin stereo calibration";
 
 	// TODO PARAMETERS TO CONFIG FILE
-	Size image_size = Size(1280, 720);
-	int iter = 30;
-	double max_error = 1.0;
-	float alpha = 0;
-	string filename_intrinsics = (hasOption(opt, "profile")) ? getOption(opt, "profile") : "./panasonic.yml";
-	CalibrationChessboard calib(opt); // TODO paramters hardcoded in constructor
+	// image size, also used by CalibrationChessboard
+	Size image_size = Size(	getOptionInt(opt, "width", 1280),
+							getOptionInt(opt, "height", 720));
+	// iterations
+	int iter = getOptionInt(opt, "iter", 3);
+	// delay between images
+	double delay = getOptionInt(opt, "delay", 250);
+	// max_error for a single image; if error larger image discarded
+	double max_error = getOptionDouble(opt, "max_error", 1.0);
+	// scaling/cropping (see OpenCV stereoRectify())
+	float alpha = getOptionDouble(opt, "alpha", 0);
+	// intrinsics filename
+	string filename_intrinsics = getOptionString(opt, "profile", "./panasonic.yml");
+
+	bool use_grid = (bool) getOptionInt(opt, "use_grid", 1);
+
+	LOG(INFO) << "Stereo calibration parameters";
+	LOG(INFO) << "     profile: " << filename_intrinsics;
+	LOG(INFO) << "       width: " << image_size.width;
+	LOG(INFO) << "      height: " << image_size.height;
+	LOG(INFO) << "        iter: " << iter;
+	LOG(INFO) << "       delay: " << delay;
+	LOG(INFO) << "   max_error: " << max_error;
+	LOG(INFO) << "       alpha: " << alpha;
+	LOG(INFO) << "    use_grid: " << use_grid;
+	LOG(INFO) << "-----------------------------------";
+
+	CalibrationChessboard calib(opt);
+	vector<Grid> grids;
+	int grid_i = 0;
+
+	// grid parameters, 3x3 grid; one small grid and one large grid. Grids are cycled until
+	// iter reaches zero
+	grids.push_back(Grid(3, 3,
+						(3.0f/4.0f) * image_size.width, (3.0f/4.0f) * image_size.height,
+						((1.0f/4.0f) * image_size.width) / 2, ((1.0f/4.0f) * image_size.height) / 2));
+
+	grids.push_back(Grid(3, 3, image_size.width, image_size.height, 0, 0));
+	Grid grid = grids[grid_i];
+
 	// PARAMETERS
 
 	int stereocalibrate_flags =
@@ -48,79 +82,133 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 		camera.set(cv::CAP_PROP_FRAME_HEIGHT, image_size.height);
 	}
 
+	// image points to calculate the parameters after all input data is captured
 	vector<vector<vector<Vec2f>>> image_points(2);
 	vector<vector<Vec3f>> object_points;
+
+	// image points for each grid, updated to image_points and object_points
+	// after is grid complete
+	vector<vector<vector<Vec2f>>> image_points_grid(9, vector<vector<Vec2f>>(2));
+	vector<vector<Vec3f>> object_points_grid(9);
+	
 	vector<Mat> dist_coeffs(2);
 	vector<Mat> camera_matrices(2);
 
 	// assume identical cameras; load intrinsic parameters
-	loadIntrinsics(filename_intrinsics, camera_matrices[0], dist_coeffs[0]);
-	loadIntrinsics(filename_intrinsics, camera_matrices[1], dist_coeffs[1]);
+	if (!(	loadIntrinsics(filename_intrinsics, camera_matrices[0], dist_coeffs[0]) &&
+			loadIntrinsics(filename_intrinsics, camera_matrices[1], dist_coeffs[1]))) {
+		LOG(FATAL) << "Failed to load intrinsic camera parameters from file.";
+	}
 	
 	Mat R, T, E, F, per_view_errors;
-
+	
+	// capture calibration patterns
 	while (iter > 0) {
 		int res = 0;
+		int grid_pos = -1;
 
 		vector<Mat> new_img(2);
 		vector<vector<Vec2f>> new_points(2);
 
-		for (size_t i = 0; i < 2; i++) {
-			auto &camera = cameras[i];
-			auto &img = new_img[i];
+		int delay_remaining = delay;
+		for (; delay_remaining > 50; delay_remaining -= 50) {
+			cv::waitKey(50);
 
-			camera.grab();
-			camera.retrieve(img);
+			for (size_t i = 0; i < 2; i++) {
+				auto &camera = cameras[i];
+				auto &img = new_img[i];
+
+				camera.grab();
+				camera.retrieve(img);
+
+				if (use_grid && i == 0) grid.drawGrid(img);
+				cv::imshow("Camera " + std::to_string(i), img);
+			}
 		}
 
 		for (size_t i = 0; i < 2; i++) {
 			auto &img = new_img[i];
 			auto &points = new_points[i];
-			
+
+			// TODO move to "findPoints"-thread
 			if (calib.findPoints(img, points)) {
 				calib.drawPoints(img, points);
 				res++;
 			}
 
-			cv::imshow("Camera: " + std::to_string(i), img);
+			cv::imshow("Camera " + std::to_string(i), img);
 		}
-		cv::waitKey(750);
 
-		if (res != 2) { LOG(WARNING) << "Input not detected on all inputs"; }
+		if (res != 2) { LOG(WARNING) << "Input not detected on all inputs"; continue; }
+		
+		if (use_grid) {
+			// top left and bottom right corners; not perfect but good enough
+			grid_pos = grid.checkGrid(
+				cv::Point(new_points[0][0]),
+				cv::Point(new_points[0][new_points[0].size()-1])
+			);
+
+			if (grid_pos == -1) { LOG(WARNING) << "Captured pattern not inside grid cell"; continue; }
+		}
+
+		vector<Vec3f> points_ref;
+		calib.objectPoints(points_ref);
+		
+		// calculate reprojection error with single pair of images
+		// reject it if RMS reprojection error too high
+		int flags = stereocalibrate_flags;
+
+		// TODO move to "findPoints"-thread
+		double rms_iter = stereoCalibrate(
+					vector<vector<Vec3f>> { points_ref }, 
+					vector<vector<Vec2f>> { new_points[0] },
+					vector<vector<Vec2f>> { new_points[1] },
+					camera_matrices[0], dist_coeffs[0],
+					camera_matrices[1], dist_coeffs[1],
+					image_size, R, T, E, F, per_view_errors,
+					flags);
+		
+		LOG(INFO) << "rms for pattern: " << rms_iter;
+		if (rms_iter > max_error) {
+			LOG(WARNING) << "RMS reprojection error too high, maximum allowed error: " << max_error;
+			continue;
+		}
+		
+		if (use_grid) {
+			// store results in result grid
+			object_points_grid[grid_pos] = points_ref;
+			for (size_t i = 0; i < 2; i++) { image_points_grid[grid_pos][i] = new_points[i]; }
+			
+			grid.updateGrid(grid_pos);
+
+			if (grid.isComplete()) {
+				LOG(INFO) << "Grid complete";
+				grid.reset();
+				grid_i = (grid_i + 1) % grids.size();
+				grid = grids[grid_i];
+
+				// copy results
+				object_points.insert(object_points.end(), object_points_grid.begin(), object_points_grid.end());
+				for (size_t i = 0; i < image_points_grid.size(); i++) {
+					for (size_t j = 0; j < 2; j++) { image_points[j].push_back(image_points_grid[i][j]); }
+				}
+				iter--;
+			}
+		}
 		else {
-			vector<Vec3f> points_ref;
-			calib.objectPoints(points_ref);
-			
-			// calculate reprojection error with single pair of images
-			// reject it if RMS reprojection error too high
-			int flags = stereocalibrate_flags;
-
-			double rms = stereoCalibrate(
-						vector<vector<Vec3f>> { points_ref }, 
-						vector<vector<Vec2f>> { new_points[0] },
-						vector<vector<Vec2f>> { new_points[1] },
-						camera_matrices[0], dist_coeffs[0],
-						camera_matrices[1], dist_coeffs[1],
-						image_size, R, T, E, F, per_view_errors,
-						flags);
-			
-			LOG(INFO) << "rms for pattern: " << rms;
-			if (rms > max_error) {
-				LOG(WARNING) << "RMS reprojection error too high, maximum allowed error: " << max_error;
-				continue;
-			}
-
 			object_points.push_back(points_ref);
-			for (size_t i = 0; i < 2; i++) {
-				image_points[i].push_back(new_points[i]);
-			}
-
+			for (size_t i = 0; i < 2; i++) { image_points[i].push_back(new_points[i]); }
 			iter--;
 		}
 	}
 
 	// calculate stereoCalibration using all input images (which have low enough
 	// RMS error in previous step)
+
+	LOG(INFO) << "Calculating extrinsic stereo parameters using " << object_points.size() << " samples.";
+
+	CHECK(object_points.size() == image_points[0].size());
+	CHECK(object_points.size() == image_points[1].size());
 
 	double rms = stereoCalibrate(object_points,
 		image_points[0], image_points[1],
@@ -151,28 +239,39 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	saveExtrinsics(FTL_LOCAL_CONFIG_ROOT "/extrinsics.yml", R, T, R1, R2, P1, P2, Q);
 	LOG(INFO) << "Stereo camera extrinsics saved to: " << FTL_LOCAL_CONFIG_ROOT "/extrinsics.yml";
 
-	// display results
+	for (size_t i = 0; i < 2; i++) { cv::destroyWindow("Camera " + std::to_string(i)); }
+
+	// Visualize results
 	vector<Mat> map1(2), map2(2);
 	cv::initUndistortRectifyMap(camera_matrices[0], dist_coeffs[0], R1, P1, image_size, CV_16SC2, map1[0], map2[0]);
 	cv::initUndistortRectifyMap(camera_matrices[1], dist_coeffs[1], R2, P2, image_size, CV_16SC2, map1[1], map2[1]);
 
 	vector<Mat> in(2);
 	vector<Mat> out(2);
+	// vector<Mat> out_gray(2);
+	// Mat diff, diff_color;
 
-	while(cv::waitKey(50) == -1) {
+	while(cv::waitKey(25) == -1) {
 		for(size_t i = 0; i < 2; i++) {
 			auto &camera = cameras[i];
 			camera.grab();
 			camera.retrieve(in[i]);
-			cv::imshow("Camera: " + std::to_string(i), in[i]);
+	
 			cv::remap(in[i], out[i], map1[i], map2[i], cv::INTER_CUBIC);
+			// cv::cvtColor(out[i], out_gray[i], cv::COLOR_BGR2GRAY);
 
 			// draw lines
-			for (int r = 0; r < image_size.height; r = r+50) {
+			for (int r = 50; r < image_size.height; r = r+50) {
 				cv::line(out[i], cv::Point(0, r), cv::Point(image_size.width-1, r), cv::Scalar(0,0,255), 1);
 			}
 
 			cv::imshow("Camera " + std::to_string(i) + " (rectified)", out[i]);
 		}
+
+		/* not useful
+		cv::absdiff(out_gray[0], out_gray[1], diff);
+		cv::applyColorMap(diff, diff_color, cv::COLORMAP_JET);
+		cv::imshow("Difference", diff_color);
+		*/
 	}
 }

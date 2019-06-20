@@ -9,14 +9,42 @@
 namespace ftl {
 namespace calibration {
 
-std::string getOption(std::map<std::string, std::string> &options, const std::string &opt);
+std::string getOption(const std::map<std::string, std::string> &options, const std::string &opt);
 bool hasOption(const std::map<std::string, std::string> &options, const std::string &opt);
+int getOptionInt(const std::map<std::string, std::string> &options, const std::string &opt, int default_value);
+double getOptionDouble(const std::map<std::string, std::string> &options, const std::string &opt, double default_value);
+std::string getOptionString(const std::map<std::string, std::string> &options, const std::string &opt, std::string default_value);
 
 bool loadIntrinsics(const std::string &ifile, cv::Mat &M1, cv::Mat &D1);
 bool saveIntrinsics(const std::string &ofile, const cv::Mat &M1, const cv::Mat &D1);
 
 // TODO loadExtrinsics()
 bool saveExtrinsics(const std::string &ofile, cv::Mat &R, cv::Mat &T, cv::Mat &R1, cv::Mat &R2, cv::Mat &P1, cv::Mat &P2, cv::Mat &Q);
+
+class Grid {
+private:
+	int rows_;
+	int cols_;
+	int width_;
+	int height_;
+	int cell_width_;
+	int cell_height_;
+	int offset_x_;
+	int offset_y_;
+	int visited_count_;
+
+	std::vector<std::pair<cv::Point, cv::Point>> corners_;
+	std::vector<bool> visited_;
+
+public:
+	Grid(int rows, int cols, int width, int height, int offset_x, int offset_y);
+	void drawGrid(cv::Mat &rgb);
+	int checkGrid(cv::Point p1, cv::Point p2);
+	void updateGrid(int i);
+	bool isVisited(int i);
+	bool isComplete();
+	void reset(); 
+};
 
 /**
  * @brief	Wrapper for OpenCV's calibration methods. Paramters depend on
@@ -54,11 +82,11 @@ public:
  * 			findChessboardCornersSB function.
  * @todo	Parameters hardcoded in constructor
  *
- * All parameters:
- * 	- pattern size (inner corners)
- * 	- square size, millimeters (TODO: meters)
- * 	- image size, pixels
- * 	- flags, see ChessboardCornersSB documentation
+ * All parameters (command line parameters):
+ * 	- rows, cols: pattern size (inner corners)
+ * 	- square_size: millimeters (TODO: meters)
+ * 	- width, height: image size, pixels
+ * 	- flags: see ChessboardCornersSB documentation (TODO: not implemented)
  */
 class CalibrationChessboard : Calibration {
 public:

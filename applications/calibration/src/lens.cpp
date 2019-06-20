@@ -28,11 +28,20 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	LOG(INFO) << "Begin intrinsic calibration";
 
 	// TODO PARAMETERS TO CONFIG FILE
-	Size image_size = Size(1280, 720);
-	int iter = 60;
-	string filename_intrinsics = (hasOption(opt, "profile")) ? getOption(opt, "profile") : "./panasonic.yml";
-	CalibrationChessboard calib(opt); // TODO paramters hardcoded in constructor
-	
+	Size image_size = Size(	getOptionInt(opt, "width", 1280),
+							getOptionInt(opt, "height", 720));
+	int iter = getOptionInt(opt, "iter", 60);
+	int delay = getOptionInt(opt, "delay", 750);
+	string filename_intrinsics = getOptionString(opt, "profile", "./panasonic.yml");
+	CalibrationChessboard calib(opt);
+
+	LOG(INFO) << "Intrinsic calibration parameters";
+	LOG(INFO) << "     profile: " << filename_intrinsics;
+	LOG(INFO) << "       width: " << image_size.width;
+	LOG(INFO) << "      height: " << image_size.height;
+	LOG(INFO) << "        iter: " << iter;
+	LOG(INFO) << "       delay: " << delay;
+	LOG(INFO) << "-----------------------------------";
 
 	int calibrate_flags = cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_ASPECT_RATIO;
 	// PARAMETERS
@@ -60,7 +69,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 		if (found) { calib.drawPoints(img, points); }
 
 		cv::imshow("Camera", img);
-		cv::waitKey(750);
+		cv::waitKey(delay);
 
 		if (!found) { continue; }
 
@@ -70,21 +79,6 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 		Mat camera_matrix, dist_coeffs;
 		vector<Mat> rvecs, tvecs;
 		
-		/* slow
-		double rms = cv::calibrateCamera(
-							vector<vector<Vec3f>> { points_ref }, 
-							vector<vector<Vec2f>> { points },
-							image_size, camera_matrix, dist_coeffs,
-							rvecs, tvecs, calibrate_flags
-		);
-		
-		LOG(INFO) << "rms for pattern: " << rms;
-		if (rms > max_error) {
-			LOG(WARNING) << "RMS reprojection error too high, maximum allowed error: " << max_error;
-			continue;
-		}
-		*/
-	
 		image_points.push_back(points);
 		object_points.push_back(points_ref);
 
