@@ -2,6 +2,7 @@
 #define _FTL_LOCAL_HPP_
 
 #include <ftl/configurable.hpp>
+#include <ftl/cuda_common.hpp>
 #include <string>
 #include <nlohmann/json.hpp>
 
@@ -21,10 +22,12 @@ class LocalSource : public Configurable {
 	
 	bool left(cv::Mat &m);
 	bool right(cv::Mat &m);
-	bool get(cv::Mat &l, cv::Mat &r);
+	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::Stream &stream);
 
 	unsigned int width() const { return width_; }
 	unsigned int height() const { return height_; }
+
+	cv::Mat &cachedLeft() { return left_; }
 	
 	//void setFramerate(float fps);
 	//float getFramerate() const;
@@ -46,6 +49,7 @@ class LocalSource : public Configurable {
 	cv::VideoCapture *camera_b_;
 	unsigned int width_;
 	unsigned int height_;
+	cv::Mat left_;
 };
 
 }

@@ -6,7 +6,7 @@ set(RGBDSRC
 	src/stereovideo.cpp
 	src/net.cpp
 	src/streamer.cpp
-	src/algorithms/rtcensus.cpp
+#	src/algorithms/rtcensus.cpp
 #	src/algorithms/rtcensus_sgm.cpp
 #	src/algorithms/opencv_sgbm.cpp
 #	src/algorithms/opencv_bm.cpp
@@ -31,11 +31,11 @@ if (CUDA_FOUND)
 	list(APPEND RGBDSRC
 #		"src/algorithms/opencv_cuda_bm.cpp"
 #		"src/algorithms/opencv_cuda_bp.cpp"
-		"src/algorithms/rtcensus.cu"
+#		"src/algorithms/rtcensus.cu"
 #		"src/algorithms/rtcensus_sgm.cu"
-		"src/algorithms/consistency.cu"
-		"src/algorithms/sparse_census.cu"
-		"src/algorithms/tex_filter.cu"
+#		"src/algorithms/consistency.cu"
+#		"src/algorithms/sparse_census.cu"
+#		"src/algorithms/tex_filter.cu"
 #		"src/algorithms/nick1.cu"
 #		"src/algorithms/nick.cpp")
 )

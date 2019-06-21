@@ -214,7 +214,8 @@ bool LocalSource::right(cv::Mat &r) {
 	return true;
 }
 
-bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
+bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda::Stream &stream) {
+	Mat l, r;
 	if (!camera_a_) return false;
 
 	if (!camera_a_->grab()) {
@@ -231,14 +232,14 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 			high_resolution_clock::now().time_since_epoch()).count();
 	
 	// Limit max framerate
-	if (timestamp - timestamp_ < tps_) {
-		sleep_for(milliseconds((int)std::round((tps_ - (timestamp - timestamp_))*1000)));
-	}
+	//if (timestamp - timestamp_ < tps_) {
+	//	sleep_for(milliseconds((int)std::round((tps_ - (timestamp - timestamp_))*1000)));
+	//}
 
 	timestamp_ = timestamp;
 
 	if (camera_b_ || !stereo_) {
-		if (!camera_a_->retrieve(l)) {
+		if (!camera_a_->retrieve(left_)) {
 			LOG(ERROR) << "Unable to read frame from camera A";
 			return false;
 		}
@@ -256,15 +257,17 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 		int resx = frame.cols / 2;
 		if (flip_) {
 			r = Mat(frame, Rect(0, 0, resx, frame.rows));
-			l = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
+			left_ = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
 		} else {
-			l = Mat(frame, Rect(0, 0, resx, frame.rows));
+			left_ = Mat(frame, Rect(0, 0, resx, frame.rows));
 			r = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
 		}
 	}
 
 	if (downsize_ != 1.0f) {
-		cv::resize(l, l, cv::Size((int)(l.cols * downsize_), (int)(l.rows * downsize_)),
+		// cv::cuda::resize()
+
+		cv::resize(left_, left_, cv::Size((int)(left_.cols * downsize_), (int)(left_.rows * downsize_)),
 				0, 0, cv::INTER_LINEAR);
 		cv::resize(r, r, cv::Size((int)(r.cols * downsize_), (int)(r.rows * downsize_)),
 				0, 0, cv::INTER_LINEAR);
@@ -278,11 +281,14 @@ bool LocalSource::get(cv::Mat &l, cv::Mat &r) {
 
 	if (flip_v_) {
 		Mat tl, tr;
-		cv::flip(l, tl, 0);
+		cv::flip(left_, tl, 0);
 		cv::flip(r, tr, 0);
-		l = tl;
+		left_ = tl;
 		r = tr;
 	}
+
+	l_out.upload(left_, stream);
+	r_out.upload(r, stream);
 
 	return true;
 }

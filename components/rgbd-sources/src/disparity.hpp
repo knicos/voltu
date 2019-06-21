@@ -32,7 +32,7 @@ class Disparity : public ftl::Configurable {
 	 * Pure virtual function representing the actual computation of
 	 * disparity from left and right images to be implemented.
 	 */
-	virtual void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp)=0;
+	virtual void compute(const cv::cuda::GpuMat &l, const cv::cuda::GpuMat &r, cv::cuda::GpuMat &disp, cv::cuda::Stream &stream)=0;
 
 	/**
 	 * Factory registration class.

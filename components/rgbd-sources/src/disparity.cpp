@@ -38,9 +38,10 @@ void Disparity::_register(const std::string &n,
 }
 
 // TODO(Nick) Add remaining algorithms
-
+/*
 #include "algorithms/rtcensus.hpp"
 static ftl::rgbd::detail::Disparity::Register rtcensus("rtcensus", ftl::algorithms::RTCensus::create);
+*/
 
 #ifdef HAVE_LIBSGM
 #include "algorithms/fixstars_sgm.hpp"

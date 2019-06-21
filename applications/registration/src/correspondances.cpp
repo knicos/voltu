@@ -49,7 +49,7 @@ static void averageDepth(vector<Mat> &in, Mat &out, float varThresh) {
 		// Calculate mean
 		for (int i_in = 0; i_in < in.size(); ++i_in) {
 			double d = in[i_in].at<float>(i);
-			if (d < 40.0) {
+			if (ftl::rgbd::isValidDepth(d)) {
 				good_values++;
 				sum += d;
 			}
@@ -75,10 +75,10 @@ static void averageDepth(vector<Mat> &in, Mat &out, float varThresh) {
 			if (var < varThresh2) {
 				out.at<float>(i) = (float)sum;
 			} else {
-				out.at<float>(i) = 41.0f;
+				out.at<float>(i) = 0.0f;
 			}
 		} else {
-			out.at<float>(i) = 41.0f;
+			out.at<float>(i) = 0.0f;
 		}
 	}
 }

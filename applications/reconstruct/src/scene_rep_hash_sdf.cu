@@ -525,7 +525,7 @@ __global__ void integrateDepthMapKernel(HashData hashData, DepthCameraData camer
 		//return;
 
 		// Depth is within accepted max distance from camera
-		if (depth > 0 && depth < hashParams.m_maxIntegrationDistance) { // valid depth and color (Nick: removed colour check)
+		if (depth > 0.01f && depth < hashParams.m_maxIntegrationDistance) { // valid depth and color (Nick: removed colour check)
 			float depthZeroOne = cameraData.cameraToKinectProjZ(depth);
 
 			// Calculate SDF of this voxel wrt the depth map value
@@ -584,7 +584,7 @@ __global__ void integrateDepthMapKernel(HashData hashData, DepthCameraData camer
 		} else {
 			uint idx = entry.ptr + i;
 			float coldist = colourDistance(color, hashData.d_SDFBlocks[idx].color);
-			if (depth > 40.0f && coldist > 100.0f) {
+			if ((depth > 39.99f || depth < 0.01f) && coldist > 100.0f) {
 				//hashData.d_SDFBlocks[idx].color = make_uchar3(0,0,(uchar)(coldist));
 				hashData.d_SDFBlocks[idx].weight = hashData.d_SDFBlocks[idx].weight >> 1;
 			}

@@ -26,7 +26,7 @@ class FixstarsSGM : public ftl::rgbd::detail::Disparity {
 	public:
 	explicit FixstarsSGM(nlohmann::json &config);
 
-	void compute(const cv::Mat &l, const cv::Mat &r, cv::Mat &disp) override;
+	void compute(const cv::cuda::GpuMat &l, const cv::cuda::GpuMat &r, cv::cuda::GpuMat &disp, cv::cuda::Stream &stream) override;
 	void setMask(cv::Mat &mask) override;
 	
 	/* Factory creator */
@@ -38,6 +38,9 @@ class FixstarsSGM : public ftl::rgbd::detail::Disparity {
 	bool use_filter_;
 	cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
 	sgm::StereoSGM *ssgm_;
+	cv::cuda::GpuMat lbw_;
+	cv::cuda::GpuMat rbw_;
+	cv::cuda::GpuMat dispt_;
 };
 };
 };
