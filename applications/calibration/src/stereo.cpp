@@ -228,6 +228,8 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	cv::Rect validRoi[2];
 
 	// calculate extrinsic parameters
+	// NOTE: 	Other code assumes CALIB_ZERO_DISPARITY is used (for Cy == Cx). 
+	//			Depth map map calculation disparityToDepth() could be incorrect otherwise.
 	stereoRectify(
 		camera_matrices[0], dist_coeffs[0],
 		camera_matrices[1], dist_coeffs[1],

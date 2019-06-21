@@ -35,9 +35,16 @@ class StereoVideoSource : public detail::Source {
 	LocalSource *lsrc_;
 	Calibrate *calib_;
 	Disparity *disp_;
+	
 	bool ready_;
-	cv::Mat left_;
-	cv::Mat right_;
+	
+	cv::cuda::Stream stream_;
+
+	cv::cuda::GpuMat left_;
+	cv::cuda::GpuMat right_;
+	cv::cuda::GpuMat disp_tmp_;
+	cv::cuda::GpuMat depth_tmp_;
+	
 	cv::Mat mask_l_;
 
 	void init(const std::string &);

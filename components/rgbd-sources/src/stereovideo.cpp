@@ -34,32 +34,29 @@ void StereoVideoSource::init(const string &file) {
 	if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";
-		//lsrc_ = new LocalSource(file, config["source"]);
 		lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
-	} else if (file != "") {
+	}
+	else if (file != "") {
 		auto vid = ftl::locateFile("video.mp4");
 		if (!vid) {
 			LOG(FATAL) << "No video.mp4 file found in provided paths (" << file << ")";
 		} else {
 			LOG(INFO) << "Using test directory...";
-			//lsrc_ = new LocalSource(*vid, config["source"]);
 			lsrc_ = ftl::create<LocalSource>(host_, "feed", *vid);
 		}
-	} else {
+	}
+	else {
 		// Use cameras
 		LOG(INFO) << "Using cameras...";
-		//lsrc_ = new LocalSource(config["source"]);
 		lsrc_ = ftl::create<LocalSource>(host_, "feed");
 	}
 
-	//calib_ = new Calibrate(lsrc_, ftl::resolve(config["calibration"]));
-	calib_ = ftl::create<Calibrate>(host_, "calibration", lsrc_);
+	cv::Size size = cv::Size(lsrc_->width(), lsrc_->height());
+	calib_ = ftl::create<Calibrate>(host_, "calibration", size, stream_);
 
-	if (host_->value("calibrate", false)) calib_->recalibrate();
 	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
-	else LOG(INFO) << "Calibration initiated.";
 
-	// Generate camera parameters from Q matrix
+	// Generate camera parameters from camera matrix
 	cv::Mat q = calib_->getCameraMatrix();
 	params_ = {
 		q.at<double>(0,0),	// Fx
@@ -74,9 +71,14 @@ void StereoVideoSource::init(const string &file) {
 	
 	// left and right masks (areas outside rectified images)
 	// only left mask used
-	cv::Mat mask_r(lsrc_->height(), lsrc_->width(), CV_8U, 255);
-	cv::Mat mask_l(lsrc_->height(), lsrc_->width(), CV_8U, 255);
-	calib_->rectifyStereo(mask_l, mask_r);
+	cv::cuda::GpuMat mask_r_gpu(lsrc_->height(), lsrc_->width(), CV_8U, 255);
+	cv::cuda::GpuMat mask_l_gpu(lsrc_->height(), lsrc_->width(), CV_8U, 255);
+	
+	calib_->rectifyStereo(mask_l_gpu, mask_r_gpu, stream_);
+	stream_.waitForCompletion();
+
+	cv::Mat mask_l;
+	mask_l_gpu.download(mask_l);
 	mask_l_ = (mask_l == 0);
 	
 	disp_ = Disparity::create(host_, "disparity");
@@ -87,38 +89,27 @@ void StereoVideoSource::init(const string &file) {
 	ready_ = true;
 }
 
-static void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q) {
-	cv::Matx44d _Q;
-    q.convertTo(_Q, CV_64F);
+static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
+							 const cv::Mat &Q, cv::cuda::Stream &stream) {
+	// Q(3, 2) = -1/Tx
+	// Q(2, 3) = f
 
-	if (depth.empty()) depth = cv::Mat(disparity.size(), CV_32F);
-
-	for( int y = 0; y < disparity.rows; y++ ) {
-		const float *sptr = disparity.ptr<float>(y);
-		float *dptr = depth.ptr<float>(y);
-
-		for( int x = 0; x < disparity.cols; x++ ) {
-			double d = sptr[x];
-			cv::Vec4d homg_pt = _Q*cv::Vec4d(x, y, d, 1.0);
-			//dptr[x] = Vec3d(homg_pt.val);
-			//dptr[x] /= homg_pt[3];
-			dptr[x] = (float)(homg_pt[2] / homg_pt[3]) / 1000.0f; // Depth in meters
-
-			if( fabs(d) <= FLT_EPSILON )
-				dptr[x] = 1000.0f;
-		}
-	}
+	double val = (1.0f / Q.at<double>(3, 2)) * Q.at<double>(2, 3);
+	cv::cuda::divide(val, disparity, depth, 1.0f / 1000.0f, -1, stream);
 }
 
 bool StereoVideoSource::grab() {
-	calib_->rectified(left_, right_);
+	lsrc_->get(left_, right_, stream_);
+	if (depth_tmp_.empty()) depth_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
+	if (disp_tmp_.empty()) disp_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
+	calib_->rectifyStereo(left_, right_, stream_);
+	disp_->compute(left_, right_, disp_tmp_, stream_);
+	disparityToDepth(disp_tmp_, depth_tmp_, calib_->getQ(), stream_);
+	//left_.download(rgb_, stream_);
+	rgb_ = lsrc_->cachedLeft();
+	depth_tmp_.download(depth_, stream_);
 
-	cv::Mat disp;
-	disp_->compute(left_, right_, disp);
-
-	//unique_lock<mutex> lk(mutex_);
-	left_.copyTo(rgb_);
-	disparityToDepth(disp, depth_, calib_->getQ());
+	stream_.waitForCompletion();	
 	return true;
 }
 
