@@ -232,9 +232,9 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 
 	// If any weight is 0, skip this voxel
 	// FIXME(Nick) Unloaded voxels result in random weight values here...
-	const bool missweight = voxels[ix[0]].weight == 0 || voxels[ix[1]].weight == 0 || voxels[ix[2]].weight == 0 ||
-			voxels[ix[3]].weight == 0 || voxels[ix[4]].weight == 0 || voxels[ix[5]].weight == 0 ||
-			voxels[ix[6]].weight == 0; // || voxels[ix[7]].weight == 0;
+	//const bool missweight = voxels[ix[0]].weight == 0 || voxels[ix[1]].weight == 0 || voxels[ix[2]].weight == 0 ||
+	//		voxels[ix[3]].weight == 0 || voxels[ix[4]].weight == 0 || voxels[ix[5]].weight == 0 ||
+	//		voxels[ix[6]].weight == 0; // || voxels[ix[7]].weight == 0;
 	//if (missweight) return;
 	if (voxels[j].weight == 0) return;
 
@@ -262,14 +262,16 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 
 	//return;*/
 
-	int edgeX = (vp.x == 0 || vp.x == 7) ? 1 : 0;
-	int edgeY = (vp.y == 0 || vp.y == 7) ? 1 : 0;
-	int edgeZ = (vp.z == 0 || vp.z == 7) ? 1 : 0;
+	int edgeX = (vp.x == 0 ) ? 1 : 0;
+	int edgeY = (vp.y == 0 ) ? 1 : 0;
+	int edgeZ = (vp.z == 0 ) ? 1 : 0;
 
 	bool is_surface = ((params.m_flags & kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
-	if (is_surface) voxels[j].color = make_uchar3(255,0,0);
+	if (is_surface) voxels[j].color = make_uchar3(255,(vp.x == 0 && vp.y == 0 && vp.z == 0) ? 255 : 0,0);
 
 	if (!is_surface && voxels[j].sdf < 0.0f) return;
+
+	//if (vp.z == 7) voxels[j].color = make_uchar3(0,255,(voxels[j].sdf < 0.0f) ? 255 : 0);
 
 	// Identify surfaces through sign change. Since we only check in one direction
 	// it is fine to check for any sign change?
@@ -282,7 +284,8 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 				// Skip these cases since we didn't load voxels properly
 				if (uvi.x == 8 && uvi.y == 8 && uvi.z == 8) continue; //|| uvi.x == 8 && uvi.z == 8 || uvi.y == 8 && uvi.z == 8) continue;
 
-				if (voxels[plinVoxelPos(uvi)].sdf < 0.0f) {
+				const auto &vox = voxels[plinVoxelPos(uvi)];
+				if (vox.weight > 0 && vox.sdf < 0.0f) {
 					is_surface = true;
 					break;
 				}
@@ -331,15 +334,10 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 			trilinearInterp(hashData, voxels, ix, pixelWorldPos, depth, col);*/
 			int idepth = static_cast<int>(camPos.z * 100.0f);
 
-			// TODO (Nick) MAKE THIS ATOMIC!!!!
-			/*if (screenPos.x+x < params.m_width && screenPos.y+y < params.m_height && 
-					rayCastData.d_depth_i[(screenPos.y+y)*params.m_width+screenPos.x+x] > idepth) {
-				rayCastData.d_depth[(screenPos.y+y)*params.m_width+screenPos.x+x] = idepth;
-				rayCastData.d_colors[(screenPos.y+y)*params.m_width+screenPos.x+x] = voxels[j].color;
-			}*/
-
 			if (screenPos.x+x < params.m_width && screenPos.y+y < params.m_height) {
 				int index = (screenPos.y+y)*params.m_width+screenPos.x+x;
+				// TODO(Nick) Merge colors at "same" depth based upon distance from voxel centre.
+				// The above may need to be done using shared memory
 				if (rayCastData.d_depth_i[index] > idepth && atomicMin(&rayCastData.d_depth_i[index], idepth) != idepth) {
 					//rayCastData.d_depth[index] = idepth;
 					rayCastData.d_colors[index] = voxels[j].color;
