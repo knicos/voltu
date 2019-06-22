@@ -210,6 +210,18 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 		else deleteVoxel(padVox);
 	}
 
+	if ((i >> 3) < 3) {
+		const uint batch = i >> 3;
+		const uint v_a = imod;
+		const int3 v_cache = make_int3(((batch != 0) ? 8 : v_a), ((batch != 1) ? 8 : v_a), ((batch != 2) ? 8 : v_a));
+		const int3 v_ii = make_int3((batch != 0) ? 0 : v_a, (batch != 1) ? 0 : v_a, (batch != 2) ? 0 : v_a);
+		const int v_block = blockLinear((batch != 0) ? 1 : 0, (batch != 1) ? 1 : 0, (batch != 2) ? 1 : 0);
+		ftl::voxhash::Voxel &padVox = voxels[plinVoxelPos(v_cache)];
+		const uint ii = hashData.linearizeVoxelPos(v_ii);
+		if (blocks[v_block].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[v_block].ptr + ii];
+		else deleteVoxel(padVox);
+	}
+
 	// Indexes of the 8 neighbor voxels in one direction
 	const uint ix[8] = {
 		j, j+SDF_DX, j+SDF_DY, j+SDF_DZ, j+SDF_DX+SDF_DY, j+SDF_DY+SDF_DZ,
@@ -219,10 +231,12 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 	__syncthreads();
 
 	// If any weight is 0, skip this voxel
+	// FIXME(Nick) Unloaded voxels result in random weight values here...
 	const bool missweight = voxels[ix[0]].weight == 0 || voxels[ix[1]].weight == 0 || voxels[ix[2]].weight == 0 ||
 			voxels[ix[3]].weight == 0 || voxels[ix[4]].weight == 0 || voxels[ix[5]].weight == 0 ||
-			voxels[ix[6]].weight == 0 || voxels[ix[7]].weight == 0;
-	if (missweight) return;
+			voxels[ix[6]].weight == 0; // || voxels[ix[7]].weight == 0;
+	//if (missweight) return;
+	if (voxels[j].weight == 0) return;
 
 	// Trilinear Interpolation (simple and fast)
 	/*float3 colorFloat = make_float3(0.0f, 0.0f, 0.0f);
