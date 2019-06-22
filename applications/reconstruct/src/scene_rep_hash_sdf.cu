@@ -536,13 +536,13 @@ __global__ void integrateDepthMapKernel(HashData hashData, DepthCameraData camer
 			// CHECK Nick: If is too close then free space violation so remove?
 			// This isn't enough if the disparity has occlusions that don't cause violations
 			// Could RGB changes also cause removals if depth can't be confirmed?
-			if (sdf > truncation) {
+			/*if (sdf > truncation) {
 				uint idx = entry.ptr + i;
 				hashData.d_SDFBlocks[idx].weight = 0;
 				//hashData.d_SDFBlocks[idx].sdf = PINF;
 				hashData.d_SDFBlocks[idx].color = make_uchar3(0,0,0);
-			}
-			else if (sdf > -truncation) // && depthZeroOne >= 0.0f && depthZeroOne <= 1.0f) //check if in truncation range should already be made in depth map computation
+			}*/
+			if (sdf > -truncation) // && depthZeroOne >= 0.0f && depthZeroOne <= 1.0f) //check if in truncation range should already be made in depth map computation
 			{
 				if (sdf >= 0.0f) {
 					sdf = fminf(truncation, sdf);
@@ -582,12 +582,15 @@ __global__ void integrateDepthMapKernel(HashData hashData, DepthCameraData camer
 				//setVoxel(g_SDFBlocksSDFUAV, g_SDFBlocksRGBWUAV, idx, newVoxel);
 			}
 		} else {
-			uint idx = entry.ptr + i;
-			float coldist = colourDistance(color, hashData.d_SDFBlocks[idx].color);
-			if ((depth > 39.99f || depth < 0.01f) && coldist > 100.0f) {
+			// Depth is invalid so what to do here?
+			// TODO(Nick) Use past voxel if available (set weight from 0 to 1)
+
+			//uint idx = entry.ptr + i;
+			//float coldist = colourDistance(color, hashData.d_SDFBlocks[idx].color);
+			//if ((depth > 39.99f || depth < 0.01f) && coldist > 100.0f) {
 				//hashData.d_SDFBlocks[idx].color = make_uchar3(0,0,(uchar)(coldist));
-				hashData.d_SDFBlocks[idx].weight = hashData.d_SDFBlocks[idx].weight >> 1;
-			}
+			//	hashData.d_SDFBlocks[idx].weight = hashData.d_SDFBlocks[idx].weight >> 1;
+			//}
 		}
 	}
 }
