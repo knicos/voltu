@@ -244,9 +244,13 @@ class FTLApplication : public nanogui::Screen {
 	explicit FTLApplication(ftl::Configurable *root, ftl::net::Universe *net, ftl::ctrl::Master *controller) : nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab GUI") {
 		using namespace nanogui;
 		net_ = net;
+		ctrl_ = controller;
 
 		cwindow_ = new ftl::gui::ControlWindow(this, controller);
 		swindow_ = new ftl::gui::SourceWindow(this, controller);
+
+		cwindow_->setPosition(Eigen::Vector2i(20, 20));
+		swindow_->setPosition(Eigen::Vector2i(20, 400));
 
 		//src_ = nullptr;
 		eye_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
@@ -356,6 +360,8 @@ class FTLApplication : public nanogui::Screen {
 			} else if (action == 1 && key == 'H') {
 				swindow_->setVisible(!swindow_->visible());
 				cwindow_->setVisible(!cwindow_->visible());
+			} else if (action == 1 && key == 32) {
+				ctrl_->pause();
 			}
 			return false;
 		}
@@ -477,6 +483,7 @@ class FTLApplication : public nanogui::Screen {
 	float ftime_;
 	float delta_;
 	Eigen::Vector2f imageSize;
+	ftl::ctrl::Master *ctrl_;
 };
 
 int main(int argc, char **argv) {
