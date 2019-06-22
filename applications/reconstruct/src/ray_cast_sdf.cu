@@ -286,7 +286,7 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 	bool is_surface = ((params.m_flags & kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
 	if (is_surface) voxels[j].color = make_uchar3(255,(vp.x == 0 && vp.y == 0 && vp.z == 0) ? 255 : 0,0);
 
-	if (!is_surface && voxels[j].sdf < 0.0f) return;
+	if (!is_surface && voxels[j].sdf >= 0.0f) return;
 
 	//if (vp.z == 7) voxels[j].color = make_uchar3(0,255,(voxels[j].sdf < 0.0f) ? 255 : 0);
 
