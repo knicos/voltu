@@ -178,7 +178,7 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 
 	//TODO (Nick) Either don't use compactified or re-run compacitification using render cam frustrum
 	if (i == 0) blocks[0] = hashData.d_hashCompactified[blockIdx.x];
-	else if (i <= 7) blocks[i] = hashData.getHashEntryForSDFBlockPos(blockDelinear(blocks[0].pos, i));
+	//else if (i <= 7) blocks[i] = hashData.getHashEntryForSDFBlockPos(blockDelinear(blocks[0].pos, i));
 
 	// Make sure all hash entries are cached
 	__syncthreads();
@@ -197,29 +197,46 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 	uint imod = i & 0x7;
 	bool v_do = imod < 3;
 
+	// Voxels 8 * * combinations
 	if (v_do) {
 		const uint v_a = (i >> 3) & 0x7;
 		const uint v_c = (i >> 6);
 		const uint v_b = (imod >= 1) ? v_c : v_a; 
 		const int3 v_cache = make_int3(((imod == 0) ? 8 : v_a), ((imod == 1) ? 8 : v_b), ((imod == 2) ? 8 : v_c));
-		const int3 v_ii = make_int3((imod == 0) ? 0 : v_a, (imod == 1) ? 0 : v_b, (imod == 2) ? 0 : v_c);
-		const int v_block = blockLinear((imod == 0) ? 1 : 0, (imod == 1) ? 1 : 0, (imod == 2) ? 1 : 0);
+		//const int3 v_ii = make_int3((imod == 0) ? 0 : v_a, (imod == 1) ? 0 : v_b, (imod == 2) ? 0 : v_c);
+		//const int v_block = blockLinear((imod == 0) ? 1 : 0, (imod == 1) ? 1 : 0, (imod == 2) ? 1 : 0);
 		ftl::voxhash::Voxel &padVox = voxels[plinVoxelPos(v_cache)];
-		const uint ii = hashData.linearizeVoxelPos(v_ii);
-		if (blocks[v_block].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[v_block].ptr + ii];
-		else deleteVoxel(padVox);
+		//const uint ii = hashData.linearizeVoxelPos(v_ii);
+		//if (blocks[v_block].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[v_block].ptr + ii];
+		//else deleteVoxel(padVox);
+
+		deleteVoxel(padVox);
 	}
 
+	// Voxels 8 8 * combinations
 	if ((i >> 3) < 3) {
 		const uint batch = i >> 3;
 		const uint v_a = imod;
 		const int3 v_cache = make_int3(((batch != 0) ? 8 : v_a), ((batch != 1) ? 8 : v_a), ((batch != 2) ? 8 : v_a));
-		const int3 v_ii = make_int3((batch != 0) ? 0 : v_a, (batch != 1) ? 0 : v_a, (batch != 2) ? 0 : v_a);
-		const int v_block = blockLinear((batch != 0) ? 1 : 0, (batch != 1) ? 1 : 0, (batch != 2) ? 1 : 0);
+		//const int3 v_ii = make_int3((batch != 0) ? 0 : v_a, (batch != 1) ? 0 : v_a, (batch != 2) ? 0 : v_a);
+		//const int v_block = blockLinear((batch != 0) ? 1 : 0, (batch != 1) ? 1 : 0, (batch != 2) ? 1 : 0);
 		ftl::voxhash::Voxel &padVox = voxels[plinVoxelPos(v_cache)];
-		const uint ii = hashData.linearizeVoxelPos(v_ii);
-		if (blocks[v_block].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[v_block].ptr + ii];
-		else deleteVoxel(padVox);
+		//const uint ii = hashData.linearizeVoxelPos(v_ii);
+		//if (blocks[v_block].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[v_block].ptr + ii];
+		//else deleteVoxel(padVox);
+
+		deleteVoxel(padVox);
+	}
+
+	// Voxel 8 8 8
+	if (i == 0) {
+		const int3 v_cache = make_int3(8,8,8);
+		ftl::voxhash::Voxel &padVox = voxels[plinVoxelPos(v_cache)];
+		//const int v_block = blockLinear(1, 1, 1);
+		//if (blocks[v_block].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[v_block].ptr];
+		//else deleteVoxel(padVox);
+
+		deleteVoxel(padVox);
 	}
 
 	// Indexes of the 8 neighbor voxels in one direction
@@ -282,7 +299,8 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 				const int3 uvi = make_int3(vp.x+u,vp.y+v,vp.z+w);
 
 				// Skip these cases since we didn't load voxels properly
-				if (uvi.x == 8 && uvi.y == 8 && uvi.z == 8) continue; //|| uvi.x == 8 && uvi.z == 8 || uvi.y == 8 && uvi.z == 8) continue;
+				if (uvi.x == 8 && uvi.y == 8 && uvi.z == 8) continue;
+				//if (uvi.x == 8 && uvi.y == 8 && uvi.z == 8 || uvi.x == 8 && uvi.z == 8 || uvi.y == 8 && uvi.z == 8) continue;
 
 				const auto &vox = voxels[plinVoxelPos(uvi)];
 				if (vox.weight > 0 && vox.sdf < 0.0f) {
