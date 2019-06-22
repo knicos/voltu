@@ -6,7 +6,7 @@
 #ifndef WIN32
 #include <unistd.h>
 #else
-#include <windows.h>
+#include <direct.h>
 #endif
 
 using ftl::URI;
