@@ -1,8 +1,11 @@
 #include <ftl/uri.hpp>
 // #include <filesystem>  TODO When available
 #include <cstdlib>
-#include <unistd.h>
 #include <loguru.hpp>
+
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
 using ftl::URI;
 using ftl::uri_t;
