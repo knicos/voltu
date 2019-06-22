@@ -41,6 +41,8 @@ class NetSource : public detail::Source {
 	int chunk_width_;
 	int chunk_height_;
 	cv::Mat idepth_;
+	float gamma_;
+	int temperature_;
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);

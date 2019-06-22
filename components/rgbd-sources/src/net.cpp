@@ -4,6 +4,8 @@
 #include <chrono>
 #include <shared_mutex>
 
+#include "colour.hpp"
+
 #include <ftl/rgbd/streamer.hpp>
 
 using ftl::rgbd::detail::NetSource;
@@ -45,6 +47,9 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 
 NetSource::NetSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host), active_(false) {
+
+	gamma_ = host->value("gamma", 1.0f);
+	temperature_ = host->value("temperature", 6500);
 
 	_updateURI();
 
@@ -89,6 +94,9 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 	// Decode in temporary buffers to prevent long locks
 	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
 	cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
+
+	// Apply colour correction to chunk
+	ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
 
 	// Build chunk head
 	int cx = (chunk % chunks_dim_) * chunk_width_;
