@@ -334,19 +334,22 @@ class FTLApplication : public nanogui::Screen {
 		if (Screen::keyboardEvent(key, scancode, action, modifiers)) {
 			return true;
 		} else {
-			//LOG(INFO) << "Key press " << key << " - " << action;
+			LOG(INFO) << "Key press " << key << " - " << action << " - " << modifiers;
 			if (key == 263 || key == 262) {
-				float scalar = (key == 263) ? -0.1f : 0.1f;
+				float mag = (modifiers & 0x1) ? 0.01f : 0.1f;
+				float scalar = (key == 263) ? -mag : mag;
 				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
 				neye_ += r.matrix()*Vector4f(scalar,0.0,0.0,1.0);
 				return true;
 			} else if (key == 264 || key == 265) {
-				float scalar = (key == 264) ? -0.1f : 0.1f;
+				float mag = (modifiers & 0x1) ? 0.01f : 0.1f;
+				float scalar = (key == 264) ? -mag : mag;
 				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
 				neye_ += r.matrix()*Vector4f(0.0,0.0,scalar,1.0);
 				return true;
 			} else if (key == 266 || key == 267) {
-				float scalar = (key == 266) ? -0.1f : 0.1f;
+				float mag = (modifiers & 0x1) ? 0.01f : 0.1f;
+				float scalar = (key == 266) ? -mag : mag;
 				Eigen::Affine3f r = create_rotation_matrix(orientation_[0], orientation_[1], orientation_[2]);
 				neye_ += r.matrix()*Vector4f(0.0,scalar,0.0,1.0);
 				return true;
