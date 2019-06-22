@@ -1,4 +1,8 @@
 #include <ftl/uri.hpp>
+// #include <filesystem>  TODO When available
+#include <cstdlib>
+#include <unistd.h>
+#include <loguru.hpp>
 
 using ftl::URI;
 using ftl::uri_t;
@@ -27,13 +31,28 @@ URI::URI(const URI &c) {
 void URI::_parse(uri_t puri) {
     UriUriA uri;
 
+	std::string suri = puri;
+
+	// NOTE: Non-standard additions to allow for Unix style relative file names.
+	if (suri[0] == '.') {
+		char cwdbuf[1024];
+		getcwd(cwdbuf, 1024);
+		suri = string("file://") + string(cwdbuf) + suri.substr(1);
+	} else if (suri[0] == '~') {
+#ifdef WIN32
+		suri = string("file://") + string(std::getenv("HOMEDRIVE")) + string(std::getenv("HOMEPATH")) + suri.substr(1);
+#else
+		suri = string("file://") + string(std::getenv("HOME")) + suri.substr(1);
+#endif
+	}
+
 #ifdef HAVE_URIPARSESINGLE
     const char *errpos;
     if (uriParseSingleUriA(&uri, puri, &errpos) != URI_SUCCESS) {
 #else
     UriParserStateA uris;
     uris.uri = &uri;
-    if (uriParseUriA(&uris, puri) != URI_SUCCESS) {
+    if (uriParseUriA(&uris, suri.c_str()) != URI_SUCCESS) {
 #endif
         m_valid = false;
         m_host = "none";
