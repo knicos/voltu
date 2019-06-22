@@ -544,11 +544,11 @@ __global__ void integrateDepthMapKernel(HashData hashData, DepthCameraData camer
 			}*/
 			if (sdf > -truncation) // && depthZeroOne >= 0.0f && depthZeroOne <= 1.0f) //check if in truncation range should already be made in depth map computation
 			{
-				if (sdf >= 0.0f) {
+				/*if (sdf >= 0.0f) {
 					sdf = fminf(truncation, sdf);
 				} else {
 					sdf = fmaxf(-truncation, sdf);
-				}
+				}*/
 
 
 				//printf("SDF: %f\n", sdf);
