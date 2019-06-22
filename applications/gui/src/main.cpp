@@ -403,7 +403,8 @@ class FTLApplication : public nanogui::Screen {
 				case SourceWindow::Mode::depth:
 					if (depth.rows == 0) { break; }
 					imageSize = Vector2f(depth.cols,depth.rows);
-					depth.convertTo(tmp, CV_8U, 255.0f / 10.0f);
+					depth.convertTo(tmp, CV_8U, 255.0f / 5.0f);
+					tmp = 255 - tmp;
 					applyColorMap(tmp, tmp, cv::COLORMAP_JET);
 					texture_.update(tmp);
 					mImageID = texture_.texture();
