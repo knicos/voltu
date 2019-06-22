@@ -210,28 +210,6 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 		else deleteVoxel(padVox);
 	}
 
-	/*if (vp.x == 7) {
-		ftl::voxhash::Voxel &padVox = voxels[plinVoxelPos(make_int3(vp.x+1,vp.y,vp.z))];
-		const uint ii = hashData.linearizeVoxelPos(make_int3(0,vp.y,vp.z));
-		//padVox = hashData.getVoxel(make_int3(pi.x+1,pi.y,pi.z));
-		if (blocks[blockLinear(1,0,0)].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[blockLinear(1,0,0)].ptr + ii];
-		else deleteVoxel(padVox);
-	}
-	if (vp.y == 7) {
-		ftl::voxhash::Voxel &padVox = voxels[plinVoxelPos(make_int3(vp.x,vp.y+1,vp.z))];
-		const uint ii = hashData.linearizeVoxelPos(make_int3(vp.x,0,vp.z));
-		//padVox = hashData.getVoxel(make_int3(pi.x,pi.y+1,pi.z));
-		if (blocks[blockLinear(0,1,0)].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[blockLinear(0,1,0)].ptr + ii];
-		else deleteVoxel(padVox);
-	}
-	if (vp.z == 7) {
-		ftl::voxhash::Voxel &padVox = voxels[plinVoxelPos(make_int3(vp.x,vp.y,vp.z+1))];
-		const uint ii = hashData.linearizeVoxelPos(make_int3(vp.x,vp.y,0));
-		//padVox = hashData.getVoxel(make_int3(pi.x,pi.y,pi.z+1));
-		if (blocks[blockLinear(0,0,1)].ptr != ftl::voxhash::FREE_ENTRY) padVox = hashData.d_SDFBlocks[blocks[blockLinear(0,0,1)].ptr + ii];
-		else deleteVoxel(padVox);
-	}*/
-
 	// Indexes of the 8 neighbor voxels in one direction
 	const uint ix[8] = {
 		j, j+SDF_DX, j+SDF_DY, j+SDF_DZ, j+SDF_DX+SDF_DY, j+SDF_DY+SDF_DZ,
@@ -270,7 +248,15 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 
 	//return;*/
 
-	bool is_surface = false;
+	int edgeX = (vp.x == 0 || vp.x == 7) ? 1 : 0;
+	int edgeY = (vp.y == 0 || vp.y == 7) ? 1 : 0;
+	int edgeZ = (vp.z == 0 || vp.z == 7) ? 1 : 0;
+
+	bool is_surface = ((params.m_flags & kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
+	if (is_surface) voxels[j].color = make_uchar3(255,0,0);
+
+	if (!is_surface && voxels[j].sdf < 0.0f) return;
+
 	// Identify surfaces through sign change. Since we only check in one direction
 	// it is fine to check for any sign change?
 #pragma unroll
@@ -282,7 +268,7 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 				// Skip these cases since we didn't load voxels properly
 				if (uvi.x == 8 && uvi.y == 8 || uvi.x == 8 && uvi.z == 8 || uvi.y == 8 && uvi.z == 8) continue;
 
-				if (signbit(voxels[j].sdf) != signbit(voxels[plinVoxelPos(uvi)].sdf)) {
+				if (voxels[plinVoxelPos(uvi)].sdf < 0.0f) {
 					is_surface = true;
 					break;
 				}
@@ -298,7 +284,7 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 	const float2 screenPosf = DepthCameraData::cameraToKinectScreenFloat(camPos);
 	const uint2 screenPos = make_uint2(make_int2(screenPosf)); //  + make_float2(0.5f, 0.5f)
 
-	if (camPos.z < 0.0f) return;
+	if (camPos.z < params.m_minDepth) return;
 
 	/*if (screenPos.x < params.m_width && screenPos.y < params.m_height && 
 			rayCastData.d_depth[(screenPos.y)*params.m_width+screenPos.x] > camPos.z) {

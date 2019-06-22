@@ -2,6 +2,8 @@
 
 #include <ftl/cuda_matrix_util.hpp>
 
+static const uint kShowBlockBorders = 0x0001;
+
 struct __align__(16) RayCastParams {
 	float4x4 m_viewMatrix;
 	float4x4 m_viewMatrixInverse;
@@ -22,5 +24,5 @@ struct __align__(16) RayCastParams {
 	float m_thresDist;
 	bool  m_useGradients;
 
-	uint dummy0;
+	uint m_flags;
 };

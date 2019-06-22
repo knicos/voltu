@@ -37,7 +37,10 @@ public:
 		params.m_thresDist = gas["SDFRayThresDistFactor"].get<float>() * params.m_rayIncrement;
 		params.m_useGradients = gas["SDFUseGradients"].get<bool>();
 
-		//params.m_maxNumVertices = gas["hashNumSDFBlocks"].get<unsigned int>() * 6;
+		uint flags = 0;
+		if (gas.value("showBlockBorders", false)) flags |= kShowBlockBorders;
+		params.m_flags = flags;
+
 
 		return params;
 	}
