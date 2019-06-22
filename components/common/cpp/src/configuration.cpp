@@ -106,6 +106,11 @@ bool ftl::create_directory(const std::string &path) {
 #endif
 }
 
+void ftl::config::addPath(const std::string &path) {
+	auto &paths = rootCFG->getConfig()["paths"];
+	paths.push_back(path);
+}
+
 optional<string> ftl::config::locateFile(const string &name) {
 	if (is_file(name)) return name;
 

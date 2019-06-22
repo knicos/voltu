@@ -92,7 +92,7 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	if (eix == string::npos) {
 		// Might be a directory
 		if (ftl::is_directory(path)) {
-			return new StereoVideoSource(this);
+			return new StereoVideoSource(this, path);
 		} else {
 			return nullptr;
 		}

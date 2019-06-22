@@ -31,12 +31,15 @@ StereoVideoSource::~StereoVideoSource() {
 }
 
 void StereoVideoSource::init(const string &file) {
+	LOG(INFO) << "STEREOSOURCE = " << file;
 	if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";
 		lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
-	}
-	else if (file != "") {
+	} else if (ftl::is_directory(file)) {
+		// FIXME: This is not an ideal solution...
+		ftl::config::addPath(file);
+
 		auto vid = ftl::locateFile("video.mp4");
 		if (!vid) {
 			LOG(FATAL) << "No video.mp4 file found in provided paths (" << file << ")";

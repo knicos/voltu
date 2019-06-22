@@ -27,6 +27,8 @@ namespace config {
 
 typedef nlohmann::json json_t;
 
+void addPath(const std::string &path);
+
 std::optional<std::string> locateFile(const std::string &name);
 
 std::map<std::string, std::string> read_options(char ***argv, int *argc);
