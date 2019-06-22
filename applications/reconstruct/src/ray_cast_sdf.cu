@@ -280,7 +280,7 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 				const int3 uvi = make_int3(vp.x+u,vp.y+v,vp.z+w);
 
 				// Skip these cases since we didn't load voxels properly
-				if (uvi.x == 8 && uvi.y == 8 || uvi.x == 8 && uvi.z == 8 || uvi.y == 8 && uvi.z == 8) continue;
+				if (uvi.x == 8 && uvi.y == 8 && uvi.z == 8) continue; //|| uvi.x == 8 && uvi.z == 8 || uvi.y == 8 && uvi.z == 8) continue;
 
 				if (voxels[plinVoxelPos(uvi)].sdf < 0.0f) {
 					is_surface = true;
@@ -310,9 +310,9 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 
 	// For this voxel in hash, get its screen position and check it is on screen
 	// Convert depth map to int by x1000 and use atomicMin
-	//const int pixsize = static_cast<int>(c_hashParams.m_virtualVoxelSize*c_depthCameraParams.fx/camPos.z)+1;
-	int pixsizeX = 10;  // Max voxel pixels
-	int pixsizeY = 10;
+	const int pixsize = static_cast<int>((c_hashParams.m_virtualVoxelSize*c_depthCameraParams.fx/(camPos.z*0.8f)))+1;  // Magic number increase voxel to ensure coverage
+	int pixsizeX = pixsize;  // Max voxel pixels
+	int pixsizeY = pixsize;
 
 	for (int y=0; y<pixsizeY; y++) {
 		for (int x=0; x<pixsizeX; x++) {
@@ -321,10 +321,10 @@ __global__ void nickRenderKernel(ftl::voxhash::HashData hashData, RayCastData ra
 			const float3 pixelWorldPos = params.m_viewMatrixInverse * DepthCameraData::kinectDepthToSkeleton(screenPos.x+x,screenPos.y+y, camPos.z);
 			const float3 posInVoxel = (pixelWorldPos - worldPos) / make_float3(c_hashParams.m_virtualVoxelSize,c_hashParams.m_virtualVoxelSize,c_hashParams.m_virtualVoxelSize);
 
-			if (posInVoxel.x >= 1.0f || posInVoxel.y >= 1.0f || posInVoxel.z >= 1.0f) {
-				pixsizeX = x;
-				continue;
-			}
+			//if (posInVoxel.x >= 1.0f || posInVoxel.y >= 1.0f || posInVoxel.z >= 1.0f) {
+			//	pixsizeX = x;
+			//	continue;
+			//}
 
 			/*float depth;
 			uchar3 col;
