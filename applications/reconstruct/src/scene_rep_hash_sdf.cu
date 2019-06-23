@@ -565,10 +565,10 @@ __global__ void integrateDepthMapKernel(HashData hashData, DepthCameraData camer
 
 				uint idx = entry.ptr + i;
 
-				if (entry.flags != cameraParams.flags & 0xFF) {
-					entry.flags = cameraParams.flags & 0xFF;
-					hashData.d_SDFBlocks[idx].color = make_uchar3(0,0,0);
-				}
+				//if (entry.flags != cameraParams.flags & 0xFF) {
+				//	entry.flags = cameraParams.flags & 0xFF;
+					//hashData.d_SDFBlocks[idx].color = make_uchar3(0,0,0);
+				//}
 				
 				Voxel newVoxel;
 				//if (color.x == MINF) hashData.combineVoxelDepthOnly(hashData.d_SDFBlocks[idx], curr, newVoxel);
