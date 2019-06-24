@@ -65,6 +65,7 @@ class Correspondances {
 	 */
 	double estimateTransform(Eigen::Matrix4d &);
 	double estimateTransform(Eigen::Matrix4d &T, const std::vector<int> &src_feat, const std::vector<int> &targ_feat);
+	double estimateTransform(Eigen::Matrix4d &T, const std::vector<cv::Vec3d> &src_feat, const std::vector<cv::Vec3d> &targ_feat);
 
 	double findBestSubset(Eigen::Matrix4d &tr, int K, int N);
 
@@ -81,6 +82,9 @@ class Correspondances {
 
 	void setTransform(Eigen::Matrix4d &t) { uptodate_ = true; transform_ = t; }
 
+	void drawTarget(cv::Mat &);
+	void drawSource(cv::Mat &);
+
 	private:
 	Correspondances *parent_;
 	ftl::rgbd::Source *targ_;
@@ -95,6 +99,10 @@ class Correspondances {
 	std::vector<int> targ_feat_;
 	std::vector<int> src_feat_;
 };
+
+void build_correspondances(const std::vector<ftl::rgbd::Source*> &sources,
+		std::map<std::string, Correspondances*> &cs, int origin,
+		std::map<std::string, Eigen::Matrix4d> &old);
 
 }
 }

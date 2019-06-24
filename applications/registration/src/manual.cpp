@@ -1,6 +1,7 @@
 #include "manual.hpp"
 #include "correspondances.hpp"
 #include "sfm.hpp"
+#include "common.hpp"
 
 #include <loguru.hpp>
 
@@ -25,6 +26,7 @@ using std::tuple;
 
 using ftl::net::Universe;
 using ftl::rgbd::Source;
+using ftl::registration::Correspondances;
 
 using cv::Mat;
 using cv::Point;
@@ -44,88 +46,6 @@ static void setMouseAction(const std::string& winName, const MouseAction &action
 
 static MouseAction tmouse;
 static MouseAction smouse;
-
-void from_json(nlohmann::json &json, map<string, Eigen::Matrix4d> &transformations) {
-	for (auto it = json.begin(); it != json.end(); ++it) {
-		Eigen::Matrix4d m;
-		auto data = m.data();
-		for(size_t i = 0; i < 16; i++) { data[i] = it.value()[i]; }
-		transformations[it.key()] = m;
-	}
-}
-
-static void to_json(nlohmann::json &json, map<string, Eigen::Matrix4d> &transformations) {
-	for (auto &item : transformations) {
-		auto val = nlohmann::json::array();
-		for(size_t i = 0; i < 16; i++) { val.push_back((float) item.second.data()[i]); }
-		json[item.first] = val;
-	}
-}
-
-static bool saveTransformations(const string &path, map<string, Eigen::Matrix4d> &data) {
-	nlohmann::json data_json;
-	to_json(data_json, data);
-	std::ofstream file(path);
-
-	if (!file.is_open()) {
-		LOG(ERROR) << "Error writing transformations to file " << path;
-		return false;
-	}
-
-	file << std::setw(4) << data_json;
-	return true;
-}
-
-bool loadTransformations(const string &path, map<string, Eigen::Matrix4d> &data) {
-	std::ifstream file(path);
-	if (!file.is_open()) {
-		LOG(ERROR) << "Error loading transformations from file " << path;
-		return false;
-	}
-	
-	nlohmann::json json_registration;
-	file >> json_registration;
-	from_json(json_registration, data);
-	return true;
-}
-
-static void build_correspondances(const vector<Source*> &sources, map<string, Correspondances*> &cs, int origin, map<string, Eigen::Matrix4d> &old) {
-	Correspondances *last = nullptr;
-
-	cs[sources[origin]->getURI()] = nullptr;
-
-	for (int i=origin-1; i>=0; i--) {
-		if (last == nullptr) {
-			auto *c = new Correspondances(sources[i], sources[origin]);
-			last = c;
-			cs[sources[i]->getURI()] = c;
-			if (old.find(sources[i]->getURI()) != old.end()) {
-				c->setTransform(old[sources[i]->getURI()]);
-			}
-		} else {
-			auto *c = new Correspondances(last, sources[i]);
-			last = c;
-			cs[sources[i]->getURI()] = c;
-			if (old.find(sources[i]->getURI()) != old.end()) {
-				c->setTransform(old[sources[i]->getURI()]);
-			}
-		}
-	}
-
-	last = nullptr;
-
-	for (int i=origin+1; i<sources.size(); i++) {
-		if (last == nullptr) {
-			auto *c = new Correspondances(sources[i], sources[origin]);
-			last = c;
-			cs[sources[i]->getURI()] = c;
-		} else {
-			auto *c = new Correspondances(last, sources[i]);
-			last = c;
-			cs[sources[i]->getURI()] = c;
-		}
-	}
-}
 
 void ftl::registration::manual(ftl::Configurable *root) {
 	using namespace cv;
@@ -152,11 +72,11 @@ void ftl::registration::manual(ftl::Configurable *root) {
 	cv::namedWindow("Source", cv::WINDOW_KEEPRATIO);
 
 	map<string, Eigen::Matrix4d> oldTransforms;
-	loadTransformations(root->value("output", string("./test.json")), oldTransforms);
+	ftl::registration::loadTransformations(root->value("output", string("./test.json")), oldTransforms);
 
 	//Correspondances c(sources[targsrc], sources[cursrc]);
 	map<string, Correspondances*> corrs;
-	build_correspondances(sources, corrs, root->value("origin", 0), oldTransforms);
+	ftl::registration::build_correspondances(sources, corrs, root->value("origin", 0), oldTransforms);
 
 	int lastTX = 0;
 	int lastTY = 0;
@@ -219,37 +139,10 @@ void ftl::registration::manual(ftl::Configurable *root) {
 			tsdepth.convertTo(sdepth, CV_8U, 255.0f / 10.0f);
 			applyColorMap(sdepth, sdepth, cv::COLORMAP_JET);
 
-			/*Ptr<xphoto::WhiteBalancer> wb;
-			wb = xphoto::createSimpleWB();
-			wb->balanceWhite(tsrgb, srgb);
-			wb->balanceWhite(ttrgb, trgb);*/
-
-			// Apply points and labels...
-			auto &points = current->screenPoints();
-			if (point_n == -1) {
-				for (int i=0; i<points.size(); i++) {
-				//for (auto &p : points) {
-					auto [tx,ty,sx,sy] = points[i];
-					drawMarker(srgb, Point(sx,sy), Scalar(0,255,0), MARKER_TILTED_CROSS);
-					drawMarker(sdepth, Point(sx,sy), Scalar(0,255,0), MARKER_TILTED_CROSS);
-					drawMarker(trgb, Point(tx,ty), Scalar(0,255,0), MARKER_TILTED_CROSS);
-					drawMarker(tdepth, Point(tx,ty), Scalar(0,255,0), MARKER_TILTED_CROSS);
-				}
-			} else if(point_n < points.size()) {
-				auto [tx,ty,sx,sy] = points[point_n];
-				drawMarker(srgb, Point(sx,sy), Scalar(0,255,0), MARKER_TILTED_CROSS);
-				drawMarker(sdepth, Point(sx,sy), Scalar(0,255,0), MARKER_TILTED_CROSS);
-				drawMarker(trgb, Point(tx,ty), Scalar(0,255,0), MARKER_TILTED_CROSS);
-				drawMarker(tdepth, Point(tx,ty), Scalar(0,255,0), MARKER_TILTED_CROSS);
-			}
-
-			vector<Eigen::Vector2i> tpoints;
-			current->getTransformedFeatures2D(tpoints);
-			for (int i=0; i<tpoints.size(); i++) {
-				Eigen::Vector2i p = tpoints[i];
-				drawMarker(trgb, Point(p[0],p[1]), Scalar(255,0,0), MARKER_TILTED_CROSS);
-				drawMarker(tdepth, Point(p[0],p[1]), Scalar(255,0,0), MARKER_TILTED_CROSS);
-			}
+			current->drawTarget(trgb);
+			current->drawTarget(tdepth);
+			current->drawSource(srgb);
+			current->drawSource(sdepth);
 
 			// Add most recent click position
 			drawMarker(srgb, Point(lastSX, lastSY), Scalar(0,0,255), MARKER_TILTED_CROSS);

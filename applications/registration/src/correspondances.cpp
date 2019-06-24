@@ -19,6 +19,44 @@ using std::tuple;
 using std::make_tuple;
 using cv::Mat;
 
+void ftl::registration::build_correspondances(const vector<Source*> &sources, map<string, Correspondances*> &cs, int origin, map<string, Eigen::Matrix4d> &old) {
+	Correspondances *last = nullptr;
+
+	cs[sources[origin]->getURI()] = nullptr;
+
+	for (int i=origin-1; i>=0; i--) {
+		if (last == nullptr) {
+			auto *c = new Correspondances(sources[i], sources[origin]);
+			last = c;
+			cs[sources[i]->getURI()] = c;
+			if (old.find(sources[i]->getURI()) != old.end()) {
+				c->setTransform(old[sources[i]->getURI()]);
+			}
+		} else {
+			auto *c = new Correspondances(last, sources[i]);
+			last = c;
+			cs[sources[i]->getURI()] = c;
+			if (old.find(sources[i]->getURI()) != old.end()) {
+				c->setTransform(old[sources[i]->getURI()]);
+			}
+		}
+	}
+
+	last = nullptr;
+
+	for (int i=origin+1; i<sources.size(); i++) {
+		if (last == nullptr) {
+			auto *c = new Correspondances(sources[i], sources[origin]);
+			last = c;
+			cs[sources[i]->getURI()] = c;
+		} else {
+			auto *c = new Correspondances(last, sources[i]);
+			last = c;
+			cs[sources[i]->getURI()] = c;
+		}
+	}
+}
+
 
 Correspondances::Correspondances(Source *src, Source *targ)
 	:	parent_(nullptr), targ_(targ), src_(src),
@@ -92,6 +130,40 @@ static PointXYZ makePCL(Source *s, int x, int y) {
 	return pcl_p1;
 }
 
+void Correspondances::drawTarget(cv::Mat &img) {
+	using namespace cv;
+
+	for (size_t i=0; i<log_.size(); i++) {
+	//for (auto &p : points) {
+		auto [tx,ty,sx,sy] = log_[i];
+		drawMarker(img, Point(tx,ty), Scalar(0,255,0), MARKER_TILTED_CROSS);
+	}
+	
+	vector<Eigen::Vector2i> tpoints;
+	getTransformedFeatures2D(tpoints);
+	for (size_t i=0; i<tpoints.size(); i++) {
+		Eigen::Vector2i p = tpoints[i];
+		drawMarker(img, Point(p[0],p[1]), Scalar(255,0,0), MARKER_TILTED_CROSS);
+	}
+}
+
+void Correspondances::drawSource(cv::Mat &img) {
+	using namespace cv;
+	
+	for (size_t i=0; i<log_.size(); i++) {
+	//for (auto &p : points) {
+		auto [tx,ty,sx,sy] = log_[i];
+		drawMarker(img, Point(sx,sy), Scalar(0,255,0), MARKER_TILTED_CROSS);
+	}
+	
+	/*vector<Eigen::Vector2i> tpoints;
+	getTransformedFeatures2D(tpoints);
+	for (size_t i=0; i<tpoints.size(); i++) {
+		Eigen::Vector2i p = tpoints[i];
+		drawMarker(img, Point(p[0],p[1]), Scalar(255,0,0), MARKER_TILTED_CROSS);
+	}*/
+}
+
 void Correspondances::clear() {
 	targ_cloud_->clear();
 	src_cloud_->clear();
@@ -126,8 +198,8 @@ bool Correspondances::capture(cv::Mat &rgb1, cv::Mat &rgb2) {
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	}
-	averageDepth(buffer[0], d1, 0.01f);
-	averageDepth(buffer[1], d2, 0.01f);
+	averageDepth(buffer[0], d1, 0.02f);
+	averageDepth(buffer[1], d2, 0.02f);
 	Mat d1_v, d2_v;
 	d1.convertTo(d1_v, CV_8U, 255.0f / 10.0f);
 	d2.convertTo(d2_v, CV_8U, 255.0f / 10.0f);
@@ -158,7 +230,7 @@ bool Correspondances::capture(cv::Mat &rgb1, cv::Mat &rgb2) {
 			float d1_value = d1ptr[x];
 			float d2_value = d2ptr[x];
 
-			if (d1_value < 39.0f) {
+			if (d1_value > 0.1f && d1_value < 39.0f) {
 				// Make PCL points with specific depth value
 				pcl::PointXYZ p1;
 				Eigen::Vector4d p1e = src_->point(x,y,d1_value);
@@ -170,7 +242,7 @@ bool Correspondances::capture(cv::Mat &rgb1, cv::Mat &rgb2) {
 				six++;
 			}
 
-			if (d2_value < 39.0f) {
+			if (d2_value > 0.1f && d2_value < 39.0f) {
 				// Make PCL points with specific depth value
 				pcl::PointXYZ p2;
 				Eigen::Vector4d p2e = targ_->point(x,y,d2_value);
@@ -218,10 +290,55 @@ double Correspondances::estimateTransform(Eigen::Matrix4d &T) {
 	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ, double> validate;
 	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ, double> svd;
 
-	validate.setMaxRange(0.1);
+	//validate.setMaxRange(0.1);
 
-	svd.estimateRigidTransformation(*src_cloud_, src_feat_, *targ_cloud_, targ_feat_, T);
-	return validate.validateTransformation(src_cloud_, targ_cloud_, T);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr targ_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr src_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr tsrc_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+	vector<int> idx;
+
+	for (int i=0; i<src_feat_.size(); i++) {
+		idx.push_back(i);
+		src_cloud->push_back(src_cloud_->at(src_feat_[i]));
+		targ_cloud->push_back(targ_cloud_->at(targ_feat_[i]));
+	}
+
+	pcl::transformPointCloud(*src_cloud, *tsrc_cloud, transform_);
+
+	svd.estimateRigidTransformation(*src_cloud, idx, *targ_cloud, idx, T);
+	return validate.validateTransformation(src_cloud, targ_cloud, T);
+}
+
+double Correspondances::estimateTransform(Eigen::Matrix4d &T, const std::vector<cv::Vec3d> &src_feat, const std::vector<cv::Vec3d> &targ_feat) {
+	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ, double> validate;
+	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ, double> svd;
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr targ_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr src_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr tsrc_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+	vector<int> idx;
+
+	for (int i=0; i<src_feat.size(); i++) {
+		pcl::PointXYZ ps,pt;
+
+		ps.x = src_feat[i][0];
+		ps.y = src_feat[i][1];
+		ps.z = src_feat[i][2];
+		pt.x = targ_feat[i][0];
+		pt.y = targ_feat[i][1];
+		pt.z = targ_feat[i][2];
+
+		idx.push_back(i);
+		src_cloud->push_back(ps);
+		targ_cloud->push_back(pt);
+	}
+
+	pcl::transformPointCloud(*src_cloud, *tsrc_cloud, transform_);
+
+	svd.estimateRigidTransformation(*src_cloud, idx, *targ_cloud, idx, T);
+	return validate.validateTransformation(src_cloud, targ_cloud, T);
 }
 
 double Correspondances::estimateTransform(Eigen::Matrix4d &T, const vector<int> &src_feat, const vector<int> &targ_feat) {
