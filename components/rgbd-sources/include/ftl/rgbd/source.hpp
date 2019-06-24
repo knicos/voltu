@@ -113,6 +113,8 @@ class Source : public ftl::Configurable {
 		else return params_;
 	}
 
+	cv::Mat cameraMatrix() const;
+
 	/**
 	 * Change the camera extrinsics by providing a new pose matrix. For virtual
 	 * cameras this will move the camera, for physical cameras it is set by the

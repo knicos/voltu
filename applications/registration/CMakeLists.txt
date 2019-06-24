@@ -3,6 +3,8 @@ set(REGSRC
 	src/manual.cpp
 	src/correspondances.cpp
 	src/sfm.cpp
+	src/aruco.cpp
+	src/common.cpp
 )
 
 add_executable(ftl-register ${REGSRC})

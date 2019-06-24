@@ -53,6 +53,11 @@ Source::~Source() {
 
 }
 
+cv::Mat Source::cameraMatrix() const {
+	cv::Mat m = (cv::Mat_<float>(3,3) << parameters().fx, 0.0, -parameters().cx, 0.0, parameters().fy, -parameters().cy, 0.0, 0.0, 1.0);
+	return m;
+}
+
 void Source::customImplementation(ftl::rgbd::detail::Source *impl) {
 	if (impl_) delete impl_;
 	impl_ = impl;
