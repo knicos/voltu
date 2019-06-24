@@ -165,8 +165,9 @@ void ftl::registration::aruco(ftl::Configurable *root) {
 			}
 
 			Eigen::Matrix4d t;
-			lastScore = current->estimateTransform(t, srcfeat, targfeat);
+			lastScore = current->estimateTransform(t, srcfeat, targfeat, true);
 			current->setTransform(t);
+			//lastScore = current->icp();
 		} else if (key == 'f') {
 			Mat f1,f2;
 			current->capture(f1,f2);

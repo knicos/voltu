@@ -310,7 +310,7 @@ double Correspondances::estimateTransform(Eigen::Matrix4d &T) {
 	return validate.validateTransformation(src_cloud, targ_cloud, T);
 }
 
-double Correspondances::estimateTransform(Eigen::Matrix4d &T, const std::vector<cv::Vec3d> &src_feat, const std::vector<cv::Vec3d> &targ_feat) {
+double Correspondances::estimateTransform(Eigen::Matrix4d &T, const std::vector<cv::Vec3d> &src_feat, const std::vector<cv::Vec3d> &targ_feat, bool doicp) {
 	pcl::registration::TransformationValidationEuclidean<PointXYZ, PointXYZ, double> validate;
 	pcl::registration::TransformationEstimationSVD<PointXYZ,PointXYZ, double> svd;
 
@@ -337,8 +337,27 @@ double Correspondances::estimateTransform(Eigen::Matrix4d &T, const std::vector<
 
 	pcl::transformPointCloud(*src_cloud, *tsrc_cloud, transform_);
 
-	svd.estimateRigidTransformation(*src_cloud, idx, *targ_cloud, idx, T);
-	return validate.validateTransformation(src_cloud, targ_cloud, T);
+	svd.estimateRigidTransformation(*tsrc_cloud, idx, *targ_cloud, idx, T);
+
+	if (doicp) {
+		pcl::transformPointCloud(*tsrc_cloud, *src_cloud, T);
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+		pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ, double> icp;
+
+		icp.setInputSource(src_cloud);
+		icp.setInputTarget(targ_cloud);
+		icp.align(*final_cloud);
+		LOG(INFO) << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore();
+		//transform_ *= icp.getFinalTransformation();
+
+		T = icp.getFinalTransformation() * T * transform_;
+		//uptodate_ = true;
+
+		return icp.getFitnessScore();
+	} else {
+		return validate.validateTransformation(src_cloud, targ_cloud, T);
+	}
 }
 
 double Correspondances::estimateTransform(Eigen::Matrix4d &T, const vector<int> &src_feat, const vector<int> &targ_feat) {

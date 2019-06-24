@@ -65,7 +65,7 @@ class Correspondances {
 	 */
 	double estimateTransform(Eigen::Matrix4d &);
 	double estimateTransform(Eigen::Matrix4d &T, const std::vector<int> &src_feat, const std::vector<int> &targ_feat);
-	double estimateTransform(Eigen::Matrix4d &T, const std::vector<cv::Vec3d> &src_feat, const std::vector<cv::Vec3d> &targ_feat);
+	double estimateTransform(Eigen::Matrix4d &T, const std::vector<cv::Vec3d> &src_feat, const std::vector<cv::Vec3d> &targ_feat, bool doicp=false);
 
 	double findBestSubset(Eigen::Matrix4d &tr, int K, int N);
 
