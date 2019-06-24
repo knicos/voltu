@@ -243,14 +243,14 @@ struct HashData {
 		//out.color.x = (uchar)(res.x+0.5f);	out.color.y = (uchar)(res.y+0.5f); out.color.z = (uchar)(res.z+0.5f);
 		
 		// Nick: reduces colour flicker but not ideal..
-		//out.color = v1.color;
+		out.color = v1.color;
 
 		// Option 3 (Nick): Use colour with minimum SDF since it should be closest to surface.
 		// Results in stable but pixelated output
 		//out.color = (v0.weight > 0 && (fabs(v0.sdf) < fabs(v1.sdf))) ? v0.color : v1.color;
 
 		// Option 4 (Nick): Merge colours based upon relative closeness
-		float3 c0 = make_float3(v0.color.x, v0.color.y, v0.color.z);
+		/*float3 c0 = make_float3(v0.color.x, v0.color.y, v0.color.z);
 		float3 c1 = make_float3(v1.color.x, v1.color.y, v1.color.z);
 		float factor = fabs(v0.sdf - v1.sdf) / 0.05f / 2.0f;
 		if (factor > 0.5f) factor = 0.5f;
@@ -258,7 +258,7 @@ struct HashData {
 		float factor1 = 1.0f - factor0;
 		out.color.x = (v0.weight > 0) ? (uchar)(c0.x * factor0 + c1.x * factor1) : c1.x;
 		out.color.y = (v0.weight > 0) ? (uchar)(c0.y * factor0 + c1.y * factor1) : c1.y;
-		out.color.z = (v0.weight > 0) ? (uchar)(c0.z * factor0 + c1.z * factor1) : c1.z;
+		out.color.z = (v0.weight > 0) ? (uchar)(c0.z * factor0 + c1.z * factor1) : c1.z;*/
 
 		out.sdf = (v0.sdf * (float)v0.weight + v1.sdf * (float)v1.weight) / ((float)v0.weight + (float)v1.weight);
 		out.weight = min(c_hashParams.m_integrationWeightMax, (unsigned int)v0.weight + (unsigned int)v1.weight);
