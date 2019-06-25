@@ -269,9 +269,14 @@ void Streamer::_schedule() {
 			auto start = std::chrono::high_resolution_clock::now();
 			try {
 				src->src->grab();
-			} catch (...) {
+			} catch (std::exception &ex) {
 				LOG(ERROR) << "Exception when grabbing frame";
+				LOG(ERROR) << ex.what();
 			}
+			catch (...) {
+				LOG(ERROR) << "Unknown exception when grabbing frame";
+			}
+
 			std::chrono::duration<double> elapsed =
 				std::chrono::high_resolution_clock::now() - start;
 			LOG(INFO) << "Grab in " << elapsed.count() << "s";
