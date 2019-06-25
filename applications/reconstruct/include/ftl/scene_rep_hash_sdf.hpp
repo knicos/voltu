@@ -35,7 +35,7 @@ namespace voxhash {
 
 class SceneRep : public ftl::Configurable {
 	public:
-	SceneRep(nlohmann::json &config) : Configurable(config) {
+	SceneRep(nlohmann::json &config) : Configurable(config), do_reset_(false) {
 		REQUIRED({
 			{"hashNumBuckets", "Desired hash entries divide bucket size", "number"},
 			{"hashMaxCollisionLinkedListSize", "", "number"},
@@ -47,30 +47,52 @@ class SceneRep : public ftl::Configurable {
 			{"SDFIntegrationWeightSample", "", "number"},
 			{"SDFIntegrationWeightMax", "", "number"}
 		});
-		create(parametersFromConfig(config));
+		create(parametersFromConfig());
+
+		on("SDFVoxelSize", [this](const ftl::config::Event &e) {
+			do_reset_ = true;
+		});
+		on("hashNumSDFBlocks", [this](const ftl::config::Event &e) {
+			do_reset_ = true;
+		});
+		on("hashNumBuckets", [this](const ftl::config::Event &e) {
+			do_reset_ = true;
+		});
+		on("hashMaxCollisionLinkedListSize", [this](const ftl::config::Event &e) {
+			do_reset_ = true;
+		});
+		on("SDFTruncation", [this](const ftl::config::Event &e) {
+			m_hashParams.m_truncation = value("SDFTruncation", 0.1f);
+		});
+		on("SDFTruncationScale", [this](const ftl::config::Event &e) {
+			m_hashParams.m_truncScale = value("SDFTruncationScale", 0.01f);
+		});
+		on("SDFMaxIntegrationDistance", [this](const ftl::config::Event &e) {
+			m_hashParams.m_maxIntegrationDistance = value("SDFMaxIntegrationDistance", 10.0f);
+		});
 	}
 	~SceneRep() {
 		destroy();
 	}
 
-	static HashParams parametersFromConfig(nlohmann::json &config) {
-		auto &cfg = ftl::config::resolve(config);
+	HashParams parametersFromConfig() {
+		//auto &cfg = ftl::config::resolve(config);
 		HashParams params;
 		// First camera view is set to identity pose to be at the centre of
 		// the virtual coordinate space.
 		params.m_rigidTransform.setIdentity();
 		params.m_rigidTransformInverse.setIdentity();
-		params.m_hashNumBuckets = cfg["hashNumBuckets"];
+		params.m_hashNumBuckets = value("hashNumBuckets", 100000);
 		params.m_hashBucketSize = HASH_BUCKET_SIZE;
-		params.m_hashMaxCollisionLinkedListSize = cfg["hashMaxCollisionLinkedListSize"];
+		params.m_hashMaxCollisionLinkedListSize = value("hashMaxCollisionLinkedListSize", 7);
 		params.m_SDFBlockSize = SDF_BLOCK_SIZE;
-		params.m_numSDFBlocks = cfg["hashNumSDFBlocks"];
-		params.m_virtualVoxelSize = cfg["SDFVoxelSize"];
-		params.m_maxIntegrationDistance = cfg["SDFMaxIntegrationDistance"];
-		params.m_truncation = cfg["SDFTruncation"];
-		params.m_truncScale = cfg["SDFTruncationScale"];
-		params.m_integrationWeightSample = cfg["SDFIntegrationWeightSample"];
-		params.m_integrationWeightMax = cfg["SDFIntegrationWeightMax"];
+		params.m_numSDFBlocks = value("hashNumSDFBlocks",500000);
+		params.m_virtualVoxelSize = value("SDFVoxelSize", 0.006f);
+		params.m_maxIntegrationDistance = value("SDFMaxIntegrationDistance", 10.0f);
+		params.m_truncation = value("SDFTruncation", 0.1f);
+		params.m_truncScale = value("SDFTruncationScale", 0.01f);
+		params.m_integrationWeightSample = value("SDFIntegrationWeightSample", 10);
+		params.m_integrationWeightMax = value("SDFIntegrationWeightMax", 255);
 		// Note (Nick): We are not streaming voxels in/out of GPU
 		//params.m_streamingVoxelExtents = MatrixConversion::toCUDA(gas.s_streamingVoxelExtents);
 		//params.m_streamingGridDimensions = MatrixConversion::toCUDA(gas.s_streamingGridDimensions);
@@ -125,8 +147,14 @@ class SceneRep : public ftl::Configurable {
 
 	/* Nick: To reduce weights between frames */
 	void nextFrame() {
-		starveVoxelsKernelCUDA(m_hashData, m_hashParams);
-		m_numIntegratedFrames = 0;
+		if (do_reset_) {
+			do_reset_ = false;
+			destroy();
+			create(parametersFromConfig());
+		} else {
+			starveVoxelsKernelCUDA(m_hashData, m_hashParams);
+			m_numIntegratedFrames = 0;
+		}
 	}
 
 	//! resets the hash to the initial state (i.e., clears all data)
@@ -375,6 +403,7 @@ private:
 
 	//CUDAScan		m_cudaScan;
 	unsigned int	m_numIntegratedFrames;	//used for garbage collect
+	bool do_reset_;
 
 	// static Timer m_timer;
 };

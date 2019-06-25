@@ -39,7 +39,11 @@ Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false)
 	});
 
 	net->bind("get_cfg", [](const std::string &uri) -> std::string {
-		return ftl::config::resolve(uri);
+		return ftl::config::resolve(uri, false).dump();
+	});
+
+	net->bind("list_configurables", []() {
+		return ftl::config::list();
 	});
 
 	net->bind("node_details", [net,root]() -> std::vector<std::string> {

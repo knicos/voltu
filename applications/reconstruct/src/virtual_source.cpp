@@ -27,6 +27,19 @@ VirtualSource::VirtualSource(ftl::rgbd::Source *host)
 	rgb_ = cv::Mat(cv::Size(params_.width,params_.height), CV_8UC3);
 	idepth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32SC1);
 	depth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32FC1);
+
+	rays_->on("focal", [this](const ftl::config::Event &e) {
+		params_.fx = rays_->value("focal", 430.0f);
+		params_.fy = params_.fx;
+	});
+
+	rays_->on("width", [this](const ftl::config::Event &e) {
+		params_.width = rays_->value("width", 640);
+	});
+
+	rays_->on("height", [this](const ftl::config::Event &e) {
+		params_.height = rays_->value("height", 480);
+	});
 }
 
 VirtualSource::~VirtualSource() {

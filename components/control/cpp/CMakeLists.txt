@@ -7,7 +7,7 @@ target_include_directories(ftlctrl PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlctrl ftlcommon ftlnet)
+target_link_libraries(ftlctrl ftlcommon ftlnet Eigen3::Eigen)
 
 install(TARGETS ftlctrl EXPORT ftlctrl-config
 	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
