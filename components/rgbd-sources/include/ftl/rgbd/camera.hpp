@@ -14,6 +14,7 @@ struct Camera {
 	unsigned int height;
 	double minDepth;
 	double maxDepth;
+	double baseline;
 };
 
 };

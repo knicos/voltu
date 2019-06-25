@@ -1,5 +1,7 @@
 #include "ctrl_window.hpp"
 
+#include "config_window.hpp"
+
 #include <nanogui/layout.h>
 #include <nanogui/label.h>
 #include <nanogui/combobox.h>
@@ -10,30 +12,38 @@
 #include <string>
 
 using ftl::gui::ControlWindow;
+using ftl::gui::ConfigWindow;
 using std::string;
 using std::vector;
 
 
 ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
-		: nanogui::Window(parent, "Node Control"), ctrl_(ctrl) {
+		: nanogui::Window(parent, "Network Connections"), ctrl_(ctrl) {
 	setLayout(new nanogui::GroupLayout());
 
 	using namespace nanogui;
 
 	_updateDetails();
 
-	auto button = new Button(this, "Add Node", ENTYPO_ICON_PLUS);
+	auto tools = new Widget(this);
+    tools->setLayout(new BoxLayout(Orientation::Horizontal,
+                                       Alignment::Middle, 0, 6));
+
+	auto button = new Button(tools, "", ENTYPO_ICON_PLUS);
 	button->setCallback([this] {
 		// Show new connection dialog
+		_addNode();
 	});
-	button = new Button(this, "Restart All", ENTYPO_ICON_CYCLE);
+	button->setTooltip("Add new node");
+	button = new Button(tools, "", ENTYPO_ICON_CYCLE);
 	button->setCallback([this] {
 		ctrl_->restart();
 	});
-	button = new Button(this, "Pause All", ENTYPO_ICON_POWER_PLUG);
+	button = new Button(tools, "", ENTYPO_ICON_CONTROLLER_PAUS);
 	button->setCallback([this] {
 		ctrl_->pause();
 	});
+	button->setTooltip("Pause all nodes");
 
 	new Label(this, "Select Node","sans-bold");
 	auto select = new ComboBox(this, node_titles_);
@@ -42,14 +52,40 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		_changeActive(ix);
 	});
 
-	button = new Button(this, "Restart Node", ENTYPO_ICON_CYCLE);
+	new Label(this, "Node Options","sans-bold");
+
+	tools = new Widget(this);
+    tools->setLayout(new BoxLayout(Orientation::Horizontal,
+                                       Alignment::Middle, 0, 6));
+
+	button = new Button(tools, "", ENTYPO_ICON_INFO);
+	button->setCallback([this] {
+		
+	});
+	button->setTooltip("Node status information");
+
+	button = new Button(tools, "", ENTYPO_ICON_COG);
+	button->setCallback([this,parent] {
+		auto cfgwin = new ConfigWindow(parent, ctrl_, _getActiveID());
+		cfgwin->setTheme(theme());
+	});
+	button->setTooltip("Edit node configuration");
+
+	button = new Button(tools, "", ENTYPO_ICON_CYCLE);
 	button->setCallback([this] {
 		ctrl_->restart(_getActiveID());
 	});
+	button->setTooltip("Restart this node");
 
-	button = new Button(this, "Pause Node", ENTYPO_ICON_POWER_PLUG);
+	button = new Button(tools, "", ENTYPO_ICON_CONTROLLER_PAUS);
 	button->setCallback([this] {
 		ctrl_->pause(_getActiveID());
+	});
+	button->setTooltip("Pause node processing");
+
+	ctrl->getNet()->onConnect([this,select](ftl::net::Peer *p) {
+		_updateDetails();
+		select->setItems(node_titles_);
 	});
 
 	_changeActive(0);
@@ -57,6 +93,28 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 
 ControlWindow::~ControlWindow() {
 
+}
+
+void ControlWindow::_addNode() {
+	using namespace nanogui;
+
+	FormHelper *form = new FormHelper(this->screen());
+	form->addWindow(Vector2i(100,100), "Add Node");
+
+	auto var = form->addVariable("URI", add_node_uri_);
+	var->setValue("tcp://localhost:9001");
+	var->setFixedWidth(200);
+
+	form->addButton("Add", [this,form](){
+		ctrl_->getNet()->connect(add_node_uri_);
+		form->window()->setVisible(false);
+		delete form;
+	})->setIcon(ENTYPO_ICON_PLUS);
+
+	form->addButton("Close", [form]() {
+		form->window()->setVisible(false);
+		delete form;
+	})->setIcon(ENTYPO_ICON_CROSS);
 }
 
 void ControlWindow::_updateDetails() {

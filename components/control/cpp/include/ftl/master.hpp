@@ -7,6 +7,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <Eigen/Eigen>
 
 namespace ftl {
 namespace ctrl {
@@ -36,7 +37,7 @@ class Master {
 
 	void set(const std::string &uri, ftl::config::json_t &value);
 
-	void set(const ftl::UUID &peer, const std::string &uri, ftl::config::json_t &value);
+	void set(const ftl::UUID &peer, const std::string &uri, const ftl::config::json_t &value);
 
 	std::vector<std::string> getConfigurables();
 
@@ -51,6 +52,10 @@ class Master {
 	ftl::config::json_t get(const ftl::UUID &peer, const std::string &uri);
 
 	void watch(const std::string &uri, std::function<void()> f);
+
+	Eigen::Matrix4d getPose(const std::string &uri);
+
+	void setPose(const std::string &uri, const Eigen::Matrix4d &pose);
 
 	// Events
 

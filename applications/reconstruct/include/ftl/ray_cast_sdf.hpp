@@ -16,6 +16,27 @@ public:
 		auto &cfg = ftl::config::resolve(config);
 		create(parametersFromConfig(cfg));
 		hash_render_ = value("hash_renderer", false);
+
+		on("hash_renderer", [this](const ftl::config::Event &e) {
+			hash_render_ = value("hash_renderer", false);
+		});
+
+		on("width", [this](const ftl::config::Event &e) {
+			m_params.m_width = value("width", 640);
+		});
+
+		on("height", [this](const ftl::config::Event &e) {
+			m_params.m_height = value("height", 480);
+		});
+
+		on("width", [this](const ftl::config::Event &e) {
+			m_params.m_width = value("width", 640);
+		});
+
+		on("showBlockBorders", [this](const ftl::config::Event &e) {
+			if (value("showBlockBorders", false)) m_params.m_flags |= kShowBlockBorders;
+			else m_params.m_flags &= ~kShowBlockBorders;
+		});
 	}
 
 	bool isIntegerDepth() const { return hash_render_; }

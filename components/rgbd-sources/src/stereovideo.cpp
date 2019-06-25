@@ -69,8 +69,29 @@ void StereoVideoSource::init(const string &file) {
 		(unsigned int)lsrc_->width(),
 		(unsigned int)lsrc_->height(),
 		0.0f,	// 0m min
-		15.0f	// 15m max
+		15.0f,	// 15m max
+		1.0 / calib_->getQ().at<double>(3,2) // Baseline
 	};
+
+	// Add calibration to config object
+	host_->getConfig()["focal"] = params_.fx;
+	host_->getConfig()["centre_x"] = params_.cx;
+	host_->getConfig()["centre_y"] = params_.cy;
+	host_->getConfig()["baseline"] = params_.baseline;
+
+	// Add event handlers to allow calibration changes...
+	host_->on("baseline", [this](const ftl::config::Event &e) {
+		params_.baseline = host_->value("baseline", params_.baseline);
+		std::unique_lock<std::shared_mutex> lk(host_->mutex());
+		calib_->updateCalibration(params_);
+	});
+
+	host_->on("focal", [this](const ftl::config::Event &e) {
+		params_.fx = host_->value("focal", params_.fx);
+		params_.fy = params_.fx;
+		std::unique_lock<std::shared_mutex> lk(host_->mutex());
+		calib_->updateCalibration(params_);
+	});
 	
 	// left and right masks (areas outside rectified images)
 	// only left mask used

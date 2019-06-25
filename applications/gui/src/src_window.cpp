@@ -1,5 +1,7 @@
 #include "src_window.hpp"
 
+#include "pose_window.hpp"
+
 #include <nanogui/imageview.h>
 #include <nanogui/textbox.h>
 #include <nanogui/slider.h>
@@ -93,28 +95,41 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	select->setCallback([this,select](int ix) {
 		LOG(INFO) << "Change source: " << ix;
 		src_->set("uri", available_[ix]);
-});
+	});
 
 	ctrl->getNet()->onConnect([this,select](ftl::net::Peer *p) {
 		available_ = ctrl_->getNet()->findAll<string>("list_streams");
 		select->setItems(available_);
 	});
 
-	auto button_rgb = new Button(this, "RGB (left)");
+	new Label(this, "Source Options","sans-bold");
+
+	auto tools = new Widget(this);
+    tools->setLayout(new BoxLayout(Orientation::Horizontal,
+                                       Alignment::Middle, 0, 6));
+
+	auto button_rgb = new Button(tools, "RGB");
+	button_rgb->setTooltip("RGB left image");
 	button_rgb->setFlags(Button::RadioButton);
 	button_rgb->setPushed(true);
 	button_rgb->setChangeCallback([this](bool state) { mode_ = Mode::rgb; });
 
-	auto button_depth = new Button(this, "Depth");
+	auto button_depth = new Button(tools, "Depth");
 	button_depth->setFlags(Button::RadioButton);
 	button_depth->setChangeCallback([this](bool state) { mode_ = Mode::depth; });
 
-	auto button_stddev = new Button(this, "Standard Deviation (25 frames)");
+	auto button_stddev = new Button(tools, "SD. 25");
+	button_stddev->setTooltip("Standard Deviation over 25 frames");
 	button_stddev->setFlags(Button::RadioButton);
 	button_stddev->setChangeCallback([this](bool state) { mode_ = Mode::stddev; });
 
+	auto button_pose = new Button(this, "Adjust Pose", ENTYPO_ICON_COMPASS);
+	button_pose->setCallback([this]() {
+		new PoseWindow(screen(), ctrl_, src_->getURI());
+	});
+
 #ifdef HAVE_LIBARCHIVE
-	auto button_snapshot = new Button(this, "Snapshot");
+	auto button_snapshot = new Button(this, "Snapshot", ENTYPO_ICON_IMAGES);
 	button_snapshot->setCallback([this] {
 		try {
 			char timestamp[18];

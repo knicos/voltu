@@ -189,6 +189,14 @@ ftl::Configurable *ftl::config::find(const std::string &uri) {
 	else return (*ix).second;
 }
 
+std::vector<std::string> ftl::config::list() {
+	vector<string> r;
+	for (auto i : config_instance) {
+		r.push_back(i.first);
+	}
+	return r;
+}
+
 void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 	auto uri = cfg->get<string>("$id");
 	if (!uri) {

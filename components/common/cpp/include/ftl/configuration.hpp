@@ -68,6 +68,8 @@ json_t &resolveWait(const std::string &);
  */
 Configurable *find(const std::string &uri);
 
+std::vector<std::string> list();
+
 /**
  * Adds a Configurable instance to the database of instances so that it can
  * then be resolved using find().

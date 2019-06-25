@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
+#include <ftl/rgbd/camera.hpp>
 
 namespace cv {
 class FileStorage;
@@ -39,7 +40,9 @@ class Calibrate : public ftl::Configurable {
 	 */
 	void rectifyStereo(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::Stream &stream);
 
-	bool isCalibrated(); // TODO ???
+	bool isCalibrated();
+
+	void updateCalibration(const ftl::rgbd::Camera &p);
 
 	/**
 	 * Get the camera matrix. Used to convert disparity map back to depth and
@@ -59,6 +62,9 @@ private:
 
 	cv::Mat P_;
 	cv::Mat Q_;
+	cv::Mat R_, T_, R1_, P1_, R2_, P2_;
+	cv::Mat M1_, D1_, M2_, D2_;
+	cv::Size img_size_;
 };
 
 }
