@@ -125,7 +125,8 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 
 	auto button_pose = new Button(this, "Adjust Pose", ENTYPO_ICON_COMPASS);
 	button_pose->setCallback([this]() {
-		new PoseWindow(screen(), ctrl_, src_->getURI());
+		auto posewin = new PoseWindow(screen(), ctrl_, src_->getURI());
+		posewin->setTheme(theme());
 	});
 
 #ifdef HAVE_LIBARCHIVE

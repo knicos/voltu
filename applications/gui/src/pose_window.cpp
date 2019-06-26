@@ -92,7 +92,13 @@ PoseWindow::PoseWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const s
 	tools->setFixedWidth(150);
 	
 
-	new Widget(tools);
+	button = new Button(tools, "Up");
+	button->setCallback([this]() {
+		Eigen::Affine3d transform(Eigen::Translation3d(0.0,-pose_precision_,0.0));
+		Eigen::Matrix4d matrix = transform.matrix();
+		pose_ *= matrix;
+		ctrl_->setPose(src_, pose_);
+	});
 	button = new Button(tools, "", ENTYPO_ICON_CHEVRON_UP);
 	button->setCallback([this]() {
 		Eigen::Affine3d transform(Eigen::Translation3d(0.0,0.0,-pose_precision_));
@@ -100,7 +106,13 @@ PoseWindow::PoseWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const s
 		pose_ *= matrix;
 		ctrl_->setPose(src_, pose_);
 	});
-	new Widget(tools);
+	button = new Button(tools, "Down");
+	button->setCallback([this]() {
+		Eigen::Affine3d transform(Eigen::Translation3d(0.0,pose_precision_,0.0));
+		Eigen::Matrix4d matrix = transform.matrix();
+		pose_ *= matrix;
+		ctrl_->setPose(src_, pose_);
+	});
 
 	button = new Button(tools, "", ENTYPO_ICON_CHEVRON_LEFT);
 	button->setCallback([this]() {
