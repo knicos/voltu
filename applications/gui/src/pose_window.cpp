@@ -48,6 +48,22 @@ PoseWindow::PoseWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const s
     tools->setLayout(new BoxLayout(Orientation::Horizontal,
                                        Alignment::Middle, 0, 6));
 
+	auto button_opt = new Button(tools, "", ENTYPO_ICON_EYE);
+	button_opt->setTooltip("Virtual view to this pose");
+	//button_opt->setFlags(Button::ToggleButton);
+	//button_opt->setPushed(false);
+	button_opt->setCallback([this]() {  });
+
+	button_opt = new Button(tools, "", ENTYPO_ICON_LINK);
+	button_opt->setTooltip("Link virtual current pose to this pose");
+	button_opt->setFlags(Button::ToggleButton);
+	button_opt->setPushed(false);
+	button_opt->setChangeCallback([this](bool state) {  });
+
+	tools = new Widget(grouping);
+    tools->setLayout(new BoxLayout(Orientation::Horizontal,
+                                       Alignment::Middle, 0, 6));
+
 	auto button_rgb = new Button(tools, "Translation");
 	button_rgb->setTooltip("Adjust camera location");
 	button_rgb->setFlags(Button::RadioButton);
