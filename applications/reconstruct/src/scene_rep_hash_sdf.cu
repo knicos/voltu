@@ -624,7 +624,7 @@ __global__ void starveVoxelsKernel(HashData hashData) {
 	//is typically exectued only every n'th frame
 	int weight = hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight;
 	weight = max(0, weight-1);	
-	hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight = 1;  //CHECK Remove to totally clear previous frame (Nick)
+	hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight = weight;  //CHECK Remove to totally clear previous frame (Nick)
 }
 
 extern "C" void starveVoxelsKernelCUDA(HashData& hashData, const HashParams& hashParams)
