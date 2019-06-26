@@ -4,6 +4,7 @@ set(RGBDSRC
 	src/disparity.cpp
 	src/source.cpp
 	src/stereovideo.cpp
+	src/middlebury_source.cpp
 	src/net.cpp
 	src/streamer.cpp
 	src/colour.cpp

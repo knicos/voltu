@@ -73,6 +73,16 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
+class MiddleburySource : public ftl::rgbd::detail::Source {
+	public:
+	MiddleburySource(ftl::rgbd::Source *host, const std::string &dir) : ftl::rgbd::detail::Source(host) {
+		last_type = "middlebury";
+	}
+
+	bool grab() { return true; };
+	bool isReady() { return true; };
+};
+
 }	
 }	
 }
@@ -86,6 +96,7 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 #define _FTL_RGBD_SNAPSHOT_SOURCE_HPP_
 #define _FTL_RGBD_IMAGE_HPP_
 #define _FTL_RGBD_REALSENSE_HPP_
+#define _FTL_RGBD_MIDDLEBURY_SOURCE_HPP_
 
 #include "../src/source.cpp"
 
