@@ -33,6 +33,14 @@ public:
 			m_params.m_width = value("width", 640);
 		});
 
+		on("max_depth", [this](const ftl::config::Event &e) {
+			m_params.m_maxDepth = value("max_depth", 20.0f);
+		});
+
+		on("min_depth", [this](const ftl::config::Event &e) {
+			m_params.m_minDepth = value("min_depth", 20.0f);
+		});
+
 		on("showBlockBorders", [this](const ftl::config::Event &e) {
 			if (value("showBlockBorders", false)) m_params.m_flags |= kShowBlockBorders;
 			else m_params.m_flags &= ~kShowBlockBorders;

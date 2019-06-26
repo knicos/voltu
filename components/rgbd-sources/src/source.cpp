@@ -5,6 +5,7 @@
 #include "net.hpp"
 #include "stereovideo.hpp"
 #include "image.hpp"
+#include "middlebury_source.hpp"
 
 #ifdef HAVE_LIBARCHIVE
 #include <ftl/rgbd/snapshot.hpp>
@@ -25,6 +26,7 @@ using std::shared_lock;
 using ftl::rgbd::detail::StereoVideoSource;
 using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
+using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
@@ -97,7 +99,13 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	if (eix == string::npos) {
 		// Might be a directory
 		if (ftl::is_directory(path)) {
-			return new StereoVideoSource(this, path);
+			if (ftl::is_file(path + "/video.mp4")) {
+				return new StereoVideoSource(this, path);
+			} else if (ftl::is_file(path + "/im0.png")) {
+				return new MiddleburySource(this, path);
+			} else {
+				LOG(ERROR) << "Directory is not a valid RGBD source: " << path;
+			}
 		} else {
 			return nullptr;
 		}
