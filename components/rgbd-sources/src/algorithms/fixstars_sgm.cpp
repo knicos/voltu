@@ -25,7 +25,7 @@ void FixstarsSGM::compute(const cv::cuda::GpuMat &l, const cv::cuda::GpuMat &r, 
 	if (!ssgm_) { // todo: move to constructor
 		dispt_ = GpuMat(l.rows, l.cols, CV_16SC1);
 		ssgm_ = new sgm::StereoSGM(l.cols, l.rows, max_disp_, 8, 16, lbw_.step, dispt_.step / sizeof(short),
-			sgm::EXECUTE_INOUT_CUDA2CUDA, sgm::StereoSGM::Parameters(10,120,0.95f,true));
+			sgm::EXECUTE_INOUT_CUDA2CUDA, sgm::StereoSGM::Parameters(10, 120, uniqueness_, true));
 	}
 
 	//auto start = std::chrono::high_resolution_clock::now();
@@ -61,7 +61,7 @@ void FixstarsSGM::setMask(Mat &mask) {
 	if (!ssgm_) { // todo: move to constructor
 		ssgm_ = new sgm::StereoSGM(mask.cols, mask.rows, max_disp_, 8, 16,
 			sgm::EXECUTE_INOUT_HOST2HOST,
-			sgm::StereoSGM::Parameters(10,120,0.95f,true));
+			sgm::StereoSGM::Parameters(10, 120, uniqueness_, true));
 	}
 	
 	mask_l_ = mask;
