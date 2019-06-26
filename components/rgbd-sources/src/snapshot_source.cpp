@@ -19,5 +19,9 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, 
 
 	ftl::rgbd::colourCorrection(rgb_, host->value("gamma", 1.0f), host->value("temperature", 6500));
 
+	host->on("gamma", [this,host](const ftl::config::Event&) {
+		ftl::rgbd::colourCorrection(rgb_, host->value("gamma", 1.0f), host->value("temperature", 6500));
+	});
+
     setPose(pose);
 }

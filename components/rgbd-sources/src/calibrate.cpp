@@ -76,12 +76,11 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 		return false;
 	}
 
-	Mat M1, D1, M2, D2;
-	fs["M"] >> M1;
-	fs["D"] >> D1;
+	fs["M"] >> M1_;
+	fs["D"] >> D1_;
 
-	M2 = M1;
-	D2 = D1;
+	M2_ = M1_;
+	D2_ = D1_;
 
 	auto efile = ftl::locateFile("extrinsics.yml");
 	if (efile) {
@@ -97,22 +96,42 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 		return false;
 	}
 
-	Mat R, T, R1, P1, R2, P2;
-	fs["R"] >> R;
-	fs["T"] >> T;
-	fs["R1"] >> R1;
-	fs["R2"] >> R2;
-	fs["P1"] >> P1;
-	fs["P2"] >> P2;
+	fs["R"] >> R_;
+	fs["T"] >> T_;
+	fs["R1"] >> R1_;
+	fs["R2"] >> R2_;
+	fs["P1"] >> P1_;
+	fs["P2"] >> P2_;
 	fs["Q"] >> Q_;
 
-	P_ = P1;
+	P_ = P1_;
+
+	img_size_ = img_size;
 
 	// cv::cuda::remap() works only with CV_32FC1
-	initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_32FC1, map1.first, map2.first);
-	initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_32FC1, map1.second, map2.second);
+	initUndistortRectifyMap(M1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);
+	initUndistortRectifyMap(M2_, D2_, R2_, P2_, img_size_, CV_32FC1, map1.second, map2.second);
 
 	return true;
+}
+
+void Calibrate::updateCalibration(const ftl::rgbd::Camera &p) {
+	std::pair<Mat, Mat> map1, map2;
+
+	Q_.at<double>(3,2) = 1.0 / p.baseline;
+	Q_.at<double>(2,3) = p.fx;
+	Q_.at<double>(0,3) = p.cx;
+	Q_.at<double>(1,3) = p.cy;
+	// TODO(Nick) Update camera matrix also...
+
+	initUndistortRectifyMap(M1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);
+	initUndistortRectifyMap(M2_, D2_, R2_, P2_, img_size_, CV_32FC1, map1.second, map2.second);
+
+	// CHECK Is this thread safe!!!!
+	map1_gpu_.first.upload(map1.first);
+	map1_gpu_.second.upload(map1.second);
+	map2_gpu_.first.upload(map2.first);
+	map2_gpu_.second.upload(map2.second);
 }
 
 void Calibrate::rectifyStereo(GpuMat &l, GpuMat &r, Stream &stream) {

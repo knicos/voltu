@@ -57,6 +57,19 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		}
 	});
 
+	net->bind("get_pose", [this](const std::string &uri) -> std::vector<unsigned char> {
+		SHARED_LOCK(mutex_,slk);
+
+		if (sources_.find(uri) != sources_.end()) {
+			Eigen::Matrix4d pose = sources_[uri]->src->getPose();
+			vector<unsigned char> vec((unsigned char*)pose.data(), (unsigned char*)(pose.data()+(pose.size())));
+			return vec;
+		} else {
+			LOG(WARNING) << "Requested pose not found: " << uri;
+			return {};
+		}
+	});
+
 	// Allow remote users to access camera calibration matrix
 	net->bind("source_calibration", [this](const std::string &uri) -> vector<unsigned char> {
 		vector<unsigned char> buf;

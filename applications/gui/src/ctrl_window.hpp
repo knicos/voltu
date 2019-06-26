@@ -21,10 +21,12 @@ class ControlWindow : public nanogui::Window {
 	std::vector<ftl::config::json_t> node_details_;
 	std::vector<std::string> node_titles_;
 	int active_ix_;
+	std::string add_node_uri_;
 
 	void _updateDetails();
 	void _changeActive(int);
 	ftl::UUID _getActiveID();
+	void _addNode();
 };
 
 }

@@ -15,6 +15,7 @@
 #include <nanogui/imageview.h>
 #include <nanogui/combobox.h>
 #include <nanogui/label.h>
+#include <nanogui/toolbutton.h>
 
 #include "ctrl_window.hpp"
 #include "src_window.hpp"
@@ -241,16 +242,120 @@ static Eigen::Affine3f create_rotation_matrix(float ax, float ay, float az) {
 
 class FTLApplication : public nanogui::Screen {
 	public:
-	explicit FTLApplication(ftl::Configurable *root, ftl::net::Universe *net, ftl::ctrl::Master *controller) : nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab GUI") {
+	explicit FTLApplication(ftl::Configurable *root, ftl::net::Universe *net, ftl::ctrl::Master *controller) : nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab Remote Presence") {
 		using namespace nanogui;
 		net_ = net;
 		ctrl_ = controller;
 
+		status_ = "FT-Lab Remote Presence System";
+
+		setSize(Vector2i(1280,720));
+
+		Theme *toolbuttheme = new Theme(*theme());
+		toolbuttheme->mBorderDark = nanogui::Color(0,0);
+		toolbuttheme->mBorderLight = nanogui::Color(0,0);
+		toolbuttheme->mButtonGradientBotFocused = nanogui::Color(60,255);
+		toolbuttheme->mButtonGradientBotUnfocused = nanogui::Color(0,0);
+		toolbuttheme->mButtonGradientTopFocused = nanogui::Color(60,255);
+		toolbuttheme->mButtonGradientTopUnfocused = nanogui::Color(0,0);
+		toolbuttheme->mButtonGradientTopPushed = nanogui::Color(60,180);
+		toolbuttheme->mButtonGradientBotPushed = nanogui::Color(60,180);
+
+		Theme *windowtheme = new Theme(*theme());
+		windowtheme->mWindowFillFocused = nanogui::Color(220, 200);
+		windowtheme->mWindowFillUnfocused = nanogui::Color(220, 200);
+		windowtheme->mWindowHeaderGradientBot = nanogui::Color(60,230);
+		windowtheme->mWindowHeaderGradientTop = nanogui::Color(60,230);
+		windowtheme->mTextColor = nanogui::Color(20,255);
+		windowtheme->mWindowCornerRadius = 2;
+		windowtheme->mButtonGradientBotFocused = nanogui::Color(210,255);
+		windowtheme->mButtonGradientBotUnfocused = nanogui::Color(190,255);
+		windowtheme->mButtonGradientTopFocused = nanogui::Color(230,255);
+		windowtheme->mButtonGradientTopUnfocused = nanogui::Color(230,255);
+		windowtheme->mButtonGradientTopPushed = nanogui::Color(170,255);
+		windowtheme->mButtonGradientBotPushed = nanogui::Color(210,255);
+		windowtheme->mBorderDark = nanogui::Color(150,255);
+		windowtheme->mBorderMedium = nanogui::Color(165,255);
+		windowtheme->mBorderLight = nanogui::Color(230,255);
+		windowtheme->mButtonFontSize = 16;
+		windowtheme->mTextColorShadow = nanogui::Color(0,0);
+		windowtheme->mWindowTitleUnfocused = windowtheme->mWindowTitleFocused;
+		windowtheme->mWindowTitleFocused = nanogui::Color(240,255);
+		windowtheme->mIconScale = 0.85f;
+
+		auto toolbar = new Window(this, "");
+		toolbar->setPosition(Vector2i(0,0));
+		toolbar->setFixedWidth(50);
+		toolbar->setFixedHeight(height());
+		//toolbar->setLayout(new BoxLayout(Orientation::Vertical,
+        //                               Alignment::Middle, 0, 10));
+
+		setResizeCallback([this,toolbar](Vector2i s) {
+			toolbar->setFixedHeight(s[1]);
+		});
+
+		auto innertool = new Widget(toolbar);
+		innertool->setLayout(new BoxLayout(Orientation::Vertical,
+                                       Alignment::Middle, 0, 10));
+		innertool->setPosition(Vector2i(5,10));
+
+		// Padding widget
+		//auto w = new Widget(innertool);
+		//w->setHeight(10);
+
+		auto button = new ToolButton(innertool, ENTYPO_ICON_HOME);
+		button->setIconExtraScale(1.5f);
+		button->setTheme(toolbuttheme);
+		button->setTooltip("Home");
+		button->setFixedSize(Vector2i(40,40));
+		button->setCallback([this]() {
+			//swindow_->setVisible(true);
+		});
+
+		button = new ToolButton(innertool, ENTYPO_ICON_EDIT);
+		button->setIconExtraScale(1.5f);
+		button->setTheme(toolbuttheme);
+		button->setTooltip("Edit Scene");
+		button->setFixedSize(Vector2i(40,40));
+		button->setCallback([this]() {
+			//swindow_->setVisible(true);
+		});
+
+		button = new ToolButton(innertool, ENTYPO_ICON_CAMERA);
+		button->setIconExtraScale(1.5f);
+		button->setTheme(toolbuttheme);
+		button->setTooltip("Camera Sources");
+		button->setFixedSize(Vector2i(40,40));
+		button->setCallback([this]() {
+			swindow_->setVisible(true);
+		});
+
+		button = new ToolButton(innertool, ENTYPO_ICON_SIGNAL);
+		button->setIconExtraScale(1.5f);
+		button->setTheme(toolbuttheme);
+		button->setTooltip("Connections");
+		button->setFixedSize(Vector2i(40,40));
+		button->setCallback([this]() {
+			cwindow_->setVisible(true);
+		});
+
+		button = new ToolButton(toolbar, ENTYPO_ICON_COG);
+		button->setIconExtraScale(1.5f);
+		button->setTheme(toolbuttheme);
+		button->setTooltip("Settings");
+		button->setFixedSize(Vector2i(40,40));
+		button->setPosition(Vector2i(5,height()-50));
+
+		//configwindow_ = new ConfigWindow(parent, ctrl_);
 		cwindow_ = new ftl::gui::ControlWindow(this, controller);
 		swindow_ = new ftl::gui::SourceWindow(this, controller);
 
-		cwindow_->setPosition(Eigen::Vector2i(20, 20));
-		swindow_->setPosition(Eigen::Vector2i(20, 400));
+		cwindow_->setPosition(Eigen::Vector2i(80, 20));
+		swindow_->setPosition(Eigen::Vector2i(80, 400));
+		cwindow_->setVisible(false);
+		swindow_->setVisible(false);
+		cwindow_->setTheme(windowtheme);
+		swindow_->setTheme(windowtheme);
 
 		//src_ = nullptr;
 		eye_ = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
@@ -358,8 +463,8 @@ class FTLApplication : public nanogui::Screen {
 				neye_ += r.matrix()*Vector4f(0.0,scalar,0.0,1.0);
 				return true;
 			} else if (action == 1 && key == 'H') {
-				swindow_->setVisible(!swindow_->visible());
-				cwindow_->setVisible(!cwindow_->visible());
+				swindow_->setVisible(false);
+				cwindow_->setVisible(false);
 			} else if (action == 1 && key == 32) {
 				ctrl_->pause();
 			}
@@ -434,8 +539,9 @@ class FTLApplication : public nanogui::Screen {
 			}
 		}
 
+		Vector2f screenSize = size().cast<float>();
+
 		if (imageSize[0] > 0) {
-			Vector2f screenSize = size().cast<float>();
 			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
 			Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
 			Vector2f positionInScreen(0.0f, 0.0f);
@@ -457,7 +563,8 @@ class FTLApplication : public nanogui::Screen {
 			//glDisable(GL_SCISSOR_TEST);
 		}
 
-		nvgText(ctx, 10, 20, "FT-Lab Remote Presence System", NULL);
+		nvgTextAlign(ctx, NVG_ALIGN_RIGHT);
+		nvgText(ctx, screenSize[0]-10, screenSize[1]-20, status_.c_str(), NULL);
 
 		/* Draw the user interface */
 		screen()->performLayout(ctx);
@@ -484,6 +591,7 @@ class FTLApplication : public nanogui::Screen {
 	float delta_;
 	Eigen::Vector2f imageSize;
 	ftl::ctrl::Master *ctrl_;
+	std::string status_;
 };
 
 int main(int argc, char **argv) {

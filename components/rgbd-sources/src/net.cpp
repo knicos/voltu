@@ -33,6 +33,12 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 				}
 
 				LOG(INFO) << "Calibration received: " << p.cx << ", " << p.cy << ", " << p.fx << ", " << p.fy;
+
+				// Put calibration into config manually
+				host_->getConfig()["focal"] = p.fx;
+				host_->getConfig()["centre_x"] = p.cx;
+				host_->getConfig()["centre_y"] = p.cy;
+				host_->getConfig()["baseline"] = p.baseline;
 				
 				return true;
 			} else {
@@ -50,6 +56,25 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 
 	gamma_ = host->value("gamma", 1.0f);
 	temperature_ = host->value("temperature", 6500);
+
+	host->on("gamma", [this,host](const ftl::config::Event&) {
+		gamma_ = host->value("gamma", 1.0f);
+	});
+
+	host->on("temperature", [this,host](const ftl::config::Event&) {
+		temperature_ = host->value("temperature", 6500);
+	});
+
+	host->on("focal", [this,host](const ftl::config::Event&) {
+		params_.fx = host_->value("focal", 400.0);
+		params_.fy = params_.fx;
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/focal", host_->getConfig()["focal"].dump());
+	});
+
+	host->on("baseline", [this,host](const ftl::config::Event&) {
+		params_.baseline = host_->value("baseline", 400.0);
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/baseline", host_->getConfig()["baseline"].dump());
+	});
 
 	_updateURI();
 

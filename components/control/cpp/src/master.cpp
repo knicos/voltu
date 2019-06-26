@@ -65,8 +65,9 @@ void Master::set(const string &uri, json_t &value) {
 	net_->broadcast("update_cfg", uri, (string)value);
 }
 
-void Master::set(const ftl::UUID &peer, const string &uri, json_t &value) {
-	net_->send(peer, "update_cfg", uri, (string)value);
+void Master::set(const ftl::UUID &peer, const string &uri, const json_t &value) {
+	LOG(INFO) << "CHANGE: " << uri;
+	net_->send(peer, "update_cfg", uri, value.dump());
 }
 
 vector<json_t> Master::getSlaves() {
@@ -83,7 +84,7 @@ vector<string> Master::getConfigurables() {
 }
 
 vector<string> Master::getConfigurables(const ftl::UUID &peer) {
-	return {};
+	return net_->call<vector<string>>(peer, "list_configurables");
 }
 
 vector<json_t> Master::get(const string &uri) {
@@ -95,11 +96,30 @@ json_t Master::getOne(const string &uri) {
 }
 
 json_t Master::get(const ftl::UUID &peer, const string &uri) {
-	return {};
+	return json_t::parse(net_->call<string>(peer, "get_cfg", uri));
 }
 
 void Master::watch(const string &uri, function<void()> f) {
 
+}
+
+Eigen::Matrix4d Master::getPose(const std::string &uri) {
+	auto r = net_->findOne<vector<unsigned char>>("get_pose", uri);
+	if (r) {
+		Eigen::Matrix4d pose;
+		memcpy(pose.data(), (*r).data(), (*r).size());
+		return pose;
+	} else {
+		LOG(WARNING) << "No pose found for " << uri;
+		Eigen::Matrix4d pose;
+		pose.setIdentity();
+		return pose;
+	}
+}
+
+void Master::setPose(const std::string &uri, const Eigen::Matrix4d &pose) {
+	vector<unsigned char> vec((unsigned char*)pose.data(), (unsigned char*)(pose.data()+(pose.size())));
+	net_->broadcast("set_pose", uri, vec);
 }
 
 // Events

@@ -87,7 +87,7 @@ __global__ void clearDepthKernel(ftl::voxhash::HashData hashData, RayCastData ra
 
 	if (x < rayCastParams.m_width && y < rayCastParams.m_height) {
 		rayCastData.d_depth_i[y*rayCastParams.m_width+x] = 0x7FFFFFFF; //PINF;
-		rayCastData.d_colors[y*rayCastParams.m_width+x] = make_uchar3(0,0,0);
+		rayCastData.d_colors[y*rayCastParams.m_width+x] = make_uchar3(76,76,82);
 	}
 }
 
