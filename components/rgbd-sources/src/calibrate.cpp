@@ -120,6 +120,9 @@ void Calibrate::updateCalibration(const ftl::rgbd::Camera &p) {
 
 	Q_.at<double>(3,2) = 1.0 / p.baseline;
 	Q_.at<double>(2,3) = p.fx;
+	Q_.at<double>(0,3) = p.cx;
+	Q_.at<double>(1,3) = p.cy;
+	// TODO(Nick) Update camera matrix also...
 
 	initUndistortRectifyMap(M1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);
 	initUndistortRectifyMap(M2_, D2_, R2_, P2_, img_size_, CV_32FC1, map1.second, map2.second);
