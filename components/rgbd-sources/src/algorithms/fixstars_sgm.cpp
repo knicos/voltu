@@ -12,9 +12,8 @@ using cv::cuda::GpuMat;
 
 FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	ssgm_ = nullptr;
+	uniqueness_ = value("uniqueness", 0.95f);
 	use_filter_ = value("use_filter", false);
-	// note: (max_disp_ << 4) libsgm subpixel accuracy.
-	//       What is the impact in the filter? (possible artifacts)
 	filter_ = cv::cuda::createDisparityBilateralFilter(max_disp_ << 4, value("filter_radius", 25), value("filter_iter", 1));
 }
 
