@@ -12,6 +12,7 @@ set(RGBDSRC
 #	src/algorithms/rtcensus_sgm.cpp
 #	src/algorithms/opencv_sgbm.cpp
 #	src/algorithms/opencv_bm.cpp
+	src/cb_segmentation.cpp
 )
 
 if (HAVE_REALSENSE)
