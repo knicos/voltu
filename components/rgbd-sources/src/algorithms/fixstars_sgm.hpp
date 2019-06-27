@@ -12,6 +12,8 @@
 #include <opencv2/cudastereo.hpp>
 #include <ftl/configuration.hpp>
 
+#include "ftl/cb_segmentation.hpp"
+
 namespace ftl {
 namespace algorithms {
 
