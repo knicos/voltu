@@ -33,12 +33,12 @@ bool hasOption(const map<string, string> &options, const string &opt) {
 
 int getOptionInt(const map<string, string> &options, const string &opt, int default_value) {
 	if (!hasOption(options, opt)) return default_value;
-	return std::stoi(getOption(options, opt));
+	return std::stoi(options.at(opt));
 }
 
 double getOptionDouble(const map<string, string> &options, const string &opt, double default_value) {
 	if (!hasOption(options, opt)) return default_value;
-	return std::stod(getOption(options, opt));
+	return std::stod(options.at(opt));
 }
 
 string getOptionString(const map<string, string> &options, const string &opt, string default_value) {
@@ -181,8 +181,8 @@ CalibrationChessboard::CalibrationChessboard(const map<string, string> &opt) {
 	pattern_square_size_ = getOptionDouble(opt, "square_size", 36.0);
 
 	LOG(INFO) << "Chessboard calibration parameters";
-	LOG(INFO) << "         rows: " << pattern_size_.width;
-	LOG(INFO) << "         cols: " << pattern_size_.height;
+	LOG(INFO) << "         rows: " << pattern_size_.height;
+	LOG(INFO) << "         cols: " << pattern_size_.width;
 	LOG(INFO) << "        width: " << image_size_.width;
 	LOG(INFO) << "       height: " << image_size_.height;
 	LOG(INFO) << "  square_size: " << pattern_square_size_;
