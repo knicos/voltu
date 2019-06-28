@@ -17,6 +17,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     using namespace nanogui;
 
     paused_ = false;
+    writer_ = nullptr;
 
     setLayout(new BoxLayout(Orientation::Horizontal,
 									Alignment::Middle, 5, 10));
@@ -54,8 +55,24 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
     button->setFlags(Button::ToggleButton);
     button->setChangeCallback([this,button](bool state) {
-        if (state) button->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
-        else button->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+        if (state){
+            auto *cam = screen_->activeCamera();
+
+            button->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+            char timestamp[18];
+			std::time_t t=std::time(NULL);
+			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+			writer_ = new ftl::rgbd::SnapshotStreamWriter(std::string(timestamp) + ".tar.gz", 1000 / 25);
+            writer_->addSource(cam->source());
+            writer_->start();
+        } else {
+            button->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+            if (writer_) {
+                writer_->stop();
+                delete writer_;
+                writer_ = nullptr;
+            }
+        }
         //if (state) ... start
         //else ... stop
     });
@@ -92,12 +109,10 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
 			cv::Mat rgb, depth;
 			cam->source()->getFrames(rgb, depth);
-			if (!writer.addCameraRGBD(
+			if (!writer.addCameraParams("0", cam->source()->getPose(), cam->source()->parameters()) || !writer.addCameraRGBD(
 					"0", // TODO
 					rgb,
-					depth,
-					cam->source()->getPose(),
-					cam->source()->parameters()
+					depth
 				)) {
 				LOG(ERROR) << "Snapshot failed";
 			}

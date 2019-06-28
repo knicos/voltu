@@ -124,11 +124,8 @@ bool SnapshotWriter::addEigenMatrix4d(const string &name, const Matrix4d &m, con
 	return addMat(name, tmp, format);
 }
 
-bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat &depth,
-							 const Matrix4d &pose, const Camera &params) {
+bool SnapshotWriter::addCameraParams(const string &name, const Matrix4d &pose, const Camera &params) {
 	bool retval = true;
-	retval &= addMat(name + "-RGB", rgb);
-	retval &= addMat(name + "-D", depth);
 	retval &= addEigenMatrix4d(name + "-POSE", pose);
 
 	nlohmann::json j;
@@ -137,6 +134,65 @@ bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat
 	retval &= addFile(name + "-PARAMS.json", (uchar*) str_params.c_str(), str_params.size());
 	return retval;
 }
+
+bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat &depth) {
+	bool retval = true;
+	cv::Mat tdepth;
+	depth.convertTo(tdepth, CV_16SC1, 16.0f*10.0f);
+	retval &= addMat(name + "-RGB", rgb, "jpg");
+	retval &= addMat(name + "-D", tdepth, "png");
+	return retval;
+}
+
+SnapshotStreamWriter::SnapshotStreamWriter(const string &filename, int delay) : 
+		run_(false), finished_(false), writer_(filename), delay_(delay) {}
+
+SnapshotStreamWriter::~SnapshotStreamWriter() {
+
+}
+
+void SnapshotStreamWriter::addSource(ftl::rgbd::Source *src) {
+	writer_.addCameraParams(std::to_string(sources_.size()), src->getPose(), src->parameters());
+	sources_.push_back(src);
+}
+
+void SnapshotStreamWriter::run() {
+	vector<Mat> rgb(sources_.size());
+	vector<Mat> depth(sources_.size());
+
+	while(run_) {
+		auto now = std::chrono::system_clock::now();
+		auto duration = now.time_since_epoch();
+		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+		for(size_t i = 0; i < sources_.size(); ++i) {
+			sources_[i]->getFrames(rgb[i], depth[i]);
+		}
+
+		for(size_t i = 0; i < sources_.size(); ++i) {
+			writer_.addCameraRGBD(std::to_string(ms) + "-" + std::to_string(i), rgb[i], depth[i]);
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(delay_));
+	}
+
+	run_ = false;
+	finished_ = true;
+}
+
+void SnapshotStreamWriter::start() {
+	if (run_ || finished_) return;
+	run_ = true;
+	thread_ = std::thread([this] { run(); });
+}
+
+
+void SnapshotStreamWriter::stop() {
+	bool wasrunning = run_;
+	run_ = false;
+	if (wasrunning) thread_.join();
+}
+
 
 
 SnapshotReader::SnapshotReader(const string &filename) {
