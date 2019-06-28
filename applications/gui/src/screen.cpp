@@ -258,6 +258,9 @@ bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modi
 		if (key >= 262 && key <= 267) {
 			if (camera_) camera_->keyMovement(key, modifiers);
 			return true;
+		} else if (action == 1 && key == 'H') {
+			swindow_->setVisible(false);
+			cwindow_->setVisible(false);
 		} else if (action == 1 && key == 32) {
 			ctrl_->pause();
 			return true;
