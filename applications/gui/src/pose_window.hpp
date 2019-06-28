@@ -8,16 +8,17 @@
 namespace ftl {
 namespace gui {
 
+class Screen;
+
 /**
  * Manage connected nodes and add new connections.
  */
 class PoseWindow : public nanogui::Window {
 	public:
-	PoseWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const std::string &src);
+	PoseWindow(ftl::gui::Screen *screen, const std::string &src);
 	~PoseWindow();
 
 	private:
-	ftl::ctrl::Master *ctrl_;
 	std::vector<std::string> available_;
 	std::string src_;
 
@@ -30,6 +31,8 @@ class PoseWindow : public nanogui::Window {
 	poseparameter_t pose_param_;
 	float pose_precision_;
 	Eigen::Matrix4d pose_;
+	ftl::gui::Screen *screen_;
+	bool poselink_;
 };
 
 }

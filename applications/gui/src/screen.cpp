@@ -1,0 +1,308 @@
+#include "screen.hpp"
+
+#include <nanogui/opengl.h>
+#include <nanogui/glutil.h>
+#include <nanogui/screen.h>
+#include <nanogui/window.h>
+#include <nanogui/layout.h>
+#include <nanogui/imageview.h>
+#include <nanogui/combobox.h>
+#include <nanogui/label.h>
+#include <nanogui/toolbutton.h>
+
+#include <opencv2/opencv.hpp>
+
+#include <loguru.hpp>
+
+#include "ctrl_window.hpp"
+#include "src_window.hpp"
+#include "camera.hpp"
+#include "media_panel.hpp"
+
+using ftl::gui::Screen;
+using ftl::gui::Camera;
+using std::string;
+using ftl::rgbd::Source;
+using ftl::rgbd::isValidDepth;
+
+namespace {
+    constexpr char const *const defaultImageViewVertexShader =
+        R"(#version 330
+        uniform vec2 scaleFactor;
+        uniform vec2 position;
+        in vec2 vertex;
+        out vec2 uv;
+        void main() {
+            uv = vertex;
+            vec2 scaledVertex = (vertex * scaleFactor) + position;
+            gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
+                                1.0 - 2.0*scaledVertex.y,
+                                0.0, 1.0);
+        })";
+
+    constexpr char const *const defaultImageViewFragmentShader =
+        R"(#version 330
+        uniform sampler2D image;
+        out vec4 color;
+        in vec2 uv;
+        void main() {
+            color = texture(image, uv);
+        })";
+}
+
+ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl::ctrl::Master *controller) : nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab Remote Presence") {
+	using namespace nanogui;
+	net_ = pnet;
+	ctrl_ = controller;
+	root_ = proot;
+	camera_ = nullptr;
+
+	status_ = "FT-Lab Remote Presence System";
+
+	setSize(Vector2i(1280,720));
+
+	Theme *toolbuttheme = new Theme(*theme());
+	toolbuttheme->mBorderDark = nanogui::Color(0,0);
+	toolbuttheme->mBorderLight = nanogui::Color(0,0);
+	toolbuttheme->mButtonGradientBotFocused = nanogui::Color(60,255);
+	toolbuttheme->mButtonGradientBotUnfocused = nanogui::Color(0,0);
+	toolbuttheme->mButtonGradientTopFocused = nanogui::Color(60,255);
+	toolbuttheme->mButtonGradientTopUnfocused = nanogui::Color(0,0);
+	toolbuttheme->mButtonGradientTopPushed = nanogui::Color(60,180);
+	toolbuttheme->mButtonGradientBotPushed = nanogui::Color(60,180);
+
+	windowtheme = new Theme(*theme());
+	windowtheme->mWindowFillFocused = nanogui::Color(220, 200);
+	windowtheme->mWindowFillUnfocused = nanogui::Color(220, 200);
+	windowtheme->mWindowHeaderGradientBot = nanogui::Color(60,230);
+	windowtheme->mWindowHeaderGradientTop = nanogui::Color(60,230);
+	windowtheme->mTextColor = nanogui::Color(20,255);
+	windowtheme->mWindowCornerRadius = 2;
+	windowtheme->mButtonGradientBotFocused = nanogui::Color(210,255);
+	windowtheme->mButtonGradientBotUnfocused = nanogui::Color(190,255);
+	windowtheme->mButtonGradientTopFocused = nanogui::Color(230,255);
+	windowtheme->mButtonGradientTopUnfocused = nanogui::Color(230,255);
+	windowtheme->mButtonGradientTopPushed = nanogui::Color(170,255);
+	windowtheme->mButtonGradientBotPushed = nanogui::Color(210,255);
+	windowtheme->mBorderDark = nanogui::Color(150,255);
+	windowtheme->mBorderMedium = nanogui::Color(165,255);
+	windowtheme->mBorderLight = nanogui::Color(230,255);
+	windowtheme->mButtonFontSize = 16;
+	windowtheme->mTextColorShadow = nanogui::Color(0,0);
+	windowtheme->mWindowTitleUnfocused = windowtheme->mWindowTitleFocused;
+	windowtheme->mWindowTitleFocused = nanogui::Color(240,255);
+	windowtheme->mIconScale = 0.85f;
+
+	auto toolbar = new Window(this, "");
+	toolbar->setPosition(Vector2i(0,0));
+	toolbar->setFixedWidth(50);
+	toolbar->setFixedHeight(height());
+	//toolbar->setLayout(new BoxLayout(Orientation::Vertical,
+	//                               Alignment::Middle, 0, 10));
+
+	setResizeCallback([this,toolbar](Vector2i s) {
+		toolbar->setFixedHeight(s[1]);
+		mwindow_->setPosition(Vector2i(s[0] / 2 - mwindow_->width()/2, s[1] - 30 - mwindow_->height()));
+	});
+
+	auto innertool = new Widget(toolbar);
+	innertool->setLayout(new BoxLayout(Orientation::Vertical,
+									Alignment::Middle, 0, 10));
+	innertool->setPosition(Vector2i(5,10));
+
+	// Padding widget
+	//auto w = new Widget(innertool);
+	//w->setHeight(10);
+
+	auto button = new ToolButton(innertool, ENTYPO_ICON_HOME);
+	button->setIconExtraScale(1.5f);
+	button->setTheme(toolbuttheme);
+	button->setTooltip("Home");
+	button->setFixedSize(Vector2i(40,40));
+	button->setCallback([this]() {
+		//swindow_->setVisible(true);
+	});
+
+	/*button = new ToolButton(innertool, ENTYPO_ICON_PLUS);
+	button->setIconExtraScale(1.5f);
+	button->setTheme(toolbuttheme);
+	button->setTooltip("Add new");
+	button->setFixedSize(Vector2i(40,40));
+	button->setCallback([this]() {
+		//swindow_->setVisible(true);
+	});*/
+
+	button = new ToolButton(innertool, ENTYPO_ICON_PLUS);
+	button->setIconExtraScale(1.5f);
+	button->setTheme(toolbuttheme);
+	button->setTooltip("Camera Sources");
+	button->setFixedSize(Vector2i(40,40));
+	button->setCallback([this]() {
+		swindow_->setVisible(true);
+	});
+
+	button = new ToolButton(innertool, ENTYPO_ICON_TOOLS);
+	button->setIconExtraScale(1.5f);
+	button->setTheme(toolbuttheme);
+	button->setTooltip("Connections");
+	button->setFixedSize(Vector2i(40,40));
+	button->setCallback([this]() {
+		cwindow_->setVisible(true);
+	});
+
+	button = new ToolButton(toolbar, ENTYPO_ICON_COG);
+	button->setIconExtraScale(1.5f);
+	button->setTheme(toolbuttheme);
+	button->setTooltip("Settings");
+	button->setFixedSize(Vector2i(40,40));
+	button->setPosition(Vector2i(5,height()-50));
+
+	//configwindow_ = new ConfigWindow(parent, ctrl_);
+	cwindow_ = new ftl::gui::ControlWindow(this, controller);
+	swindow_ = new ftl::gui::SourceWindow(this);
+	mwindow_ = new ftl::gui::MediaPanel(this);
+	mwindow_->setVisible(false);
+
+	cwindow_->setPosition(Eigen::Vector2i(80, 20));
+	swindow_->setPosition(Eigen::Vector2i(80, 400));
+	cwindow_->setVisible(false);
+	swindow_->setVisible(false);
+	cwindow_->setTheme(windowtheme);
+	swindow_->setTheme(windowtheme);
+
+	mShader.init("RGBDShader", defaultImageViewVertexShader,
+				defaultImageViewFragmentShader);
+
+	MatrixXu indices(3, 2);
+	indices.col(0) << 0, 1, 2;
+	indices.col(1) << 2, 3, 1;
+
+	MatrixXf vertices(2, 4);
+	vertices.col(0) << 0, 0;
+	vertices.col(1) << 1, 0;
+	vertices.col(2) << 0, 1;
+	vertices.col(3) << 1, 1;
+
+	mShader.bind();
+	mShader.uploadIndices(indices);
+	mShader.uploadAttrib("vertex", vertices);
+
+	setVisible(true);
+	performLayout();
+}
+
+ftl::gui::Screen::~Screen() {
+	mShader.free();
+}
+
+void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
+	camera_ = cam;
+
+	if (cam) {
+		status_ = cam->source()->getURI();
+		mwindow_->setVisible(true);
+	} else {
+		mwindow_->setVisible(false);
+		status_ = "No camera...";
+	}
+}
+
+bool ftl::gui::Screen::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers) {
+	if (nanogui::Screen::mouseMotionEvent(p, rel, button, modifiers)) {
+		return true;
+	} else {
+		if (camera_) camera_->mouseMovement(rel[0], rel[1], button);
+	}
+}
+
+bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {
+	if (nanogui::Screen::mouseButtonEvent(p, button, down, modifiers)) {
+		return true;
+	} else {
+		if (camera_ && down) {
+			Eigen::Vector2f screenSize = size().cast<float>();
+			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
+			Eigen::Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
+			Eigen::Vector2f positionInScreen(0.0f, 0.0f);
+			auto mOffset = (screenSize - (screenSize.cwiseProduct(scaleFactor))) / 2;
+			Eigen::Vector2f positionAfterOffset = positionInScreen + mOffset;
+
+			float sx = ((float)p[0] - positionAfterOffset[0]) / mScale;
+			float sy = ((float)p[1] - positionAfterOffset[1]) / mScale;
+
+			Eigen::Vector4f camPos;
+
+			try {
+				camPos = camera_->source()->point(sx,sy).cast<float>();
+			} catch(...) {
+				return true;
+			}
+			
+			camPos *= -1.0f;
+			Eigen::Vector4f worldPos =  camera_->source()->getPose().cast<float>() * camPos;
+			//lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
+			LOG(INFO) << "Depth at click = " << -camPos[2];
+			return true;
+		}
+	return false;
+	}
+}
+
+bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modifiers) {
+	using namespace Eigen;
+	if (nanogui::Screen::keyboardEvent(key, scancode, action, modifiers)) {
+		return true;
+	} else {
+		LOG(INFO) << "Key press " << key << " - " << action << " - " << modifiers;
+
+		if (key >= 262 && key <= 267) {
+			if (camera_) camera_->keyMovement(key, modifiers);
+			return true;
+		} else if (action == 1 && key == 32) {
+			ctrl_->pause();
+			return true;
+		}
+		return false;
+	}
+}
+
+void ftl::gui::Screen::draw(NVGcontext *ctx) {
+	using namespace Eigen;
+
+	Vector2f screenSize = size().cast<float>();
+
+	if (camera_) {
+		imageSize = {camera_->width(), camera_->height()};
+
+		mImageID = camera_->captureFrame().texture();
+
+		if (imageSize[0] > 0) {
+			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
+			Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
+			Vector2f positionInScreen(0.0f, 0.0f);
+			auto mOffset = (screenSize - (screenSize.cwiseProduct(scaleFactor))) / 2;
+			Vector2f positionAfterOffset = positionInScreen + mOffset;
+			Vector2f imagePosition = positionAfterOffset.cwiseQuotient(screenSize);
+			//glEnable(GL_SCISSOR_TEST);
+			//float r = screen->pixelRatio();
+			/* glScissor(positionInScreen.x() * r,
+					(screenSize.y() - positionInScreen.y() - size().y()) * r,
+					size().x() * r, size().y() * r);*/
+			mShader.bind();
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, mImageID);
+			mShader.setUniform("image", 0);
+			mShader.setUniform("scaleFactor", scaleFactor);
+			mShader.setUniform("position", imagePosition);
+			mShader.drawIndexed(GL_TRIANGLES, 0, 2);
+			//glDisable(GL_SCISSOR_TEST);
+		}
+	}
+
+	nvgTextAlign(ctx, NVG_ALIGN_RIGHT);
+	nvgText(ctx, screenSize[0]-10, screenSize[1]-20, status_.c_str(), NULL);
+
+	/* Draw the user interface */
+	screen()->performLayout(ctx);
+	nanogui::Screen::draw(ctx);
+}

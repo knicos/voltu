@@ -9,12 +9,15 @@ using ftl::config::json_t;
 
 extern nlohmann::json null_json;
 
-Configurable::Configurable() : config_(null_json) {
+Configurable::Configurable() : config_(&null_json) {
 	ftl::config::registerConfigurable(this);
 }
 
-Configurable::Configurable(nlohmann::json &config) : config_(config) {
-	//if (config["uri"].is_string()) __changeURI(config["uri"].get<std::string>(), this);
+Configurable::Configurable(nlohmann::json &config) : config_(&config) {
+	if (!config.is_object()) {
+		LOG(FATAL) << "Configurable json is not an object: " << config;
+	}
+
 	ftl::config::registerConfigurable(this);
 }
 

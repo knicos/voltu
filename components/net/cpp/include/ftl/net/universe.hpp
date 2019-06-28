@@ -204,7 +204,7 @@ class Universe : public ftl::Configurable {
 	bool active_;
 	ftl::UUID this_peer;
 	std::shared_mutex net_mutex_;
-	std::shared_mutex handler_mutex_;
+	std::recursive_mutex handler_mutex_;
 	fd_set sfderror_;
 	fd_set sfdread_;
 	std::vector<ftl::net::Listener*> listeners_;

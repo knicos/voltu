@@ -93,29 +93,11 @@ NetSource::~NetSource() {
 	host_->getNet()->removeCallback(h_);
 }
 
-void NetSource::_recv(const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-	cv::Mat tmp_rgb, tmp_depth;
-
-	// Decode in temporary buffers to prevent long locks
-	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
-	cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
-
-	// Lock host to prevent grab
-	UNIQUE_LOCK(host_->mutex(),lk);
-	rgb_ = tmp_rgb;
-	tmp_depth.convertTo(depth_, CV_32FC1, 1.0f/(16.0f*100.0f));
-	N_--;
-	//lk.unlock();
-}
-
 void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 	cv::Mat tmp_rgb, tmp_depth;
 
 	if (!active_) return;
 
-	//LOG(INFO) << "Received chunk " << (int)chunk;
-
-	//try {
 	// Decode in temporary buffers to prevent long locks
 	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
 	cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
@@ -132,20 +114,11 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 	
 	cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
 	cv::Mat chunkRGB = rgb_(roi);
-	//cv::Mat ichunkDepth = idepth_(roi);
 	cv::Mat chunkDepth = depth_(roi);
 
 	tmp_rgb.copyTo(chunkRGB);
-	//tmp_depth.convertTo(tmp_depth, CV_16UC1);
-	//if (delta) ichunkDepth = tmp_depth - ichunkDepth;
-	//tmp_depth.copyTo(ichunkDepth);
 	tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/(16.0f*10.0f));
 	if (chunk == 0) N_--;
-	//lk.unlock();
-	//} catch(...) {
-	//	LOG(ERROR) << "Decode exception";
-	//	return;
-	//}
 }
 
 void NetSource::setPose(const Eigen::Matrix4d &pose) {
@@ -167,7 +140,6 @@ void NetSource::_updateURI() {
 	active_ = false;
 	auto uri = host_->get<string>("uri");
 
-	// TODO(Nick) If URI changes then must unbind + rebind.
 	if (uri_.size() > 0) {
 		host_->getNet()->unbind(uri_);
 	}
