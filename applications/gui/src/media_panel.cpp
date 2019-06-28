@@ -35,6 +35,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	mediatheme->mButtonGradientTopFocused = nanogui::Color(80,230);
 	mediatheme->mButtonGradientBotFocused = nanogui::Color(80,230);
 	mediatheme->mIconColor = nanogui::Color(255,255);
+    mediatheme->mTextColor = nanogui::Color(1.0f,1.0f,1.0f,1.0f);
 	mediatheme->mBorderDark = nanogui::Color(0,0);
 	mediatheme->mBorderMedium = nanogui::Color(0,0);
 	mediatheme->mBorderLight = nanogui::Color(0,0);
@@ -48,6 +49,15 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         auto *cam = screen_->activeCamera();
         if (cam) cam->showPoseWindow();
+    });
+
+    button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
+    button->setFlags(Button::ToggleButton);
+    button->setChangeCallback([this,button](bool state) {
+        if (state) button->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+        else button->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+        //if (state) ... start
+        //else ... stop
     });
 
 	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_STOP);
