@@ -1,6 +1,7 @@
 //#include <stdafx.h>
 
 #include <ftl/voxel_hash.hpp>
+#include "compactors.hpp"
 
 //#include "Util.h"
 
@@ -36,12 +37,12 @@ void CUDARayCastSDF::destroy(void)
 	//m_rayIntervalSplatting.OnD3D11DestroyDevice();
 }
 
-extern "C" unsigned int compactifyHashAllInOneCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
+//extern "C" unsigned int compactifyHashAllInOneCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 
 
 void CUDARayCastSDF::compactifyHashEntries(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams) { //const DepthCameraData& depthCameraData) {
 		
-	hashParams.m_numOccupiedBlocks = compactifyHashAllInOneCUDA(hashData, hashParams);		//this version uses atomics over prefix sums, which has a much better performance
+	hashParams.m_numOccupiedBlocks = ftl::cuda::compactifyVisible(hashData, hashParams);		//this version uses atomics over prefix sums, which has a much better performance
 	std::cout << "Ray blocks = " << hashParams.m_numOccupiedBlocks << std::endl;
 	hashData.updateParams(hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }

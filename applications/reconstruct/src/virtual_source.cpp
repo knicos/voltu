@@ -1,6 +1,6 @@
 #include <ftl/virtual_source.hpp>
 #include <ftl/depth_camera.hpp>
-#include <ftl/scene_rep_hash_sdf.hpp>
+#include <ftl/voxel_scene.hpp>
 #include <ftl/ray_cast_sdf.hpp>
 
 #define LOGURU_WITH_STREAMS 1
