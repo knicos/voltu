@@ -3,14 +3,17 @@
 #define _FTL_RGBD_SNAPSHOT_HPP_
 
 #include <loguru.hpp>
+#include <thread>
 
 #include <opencv2/opencv.hpp>
 
 #include <Eigen/Eigen>
 #include <opencv2/core/eigen.hpp>
 
+#include <ftl/rgbd/source.hpp>
 #include <ftl/rgbd/camera.hpp>
 
+#include <atomic>
 #include <archive.h>
 #include <archive_entry.h>
 
@@ -24,7 +27,8 @@ public:
 	explicit SnapshotWriter(const std::string &filename);
 	~SnapshotWriter();
 	
-	bool addCameraRGBD(const std::string &name, const cv::Mat &rgb, const cv::Mat &depth, const Eigen::Matrix4d &pose, const ftl::rgbd::Camera &params);
+	bool addCameraParams(const std::string &name, const Eigen::Matrix4d &pose, const ftl::rgbd::Camera &params);
+	bool addCameraRGBD(const std::string &name, const cv::Mat &rgb, const cv::Mat &depth);
 	bool addMat(const std::string &name, const cv::Mat &mat, const std::string &format="tiff");
 	bool addEigenMatrix4d(const std::string &name, const Eigen::Matrix4d &m, const std::string &format="pfm");
 	bool addFile(const std::string &name, const std::vector<uchar> &buf);
@@ -35,7 +39,28 @@ private:
 	struct archive_entry *entry_;
 };
 
+class SnapshotStreamWriter {
+public:
+	SnapshotStreamWriter(const std::string &filename, int delay);
+	~SnapshotStreamWriter();
+	void addSource(ftl::rgbd::Source* src);
+	void start();
+	void stop();
+
+private:
+	std::atomic<bool> run_;
+	bool finished_;
+	int delay_;
+
+	std::vector<ftl::rgbd::Source*> sources_;
+	SnapshotWriter writer_;
+	std::thread thread_;
+
+	void run();
+};
+
 struct SnapshotEntry {
+	long t;
 	cv::Mat rgb;
 	cv::Mat depth;
 	Eigen::Matrix4d pose;

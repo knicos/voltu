@@ -4,6 +4,11 @@
 #include <nanogui/window.h>
 
 namespace ftl {
+
+namespace rgbd {
+class SnapshotStreamWriter;
+}
+
 namespace gui {
 
 class Screen;
@@ -16,6 +21,7 @@ class MediaPanel : public nanogui::Window {
     private:
     ftl::gui::Screen *screen_;
     bool paused_;
+    ftl::rgbd::SnapshotStreamWriter *writer_;
 };
 
 }

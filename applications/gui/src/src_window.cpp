@@ -88,7 +88,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	auto button_snapshot = new Button(this, "Snapshot", ENTYPO_ICON_IMAGES);
 	button_snapshot->setCallback([this] {
 		try {
-			char timestamp[18];
+			/*char timestamp[18];
 			std::time_t t=std::time(NULL);
 			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
 			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
