@@ -436,7 +436,7 @@ void Universe::removeCallback(callback_t cbid) {
 }
 
 void Universe::_notifyConnect(Peer *p) {
-	SHARED_LOCK(handler_mutex_,lk);
+	UNIQUE_LOCK(handler_mutex_,lk);
 	peer_ids_[p->id()] = p;
 
 	for (auto &i : on_connect_) {
@@ -451,7 +451,7 @@ void Universe::_notifyConnect(Peer *p) {
 void Universe::_notifyDisconnect(Peer *p) {
 	// In all cases, should already be locked outside this function call
 	//unique_lock<mutex> lk(net_mutex_);
-	SHARED_LOCK(handler_mutex_,lk);
+	UNIQUE_LOCK(handler_mutex_,lk);
 	for (auto &i : on_disconnect_) {
 		try {
 			i.h(p);

@@ -8,6 +8,10 @@ set(GUISRC
 	src/src_window.cpp
 	src/config_window.cpp
 	src/pose_window.cpp
+	src/screen.cpp
+	src/gltexture.cpp
+	src/camera.cpp
+	src/media_panel.cpp
 )
 
 add_executable(ftl-gui ${GUISRC})

@@ -125,11 +125,14 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 
     ftl::Configurable *cfg = ftl::config::find(link["$id"].get<std::string>());
     if (!cfg) {
-       // try {
+        try {
             cfg = new T(link, args...);
-        //} catch(...) {
-       //     LOG(FATAL) << "Could not construct " << link;
-        //}
+        } catch(...) {
+            LOG(FATAL) << "Could not construct " << link;
+        }
+    } else {
+        // Make sure configurable has newest object pointer
+        cfg->patchPtr(link);
     }
 
     try {

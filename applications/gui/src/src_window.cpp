@@ -1,6 +1,7 @@
 #include "src_window.hpp"
 
-#include "pose_window.hpp"
+#include "screen.hpp"
+#include "camera.hpp"
 
 #include <nanogui/imageview.h>
 #include <nanogui/textbox.h>
@@ -17,92 +18,46 @@
 #endif
 
 using ftl::gui::SourceWindow;
+using ftl::gui::Screen;
 using ftl::rgbd::Source;
 using std::string;
+using ftl::config::json_t;
 
-class GLTexture {
-	public:
-	GLTexture() {
-		glGenTextures(1, &glid_);
-        glBindTexture(GL_TEXTURE_2D, glid_);
-		cv::Mat m(cv::Size(100,100), CV_8UC3);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, m.cols, m.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, m.data);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	}
-	~GLTexture() {
-		glDeleteTextures(1, &glid_);
-	}
-
-	void update(cv::Mat &m) {
-		if (m.rows == 0) return;
-		glBindTexture(GL_TEXTURE_2D, glid_);
-		// TODO Allow for other formats
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, m.cols, m.rows, 0, GL_BGR, GL_UNSIGNED_BYTE, m.data);
-		auto err = glGetError();
-		if (err != 0) LOG(ERROR) << "OpenGL Texture error: " << err;
-	}
-
-	unsigned int texture() const { return glid_; }
-
-	private:
-	unsigned int glid_;
-};
-
-template<class T>
-Eigen::Matrix<T,4,4> lookAt
-(
-	Eigen::Matrix<T,3,1> const & eye,
-	Eigen::Matrix<T,3,1> const & center,
-	Eigen::Matrix<T,3,1> const & up
-)
-{
-	typedef Eigen::Matrix<T,4,4> Matrix4;
-	typedef Eigen::Matrix<T,3,1> Vector3;
-
-	Vector3 f = (center - eye).normalized();
-	Vector3 u = up.normalized();
-	Vector3 s = f.cross(u).normalized();
-	u = s.cross(f);
-
-	Matrix4 res;
-	res <<	s.x(),s.y(),s.z(),-s.dot(eye),
-			u.x(),u.y(),u.z(),-u.dot(eye),
-			-f.x(),-f.y(),-f.z(),f.dot(eye),
-			0,0,0,1;
-
-	return res;
-}
-
-SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
-		: nanogui::Window(parent, "Source View"), ctrl_(ctrl) {
+SourceWindow::SourceWindow(ftl::gui::Screen *screen)
+		: nanogui::Window(screen, ""), screen_(screen) {
 	setLayout(new nanogui::GroupLayout());
 
 	using namespace nanogui;
 	
-	mode_ = Mode::rgb;
-	src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
+	//if (!screen->root()->get<json_t>("sources")) {
+	//	screen->root()->getConfig()["sources"] = json_t::array();
+	//}
+
+	//src_ = ftl::create<Source>(ctrl->getRoot(), "source", ctrl->getNet());
 
 	//Widget *tools = new Widget(this);
 	//    tools->setLayout(new BoxLayout(Orientation::Horizontal,
 	//                                   Alignment::Middle, 0, 6));
 
 	new Label(this, "Select source","sans-bold");
-	available_ = ctrl->getNet()->findAll<string>("list_streams");
+	available_ = screen_->control()->getNet()->findAll<string>("list_streams");
 	auto select = new ComboBox(this, available_);
 	select->setCallback([this,select](int ix) {
+		//src_->set("uri", available_[ix]);
+		// TODO(Nick) Check camera exists first
+		screen_->setActiveCamera(cameras_[available_[ix]]);
 		LOG(INFO) << "Change source: " << ix;
-		src_->set("uri", available_[ix]);
 	});
 
-	ctrl->getNet()->onConnect([this,select](ftl::net::Peer *p) {
-		available_ = ctrl_->getNet()->findAll<string>("list_streams");
+	_updateCameras();
+
+	screen->net()->onConnect([this,select](ftl::net::Peer *p) {
+		available_ = screen_->net()->findAll<string>("list_streams");
 		select->setItems(available_);
+		_updateCameras();
 	});
 
-	new Label(this, "Source Options","sans-bold");
+	/*new Label(this, "Source Options","sans-bold");
 
 	auto tools = new Widget(this);
     tools->setLayout(new BoxLayout(Orientation::Horizontal,
@@ -123,11 +78,11 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	button_stddev->setFlags(Button::RadioButton);
 	button_stddev->setChangeCallback([this](bool state) { mode_ = Mode::stddev; });
 
-	auto button_pose = new Button(this, "Adjust Pose", ENTYPO_ICON_COMPASS);
-	button_pose->setCallback([this]() {
-		auto posewin = new PoseWindow(screen(), ctrl_, src_->getURI());
-		posewin->setTheme(theme());
-	});
+	//auto button_pose = new Button(this, "Adjust Pose", ENTYPO_ICON_COMPASS);
+	//button_pose->setCallback([this]() {
+	//	auto posewin = new PoseWindow(screen_, screen_->control(), src_->getURI());
+	//	posewin->setTheme(theme());
+	//});
 
 #ifdef HAVE_LIBARCHIVE
 	auto button_snapshot = new Button(this, "Snapshot", ENTYPO_ICON_IMAGES);
@@ -159,7 +114,24 @@ SourceWindow::SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	//cam.view = imageView;
 	//imageView->setGridThreshold(20);
 	//imageView->setSource(src_);
-	//image_ = imageView;
+	//image_ = imageView;*/
+}
+
+void SourceWindow::_updateCameras() {
+	for (auto s : available_) {
+		if (cameras_.find(s) == cameras_.end()) {
+			json_t srcjson;
+			srcjson["uri"] = s;
+			screen_->root()->getConfig()["sources"].push_back(srcjson);
+			std::vector<ftl::rgbd::Source*> srcs = ftl::createArray<ftl::rgbd::Source>(screen_->root(), "sources", screen_->net());
+			auto *src = srcs[srcs.size()-1];
+
+			auto *cam = new ftl::gui::Camera(screen_, src);
+			cameras_[s] = cam;
+		} else {
+			LOG(INFO) << "Camera already exists: " << s;
+		}
+	}
 }
 
 SourceWindow::~SourceWindow() {

@@ -32,6 +32,16 @@ enum capability_t {
 	kCapDisparity	// Raw disparity is available
 };
 
+typedef unsigned int channel_t;
+
+static const unsigned int kChanLeft = 1;
+static const unsigned int kChanDepth = 2;
+static const unsigned int kChanRight = 3;
+static const unsigned int kChanDisparity = 4;
+static const unsigned int kChanDeviation = 5;
+
+static const unsigned int kChanOverlay1 = 100;
+
 /**
  * RGBD Generic data source configurable entity. This class hides the
  * internal implementation of an RGBD source by providing accessor functions
@@ -150,6 +160,14 @@ class Source : public ftl::Configurable {
 	 */
 	void reset();
 
+	void pause(bool);
+	bool isPaused() { return paused_; }
+
+	void bullet(bool);
+	bool isBullet() { return bullet_; }
+
+	bool thumbnail(cv::Mat &t);
+
 	ftl::net::Universe *getNet() const { return net_; }
 
 	std::string getURI() { return value("uri", std::string("")); }
@@ -166,6 +184,8 @@ class Source : public ftl::Configurable {
 	Eigen::Matrix4d pose_;
 	ftl::net::Universe *net_;
 	std::shared_mutex mutex_;
+	bool paused_;
+	bool bullet_;
 
 	detail::Source *_createImplementation();
 	detail::Source *_createFileImpl(const ftl::URI &uri);

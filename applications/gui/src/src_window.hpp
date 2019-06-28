@@ -6,6 +6,7 @@
 #include <ftl/uuid.hpp>
 #include <ftl/rgbd/source.hpp>
 #include <vector>
+#include <map>
 #include <string>
 
 class VirtualCameraView;
@@ -13,25 +14,22 @@ class VirtualCameraView;
 namespace ftl {
 namespace gui {
 
-/**
- * Manage connected nodes and add new connections.
- */
+class Screen;
+class Camera;
+
 class SourceWindow : public nanogui::Window {
 	public:
-	enum class Mode { rgb, depth, stddev };
-	SourceWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl);
+	SourceWindow(ftl::gui::Screen *screen);
 	~SourceWindow();
 
-	ftl::rgbd::Source *getSource() const { return src_; }
-	bool getDepth() const { return mode_ == Mode::depth; }
-	Mode getMode() { return mode_; }
+	const std::vector<ftl::gui::Camera*> &getCameras();
 
 	private:
-	ftl::ctrl::Master *ctrl_;
-	ftl::rgbd::Source *src_;
-	Mode mode_;
-	VirtualCameraView *image_;
+	ftl::gui::Screen *screen_;
+	std::map<std::string, ftl::gui::Camera*> cameras_; 
 	std::vector<std::string> available_;
+
+	void _updateCameras();
 
 };
 

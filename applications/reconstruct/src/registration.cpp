@@ -551,7 +551,7 @@ bool ChessboardRegistrationChain::findTransformations(vector<Matrix4f> &data) {
 						<< getSource(edge.second)->getID() << " to source"
 						<< getSource(edge.first)->getID();
 			
-			nlohmann::json conf(config_);
+			nlohmann::json conf(getConfig());
 			conf["targetsource"] = getSource(edge.first)->getID();
 			conf["chain"] = false;
 

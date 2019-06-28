@@ -50,7 +50,7 @@ class Configurable {
 	/**
 	 * Return raw JSON entity for this Configurable.
 	 */
-	nlohmann::json &getConfig() { return config_; }
+	nlohmann::json &getConfig() { return *config_; }
 
 	/**
 	 * Get a configuration property from the json object. Returns an optional
@@ -77,7 +77,7 @@ class Configurable {
 	 */
 	template <typename T>
 	void set(const std::string &name, T value) {
-		config_[name] = value;
+		(*config_)[name] = value;
 		_trigger(name);
 	}
 
@@ -96,8 +96,10 @@ class Configurable {
 	 */
 	void on(const std::string &prop, std::function<void(const config::Event&)>);
 
+	void patchPtr(nlohmann::json &newcfg) { config_ = &newcfg; }
+
 	protected:
-	nlohmann::json &config_;
+	nlohmann::json *config_;  // FIXME(Nick) Should be a reference but this can be invalidated...
 
 	private:
 	std::map<std::string, std::list<std::function<void(const config::Event&)>>> observers_; 
@@ -120,16 +122,17 @@ void Configurable::set<const std::string&>(const std::string &name, const std::s
 
 template <typename T>
 std::optional<T> ftl::Configurable::get(const std::string &name) {
-	if (!config_[name].is_null()) {
+	if (!config_->is_object() && !config_->is_null()) LOG(FATAL) << "Config is not an object";
+	if (!(*config_)[name].is_null()) {
 		try {
-			return config_[name].get<T>();
+			return (*config_)[name].get<T>();
 		} catch (...) {
 			return {};
 		}
-	} else if (config_["$ref"].is_string()) {
+	} else if ((*config_)["$ref"].is_string()) {
 		// TODO(Nick) Add # if missing
 		// TODO(Nick) Cache result of ref loopkup
-		std::string res_uri = config_["$ref"].get<std::string>()+"/"+name;
+		std::string res_uri = (*config_)["$ref"].get<std::string>()+"/"+name;
 		auto &r = ftl::config::resolve(res_uri);
 
 		DLOG(2) << "GET: " << res_uri << " = " << r;
@@ -137,7 +140,7 @@ std::optional<T> ftl::Configurable::get(const std::string &name) {
 		try {
 			return r.get<T>();
 		} catch (...) {
-			LOG(ERROR) << "Missing: " << config_["$id"].get<std::string>()+"/"+name;
+			LOG(ERROR) << "Missing: " << (*config_)["$id"].get<std::string>()+"/"+name;
 			return {};
 		}
 	} else {
