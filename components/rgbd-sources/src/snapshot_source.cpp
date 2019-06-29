@@ -23,5 +23,24 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, 
 		ftl::rgbd::colourCorrection(rgb_, host->value("gamma", 1.0f), host->value("temperature", 6500));
 	});
 
+	// Add calibration to config object
+	host_->getConfig()["focal"] = params_.fx;
+	host_->getConfig()["centre_x"] = params_.cx;
+	host_->getConfig()["centre_y"] = params_.cy;
+	host_->getConfig()["baseline"] = params_.baseline;
+
+	host_->on("focal", [this](const ftl::config::Event &e) {
+		params_.fx = host_->value("focal", params_.fx);
+		params_.fy = params_.fx;
+	});
+
+	host_->on("centre_x", [this](const ftl::config::Event &e) {
+		params_.cx = host_->value("centre_x", params_.cx);
+	});
+
+	host_->on("centre_y", [this](const ftl::config::Event &e) {
+		params_.cy = host_->value("centre_y", params_.cy);
+	});
+
     setPose(pose);
 }

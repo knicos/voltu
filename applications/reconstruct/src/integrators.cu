@@ -189,3 +189,83 @@ void ftl::cuda::integrateDepthMap(HashData& hashData, const HashParams& hashPara
 	//cutilCheckMsg(__FUNCTION__);
 #endif
 }
+
+
+__global__ void integrateRegistrationKernel(HashData hashData, HashParams hashParams, DepthCameraParams cameraParams, cudaTextureObject_t depthT, cudaTextureObject_t colourT) {
+
+	// Stride over all allocated blocks
+	for (int bi=blockIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
+
+	//TODO check if we should load this in shared memory
+	HashEntry& entry = hashData.d_hashCompactified[bi];
+
+
+	int3 pi_base = hashData.SDFBlockToVirtualVoxelPos(entry.pos);
+
+	uint i = threadIdx.x;	//inside of an SDF block
+	int3 pi = pi_base + make_int3(hashData.delinearizeVoxelIndex(i));
+	float3 pf = hashData.virtualVoxelPosToWorld(pi);
+
+	pf = hashParams.m_rigidTransformInverse * pf;
+	uint2 screenPos = make_uint2(cameraParams.cameraToKinectScreenInt(pf));
+
+	// For this voxel in hash, get its screen position and check it is on screen
+	if (screenPos.x < cameraParams.m_imageWidth && screenPos.y < cameraParams.m_imageHeight) {	//on screen
+
+		//float depth = g_InputDepth[screenPos];
+		float depth = tex2D<float>(depthT, screenPos.x, screenPos.y);
+		//if (depth > 20.0f) return;
+
+		uchar4 color  = make_uchar4(0, 0, 0, 0);
+		color = tex2D<uchar4>(colourT, screenPos.x, screenPos.y);
+
+		// Depth is within accepted max distance from camera
+		if (depth > 0.01f && depth < hashParams.m_maxIntegrationDistance) { // valid depth and color (Nick: removed colour check)
+			float depthZeroOne = cameraParams.cameraToKinectProjZ(depth);
+
+			// Calculate SDF of this voxel wrt the depth map value
+			float sdf = depth - pf.z;
+			float truncation = hashData.getTruncation(depth);
+
+			if (sdf > -truncation) {
+				float weightUpdate = max(hashParams.m_integrationWeightSample * 1.5f * (1.0f-depthZeroOne), 1.0f);
+
+				Voxel curr;	//construct current voxel
+				curr.sdf = sdf;
+				curr.weight = weightUpdate;
+				curr.color = make_uchar3(color.x, color.y, color.z);
+
+				uint idx = entry.ptr + i;
+				
+				Voxel out;
+				const Voxel &v1 = curr;
+				const Voxel &v0 = hashData.d_SDFBlocks[idx];
+
+				float redshift = (v0.weight > 0) ? 1.0f - ((v1.sdf - v0.sdf) / hashParams.m_truncation)*0.5f : 1.0f;
+
+				out.color.x = min(max(v1.color.x*redshift,0.0f),255.0f);
+				out.color.y = min(max(v1.color.y*redshift,0.0f),255.0f);
+				out.color.z = min(max(v1.color.z*(1.0f / redshift),0.0f),255.0f);
+
+				out.sdf = (v0.sdf * (float)v0.weight + v1.sdf * (float)v1.weight) / ((float)v0.weight + (float)v1.weight);
+				out.weight = min(c_hashParams.m_integrationWeightMax, (unsigned int)v0.weight + (unsigned int)v1.weight);
+
+				hashData.d_SDFBlocks[idx] = out;
+
+			}
+		}
+	}
+
+	}  // Stride loop
+}
+
+
+void ftl::cuda::integrateRegistration(HashData& hashData, const HashParams& hashParams,
+		const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream) {
+	const unsigned int threadsPerBlock = SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;
+	const dim3 gridSize(NUM_CUDA_BLOCKS, 1);
+	const dim3 blockSize(threadsPerBlock, 1);
+
+	integrateRegistrationKernel << <gridSize, blockSize, 0, stream >> >(hashData, hashParams, depthCameraParams, depthCameraData.depth_obj_, depthCameraData.colour_obj_);
+
+}
