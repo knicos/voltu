@@ -465,21 +465,26 @@ bool Peer::_data() {
 					_badClose(false);
 					LOG(ERROR) << "Missing handshake - got '" << get<1>(hs) << "'";
 					return false;
+				} else {
+					// Must handle immediately with no other thread able
+					// to read next message before completion.
+					// The handshake handler must not block.
+					disp_->dispatch(*this, obj);
 				}
 			} catch(...) {
 				_badClose(false);
 				LOG(ERROR) << "Bad first message format";
 				return false;
 			}
+		} else {
+			// CHECK Safe to unlock here?
+			is_waiting_ = true;
+			lk.unlock();
+			disp_->dispatch(*this, obj);
+			// Relock before next loop of while
+			lk.lock();
+			is_waiting_ = false;
 		}
-
-		// CHECK Safe to unlock here?
-		is_waiting_ = true;
-		lk.unlock();
-		disp_->dispatch(*this, obj);
-		// Relock before next loop of while
-		lk.lock();
-		is_waiting_ = false;
 
 		if (scheme_ == ftl::URI::SCHEME_WS && recv_buf_.nonparsed_size() > 0) {
 			wsheader_type ws;
