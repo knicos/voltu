@@ -64,16 +64,20 @@ bool VirtualSource::grab() {
 		params.m_sensorDepthWorldMax = params_.maxDepth;
 
 		// TODO(Nick) Use double precision pose here
-		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, host_->getPose().cast<float>());
+		rays_->render(scene_->getHashData(), scene_->getHashParams(), params, host_->getPose().cast<float>(), scene_->getIntegrationStream());
 
 		//unique_lock<mutex> lk(mutex_);
 		if (rays_->isIntegerDepth()) {
-			rays_->getRayCastData().download((int*)idepth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams());
+			rays_->getRayCastData().download((int*)idepth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams(), scene_->getIntegrationStream());
+
+			cudaSafeCall(cudaStreamSynchronize(scene_->getIntegrationStream()));
 			idepth_.convertTo(depth_, CV_32FC1, 1.0f / 100.0f);
 		} else {
-			rays_->getRayCastData().download((int*)depth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams());
+			rays_->getRayCastData().download((int*)depth_.data, (uchar3*)rgb_.data, rays_->getRayCastParams(), scene_->getIntegrationStream());
+			cudaSafeCall(cudaStreamSynchronize(scene_->getIntegrationStream()));
 		}
 	}
+
 	return true;
 }
 

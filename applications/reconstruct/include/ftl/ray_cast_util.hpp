@@ -54,15 +54,15 @@ struct RayCastData {
 		//printf("Allocate ray cast data: %lld \n", (unsigned long long)point_cloud_);
 	}
 
-	__host__
-	void updateParams(const RayCastParams& params) {
-		updateConstantRayCastParams(params);
-	}
+	//__host__
+	//void updateParams(const RayCastParams& params) {
+	//	updateConstantRayCastParams(params);
+	//}
 
-	__host__ void download(int *depth, uchar3 *colours, const RayCastParams& params) const {
+	__host__ void download(int *depth, uchar3 *colours, const RayCastParams& params, cudaStream_t stream) const {
 		//printf("Download: %d,%d\n", params.m_width, params.m_height);
-		if (depth) cudaSafeCall(cudaMemcpy(depth, d_depth_i, sizeof(int) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
-		if (colours) cudaSafeCall(cudaMemcpy(colours, d_colors, sizeof(uchar3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost));
+		if (depth) cudaSafeCall(cudaMemcpyAsync(depth, d_depth_i, sizeof(int) * params.m_width * params.m_height, cudaMemcpyDeviceToHost, stream));
+		if (colours) cudaSafeCall(cudaMemcpyAsync(colours, d_colors, sizeof(uchar3) * params.m_width * params.m_height, cudaMemcpyDeviceToHost, stream));
 	}
 
 	__host__
@@ -196,9 +196,9 @@ struct RayCastData {
 	}
 
 	__device__
-	void traverseCoarseGridSimpleSampleAll(const ftl::voxhash::HashData& hash, const float3& worldCamPos, const float3& worldDir, const float3& camDir, const int3& dTid, float minInterval, float maxInterval) const
+	void traverseCoarseGridSimpleSampleAll(const ftl::voxhash::HashData& hash, const RayCastParams& rayCastParams, const float3& worldCamPos, const float3& worldDir, const float3& camDir, const int3& dTid, float minInterval, float maxInterval) const
 	{
-		const RayCastParams& rayCastParams = c_rayCastParams;
+		//const RayCastParams& rayCastParams = c_rayCastParams;
 
 		// Last Sample
 		RayCastSample lastSample; lastSample.sdf = 0.0f; lastSample.alpha = 0.0f; lastSample.weight = 0; // lastSample.color = int3(0, 0, 0);
@@ -236,7 +236,7 @@ struct RayCastData {
 							float depth = alpha / depthToRayLength; // Convert ray length to depth depthToRayLength
 
 							d_depth[dTid.y*rayCastParams.m_width+dTid.x] = depth;
-							d_depth3[dTid.y*rayCastParams.m_width+dTid.x] = DepthCameraData::kinectDepthToSkeleton(dTid.x, dTid.y, depth);
+							d_depth3[dTid.y*rayCastParams.m_width+dTid.x] = rayCastParams.camera.kinectDepthToSkeleton(dTid.x, dTid.y, depth);
 							d_colors[dTid.y*rayCastParams.m_width+dTid.x] = make_uchar3(color2.x, color2.y, color2.z);
 
 							if(rayCastParams.m_useGradients)

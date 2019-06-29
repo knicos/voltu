@@ -63,14 +63,14 @@ using ftl::voxhash::FREE_ENTRY;
 #endif
 }*/
 
-__global__ void compactifyVisibleKernel(HashData hashData)
+__global__ void compactifyVisibleKernel(HashData hashData, HashParams hashParams, DepthCameraParams camera)
 {
-	const HashParams& hashParams = c_hashParams;
+	//const HashParams& hashParams = c_hashParams;
 	const unsigned int idx = blockIdx.x*blockDim.x + threadIdx.x;
 #ifdef COMPACTIFY_HASH_SIMPLE
 	if (idx < hashParams.m_hashNumBuckets * HASH_BUCKET_SIZE) {
 		if (hashData.d_hash[idx].ptr != FREE_ENTRY) {
-			if (hashData.isSDFBlockInCameraFrustumApprox(hashData.d_hash[idx].pos))
+			if (hashData.isSDFBlockInCameraFrustumApprox(hashParams, camera, hashData.d_hash[idx].pos))
 			{
 				int addr = atomicAdd(hashData.d_hashCompactifiedCounter, 1);
 				hashData.d_hashCompactified[addr] = hashData.d_hash[idx];
@@ -85,7 +85,7 @@ __global__ void compactifyVisibleKernel(HashData hashData)
 	int addrLocal = -1;
 	if (idx < hashParams.m_hashNumBuckets * HASH_BUCKET_SIZE) {
 		if (hashData.d_hash[idx].ptr != FREE_ENTRY) {
-			if (hashData.isSDFBlockInCameraFrustumApprox(hashData.d_hash[idx].pos))
+			if (hashData.isSDFBlockInCameraFrustumApprox(hashParams, camera, hashData.d_hash[idx].pos))
 			{
 				addrLocal = atomicAdd(&localCounter, 1);
 			}
@@ -107,21 +107,21 @@ __global__ void compactifyVisibleKernel(HashData hashData)
 #endif
 }
 
-unsigned int ftl::cuda::compactifyVisible(HashData& hashData, const HashParams& hashParams) {
+void ftl::cuda::compactifyVisible(HashData& hashData, const HashParams& hashParams, const DepthCameraParams &camera, cudaStream_t stream) {
 	const unsigned int threadsPerBlock = COMPACTIFY_HASH_THREADS_PER_BLOCK;
 	const dim3 gridSize((HASH_BUCKET_SIZE * hashParams.m_hashNumBuckets + threadsPerBlock - 1) / threadsPerBlock, 1);
 	const dim3 blockSize(threadsPerBlock, 1);
 
-	cudaSafeCall(cudaMemset(hashData.d_hashCompactifiedCounter, 0, sizeof(int)));
-	compactifyVisibleKernel << <gridSize, blockSize >> >(hashData);
-	unsigned int res = 0;
-	cudaSafeCall(cudaMemcpy(&res, hashData.d_hashCompactifiedCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost));
+	cudaSafeCall(cudaMemsetAsync(hashData.d_hashCompactifiedCounter, 0, sizeof(int),stream));
+	compactifyVisibleKernel << <gridSize, blockSize, 0, stream >> >(hashData, hashParams, camera);
+	//unsigned int res = 0;
+	//cudaSafeCall(cudaMemcpyAsync(&res, hashData.d_hashCompactifiedCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost, stream));
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
 	//cutilCheckMsg(__FUNCTION__);
 #endif
-	return res;
+	//return res;
 }
 
 __global__ void compactifyAllocatedKernel(HashData hashData)
@@ -162,19 +162,19 @@ __global__ void compactifyAllocatedKernel(HashData hashData)
 #endif
 }
 
-unsigned int ftl::cuda::compactifyAllocated(HashData& hashData, const HashParams& hashParams) {
+void ftl::cuda::compactifyAllocated(HashData& hashData, const HashParams& hashParams, cudaStream_t stream) {
 	const unsigned int threadsPerBlock = COMPACTIFY_HASH_THREADS_PER_BLOCK;
 	const dim3 gridSize((HASH_BUCKET_SIZE * hashParams.m_hashNumBuckets + threadsPerBlock - 1) / threadsPerBlock, 1);
 	const dim3 blockSize(threadsPerBlock, 1);
 
-	cudaSafeCall(cudaMemset(hashData.d_hashCompactifiedCounter, 0, sizeof(int)));
-	compactifyAllocatedKernel << <gridSize, blockSize >> >(hashData);
-	unsigned int res = 0;
-	cudaSafeCall(cudaMemcpy(&res, hashData.d_hashCompactifiedCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost));
+	cudaSafeCall(cudaMemsetAsync(hashData.d_hashCompactifiedCounter, 0, sizeof(int), stream));
+	compactifyAllocatedKernel << <gridSize, blockSize, 0, stream >> >(hashData);
+	//unsigned int res = 0;
+	//cudaSafeCall(cudaMemcpyAsync(&res, hashData.d_hashCompactifiedCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost, stream));
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
 	//cutilCheckMsg(__FUNCTION__);
 #endif
-	return res;
+	//return res;
 }

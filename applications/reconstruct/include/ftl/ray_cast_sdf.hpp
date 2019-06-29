@@ -74,7 +74,7 @@ public:
 		return params;
 	}
 
-	void render(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform);
+	void render(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform, cudaStream_t);
 
 	const RayCastData& getRayCastData(void) {
 		return m_data;
@@ -92,7 +92,7 @@ private:
 	void create(const RayCastParams& params);
 	void destroy(void);
 
-	void compactifyHashEntries(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams);
+	void compactifyHashEntries(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams, cudaStream_t);
 
 	void rayIntervalSplatting(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const Eigen::Matrix4f& lastRigidTransform); // rasterize
 
