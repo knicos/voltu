@@ -158,11 +158,11 @@ void NetSource::_updateURI() {
 			_recvChunk(frame, chunk, delta, jpg, d);
 		});
 
-		N_ = 10;
+		N_ = 1;
 
 		// Initiate stream with request for first 10 frames
 		try {
-			host_->getNet()->send(peer_, "get_stream", *uri, 10, 0, host_->getNet()->id(), *uri);
+			host_->getNet()->send(peer_, "get_stream", *uri, N_, 0, host_->getNet()->id(), *uri);
 		} catch(...) {
 			LOG(ERROR) << "Could not connect to stream " << *uri;
 		}
@@ -188,7 +188,7 @@ bool NetSource::grab() {
 	// Send one frame before end to prevent unwanted pause
 	if (N_ <= 2) {
 		N_ = 10;
-		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), 10, 0, host_->getNet()->id(), *host_->get<string>("uri"))) {
+		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), N_, 0, host_->getNet()->id(), *host_->get<string>("uri"))) {
 			active_ = false;
 		}
 	}
