@@ -11,7 +11,7 @@
 extern "C" void renderCS(
 	const ftl::voxhash::HashData& hashData,
 	const RayCastData &rayCastData,
-	const RayCastParams &rayCastParams);
+	const RayCastParams &rayCastParams, cudaStream_t stream);
 
 extern "C" void computeNormals(float4* d_output, float3* d_input, unsigned int width, unsigned int height);
 extern "C" void convertDepthFloatToCameraSpaceFloat3(float3* d_output, float* d_input, float4x4 intrinsicsInv, unsigned int width, unsigned int height, const DepthCameraData& depthCameraData);
@@ -20,7 +20,7 @@ extern "C" void resetRayIntervalSplatCUDA(RayCastData& data, const RayCastParams
 extern "C" void rayIntervalSplatCUDA(const ftl::voxhash::HashData& hashData,
 								 const RayCastData &rayCastData, const RayCastParams &rayCastParams);
 
-extern "C" void nickRenderCUDA(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const RayCastData &rayCastData, const RayCastParams &params);
+extern "C" void nickRenderCUDA(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const RayCastData &rayCastData, const RayCastParams &params, cudaStream_t stream);
 
 
 
@@ -40,51 +40,52 @@ void CUDARayCastSDF::destroy(void)
 //extern "C" unsigned int compactifyHashAllInOneCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 
 
-void CUDARayCastSDF::compactifyHashEntries(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams) { //const DepthCameraData& depthCameraData) {
+void CUDARayCastSDF::compactifyHashEntries(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams, cudaStream_t stream) { //const DepthCameraData& depthCameraData) {
 		
-	hashParams.m_numOccupiedBlocks = ftl::cuda::compactifyVisible(hashData, hashParams);		//this version uses atomics over prefix sums, which has a much better performance
-	std::cout << "Ray blocks = " << hashParams.m_numOccupiedBlocks << std::endl;
-	hashData.updateParams(hashParams);	//make sure numOccupiedBlocks is updated on the GPU
+	ftl::cuda::compactifyVisible(hashData, hashParams, m_params.camera, stream);		//this version uses atomics over prefix sums, which has a much better performance
+	//std::cout << "Ray blocks = " << hashParams.m_numOccupiedBlocks << std::endl;
+	//hashData.updateParams(hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }
 
-void CUDARayCastSDF::render(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform)
+void CUDARayCastSDF::render(ftl::voxhash::HashData& hashData, ftl::voxhash::HashParams& hashParams, const DepthCameraParams& cameraParams, const Eigen::Matrix4f& lastRigidTransform, cudaStream_t stream)
 {
-	updateConstantDepthCameraParams(cameraParams);
+	//updateConstantDepthCameraParams(cameraParams);
 	//rayIntervalSplatting(hashData, hashParams, lastRigidTransform);
 	//m_data.d_rayIntervalSplatMinArray = m_rayIntervalSplatting.mapMinToCuda();
 	//m_data.d_rayIntervalSplatMaxArray = m_rayIntervalSplatting.mapMaxToCuda();
 
-	m_params.m_numOccupiedSDFBlocks = hashParams.m_numOccupiedBlocks;
+	m_params.camera = cameraParams;
+	//m_params.m_numOccupiedSDFBlocks = hashParams.m_numOccupiedBlocks;
 	m_params.m_viewMatrix = MatrixConversion::toCUDA(lastRigidTransform.inverse());
 	m_params.m_viewMatrixInverse = MatrixConversion::toCUDA(lastRigidTransform);
-	m_data.updateParams(m_params);
+	//m_data.updateParams(m_params);
 
-	compactifyHashEntries(hashData, hashParams);
+	compactifyHashEntries(hashData, hashParams, stream);
 
-	if (hash_render_) nickRenderCUDA(hashData, hashParams, m_data, m_params);
-	else renderCS(hashData, m_data, m_params);
+	if (hash_render_) nickRenderCUDA(hashData, hashParams, m_data, m_params, stream);
+	else renderCS(hashData, m_data, m_params, stream);
 
 	//convertToCameraSpace(cameraData);
-	if (!m_params.m_useGradients)
-	{
-		computeNormals(m_data.d_normals, m_data.d_depth3, m_params.m_width, m_params.m_height);
-	}
+	//if (!m_params.m_useGradients)
+	//{
+	//	computeNormals(m_data.d_normals, m_data.d_depth3, m_params.m_width, m_params.m_height);
+	//}
 
 	//m_rayIntervalSplatting.unmapCuda();
 
 }
 
 
-void CUDARayCastSDF::convertToCameraSpace(const DepthCameraData& cameraData)
+/*void CUDARayCastSDF::convertToCameraSpace(const DepthCameraData& cameraData)
 {
 	convertDepthFloatToCameraSpaceFloat3(m_data.d_depth3, m_data.d_depth, m_params.m_intrinsicsInverse, m_params.m_width, m_params.m_height, cameraData);
 	
 	if(!m_params.m_useGradients) {
 		computeNormals(m_data.d_normals, m_data.d_depth3, m_params.m_width, m_params.m_height);
 	}
-}
+}*/
 
-void CUDARayCastSDF::rayIntervalSplatting(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const Eigen::Matrix4f& lastRigidTransform)
+/*void CUDARayCastSDF::rayIntervalSplatting(const ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const Eigen::Matrix4f& lastRigidTransform)
 {
 	if (hashParams.m_numOccupiedBlocks == 0)	return;
 
@@ -100,4 +101,4 @@ void CUDARayCastSDF::rayIntervalSplatting(const ftl::voxhash::HashData& hashData
 
 	//don't use ray interval splatting (cf CUDARayCastSDF.cu -> line 40
 	//m_rayIntervalSplatting.rayIntervalSplatting(DXUTGetD3D11DeviceContext(), hashData, cameraData, m_data, m_params, m_params.m_numOccupiedSDFBlocks*6);
-}
+}*/

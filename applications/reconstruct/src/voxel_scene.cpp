@@ -1,5 +1,9 @@
 #include <ftl/voxel_scene.hpp>
 #include "compactors.hpp"
+#include "garbage.hpp"
+#include "integrators.hpp"
+
+#include <opencv2/core/cuda_stream_accessor.hpp>
 
 using namespace ftl::voxhash;
 using ftl::rgbd::Source;
@@ -9,17 +13,14 @@ using cv::Mat;
 #define 	SAFE_DELETE_ARRAY(a)   { delete [] (a); (a) = NULL; }
 
 extern "C" void resetCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
-extern "C" void resetHashBucketMutexCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
-extern "C" void allocCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, const unsigned int* d_bitMask);
+extern "C" void resetHashBucketMutexCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t);
+extern "C" void allocCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t);
 //extern "C" void fillDecisionArrayCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData);
 //extern "C" void compactifyHashCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 //extern "C" unsigned int compactifyHashAllInOneCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
-extern "C" void integrateDepthMapCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams);
+extern "C" void integrateDepthMapCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t);
 //extern "C" void bindInputDepthColorTextures(const DepthCameraData& depthCameraData);
 
-extern "C" void starveVoxelsKernelCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
-extern "C" void garbageCollectIdentifyCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
-extern "C" void garbageCollectFreeCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 
 SceneRep::SceneRep(nlohmann::json &config) : Configurable(config), do_reset_(false), m_frameCount(0) {
 	// Allocates voxel structure on GPU
@@ -46,10 +47,14 @@ SceneRep::SceneRep(nlohmann::json &config) : Configurable(config), do_reset_(fal
 	on("SDFMaxIntegrationDistance", [this](const ftl::config::Event &e) {
 		m_hashParams.m_maxIntegrationDistance = value("SDFMaxIntegrationDistance", 10.0f);
 	});
+
+	cudaSafeCall(cudaStreamCreate(&integ_stream_));
+	//integ_stream_ = 0;
 }
 
 SceneRep::~SceneRep() {
 	_destroy();
+	cudaStreamDestroy(integ_stream_);
 }
 
 void SceneRep::addSource(ftl::rgbd::Source *src) {
@@ -106,17 +111,22 @@ int SceneRep::upload() {
 		cam.params.flags = m_frameCount;
 
 		// Send to GPU and merge view into scene
-		cam.gpu.updateParams(cam.params);
-		cam.gpu.updateData(depth, rgba);
+		//cam.gpu.updateParams(cam.params);
+		cam.gpu.updateData(depth, rgba, cam.stream);
 
 		setLastRigidTransform(input->getPose().cast<float>());
 
 		//make the rigid transform available on the GPU
-		m_hashData.updateParams(m_hashParams);
+		//m_hashData.updateParams(m_hashParams, cv::cuda::StreamAccessor::getStream(cam.stream));
+
+		//if (i > 0) cudaSafeCall(cudaStreamSynchronize(cv::cuda::StreamAccessor::getStream(cameras_[i-1].stream)));
 
 		//allocate all hash blocks which are corresponding to depth map entries
-		_alloc(cam.gpu, cam.params, nullptr);
+		_alloc(cam.gpu, cam.params, cv::cuda::StreamAccessor::getStream(cam.stream));
 	}
+
+	// Must have finished all allocations and rendering before next integration
+	cudaSafeCall(cudaDeviceSynchronize());
 
 	return active;
 }
@@ -126,10 +136,10 @@ void SceneRep::integrate() {
 		auto &cam = cameras_[i];
 
 		setLastRigidTransform(cam.source->getPose().cast<float>());
-		m_hashData.updateParams(m_hashParams);
+		//m_hashData.updateParams(m_hashParams);
 
 		//generate a linear hash array with only occupied entries
-		_compactifyVisible();
+		_compactifyVisible(cam.params);
 
 		//volumetrically integrate the depth data into the depth SDFBlocks
 		_integrateDepthMap(cam.gpu, cam.params);
@@ -144,6 +154,7 @@ void SceneRep::garbage() {
 	_compactifyAllocated();
 	_garbageCollect();
 
+	//cudaSafeCall(cudaStreamSynchronize(integ_stream_));
 }
 
 /*void SceneRep::integrate(const Eigen::Matrix4f& lastRigidTransform, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, unsigned int* d_bitMask) {
@@ -189,7 +200,7 @@ void SceneRep::nextFrame() {
 		_destroy();
 		_create(_parametersFromConfig());
 	} else {
-		starveVoxelsKernelCUDA(m_hashData, m_hashParams);
+		ftl::cuda::starveVoxels(m_hashData, m_hashParams);
 		m_numIntegratedFrames = 0;
 	}
 }
@@ -356,14 +367,15 @@ void SceneRep::_destroy() {
 	m_hashData.free();
 }
 
-void SceneRep::_alloc(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, const unsigned int* d_bitMask) {
+void SceneRep::_alloc(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream) {
 	// NOTE (nick): We might want this later...
-	if (true) {
+	if (false) {
+		// TODO(Nick) Make this work without memcpy to host first
 		//allocate until all blocks are allocated
 		unsigned int prevFree = getHeapFreeCount();
 		while (1) {
-			resetHashBucketMutexCUDA(m_hashData, m_hashParams);
-			allocCUDA(m_hashData, m_hashParams, depthCameraData, depthCameraParams, d_bitMask);
+			resetHashBucketMutexCUDA(m_hashData, m_hashParams, stream);
+			allocCUDA(m_hashData, m_hashParams, depthCameraData, depthCameraParams, stream);
 
 			unsigned int currFree = getHeapFreeCount();
 
@@ -377,29 +389,29 @@ void SceneRep::_alloc(const DepthCameraData& depthCameraData, const DepthCameraP
 	}
 	else {
 		//this version is faster, but it doesn't guarantee that all blocks are allocated (staggers alloc to the next frame)
-		resetHashBucketMutexCUDA(m_hashData, m_hashParams);
-		allocCUDA(m_hashData, m_hashParams, depthCameraData, depthCameraParams, d_bitMask);
+		resetHashBucketMutexCUDA(m_hashData, m_hashParams, stream);
+		allocCUDA(m_hashData, m_hashParams, depthCameraData, depthCameraParams, stream);
 	}
 }
 
 
-void SceneRep::_compactifyVisible() { //const DepthCameraData& depthCameraData) {
-	m_hashParams.m_numOccupiedBlocks = ftl::cuda::compactifyVisible(m_hashData, m_hashParams);		//this version uses atomics over prefix sums, which has a much better performance
-	m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
+void SceneRep::_compactifyVisible(const DepthCameraParams &camera) { //const DepthCameraData& depthCameraData) {
+	ftl::cuda::compactifyVisible(m_hashData, m_hashParams, camera, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
+	//m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }
 
 void SceneRep::_compactifyAllocated() {
-	m_hashParams.m_numOccupiedBlocks = ftl::cuda::compactifyAllocated(m_hashData, m_hashParams);		//this version uses atomics over prefix sums, which has a much better performance
-	std::cout << "Occ blocks = " << m_hashParams.m_numOccupiedBlocks << std::endl;
-	m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
+	ftl::cuda::compactifyAllocated(m_hashData, m_hashParams, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
+	//std::cout << "Occ blocks = " << m_hashParams.m_numOccupiedBlocks << std::endl;
+	//m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }
 
 void SceneRep::_integrateDepthMap(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams) {
-	integrateDepthMapCUDA(m_hashData, m_hashParams, depthCameraData, depthCameraParams);
+	ftl::cuda::integrateDepthMap(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
 }
 
 void SceneRep::_garbageCollect() {
-	garbageCollectIdentifyCUDA(m_hashData, m_hashParams);
-	resetHashBucketMutexCUDA(m_hashData, m_hashParams);	//needed if linked lists are enabled -> for memeory deletion
-	garbageCollectFreeCUDA(m_hashData, m_hashParams);
+	ftl::cuda::garbageCollectIdentify(m_hashData, m_hashParams, integ_stream_);
+	resetHashBucketMutexCUDA(m_hashData, m_hashParams, integ_stream_);	//needed if linked lists are enabled -> for memeory deletion
+	ftl::cuda::garbageCollectFree(m_hashData, m_hashParams, integ_stream_);
 }

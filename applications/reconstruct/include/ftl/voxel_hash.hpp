@@ -318,10 +318,10 @@ struct HashData {
 	}
 
 	__device__
-	bool isSDFBlockInCameraFrustumApprox(const int3& sdfBlock) {
+	bool isSDFBlockInCameraFrustumApprox(const HashParams &hashParams, const DepthCameraParams &camera, const int3& sdfBlock) {
 		// NOTE (Nick): Changed, just assume all voxels are potentially in frustrum
-		//float3 posWorld = virtualVoxelPosToWorld(SDFBlockToVirtualVoxelPos(sdfBlock)) + c_hashParams.m_virtualVoxelSize * 0.5f * (SDF_BLOCK_SIZE - 1.0f);
-		//return DepthCameraData::isInCameraFrustumApprox(c_hashParams.m_rigidTransformInverse, posWorld);
+		//float3 posWorld = virtualVoxelPosToWorld(SDFBlockToVirtualVoxelPos(sdfBlock)) + hashParams.m_virtualVoxelSize * 0.5f * (SDF_BLOCK_SIZE - 1.0f);
+		//return camera.isInCameraFrustumApprox(hashParams.m_rigidTransformInverse, posWorld);
 		return true;
 	}
 

@@ -383,7 +383,7 @@ extern "C" void setInvalidFloat4Map(float4* d_output, unsigned int width, unsign
 // Convert Depth to Camera Space Positions
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-__global__ void convertDepthFloatToCameraSpaceFloat3Device(float3* d_output, float* d_input, float4x4 intrinsicsInv, unsigned int width, unsigned int height, DepthCameraData depthCameraData)
+/*__global__ void convertDepthFloatToCameraSpaceFloat3Device(float3* d_output, float* d_input, float4x4 intrinsicsInv, unsigned int width, unsigned int height, DepthCameraData depthCameraData)
 {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -413,7 +413,7 @@ extern "C" void convertDepthFloatToCameraSpaceFloat3(float3* d_output, float* d_
 	cudaSafeCall(cudaDeviceSynchronize());
 	//cutilCheckMsg(__FUNCTION__);
 #endif
-}
+}*/
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Bilateral Filter Float Map

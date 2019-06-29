@@ -1,6 +1,9 @@
+#pragma once
+
 #include <ftl/cuda_util.hpp>
 
 #include <ftl/cuda_matrix_util.hpp>
+#include <ftl/depth_camera_params.hpp>
 
 static const uint kShowBlockBorders = 0x0001;
 
@@ -25,4 +28,6 @@ struct __align__(16) RayCastParams {
 	bool  m_useGradients;
 
 	uint m_flags;
+
+	DepthCameraParams camera;
 };

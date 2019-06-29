@@ -4,6 +4,7 @@
 
 #include <cuda_runtime.h>
 
+#include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/source.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/matrix_conversion.hpp>
@@ -18,6 +19,7 @@ struct Cameras {
 	ftl::rgbd::Source *source;
 	DepthCameraData gpu;
 	DepthCameraParams params;
+	cv::cuda::Stream stream;
 };
 
 class SceneRep : public ftl::Configurable {
@@ -75,13 +77,15 @@ class SceneRep : public ftl::Configurable {
 	//! debug only!
 	void debugHash();
 
+	cudaStream_t getIntegrationStream() const { return integ_stream_; }
+
 	private:
 
 	HashParams _parametersFromConfig();
 	void _create(const HashParams& params);
 	void _destroy();
-	void _alloc(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, const unsigned int* d_bitMask);
-	void _compactifyVisible();
+	void _alloc(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t);
+	void _compactifyVisible(const DepthCameraParams &camera);
 	void _compactifyAllocated();
 	void _integrateDepthMap(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams);
 	void _garbageCollect();
@@ -96,6 +100,7 @@ class SceneRep : public ftl::Configurable {
 	unsigned int	m_frameCount;
 	bool do_reset_;
 	std::vector<Cameras> cameras_;
+	cudaStream_t integ_stream_;
 };
 
 };  // namespace voxhash
