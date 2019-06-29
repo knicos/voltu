@@ -53,6 +53,9 @@ void VirtualSource::setScene(ftl::voxhash::SceneRep *scene) {
 
 bool VirtualSource::grab() {
 	if (scene_) {
+		// Ensure this host thread is using correct GPU.
+
+		cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 		DepthCameraParams params;
 		params.fx = params_.fx;
 		params.fy = params_.fy;

@@ -78,9 +78,11 @@ class SceneRep : public ftl::Configurable {
 	void debugHash();
 
 	cudaStream_t getIntegrationStream() const { return integ_stream_; }
+	int getCUDADevice() const { return cuda_device_; }
 
 	private:
 
+	bool _initCUDA();
 	HashParams _parametersFromConfig();
 	void _create(const HashParams& params);
 	void _destroy();
@@ -102,6 +104,7 @@ class SceneRep : public ftl::Configurable {
 	std::vector<Cameras> cameras_;
 	cudaStream_t integ_stream_;
 	bool reg_mode_;
+	int cuda_device_;
 };
 
 };  // namespace voxhash

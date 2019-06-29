@@ -5,10 +5,13 @@
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
+#include <vector>
+
 using namespace ftl::voxhash;
 using ftl::rgbd::Source;
 using ftl::Configurable;
 using cv::Mat;
+using std::vector;
 
 #define 	SAFE_DELETE_ARRAY(a)   { delete [] (a); (a) = NULL; }
 
@@ -23,6 +26,8 @@ extern "C" void integrateDepthMapCUDA(ftl::voxhash::HashData& hashData, const ft
 
 
 SceneRep::SceneRep(nlohmann::json &config) : Configurable(config), do_reset_(false), m_frameCount(0) {
+	_initCUDA();
+
 	// Allocates voxel structure on GPU
 	_create(_parametersFromConfig());
 
@@ -60,6 +65,30 @@ SceneRep::SceneRep(nlohmann::json &config) : Configurable(config), do_reset_(fal
 SceneRep::~SceneRep() {
 	_destroy();
 	cudaStreamDestroy(integ_stream_);
+}
+
+bool SceneRep::_initCUDA() {
+	// Do an initial CUDA check
+	int cuda_device_count = 0;
+	cudaSafeCall(cudaGetDeviceCount(&cuda_device_count));
+	CHECK_GE(cuda_device_count, 1) << "No CUDA devices found";
+
+	LOG(INFO) << "CUDA Devices (" << cuda_device_count << "):";
+
+	vector<cudaDeviceProp> properties(cuda_device_count);
+	for (int i=0; i<cuda_device_count; i++) {
+		cudaSafeCall(cudaGetDeviceProperties(&properties[i], i));
+		LOG(INFO) << " - " << properties[i].name;
+	}
+
+	int desired_device = value("cudaDevice", 0);
+	cuda_device_ = (desired_device < cuda_device_count) ? desired_device : cuda_device_count-1;
+	cudaSafeCall(cudaSetDevice(cuda_device_));
+
+	// TODO(Nick) Check memory is sufficient
+	// TODO(Nick) Find out what our compute capability should be.
+
+	return true;
 }
 
 void SceneRep::addSource(ftl::rgbd::Source *src) {
