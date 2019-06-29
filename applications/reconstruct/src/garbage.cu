@@ -35,6 +35,25 @@ void ftl::cuda::starveVoxels(HashData& hashData, const HashParams& hashParams) {
 #endif
 }
 
+__global__ void clearVoxelsKernel(HashData hashData) {
+
+	// Stride over all allocated blocks
+	for (int bi=blockIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
+
+	const HashEntry& entry = hashData.d_hashCompactified[bi];	
+	hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight = 0;
+
+	}
+}
+
+void ftl::cuda::clearVoxels(HashData& hashData, const HashParams& hashParams) {
+	const unsigned int threadsPerBlock = SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;
+	const dim3 gridSize(NUM_CUDA_BLOCKS, 1);
+	const dim3 blockSize(threadsPerBlock, 1);
+
+	clearVoxelsKernel << <gridSize, blockSize >> >(hashData);
+}
+
 
 __shared__ float	shared_MinSDF[SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE / 2];
 __shared__ uint		shared_MaxWeight[SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE / 2];
@@ -118,7 +137,7 @@ void ftl::cuda::garbageCollectIdentify(HashData& hashData, const HashParams& has
 __global__ void garbageCollectFreeKernel(HashData hashData) {
 
 	// Stride over all allocated blocks
-	for (int bi=blockIdx.x*blockDim.x + threadIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
+	for (int bi=blockIdx.x*blockDim.x + threadIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS*blockDim.x) {
 
 	if (hashData.d_hashDecision[bi] != 0) {	//decision to delete the hash entry
 

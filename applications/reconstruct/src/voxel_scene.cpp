@@ -47,6 +47,11 @@ SceneRep::SceneRep(nlohmann::json &config) : Configurable(config), do_reset_(fal
 	on("SDFMaxIntegrationDistance", [this](const ftl::config::Event &e) {
 		m_hashParams.m_maxIntegrationDistance = value("SDFMaxIntegrationDistance", 10.0f);
 	});
+	on("showRegistration", [this](const ftl::config::Event &e) {
+		reg_mode_ = value("showRegistration", false);
+	});
+
+	reg_mode_ = value("showRegistration", false);
 
 	cudaSafeCall(cudaStreamCreate(&integ_stream_));
 	//integ_stream_ = 0;
@@ -79,12 +84,14 @@ int SceneRep::upload() {
 			continue;
 		} else {
 			auto in = cam.source;
+
+			cam.params.fx = in->parameters().fx;
+			cam.params.fy = in->parameters().fy;
+			cam.params.mx = -in->parameters().cx;
+			cam.params.my = -in->parameters().cy;
+
 			// Only now do we have camera parameters for allocations...
 			if (cam.params.m_imageWidth == 0) {
-				cam.params.fx = in->parameters().fx;
-				cam.params.fy = in->parameters().fy;
-				cam.params.mx = -in->parameters().cx;
-				cam.params.my = -in->parameters().cy;
 				cam.params.m_imageWidth = in->parameters().width;
 				cam.params.m_imageHeight = in->parameters().height;
 				cam.params.m_sensorDepthWorldMax = in->parameters().maxDepth;
@@ -144,7 +151,7 @@ void SceneRep::integrate() {
 		//volumetrically integrate the depth data into the depth SDFBlocks
 		_integrateDepthMap(cam.gpu, cam.params);
 
-		//_garbageCollect(cam.gpu);
+		//_garbageCollect();
 
 		m_numIntegratedFrames++;
 	}
@@ -180,7 +187,7 @@ void SceneRep::garbage() {
 
 void SceneRep::setLastRigidTransform(const Eigen::Matrix4f& lastRigidTransform) {
 	m_hashParams.m_rigidTransform = MatrixConversion::toCUDA(lastRigidTransform);
-	m_hashParams.m_rigidTransformInverse = m_hashParams.m_rigidTransform.getInverse();
+	m_hashParams.m_rigidTransformInverse = MatrixConversion::toCUDA(lastRigidTransform.inverse()); //m_hashParams.m_rigidTransform.getInverse();
 }
 
 /*void SceneRep::setLastRigidTransformAndCompactify(const Eigen::Matrix4f& lastRigidTransform, const DepthCameraData& depthCameraData) {
@@ -200,7 +207,9 @@ void SceneRep::nextFrame() {
 		_destroy();
 		_create(_parametersFromConfig());
 	} else {
-		ftl::cuda::starveVoxels(m_hashData, m_hashParams);
+		//ftl::cuda::compactifyAllocated(m_hashData, m_hashParams, integ_stream_);
+		if (reg_mode_) ftl::cuda::clearVoxels(m_hashData, m_hashParams); 
+		else ftl::cuda::starveVoxels(m_hashData, m_hashParams);
 		m_numIntegratedFrames = 0;
 	}
 }
@@ -407,7 +416,8 @@ void SceneRep::_compactifyAllocated() {
 }
 
 void SceneRep::_integrateDepthMap(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams) {
-	ftl::cuda::integrateDepthMap(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
+	if (!reg_mode_) ftl::cuda::integrateDepthMap(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
+	else ftl::cuda::integrateRegistration(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
 }
 
 void SceneRep::_garbageCollect() {

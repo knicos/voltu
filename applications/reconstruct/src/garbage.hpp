@@ -4,6 +4,7 @@
 namespace ftl {
 namespace cuda {
 
+void clearVoxels(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 void starveVoxels(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 void garbageCollectIdentify(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t stream);
 void garbageCollectFree(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t stream);

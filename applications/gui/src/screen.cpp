@@ -9,6 +9,7 @@
 #include <nanogui/combobox.h>
 #include <nanogui/label.h>
 #include <nanogui/toolbutton.h>
+#include <nanogui/popupbutton.h>
 
 #include <opencv2/opencv.hpp>
 
@@ -121,6 +122,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	button->setFixedSize(Vector2i(40,40));
 	button->setCallback([this]() {
 		//swindow_->setVisible(true);
+		setActiveCamera(nullptr);
 	});
 
 	/*button = new ToolButton(innertool, ENTYPO_ICON_PLUS);
@@ -132,22 +134,54 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		//swindow_->setVisible(true);
 	});*/
 
-	button = new ToolButton(innertool, ENTYPO_ICON_PLUS);
-	button->setIconExtraScale(1.5f);
-	button->setTheme(toolbuttheme);
-	button->setTooltip("Camera Sources");
-	button->setFixedSize(Vector2i(40,40));
-	button->setCallback([this]() {
+	auto popbutton = new PopupButton(innertool, "", ENTYPO_ICON_PLUS);
+	popbutton->setIconExtraScale(1.5f);
+	popbutton->setTheme(toolbuttheme);
+	popbutton->setTooltip("Add");
+	popbutton->setFixedSize(Vector2i(40,40));
+	popbutton->setSide(Popup::Side::Right);
+	popbutton->setChevronIcon(0);
+	Popup *popup = popbutton->popup();
+    popup->setLayout(new GroupLayout());
+	popup->setTheme(toolbuttheme);
+    //popup->setAnchorHeight(100);
+
+	auto itembutton = new Button(popup, "Add Camera", ENTYPO_ICON_CAMERA);
+	itembutton->setCallback([this,popup]() {
 		swindow_->setVisible(true);
+		popup->setVisible(false);
 	});
 
-	button = new ToolButton(innertool, ENTYPO_ICON_TOOLS);
-	button->setIconExtraScale(1.5f);
-	button->setTheme(toolbuttheme);
-	button->setTooltip("Connections");
-	button->setFixedSize(Vector2i(40,40));
-	button->setCallback([this]() {
+	itembutton = new Button(popup, "Add Node", ENTYPO_ICON_LAPTOP);
+	itembutton->setCallback([this,popup]() {
 		cwindow_->setVisible(true);
+		popup->setVisible(false);
+	});
+
+	popbutton = new PopupButton(innertool, "", ENTYPO_ICON_TOOLS);
+	popbutton->setIconExtraScale(1.5f);
+	popbutton->setTheme(toolbuttheme);
+	popbutton->setTooltip("Tools");
+	popbutton->setFixedSize(Vector2i(40,40));
+	popbutton->setSide(Popup::Side::Right);
+	popbutton->setChevronIcon(0);
+	popup = popbutton->popup();
+    popup->setLayout(new GroupLayout());
+	popup->setTheme(toolbuttheme);
+	//popbutton->setCallback([this]() {
+	//	cwindow_->setVisible(true);
+	//});
+
+	itembutton = new Button(popup, "Connections");
+	itembutton->setCallback([this,popup]() {
+		cwindow_->setVisible(true);
+		popup->setVisible(false);
+	});
+
+	itembutton = new Button(popup, "Manual Registration");
+	itembutton->setCallback([this,popup]() {
+		// Show pose win...
+		popup->setVisible(false);
 	});
 
 	button = new ToolButton(toolbar, ENTYPO_ICON_COG);
@@ -164,9 +198,10 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	mwindow_->setVisible(false);
 
 	cwindow_->setPosition(Eigen::Vector2i(80, 20));
-	swindow_->setPosition(Eigen::Vector2i(80, 400));
+	//swindow_->setPosition(Eigen::Vector2i(80, 400));
 	cwindow_->setVisible(false);
-	swindow_->setVisible(false);
+	swindow_->setVisible(true);
+	swindow_->center();
 	cwindow_->setTheme(windowtheme);
 	swindow_->setTheme(windowtheme);
 
@@ -201,8 +236,10 @@ void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
 	if (cam) {
 		status_ = cam->source()->getURI();
 		mwindow_->setVisible(true);
+		swindow_->setVisible(false);
 	} else {
 		mwindow_->setVisible(false);
+		swindow_->setVisible(true);
 		status_ = "No camera...";
 	}
 }

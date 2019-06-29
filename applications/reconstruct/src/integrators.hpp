@@ -10,6 +10,9 @@ namespace cuda {
 void integrateDepthMap(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams,
 		const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream);
 
+void integrateRegistration(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams,
+		const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream);
+
 }
 }
 

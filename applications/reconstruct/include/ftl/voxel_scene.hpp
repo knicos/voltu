@@ -101,6 +101,7 @@ class SceneRep : public ftl::Configurable {
 	bool do_reset_;
 	std::vector<Cameras> cameras_;
 	cudaStream_t integ_stream_;
+	bool reg_mode_;
 };
 
 };  // namespace voxhash
