@@ -327,7 +327,7 @@ void Streamer::_schedule() {
 
 					cv::Mat d2, d3;
 					vector<unsigned char> d_buf;
-					chunkDepth.convertTo(d2, CV_16UC1, 16*10);
+					chunkDepth.convertTo(d2, CV_16UC1, 1000); // 16*10);
 					//if (delta) d3 = (d2 * 2) - chunkDepthPrev;
 					//else d3 = d2;
 					//d2.copyTo(chunkDepthPrev);

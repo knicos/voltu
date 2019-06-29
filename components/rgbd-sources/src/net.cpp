@@ -117,7 +117,7 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 	cv::Mat chunkDepth = depth_(roi);
 
 	tmp_rgb.copyTo(chunkRGB);
-	tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/(16.0f*10.0f));
+	tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
 	if (chunk == 0) N_--;
 }
 

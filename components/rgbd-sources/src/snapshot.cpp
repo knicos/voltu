@@ -138,7 +138,7 @@ bool SnapshotWriter::addCameraParams(const string &name, const Matrix4d &pose, c
 bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat &depth) {
 	bool retval = true;
 	cv::Mat tdepth;
-	depth.convertTo(tdepth, CV_16SC1, 16.0f*10.0f);
+	depth.convertTo(tdepth, CV_16UC1, 1000.0f);
 	retval &= addMat(name + "-RGB", rgb, "jpg");
 	retval &= addMat(name + "-D", tdepth, "png");
 	return retval;
