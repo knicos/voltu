@@ -238,7 +238,7 @@ void SceneRep::nextFrame() {
 	} else {
 		//ftl::cuda::compactifyAllocated(m_hashData, m_hashParams, integ_stream_);
 		if (reg_mode_) ftl::cuda::clearVoxels(m_hashData, m_hashParams); 
-		else ftl::cuda::starveVoxels(m_hashData, m_hashParams, integ_stream_);
+		//else ftl::cuda::starveVoxels(m_hashData, m_hashParams, integ_stream_);
 		m_numIntegratedFrames = 0;
 	}
 }
