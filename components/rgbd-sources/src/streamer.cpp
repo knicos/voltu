@@ -3,6 +3,7 @@
 #include <optional>
 #include <thread>
 #include <chrono>
+#include <tuple>
 
 using ftl::rgbd::Streamer;
 using ftl::rgbd::Source;
@@ -20,6 +21,8 @@ using std::unique_lock;
 using std::shared_lock;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
+using std::tuple;
+using std::make_tuple;
 
 
 Streamer::Streamer(nlohmann::json &config, Universe *net)
@@ -71,7 +74,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	});
 
 	// Allow remote users to access camera calibration matrix
-	net->bind("source_calibration", [this](const std::string &uri) -> vector<unsigned char> {
+	net->bind("source_details", [this](const std::string &uri) -> tuple<unsigned int,vector<unsigned char>> {
 		vector<unsigned char> buf;
 		SHARED_LOCK(mutex_,slk);
 
@@ -79,8 +82,10 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 			buf.resize(sizeof(Camera));
 			LOG(INFO) << "Calib buf size = " << buf.size();
 			memcpy(buf.data(), &sources_[uri]->src->parameters(), buf.size());
+			return make_tuple(sources_[uri]->src->getCapabilities(), buf);
+		} else {
+			return make_tuple(0u,buf);
 		}
-		return buf;
 	});
 
 	net->bind("get_stream", [this](const string &source, int N, int rate, const UUID &peer, const string &dest) {

@@ -23,24 +23,15 @@ static inline bool isValidDepth(float d) { return (d > 0.01f) && (d < 39.99f); }
 
 class SnapshotReader;
 
-enum capability_t {
-	kCapColour,		// Has a colour feed
-	kCapDepth,		// Has a depth feed
-	kCapRight,		// It is possible to get a right image
-	kCapMovable,	// Camera is software movable
-	kCapVideo,		// It is a video feed, not static
-	kCapDisparity	// Raw disparity is available
-};
-
 typedef unsigned int channel_t;
 
-static const unsigned int kChanLeft = 1;
-static const unsigned int kChanDepth = 2;
-static const unsigned int kChanRight = 3;
-static const unsigned int kChanDisparity = 4;
-static const unsigned int kChanDeviation = 5;
+static const channel_t kChanLeft = 1;
+static const channel_t kChanDepth = 2;
+static const channel_t kChanRight = 3;
+static const channel_t kChanDisparity = 4;
+static const channel_t kChanDeviation = 5;
 
-static const unsigned int kChanOverlay1 = 100;
+static const channel_t kChanOverlay1 = 100;
 
 /**
  * RGBD Generic data source configurable entity. This class hides the
@@ -140,7 +131,9 @@ class Source : public ftl::Configurable {
 	/**
 	 * Check what features this source has available.
 	 */
-	virtual bool hasCapability(capability_t);
+	bool hasCapabilities(capability_t);
+
+	capability_t getCapabilities() const;
 
 	/**
 	 * Get a point in camera coordinates at specified pixel location.

@@ -6,6 +6,8 @@ using std::string;
 
 RealsenseSource::RealsenseSource(ftl::rgbd::Source *host)
         : ftl::rgbd::detail::Source(host), align_to_depth_(RS2_STREAM_DEPTH) {
+	capabilities_ = kCapVideo;
+
     rs2::config cfg;
     cfg.enable_stream(RS2_STREAM_DEPTH, 1280, 720, RS2_FORMAT_Z16, 30);
     cfg.enable_stream(RS2_STREAM_COLOR, 1280, 720, RS2_FORMAT_BGRA8, 30);

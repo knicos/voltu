@@ -3,6 +3,7 @@
 #include <thread>
 #include <chrono>
 #include <shared_mutex>
+#include <tuple>
 
 #include "colour.hpp"
 
@@ -18,11 +19,14 @@ using std::unique_lock;
 using std::vector;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
+using std::tuple;
 
 bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p) {
 	try {
 		while(true) {
-			auto buf = net.call<vector<unsigned char>>(peer_, "source_calibration", src);
+			auto [cap,buf] = net.call<tuple<unsigned int,vector<unsigned char>>>(peer_, "source_details", src);
+
+			capabilities_ = cap;
 
 			if (buf.size() > 0) {
 				memcpy((char*)&p, buf.data(), buf.size());
