@@ -662,6 +662,11 @@ inline __host__ __device__ void operator/=(int3 &a, int s)
     a.x /= s; a.y /= s; a.z /= s;
 }
 
+// Comparison
+inline __host__ __device__ bool operator==(const int3 &a, const int3 &b) {
+	return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
 // clamp
 inline __device__ __host__ int clamp(int f, int a, int b)
 {

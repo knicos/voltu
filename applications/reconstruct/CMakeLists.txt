@@ -11,6 +11,8 @@ set(REPSRC
 	src/integrators.cu
 	src/ray_cast_sdf.cu
 	src/camera_util.cu
+	src/voxel_hash.cu
+	src/voxel_hash.cpp
 	src/ray_cast_sdf.cpp
 	src/registration.cpp
 	src/virtual_source.cpp

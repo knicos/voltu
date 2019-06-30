@@ -36,9 +36,7 @@ typedef signed char schar;
 
 #include <ftl/depth_camera.hpp>
 
-#define HANDLE_COLLISIONS
 #define SDF_BLOCK_SIZE 8
-#define HASH_BUCKET_SIZE 10
 
 #ifndef MINF
 #define MINF __int_as_float(0xff800000)
@@ -109,94 +107,30 @@ struct HashData {
 		m_bIsOnGPU = false;
 	}
 
-	__host__
-	void allocate(const HashParams& params, bool dataOnGPU = true) {
-		m_bIsOnGPU = dataOnGPU;
-		if (m_bIsOnGPU) {
-			cudaSafeCall(cudaMalloc(&d_heap, sizeof(unsigned int) * params.m_numSDFBlocks));
-			cudaSafeCall(cudaMalloc(&d_heapCounter, sizeof(unsigned int)));
-			cudaSafeCall(cudaMalloc(&d_hash, sizeof(HashEntry)* params.m_hashNumBuckets * params.m_hashBucketSize));
-			cudaSafeCall(cudaMalloc(&d_hashDecision, sizeof(int)* params.m_hashNumBuckets * params.m_hashBucketSize));
-			cudaSafeCall(cudaMalloc(&d_hashDecisionPrefix, sizeof(int)* params.m_hashNumBuckets * params.m_hashBucketSize));
-			cudaSafeCall(cudaMalloc(&d_hashCompactified, sizeof(HashEntry)* params.m_hashNumBuckets * params.m_hashBucketSize));
-			cudaSafeCall(cudaMalloc(&d_hashCompactifiedCounter, sizeof(int)));
-			cudaSafeCall(cudaMalloc(&d_SDFBlocks, sizeof(Voxel) * params.m_numSDFBlocks * params.m_SDFBlockSize*params.m_SDFBlockSize*params.m_SDFBlockSize));
-			cudaSafeCall(cudaMalloc(&d_hashBucketMutex, sizeof(int)* params.m_hashNumBuckets));
-		} else {
-			d_heap = new unsigned int[params.m_numSDFBlocks];
-			d_heapCounter = new unsigned int[1];
-			d_hash = new HashEntry[params.m_hashNumBuckets * params.m_hashBucketSize];
-			d_hashDecision = new int[params.m_hashNumBuckets * params.m_hashBucketSize];
-			d_hashDecisionPrefix = new int[params.m_hashNumBuckets * params.m_hashBucketSize];
-			d_hashCompactified = new HashEntry[params.m_hashNumBuckets * params.m_hashBucketSize];
-			d_hashCompactifiedCounter = new int[1];
-			d_SDFBlocks = new Voxel[params.m_numSDFBlocks * params.m_SDFBlockSize*params.m_SDFBlockSize*params.m_SDFBlockSize];
-			d_hashBucketMutex = new int[params.m_hashNumBuckets];
-		}
+	/**
+	 * Create all the data structures, either on GPU or system memory.
+	 */
+	__host__ void allocate(const HashParams& params, bool dataOnGPU = true);
 
-		updateParams(params);
-	}
+	__host__ void updateParams(const HashParams& params);
 
-	__host__
-	void updateParams(const HashParams& params) {
-		if (m_bIsOnGPU) {
-			updateConstantHashParams(params);
-		} 
-	}
+	__host__ void free();
 
-	__host__
-	void free() {
-		if (m_bIsOnGPU) {
-			cudaSafeCall(cudaFree(d_heap));
-			cudaSafeCall(cudaFree(d_heapCounter));
-			cudaSafeCall(cudaFree(d_hash));
-			cudaSafeCall(cudaFree(d_hashDecision));
-			cudaSafeCall(cudaFree(d_hashDecisionPrefix));
-			cudaSafeCall(cudaFree(d_hashCompactified));
-			cudaSafeCall(cudaFree(d_hashCompactifiedCounter));
-			cudaSafeCall(cudaFree(d_SDFBlocks));
-			cudaSafeCall(cudaFree(d_hashBucketMutex));
-		} else {
-			if (d_heap) delete[] d_heap;
-			if (d_heapCounter) delete[] d_heapCounter;
-			if (d_hash) delete[] d_hash;
-			if (d_hashDecision) delete[] d_hashDecision;
-			if (d_hashDecisionPrefix) delete[] d_hashDecisionPrefix;
-			if (d_hashCompactified) delete[] d_hashCompactified;
-			if (d_hashCompactifiedCounter) delete[] d_hashCompactifiedCounter;
-			if (d_SDFBlocks) delete[] d_SDFBlocks;
-			if (d_hashBucketMutex) delete[] d_hashBucketMutex;
-		}
+	/**
+	 * Download entire hash table from GPU to CPU memory.
+	 */
+	__host__ HashData download() const;
 
-		d_hash = NULL;
-		d_heap = NULL;
-		d_heapCounter = NULL;
-		d_hashDecision = NULL;
-		d_hashDecisionPrefix = NULL;
-		d_hashCompactified = NULL;
-		d_hashCompactifiedCounter = NULL;
-		d_SDFBlocks = NULL;
-		d_hashBucketMutex = NULL;
-	}
+	/**
+	 * Upload entire hash table from CPU to GPU memory.
+	 */
+	__host__ HashData upload() const;
 
-	__host__
-	HashData copyToCPU() const {
-		HashParams params;
-		
-		HashData hashData;
-		hashData.allocate(params, false);	//allocate the data on the CPU
-		cudaSafeCall(cudaMemcpy(hashData.d_heap, d_heap, sizeof(unsigned int) * params.m_numSDFBlocks, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_heapCounter, d_heapCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_hash, d_hash, sizeof(HashEntry)* params.m_hashNumBuckets * params.m_hashBucketSize, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_hashDecision, d_hashDecision, sizeof(int)*params.m_hashNumBuckets * params.m_hashBucketSize, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_hashDecisionPrefix, d_hashDecisionPrefix, sizeof(int)*params.m_hashNumBuckets * params.m_hashBucketSize, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_hashCompactified, d_hashCompactified, sizeof(HashEntry)* params.m_hashNumBuckets * params.m_hashBucketSize, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_hashCompactifiedCounter, d_hashCompactifiedCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_SDFBlocks, d_SDFBlocks, sizeof(Voxel) * params.m_numSDFBlocks * params.m_SDFBlockSize*params.m_SDFBlockSize*params.m_SDFBlockSize, cudaMemcpyDeviceToHost));
-		cudaSafeCall(cudaMemcpy(hashData.d_hashBucketMutex, d_hashBucketMutex, sizeof(int)* params.m_hashNumBuckets, cudaMemcpyDeviceToHost));
-		
-		return hashData;	//TODO MATTHIAS look at this (i.e,. when does memory get destroyed ; if it's in the destructer it would kill everything here 
-	}
+	__host__ size_t getAllocatedBlocks() const;
+
+	__host__ size_t getFreeBlocks() const;
+
+	__host__ size_t getCollisionCount() const;
 
 
 
@@ -218,8 +152,8 @@ struct HashData {
 		const int p1 = 19349669;
 		const int p2 = 83492791;
 
-		int res = ((virtualVoxelPos.x * p0) ^ (virtualVoxelPos.y * p1) ^ (virtualVoxelPos.z * p2)) % c_hashParams.m_hashNumBuckets;
-		if (res < 0) res += c_hashParams.m_hashNumBuckets;
+		int res = ((virtualVoxelPos.x * p0) ^ (virtualVoxelPos.y * p1) ^ (virtualVoxelPos.z * p2)) % params().m_hashNumBuckets;
+		if (res < 0) res += params().m_hashNumBuckets;
 		return (uint)res;
 	}
 
@@ -261,26 +195,26 @@ struct HashData {
 		out.color.z = (v0.weight > 0) ? (uchar)(c0.z * factor0 + c1.z * factor1) : c1.z;*/
 
 		out.sdf = (v0.sdf * (float)v0.weight + v1.sdf * (float)v1.weight) / ((float)v0.weight + (float)v1.weight);
-		out.weight = min(c_hashParams.m_integrationWeightMax, (unsigned int)v0.weight + (unsigned int)v1.weight);
+		out.weight = min(params().m_integrationWeightMax, (unsigned int)v0.weight + (unsigned int)v1.weight);
 	}
 
 
 	//! returns the truncation of the SDF for a given distance value
 	__device__ 
 	float getTruncation(float z) const {
-		return c_hashParams.m_truncation + c_hashParams.m_truncScale * z;
+		return params().m_truncation + params().m_truncScale * z;
 	}
 
 
 	__device__ 
 	float3 worldToVirtualVoxelPosFloat(const float3& pos) const	{
-		return pos / c_hashParams.m_virtualVoxelSize;
+		return pos / params().m_virtualVoxelSize;
 	}
 
 	__device__ 
 	int3 worldToVirtualVoxelPos(const float3& pos) const {
 		//const float3 p = pos*g_VirtualVoxelResolutionScalar;
-		const float3 p = pos / c_hashParams.m_virtualVoxelSize;
+		const float3 p = pos / params().m_virtualVoxelSize;
 		return make_int3(p+make_float3(sign(p))*0.5f);
 	}
 
@@ -304,7 +238,7 @@ struct HashData {
 
 	__device__ 
 	float3 virtualVoxelPosToWorld(const int3& pos) const	{
-		return make_float3(pos)*c_hashParams.m_virtualVoxelSize;
+		return make_float3(pos)*params().m_virtualVoxelSize;
 	}
 
 	__device__ 
@@ -438,98 +372,15 @@ struct HashData {
 
 	//! returns the hash entry for a given sdf block id; if there was no hash entry the returned entry will have a ptr with FREE_ENTRY set
 	__device__ 
-	HashEntry getHashEntryForSDFBlockPos(const int3& sdfBlock) const
-	{
-		uint h = computeHashPos(sdfBlock);			//hash bucket
-		uint hp = h * HASH_BUCKET_SIZE;	//hash position
-
-		HashEntry entry;
-		entry.pos = sdfBlock;
-		entry.offset = 0;
-		entry.ptr = FREE_ENTRY;
-
-		for (uint j = 0; j < HASH_BUCKET_SIZE; j++) {
-			uint i = j + hp;
-			HashEntry curr = d_hash[i];
-			if (curr.pos.x == entry.pos.x && curr.pos.y == entry.pos.y && curr.pos.z == entry.pos.z && curr.ptr != FREE_ENTRY) {
-				return curr;
-			}
-		}
-
-#ifdef HANDLE_COLLISIONS
-		const uint idxLastEntryInBucket = (h+1)*HASH_BUCKET_SIZE - 1;
-		int i = idxLastEntryInBucket;	//start with the last entry of the current bucket
-		HashEntry curr;
-		//traverse list until end: memorize idx at list end and memorize offset from last element of bucket to list end
-
-		unsigned int maxIter = 0;
-		uint g_MaxLoopIterCount = c_hashParams.m_hashMaxCollisionLinkedListSize;
-		#pragma unroll 1 
-		while (maxIter < g_MaxLoopIterCount) {
-			curr = d_hash[i];
-
-			if (curr.pos.x == entry.pos.x && curr.pos.y == entry.pos.y && curr.pos.z == entry.pos.z && curr.ptr != FREE_ENTRY) {
-				return curr;
-			}
-
-			if (curr.offset == 0) {	//we have found the end of the list
-				break;
-			}
-			i = idxLastEntryInBucket + curr.offset;						//go to next element in the list
-			i %= (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//check for overflow
-
-			maxIter++;
-		}
-#endif
-		return entry;
-	}
+	HashEntry getHashEntryForSDFBlockPos(const int3& sdfBlock) const;
 
 	//for histogram (no collision traversal)
 	__device__ 
-	unsigned int getNumHashEntriesPerBucket(unsigned int bucketID) {
-		unsigned int h = 0;
-		for (uint i = 0; i < HASH_BUCKET_SIZE; i++) {
-			if (d_hash[bucketID*HASH_BUCKET_SIZE+i].ptr != FREE_ENTRY) {
-				h++;
-			}
-		} 
-		return h;
-	}
+	unsigned int getNumHashEntriesPerBucket(unsigned int bucketID);
 
 	//for histogram (collisions traversal only)
 	__device__ 
-	unsigned int getNumHashLinkedList(unsigned int bucketID) {
-		unsigned int listLen = 0;
-
-#ifdef HANDLE_COLLISIONS
-		const uint idxLastEntryInBucket = (bucketID+1)*HASH_BUCKET_SIZE - 1;
-		unsigned int i = idxLastEntryInBucket;	//start with the last entry of the current bucket
-		//int offset = 0;
-		HashEntry curr;	curr.offset = 0;
-		//traverse list until end: memorize idx at list end and memorize offset from last element of bucket to list end
-
-		unsigned int maxIter = 0;
-		uint g_MaxLoopIterCount = c_hashParams.m_hashMaxCollisionLinkedListSize;
-		#pragma unroll 1 
-		while (maxIter < g_MaxLoopIterCount) {
-			//offset = curr.offset;
-			//curr = getHashEntry(g_Hash, i);
-			curr = d_hash[i];
-
-			if (curr.offset == 0) {	//we have found the end of the list
-				break;
-			}
-			i = idxLastEntryInBucket + curr.offset;		//go to next element in the list
-			i %= (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//check for overflow
-			listLen++;
-
-			maxIter++;
-		}
-#endif
-		
-		return listLen;
-	}
-
+	unsigned int getNumHashLinkedList(unsigned int bucketID);
 
 
 	__device__
@@ -547,287 +398,15 @@ struct HashData {
 
 	//pos in SDF block coordinates
 	__device__
-	void allocBlock(const int3& pos, const uchar frame) {
+	void allocBlock(const int3& pos, const uchar frame);
 
-
-		uint h = computeHashPos(pos);				//hash bucket
-		uint hp = h * HASH_BUCKET_SIZE;	//hash position
-
-		int firstEmpty = -1;
-		for (uint j = 0; j < HASH_BUCKET_SIZE; j++) {
-			uint i = j + hp;		
-			HashEntry& curr = d_hash[i];
-
-			//in that case the SDF-block is already allocated and corresponds to the current position -> exit thread
-			if (curr.pos.x == pos.x && curr.pos.y == pos.y && curr.pos.z == pos.z && curr.ptr != FREE_ENTRY) {
-				//curr.flags = frame;  // Flag block as valid in this frame (Nick)
-				return;
-			}
-
-			//store the first FREE_ENTRY hash entry
-			if (firstEmpty == -1 && curr.ptr == FREE_ENTRY) {
-				firstEmpty = i;
-			}
-		}
-
-
-#ifdef HANDLE_COLLISIONS
-		//updated variables as after the loop
-		const uint idxLastEntryInBucket = (h+1)*HASH_BUCKET_SIZE - 1;	//get last index of bucket
-		uint i = idxLastEntryInBucket;											//start with the last entry of the current bucket
-		//int offset = 0;
-		HashEntry curr;	curr.offset = 0;
-		//traverse list until end: memorize idx at list end and memorize offset from last element of bucket to list end
-		//int k = 0;
-
-		unsigned int maxIter = 0;
-		uint g_MaxLoopIterCount = c_hashParams.m_hashMaxCollisionLinkedListSize;
-		#pragma  unroll 1 
-		while (maxIter < g_MaxLoopIterCount) {
-			//offset = curr.offset;
-			curr = d_hash[i];	//TODO MATTHIAS do by reference
-			if (curr.pos.x == pos.x && curr.pos.y == pos.y && curr.pos.z == pos.z && curr.ptr != FREE_ENTRY) {
-				//curr.flags = frame;  // Flag block as valid in this frame (Nick)
-				return;
-			}
-			if (curr.offset == 0) {	//we have found the end of the list
-				break;
-			}
-			i = idxLastEntryInBucket + curr.offset;		//go to next element in the list
-			i %= (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//check for overflow
-
-			maxIter++;
-		}
-#endif
-
-		if (firstEmpty != -1) {	//if there is an empty entry and we haven't allocated the current entry before
-			//int prevValue = 0;
-			//InterlockedExchange(d_hashBucketMutex[h], LOCK_ENTRY, prevValue);	//lock the hash bucket
-			int prevValue = atomicExch(&d_hashBucketMutex[h], LOCK_ENTRY);
-			if (prevValue != LOCK_ENTRY) {	//only proceed if the bucket has been locked
-				HashEntry& entry = d_hash[firstEmpty];
-				entry.pos = pos;
-				entry.offset = NO_OFFSET;	
-				entry.flags = 0;  // Flag block as valid in this frame (Nick)	
-				entry.ptr = consumeHeap() * SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;	//memory alloc
-			}
-			return;
-		}
-
-#ifdef HANDLE_COLLISIONS
-		//if (i != idxLastEntryInBucket) return;
-		int offset = 0;
-		//linear search for free entry
-
-		maxIter = 0;
-		#pragma  unroll 1 
-		while (maxIter < g_MaxLoopIterCount) {
-			offset++;
-			i = (idxLastEntryInBucket + offset) % (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//go to next hash element
-			if ((offset % HASH_BUCKET_SIZE) == 0) continue;			//cannot insert into a last bucket element (would conflict with other linked lists)
-			curr = d_hash[i];
-			//if (curr.pos.x == pos.x && curr.pos.y == pos.y && curr.pos.z == pos.z && curr.ptr != FREE_ENTRY) {
-			//	return;
-			//} 
-			if (curr.ptr == FREE_ENTRY) {	//this is the first free entry
-				//int prevValue = 0;
-				//InterlockedExchange(g_HashBucketMutex[h], LOCK_ENTRY, prevValue);	//lock the original hash bucket
-				int prevValue = atomicExch(&d_hashBucketMutex[h], LOCK_ENTRY);
-				if (prevValue != LOCK_ENTRY) {
-					HashEntry lastEntryInBucket = d_hash[idxLastEntryInBucket];
-					h = i / HASH_BUCKET_SIZE;
-					//InterlockedExchange(g_HashBucketMutex[h], LOCK_ENTRY, prevValue);	//lock the hash bucket where we have found a free entry
-					prevValue = atomicExch(&d_hashBucketMutex[h], LOCK_ENTRY);
-					if (prevValue != LOCK_ENTRY) {	//only proceed if the bucket has been locked
-						HashEntry& entry = d_hash[i];
-						entry.pos = pos;
-						entry.offset = lastEntryInBucket.offset;
-						entry.flags = 0;  // Flag block as valid in this frame (Nick)		
-						entry.ptr = consumeHeap() * SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;	//memory alloc
-
-						lastEntryInBucket.offset = offset;
-						d_hash[idxLastEntryInBucket] = lastEntryInBucket;
-						//setHashEntry(g_Hash, idxLastEntryInBucket, lastEntryInBucket);
-					}
-				} 
-				return;	//bucket was already locked
-			}
-
-			maxIter++;
-		} 
-#endif
-	}
-
-	
 	//!inserts a hash entry without allocating any memory: used by streaming: TODO MATTHIAS check the atomics in this function
 	__device__
-	bool insertHashEntry(HashEntry entry)
-	{
-		uint h = computeHashPos(entry.pos);
-		uint hp = h * HASH_BUCKET_SIZE;
-
-		for (uint j = 0; j < HASH_BUCKET_SIZE; j++) {
-			uint i = j + hp;		
-			//const HashEntry& curr = d_hash[i];
-			int prevWeight = 0;
-			//InterlockedCompareExchange(hash[3*i+2], FREE_ENTRY, LOCK_ENTRY, prevWeight);
-			prevWeight = atomicCAS(&d_hash[i].ptr, FREE_ENTRY, LOCK_ENTRY);
-			if (prevWeight == FREE_ENTRY) {
-				d_hash[i] = entry;
-				//setHashEntry(hash, i, entry);
-				return true;
-			}
-		}
-
-#ifdef HANDLE_COLLISIONS
-		//updated variables as after the loop
-		const uint idxLastEntryInBucket = (h+1)*HASH_BUCKET_SIZE - 1;	//get last index of bucket
-
-		uint i = idxLastEntryInBucket;											//start with the last entry of the current bucket
-		HashEntry curr;
-
-		unsigned int maxIter = 0;
-		//[allow_uav_condition]
-		uint g_MaxLoopIterCount = c_hashParams.m_hashMaxCollisionLinkedListSize;
-		#pragma  unroll 1 
-		while (maxIter < g_MaxLoopIterCount) {									//traverse list until end // why find the end? we you are inserting at the start !!!
-			//curr = getHashEntry(hash, i);
-			curr = d_hash[i];	//TODO MATTHIAS do by reference
-			if (curr.offset == 0) break;									//we have found the end of the list
-			i = idxLastEntryInBucket + curr.offset;							//go to next element in the list
-			i %= (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//check for overflow
-
-			maxIter++;
-		}
-
-		maxIter = 0;
-		int offset = 0;
-		#pragma  unroll 1 
-		while (maxIter < g_MaxLoopIterCount) {													//linear search for free entry
-			offset++;
-			uint i = (idxLastEntryInBucket + offset) % (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//go to next hash element
-			if ((offset % HASH_BUCKET_SIZE) == 0) continue;										//cannot insert into a last bucket element (would conflict with other linked lists)
-
-			int prevWeight = 0;
-			//InterlockedCompareExchange(hash[3*i+2], FREE_ENTRY, LOCK_ENTRY, prevWeight);		//check for a free entry
-			uint* d_hashUI = (uint*)d_hash;
-			prevWeight = prevWeight = atomicCAS(&d_hashUI[3*idxLastEntryInBucket+1], (uint)FREE_ENTRY, (uint)LOCK_ENTRY);
-			if (prevWeight == FREE_ENTRY) {														//if free entry found set prev->next = curr & curr->next = prev->next
-				//[allow_uav_condition]
-				//while(hash[3*idxLastEntryInBucket+2] == LOCK_ENTRY); // expects setHashEntry to set the ptr last, required because pos.z is packed into the same value -> prev->next = curr -> might corrput pos.z
-
-				HashEntry lastEntryInBucket = d_hash[idxLastEntryInBucket];			//get prev (= lastEntry in Bucket)
-
-				int newOffsetPrev = (offset << 16) | (lastEntryInBucket.pos.z & 0x0000ffff);	//prev->next = curr (maintain old z-pos)
-				int oldOffsetPrev = 0;
-				//InterlockedExchange(hash[3*idxLastEntryInBucket+1], newOffsetPrev, oldOffsetPrev);	//set prev offset atomically
-				uint* d_hashUI = (uint*)d_hash;
-				oldOffsetPrev = prevWeight = atomicExch(&d_hashUI[3*idxLastEntryInBucket+1], newOffsetPrev);
-				entry.offset = oldOffsetPrev >> 16;													//remove prev z-pos from old offset
-
-				//setHashEntry(hash, i, entry);														//sets the current hashEntry with: curr->next = prev->next
-				d_hash[i] = entry;
-				return true;
-			}
-
-			maxIter++;
-		} 
-#endif
-
-		return false;
-	}
-
-
+	bool insertHashEntry(HashEntry entry);
 
 	//! deletes a hash entry position for a given sdfBlock index (returns true uppon successful deletion; otherwise returns false)
 	__device__
-	bool deleteHashEntryElement(const int3& sdfBlock) {
-		uint h = computeHashPos(sdfBlock);	//hash bucket
-		uint hp = h * HASH_BUCKET_SIZE;		//hash position
-
-		for (uint j = 0; j < HASH_BUCKET_SIZE; j++) {
-			uint i = j + hp;
-			const HashEntry& curr = d_hash[i];
-			if (curr.pos.x == sdfBlock.x && curr.pos.y == sdfBlock.y && curr.pos.z == sdfBlock.z && curr.ptr != FREE_ENTRY) {
-#ifndef HANDLE_COLLISIONS
-				const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-				appendHeap(curr.ptr / linBlockSize);
-				//heapAppend.Append(curr.ptr / linBlockSize);
-				deleteHashEntry(i);
-				return true;
-#endif
-#ifdef HANDLE_COLLISIONS
-				if (curr.offset != 0) {	//if there was a pointer set it to the next list element
-					//int prevValue = 0;
-					//InterlockedExchange(bucketMutex[h], LOCK_ENTRY, prevValue);	//lock the hash bucket
-					int prevValue = atomicExch(&d_hashBucketMutex[h], LOCK_ENTRY);
-					if (prevValue == LOCK_ENTRY)	return false;
-					if (prevValue != LOCK_ENTRY) {
-						const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-						appendHeap(curr.ptr / linBlockSize);
-						//heapAppend.Append(curr.ptr / linBlockSize);
-						int nextIdx = (i + curr.offset) % (HASH_BUCKET_SIZE*c_hashParams.m_hashNumBuckets);
-						//setHashEntry(hash, i, getHashEntry(hash, nextIdx));
-						d_hash[i] = d_hash[nextIdx];
-						deleteHashEntry(nextIdx);
-						return true;
-					}
-				} else {
-					const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-					appendHeap(curr.ptr / linBlockSize);
-					//heapAppend.Append(curr.ptr / linBlockSize);
-					deleteHashEntry(i);
-					return true;
-				}
-#endif	//HANDLE_COLLSISION
-			}
-		}	
-#ifdef HANDLE_COLLISIONS
-		const uint idxLastEntryInBucket = (h+1)*HASH_BUCKET_SIZE - 1;
-		int i = idxLastEntryInBucket;
-		HashEntry curr;
-		curr = d_hash[i];
-		int prevIdx = i;
-		i = idxLastEntryInBucket + curr.offset;							//go to next element in the list
-		i %= (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//check for overflow
-
-		unsigned int maxIter = 0;
-		uint g_MaxLoopIterCount = c_hashParams.m_hashMaxCollisionLinkedListSize;
-
-		#pragma  unroll 1 
-		while (maxIter < g_MaxLoopIterCount) {
-			curr = d_hash[i];
-			//found that dude that we need/want to delete
-			if (curr.pos.x == sdfBlock.x && curr.pos.y == sdfBlock.y && curr.pos.z == sdfBlock.z && curr.ptr != FREE_ENTRY) {
-				//int prevValue = 0;
-				//InterlockedExchange(bucketMutex[h], LOCK_ENTRY, prevValue);	//lock the hash bucket
-				int prevValue = atomicExch(&d_hashBucketMutex[h], LOCK_ENTRY);
-				if (prevValue == LOCK_ENTRY)	return false;
-				if (prevValue != LOCK_ENTRY) {
-					const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-					appendHeap(curr.ptr / linBlockSize);
-					//heapAppend.Append(curr.ptr / linBlockSize);
-					deleteHashEntry(i);
-					HashEntry prev = d_hash[prevIdx];				
-					prev.offset = curr.offset;
-					//setHashEntry(hash, prevIdx, prev);
-					d_hash[prevIdx] = prev;
-					return true;
-				}
-			}
-
-			if (curr.offset == 0) {	//we have found the end of the list
-				return false;	//should actually never happen because we need to find that guy before
-			}
-			prevIdx = i;
-			i = idxLastEntryInBucket + curr.offset;		//go to next element in the list
-			i %= (HASH_BUCKET_SIZE * c_hashParams.m_hashNumBuckets);	//check for overflow
-
-			maxIter++;
-		}
-#endif	// HANDLE_COLLSISION
-		return false;
-	}
+	bool deleteHashEntryElement(const int3& sdfBlock);
 
 #endif	//CUDACC
 

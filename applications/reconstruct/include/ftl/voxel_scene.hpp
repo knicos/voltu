@@ -47,15 +47,7 @@ class SceneRep : public ftl::Configurable {
 	// Mark voxels as surfaces
 	// void isosurface();
 
-	/**
-	 * Note: lastRigidTransform appears to be the estimated camera pose.
-	 * Note: bitMask can be nullptr if not streaming out voxels from GPU
-	 */
-	//void integrate(const Eigen::Matrix4f& lastRigidTransform, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, unsigned int* d_bitMask);
-
 	void setLastRigidTransform(const Eigen::Matrix4f& lastRigidTransform);
-
-	//void setLastRigidTransformAndCompactify(const Eigen::Matrix4f& lastRigidTransform, const DepthCameraData& depthCameraData);
 
 
 	const Eigen::Matrix4f getLastRigidTransform() const;
