@@ -26,7 +26,7 @@ class VirtualSource : public ftl::rgbd::detail::Source {
 
 	void setScene(ftl::voxhash::SceneRep *);
 
-	bool grab();
+	bool grab(int n, int b);
 	//void getRGBD(cv::Mat &rgb, cv::Mat &depth);
 	bool isReady();
 

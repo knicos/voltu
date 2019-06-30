@@ -5,10 +5,13 @@
 #include <chrono>
 #include <tuple>
 
+#include "bitrate_settings.hpp"
+
 using ftl::rgbd::Streamer;
 using ftl::rgbd::Source;
 using ftl::rgbd::detail::StreamSource;
 using ftl::rgbd::detail::StreamClient;
+using ftl::rgbd::detail::bitrate_settings;
 using ftl::net::Universe;
 using std::string;
 using std::list;
@@ -123,6 +126,7 @@ void Streamer::add(Source *src) {
 		//s->prev_depth = cv::Mat(cv::Size(src->parameters().width, src->parameters().height), CV_16SC1, 0);
 		s->jobs = 0;
 		s->frame = 0;
+		s->clientCount = 0;
 		sources_[src->getID()] = s;
 	}
 
@@ -133,37 +137,38 @@ void Streamer::add(Source *src) {
 void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID &peer, const string &dest) {
 	StreamSource *s = nullptr;
 
-	//{
+	{
 		UNIQUE_LOCK(mutex_,slk);
 		if (sources_.find(source) == sources_.end()) return;
 
 		if (rate < 0 || rate >= 10) return;
 		if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
 
-		DLOG(INFO) << "Adding Stream Peer: " << peer.to_string();
+		LOG(INFO) << "Adding Stream Peer: " << peer.to_string() << " rate=" << rate << " N=" << N;
 
 		s = sources_[source];
-	//}
+	}
 
-	if (!s) return;
+	if (!s) return;  // No matching stream
 
+	SHARED_LOCK(mutex_, slk);
 	UNIQUE_LOCK(s->mutex, lk2);
-	for (int i=0; i<s->clients[rate].size(); i++) {
-		if (s->clients[rate][i].peerid == peer) {
-			StreamClient &c = s->clients[rate][i];
-			c.txmax = N;
-			c.txcount = 0;
+	for (auto &client : s->clients[rate]) {
+		// If already listening, just update chunk counters
+		if (client.peerid == peer) {
+			client.txmax = N * kChunkCount;
+			client.txcount = 0;
 			return;
 		}
 	}
 
-	StreamClient c;
+	// Not an existing client so add one
+	StreamClient &c = s->clients[rate].emplace_back();
 	c.peerid = peer;
 	c.uri = dest;
 	c.txcount = 0;
-	c.txmax = N;
-
-	s->clients[rate].push_back(c);
+	c.txmax = N * kChunkCount;
+	++s->clientCount;
 }
 
 void Streamer::remove(Source *) {
@@ -176,7 +181,7 @@ void Streamer::remove(const std::string &) {
 
 void Streamer::stop() {
 	active_ = false;
-	//pool_.stop();
+	wait();
 }
 
 void Streamer::poll() {
@@ -222,14 +227,17 @@ void Streamer::_swap(StreamSource *src) {
 	if (src->jobs == 0) {
 		UNIQUE_LOCK(src->mutex,lk);
 
-		auto i = src->clients[0].begin();
-		while (i != src->clients[0].end()) {
-			(*i).txcount++;
-			if ((*i).txcount >= (*i).txmax) {
-				LOG(INFO) << "Remove client: " << (*i).uri;
-				i = src->clients[0].erase(i);
-			} else {
-				i++;
+		for (unsigned int b=0; b<10; ++b) {
+			auto i = src->clients[b].begin();
+			while (i != src->clients[b].end()) {
+				// Client request completed so remove from list
+				if ((*i).txcount >= (*i).txmax) {
+					LOG(INFO) << "Remove client: " << (*i).uri;
+					i = src->clients[b].erase(i);
+					--src->clientCount;
+				} else {
+					i++;
+				}
 			}
 		}
 
@@ -268,7 +276,7 @@ void Streamer::_schedule() {
 		string uri = s.first;
 
 		// No point in doing work if no clients
-		if (s.second->clients[0].size() == 0) {
+		if (s.second->clientCount == 0) {
 			continue;
 		}
 
@@ -283,8 +291,7 @@ void Streamer::_schedule() {
 
 		// Grab job
 		ftl::pool.push([this,src](int id) {
-			//StreamSource *src = sources_[uri];
-			auto start = std::chrono::high_resolution_clock::now();
+			//auto start = std::chrono::high_resolution_clock::now();
 			try {
 				src->src->grab();
 			} catch (std::exception &ex) {
@@ -295,14 +302,11 @@ void Streamer::_schedule() {
 				LOG(ERROR) << "Unknown exception when grabbing frame";
 			}
 
-			std::chrono::duration<double> elapsed =
-				std::chrono::high_resolution_clock::now() - start;
-			LOG(INFO) << "Grab in " << elapsed.count() << "s";
+			//std::chrono::duration<double> elapsed =
+			//	std::chrono::high_resolution_clock::now() - start;
+			//LOG(INFO) << "Grab in " << elapsed.count() << "s";
 
-			// CHECK (Nick) Can state be an atomic instead?
-			//UNIQUE_LOCK(src->mutex, lk);
 			src->jobs--;
-			//src->state |= ftl::rgbd::detail::kGrabbed;
 			_swap(src);
 
 			// Mark job as finished
@@ -311,24 +315,22 @@ void Streamer::_schedule() {
 		});
 
 		// Create jobs for each chunk
-		for (int i=0; i<(kChunkDim*kChunkDim); i++) {
+		for (int i=0; i<kChunkCount; ++i) {
+			// Add chunk job to thread pool
 			ftl::pool.push([this,src](int id, int chunk) {
 				if (!src->rgb.empty() && !src->depth.empty()) {
-					bool delta = (chunk+src->frame) % 8 > 0;
+					bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
 					int chunk_width = src->rgb.cols / kChunkDim;
 					int chunk_height = src->rgb.rows / kChunkDim;
 
-					// Build chunk head
+					// Build chunk heads
 					int cx = (chunk % kChunkDim) * chunk_width;
 					int cy = (chunk / kChunkDim) * chunk_height;
-
 					cv::Rect roi(cx,cy,chunk_width,chunk_height);
 					vector<unsigned char> rgb_buf;
 					cv::Mat chunkRGB = src->rgb(roi);
 					cv::Mat chunkDepth = src->depth(roi);
 					//cv::Mat chunkDepthPrev = src->prev_depth(roi);
-
-					cv::imencode(".jpg", chunkRGB, rgb_buf);
 
 					cv::Mat d2, d3;
 					vector<unsigned char> d_buf;
@@ -336,129 +338,60 @@ void Streamer::_schedule() {
 					//if (delta) d3 = (d2 * 2) - chunkDepthPrev;
 					//else d3 = d2;
 					//d2.copyTo(chunkDepthPrev);
-					vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, compress_level_}; // Default is 1 for fast, 9 = small but slow.
-					cv::imencode(".png", d2, d_buf, pngparams);
 
-					//LOG(INFO) << "Sending chunk " << chunk << " : size = " << (d_buf.size()+rgb_buf.size()) / 1024 << "kb";
-
-					SHARED_LOCK(src->mutex,lk);
-					auto i = src->clients[0].begin();
-					while (i != src->clients[0].end()) {
-						try {
-							// TODO(Nick) Send pose and timestamp
-							if (!net_->send((*i).peerid, (*i).uri, 0, chunk, delta, rgb_buf, d_buf)) {
-								(*i).txcount = (*i).txmax;
-							}
-						} catch(...) {
-							(*i).txcount = (*i).txmax;
+					// For each allowed bitrate setting (0 = max quality)
+					for (unsigned int b=0; b<10; ++b) {
+						{
+							//SHARED_LOCK(src->mutex,lk);
+							if (src->clients[b].size() == 0) continue;
 						}
-						i++;
+						
+						// Max bitrate means no changes
+						if (b == 0) {
+							cv::imencode(".jpg", chunkRGB, rgb_buf);
+							vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, compress_level_}; // Default is 1 for fast, 9 = small but slow.
+							cv::imencode(".png", d2, d_buf, pngparams);
+
+						// Otherwise must downscale and change compression params
+						// TODO(Nick) could reuse downscales
+						} else {
+							cv::Mat downrgb, downdepth;
+							cv::resize(chunkRGB, downrgb, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
+							cv::resize(d2, downdepth, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
+							vector<int> jpgparams = {cv::IMWRITE_JPEG_QUALITY, bitrate_settings[b].jpg_quality};
+							cv::imencode(".jpg", downrgb, rgb_buf, jpgparams);
+							vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, bitrate_settings[b].png_compression}; // Default is 1 for fast, 9 = small but slow.
+							cv::imencode(".png", downdepth, d_buf, pngparams);
+						}
+
+						//if (chunk == 0) LOG(INFO) << "Sending chunk " << chunk << " : size = " << (d_buf.size()+rgb_buf.size()) << "bytes";
+
+						// Lock to prevent clients being added / removed
+						SHARED_LOCK(src->mutex,lk);
+						auto c = src->clients[b].begin();
+						while (c != src->clients[b].end()) {
+							try {
+								// TODO(Nick) Send pose and timestamp
+								if (!net_->send((*c).peerid, (*c).uri, 0, chunk, delta, rgb_buf, d_buf)) {
+									// Send failed so mark as client stream completed
+									(*c).txcount = (*c).txmax;
+								} else {
+									++(*c).txcount;
+								}
+							} catch(...) {
+								(*c).txcount = (*c).txmax;
+							}
+							++c;
+						}
 					}
 				}
 
-				//src->state |= ftl::rgbd::detail::kRGB;
 				src->jobs--;
 				_swap(src);
 				--jobs_;
 				job_cv_.notify_one();
 			}, i);
 		}
-
-		// Compress colour job
-		/*pool_.push([this,src](int id) {
-			if (!src->rgb.empty()) {
-				auto start = std::chrono::high_resolution_clock::now();
-
-				//vector<unsigned char> src->rgb_buf;
-				cv::imencode(".jpg", src->rgb, src->rgb_buf);
-			}
-
-			src->state |= ftl::rgbd::detail::kRGB;
-			_swap(src);
-			--jobs_;
-			job_cv_.notify_one();
-		});
-
-		// Compress depth job
-		ftl::pool.push([this,src](int id) {
-			auto start = std::chrono::high_resolution_clock::now();
-
-			if (!src->depth.empty()) {
-				cv::Mat d2;
-				src->depth.convertTo(d2, CV_16UC1, 16*100);
-				//vector<unsigned char> d_buf;
-
-				// Setting 1 = fast but large
-				// Setting 9 = small but slow
-				// Anything up to 8 causes minimal if any impact on frame rate
-				// on my (Nicks) laptop, but 9 halves the frame rate.
-				vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, 1}; // Default is 1 for fast, 9 = small but slow.
-				cv::imencode(".png", d2, src->d_buf, pngparams);
-			}
-
-			std::chrono::duration<double> elapsed =
-				std::chrono::high_resolution_clock::now() - start;
-			LOG(INFO) << "Depth Compress in " << elapsed.count() << "s";
-
-			src->state |= ftl::rgbd::detail::kDepth;
-			_swap(src);
-			--jobs_;
-			job_cv_.notify_one();
-		});*/
-
-		// Transmit job
-		// For any single source and bitrate there is only one thread
-		// meaning that no lock is required here since outer shared_lock
-		// prevents addition of new clients.
-		// TODO, could do one for each bitrate...
-		/* pool_.push([this,src](int id) {
-			//StreamSource *src = sources_[uri];
-
-			try {
-			if (src && src->rgb.rows > 0 && src->depth.rows > 0 && src->clients[0].size() > 0) {
-				auto start = std::chrono::high_resolution_clock::now();
-
-				vector<unsigned char> rgb_buf;
-				cv::imencode(".jpg", src->rgb, rgb_buf);
-
-				std::chrono::duration<double> elapsed =
-					std::chrono::high_resolution_clock::now() - start;
-				LOG(INFO) << "JPG in " << elapsed.count() << "s";
-				
-				cv::Mat d2;
-				src->depth.convertTo(d2, CV_16UC1, 16*100);
-				vector<unsigned char> d_buf;
-
-				// Setting 1 = fast but large
-				// Setting 9 = small but slow
-				// Anything up to 8 causes minimal if any impact on frame rate
-				// on my (Nicks) laptop, but 9 halves the frame rate.
-				vector<int> pngparams = {cv::IMWRITE_PNG_COMPRESSION, 1}; // Default is 1 for fast, 9 = small but slow.
-				cv::imencode(".png", d2, d_buf, pngparams);
-
-				//LOG(INFO) << "Data size: " << ((rgb_buf.size() + d_buf.size()) / 1024) << "kb";
-
-				
-			}
-			} catch(...) {
-				LOG(ERROR) << "Error in transmission loop";
-			}
-
-			// CHECK (Nick) Could state be an atomic?
-			//UNIQUE_LOCK(src->mutex,lk);
-			//LOG(INFO) << "Tx Frame: " << uri;
-			src->state |= ftl::rgbd::detail::kTransmitted;
-			_swap(*src);
-			//lk.unlock();
-
-			// Mark job as finished
-			//UNIQUE_LOCK(job_mtx_,ulk);
-			//jobs_--;
-			//ulk.unlock();
-
-			--jobs_;
-			job_cv_.notify_one();
-		});*/
 	}
 }
 

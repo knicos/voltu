@@ -56,7 +56,7 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 }
 
 NetSource::NetSource(ftl::rgbd::Source *host)
-		: ftl::rgbd::detail::Source(host), active_(false) {
+		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1) {
 
 	gamma_ = host->value("gamma", 1.0f);
 	temperature_ = host->value("temperature", 6500);
@@ -120,9 +120,20 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 	cv::Mat chunkRGB = rgb_(roi);
 	cv::Mat chunkDepth = depth_(roi);
 
-	tmp_rgb.copyTo(chunkRGB);
-	tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-	if (chunk == 0) N_--;
+	// Original size so just copy
+	if (tmp_rgb.cols == chunkRGB.cols) {
+		tmp_rgb.copyTo(chunkRGB);
+		tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
+	// Downsized so needs a scale up
+	} else {
+		cv::resize(tmp_rgb, chunkRGB, chunkRGB.size());
+		tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f);
+		cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
+	}
+
+	if (chunk == 0) {
+		N_--;
+	}
 }
 
 void NetSource::setPose(const Eigen::Matrix4d &pose) {
@@ -162,14 +173,14 @@ void NetSource::_updateURI() {
 			_recvChunk(frame, chunk, delta, jpg, d);
 		});
 
-		N_ = 1;
+		N_ = 0;
 
 		// Initiate stream with request for first 10 frames
-		try {
-			host_->getNet()->send(peer_, "get_stream", *uri, N_, 0, host_->getNet()->id(), *uri);
-		} catch(...) {
-			LOG(ERROR) << "Could not connect to stream " << *uri;
-		}
+		//try {
+		//	host_->getNet()->send(peer_, "get_stream", *uri, N_, 0, host_->getNet()->id(), *uri);
+		//} catch(...) {
+		//	LOG(ERROR) << "Could not connect to stream " << *uri;
+		//}
 
 		// Update chunk details
 		chunks_dim_ = ftl::rgbd::kChunkDim;
@@ -188,13 +199,24 @@ void NetSource::_updateURI() {
 	}
 }
 
-bool NetSource::grab() {
-	// Send one frame before end to prevent unwanted pause
-	if (N_ <= 2) {
-		N_ = 10;
-		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), N_, 0, host_->getNet()->id(), *host_->get<string>("uri"))) {
+bool NetSource::grab(int n, int b) {
+	// Choose highest requested number of frames
+	maxN_ = std::max(maxN_,(n == -1) ? 10 : n);
+
+	// Choose best requested quality
+	minB_ = std::min(minB_,(b == -1) ? 0 : b);
+
+	// Send k frames before end to prevent unwanted pause
+	// Unless only a single frame is requested
+	if ((N_ <= 2 && maxN_ > 1) || N_ == 0) {
+		N_ = maxN_;
+
+		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), N_, minB_, host_->getNet()->id(), *host_->get<string>("uri"))) {
 			active_ = false;
 		}
+
+		maxN_ = 1;  // Reset to single frame
+		minB_ = 9;  // Reset to worst quality
 	}
 	return true;
 }

@@ -12,6 +12,7 @@ set(GUISRC
 	src/gltexture.cpp
 	src/camera.cpp
 	src/media_panel.cpp
+	src/thumbview.cpp
 )
 
 add_executable(ftl-gui ${GUISRC})

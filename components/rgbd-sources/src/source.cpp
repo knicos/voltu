@@ -196,7 +196,7 @@ const Eigen::Matrix4d &Source::getPose() const {
 }
 
 bool Source::hasCapabilities(capability_t c) {
-	return getCapabilities() & c == c;
+	return (getCapabilities() & c) == c;
 }
 
 capability_t Source::getCapabilities() const {
@@ -212,10 +212,27 @@ void Source::reset() {
 
 bool Source::grab() {
 	UNIQUE_LOCK(mutex_,lk);
-	if (impl_ && impl_->grab()) {
+	if (impl_ && impl_->grab(-1,-1)) {
 		impl_->rgb_.copyTo(rgb_);
 		impl_->depth_.copyTo(depth_);
 		return true;
 	}
 	return false;
+}
+
+bool Source::thumbnail(cv::Mat &t) {
+	// TODO(Nick) periodic refresh
+	if (impl_) {
+		UNIQUE_LOCK(mutex_,lk);
+		impl_->grab(1, 9);
+		impl_->rgb_.copyTo(rgb_);
+		impl_->depth_.copyTo(depth_);
+	}
+	if (!rgb_.empty()) {
+		SHARED_LOCK(mutex_,lk);
+		// Downsize and square the rgb_ image
+		cv::resize(rgb_, thumb_, cv::Size(320,180));
+	}
+	t = thumb_;
+	return !thumb_.empty();
 }

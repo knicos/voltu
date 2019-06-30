@@ -53,7 +53,7 @@ void VirtualSource::setScene(ftl::voxhash::SceneRep *scene) {
 	scene_ = scene;
 }
 
-bool VirtualSource::grab() {
+bool VirtualSource::grab(int n, int b) {
 	if (scene_) {
 		// Ensure this host thread is using correct GPU.
 

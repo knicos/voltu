@@ -72,6 +72,24 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	toolbuttheme->mButtonGradientTopPushed = nanogui::Color(60,180);
 	toolbuttheme->mButtonGradientBotPushed = nanogui::Color(60,180);
 
+	Theme *mediatheme = new Theme(*theme());
+	mediatheme->mIconScale = 1.2f;
+	mediatheme->mWindowDropShadowSize = 0;
+	mediatheme->mWindowFillFocused = nanogui::Color(45, 150);
+	mediatheme->mWindowFillUnfocused = nanogui::Color(45, 80);
+	mediatheme->mButtonGradientTopUnfocused = nanogui::Color(0,0);
+	mediatheme->mButtonGradientBotUnfocused = nanogui::Color(0,0);
+	mediatheme->mButtonGradientTopFocused = nanogui::Color(80,230);
+	mediatheme->mButtonGradientBotFocused = nanogui::Color(80,230);
+	mediatheme->mIconColor = nanogui::Color(255,255);
+    mediatheme->mTextColor = nanogui::Color(1.0f,1.0f,1.0f,1.0f);
+	mediatheme->mBorderDark = nanogui::Color(0,0);
+	mediatheme->mBorderMedium = nanogui::Color(0,0);
+	mediatheme->mBorderLight = nanogui::Color(0,0);
+	mediatheme->mDropShadow = nanogui::Color(0,0);
+	mediatheme->mButtonFontSize = 30;
+	mediatheme->mStandardFontSize = 20;
+
 	windowtheme = new Theme(*theme());
 	windowtheme->mWindowFillFocused = nanogui::Color(220, 200);
 	windowtheme->mWindowFillUnfocused = nanogui::Color(220, 200);
@@ -196,6 +214,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	swindow_ = new ftl::gui::SourceWindow(this);
 	mwindow_ = new ftl::gui::MediaPanel(this);
 	mwindow_->setVisible(false);
+	mwindow_->setTheme(mediatheme);
 
 	cwindow_->setPosition(Eigen::Vector2i(80, 20));
 	//swindow_->setPosition(Eigen::Vector2i(80, 400));
@@ -203,7 +222,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	swindow_->setVisible(true);
 	swindow_->center();
 	cwindow_->setTheme(windowtheme);
-	swindow_->setTheme(windowtheme);
+	swindow_->setTheme(mediatheme);
 
 	mShader.init("RGBDShader", defaultImageViewVertexShader,
 				defaultImageViewFragmentShader);

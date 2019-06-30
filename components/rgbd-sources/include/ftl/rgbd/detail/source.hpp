@@ -27,7 +27,11 @@ class Source {
 	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_({0}) { }
 	virtual ~Source() {}
 
-	virtual bool grab()=0;
+	/**
+	 * @param n Number of frames to request in batch. Default -1 means automatic (10)
+	 * @param b Bit rate setting. -1 = automatic, 0 = best quality, 9 = lowest quality
+	 */
+	virtual bool grab(int n, int b)=0;
 	virtual bool isReady() { return false; };
 	virtual void setPose(const Eigen::Matrix4d &pose) { };
 

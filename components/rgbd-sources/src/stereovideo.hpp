@@ -26,7 +26,7 @@ class StereoVideoSource : public detail::Source {
 	StereoVideoSource(ftl::rgbd::Source*, const std::string &);
 	~StereoVideoSource();
 
-	bool grab();
+	bool grab(int n, int b);
 	bool isReady();
 
 	//const cv::Mat &getRight() const { return right_; }

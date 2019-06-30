@@ -13,6 +13,7 @@ class GLTexture {
 
 	void update(cv::Mat &m);
 	unsigned int texture() const { return glid_; }
+	bool isValid() const { return glid_ != std::numeric_limits<unsigned int>::max(); }
 
 	private:
 	unsigned int glid_;

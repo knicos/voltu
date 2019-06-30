@@ -22,7 +22,7 @@ class NetSource : public detail::Source {
 	explicit NetSource(ftl::rgbd::Source *);
 	~NetSource();
 
-	bool grab();
+	bool grab(int n, int b);
 	bool isReady();
 
 	void setPose(const Eigen::Matrix4d &pose);
@@ -43,6 +43,8 @@ class NetSource : public detail::Source {
 	cv::Mat idepth_;
 	float gamma_;
 	int temperature_;
+	int minB_;
+	int maxN_;
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
