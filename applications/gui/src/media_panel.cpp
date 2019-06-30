@@ -26,25 +26,6 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     //setFixedSize(size);
     setPosition(Vector2i(screen->width() / 2 - size[0]/2, screen->height() - 30 - size[1]));
 
-	Theme *mediatheme = new Theme(*theme());
-	mediatheme->mIconScale = 1.2f;
-	mediatheme->mWindowDropShadowSize = 0;
-	mediatheme->mWindowFillFocused = nanogui::Color(45, 150);
-	mediatheme->mWindowFillUnfocused = nanogui::Color(45, 80);
-	mediatheme->mButtonGradientTopUnfocused = nanogui::Color(0,0);
-	mediatheme->mButtonGradientBotUnfocused = nanogui::Color(0,0);
-	mediatheme->mButtonGradientTopFocused = nanogui::Color(80,230);
-	mediatheme->mButtonGradientBotFocused = nanogui::Color(80,230);
-	mediatheme->mIconColor = nanogui::Color(255,255);
-    mediatheme->mTextColor = nanogui::Color(1.0f,1.0f,1.0f,1.0f);
-	mediatheme->mBorderDark = nanogui::Color(0,0);
-	mediatheme->mBorderMedium = nanogui::Color(0,0);
-	mediatheme->mBorderLight = nanogui::Color(0,0);
-	mediatheme->mDropShadow = nanogui::Color(0,0);
-	mediatheme->mButtonFontSize = 30;
-
-	setTheme(mediatheme);
-
     auto button = new Button(this, "", ENTYPO_ICON_EDIT);
 	button->setTooltip("Edit camera properties");
     button->setCallback([this]() {

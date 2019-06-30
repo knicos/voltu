@@ -12,10 +12,13 @@
 #include <nanogui/glutil.h>
 #include <nanogui/screen.h>
 #include <nanogui/layout.h>
+#include <nanogui/vscrollpanel.h>
 
 #ifdef HAVE_LIBARCHIVE
 #include "ftl/rgbd/snapshot.hpp"
 #endif
+
+#include "thumbview.hpp"
 
 using ftl::gui::SourceWindow;
 using ftl::gui::Screen;
@@ -25,7 +28,7 @@ using ftl::config::json_t;
 
 SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		: nanogui::Window(screen, ""), screen_(screen) {
-	setLayout(new nanogui::GroupLayout());
+	setLayout(new nanogui::BoxLayout(nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 20, 5));
 
 	using namespace nanogui;
 	
@@ -39,23 +42,32 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	//    tools->setLayout(new BoxLayout(Orientation::Horizontal,
 	//                                   Alignment::Middle, 0, 6));
 
-	new Label(this, "Select source","sans-bold");
+	auto label = new Label(this, "Select Camera","sans-bold",20);
+
 	available_ = screen_->control()->getNet()->findAll<string>("list_streams");
-	auto select = new ComboBox(this, available_);
-	select->setCallback([this,select](int ix) {
+	//auto select = new ComboBox(this, available_);
+	//select->setCallback([this,select](int ix) {
 		//src_->set("uri", available_[ix]);
 		// TODO(Nick) Check camera exists first
-		screen_->setActiveCamera(cameras_[available_[ix]]);
-		LOG(INFO) << "Change source: " << ix;
-	});
+	//	screen_->setActiveCamera(cameras_[available_[ix]]);
+	//	LOG(INFO) << "Change source: " << ix;
+	//});
 
-	_updateCameras();
+	auto vscroll = new VScrollPanel(this);
+	ipanel_ = new Widget(vscroll);
+	ipanel_->setLayout(new GridLayout(nanogui::Orientation::Horizontal, 2,
+		nanogui::Alignment::Middle, 0, 5));
+	//ipanel_ = new ImageView(vscroll, 0);
 
-	screen->net()->onConnect([this,select](ftl::net::Peer *p) {
+	screen->net()->onConnect([this](ftl::net::Peer *p) {
+		UNIQUE_LOCK(mutex_, lk);
 		available_ = screen_->net()->findAll<string>("list_streams");
-		select->setItems(available_);
+		//select->setItems(available_);
 		_updateCameras();
 	});
+
+	UNIQUE_LOCK(mutex_, lk);
+	_updateCameras();
 
 	/*new Label(this, "Source Options","sans-bold");
 
@@ -118,6 +130,11 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 }
 
 void SourceWindow::_updateCameras() {
+	refresh_thumbs_ = true;
+	if (thumbs_.size() != available_.size()) {
+		thumbs_.resize(available_.size());
+	}
+
 	for (auto s : available_) {
 		if (cameras_.find(s) == cameras_.end()) {
 			json_t srcjson;
@@ -125,6 +142,8 @@ void SourceWindow::_updateCameras() {
 			screen_->root()->getConfig()["sources"].push_back(srcjson);
 			std::vector<ftl::rgbd::Source*> srcs = ftl::createArray<ftl::rgbd::Source>(screen_->root(), "sources", screen_->net());
 			auto *src = srcs[srcs.size()-1];
+
+			LOG(INFO) << "Making camera: " << src->getURI();
 
 			auto *cam = new ftl::gui::Camera(screen_, src);
 			cameras_[s] = cam;
@@ -136,4 +155,34 @@ void SourceWindow::_updateCameras() {
 
 SourceWindow::~SourceWindow() {
 
+}
+
+void SourceWindow::draw(NVGcontext *ctx) {
+	if (refresh_thumbs_) {
+		UNIQUE_LOCK(mutex_, lk);
+		//refresh_thumbs_ = false;
+
+		for (size_t i=0; i<thumbs_.size(); ++i) {
+			cv::Mat t;
+			auto *cam = cameras_[available_[i]];
+			if (cam) {
+				if (cam->source()->thumbnail(t)) {
+					thumbs_[i].update(t);
+				} else {
+					refresh_thumbs_ = true;
+				}
+			}
+
+			if (ipanel_->childCount() < i+1) {
+				new ftl::gui::ThumbView(ipanel_, screen_, cam);
+			}
+			if (thumbs_[i].isValid()) dynamic_cast<nanogui::ImageView*>(ipanel_->childAt(i))->bindImage(thumbs_[i].texture());
+		}
+
+		// TODO(Nick) remove excess image views
+
+		center();
+	}
+
+	nanogui::Window::draw(ctx);
 }

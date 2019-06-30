@@ -173,6 +173,7 @@ class Source : public ftl::Configurable {
 	detail::Source *impl_;
 	cv::Mat rgb_;
 	cv::Mat depth_;
+	cv::Mat thumb_;
 	Camera params_;		// TODO Find better solution
 	Eigen::Matrix4d pose_;
 	ftl::net::Universe *net_;

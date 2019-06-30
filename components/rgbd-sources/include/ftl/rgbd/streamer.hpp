@@ -17,14 +17,15 @@ namespace ftl {
 namespace rgbd {
 
 static const int kChunkDim = 4;
+static constexpr int kChunkCount = kChunkDim * kChunkDim;
 
 namespace detail {
 
 struct StreamClient {
 	std::string uri;
 	ftl::UUID peerid;
-	int txcount;		// Frames sent since last request
-	int txmax;			// Frames to send in request
+	std::atomic<int> txcount;	// Frames sent since last request
+	int txmax;					// Frames to send in request
 };
 
 static const unsigned int kGrabbed = 0x1;
@@ -34,11 +35,12 @@ static const unsigned int kDepth = 0x4;
 struct StreamSource {
 	ftl::rgbd::Source *src;
 	std::atomic<unsigned int> jobs;				// Busy or ready to swap?
+	std::atomic<unsigned int> clientCount;
 	cv::Mat rgb;									// Tx buffer
 	cv::Mat depth;									// Tx buffer
 	cv::Mat prev_rgb;
 	cv::Mat prev_depth;
-	std::vector<detail::StreamClient> clients[10];	// One list per bitrate
+	std::list<detail::StreamClient> clients[10];	// One list per bitrate
 	std::shared_mutex mutex;
 	unsigned long long frame;
 };

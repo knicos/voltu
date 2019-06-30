@@ -14,7 +14,7 @@ class ImageSource : public ftl::rgbd::detail::Source {
 
 	}
 
-	bool grab() { return false; };
+	bool grab(int n, int b) { return false; };
 	bool isReady() { return false; };
 };
 

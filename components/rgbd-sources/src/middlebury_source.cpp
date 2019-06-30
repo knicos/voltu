@@ -150,7 +150,7 @@ void MiddleburySource::_performDisparity() {
 	stream_.waitForCompletion();
 }
 
-bool MiddleburySource::grab() {
+bool MiddleburySource::grab(int n, int b) {
 	//_performDisparity();
 	return true;
 }
