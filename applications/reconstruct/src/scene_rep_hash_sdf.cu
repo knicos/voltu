@@ -98,7 +98,7 @@ __global__ void resetHashKernel(HashData hashData)
 {
 	const HashParams& hashParams = c_hashParams;
 	const unsigned int idx = blockIdx.x*blockDim.x + threadIdx.x;
-	if (idx < hashParams.m_hashNumBuckets * HASH_BUCKET_SIZE) {
+	if (idx < hashParams.m_hashNumBuckets) {
 		hashData.deleteHashEntry(hashData.d_hash[idx]);
 		hashData.deleteHashEntry(hashData.d_hashCompactified[idx]);
 	}
@@ -133,7 +133,7 @@ extern "C" void resetCUDA(HashData& hashData, const HashParams& hashParams)
 
 	{
 		//resetting the hash
-		const dim3 gridSize((HASH_BUCKET_SIZE * hashParams.m_hashNumBuckets + (T_PER_BLOCK*T_PER_BLOCK) - 1)/(T_PER_BLOCK*T_PER_BLOCK), 1);
+		const dim3 gridSize((hashParams.m_hashNumBuckets + (T_PER_BLOCK*T_PER_BLOCK) - 1)/(T_PER_BLOCK*T_PER_BLOCK), 1);
 		const dim3 blockSize((T_PER_BLOCK*T_PER_BLOCK), 1);
 
 		resetHashKernel<<<gridSize, blockSize>>>(hashData);

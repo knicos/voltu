@@ -263,7 +263,7 @@ unsigned int SceneRep::getHeapFreeCount() {
 
 //! debug only!
 void SceneRep::debugHash() {
-	HashEntry* hashCPU = new HashEntry[m_hashParams.m_hashBucketSize*m_hashParams.m_hashNumBuckets];
+	HashEntry* hashCPU = new HashEntry[m_hashParams.m_hashNumBuckets];
 	unsigned int* heapCPU = new unsigned int[m_hashParams.m_numSDFBlocks];
 	unsigned int heapCounterCPU;
 
@@ -271,7 +271,7 @@ void SceneRep::debugHash() {
 	heapCounterCPU++;	//points to the first free entry: number of blocks is one more
 
 	cudaSafeCall(cudaMemcpy(heapCPU, m_hashData.d_heap, sizeof(unsigned int)*m_hashParams.m_numSDFBlocks, cudaMemcpyDeviceToHost));
-	cudaSafeCall(cudaMemcpy(hashCPU, m_hashData.d_hash, sizeof(HashEntry)*m_hashParams.m_hashBucketSize*m_hashParams.m_hashNumBuckets, cudaMemcpyDeviceToHost));
+	cudaSafeCall(cudaMemcpy(hashCPU, m_hashData.d_hash, sizeof(HashEntry)*m_hashParams.m_hashNumBuckets, cudaMemcpyDeviceToHost));
 
 	//Check for duplicates
 	class myint3Voxel {
@@ -316,7 +316,7 @@ void SceneRep::debugHash() {
 	std::list<myint3Voxel> l;
 	//std::vector<myint3Voxel> v;
 	
-	for (unsigned int i = 0; i < m_hashParams.m_hashBucketSize*m_hashParams.m_hashNumBuckets; i++) {
+	for (unsigned int i = 0; i < m_hashParams.m_hashNumBuckets; i++) {
 		if (hashCPU[i].ptr == -1) {
 			numMinusOne++;
 		}
@@ -376,8 +376,6 @@ HashParams SceneRep::_parametersFromConfig() {
 	params.m_rigidTransform.setIdentity();
 	params.m_rigidTransformInverse.setIdentity();
 	params.m_hashNumBuckets = value("hashNumBuckets", 100000);
-	params.m_hashBucketSize = HASH_BUCKET_SIZE;
-	params.m_hashMaxCollisionLinkedListSize = value("hashMaxCollisionLinkedListSize", 7);
 	params.m_SDFBlockSize = SDF_BLOCK_SIZE;
 	params.m_numSDFBlocks = value("hashNumSDFBlocks",500000);
 	params.m_virtualVoxelSize = value("SDFVoxelSize", 0.006f);

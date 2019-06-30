@@ -21,8 +21,8 @@ struct __align__(16) HashParams {
 	float4x4		m_rigidTransformInverse;
 
 	unsigned int	m_hashNumBuckets;
-	unsigned int	m_hashBucketSize;
-	unsigned int	m_hashMaxCollisionLinkedListSize;
+	unsigned int	m_deprecated1;
+	unsigned int	m_deprecated2; //m_hashMaxCollisionLinkedListSize;
 	unsigned int	m_numSDFBlocks;
 
 	int				m_SDFBlockSize;
