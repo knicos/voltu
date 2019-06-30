@@ -7,27 +7,26 @@ using namespace ftl::voxhash;
 #define NUM_CUDA_BLOCKS	10000
 
 __global__ void starveVoxelsKernel(HashData hashData) {
+	int ptr;
 
 	// Stride over all allocated blocks
 	for (int bi=blockIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
 
-	const HashEntry& entry = hashData.d_hashCompactified[bi];
-
-	//is typically exectued only every n'th frame
-	int weight = hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight;
+	ptr = hashData.d_hashCompactified[bi].ptr;
+	int weight = hashData.d_SDFBlocks[ptr + threadIdx.x].weight;
 	weight = max(0, weight-2);	
-	hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight = weight;  //CHECK Remove to totally clear previous frame (Nick)
+	hashData.d_SDFBlocks[ptr + threadIdx.x].weight = weight;  //CHECK Remove to totally clear previous frame (Nick)
 
 	}
 }
 
-void ftl::cuda::starveVoxels(HashData& hashData, const HashParams& hashParams) {
+void ftl::cuda::starveVoxels(HashData& hashData, const HashParams& hashParams, cudaStream_t stream) {
 	const unsigned int threadsPerBlock = SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;
 	const dim3 gridSize(NUM_CUDA_BLOCKS, 1);
 	const dim3 blockSize(threadsPerBlock, 1);
 
 	//if (hashParams.m_numOccupiedBlocks > 0) {
-		starveVoxelsKernel << <gridSize, blockSize >> >(hashData);
+		starveVoxelsKernel << <gridSize, blockSize, 0, stream >> >(hashData);
 	//}
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
