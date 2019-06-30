@@ -195,8 +195,13 @@ const Eigen::Matrix4d &Source::getPose() const {
 	return pose_;
 }
 
-bool Source::hasCapability(capability_t) {
-	return false;
+bool Source::hasCapabilities(capability_t c) {
+	return getCapabilities() & c == c;
+}
+
+capability_t Source::getCapabilities() const {
+	if (impl_) return impl_->capabilities_;
+	else return 0;
 }
 
 void Source::reset() {

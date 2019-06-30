@@ -189,6 +189,7 @@ void ftl::gui::Camera::setPose(const Eigen::Matrix4d &p) {
 }
 
 void ftl::gui::Camera::mouseMovement(int rx, int ry, int button) {
+	if (!src_->hasCapabilities(ftl::rgbd::kCapMovable)) return;
 	if (button == 1) {
 		float rrx = ((float)ry * 0.2f * delta_);
 		//orientation_[2] += std::cos(orientation_[1])*((float)rel[1] * 0.2f * delta_);
@@ -202,6 +203,7 @@ void ftl::gui::Camera::mouseMovement(int rx, int ry, int button) {
 }
 
 void ftl::gui::Camera::keyMovement(int key, int modifiers) {
+	if (!src_->hasCapabilities(ftl::rgbd::kCapMovable)) return;
 	if (key == 263 || key == 262) {
 		float mag = (modifiers & 0x1) ? 0.01f : 0.1f;
 		float scalar = (key == 263) ? -mag : mag;
@@ -249,7 +251,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		Eigen::Affine3d t(trans);
 		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
 
-		src_->setPose(viewPose);
+		if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
 		src_->grab();
 		src_->getFrames(rgb, depth);
 

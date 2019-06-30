@@ -31,7 +31,8 @@ StereoVideoSource::~StereoVideoSource() {
 }
 
 void StereoVideoSource::init(const string &file) {
-	LOG(INFO) << "STEREOSOURCE = " << file;
+	capabilities_ = kCapVideo | kCapStereo;
+
 	if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";

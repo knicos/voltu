@@ -63,6 +63,8 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 
 	double scaling = host->value("scaling", 0.5);
 
+	capabilities_ = kCapStereo;
+
 	// Load params from txt file..
 	/*params_.fx = 3000.0 * scaling;
 	params_.width = 3000.0 * scaling;

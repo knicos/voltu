@@ -24,6 +24,8 @@ VirtualSource::VirtualSource(ftl::rgbd::Source *host)
 	params_.maxDepth = rays_->value("max_depth", 10.0f);
 	params_.minDepth = rays_->value("min_depth", 0.1f);
 
+	capabilities_ = kCapMovable | kCapVideo | kCapStereo;
+
 	rgb_ = cv::Mat(cv::Size(params_.width,params_.height), CV_8UC3);
 	idepth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32SC1);
 	depth_ = cv::Mat(cv::Size(params_.width,params_.height), CV_32FC1);
