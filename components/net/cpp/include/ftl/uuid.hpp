@@ -61,11 +61,37 @@ namespace ftl {
 		 */
 		std::string to_string() const {
 			static const char *digits = "0123456789abcdef";
-			std::string rc(sizeof(uuid_)*2,'0');
+			std::string rc(sizeof(uuid_)*2+4,'0');
 
-			for (size_t i=0 ; i<16; ++i) {
-				rc[i*2] = digits[uuid_[i] & 0x0f];
-				rc[i*2+1] = digits[(uuid_[i] >> 4) & 0x0f];
+			size_t j=0;
+			for (size_t i=0 ; i<4; ++i) {
+				rc[j+1] = digits[uuid_[i] & 0x0f];
+				rc[j] = digits[(uuid_[i] >> 4) & 0x0f];
+				j+=2;
+			}
+			rc[j++] = '-';
+			for (size_t i=4 ; i<6; ++i) {
+				rc[j+1] = digits[uuid_[i] & 0x0f];
+				rc[j] = digits[(uuid_[i] >> 4) & 0x0f];
+				j+=2;
+			}
+			rc[j++] = '-';
+			for (size_t i=6 ; i<8; ++i) {
+				rc[j+1] = digits[uuid_[i] & 0x0f];
+				rc[j] = digits[(uuid_[i] >> 4) & 0x0f];
+				j+=2;
+			}
+			rc[j++] = '-';
+			for (size_t i=8 ; i<10; ++i) {
+				rc[j+1] = digits[uuid_[i] & 0x0f];
+				rc[j] = digits[(uuid_[i] >> 4) & 0x0f];
+				j+=2;
+			}
+			rc[j++] = '-';
+			for (size_t i=10 ; i<16; ++i) {
+				rc[j+1] = digits[uuid_[i] & 0x0f];
+				rc[j] = digits[(uuid_[i] >> 4) & 0x0f];
+				j+=2;
 			}
 			return rc;
 /* 
