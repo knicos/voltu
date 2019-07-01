@@ -18,10 +18,6 @@ using std::list;
 using std::map;
 using std::optional;
 using std::vector;
-using std::mutex;
-using std::shared_mutex;
-using std::unique_lock;
-using std::shared_lock;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using std::tuple;
@@ -259,8 +255,12 @@ void Streamer::wait() {
 	}
 
 	// Wait for all jobs to complete before finishing frame
-	UNIQUE_LOCK(job_mtx_, lk);
-	job_cv_.wait(lk, [this]{ return jobs_ == 0; });
+	//UNIQUE_LOCK(job_mtx_, lk);
+	std::unique_lock<std::mutex> lk(job_mtx_);
+	job_cv_.wait_for(lk, std::chrono::seconds(20), [this]{ return jobs_ == 0; });
+	if (jobs_ != 0) {
+		LOG(FATAL) << "Deadlock detected";
+	}
 }
 
 void Streamer::_schedule() {
@@ -282,12 +282,12 @@ void Streamer::_schedule() {
 
 		// There will be two jobs for this source...
 		//UNIQUE_LOCK(job_mtx_,lk);
-		jobs_ += 1 + kChunkDim*kChunkDim;
+		jobs_ += 1 + kChunkCount;
 		//lk.unlock();
 
 		StreamSource *src = sources_[uri];
 		if (src == nullptr || src->jobs != 0) continue;
-		src->jobs = 1 + kChunkDim*kChunkDim;
+		src->jobs = 1 + kChunkCount;
 
 		// Grab job
 		ftl::pool.push([this,src](int id) {
@@ -310,6 +310,7 @@ void Streamer::_schedule() {
 			_swap(src);
 
 			// Mark job as finished
+			std::unique_lock<std::mutex> lk(job_mtx_);
 			--jobs_;
 			job_cv_.notify_one();
 		});
@@ -388,6 +389,7 @@ void Streamer::_schedule() {
 
 				src->jobs--;
 				_swap(src);
+				std::unique_lock<std::mutex> lk(job_mtx_);
 				--jobs_;
 				job_cv_.notify_one();
 			}, i);

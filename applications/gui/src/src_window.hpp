@@ -36,7 +36,7 @@ class SourceWindow : public nanogui::Window {
 	std::vector<GLTexture> thumbs_;
 	bool refresh_thumbs_;
 	nanogui::Widget *ipanel_;
-	std::mutex mutex_;
+	MUTEX mutex_;
 
 	void _updateCameras();
 

@@ -4,8 +4,8 @@
 
 #include <ftl/net/universe.hpp>
 #include <ftl/rgbd/source.hpp>
+#include <ftl/threads.hpp>
 #include <string>
-#include <mutex>
 
 namespace ftl {
 namespace rgbd {
@@ -36,7 +36,7 @@ class NetSource : public detail::Source {
 	bool active_;
 	std::string uri_;
 	ftl::net::callback_t h_;
-	std::mutex mutex_;
+	MUTEX mutex_;
 	int chunks_dim_;
 	int chunk_width_;
 	int chunk_height_;

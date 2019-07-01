@@ -4,11 +4,11 @@
 
 #include <ftl/config.h>
 #include <ftl/configurable.hpp>
+#include <ftl/threads.hpp>
 #include <ftl/camera_params.hpp>
 #include <ftl/net/universe.hpp>
 #include <opencv2/opencv.hpp>
 #include <Eigen/Eigen>
-#include <mutex>
 
 namespace ftl {
 namespace rgbd {
@@ -77,7 +77,7 @@ class RGBDSource : public ftl::Configurable {
 	protected:
 	CameraParameters params_;
 	ftl::net::Universe *net_;
-	std::mutex mutex_;
+	MUTEX mutex_;
 	cv::Mat rgb_;
 	cv::Mat depth_;
 

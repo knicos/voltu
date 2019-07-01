@@ -19,10 +19,6 @@ using ftl::net::Universe;
 using nlohmann::json;
 using ftl::UUID;
 using std::optional;
-using std::unique_lock;
-using std::shared_lock;
-using std::mutex;
-using std::shared_mutex;
 using ftl::config::json_t;
 using ftl::net::callback_t;
 

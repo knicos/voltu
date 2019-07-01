@@ -7,24 +7,28 @@
 
 #define POOL_SIZE 10
 
-#if defined _DEBUG && DEBUG_MUTEX
+// #define DEBUG_MUTEX
+
+#if defined DEBUG_MUTEX
 #include <loguru.hpp>
 #include <chrono>
 #include <type_traits>
 
-#define UNIQUE_LOCK(M,L) \
-	auto start_##L = std::chrono::high_resolution_clock::now(); \
-	std::unique_lock<std::remove_reference<decltype(M)>::type> L(M); \
-	LOG(INFO) << "LOCK(" << #M "," #L << ") in " << std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_##L).count();
+#define MUTEX std::timed_mutex
+#define RECURSIVE_MUTEX std::recursive_timed_mutex
+#define SHARED_MUTEX std::shared_timed_mutex
 
-#define SHARED_LOCK(M,L) \
-	auto start_##L = std::chrono::high_resolution_clock::now(); \
-	std::shared_lock<std::remove_reference<decltype(M)>::type> L(M); \
-	LOG(INFO) << "LOCK(" << #M "," #L << ") in " << std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_##L).count();
+#define UNIQUE_LOCK(M,L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M, std::chrono::seconds(5)); if (!L) LOG(FATAL) << "Mutex deadlock";
+#define SHARED_LOCK(M,L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M, std::chrono::seconds(5)); if (!L) LOG(FATAL) << "Mutex deadlock";
+
 #else
+#define MUTEX std::mutex
+#define RECURSIVE_MUTEX std::recursive_mutex
+#define SHARED_MUTEX std::shared_mutex
+
 #define UNIQUE_LOCK(M,L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M);
 #define SHARED_LOCK(M,L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M);
-#endif  // _DEBUG && DEBUG_MUTEX
+#endif  // DEBUG_MUTEX
 
 namespace ftl {
 	extern ctpl::thread_pool pool;

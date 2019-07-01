@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <shared_mutex>
 #include <atomic>
 
 namespace ftl {
@@ -41,7 +40,7 @@ struct StreamSource {
 	cv::Mat prev_rgb;
 	cv::Mat prev_depth;
 	std::list<detail::StreamClient> clients[10];	// One list per bitrate
-	std::shared_mutex mutex;
+	SHARED_MUTEX mutex;
 	unsigned long long frame;
 };
 
@@ -107,7 +106,7 @@ class Streamer : public ftl::Configurable {
 	private:
 	std::map<std::string, detail::StreamSource*> sources_;
 	//ctpl::thread_pool pool_;
-	std::shared_mutex mutex_;
+	SHARED_MUTEX mutex_;
 	bool active_;
 	ftl::net::Universe *net_;
 	bool late_;

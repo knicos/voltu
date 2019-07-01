@@ -4,7 +4,7 @@
 #include <ftl/net/universe.hpp>
 #include <ftl/configurable.hpp>
 #include <loguru.hpp>
-#include <mutex>
+#include <ftl/threads.hpp>
 
 namespace ftl {
 namespace ctrl {
@@ -38,7 +38,7 @@ class Slave {
 	private:
 	std::vector<ftl::UUID> log_peers_;
 	ftl::net::Universe *net_;
-	std::recursive_mutex mutex_;
+	RECURSIVE_MUTEX mutex_;
 	bool in_log_;
 	bool active_;
 	SystemState state_;
