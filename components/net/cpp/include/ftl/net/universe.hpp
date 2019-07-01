@@ -361,7 +361,8 @@ template <typename R, typename... ARGS>
 R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
 	if (p == nullptr || !p->isConnected()) {
-		DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
+		if (p == nullptr) DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
+		else DLOG(WARNING) << "Attempting to call an disconnected peer : " << pid.to_string();
 		throw -1;
 	}
 	return p->call<R>(name, args...);

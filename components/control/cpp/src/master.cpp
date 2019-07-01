@@ -75,6 +75,7 @@ vector<json_t> Master::getSlaves() {
 	vector<json_t> result;
 	for (auto &r : response) {
 		result.push_back(json_t::parse(r));
+		LOG(INFO) << "Node details: " << result[result.size()-1];
 	}
 	return result;
 }
@@ -84,7 +85,11 @@ vector<string> Master::getConfigurables() {
 }
 
 vector<string> Master::getConfigurables(const ftl::UUID &peer) {
-	return net_->call<vector<string>>(peer, "list_configurables");
+	try {
+		return net_->call<vector<string>>(peer, "list_configurables");
+	} catch (...) {
+		return {};
+	}
 }
 
 vector<json_t> Master::get(const string &uri) {

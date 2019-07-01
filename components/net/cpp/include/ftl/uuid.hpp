@@ -60,6 +60,15 @@ namespace ftl {
 		 * Get a pretty string.
 		 */
 		std::string to_string() const {
+			static const char *digits = "0123456789abcdef";
+			std::string rc(sizeof(uuid_)*2,'0');
+
+			for (size_t i=0 ; i<16; ++i) {
+				rc[i*2] = digits[uuid_[i] & 0x0f];
+				rc[i*2+1] = digits[(uuid_[i] >> 4) & 0x0f];
+			}
+			return rc;
+/* 
 #ifdef WIN32
 			RPC_CSTR szUuid = NULL;
 			if (::UuidToStringA(&guid_, &szUuid) == RPC_S_OK) {
@@ -71,6 +80,7 @@ namespace ftl {
 			uuid_unparse(uuid_, b);
 			return std::string(b);
 #endif
+*/
 		}
 		
 		/* Allow the UUID to be packed into an RPC message. */
