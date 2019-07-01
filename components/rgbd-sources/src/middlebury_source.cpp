@@ -86,6 +86,7 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 	host_->getConfig()["centre_x"] = params_.cx;
 	host_->getConfig()["centre_y"] = params_.cy;
 	host_->getConfig()["baseline"] = params_.baseline;
+	host_->getConfig()["doffs"] = params_.doffs;
 
 	// Add event handlers to allow calibration changes...
 	host_->on("baseline", [this](const ftl::config::Event &e) {
@@ -95,6 +96,10 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 	host_->on("focal", [this](const ftl::config::Event &e) {
 		params_.fx = host_->value("focal", params_.fx);
 		params_.fy = params_.fx;
+	});
+
+	host_->on("doffs", [this](const ftl::config::Event &e) {
+		params_.doffs = host_->value("doffs", params_.doffs);
 	});
 
 	host_->on("centre_x", [this](const ftl::config::Event &e) {
@@ -137,7 +142,6 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 }
 
 static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
-							 const cv::cuda::GpuMat &mask,
 							 const ftl::rgbd::Camera &c, cv::cuda::Stream &stream) {
 	double val = c.baseline * c.fx;
 	cv::cuda::add(disparity, c.doffs, depth, cv::noArray(), -1, stream);
@@ -190,7 +194,7 @@ void MiddleburySource::_performDisparity() {
 }
 
 bool MiddleburySource::grab(int n, int b) {
-	//_performDisparity();
+	_performDisparity();
 	return true;
 }
 
