@@ -38,7 +38,7 @@ class SourceWindow : public nanogui::Window {
 	nanogui::Widget *ipanel_;
 	MUTEX mutex_;
 
-	void _updateCameras();
+	void _updateCameras(const std::vector<std::string> &netcams);
 
 };
 

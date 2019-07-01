@@ -24,6 +24,7 @@ using ftl::gui::SourceWindow;
 using ftl::gui::Screen;
 using ftl::rgbd::Source;
 using std::string;
+using std::vector;
 using ftl::config::json_t;
 
 SourceWindow::SourceWindow(ftl::gui::Screen *screen)
@@ -44,7 +45,6 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	auto label = new Label(this, "Select Camera","sans-bold",20);
 
-	available_ = screen_->control()->getNet()->findAll<string>("list_streams");
 	//auto select = new ComboBox(this, available_);
 	//select->setCallback([this,select](int ix) {
 		//src_->set("uri", available_[ix]);
@@ -61,13 +61,18 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	screen->net()->onConnect([this](ftl::net::Peer *p) {
 		UNIQUE_LOCK(mutex_, lk);
-		available_ = screen_->net()->findAll<string>("list_streams");
 		//select->setItems(available_);
-		_updateCameras();
+		_updateCameras(screen_->net()->findAll<string>("list_streams"));
 	});
 
 	UNIQUE_LOCK(mutex_, lk);
-	_updateCameras();
+
+	std::vector<ftl::rgbd::Source*> srcs = ftl::createArray<ftl::rgbd::Source>(screen_->root(), "sources", screen_->net());
+	for (auto *src : srcs) {
+		available_.push_back(src->getURI());
+	}
+
+	_updateCameras(screen_->control()->getNet()->findAll<string>("list_streams"));
 
 	/*new Label(this, "Source Options","sans-bold");
 
@@ -129,27 +134,31 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	//image_ = imageView;*/
 }
 
-void SourceWindow::_updateCameras() {
-	refresh_thumbs_ = true;
-	if (thumbs_.size() != available_.size()) {
-		thumbs_.resize(available_.size());
-	}
-
-	for (auto s : available_) {
+void SourceWindow::_updateCameras(const vector<string> &netcams) {
+	for (auto s : netcams) {
 		if (cameras_.find(s) == cameras_.end()) {
+			available_.push_back(s);
 			json_t srcjson;
 			srcjson["uri"] = s;
 			screen_->root()->getConfig()["sources"].push_back(srcjson);
-			std::vector<ftl::rgbd::Source*> srcs = ftl::createArray<ftl::rgbd::Source>(screen_->root(), "sources", screen_->net());
-			auto *src = srcs[srcs.size()-1];
+		}
+	}
 
+	std::vector<ftl::rgbd::Source*> srcs = ftl::createArray<ftl::rgbd::Source>(screen_->root(), "sources", screen_->net());
+	for (auto *src : srcs) {
+		if (cameras_.find(src->getURI()) == cameras_.end()) {
 			LOG(INFO) << "Making camera: " << src->getURI();
 
 			auto *cam = new ftl::gui::Camera(screen_, src);
-			cameras_[s] = cam;
+			cameras_[src->getURI()] = cam;
 		} else {
-			LOG(INFO) << "Camera already exists: " << s;
+			//LOG(INFO) << "Camera already exists: " << s;
 		}
+	}
+
+	refresh_thumbs_ = true;
+	if (thumbs_.size() != available_.size()) {
+		thumbs_.resize(available_.size());
 	}
 }
 
