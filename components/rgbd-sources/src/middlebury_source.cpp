@@ -51,6 +51,7 @@ static bool loadMiddleburyCalib(const std::string &filename, ftl::rgbd::Camera &
 		params.width = width * scaling;
 		params.height = height * scaling;
 		params.baseline = baseline;
+		params.doffs = doffs * scaling;
 
 		return true;
 	}
@@ -96,6 +97,10 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 		params_.fy = params_.fx;
 	});
 
+	host_->on("centre_x", [this](const ftl::config::Event &e) {
+		params_.cx = host_->value("centre_x", params_.cx);
+	});
+
 	// left and right masks (areas outside rectified images)
 	// only left mask used
 	cv::cuda::GpuMat mask_r_gpu(params_.height, params_.width, CV_8U, 255);
@@ -132,10 +137,42 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 }
 
 static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
+							 const cv::cuda::GpuMat &mask,
 							 const ftl::rgbd::Camera &c, cv::cuda::Stream &stream) {
 	double val = c.baseline * c.fx;
-	cv::cuda::divide(val, disparity, depth, 1.0f / 1000.0f, -1, stream);
+	cv::cuda::add(disparity, c.doffs, depth, cv::noArray(), -1, stream);
+	cv::cuda::divide(val, depth, depth, 1.0f / 1000.0f, -1, stream);
 }
+
+/*static void disparityToDepthTRUE(const cv::Mat &disp, cv::Mat &depth, const ftl::rgbd::Camera &c) {
+	using namespace cv;
+
+	double doffs = 270.821 * 0.3;
+
+	Matx44d Q(
+		1.0,0.0,0.0,c.cx,
+		0.0,1.0,0.0,c.cy,
+		0.0,0.0,0.0,c.fx,
+		0.0,0.0,1.0/c.baseline,0.0);
+
+	for( int y = 0; y < disp.rows; y++ )
+    {
+        const float* sptr = disp.ptr<float>(y);
+        float* dptr = depth.ptr<float>(y);
+
+        for( int x = 0; x < disp.cols; x++)
+        {
+            double d = sptr[x] + doffs;
+            Vec4d homg_pt = Q*Vec4d(x, y, d, 1.0);
+            auto dvec = Vec3d(homg_pt.val);
+            dvec /= homg_pt[3];
+			dptr[x] = dvec[2] / 1000.0;
+
+            //if( fabs(d-minDisparity) <= FLT_EPSILON )
+            //    dptr[x][2] = bigZ;
+        }
+    }
+}*/
 
 void MiddleburySource::_performDisparity() {
 	if (depth_tmp_.empty()) depth_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
@@ -148,6 +185,8 @@ void MiddleburySource::_performDisparity() {
 	depth_tmp_.download(depth_, stream_);
 
 	stream_.waitForCompletion();
+
+	//disparityToDepthTRUE(depth_, depth_, params_);
 }
 
 bool MiddleburySource::grab(int n, int b) {

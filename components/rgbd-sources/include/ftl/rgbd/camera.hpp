@@ -15,6 +15,7 @@ struct Camera {
 	double minDepth;
 	double maxDepth;
 	double baseline;
+	double doffs;
 };
 
 };
