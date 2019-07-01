@@ -242,14 +242,14 @@ class Peer {
 	// Receive buffers
 	bool is_waiting_;
 	msgpack::unpacker recv_buf_;
-	std::recursive_mutex recv_mtx_;
+	RECURSIVE_MUTEX recv_mtx_;
 	bool ws_read_header_;
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;
-	std::recursive_mutex send_mtx_;
+	RECURSIVE_MUTEX send_mtx_;
 
-	std::recursive_mutex cb_mtx_;
+	RECURSIVE_MUTEX cb_mtx_;
 	
 	std::string uri_;				// Original connection URI, or assumed URI
 	ftl::UUID peerid_;				// Received in handshake or allocated
@@ -292,7 +292,8 @@ R Peer::call(const std::string &name, ARGS... args) {
 	
 	R result;
 	int id = asyncCall<R>(name, [&](const R &r) {
-		UNIQUE_LOCK(m,lk);
+		//UNIQUE_LOCK(m,lk);
+		std::unique_lock<std::mutex> lk(m);
 		hasreturned = true;
 		result = r;
 		lk.unlock();
@@ -300,7 +301,8 @@ R Peer::call(const std::string &name, ARGS... args) {
 	}, std::forward<ARGS>(args)...);
 	
 	{  // Block thread until async callback notifies us
-		UNIQUE_LOCK(m,lk);
+		//UNIQUE_LOCK(m,lk);
+		std::unique_lock<std::mutex> lk(m);
 		cv.wait_for(lk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
 	}
 	

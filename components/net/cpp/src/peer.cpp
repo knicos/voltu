@@ -41,10 +41,7 @@ using ftl::net::Dispatcher;
 using std::chrono::seconds;
 using ftl::net::Universe;
 using ftl::net::callback_t;
-using std::mutex;
 using std::vector;
-using std::recursive_mutex;
-using std::unique_lock;
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -535,7 +532,8 @@ bool Peer::waitConnection() {
 	if (status_ == kConnected) return true;
 	
 	std::mutex m;
-	UNIQUE_LOCK(m,lk);
+	//UNIQUE_LOCK(m,lk);
+	std::unique_lock<std::mutex> lk(m);
 	std::condition_variable cv;
 
 	callback_t h = universe_->onConnect([this,&cv](Peer *p) {

@@ -2,7 +2,6 @@
 #include <vector>
 #include <thread>
 #include <chrono>
-#include <shared_mutex>
 #include <tuple>
 
 #include "colour.hpp"
@@ -14,8 +13,6 @@ using ftl::net::Universe;
 using ftl::UUID;
 using std::string;
 using ftl::rgbd::Camera;
-using std::shared_mutex;
-using std::unique_lock;
 using std::vector;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;

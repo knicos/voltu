@@ -3,12 +3,12 @@
 
 #include <ftl/configuration.hpp>
 #include <ftl/rgbd/camera.hpp>
+#include <ftl/threads.hpp>
 //#include <ftl/net/universe.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/rgbd/detail/source.hpp>
 #include <opencv2/opencv.hpp>
 #include <Eigen/Eigen>
-#include <shared_mutex>
 #include <string>
 
 namespace ftl {
@@ -167,7 +167,7 @@ class Source : public ftl::Configurable {
 
 	void customImplementation(detail::Source *);
 
-	std::shared_mutex &mutex() { return mutex_; }
+	SHARED_MUTEX &mutex() { return mutex_; }
 
 	private:
 	detail::Source *impl_;
@@ -177,7 +177,7 @@ class Source : public ftl::Configurable {
 	Camera params_;		// TODO Find better solution
 	Eigen::Matrix4d pose_;
 	ftl::net::Universe *net_;
-	std::shared_mutex mutex_;
+	SHARED_MUTEX mutex_;
 	bool paused_;
 	bool bullet_;
 

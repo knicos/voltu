@@ -7,8 +7,6 @@
 #include <loguru.hpp>
 
 using ftl::rgbd::VirtualSource;
-using std::mutex;
-using std::unique_lock;
 
 VirtualSource::VirtualSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host) {

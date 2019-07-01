@@ -203,8 +203,8 @@ class Universe : public ftl::Configurable {
 	private:
 	bool active_;
 	ftl::UUID this_peer;
-	std::shared_mutex net_mutex_;
-	std::recursive_mutex handler_mutex_;
+	SHARED_MUTEX net_mutex_;
+	RECURSIVE_MUTEX handler_mutex_;
 	fd_set sfderror_;
 	fd_set sfdread_;
 	std::vector<ftl::net::Listener*> listeners_;
@@ -275,7 +275,8 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	std::optional<R> result;
 
 	auto handler = [&](const std::optional<R> &r) {
-		UNIQUE_LOCK(m,lk);
+		//UNIQUE_LOCK(m,lk);
+		std::unique_lock<std::mutex> lk(m);
 		if (hasreturned || !r) return;
 		hasreturned = true;
 		result = r;
@@ -292,7 +293,8 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	lk.unlock();
 	
 	{  // Block thread until async callback notifies us
-		UNIQUE_LOCK(m,llk);
+		//UNIQUE_LOCK(m,llk);
+		std::unique_lock<std::mutex> llk(m);
 		cv.wait_for(llk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
 
 		// Cancel any further results
@@ -318,7 +320,8 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	std::vector<R> results;
 
 	auto handler = [&](const std::vector<R> &r) {
-		UNIQUE_LOCK(m,lk);
+		//UNIQUE_LOCK(m,lk);
+		std::unique_lock<std::mutex> lk(m);
 		returncount++;
 		results.insert(results.end(), r.begin(), r.end());
 		lk.unlock();
@@ -337,7 +340,8 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	lk.unlock();
 	
 	{  // Block thread until async callback notifies us
-		UNIQUE_LOCK(m,llk);
+		//UNIQUE_LOCK(m,llk);
+		std::unique_lock<std::mutex> llk(m);
 		cv.wait_for(llk, std::chrono::seconds(1), [&returncount,&sentcount]{return returncount == sentcount;});
 
 		// Cancel any further results

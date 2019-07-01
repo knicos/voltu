@@ -1,17 +1,15 @@
 #include <loguru.hpp>
 #include "stereovideo.hpp"
 #include <ftl/configuration.hpp>
+#include <ftl/threads.hpp>
 #include "calibrate.hpp"
 #include "local.hpp"
 #include "disparity.hpp"
-#include <mutex>
 
 using ftl::rgbd::detail::Calibrate;
 using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::StereoVideoSource;
 using std::string;
-using std::mutex;
-using std::unique_lock;
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host), ready_(false) {
@@ -83,14 +81,14 @@ void StereoVideoSource::init(const string &file) {
 	// Add event handlers to allow calibration changes...
 	host_->on("baseline", [this](const ftl::config::Event &e) {
 		params_.baseline = host_->value("baseline", params_.baseline);
-		std::unique_lock<std::shared_mutex> lk(host_->mutex());
+		UNIQUE_LOCK(host_->mutex(), lk);
 		calib_->updateCalibration(params_);
 	});
 
 	host_->on("focal", [this](const ftl::config::Event &e) {
 		params_.fx = host_->value("focal", params_.fx);
 		params_.fy = params_.fx;
-		std::unique_lock<std::shared_mutex> lk(host_->mutex());
+		UNIQUE_LOCK(host_->mutex(), lk);
 		calib_->updateCalibration(params_);
 	});
 	

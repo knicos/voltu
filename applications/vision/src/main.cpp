@@ -15,8 +15,6 @@
 #include <vector>
 #include <fstream>
 #include <thread>
-#include <mutex>
-#include <condition_variable>
 
 #include <opencv2/opencv.hpp>
 #include <ftl/rgbd.hpp>
@@ -47,8 +45,6 @@ using std::map;
 using std::condition_variable;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
-using std::mutex;
-using std::unique_lock;
 using cv::Mat;
 using json = nlohmann::json;
 
