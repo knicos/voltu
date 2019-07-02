@@ -32,7 +32,7 @@ class Camera {
 	void showPoseWindow();
 	void showSettings();
 
-	void setChannel(ftl::rgbd::channel_t c) { channel_ = c; };
+	void setChannel(ftl::rgbd::channel_t c);
 
 	void togglePause();
 	void isPaused();

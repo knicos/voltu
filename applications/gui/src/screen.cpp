@@ -62,7 +62,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 
 	setSize(Vector2i(1280,720));
 
-	Theme *toolbuttheme = new Theme(*theme());
+	toolbuttheme = new Theme(*theme());
 	toolbuttheme->mBorderDark = nanogui::Color(0,0);
 	toolbuttheme->mBorderLight = nanogui::Color(0,0);
 	toolbuttheme->mButtonGradientBotFocused = nanogui::Color(60,255);
@@ -71,8 +71,9 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	toolbuttheme->mButtonGradientTopUnfocused = nanogui::Color(0,0);
 	toolbuttheme->mButtonGradientTopPushed = nanogui::Color(60,180);
 	toolbuttheme->mButtonGradientBotPushed = nanogui::Color(60,180);
+	toolbuttheme->mTextColor = nanogui::Color(0.9f,0.9f,0.9f,0.9f);
 
-	Theme *mediatheme = new Theme(*theme());
+	mediatheme = new Theme(*theme());
 	mediatheme->mIconScale = 1.2f;
 	mediatheme->mWindowDropShadowSize = 0;
 	mediatheme->mWindowFillFocused = nanogui::Color(45, 150);
@@ -255,11 +256,12 @@ void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
 	if (cam) {
 		status_ = cam->source()->getURI();
 		mwindow_->setVisible(true);
+		mwindow_->cameraChanged();
 		swindow_->setVisible(false);
 	} else {
 		mwindow_->setVisible(false);
 		swindow_->setVisible(true);
-		status_ = "No camera...";
+		status_ = "[No camera]";
 	}
 }
 

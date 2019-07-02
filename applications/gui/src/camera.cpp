@@ -230,6 +230,15 @@ void ftl::gui::Camera::showSettings() {
 
 }
 
+void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
+	channel_ = c;
+	switch (c) {
+	case ftl::rgbd::kChanRight:
+	case ftl::rgbd::kChanDepth:		src_->setChannel(c); break;
+	default: src_->setChannel(ftl::rgbd::kChanNone);
+	}
+}
+
 const GLTexture &ftl::gui::Camera::thumbnail() {
 
 }
@@ -255,11 +264,13 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		src_->grab();
 		src_->getFrames(rgb, depth);
 
-		if (!stats_ && depth.rows > 0) {
-			stats_ = new StatisticsImageNSamples(depth.size(), 25);
+		if (channel_ == ftl::rgbd::kChanDeviation) {
+			if (!stats_ && depth.rows > 0) {
+				stats_ = new StatisticsImageNSamples(depth.size(), 25);
+			}
+			
+			if (stats_ && depth.rows > 0) { stats_->update(depth); }
 		}
-		
-		if (stats_ && depth.rows > 0) { stats_->update(depth); }
 
 		cv::Mat tmp;
 
@@ -280,6 +291,11 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				tmp.convertTo(tmp, CV_8U, 50.0);
 				applyColorMap(tmp, tmp, cv::COLORMAP_HOT);
 				texture_.update(tmp);
+				break;
+
+			case ftl::rgbd::kChanRight:
+				if (depth.rows == 0 || depth.type() != CV_8UC3) { break; }
+				texture_.update(depth);
 				break;
 
 			default:

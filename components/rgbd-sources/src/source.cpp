@@ -132,7 +132,6 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 }
 
 ftl::rgbd::detail::Source *Source::_createNetImpl(const ftl::URI &uri) {
-	LOG(INFO) << "MAKE NET SOURCE";
 	return new NetSource(this);
 }
 
@@ -203,6 +202,7 @@ capability_t Source::getCapabilities() const {
 
 void Source::reset() {
 	UNIQUE_LOCK(mutex_,lk);
+	channel_ = kChanNone;
 	if (impl_) delete impl_;
 	impl_ = _createImplementation();
 }
@@ -232,4 +232,10 @@ bool Source::thumbnail(cv::Mat &t) {
 	}
 	t = thumb_;
 	return !thumb_.empty();
+}
+
+bool Source::setChannel(ftl::rgbd::channel_t c) {
+	channel_ = c;
+	// TODO(Nick) Verify channel is supported by this source...
+	return true;
 }

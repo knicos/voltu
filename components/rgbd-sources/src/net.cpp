@@ -57,6 +57,7 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 
 	gamma_ = host->value("gamma", 1.0f);
 	temperature_ = host->value("temperature", 6500);
+	default_quality_ = host->value("quality", 0);
 
 	host->on("gamma", [this,host](const ftl::config::Event&) {
 		gamma_ = host->value("gamma", 1.0f);
@@ -75,6 +76,10 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 	host->on("baseline", [this,host](const ftl::config::Event&) {
 		params_.baseline = host_->value("baseline", 400.0);
 		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/baseline", host_->getConfig()["baseline"].dump());
+	});
+
+	host->on("quality", [this,host](const ftl::config::Event&) {
+		default_quality_ = host->value("quality", 0);
 	});
 
 	_updateURI();
@@ -101,7 +106,7 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 
 	// Decode in temporary buffers to prevent long locks
 	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
-	cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
+	if (d.size() > 0) cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
 
 	// Apply colour correction to chunk
 	ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
@@ -120,12 +125,25 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 	// Original size so just copy
 	if (tmp_rgb.cols == chunkRGB.cols) {
 		tmp_rgb.copyTo(chunkRGB);
-		tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
+		if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
+			tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
+		} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
+			tmp_depth.copyTo(chunkDepth);
+		} else {
+			// Silent ignore?
+		}
 	// Downsized so needs a scale up
 	} else {
 		cv::resize(tmp_rgb, chunkRGB, chunkRGB.size());
 		tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f);
-		cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
+		if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
+			tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
+			cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
+		} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
+			cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
+		} else {
+			// Silent ignore?
+		}
 	}
 
 	if (chunk == 0) {
@@ -150,6 +168,7 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 void NetSource::_updateURI() {
 	UNIQUE_LOCK(mutex_,lk);
 	active_ = false;
+	prev_chan_ = ftl::rgbd::kChanNone;
 	auto uri = host_->get<string>("uri");
 
 	if (uri_.size() > 0) {
@@ -206,9 +225,25 @@ bool NetSource::grab(int n, int b) {
 	// Send k frames before end to prevent unwanted pause
 	// Unless only a single frame is requested
 	if ((N_ <= 2 && maxN_ > 1) || N_ == 0) {
+		const ftl::rgbd::channel_t chan = host_->getChannel();
+
 		N_ = maxN_;
 
-		if (!host_->getNet()->send(peer_, "get_stream", *host_->get<string>("uri"), N_, minB_, host_->getNet()->id(), *host_->get<string>("uri"))) {
+		// Verify depth destination is of required type
+		if (chan == ftl::rgbd::kChanDepth && depth_.type() != CV_32F) {
+			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
+		} else if (chan == ftl::rgbd::kChanRight && depth_.type() != CV_8UC3) {
+			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
+		}
+
+		if (prev_chan_ != chan) {
+			host_->getNet()->send(peer_, "set_channel", *host_->get<string>("uri"), chan);
+			prev_chan_ = chan;
+		}
+
+		if (!host_->getNet()->send(peer_, "get_stream",
+				*host_->get<string>("uri"), N_, minB_,
+				host_->getNet()->id(), *host_->get<string>("uri"))) {
 			active_ = false;
 		}
 

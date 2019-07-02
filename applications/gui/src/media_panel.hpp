@@ -18,10 +18,14 @@ class MediaPanel : public nanogui::Window {
     MediaPanel(ftl::gui::Screen *);
     ~MediaPanel();
 
+    void cameraChanged();
+
     private:
     ftl::gui::Screen *screen_;
     bool paused_;
     ftl::rgbd::SnapshotStreamWriter *writer_;
+    nanogui::Button *right_button_;
+    nanogui::Button *depth_button_;
 };
 
 }
