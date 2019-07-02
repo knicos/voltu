@@ -118,6 +118,9 @@ class Streamer : public ftl::Configurable {
 	void _schedule();
 	void _swap(detail::StreamSource *);
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
+	void _encodeAndTransmit(detail::StreamSource *src, int chunk);
+	void _encodeChannel1(const cv::Mat &in, std::vector<unsigned char> &out, unsigned int b);
+	bool _encodeChannel2(const cv::Mat &in, std::vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b);
 };
 
 }

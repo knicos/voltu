@@ -109,6 +109,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	popbutton->setChevronIcon(ENTYPO_ICON_CHEVRON_SMALL_RIGHT);
     Popup *popup = popbutton->popup();
     popup->setLayout(new GroupLayout());
+	popup->setTheme(screen->toolbuttheme);
     popup->setAnchorHeight(100);
 
     button = new Button(popup, "Left");
@@ -121,9 +122,18 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
         }
     });
 
-    button = new Button(popup, "Depth");
-    button->setFlags(Button::RadioButton);
-    button->setCallback([this]() {
+	right_button_ = new Button(popup, "Right");
+    right_button_->setFlags(Button::RadioButton);
+    right_button_->setCallback([this]() {
+        ftl::gui::Camera *cam = screen_->activeCamera();
+        if (cam) {
+            cam->setChannel(ftl::rgbd::kChanRight);
+        }
+    });
+
+    depth_button_ = new Button(popup, "Depth");
+    depth_button_->setFlags(Button::RadioButton);
+    depth_button_->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
             cam->setChannel(ftl::rgbd::kChanDepth);
@@ -142,4 +152,16 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 
 MediaPanel::~MediaPanel() {
 
+}
+
+// Update button enabled status
+void MediaPanel::cameraChanged() {
+    ftl::gui::Camera *cam = screen_->activeCamera();
+    if (cam) {
+        if (cam->source()->hasCapabilities(ftl::rgbd::kCapStereo)) {
+            right_button_->setEnabled(true);
+        } else {
+            right_button_->setEnabled(false);
+        }
+    }
 }

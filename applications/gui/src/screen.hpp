@@ -41,6 +41,8 @@ class Screen : public nanogui::Screen {
 
 	nanogui::Theme *windowtheme;
 	nanogui::Theme *specialtheme;
+	nanogui::Theme *mediatheme;
+	nanogui::Theme *toolbuttheme;
 
 	private:
 	ftl::gui::SourceWindow *swindow_;

@@ -25,13 +25,14 @@ class SnapshotReader;
 
 typedef unsigned int channel_t;
 
-static const channel_t kChanLeft = 1;
-static const channel_t kChanDepth = 2;
-static const channel_t kChanRight = 3;
-static const channel_t kChanDisparity = 4;
-static const channel_t kChanDeviation = 5;
+static const channel_t kChanNone = 0;
+static const channel_t kChanLeft = 0x0001;
+static const channel_t kChanDepth = 0x0002;
+static const channel_t kChanRight = 0x0004;
+static const channel_t kChanDisparity = 0x0008;
+static const channel_t kChanDeviation = 0x0010;
 
-static const channel_t kChanOverlay1 = 100;
+static const channel_t kChanOverlay1 = 0x1000;
 
 /**
  * RGBD Generic data source configurable entity. This class hides the
@@ -68,6 +69,13 @@ class Source : public ftl::Configurable {
 	 * Is this source valid and ready to grab?.
 	 */
 	bool isReady() { return (impl_) ? impl_->isReady() : false; }
+
+	/**
+	 * Change the second channel source.
+	 */
+	bool setChannel(channel_t c);
+
+	channel_t getChannel() const { return channel_; }
 
 	/**
 	 * Perform the hardware or virtual frame grab operation. 
@@ -180,6 +188,7 @@ class Source : public ftl::Configurable {
 	SHARED_MUTEX mutex_;
 	bool paused_;
 	bool bullet_;
+	channel_t channel_;
 
 	detail::Source *_createImplementation();
 	detail::Source *_createFileImpl(const ftl::URI &uri);
