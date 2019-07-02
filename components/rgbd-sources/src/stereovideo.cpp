@@ -128,8 +128,8 @@ bool StereoVideoSource::grab(int n, int b) {
 	calib_->rectifyStereo(left_, right_, stream_);
 	disp_->compute(left_, right_, disp_tmp_, stream_);
 	disparityToDepth(disp_tmp_, depth_tmp_, calib_->getQ(), stream_);
-	//left_.download(rgb_, stream_);
-	rgb_ = lsrc_->cachedLeft();
+	left_.download(rgb_, stream_);
+	//rgb_ = lsrc_->cachedLeft();
 	depth_tmp_.download(depth_, stream_);
 
 	stream_.waitForCompletion();	
