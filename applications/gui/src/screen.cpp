@@ -271,6 +271,7 @@ bool ftl::gui::Screen::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::V
 	} else {
 		if (camera_) camera_->mouseMovement(rel[0], rel[1], button);
 	}
+	return true; // TODO: return statement was missing; is true correct?
 }
 
 bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {
