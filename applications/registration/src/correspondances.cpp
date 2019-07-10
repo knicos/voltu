@@ -255,6 +255,8 @@ bool Correspondances::capture(cv::Mat &rgb1, cv::Mat &rgb2) {
 			}
 		}
 	}
+
+	return true; // TODO: return statement was missing; is true correct?
 }
 
 bool Correspondances::add(int tx, int ty, int sx, int sy) {

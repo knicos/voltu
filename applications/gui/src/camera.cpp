@@ -240,7 +240,7 @@ void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
 }
 
 const GLTexture &ftl::gui::Camera::thumbnail() {
-
+	return GLTexture();
 }
 
 const GLTexture &ftl::gui::Camera::captureFrame() {
@@ -309,5 +309,5 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 }
 
 nlohmann::json ftl::gui::Camera::getMetaData() {
-
+	return nlohmann::json();
 }
