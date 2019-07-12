@@ -223,14 +223,16 @@ void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
 	channel_ = c;
 	switch (c) {
 	case ftl::rgbd::kChanRight:
-		[[fallthrough]];
-	
+		src_->setChannel(c);
+		break;
+
 	case ftl::rgbd::kChanDeviation:
 		if (stats_) { stats_->reset(); }
-		[[fallthrough]];
+		src_->setChannel(ftl::rgbd::kChanDepth);
+		break;
 	
 	case ftl::rgbd::kChanDepth:
-		src_->setChannel(ftl::rgbd::kChanDepth);
+		src_->setChannel(c);
 		break;
 	
 	default: src_->setChannel(ftl::rgbd::kChanNone);
@@ -262,12 +264,16 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		src_->grab();
 		src_->getFrames(rgb, depth);
 
-		if (channel_ == ftl::rgbd::kChanDeviation) {
-			if (!stats_ && depth.rows > 0) {
+		// When switching from right to depth, client may still receive
+		// right images from previous batch (depth.channels() == 1 check)
+		if (channel_ == ftl::rgbd::kChanDeviation &&
+			depth.rows > 0 && depth.channels() == 1)
+		{
+			if (!stats_) {
 				stats_ = new StatisticsImage(depth.size());
 			}
 			
-			if (stats_ && depth.rows > 0) { stats_->update(depth); }
+			stats_->update(depth);
 		}
 
 		cv::Mat tmp;
