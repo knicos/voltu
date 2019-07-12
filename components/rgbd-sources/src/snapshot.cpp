@@ -145,7 +145,9 @@ bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat
 }
 
 SnapshotStreamWriter::SnapshotStreamWriter(const string &filename, int delay) : 
-		run_(false), finished_(false), writer_(filename), delay_(delay) {}
+		run_(false), finished_(false), delay_(delay), writer_(filename) {
+		DCHECK(delay > 0);
+	}
 
 SnapshotStreamWriter::~SnapshotStreamWriter() {
 
@@ -161,8 +163,10 @@ void SnapshotStreamWriter::run() {
 	vector<Mat> depth(sources_.size());
 
 	while(run_) {
-		auto now = std::chrono::system_clock::now();
-		auto duration = now.time_since_epoch();
+		auto t_now = std::chrono::system_clock::now();
+		auto t_wakeup = t_now + std::chrono::milliseconds(delay_);
+
+		auto duration = t_now.time_since_epoch();
 		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
 		for(size_t i = 0; i < sources_.size(); ++i) {
@@ -173,7 +177,7 @@ void SnapshotStreamWriter::run() {
 			writer_.addCameraRGBD(std::to_string(ms) + "-" + std::to_string(i), rgb[i], depth[i]);
 		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(delay_));
+		std::this_thread::sleep_until(t_wakeup);
 	}
 
 	run_ = false;
