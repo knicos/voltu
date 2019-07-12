@@ -6,7 +6,7 @@
 
 #include <string>
 
-class StatisticsImageNSamples;
+class StatisticsImage;
 
 namespace ftl {
 namespace gui {
@@ -43,7 +43,7 @@ class Camera {
 
 	nlohmann::json getMetaData();
 
-	StatisticsImageNSamples *stats_ = nullptr;
+	StatisticsImage *stats_ = nullptr;
 
 	private:
 	Screen *screen_;

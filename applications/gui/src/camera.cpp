@@ -11,118 +11,80 @@ using ftl::gui::PoseWindow;
 // TODO(Nick) MOVE
 class StatisticsImage {
 private:
-	std::vector<float> data_;
+	cv::Mat data_;
 	cv::Size size_;
-	int n_;
+	float max_f_;
 
 public:
-	StatisticsImage(cv::Size size) {
-		size_ = size;
-		data_ = std::vector<float>(size.width * size.height * 2, 0.0f);
-		n_ = 0;
-	}
+	StatisticsImage(cv::Size size);
+	StatisticsImage(cv::Size size, float max_f);
 
+	void reset();
 	void update(const cv::Mat &in);
+	void getVariance(cv::Mat &out);
 	void getStdDev(cv::Mat &out);
 	void getMean(cv::Mat &out);
 };
+
+StatisticsImage::StatisticsImage(cv::Size size) :
+	StatisticsImage(size, std::numeric_limits<float>::infinity()) {}
+
+StatisticsImage::StatisticsImage(cv::Size size, float max_f) {
+	size_ = size;
+	// channels: m, s, f
+	data_ = cv::Mat(size, CV_32FC3, cv::Scalar(0.0, 0.0, 0.0));
+	max_f_ = max_f;
+	// TODO
+	if (!std::isinf(max_f_)) {
+		LOG(WARNING) << "TODO: max_f_ not used. Values calculated for all samples";
+	}
+}
+
+void StatisticsImage::reset() {
+	data_ = cv::Scalar(0.0, 0.0, 0.0);
+}
 
 void StatisticsImage::update(const cv::Mat &in) {
 	DCHECK(in.type() == CV_32F);
 	DCHECK(in.size() == size_);
 	// Welford's Method
 
-	n_++;
-	for (int i = 0; i < size_.width * size_.height; i++) {
-		float x = ((float*) in.data)[i];
-		if (!isValidDepth(x)) { continue; } // invalid value
-		float &m = data_[2*i];
-		float &S = data_[2*i+1];
-		float m_prev = m;
-		m = m + (x - m) / n_;
-		S = S + (x - m) * (x - m_prev);
-	}
-}
+	for (int row = 0; row < in.rows; row++) {
+		float* ptr_data = data_.ptr<float>(row);
+		const float* ptr_in = in.ptr<float>(row);
 
-void StatisticsImage::getStdDev(cv::Mat &in) {
-	in = cv::Mat(size_, CV_32F, 0.0f);
-
-	for (int i = 0; i < size_.width * size_.height; i++) {
-		float &m = data_[2*i];
-		float &S = data_[2*i+1];
-		((float*) in.data)[i] = sqrt(S / n_);
-	}
-}
-
-void StatisticsImage::getMean(cv::Mat &in) {
-	in = cv::Mat(size_, CV_32F, 0.0f);
-
-	for (int i = 0; i < size_.width * size_.height; i++) {
-		((float*) in.data)[i] = data_[2*i];
-	}
-}
-
-class StatisticsImageNSamples {
-private:
-	std::vector<cv::Mat> samples_;
-	cv::Size size_;
-	int i_;
-	int n_;
-
-public:
-	StatisticsImageNSamples(cv::Size size, int n) {
-		size_ = size;
-		samples_ = std::vector<cv::Mat>(n);
-		i_ = 0;
-		n_ = n;
-	}
-
-	void update(const cv::Mat &in);
-	void getStdDev(cv::Mat &out);
-	void getVariance(cv::Mat &out);
-	void getMean(cv::Mat &out);
-};
-
-void StatisticsImageNSamples::update(const cv::Mat &in) {
-	DCHECK(in.type() == CV_32F);
-	DCHECK(in.size() == size_);
-
-	i_ = (i_ + 1) % n_;
-	in.copyTo(samples_[i_]);
-}
-
-void StatisticsImageNSamples::getStdDev(cv::Mat &out) {
-	cv::Mat var;
-	getVariance(var);
-	cv::sqrt(var, out);
-}
-
-void StatisticsImageNSamples::getVariance(cv::Mat &out) {
-	// Welford's Method
-	cv::Mat mat_m(size_, CV_32F, 0.0f);
-	cv::Mat mat_S(size_, CV_32F, 0.0f);
-
-	float n = 0.0f;
-	for (int i_sample = (i_ + 1) % n_; i_sample != i_; i_sample = (i_sample + 1) % n_) {
-		if (samples_[i_sample].size() != size_) continue;
-		n += 1.0f;
-		for (int i = 0; i < size_.width * size_.height; i++) {
-			float &x = ((float*) samples_[i_sample].data)[i];
-			float &m = ((float*) mat_m.data)[i];
-			float &S = ((float*) mat_S.data)[i];
+		for (int col = 0; col < in.cols; col++, ptr_in++) {
+			float x = *ptr_in;
+			float &m = *ptr_data++;
+			float &s = *ptr_data++;
+			float &f = *ptr_data++;
 			float m_prev = m;
 
-			if (!isValidDepth(x)) continue;
+			if (!ftl::rgbd::isValidDepth(x)) continue;
 
-			m = m + (x - m) / n;
-			S = S + (x - m) * (x - m_prev);
+			f = f + 1.0f;
+			m = m + (x - m) / f;
+			s = s + (x - m) * (x - m_prev);
 		}
 	}
-
-	mat_S.copyTo(out);
 }
 
-void StatisticsImageNSamples::getMean(cv::Mat &in) {}
+void StatisticsImage::getVariance(cv::Mat &out) {
+	std::vector<cv::Mat> channels(3);
+	cv::split(data_, channels);
+	cv::divide(channels[1], channels[2], out);
+}
+
+void StatisticsImage::getStdDev(cv::Mat &out) {
+	getVariance(out);
+	cv::sqrt(out, out);
+}
+
+void StatisticsImage::getMean(cv::Mat &out) {
+	std::vector<cv::Mat> channels(3);
+	cv::split(data_, channels);
+	out = channels[0];
+}
 
 static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
   Eigen::Affine3d rx =
@@ -234,7 +196,16 @@ void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
 	channel_ = c;
 	switch (c) {
 	case ftl::rgbd::kChanRight:
-	case ftl::rgbd::kChanDepth:		src_->setChannel(c); break;
+		[[fallthrough]];
+	
+	case ftl::rgbd::kChanDeviation:
+		if (stats_) { stats_->reset(); }
+		[[fallthrough]];
+	
+	case ftl::rgbd::kChanDepth:
+		src_->setChannel(ftl::rgbd::kChanDepth);
+		break;
+	
 	default: src_->setChannel(ftl::rgbd::kChanNone);
 	}
 }
@@ -266,7 +237,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 
 		if (channel_ == ftl::rgbd::kChanDeviation) {
 			if (!stats_ && depth.rows > 0) {
-				stats_ = new StatisticsImageNSamples(depth.size(), 25);
+				stats_ = new StatisticsImage(depth.size());
 			}
 			
 			if (stats_ && depth.rows > 0) { stats_->update(depth); }
@@ -288,7 +259,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				if (depth.rows == 0) { break; }
 				//imageSize = Vector2f(depth.cols, depth.rows);
 				stats_->getStdDev(tmp);
-				tmp.convertTo(tmp, CV_8U, 50.0);
+				tmp.convertTo(tmp, CV_8U, 1000.0);
 				applyColorMap(tmp, tmp, cv::COLORMAP_HOT);
 				texture_.update(tmp);
 				break;
