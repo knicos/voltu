@@ -11,19 +11,37 @@ using ftl::gui::PoseWindow;
 // TODO(Nick) MOVE
 class StatisticsImage {
 private:
-	cv::Mat data_;
-	cv::Size size_;
-	float max_f_;
+	cv::Mat data_;	// CV_32FC3, channels: m, s, f
+	cv::Size size_;	// image size
+	float n_;		// total number of samples
 
 public:
 	StatisticsImage(cv::Size size);
 	StatisticsImage(cv::Size size, float max_f);
 
+	/* @brief reset all statistics to 0
+	 */
 	void reset();
+
+	/* @brief update statistics with new values
+	 */
 	void update(const cv::Mat &in);
+	
+	/* @brief variance (depth)
+	 */
 	void getVariance(cv::Mat &out);
+
+	/* @brief standard deviation (depth)
+	 */
 	void getStdDev(cv::Mat &out);
+	
+	/* @brief mean value (depth)
+	 */
 	void getMean(cv::Mat &out);
+
+	/* @brief percent of samples having valid depth value
+	 */
+	void getValidRatio(cv::Mat &out);
 };
 
 StatisticsImage::StatisticsImage(cv::Size size) :
@@ -31,24 +49,27 @@ StatisticsImage::StatisticsImage(cv::Size size) :
 
 StatisticsImage::StatisticsImage(cv::Size size, float max_f) {
 	size_ = size;
-	// channels: m, s, f
+	n_ = 0.0f;
 	data_ = cv::Mat(size, CV_32FC3, cv::Scalar(0.0, 0.0, 0.0));
-	max_f_ = max_f;
+
 	// TODO
-	if (!std::isinf(max_f_)) {
+	if (!std::isinf(max_f)) {
 		LOG(WARNING) << "TODO: max_f_ not used. Values calculated for all samples";
 	}
 }
 
 void StatisticsImage::reset() {
+	n_ = 0.0f;
 	data_ = cv::Scalar(0.0, 0.0, 0.0);
 }
 
 void StatisticsImage::update(const cv::Mat &in) {
 	DCHECK(in.type() == CV_32F);
 	DCHECK(in.size() == size_);
-	// Welford's Method
+	
+	n_ = n_ + 1.0f;
 
+	// Welford's Method
 	for (int row = 0; row < in.rows; row++) {
 		float* ptr_data = data_.ptr<float>(row);
 		const float* ptr_in = in.ptr<float>(row);
@@ -84,6 +105,12 @@ void StatisticsImage::getMean(cv::Mat &out) {
 	std::vector<cv::Mat> channels(3);
 	cv::split(data_, channels);
 	out = channels[0];
+}
+
+void StatisticsImage::getValidRatio(cv::Mat &out) {
+	std::vector<cv::Mat> channels(3);
+	cv::split(data_, channels);
+	cv::divide(channels[2], n_, out);
 }
 
 static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
