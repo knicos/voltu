@@ -194,7 +194,7 @@ void MiddleburySource::_performDisparity() {
 }
 
 bool MiddleburySource::grab(int n, int b) {
-	_performDisparity();
+	//_performDisparity();
 	return true;
 }
 

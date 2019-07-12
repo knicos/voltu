@@ -338,7 +338,7 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 
 		mImageID = camera_->captureFrame().texture();
 
-		if (imageSize[0] > 0) {
+		if (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) {
 			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
 			Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
 			Vector2f positionInScreen(0.0f, 0.0f);
