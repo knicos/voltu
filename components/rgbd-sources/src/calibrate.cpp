@@ -5,6 +5,7 @@
 #include <loguru.hpp>
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
+#include <ftl/threads.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -46,15 +47,42 @@ Calibrate::Calibrate(nlohmann::json &config, cv::Size image_size, cv::cuda::Stre
 	calibrated_ = _loadCalibration(image_size, map1, map2);
 
 	if (calibrated_) {
+		_updateIntrinsics();
 		LOG(INFO) << "Calibration loaded from file";
-		map1_gpu_.first.upload(map1.first, stream);
-		map1_gpu_.second.upload(map1.second, stream);
-		map2_gpu_.first.upload(map2.first, stream);
-		map2_gpu_.second.upload(map2.second, stream);
 	}
 	else {
 		LOG(WARNING) << "Calibration not loaded";
 	}
+	
+	this->on("use_intrinsics", [this](const ftl::config::Event &e) {
+		_updateIntrinsics();
+	});
+}
+
+void Calibrate::_updateIntrinsics() {
+	Mat R1, R2, P1, P2;
+	std::pair<Mat, Mat> map1, map2;
+
+	if (this->value("use_intrinsics", true)) {
+		R1 = R1_;
+		R2 = R2_;
+		P1 = P1_;
+		P2 = P2_;
+	}
+	else {
+		R1 = Mat::eye(Size(3, 3), CV_64FC1);
+		R2 = R1;
+		P1 = M1_;
+		P2 = M2_;
+	}
+
+	initUndistortRectifyMap(M1_, D1_, R1, P1, img_size_, CV_32FC1, map1.first, map2.first);
+	initUndistortRectifyMap(M2_, D2_, R2, P2, img_size_, CV_32FC1, map1.second, map2.second);
+	
+	map1_gpu_.first.upload(map1.first);
+	map1_gpu_.second.upload(map1.second);
+	map2_gpu_.first.upload(map2.first);
+	map2_gpu_.second.upload(map2.second);
 }
 
 bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, std::pair<Mat, Mat> &map2) {

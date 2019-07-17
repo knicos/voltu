@@ -43,7 +43,7 @@ class Calibrate : public ftl::Configurable {
 	bool isCalibrated();
 
 	void updateCalibration(const ftl::rgbd::Camera &p);
-
+	
 	/**
 	 * Get the camera matrix. Used to convert disparity map back to depth and
 	 * a 3D point cloud.
@@ -52,6 +52,7 @@ class Calibrate : public ftl::Configurable {
 	const cv::Mat &getCameraMatrix() const { return P_; }
 
 private:
+	void _updateIntrinsics();
 	bool _loadCalibration(cv::Size img_size, std::pair<cv::Mat, cv::Mat> &map1, std::pair<cv::Mat, cv::Mat> &map2);
 	
 	private:
