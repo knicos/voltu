@@ -47,7 +47,13 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 				sleep_for(milliseconds(500));
 			}
 		}
+		
+	} catch (const std::exception& ex) {
+		LOG(ERROR) << "Exception: " << ex.what();
+		return false;
+
 	} catch (...) {
+		LOG(ERROR) << "Unknown exception";
 		return false;
 	}
 }
