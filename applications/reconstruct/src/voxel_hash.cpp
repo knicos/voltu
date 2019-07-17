@@ -107,3 +107,9 @@ HashData HashData::upload() const {
 	
 	return hashData;
 }
+
+size_t HashData::getAllocatedBlocks() const {
+	unsigned int count;
+	cudaSafeCall(cudaMemcpy(d_heapCounter, &count, sizeof(unsigned int), cudaMemcpyDeviceToHost));
+	return count;
+}

@@ -57,10 +57,10 @@ cv::Mat Source::cameraMatrix() const {
 	return m;
 }
 
-void Source::customImplementation(ftl::rgbd::detail::Source *impl) {
+/*void Source::customImplementation(ftl::rgbd::detail::Source *impl) {
 	if (impl_) delete impl_;
 	impl_ = impl;
-}
+}*/
 
 ftl::rgbd::detail::Source *Source::_createImplementation() {
 	auto uristr = get<string>("uri");
@@ -116,7 +116,7 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 		} else if (ext == "tar" || ext == "gz") {
 #ifdef HAVE_LIBARCHIVE
 			ftl::rgbd::SnapshotReader reader(path);
-			return new ftl::rgbd::detail::SnapshotSource(this, reader, std::to_string(value("index", 0)));  // TODO Get ID from config
+			return new ftl::rgbd::detail::SnapshotSource(this, reader, std::to_string(value("index", 0)));  // TODO: Use URI fragment
 #else
 			LOG(ERROR) << "Cannot read snapshots, libarchive not installed";
 			return nullptr;
@@ -144,6 +144,17 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 #else
 		LOG(ERROR) << "You do not have 'librealsense2' installed";
 #endif
+	} else {
+		params_.width = value("width", 1280);
+		params_.height = value("height", 720);
+		params_.fx = value("focal", 700.0f);
+		params_.fy = params_.fx;
+		params_.cx = -(double)params_.width / 2.0;
+		params_.cy = -(double)params_.height / 2.0;
+		params_.minDepth = value("minDepth", 0.1f);
+		params_.maxDepth = value("maxDepth", 20.0f);
+		params_.doffs = 0;
+		params_.baseline = value("baseline", 0.0f);
 	}
 	return nullptr;
 }
@@ -197,7 +208,7 @@ bool Source::hasCapabilities(capability_t c) {
 
 capability_t Source::getCapabilities() const {
 	if (impl_) return impl_->capabilities_;
-	else return 0;
+	else return kCapMovable | kCapVideo | kCapStereo;  // FIXME: Don't assume these
 }
 
 void Source::reset() {
@@ -217,8 +228,41 @@ bool Source::grab() {
 	return false;
 }
 
+void Source::writeFrames(const cv::Mat &rgb, const cv::Mat &depth) {
+	if (!impl_) {
+		UNIQUE_LOCK(mutex_,lk);
+		rgb.copyTo(rgb_);
+		depth.copyTo(depth_);
+	}
+}
+
+void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream) {
+	if (!impl_) {
+		UNIQUE_LOCK(mutex_,lk);
+		rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
+		cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
+		depth_.create(depth.height(), depth.width(), CV_32SC1);
+		cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(uint), depth_.rows, cudaMemcpyDeviceToHost, stream));
+		cudaSafeCall(cudaStreamSynchronize(stream));  // TODO:(Nick) Don't wait here.
+
+		depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
+	} else {
+		LOG(ERROR) << "writeFrames cannot be done on this source: " << getURI();
+	}
+}
+
+void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream) {
+	if (!impl_) {
+		UNIQUE_LOCK(mutex_,lk);
+		rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
+		cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
+		depth_.create(depth.height(), depth.width(), CV_32FC1);
+		cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(float), depth_.rows, cudaMemcpyDeviceToHost, stream));
+		cudaSafeCall(cudaStreamSynchronize(stream));  // TODO:(Nick) Don't wait here.
+	}
+}
+
 bool Source::thumbnail(cv::Mat &t) {
-	// TODO(Nick) periodic refresh
 	if (impl_) {
 		UNIQUE_LOCK(mutex_,lk);
 		impl_->grab(1, 9);
@@ -236,6 +280,6 @@ bool Source::thumbnail(cv::Mat &t) {
 
 bool Source::setChannel(ftl::rgbd::channel_t c) {
 	channel_ = c;
-	// TODO(Nick) Verify channel is supported by this source...
+	// FIXME:(Nick) Verify channel is supported by this source...
 	return true;
 }

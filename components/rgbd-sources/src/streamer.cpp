@@ -189,7 +189,7 @@ void Streamer::stop() {
 }
 
 void Streamer::poll() {
-	double wait = 1.0f / 25.0f;  // TODO(Nick) Should be in config
+	double wait = 1.0f / 25.0f;  // TODO:(Nick) Should be in config
 	auto start = std::chrono::high_resolution_clock::now();
 	// Create frame jobs at correct FPS interval
 	_schedule();
@@ -202,8 +202,8 @@ void Streamer::poll() {
 	} else {
 		//LOG(INFO) << "Frame rate @ " << (1.0f / elapsed.count());
 		// Otherwise, wait until next frame should start.
-		// CHECK(Nick) Is this accurate enough? Almost certainly not
-		// TODO(Nick) Synchronise by time corrections and use of fixed time points
+		// FIXME:(Nick) Is this accurate enough? Almost certainly not
+		// TODO:(Nick) Synchronise by time corrections and use of fixed time points
 		// but this only works if framerate can be achieved.
 		sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
 	}

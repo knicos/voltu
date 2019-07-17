@@ -15,6 +15,8 @@
 #include <ftl/rgbd/streamer.hpp>
 #include <ftl/slave.hpp>
 
+#include "splat_render.hpp"
+
 #include <string>
 #include <vector>
 #include <thread>
@@ -90,14 +92,16 @@ static void run(ftl::Configurable *root) {
 	ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::Source *virt = ftl::create<ftl::rgbd::Source>(root, "virtual", net);
+	ftl::render::Splatter *splat = new ftl::render::Splatter(scene);
 
-	auto virtimpl = new ftl::rgbd::VirtualSource(virt);
-	virt->customImplementation(virtimpl);
-	virtimpl->setScene(scene);
+	//auto virtimpl = new ftl::rgbd::VirtualSource(virt);
+	//virt->customImplementation(virtimpl);
+	//virtimpl->setScene(scene);
 	stream->add(virt);
 
 	for (int i=0; i<sources.size(); i++) {
 		Source *in = sources[i];
+		in->setChannel(ftl::rgbd::kChanDepth);
 		stream->add(in);
 		scene->addSource(in);
 	}
@@ -124,6 +128,8 @@ static void run(ftl::Configurable *root) {
 			// Make sure previous virtual camera frame has finished rendering
 			stream->wait();
 
+			LOG(INFO) << "Heap: " << scene->getHeapFreeCount();
+
 			// Merge new frames into the voxel structure
 			scene->integrate();
 
@@ -133,6 +139,8 @@ static void run(ftl::Configurable *root) {
 		} else {
 			active = 1;
 		}
+
+		splat->render(virt, scene->getIntegrationStream());
 
 		// Start virtual camera rendering and previous frame compression
 		stream->poll();

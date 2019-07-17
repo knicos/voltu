@@ -95,7 +95,7 @@ bool ftl::is_video(const string &file) {
 
 bool ftl::create_directory(const std::string &path) {
 #ifdef WIN32
-	// TODO(nick)
+	// TODO:(nick)
 	return false;
 #else
 	if (!is_directory(path)) {
@@ -180,7 +180,7 @@ static void _indexConfig(json_t &cfg) {
 				_indexConfig(cfg[i.key()]);
 			}
 		}
-	} // TODO(Nick) Arrays....
+	} // TODO:(Nick) Arrays....
 }
 
 ftl::Configurable *ftl::config::find(const std::string &uri) {
@@ -205,7 +205,7 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 	}
 	auto ix = config_instance.find(*uri);
 	if (ix != config_instance.end()) {
-		// FIXME HACK NOTE TODO SHOULD BE FATAL
+		// FIXME: HACK NOTE TODO SHOULD BE FATAL
 		LOG(ERROR) << "Attempting to create a duplicate object: " << *uri;
 	} else {
 		config_instance[*uri] = cfg;
