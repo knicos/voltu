@@ -59,32 +59,6 @@ Calibrate::Calibrate(nlohmann::json &config, cv::Size image_size, cv::cuda::Stre
 	});
 }
 
-void Calibrate::_updateIntrinsics() {
-	Mat R1, R2, P1, P2;
-	std::pair<Mat, Mat> map1, map2;
-
-	if (this->value("use_intrinsics", true)) {
-		R1 = R1_;
-		R2 = R2_;
-		P1 = P1_;
-		P2 = P2_;
-	}
-	else {
-		R1 = Mat::eye(Size(3, 3), CV_64FC1);
-		R2 = R1;
-		P1 = M1_;
-		P2 = M2_;
-	}
-
-	initUndistortRectifyMap(M1_, D1_, R1, P1, img_size_, CV_32FC1, map1.first, map2.first);
-	initUndistortRectifyMap(M2_, D2_, R2, P2, img_size_, CV_32FC1, map1.second, map2.second);
-	
-	map1_gpu_.first.upload(map1.first);
-	map1_gpu_.second.upload(map1.second);
-	map2_gpu_.first.upload(map2.first);
-	map2_gpu_.second.upload(map2.second);
-}
-
 bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, std::pair<Mat, Mat> &map2) {
 	FileStorage fs;
 
@@ -150,11 +124,41 @@ void Calibrate::updateCalibration(const ftl::rgbd::Camera &p) {
 	Q_.at<double>(2,3) = p.fx;
 	Q_.at<double>(0,3) = p.cx;
 	Q_.at<double>(1,3) = p.cy;
+
 	// FIXME:(Nick) Update camera matrix also...
+	_updateIntrinsics();
+}
 
-	initUndistortRectifyMap(M1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);
-	initUndistortRectifyMap(M2_, D2_, R2_, P2_, img_size_, CV_32FC1, map1.second, map2.second);
+void Calibrate::_updateIntrinsics() {
+	// TODO: pass parameters?
 
+	Mat R1, R2, P1, P2;
+	std::pair<Mat, Mat> map1, map2;
+	ftl::rgbd::Camera params();
+
+	if (this->value("use_intrinsics", true)) {
+		// rectify
+		R1 = R1_;
+		R2 = R2_;
+		P1 = P1_;
+		P2 = P2_;
+	}
+	else {
+		// no rectification
+		R1 = Mat::eye(Size(3, 3), CV_64FC1);
+		R2 = R1;
+		P1 = M1_;
+		P2 = M2_;
+	}
+
+	// Set correct camera matrices for
+	// getCameraMatrix(), getCameraMatrixLeft(), getCameraMatrixRight()
+	C_l_ = P1;
+	C_r_ = P2;
+
+	initUndistortRectifyMap(M1_, D1_, R1, P1, img_size_, CV_32FC1, map1.first, map2.first);
+	initUndistortRectifyMap(M2_, D2_, R2, P2, img_size_, CV_32FC1, map1.second, map2.second);
+	
 	// CHECK Is this thread safe!!!!
 	map1_gpu_.first.upload(map1.first);
 	map1_gpu_.second.upload(map1.second);

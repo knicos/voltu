@@ -49,7 +49,9 @@ class Calibrate : public ftl::Configurable {
 	 * a 3D point cloud.
 	 */
 	const cv::Mat &getQ() const { return Q_; }
-	const cv::Mat &getCameraMatrix() const { return P_; }
+	const cv::Mat &getCameraMatrixLeft() { return C_l_; }
+	const cv::Mat &getCameraMatrixRight() { return C_r_; }
+	const cv::Mat &getCameraMatrix() { return getCameraMatrixLeft(); }
 
 private:
 	void _updateIntrinsics();
@@ -65,6 +67,10 @@ private:
 	cv::Mat Q_;
 	cv::Mat R_, T_, R1_, P1_, R2_, P2_;
 	cv::Mat M1_, D1_, M2_, D2_;
+
+	cv::Mat C_l_;
+	cv::Mat C_r_;
+
 	cv::Size img_size_;
 };
 
