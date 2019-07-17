@@ -85,8 +85,8 @@ bool SceneRep::_initCUDA() {
 	cuda_device_ = (desired_device < cuda_device_count) ? desired_device : cuda_device_count-1;
 	cudaSafeCall(cudaSetDevice(cuda_device_));
 
-	// TODO(Nick) Check memory is sufficient
-	// TODO(Nick) Find out what our compute capability should be.
+	// TODO:(Nick) Check memory is sufficient
+	// TODO:(Nick) Find out what our compute capability should be.
 
 	return true;
 }
@@ -110,6 +110,7 @@ int SceneRep::upload() {
 		if (!cam.source->isReady()) {
 			cam.params.m_imageWidth = 0;
 			// TODO(Nick) : Free gpu allocs if was ready before
+			LOG(INFO) << "Source not ready: " << cam.source->getURI();
 			continue;
 		} else {
 			auto in = cam.source;

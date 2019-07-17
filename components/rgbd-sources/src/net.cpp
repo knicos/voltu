@@ -202,10 +202,8 @@ void NetSource::_updateURI() {
 		chunks_dim_ = ftl::rgbd::kChunkDim;
 		chunk_width_ = params_.width / chunks_dim_;
 		chunk_height_ = params_.height / chunks_dim_;
-		// TODO(Nick) Must lock before changing these below since some thread may still be updating chunk
 		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
 		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
-		//idepth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_16UC1, cv::Scalar(0));
 
 		uri_ = *uri;
 		active_ = true;

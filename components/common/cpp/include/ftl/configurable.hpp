@@ -99,7 +99,7 @@ class Configurable {
 	void patchPtr(nlohmann::json &newcfg) { config_ = &newcfg; }
 
 	protected:
-	nlohmann::json *config_;  // FIXME(Nick) Should be a reference but this can be invalidated...
+	nlohmann::json *config_;
 
 	private:
 	std::map<std::string, std::list<std::function<void(const config::Event&)>>> observers_; 
@@ -130,8 +130,8 @@ std::optional<T> ftl::Configurable::get(const std::string &name) {
 			return {};
 		}
 	} else if ((*config_)["$ref"].is_string()) {
-		// TODO(Nick) Add # if missing
-		// TODO(Nick) Cache result of ref loopkup
+		// FIXME:(Nick) Add # if missing
+		// TODO:(Nick) Cache result of ref loopkup
 		std::string res_uri = (*config_)["$ref"].get<std::string>()+"/"+name;
 		auto &r = ftl::config::resolve(res_uri);
 

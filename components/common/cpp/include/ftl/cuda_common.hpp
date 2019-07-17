@@ -27,23 +27,29 @@ class HisteresisTexture {
 template <typename T>
 class TextureObject {
 	public:
-	__host__ __device__ TextureObject() : texobj_(0), ptr_(nullptr) {};
+	__host__ __device__ TextureObject()
+			: texobj_(0), pitch_(0), pitch2_(0), width_(0), height_(0), ptr_(nullptr), needsfree_(false) {};
 	TextureObject(const cv::cuda::PtrStepSz<T> &d);
 	TextureObject(T *ptr, int pitch, int width, int height);
 	TextureObject(size_t width, size_t height);
-	TextureObject(const TextureObject &t);
+	TextureObject(const TextureObject<T> &t);
+	__host__ __device__ TextureObject(TextureObject<T> &&);
 	~TextureObject();
+
+	__host__ TextureObject<T> &operator=(const TextureObject<T> &);
+	__host__ __device__ TextureObject<T> &operator=(TextureObject<T> &&);
 	
 	size_t pitch() const { return pitch_; }
-	T *devicePtr() { return ptr_; };
-	__host__ __device__ T *devicePtr(int v) { return &ptr_[v*pitch2_]; }
+	size_t pixelPitch() const { return pitch2_; }
+	T *devicePtr() const { return ptr_; };
+	__host__ __device__ T *devicePtr(int v) const { return &ptr_[v*pitch2_]; }
 	__host__ __device__ int width() const { return width_; }
 	__host__ __device__ int height() const { return height_; }
 	__host__ __device__ cudaTextureObject_t cudaTexture() const { return texobj_; }
 
 	#ifdef __CUDACC__
-	__device__ inline T tex2D(int u, int v) { return ::tex2D<T>(texobj_, u, v); }
-	__device__ inline T tex2D(float u, float v) { return ::tex2D<T>(texobj_, u, v); }
+	__device__ inline T tex2D(int u, int v) const { return ::tex2D<T>(texobj_, u, v); }
+	__device__ inline T tex2D(float u, float v) const { return ::tex2D<T>(texobj_, u, v); }
 	#endif
 
 	__host__ __device__ inline const T &operator()(int u, int v) const { return ptr_[u+v*pitch2_]; }
@@ -131,22 +137,25 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 template <typename T>
 TextureObject<T>::TextureObject(size_t width, size_t height) {
 	cudaMallocPitch((void**)&ptr_,&pitch_,width*sizeof(T),height);
-
-	cudaResourceDesc resDesc;
-	memset(&resDesc, 0, sizeof(resDesc));
-	resDesc.resType = cudaResourceTypePitch2D;
-	resDesc.res.pitch2D.devPtr = ptr_;
-	resDesc.res.pitch2D.pitchInBytes = pitch_;
-	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
-	resDesc.res.pitch2D.width = width;
-	resDesc.res.pitch2D.height = height;
-
-	cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.readMode = cudaReadModeElementType;
-
 	cudaTextureObject_t tex = 0;
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+
+	// Must be an even
+	//if (!(sizeof(T) & 0x1)) {
+		cudaResourceDesc resDesc;
+		memset(&resDesc, 0, sizeof(resDesc));
+		resDesc.resType = cudaResourceTypePitch2D;
+		resDesc.res.pitch2D.devPtr = ptr_;
+		resDesc.res.pitch2D.pitchInBytes = pitch_;
+		resDesc.res.pitch2D.desc = cudaCreateChannelDesc<T>();
+		resDesc.res.pitch2D.width = width;
+		resDesc.res.pitch2D.height = height;
+
+		cudaTextureDesc texDesc;
+		memset(&texDesc, 0, sizeof(texDesc));
+		texDesc.readMode = cudaReadModeElementType;
+		cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+	//}
+
 	texobj_ = tex;
 	width_ = (int)width;
 	height_ = (int)height;
@@ -156,7 +165,18 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 }
 
 template <typename T>
-TextureObject<T>::TextureObject(const TextureObject &p) {
+TextureObject<T>::TextureObject(const TextureObject<T> &p) {
+	texobj_ = p.texobj_;
+	ptr_ = p.ptr_;
+	width_ = p.width_;
+	height_ = p.height_;
+	pitch_ = p.pitch_;
+	pitch2_ = pitch_ / sizeof(T);
+	needsfree_ = false;
+}
+
+template <typename T>
+TextureObject<T>::TextureObject(TextureObject<T> &&p) {
 	texobj_ = p.texobj_;
 	ptr_ = p.ptr_;
 	width_ = p.width_;
@@ -164,7 +184,36 @@ TextureObject<T>::TextureObject(const TextureObject &p) {
 	pitch_ = p.pitch_;
 	pitch2_ = pitch_ / sizeof(T);
 	needsfree_ = p.needsfree_;
-	//needsdestroy_ = false;
+	p.texobj_ = 0;
+	p.needsfree_ = false;
+	p.ptr_ = nullptr;
+}
+
+template <typename T>
+TextureObject<T> &TextureObject<T>::operator=(const TextureObject<T> &p) {
+	texobj_ = p.texobj_;
+	ptr_ = p.ptr_;
+	width_ = p.width_;
+	height_ = p.height_;
+	pitch_ = p.pitch_;
+	pitch2_ = pitch_ / sizeof(T);
+	needsfree_ = false;
+	return *this;
+}
+
+template <typename T>
+TextureObject<T> &TextureObject<T>::operator=(TextureObject<T> &&p) {
+	texobj_ = p.texobj_;
+	ptr_ = p.ptr_;
+	width_ = p.width_;
+	height_ = p.height_;
+	pitch_ = p.pitch_;
+	pitch2_ = pitch_ / sizeof(T);
+	needsfree_ = p.needsfree_;
+	p.texobj_ = 0;
+	p.needsfree_ = false;
+	p.ptr_ = nullptr;
+	return *this;
 }
 
 template <typename T>

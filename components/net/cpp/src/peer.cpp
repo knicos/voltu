@@ -61,7 +61,7 @@ ftl::UUID ftl::net::this_peer;
 
 //static ctpl::thread_pool pool(5);
 
-// TODO(nick) Move to tcp_internal.cpp
+// TODO:(nick) Move to tcp_internal.cpp
 static SOCKET tcpConnect(URI &uri) {
 	int rc;
 	//sockaddr_in destAddr;
@@ -109,13 +109,13 @@ static SOCKET tcpConnect(URI &uri) {
 	fcntl(csocket, F_SETFL, arg);
 #endif
 
-	// TODO(Nick) - Check all returned addresses.
+	// TODO:(Nick) - Check all returned addresses.
 	auto addr = addrs;
 	rc = ::connect(csocket, addr->ai_addr, (socklen_t)addr->ai_addrlen);
 
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {
-			// TODO(Nick) Move to main select thread to prevent blocking
+			// FIXME:(Nick) Move to main select thread to prevent blocking
 			fd_set myset; 
 			struct timeval tv;
 			tv.tv_sec = 1; 
@@ -306,14 +306,14 @@ bool Peer::reconnect() {
 		}
 	}
 
-	// TODO(Nick) allow for other protocols in reconnect
+	// TODO:(Nick) allow for other protocols in reconnect
 	return false;
 }
 
 void Peer::_updateURI() {
 	sockaddr_storage addr;
 
-	// TODO(Nick) Get actual protocol...
+	// FIXME:(Nick) Get actual protocol...
 	scheme_ = ftl::URI::SCHEME_TCP;
 
 	int rsize = sizeof(sockaddr_storage);
@@ -332,8 +332,6 @@ void Peer::_updateURI() {
 			inet_ntop(AF_INET6, &s->sin6_addr, addrbuf, INET6_ADDRSTRLEN);
 			port = s->sin6_port;
 		}
-		
-		// TODO verify tcp or udp etc.
 		
 		uri_ = std::string("tcp://")+addrbuf;
 		uri_ += ":";
@@ -394,10 +392,6 @@ void Peer::error(int e) {
 }
 
 void Peer::data() {
-	// TODO(Nick) Should not enter here twice if recv call has yet to be
-	// processed.
-	//if (!is_waiting_) return;
-	//is_waiting_ = false;
 	UNIQUE_LOCK(recv_mtx_,lk);
 	recv_buf_.reserve_buffer(kMaxMessage);
 
@@ -496,7 +490,7 @@ bool Peer::_data() {
 }
 
 void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
-	// TODO Handle error reporting...
+	// TODO: Handle error reporting...
 	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
 		DLOG(1) << "Received return RPC value";
@@ -569,7 +563,7 @@ int Peer::_send() {
 		size_t len = 0;
 		const iovec *sendvec = send_buf_.vector();
 		size_t size = send_buf_.vector_size();
-		char buf[20];  // TODO(nick) Should not be a stack buffer.
+		char buf[20];
 		
 		// Calculate total size of message
 		for (size_t i=1; i < size; i++) {
@@ -592,8 +586,6 @@ int Peer::_send() {
 	}
 	
 #ifdef WIN32
-	// TODO(nick) Use WSASend instead as equivalent to writev
-
 	auto send_vec = send_buf_.vector();
 	auto send_size = send_buf_.vector_size();
 	vector<WSABUF> wsabuf(send_size);

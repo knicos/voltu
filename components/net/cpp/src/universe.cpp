@@ -118,7 +118,7 @@ int Universe::_setDescriptors() {
 
 	SOCKET n = 0;
 
-	// TODO Shared lock for some of the time...
+	// TODO: Shared lock for some of the time...
 	UNIQUE_LOCK(net_mutex_,lk);
 
 	//Set file descriptor for the listening sockets.
@@ -198,49 +198,6 @@ Peer *Universe::getPeer(const UUID &id) const {
 	if (ix == peer_ids_.end()) return nullptr;
 	else return ix->second;
 }
-
-/*optional<UUID> Universe::findOwner(const string &res) {
-	// TODO(nick) cache this information
-	return findOne<UUID>("__owner__", res);
-}
-
-bool Universe::createResource(const std::string &uri) {
-	owned_.insert(uri);
-	subscribers_[uri];
-	return true;
-}
-
-// TODO (nick) Add URI version and correctly parse URI query parameters
-int Universe::numberOfSubscribers(const std::string &res) const {
-	auto s = subscribers_.find(res);
-	if (s != subscribers_.end()) {
-		return (int)s->second.size();
-	} else {
-		return -1;
-	}
-}
-
-bool Universe::hasSubscribers(const std::string &res) const {
-	// FIXME (nick) Need to parse URI and correct query order
-	return numberOfSubscribers(res) > 0;
-}
-
-bool Universe::hasSubscribers(const ftl::URI &res) const {
-	return numberOfSubscribers(res.to_string()) > 0;
-}
-
-bool Universe::_subscribe(const std::string &res) {
-	// Need to find who owns the resource
-	optional<UUID> pid = findOwner(res);
-	
-	if (pid) {
-		return call<bool>(*pid, "__subscribe__", this_peer, res);
-	} else {
-		// No resource found
-		LOG(WARNING) << "Subscribe to unknown resource: " << res;
-		return false;
-	}
-}*/
 
 void Universe::_periodic() {
 	auto i = reconnects_.begin();
@@ -344,7 +301,6 @@ void Universe::_run() {
 			}
 		}
 
-		// TODO(Nick) Might switch to shared lock here?
 		{
 			SHARED_LOCK(net_mutex_, lk);
 
@@ -368,9 +324,6 @@ void Universe::_run() {
 				}
 			}
 		}
-
-		// TODO(Nick) Don't always need to call this
-		//_cleanupPeers();
 	}
 }
 

@@ -46,6 +46,7 @@ inline float kelvinFactor(int temp) {
 	return (float)std::get<C>(kelvin_table[index]) / 255.0f;
 }
 
+// TODO: Implement CUDA version
 void ftl::rgbd::colourCorrection(cv::Mat &img, float gamma, int temp) {
 	using namespace cv;
 
@@ -53,7 +54,7 @@ void ftl::rgbd::colourCorrection(cv::Mat &img, float gamma, int temp) {
 	Mat lutGreen(1, 256, CV_8U);
 	Mat lutBlue(1, 256, CV_8U);
 
-	// TODO(Nick): Cache these lookup tables if used every frame...
+	// TODO:(Nick) Cache these lookup tables if used every frame...
     uchar* pr = lutRed.ptr();
 	uchar* pg = lutGreen.ptr();
 	uchar* pb = lutBlue.ptr();

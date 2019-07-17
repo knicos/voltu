@@ -11,6 +11,8 @@
 #include <Eigen/Eigen>
 #include <string>
 
+#include <ftl/cuda_common.hpp>
+
 namespace ftl {
 
 namespace net {
@@ -68,7 +70,7 @@ class Source : public ftl::Configurable {
 	/**
 	 * Is this source valid and ready to grab?.
 	 */
-	bool isReady() { return (impl_) ? impl_->isReady() : false; }
+	bool isReady() { return (impl_) ? impl_->isReady() : params_.width != 0; }
 
 	/**
 	 * Change the second channel source.
@@ -105,6 +107,16 @@ class Source : public ftl::Configurable {
 	 * Get a copy of the depth frame only.
 	 */
 	void getDepth(cv::Mat &d);
+
+	/**
+	 * Write frames into source buffers from an external renderer. Virtual
+	 * sources do not have an internal generator of frames but instead have
+	 * their data provided from an external rendering class. This function only
+	 * works when there is no internal generator.
+	 */
+	void writeFrames(const cv::Mat &rgb, const cv::Mat &depth);
+	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
+	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
 
 	/**
 	 * Directly upload source RGB and Depth to GPU.

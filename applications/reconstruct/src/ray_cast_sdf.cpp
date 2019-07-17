@@ -2,6 +2,7 @@
 
 #include <ftl/voxel_hash.hpp>
 #include "compactors.hpp"
+#include "splat_render_cuda.hpp"
 
 //#include "Util.h"
 
@@ -62,8 +63,9 @@ void CUDARayCastSDF::render(ftl::voxhash::HashData& hashData, ftl::voxhash::Hash
 
 	compactifyHashEntries(hashData, hashParams, stream);
 
-	if (hash_render_) nickRenderCUDA(hashData, hashParams, m_data, m_params, stream);
-	else renderCS(hashData, m_data, m_params, stream);
+	if (hash_render_) {
+		//ftl::cuda::isosurface_point_image(hashData, hashParams, m_data, m_params, stream);
+	} else renderCS(hashData, m_data, m_params, stream);
 
 	//convertToCameraSpace(cameraData);
 	//if (!m_params.m_useGradients)

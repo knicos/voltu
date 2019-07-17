@@ -37,7 +37,7 @@ void Disparity::_register(const std::string &n,
 	(*algorithms__)[n] = f;
 }
 
-// TODO(Nick) Add remaining algorithms
+// TODO:(Nick) Add remaining algorithms
 /*
 #include "algorithms/rtcensus.hpp"
 static ftl::rgbd::detail::Disparity::Register rtcensus("rtcensus", ftl::algorithms::RTCensus::create);
