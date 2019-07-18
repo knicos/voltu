@@ -30,6 +30,7 @@ Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matri
 	impl_ = nullptr;
 	params_ = {0};
 	stream_ = 0;
+	timestamp_ = 0;
 	reset();
 
 	on("uri", [this](const ftl::config::Event &e) {
@@ -42,6 +43,7 @@ Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable
 	impl_ = nullptr;
 	params_ = {0};
 	stream_ = 0;
+	timestamp_ = 0;
 	reset();
 
 	on("uri", [this](const ftl::config::Event &e) {
@@ -228,6 +230,7 @@ bool Source::grab() {
 		stream_ = 0;
 		return true;
 	} else if (impl_ && impl_->grab(-1,-1)) {
+		timestamp_ = impl_->timestamp_;
 		impl_->rgb_.copyTo(rgb_);
 		impl_->depth_.copyTo(depth_);
 		return true;
