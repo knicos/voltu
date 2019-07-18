@@ -82,7 +82,7 @@ class Source : public ftl::Configurable {
 	/**
 	 * Perform the hardware or virtual frame grab operation. 
 	 */
-	bool grab();
+	bool grab(int N=-1, int B=-1);
 
 	/**
 	 * Do any post-grab processing. This function

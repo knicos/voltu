@@ -222,14 +222,14 @@ void Source::reset() {
 	impl_ = _createImplementation();
 }
 
-bool Source::grab() {
+bool Source::grab(int N, int B) {
 	UNIQUE_LOCK(mutex_,lk);
 	if (!impl_ && stream_ != 0) {
 		cudaSafeCall(cudaStreamSynchronize(stream_));
 		if (depth_.type() == CV_32SC1) depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
 		stream_ = 0;
 		return true;
-	} else if (impl_ && impl_->grab(-1,-1)) {
+	} else if (impl_ && impl_->grab(N,B)) {
 		timestamp_ = impl_->timestamp_;
 		impl_->rgb_.copyTo(rgb_);
 		impl_->depth_.copyTo(depth_);
