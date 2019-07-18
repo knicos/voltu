@@ -121,6 +121,12 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 	int cx = (chunk % chunks_dim_) * chunk_width_;
 	int cy = (chunk / chunks_dim_) * chunk_height_;
 
+	// Make certain last frame has finished decoding before swap
+	while (frame > current_frame_ && chunk_count_ < 16 && chunk_count_ > 0) {
+		LOG(WARNING) << "Previous frame not complete: " << frame;
+		std::this_thread::yield();
+	}
+
 	// Lock host to prevent grab
 	UNIQUE_LOCK(host_->mutex(),lk);
 
@@ -128,6 +134,8 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 	if (frame > current_frame_) {
 		// Lock host to prevent grab
 		//UNIQUE_LOCK(host_->mutex(),lk);
+
+		chunk_count_ = 0;
 
 		// Swap the double buffers
 		cv::Mat tmp;
@@ -176,6 +184,7 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 		}
 	}
 
+	++chunk_count_;
 	if (chunk == 0) {
 		N_--;
 	}
@@ -232,6 +241,7 @@ void NetSource::_updateURI() {
 		chunks_dim_ = ftl::rgbd::kChunkDim;
 		chunk_width_ = params_.width / chunks_dim_;
 		chunk_height_ = params_.height / chunks_dim_;
+		chunk_count_ = 0;
 		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
 		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
 		d_rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));

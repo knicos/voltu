@@ -48,6 +48,7 @@ class NetSource : public detail::Source {
 	int default_quality_;
 	ftl::rgbd::channel_t prev_chan_;
 	int64_t current_frame_;
+	int chunk_count_;
 
 	// Double buffering
 	cv::Mat d_depth_;
