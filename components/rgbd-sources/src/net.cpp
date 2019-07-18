@@ -142,6 +142,8 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 		current_frame_ = frame;
 	} else if (frame < current_frame_) {
 		LOG(WARNING) << "Chunk dropped";
+		if (chunk == 0) N_--;
+		return;
 	}
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
