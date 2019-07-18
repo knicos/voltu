@@ -195,8 +195,9 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 			LOG(INFO) << "Peer elected to disconnect: " << id().to_string();
 		});
 
-		bind("__ping__", [this](unsigned long long timestamp) {
-			return timestamp;
+		bind("__ping__", [this]() {
+			auto now = std::chrono::high_resolution_clock::now();
+			return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
 		});
 
 		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer); 
@@ -269,8 +270,9 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 			LOG(INFO) << "Peer elected to disconnect: " << id().to_string();
 		});
 
-		bind("__ping__", [this](unsigned long long timestamp) {
-			return timestamp;
+		bind("__ping__", [this]() {
+			auto now = std::chrono::high_resolution_clock::now();
+			return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
 		});
 	}
 }

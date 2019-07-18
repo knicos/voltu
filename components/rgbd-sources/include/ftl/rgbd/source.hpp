@@ -118,6 +118,8 @@ class Source : public ftl::Configurable {
 	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
 	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
 
+	int64_t timestamp() const { return (impl_) ? impl_->timestamp_ : 0; }
+
 	/**
 	 * Directly upload source RGB and Depth to GPU.
 	 */
@@ -201,6 +203,7 @@ class Source : public ftl::Configurable {
 	bool paused_;
 	bool bullet_;
 	channel_t channel_;
+	cudaStream_t stream_;
 
 	detail::Source *_createImplementation();
 	detail::Source *_createFileImpl(const ftl::URI &uri);

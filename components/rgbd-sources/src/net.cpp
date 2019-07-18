@@ -59,7 +59,7 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 }
 
 NetSource::NetSource(ftl::rgbd::Source *host)
-		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1) {
+		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1), current_frame_(0) {
 
 	gamma_ = host->value("gamma", 1.0f);
 	temperature_ = host->value("temperature", 6500);
@@ -105,10 +105,30 @@ NetSource::~NetSource() {
 	host_->getNet()->removeCallback(h_);
 }
 
-void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 	cv::Mat tmp_rgb, tmp_depth;
 
 	if (!active_) return;
+
+	// A new frame has been started... finish the last one
+	if (frame > current_frame_) {
+		// Lock host to prevent grab
+		UNIQUE_LOCK(host_->mutex(),lk);
+
+		// Swap the double buffers
+		cv::Mat tmp;
+		tmp = rgb_;
+		rgb_ = d_rgb_;
+		d_rgb_ = tmp;
+		tmp = depth_;
+		depth_ = d_depth_;
+		d_depth_ = tmp;
+
+		timestamp_ = current_frame_*40;  // FIXME: Don't hardcode 40ms
+		current_frame_ = frame;
+	} else if (frame < current_frame_) {
+		LOG(WARNING) << "Chunk dropped";
+	}
 
 	// Decode in temporary buffers to prevent long locks
 	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
@@ -123,10 +143,12 @@ void NetSource::_recvChunk(int frame, int chunk, bool delta, const vector<unsign
 
 	// Lock host to prevent grab
 	UNIQUE_LOCK(host_->mutex(),lk);
+
+	// TODO:(Nick) Decode directly into double buffer if no scaling
 	
 	cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
-	cv::Mat chunkRGB = rgb_(roi);
-	cv::Mat chunkDepth = depth_(roi);
+	cv::Mat chunkRGB = d_rgb_(roi);
+	cv::Mat chunkDepth = d_depth_(roi);
 
 	// Original size so just copy
 	if (tmp_rgb.cols == chunkRGB.cols) {
@@ -191,7 +213,7 @@ void NetSource::_updateURI() {
 
 		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_);
 
-		host_->getNet()->bind(*uri, [this](int frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+		host_->getNet()->bind(*uri, [this](int64_t frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 			_recvChunk(frame, chunk, delta, jpg, d);
 		});
 
@@ -210,6 +232,8 @@ void NetSource::_updateURI() {
 		chunk_height_ = params_.height / chunks_dim_;
 		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
 		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
+		d_rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
+		d_depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
 
 		uri_ = *uri;
 		active_ = true;

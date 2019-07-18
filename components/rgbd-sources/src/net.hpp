@@ -47,10 +47,15 @@ class NetSource : public detail::Source {
 	int maxN_;
 	int default_quality_;
 	ftl::rgbd::channel_t prev_chan_;
+	int64_t current_frame_;
+
+	// Double buffering
+	cv::Mat d_depth_;
+	cv::Mat d_rgb_;
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
-	void _recvChunk(int frame, int chunk, bool delta, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
+	void _recvChunk(int64_t frame, int chunk, bool delta, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
 	void _updateURI();
 };
 

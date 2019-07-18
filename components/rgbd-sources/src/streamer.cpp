@@ -29,6 +29,8 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	active_ = false;
 	net_ = net;
+	time_peer_ = ftl::UUID(0);
+	clock_adjust_ = 0;
 
 	compress_level_ = value("compression", 1);
 	
@@ -99,13 +101,13 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		}
 	});
 
-	net->bind("sync_streams", [this](unsigned long long time) {
+	//net->bind("sync_streams", [this](unsigned long long time) {
 		// Calc timestamp delta
-	});
+	//});
 
-	net->bind("ping_streamer", [this](unsigned long long time) -> unsigned long long {
-		return time;
-	});
+	//net->bind("ping_streamer", [this](unsigned long long time) -> unsigned long long {
+	//	return time;
+	//});
 }
 
 Streamer::~Streamer() {
@@ -119,8 +121,6 @@ Streamer::~Streamer() {
 }
 
 void Streamer::add(Source *src) {
-	StreamSource *s = nullptr;
-
 	{
 		UNIQUE_LOCK(mutex_,ulk);
 		if (sources_.find(src->getID()) != sources_.end()) return;
@@ -148,9 +148,24 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 		if (rate < 0 || rate >= 10) return;
 		if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
 
-		LOG(INFO) << "Adding Stream Peer: " << peer.to_string() << " rate=" << rate << " N=" << N;
+		DLOG(INFO) << "Adding Stream Peer: " << peer.to_string() << " rate=" << rate << " N=" << N;
 
 		s = sources_[source];
+
+		// Set a time peer for clock sync
+		if (time_peer_ == ftl::UUID(0)) {
+			time_peer_ = peer;
+
+			// Also do a time sync (but should be repeated periodically)
+			auto start = std::chrono::high_resolution_clock::now();
+			int64_t mastertime = net_->call<int64_t>(peer, "__ping__");
+			auto elapsed = std::chrono::high_resolution_clock::now() - start;
+			int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+			clock_adjust_ = mastertime - (std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() + (latency/2));
+			LOG(INFO) << "Clock adjustment: " << clock_adjust_;
+			LOG(INFO) << "Latency: " << (latency / 2);
+			LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
+		}
 	}
 
 	if (!s) return;  // No matching stream
@@ -189,24 +204,36 @@ void Streamer::stop() {
 }
 
 void Streamer::poll() {
-	double wait = 1.0f / 25.0f;  // TODO:(Nick) Should be in config
-	auto start = std::chrono::high_resolution_clock::now();
+	//double wait = 1.0f / 25.0f;  // TODO:(Nick) Should be in config
+	//auto start = std::chrono::high_resolution_clock::now();
+	//int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
+
+	//int64_t msdelay = 40 - (now % 40);
+	//while (msdelay >= 20) {
+	//	sleep_for(milliseconds(10));
+	//	now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+	//	msdelay = 40 - (now % 40);
+	//}
+	//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
+
 	// Create frame jobs at correct FPS interval
 	_schedule();
+	//std::function<void(int)> j = ftl::pool.pop();
+	//if (j) j(-1);
 
-	std::chrono::duration<double> elapsed =
-		std::chrono::high_resolution_clock::now() - start;
+	//std::chrono::duration<double> elapsed =
+	//	std::chrono::high_resolution_clock::now() - start;
 
-	if (elapsed.count() >= wait) {
-		LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
-	} else {
+	//if (elapsed.count() >= wait) {
+		//LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
+	//} else {
 		//LOG(INFO) << "Frame rate @ " << (1.0f / elapsed.count());
 		// Otherwise, wait until next frame should start.
 		// FIXME:(Nick) Is this accurate enough? Almost certainly not
 		// TODO:(Nick) Synchronise by time corrections and use of fixed time points
 		// but this only works if framerate can be achieved.
-		sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
-	}
+		//sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
+	//}
 }
 
 void Streamer::run(bool block) {
@@ -246,6 +273,7 @@ void Streamer::_swap(StreamSource *src) {
 		}
 
 		src->src->getFrames(src->rgb, src->depth);
+
 		//if (!src->rgb.empty() && src->prev_depth.empty()) {
 			//src->prev_depth = cv::Mat(src->rgb.size(), CV_16UC1, cv::Scalar(0));
 			//LOG(INFO) << "Creating prevdepth: " << src->rgb.cols << "," << src->rgb.rows;
@@ -269,6 +297,9 @@ void Streamer::wait() {
 	if (jobs_ != 0) {
 		LOG(FATAL) << "Deadlock detected";
 	}
+
+	// Capture frame number?
+	frame_no_ = last_frame_;
 }
 
 void Streamer::_schedule() {
@@ -276,6 +307,9 @@ void Streamer::_schedule() {
 	//std::mutex job_mtx;
 	//std::condition_variable job_cv;
 	//int jobs = 0;
+
+	//auto now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+	//LOG(INFO) << "Frame time = " << (now-(last_frame_*40)) << "ms";
 
 	// Prevent new clients during processing.
 	SHARED_LOCK(mutex_,slk);
@@ -301,6 +335,31 @@ void Streamer::_schedule() {
 		ftl::pool.push([this,src](int id) {
 			//auto start = std::chrono::high_resolution_clock::now();
 
+			auto start = std::chrono::high_resolution_clock::now();
+			int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
+			int64_t target = now / 40;
+
+			// TODO:(Nick) A now%40 == 0 should be accepted
+			if (target != last_frame_) LOG(WARNING) << "Frame " << "(" << (target-last_frame_) << ") dropped by " << (now%40) << "ms";
+
+			// Use sleep_for for larger delays
+			int64_t msdelay = 40 - (now % 40);
+			//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
+			while (msdelay >= 20) {
+				sleep_for(milliseconds(10));
+				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+				msdelay = 40 - (now % 40);
+			}
+
+			// Spin loop until exact grab time
+			//LOG(INFO) << "Spin Delay: " << (now / 40) << " = " << (40 - (now%40));
+			target = now / 40;
+			while ((now/40) == target) {
+				_mm_pause();  // SSE2 nano pause intrinsic
+				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+			};
+			last_frame_ = now/40;
+
 			try {
 				src->src->grab();
 			} catch (std::exception &ex) {
@@ -310,6 +369,9 @@ void Streamer::_schedule() {
 			catch (...) {
 				LOG(ERROR) << "Unknown exception when grabbing frame";
 			}
+
+			//now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+			//if (now%40 > 0) LOG(INFO) << "Grab in: " << (now%40) << "ms";
 
 			//std::chrono::duration<double> elapsed =
 			//	std::chrono::high_resolution_clock::now() - start;
@@ -405,7 +467,7 @@ void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
 		while (c != src->clients[b].end()) {
 			try {
 				// TODO:(Nick) Send pose and timestamp
-				if (!net_->send((*c).peerid, (*c).uri, 0, chunk, delta, rgb_buf, d_buf)) {
+				if (!net_->send((*c).peerid, (*c).uri, frame_no_, chunk, delta, rgb_buf, d_buf)) {
 					// Send failed so mark as client stream completed
 					(*c).txcount = (*c).txmax;
 				} else {

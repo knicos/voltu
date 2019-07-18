@@ -126,9 +126,10 @@ static void run(ftl::Configurable *root) {
 			active = scene->upload();
 
 			// Make sure previous virtual camera frame has finished rendering
-			stream->wait();
+			//stream->wait();
+			cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 
-			LOG(INFO) << "Heap: " << scene->getHeapFreeCount();
+			//LOG(INFO) << "Heap: " << scene->getHeapFreeCount();
 
 			// Merge new frames into the voxel structure
 			scene->integrate();

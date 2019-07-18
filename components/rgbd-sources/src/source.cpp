@@ -29,6 +29,7 @@ using ftl::rgbd::capability_t;
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
 	params_ = {0};
+	stream_ = 0;
 	reset();
 
 	on("uri", [this](const ftl::config::Event &e) {
@@ -40,6 +41,7 @@ Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matri
 Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(net) {
 	impl_ = nullptr;
 	params_ = {0};
+	stream_ = 0;
 	reset();
 
 	on("uri", [this](const ftl::config::Event &e) {
@@ -220,7 +222,12 @@ void Source::reset() {
 
 bool Source::grab() {
 	UNIQUE_LOCK(mutex_,lk);
-	if (impl_ && impl_->grab(-1,-1)) {
+	if (!impl_ && stream_ != 0) {
+		cudaSafeCall(cudaStreamSynchronize(stream_));
+		if (depth_.type() == CV_32SC1) depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
+		stream_ = 0;
+		return true;
+	} else if (impl_ && impl_->grab(-1,-1)) {
 		impl_->rgb_.copyTo(rgb_);
 		impl_->depth_.copyTo(depth_);
 		return true;
@@ -243,9 +250,9 @@ void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl:
 		cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
 		depth_.create(depth.height(), depth.width(), CV_32SC1);
 		cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(uint), depth_.rows, cudaMemcpyDeviceToHost, stream));
-		cudaSafeCall(cudaStreamSynchronize(stream));  // TODO:(Nick) Don't wait here.
-
-		depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
+		//cudaSafeCall(cudaStreamSynchronize(stream));  // TODO:(Nick) Don't wait here.
+		stream_ = stream;
+		//depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
 	} else {
 		LOG(ERROR) << "writeFrames cannot be done on this source: " << getURI();
 	}
@@ -258,12 +265,17 @@ void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl:
 		cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
 		depth_.create(depth.height(), depth.width(), CV_32FC1);
 		cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(float), depth_.rows, cudaMemcpyDeviceToHost, stream));
-		cudaSafeCall(cudaStreamSynchronize(stream));  // TODO:(Nick) Don't wait here.
+		stream_ = stream;
 	}
 }
 
 bool Source::thumbnail(cv::Mat &t) {
-	if (impl_) {
+	if (!impl_ && stream_ != 0) {
+		cudaSafeCall(cudaStreamSynchronize(stream_));
+		if (depth_.type() == CV_32SC1) depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
+		stream_ = 0;
+		return true;
+	} else if (impl_) {
 		UNIQUE_LOCK(mutex_,lk);
 		impl_->grab(1, 9);
 		impl_->rgb_.copyTo(rgb_);

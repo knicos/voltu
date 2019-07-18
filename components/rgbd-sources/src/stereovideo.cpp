@@ -135,19 +135,19 @@ bool StereoVideoSource::grab(int n, int b) {
 		//rgb_ = lsrc_->cachedLeft();
 		depth_tmp_.download(depth_, stream_);
 
-		stream_.waitForCompletion();
+		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	} else if (chan == ftl::rgbd::kChanRight) {
 		lsrc_->get(left_, right_, stream_);
 		calib_->rectifyStereo(left_, right_, stream_);
 		left_.download(rgb_, stream_);
 		right_.download(depth_, stream_);
-		stream_.waitForCompletion();
+		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	} else {
 		lsrc_->get(left_, right_, stream_);
 		calib_->rectifyStereo(left_, right_, stream_);
 		//rgb_ = lsrc_->cachedLeft();
 		left_.download(rgb_, stream_);
-		stream_.waitForCompletion();
+		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	}
 	return true;
 }
