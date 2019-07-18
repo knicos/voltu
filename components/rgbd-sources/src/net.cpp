@@ -110,10 +110,24 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 
 	if (!active_) return;
 
+	// Decode in temporary buffers to prevent long locks
+	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
+	if (d.size() > 0) cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
+
+	// Apply colour correction to chunk
+	ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
+
+	// Build chunk head
+	int cx = (chunk % chunks_dim_) * chunk_width_;
+	int cy = (chunk / chunks_dim_) * chunk_height_;
+
+	// Lock host to prevent grab
+	UNIQUE_LOCK(host_->mutex(),lk);
+
 	// A new frame has been started... finish the last one
 	if (frame > current_frame_) {
 		// Lock host to prevent grab
-		UNIQUE_LOCK(host_->mutex(),lk);
+		//UNIQUE_LOCK(host_->mutex(),lk);
 
 		// Swap the double buffers
 		cv::Mat tmp;
@@ -129,20 +143,6 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 	} else if (frame < current_frame_) {
 		LOG(WARNING) << "Chunk dropped";
 	}
-
-	// Decode in temporary buffers to prevent long locks
-	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
-	if (d.size() > 0) cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
-
-	// Apply colour correction to chunk
-	ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
-
-	// Build chunk head
-	int cx = (chunk % chunks_dim_) * chunk_width_;
-	int cy = (chunk / chunks_dim_) * chunk_height_;
-
-	// Lock host to prevent grab
-	UNIQUE_LOCK(host_->mutex(),lk);
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
 	
