@@ -83,9 +83,9 @@ CBSegmentation::CBSegmentation(
 		char codebook_size, size_t width, size_t height,
 		float alpha, float beta, float epsilon, float sigma,
 		int T_h, int T_add, int T_del) :
-		size_(codebook_size + 1), width_(width), height_(height),
-		alpha_(alpha), beta_(beta), epsilon_(epsilon), sigma_(sigma),
-		T_h_(T_h), T_add_(T_add), T_del_(T_del) {
+		width_(width), height_(height), size_(codebook_size + 1),
+		T_h_(T_h), T_add_(T_add), T_del_(T_del),
+		alpha_(alpha), beta_(beta), epsilon_(epsilon), sigma_(sigma) {
 	
 	cb_ = vector<Entry>(width * height * size_);
 	for (size_t i = 0; i < cb_.size(); i += size_) {
@@ -167,7 +167,7 @@ bool CBSegmentation::processPixel(CBSegmentation::Pixel &px, CBSegmentation::Cod
 
 	// not found, create new codeword (to empty position or lru h or lfu m)
 	// TODO: Should not prefer H codewords over M codewords?
-	if (size < (size_ - 1)) {
+	if ((size_t)size < (size_ - 1)) {
 		entry = start + size;
 		size++;
 		entry->type = H;
@@ -189,19 +189,19 @@ bool CBSegmentation::processPixel(CBSegmentation::Pixel &px, CBSegmentation::Cod
 }
 
 void CBSegmentation::apply(Mat &in, Mat &out) {
-	if ((out.rows != height_) || (out.cols != width_) 
+	if (((size_t)out.rows != height_) || ((size_t)out.cols != width_) 
 		|| (out.type() != CV_8UC1) || !out.isContinuous()) {
 		out = Mat(height_, width_, CV_8UC1, cv::Scalar(0));
 	}
 	
 	// TODO: thread pool, queue N rows
 	#pragma omp parallel for
-	for (int y = 0; y < height_; ++y) {
+	for (size_t y = 0; y < height_; ++y) {
 		size_t idx = y * width_;
 		uchar *ptr_in = in.ptr<uchar>(y);
 		uchar *ptr_out = out.ptr<uchar>(y);
 		
-		for (int x = 0; x < width_; ++x, ++idx, ptr_in += 3) {
+		for (size_t x = 0; x < width_; ++x, ++idx, ptr_in += 3) {
 			auto px = Pixel(idx, ptr_in, 0, t_);
 			if(processPixel(px)) {
 				ptr_out[x] = 0;

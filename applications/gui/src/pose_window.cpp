@@ -22,7 +22,7 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 }
 
 PoseWindow::PoseWindow(ftl::gui::Screen *screen, const std::string &src)
-		: nanogui::Window(screen, "Pose Adjust"), screen_(screen), src_(src) {
+		: nanogui::Window(screen, "Pose Adjust"), src_(src), screen_(screen) {
 	using namespace nanogui;
 
 	//setLayout(new nanogui::GroupLayout());

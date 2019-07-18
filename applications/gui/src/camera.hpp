@@ -38,7 +38,6 @@ class Camera {
 	void isPaused();
 	const std::vector<ftl::rgbd::channel_t> &availableChannels();
 
-	const GLTexture &thumbnail();
 	const GLTexture &captureFrame();
 
 	nlohmann::json getMetaData();

@@ -62,7 +62,7 @@ inline std::string getOption(map<string, string> &options, const std::string &op
 
 static const float kPI = 3.14159f;
 
-static float calculateZRotation(const vector<Point2f> &points, Size &boardSize) {
+/*static float calculateZRotation(const vector<Point2f> &points, Size &boardSize) {
     Point2f tl = points[boardSize.width * (boardSize.height / 2)];
     Point2f tr = points[boardSize.width * (boardSize.height / 2) + boardSize.width-1];
 
@@ -87,7 +87,7 @@ static Point2f parallaxDistortion(const vector<Point2f> &points, Size &boardSize
     float ddy = dy1 - dy2;
 
     return Point2f(ddx, ddy);
-}
+}*/
 
 static float distanceTop(const Mat &camMatrix, const vector<Point2f> &points, Size &boardSize, float squareSize) {
     Point2f tl = points[0];
@@ -142,7 +142,7 @@ static Rec4f distances(const Mat &camMatrix, const vector<Point2f> &points, Size
 	};
 }
 
-static float distance(const Mat &camMatrix, const vector<Point2f> &points, Size &boardSize, float squareSize) {
+/*static float distance(const Mat &camMatrix, const vector<Point2f> &points, Size &boardSize, float squareSize) {
     Point2f tl = points[boardSize.width * (boardSize.height / 2)];
     Point2f tr = points[boardSize.width * (boardSize.height / 2) + boardSize.width-1];
 
@@ -164,7 +164,7 @@ static Point2f diffY(const vector<Point2f> &pointsA, const vector<Point2f> &poin
     float d2 = trA.y - trB.y;
 
     return Point2f(d1,d2);
-}
+}*/
 
 static const float kDistanceThreshold = 0.005f;
 
@@ -237,7 +237,6 @@ void ftl::calibration::align(map<string, string> &opt) {
 	}
 #endif
 
-    int step = 0;
     bool anaglyph = true;
 
     while (true) {
@@ -292,13 +291,10 @@ void ftl::calibration::align(map<string, string> &opt) {
 			// TODO Check angles also...
 			bool lrValid = std::abs(dists.left-dists.right) <= kDistanceThreshold;
 			bool tbValid = std::abs(dists.top-dists.bottom) <= kDistanceThreshold;
-			bool distValid = lrValid & tbValid;
 			bool tiltUp = dists.top < dists.bottom && !tbValid;
 			bool tiltDown = dists.top > dists.bottom && !tbValid;
 			bool rotLeft = dists.left > dists.right && !lrValid;
 			bool rotRight = dists.left < dists.right && !lrValid;
-
-			float d = (dists.left + dists.right + dists.top + dists.bottom) / 4.0f;
 
 			// TODO Draw lines
             Point2f bl = pointBufA[(boardSize.height-1)*boardSize.width];
@@ -350,13 +346,10 @@ void ftl::calibration::align(map<string, string> &opt) {
                 // TODO Check angles also...
                 bool lrValid = std::abs(dists.left-dists.right) <= kDistanceThreshold;
                 bool tbValid = std::abs(dists.top-dists.bottom) <= kDistanceThreshold;
-                bool distValid = lrValid & tbValid;
                 bool tiltUp = dists.top < dists.bottom && !tbValid;
                 bool tiltDown = dists.top > dists.bottom && !tbValid;
                 bool rotLeft = dists.left > dists.right && !lrValid;
                 bool rotRight = dists.left < dists.right && !lrValid;
-
-                float d = (dists.left + dists.right + dists.top + dists.bottom) / 4.0f;
 
                 // TODO Draw lines
                 Point2f bbl = pointBufB[(boardSize.height-1)*boardSize.width];

@@ -26,7 +26,7 @@ ConfigWindow::ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, con
 
 	configurables_ = ctrl->getConfigurables(peer);
 
-	auto label = new Label(this, "Select Configurable","sans-bold");
+	new Label(this, "Select Configurable","sans-bold");
 
 	auto select = new ComboBox(this, configurables_);
 	select->setCallback([this](int ix) {

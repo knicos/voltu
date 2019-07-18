@@ -5,7 +5,7 @@
 
 using std::vector;
 
-static void gammaCorrection(const cv::Mat &img, const double gamma_){
+/*static void gammaCorrection(const cv::Mat &img, const double gamma_){
 	using namespace cv;
 
     Mat lookUpTable(1, 256, CV_8U);
@@ -15,7 +15,7 @@ static void gammaCorrection(const cv::Mat &img, const double gamma_){
 
     Mat res = img.clone();
     LUT(img, lookUpTable, img);
-}
+}*/
 
 static const std::vector<std::tuple<uchar,uchar,uchar>> kelvin_table = {
     {255,56,0},		// 1000
@@ -41,7 +41,7 @@ static const std::vector<std::tuple<uchar,uchar,uchar>> kelvin_table = {
 template <int C>
 inline float kelvinFactor(int temp) {
 	int index = (temp / 500) - 2;
-	if (index >= kelvin_table.size()) index = kelvin_table.size();
+	if (index >= (int)kelvin_table.size()) index = kelvin_table.size();
 	else if (index < 0) index = 0;
 	return (float)std::get<C>(kelvin_table[index]) / 255.0f;
 }

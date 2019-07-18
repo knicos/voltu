@@ -7,10 +7,10 @@ using ftl::net::Universe;
 using ftl::ctrl::Slave;
 using std::string;
 
-static void netLog(void* user_data, const loguru::Message& message) {
-	Slave *slave = static_cast<Slave*>(user_data);
-	slave->sendLog(message);
-}
+// static void netLog(void* user_data, const loguru::Message& message) {
+//	Slave *slave = static_cast<Slave*>(user_data);
+//	slave->sendLog(message);
+// }
 
 Slave::Slave(Universe *net, ftl::Configurable *root) : net_(net), in_log_(false), active_(true) {
 

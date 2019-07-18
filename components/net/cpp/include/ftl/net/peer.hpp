@@ -331,7 +331,7 @@ int Peer::asyncCall(
 		callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
 	}
 
-	LOG(INFO) << "RPC " << name << "(" << rpcid << ") -> " << uri_;
+	DLOG(INFO) << "RPC " << name << "(" << rpcid << ") -> " << uri_;
 
 	auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 	

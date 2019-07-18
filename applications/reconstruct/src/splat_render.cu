@@ -238,8 +238,8 @@ __global__ void splatting_kernel(
 	const int x = bx + threadIdx.x;
 	const int y = by + threadIdx.y;
 
-	const float camMinDepth = params.camera.m_sensorDepthWorldMin;
-	const float camMaxDepth = params.camera.m_sensorDepthWorldMax;
+	// const float camMinDepth = params.camera.m_sensorDepthWorldMin;
+	// const float camMaxDepth = params.camera.m_sensorDepthWorldMax;
 
 	for (int j=i; j<SPLAT_BUFFER_SIZE; j+=T_PER_BLOCK) {
 		const unsigned int sx = (j % SPLAT_BOUNDS)+bx-SPLAT_RADIUS;
@@ -258,7 +258,7 @@ __global__ void splatting_kernel(
 	const float voxelSquared = params.voxelSize*params.voxelSize;
 	float mindepth = 1000.0f;
 	int minidx = -1;
-	float3 minpos;
+	// float3 minpos;
 
 	//float3 validPos[MAX_VALID];
 	int validIndices[MAX_VALID];
@@ -283,7 +283,7 @@ __global__ void splatting_kernel(
 				if (d < mindepth) {
 					mindepth = d;
 					minidx = idx;
-					minpos = pos;
+					// minpos = pos;
 				}	
 			}
 		}

@@ -120,7 +120,7 @@ Grid::Grid(int rows, int cols, int width, int height,
 }
 
 void Grid::drawGrid(Mat &rgb) {
-	for (size_t i = 0; i < rows_ * cols_; ++i) {	
+	for (int i = 0; i < rows_ * cols_; ++i) {	
 		bool visited = visited_[i];
 		cv::Scalar color = visited ? cv::Scalar(24, 255, 24) : cv::Scalar(24, 24, 255);
 		cv::rectangle(rgb, corners_[i].first, corners_[i].second, color, 2);
@@ -130,7 +130,7 @@ void Grid::drawGrid(Mat &rgb) {
 int Grid::checkGrid(cv::Point p1, cv::Point p2) {
 	// TODO calculate directly
 
-	for (size_t i = 0; i < rows_ * cols_; ++i) {
+	for (int i = 0; i < rows_ * cols_; ++i) {
 		auto &corners = corners_[i];
 		if (p1.x >= corners.first.x &&
 			p1.x <= corners.second.x &&
@@ -148,21 +148,21 @@ int Grid::checkGrid(cv::Point p1, cv::Point p2) {
 }
 
 void Grid::updateGrid(int i) {
-	if (i >= 0 && i < visited_.size() && !visited_[i]) {
+	if (i >= 0 && i < static_cast<int>(visited_.size()) && !visited_[i]) {
 		visited_[i] = true;
 		visited_count_ += 1;
 	}
 }
 
 bool Grid::isVisited(int i) {
-	if (i >= 0 && i < visited_.size()) {
+	if (i >= 0 && i < static_cast<int>(visited_.size())) {
 		return visited_[i];
 	}
 	return false;
 }
 
 bool Grid::isComplete() {
-	return visited_count_ == visited_.size();
+	return visited_count_ == static_cast<int>(visited_.size());
 }
 
 void Grid::reset() {

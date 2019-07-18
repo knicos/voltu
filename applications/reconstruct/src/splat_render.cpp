@@ -19,16 +19,16 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 
 	cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 
-	if (depth1_.width() != camera.width || depth1_.height() != camera.height) {
+	if ((unsigned int)depth1_.width() != camera.width || (unsigned int)depth1_.height() != camera.height) {
 		depth1_ = ftl::cuda::TextureObject<uint>(camera.width, camera.height);
 	}
-	if (colour1_.width() != camera.width || colour1_.height() != camera.height) {
+	if ((unsigned int)colour1_.width() != camera.width || (unsigned int)colour1_.height() != camera.height) {
 		colour1_ = ftl::cuda::TextureObject<uchar4>(camera.width, camera.height);
 	}
-	if (depth2_.width() != camera.width || depth2_.height() != camera.height) {
+	if ((unsigned int)depth2_.width() != camera.width || (unsigned int)depth2_.height() != camera.height) {
 		depth2_ = ftl::cuda::TextureObject<float>(camera.width, camera.height);
 	}
-	if (colour2_.width() != camera.width || colour2_.height() != camera.height) {
+	if ((unsigned int)colour2_.width() != camera.width || (unsigned int)colour2_.height() != camera.height) {
 		colour2_ = ftl::cuda::TextureObject<uchar4>(camera.width, camera.height);
 	}
 

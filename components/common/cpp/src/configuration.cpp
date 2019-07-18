@@ -171,7 +171,6 @@ static void _indexConfig(json_t &cfg) {
 	if (cfg.is_object()) {
 		auto id = cfg["$id"];
 		if (id.is_string()) {
-			LOG(INFO) << "Indexing: " << id.get<string>();
 			config_index[id.get<string>()] = &cfg;
 		}
 

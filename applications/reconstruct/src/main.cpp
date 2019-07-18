@@ -99,15 +99,12 @@ static void run(ftl::Configurable *root) {
 	//virtimpl->setScene(scene);
 	stream->add(virt);
 
-	for (int i=0; i<sources.size(); i++) {
+	for (size_t i=0; i<sources.size(); i++) {
 		Source *in = sources[i];
 		in->setChannel(ftl::rgbd::kChanDepth);
 		stream->add(in);
 		scene->addSource(in);
 	}
-
-	unsigned char frameCount = 0;
-	bool paused = false;
 
 	int active = sources.size();
 	while (ftl::running) {

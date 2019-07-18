@@ -25,7 +25,7 @@ extern "C" void integrateDepthMapCUDA(ftl::voxhash::HashData& hashData, const ft
 //extern "C" void bindInputDepthColorTextures(const DepthCameraData& depthCameraData);
 
 
-SceneRep::SceneRep(nlohmann::json &config) : Configurable(config), do_reset_(false), m_frameCount(0) {
+SceneRep::SceneRep(nlohmann::json &config) : Configurable(config), m_frameCount(0), do_reset_(false) {
 	_initCUDA();
 
 	// Allocates voxel structure on GPU
