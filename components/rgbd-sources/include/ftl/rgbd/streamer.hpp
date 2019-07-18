@@ -114,6 +114,10 @@ class Streamer : public ftl::Configurable {
 	std::condition_variable job_cv_;
 	std::atomic<int> jobs_;
 	int compress_level_;
+	int64_t clock_adjust_;
+	ftl::UUID time_peer_;
+	int64_t last_frame_;
+	int64_t frame_no_;
 
 	void _schedule();
 	void _swap(detail::StreamSource *);

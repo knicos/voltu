@@ -24,7 +24,7 @@ class Source {
 	friend class ftl::rgbd::Source;
 
 	public:
-	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_({0}) { }
+	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_({0}), timestamp_(0) { }
 	virtual ~Source() {}
 
 	/**
@@ -41,6 +41,7 @@ class Source {
 	ftl::rgbd::Camera params_;
 	cv::Mat rgb_;
 	cv::Mat depth_;
+	int64_t timestamp_;
 	//Eigen::Matrix4f pose_;
 };
 
