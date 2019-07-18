@@ -123,7 +123,6 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 
 	// Make certain last frame has finished decoding before swap
 	while (frame > current_frame_ && chunk_count_ < 16 && chunk_count_ > 0) {
-		LOG(WARNING) << "Previous frame not complete: " << frame;
 		std::this_thread::yield();
 	}
 
