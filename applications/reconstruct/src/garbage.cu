@@ -6,7 +6,7 @@ using namespace ftl::voxhash;
 #define T_PER_BLOCK 8
 #define NUM_CUDA_BLOCKS	10000
 
-__global__ void starveVoxelsKernel(HashData hashData) {
+/*__global__ void starveVoxelsKernel(HashData hashData) {
 	int ptr;
 
 	// Stride over all allocated blocks
@@ -32,21 +32,26 @@ void ftl::cuda::starveVoxels(HashData& hashData, const HashParams& hashParams, c
 	cudaSafeCall(cudaDeviceSynchronize());
 	//cutilCheckMsg(__FUNCTION__);
 #endif
-}
+}*/
+
+#define ENTRIES_PER_BLOCK 4
 
 __global__ void clearVoxelsKernel(HashData hashData) {
+	const int lane = threadIdx.x % 16;
+	const int halfWarp = threadIdx.x / 16;
 
 	// Stride over all allocated blocks
-	for (int bi=blockIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
+	for (int bi=blockIdx.x+halfWarp; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS*ENTRIES_PER_BLOCK) {
 
-	const HashEntry& entry = hashData.d_hashCompactified[bi];	
-	hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight = 0;
+	HashEntry *entry = hashData.d_hashCompactified[bi];	
+	//hashData.d_SDFBlocks[entry.ptr + threadIdx.x].weight = 0;
+	entry->voxels[lane] = 0;
 
 	}
 }
 
 void ftl::cuda::clearVoxels(HashData& hashData, const HashParams& hashParams) {
-	const unsigned int threadsPerBlock = SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;
+	const unsigned int threadsPerBlock = 16 * ENTRIES_PER_BLOCK;
 	const dim3 gridSize(NUM_CUDA_BLOCKS, 1);
 	const dim3 blockSize(threadsPerBlock, 1);
 
@@ -54,65 +59,20 @@ void ftl::cuda::clearVoxels(HashData& hashData, const HashParams& hashParams) {
 }
 
 
-__shared__ float	shared_MinSDF[SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE / 2];
-__shared__ uint		shared_MaxWeight[SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE / 2];
-
-
 __global__ void garbageCollectIdentifyKernel(HashData hashData) {
+	const int lane = threadIdx.x % 16;
+	const int halfWarp = threadIdx.x / 16;
 
 	// Stride over all allocated blocks
-	for (int bi=blockIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
+	for (int bi=blockIdx.x+halfWarp; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS * ENTRIES_PER_BLOCK) {
 
-	const HashEntry& entry = hashData.d_hashCompactified[bi];
+	const HashEntry *entry = hashData.d_hashCompactified[bi];
 
-	// Entire block was not touched in this frame, so remove (Nick)
-	/*if (entry.flags != cameraParams.flags & 0xFF) {
-		hashData.d_hashDecision[hashIdx] = 1;
-		return;
-	}*/
-	
-	//uint h = hashData.computeHashPos(entry.pos);
-	//hashData.d_hashDecision[hashIdx] = 1;
-	//if (hashData.d_hashBucketMutex[h] == LOCK_ENTRY)	return;
+	const uint v = entry->voxels[lane];
+	const uint mask = (halfWarp & 0x1) ? 0xFFFF0000 : 0x0000FFFF;
+	uint ballot_result = __ballot_sync(mask, v == 0 || v == 0xFFFFFFFF);
 
-	//if (entry.ptr == FREE_ENTRY) return; //should never happen since we did compactify before
-	//const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-
-	const unsigned int idx0 = entry.ptr + 2*threadIdx.x+0;
-	const unsigned int idx1 = entry.ptr + 2*threadIdx.x+1;
-
-	Voxel v0 = hashData.d_SDFBlocks[idx0];
-	Voxel v1 = hashData.d_SDFBlocks[idx1];
-
-	if (v0.weight == 0)	v0.sdf = PINF;
-	if (v1.weight == 0)	v1.sdf = PINF;
-
-	shared_MinSDF[threadIdx.x] = min(fabsf(v0.sdf), fabsf(v1.sdf));	//init shared memory
-	shared_MaxWeight[threadIdx.x] = max(v0.weight, v1.weight);
-		
-#pragma unroll 1
-	for (uint stride = 2; stride <= blockDim.x; stride <<= 1) {
-		__syncthreads();
-		if ((threadIdx.x  & (stride-1)) == (stride-1)) {
-			shared_MinSDF[threadIdx.x] = min(shared_MinSDF[threadIdx.x-stride/2], shared_MinSDF[threadIdx.x]);
-			shared_MaxWeight[threadIdx.x] = max(shared_MaxWeight[threadIdx.x-stride/2], shared_MaxWeight[threadIdx.x]);
-		}
-	}
-
-	__syncthreads();
-
-	if (threadIdx.x == blockDim.x - 1) {
-		float minSDF = shared_MinSDF[threadIdx.x];
-		uint maxWeight = shared_MaxWeight[threadIdx.x];
-
-		float t = hashData.getTruncation(5.0f); // NICK should not be hardcoded	//MATTHIAS TODO check whether this is a reasonable metric
-
-		if (minSDF >= t || maxWeight == 0) {
-			hashData.d_hashDecision[bi] = 1;
-		} else {
-			hashData.d_hashDecision[bi] = 0; 
-		}
-	}
+	if (lane == 0) hashData.d_hashDecision[bi] = (ballot_result == mask) ? 1 : 0;
 
 	}
 }
@@ -138,18 +98,20 @@ __global__ void garbageCollectFreeKernel(HashData hashData) {
 	// Stride over all allocated blocks
 	for (int bi=blockIdx.x*blockDim.x + threadIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS*blockDim.x) {
 
-	if (hashData.d_hashDecision[bi] != 0) {	//decision to delete the hash entry
+	HashEntry *entry = hashData.d_hashCompactified[bi];
 
-		const HashEntry& entry = hashData.d_hashCompactified[bi];
-		//if (entry.ptr == FREE_ENTRY) return; //should never happen since we did compactify before
+	if ((entry->head.flags & ftl::voxhash::kFlagSurface) == 0) {	//decision to delete the hash entry
 
-		if (hashData.deleteHashEntryElement(entry.pos)) {	//delete hash entry from hash (and performs heap append)
-			const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
+		
+		//if (entry->head.offset == FREE_ENTRY) return; //should never happen since we did compactify before
 
-			#pragma unroll 1
-			for (uint i = 0; i < linBlockSize; i++) {	//clear sdf block: CHECK TODO another kernel?
-				hashData.deleteVoxel(entry.ptr + i);
-			}
+		int3 posI3 = make_int3(entry->head.posXYZ.x, entry->head.posXYZ.y, entry->head.posXYZ.z);
+
+		if (hashData.deleteHashEntryElement(posI3)) {	//delete hash entry from hash (and performs heap append)
+			//#pragma unroll
+			//for (uint i = 0; i < 16; i++) {	//clear sdf block: CHECK TODO another kernel?
+			//	entry->voxels[i] = 0;
+			//}
 		}
 	}
 

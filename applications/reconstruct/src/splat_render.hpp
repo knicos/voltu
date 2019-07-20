@@ -5,7 +5,7 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/depth_camera.hpp>
 #include <ftl/voxel_scene.hpp>
-#include <ftl/ray_cast_util.hpp>
+//#include <ftl/ray_cast_util.hpp>
 #include <ftl/cuda_common.hpp>
 
 #include "splat_params.hpp"

@@ -9,15 +9,16 @@ set(REPSRC
 	src/compactors.cu
 	src/garbage.cu
 	src/integrators.cu
-	src/ray_cast_sdf.cu
+	#src/ray_cast_sdf.cu
 	src/splat_render.cu
 	src/camera_util.cu
 	src/voxel_hash.cu
 	src/voxel_hash.cpp
-	src/ray_cast_sdf.cpp
+	#src/ray_cast_sdf.cpp
 	src/registration.cpp
-	src/virtual_source.cpp
+	#src/virtual_source.cpp
 	src/splat_render.cpp
+	src/dibr.cu
 )
 
 add_executable(ftl-reconstruct ${REPSRC})

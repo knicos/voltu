@@ -63,7 +63,7 @@ using ftl::voxhash::FREE_ENTRY;
 #endif
 }*/
 
-__global__ void compactifyVisibleKernel(HashData hashData, HashParams hashParams, DepthCameraParams camera)
+/*__global__ void compactifyVisibleKernel(HashData hashData, HashParams hashParams, DepthCameraParams camera)
 {
 	//const HashParams& hashParams = c_hashParams;
 	const unsigned int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -122,7 +122,7 @@ void ftl::cuda::compactifyVisible(HashData& hashData, const HashParams& hashPara
 	//cutilCheckMsg(__FUNCTION__);
 #endif
 	//return res;
-}
+}*/
 
 __global__ void compactifyAllocatedKernel(HashData hashData)
 {
@@ -130,9 +130,9 @@ __global__ void compactifyAllocatedKernel(HashData hashData)
 	const unsigned int idx = blockIdx.x*blockDim.x + threadIdx.x;
 #ifdef COMPACTIFY_HASH_SIMPLE
 	if (idx < hashParams.m_hashNumBuckets) {
-		if (hashData.d_hash[idx].ptr != FREE_ENTRY) {
+		if (hashData.d_hash[idx].head.offset != FREE_ENTRY) {
 			int addr = atomicAdd(hashData.d_hashCompactifiedCounter, 1);
-			hashData.d_hashCompactified[addr] = hashData.d_hash[idx];
+			hashData.d_hashCompactified[addr] = &hashData.d_hash[idx];
 		}
 	}
 #else	
@@ -142,7 +142,7 @@ __global__ void compactifyAllocatedKernel(HashData hashData)
 
 	int addrLocal = -1;
 	if (idx < hashParams.m_hashNumBuckets) {
-		if (hashData.d_hash[idx].ptr != FREE_ENTRY) {
+		if (hashData.d_hash[idx].head.offset != FREE_ENTRY) {
 			addrLocal = atomicAdd(&localCounter, 1);
 		}
 	}
@@ -157,12 +157,68 @@ __global__ void compactifyAllocatedKernel(HashData hashData)
 
 	if (addrLocal != -1) {
 		const unsigned int addr = addrGlobal + addrLocal;
-		hashData.d_hashCompactified[addr] = hashData.d_hash[idx];
+		hashData.d_hashCompactified[addr] = &hashData.d_hash[idx];
 	}
 #endif
 }
 
 void ftl::cuda::compactifyAllocated(HashData& hashData, const HashParams& hashParams, cudaStream_t stream) {
+	const unsigned int threadsPerBlock = COMPACTIFY_HASH_THREADS_PER_BLOCK;
+	const dim3 gridSize((hashParams.m_hashNumBuckets + threadsPerBlock - 1) / threadsPerBlock, 1);
+	const dim3 blockSize(threadsPerBlock, 1);
+
+	cudaSafeCall(cudaMemsetAsync(hashData.d_hashCompactifiedCounter, 0, sizeof(int), stream));
+	compactifyAllocatedKernel << <gridSize, blockSize, 0, stream >> >(hashData);
+	//unsigned int res = 0;
+	//cudaSafeCall(cudaMemcpyAsync(&res, hashData.d_hashCompactifiedCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost, stream));
+
+#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
+#endif
+	//return res;
+}
+
+
+__global__ void compactifyOccupiedKernel(HashData hashData)
+{
+	const HashParams& hashParams = c_hashParams;
+	const unsigned int idx = blockIdx.x*blockDim.x + threadIdx.x;
+#ifdef COMPACTIFY_HASH_SIMPLE
+	if (idx < hashParams.m_hashNumBuckets) {
+		if (hashData.d_hash[idx].head.offset != FREE_ENTRY && hashData.d_hash[idx].head.flags & ftl::voxhash::kFlagSurface) {
+			int addr = atomicAdd(hashData.d_hashCompactifiedCounter, 1);
+			hashData.d_hashCompactified[addr] = &hashData.d_hash[idx];
+		}
+	}
+#else	
+	__shared__ int localCounter;
+	if (threadIdx.x == 0) localCounter = 0;
+	__syncthreads();
+
+	int addrLocal = -1;
+	if (idx < hashParams.m_hashNumBuckets) {
+		if (hashData.d_hash[idx].head.offset != FREE_ENTRY && (hashData.d_hash[idx].head.flags & ftl::voxhash::kFlagSurface)) {  // TODO:(Nick) Check voxels for all 0 or all 1
+			addrLocal = atomicAdd(&localCounter, 1);
+		}
+	}
+
+	__syncthreads();
+
+	__shared__ int addrGlobal;
+	if (threadIdx.x == 0 && localCounter > 0) {
+		addrGlobal = atomicAdd(hashData.d_hashCompactifiedCounter, localCounter);
+	}
+	__syncthreads();
+
+	if (addrLocal != -1) {
+		const unsigned int addr = addrGlobal + addrLocal;
+		hashData.d_hashCompactified[addr] = &hashData.d_hash[idx];
+	}
+#endif
+}
+
+void ftl::cuda::compactifyOccupied(HashData& hashData, const HashParams& hashParams, cudaStream_t stream) {
 	const unsigned int threadsPerBlock = COMPACTIFY_HASH_THREADS_PER_BLOCK;
 	const dim3 gridSize((hashParams.m_hashNumBuckets + threadsPerBlock - 1) / threadsPerBlock, 1);
 	const dim3 blockSize(threadsPerBlock, 1);

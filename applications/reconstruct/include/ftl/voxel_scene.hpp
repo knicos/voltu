@@ -17,7 +17,7 @@ namespace voxhash {
 
 struct Cameras {
 	ftl::rgbd::Source *source;
-	DepthCameraData gpu;
+	ftl::voxhash::DepthCamera gpu;
 	DepthCameraParams params;
 	cv::cuda::Stream stream;
 };
@@ -58,13 +58,14 @@ class SceneRep : public ftl::Configurable {
 	//! resets the hash to the initial state (i.e., clears all data)
 	void reset();
 
+	int cameraCount() const { return (int)cameras_.size(); }
+
 
 	ftl::voxhash::HashData& getHashData() { return m_hashData; } 
 
 	HashParams& getHashParams() { return m_hashParams; }
 
-	//! debug only!
-	unsigned int getHeapFreeCount();
+	unsigned int getOccupiedCount();
 
 	//! debug only!
 	void debugHash();
@@ -78,13 +79,14 @@ class SceneRep : public ftl::Configurable {
 	HashParams _parametersFromConfig();
 	void _create(const HashParams& params);
 	void _destroy();
-	void _alloc(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t);
+	void _alloc(int camid, cudaStream_t);
 	void _compactifyVisible(const DepthCameraParams &camera);
 	void _compactifyAllocated();
-	void _integrateDepthMap(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams);
+	//void _integrateDepthMap(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams);
+	void _integrateDepthMaps();
 	void _garbageCollect();
 
-
+	void _updateCameraConstant();
 
 	HashParams		m_hashParams;
 	ftl::voxhash::HashData		m_hashData;

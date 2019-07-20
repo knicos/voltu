@@ -2,35 +2,42 @@
 
 using namespace ftl::voxhash;
 
-#define COLLISION_LIST_SIZE 5
+#define COLLISION_LIST_SIZE 6
+
+__device__ inline uint64_t compactPosition(const int3 &pos) {
+	union __align__(8) {
+	short4 posXYZ;
+	uint64_t pos64;
+	};
+	posXYZ.x = pos.x; posXYZ.y = pos.y; posXYZ.z = pos.z; posXYZ.w = 0;
+	return pos64;
+}
 
 //! returns the hash entry for a given sdf block id; if there was no hash entry the returned entry will have a ptr with FREE_ENTRY set
 __device__ 
-HashEntry HashData::getHashEntryForSDFBlockPos(const int3& sdfBlock) const {
+int HashData::getHashEntryForSDFBlockPos(const int3& sdfBlock) const {
 	uint h = computeHashPos(sdfBlock); //hash
-	int3 pos = sdfBlock;
+	uint64_t pos = compactPosition(sdfBlock);
 
-	HashEntry curr;
+	HashEntryHead curr;
 
 	int i = h;
 	unsigned int maxIter = 0;
 
 	#pragma unroll 2
 	while (maxIter < COLLISION_LIST_SIZE) {
-		curr = d_hash[i];
+		curr = d_hash[i].head;
 
-		if (curr.pos == pos && curr.ptr != FREE_ENTRY) return curr;
-		if (curr.offset == 0) break;
+		if (curr.pos == pos && curr.offset != FREE_ENTRY) return i;
+		if (curr.offset == 0 || curr.offset == FREE_ENTRY) break;
 
 		i +=  curr.offset;  //go to next element in the list
 		i %= (params().m_hashNumBuckets);  //check for overflow
 		++maxIter;
 	}
 
-	// Could not find so return dummy
-	curr.pos = pos;
-	curr.ptr = FREE_ENTRY;
-	return curr;
+	// Could not find
+	return -1;
 }
 
 //for histogram (collisions traversal only)
@@ -39,15 +46,15 @@ unsigned int HashData::getNumHashLinkedList(unsigned int bucketID) {
 	unsigned int listLen = 0;
 
 	unsigned int i = bucketID;	//start with the last entry of the current bucket
-	HashEntry curr;	curr.offset = 0;
+	HashEntryHead curr;	curr.offset = 0;
 
 	unsigned int maxIter = 0;
 
 	#pragma unroll 2 
 	while (maxIter < COLLISION_LIST_SIZE) {
-		curr = d_hash[i];
+		curr = d_hash[i].head;
 
-		if (curr.offset == 0) break;
+		if (curr.offset == 0 || curr.offset == FREE_ENTRY) break;
 
 		i += curr.offset;		//go to next element in the list
 		i %= (params().m_hashNumBuckets);	//check for overflow
@@ -60,18 +67,19 @@ unsigned int HashData::getNumHashLinkedList(unsigned int bucketID) {
 
 //pos in SDF block coordinates
 __device__
-void HashData::allocBlock(const int3& pos, const uchar frame) {
+void HashData::allocBlock(const int3& pos) {
 	uint h = computeHashPos(pos);				//hash bucket
 	uint i = h;
-	HashEntry curr;	curr.offset = 0;
+	HashEntryHead curr;	//curr.offset = 0;
+	const uint64_t pos64 = compactPosition(pos);
 
 	unsigned int maxIter = 0;
 	#pragma  unroll 2
 	while (maxIter < COLLISION_LIST_SIZE) {
 		//offset = curr.offset;
-		curr = d_hash[i];	//TODO MATTHIAS do by reference
-		if (curr.pos == pos && curr.ptr != FREE_ENTRY) return;
-		if (curr.offset == 0) break;
+		curr = d_hash[i].head;	//TODO MATTHIAS do by reference
+		if (curr.pos == pos64 && curr.offset != FREE_ENTRY) return;
+		if (curr.offset == 0 || curr.offset == FREE_ENTRY) break;
 
 		i += curr.offset;		//go to next element in the list
 		i %= (params().m_hashNumBuckets);	//check for overflow
@@ -79,25 +87,32 @@ void HashData::allocBlock(const int3& pos, const uchar frame) {
 	}
 
 	// Limit reached...
-	if (curr.offset != 0) return;
+	//if (maxIter == COLLISION_LIST_SIZE) return;
 
-	int j = i+1;
+	int j = i;
 	while (maxIter < COLLISION_LIST_SIZE) {
 		//offset = curr.offset;
-		curr = d_hash[j];	//TODO MATTHIAS do by reference
-		if (curr.ptr == FREE_ENTRY) {
+
+		if (curr.offset == FREE_ENTRY) {
 			int prevValue = atomicExch(&d_hashBucketMutex[i], LOCK_ENTRY);
 			if (prevValue != LOCK_ENTRY) {
-				//InterlockedExchange(g_HashBucketMutex[h], LOCK_ENTRY, prevValue);	//lock the hash bucket where we have found a free entry
-				prevValue = atomicExch(&d_hashBucketMutex[j], LOCK_ENTRY);
-				if (prevValue != LOCK_ENTRY) {	//only proceed if the bucket has been locked
-					HashEntry& entry = d_hash[j];
-					entry.pos = pos;
+				if (i == j) {
+					HashEntryHead& entry = d_hash[j].head;
+					entry.pos = pos64;
 					entry.offset = 0;
-					entry.flags = 0;  // Flag block as valid in this frame (Nick)		
-					entry.ptr = consumeHeap() * SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;	//memory alloc
-					d_hash[i].offset = j-i;
-					//setHashEntry(g_Hash, idxLastEntryInBucket, lastEntryInBucket);
+					entry.flags = 0;
+				} else {
+					//InterlockedExchange(g_HashBucketMutex[h], LOCK_ENTRY, prevValue);	//lock the hash bucket where we have found a free entry
+					prevValue = atomicExch(&d_hashBucketMutex[j], LOCK_ENTRY);
+					if (prevValue != LOCK_ENTRY) {	//only proceed if the bucket has been locked
+						HashEntryHead& entry = d_hash[j].head;
+						entry.pos = pos64;
+						entry.offset = 0;
+						entry.flags = 0;  // Flag block as valid in this frame (Nick)		
+						//entry.ptr = consumeHeap() * SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;	//memory alloc
+						d_hash[i].head.offset = j-i;
+						//setHashEntry(g_Hash, idxLastEntryInBucket, lastEntryInBucket);
+					}
 				}
 			} 
 			return;	//bucket was already locked
@@ -105,6 +120,7 @@ void HashData::allocBlock(const int3& pos, const uchar frame) {
 
 		++j;
 		j %= (params().m_hashNumBuckets);	//check for overflow
+		curr = d_hash[j].head;	//TODO MATTHIAS do by reference
 		++maxIter;
 	}
 }
@@ -194,18 +210,19 @@ bool HashData::insertHashEntry(HashEntry entry)
 __device__
 bool HashData::deleteHashEntryElement(const int3& sdfBlock) {
 	uint h = computeHashPos(sdfBlock);	//hash bucket
+	const uint64_t pos = compactPosition(sdfBlock);
 
 	int i = h;
 	int prev = -1;
-	HashEntry curr;
+	HashEntryHead curr;
 	unsigned int maxIter = 0;
 
 	#pragma  unroll 2 
 	while (maxIter < COLLISION_LIST_SIZE) {
-		curr = d_hash[i];
+		curr = d_hash[i].head;
 	
 		//found that dude that we need/want to delete
-		if (curr.pos == sdfBlock && curr.ptr != FREE_ENTRY) {
+		if (curr.pos == pos && curr.offset != FREE_ENTRY) {
 			//int prevValue = 0;
 			//InterlockedExchange(bucketMutex[h], LOCK_ENTRY, prevValue);	//lock the hash bucket
 			int prevValue = atomicExch(&d_hashBucketMutex[i], LOCK_ENTRY);
@@ -214,19 +231,19 @@ bool HashData::deleteHashEntryElement(const int3& sdfBlock) {
 				prevValue = (prev >= 0) ? atomicExch(&d_hashBucketMutex[prev], LOCK_ENTRY) : 0;
 				if (prevValue == LOCK_ENTRY)	return false;
 				if (prevValue != LOCK_ENTRY) {
-					const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
-					appendHeap(curr.ptr / linBlockSize);
+					//const uint linBlockSize = SDF_BLOCK_SIZE * SDF_BLOCK_SIZE * SDF_BLOCK_SIZE;
+					//appendHeap(curr.ptr / linBlockSize);
 					deleteHashEntry(i);
 
 					if (prev >= 0) {
-						d_hash[prev].offset = curr.offset;
+						d_hash[prev].head.offset = curr.offset;
 					}
 					return true;
 				}
 			}
 		}
 
-		if (curr.offset == 0) {	//we have found the end of the list
+		if (curr.offset == 0 || curr.offset == FREE_ENTRY) {	//we have found the end of the list
 			return false;	//should actually never happen because we need to find that guy before
 		}
 		prev = i;

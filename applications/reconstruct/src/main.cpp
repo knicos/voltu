@@ -126,10 +126,11 @@ static void run(ftl::Configurable *root) {
 			//stream->wait();
 			cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 
-			//LOG(INFO) << "Heap: " << scene->getHeapFreeCount();
 
 			// Merge new frames into the voxel structure
 			scene->integrate();
+
+			//LOG(INFO) << "Allocated: " << scene->getOccupiedCount();
 
 			// Remove any redundant voxels
 			scene->garbage();

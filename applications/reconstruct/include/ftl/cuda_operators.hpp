@@ -587,6 +587,14 @@ inline __host__ __device__ int3 make_int3(int i)
   int3 t; t.x = i; t.y = i; t.z = i; return t;
 }
 
+__device__ inline int3 make_int3(short3 s) {
+	return make_int3(s.x,s.y,s.z);
+}
+
+__device__ inline int3 make_int3(short4 s) {
+	return make_int3(s.x,s.y,s.z);
+}
+
 // negate
 inline __host__ __device__ int3 operator-(int3 &a)
 {

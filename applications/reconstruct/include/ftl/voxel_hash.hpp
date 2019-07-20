@@ -37,6 +37,7 @@ typedef signed char schar;
 #include <ftl/depth_camera.hpp>
 
 #define SDF_BLOCK_SIZE 8
+#define SDF_BLOCK_SIZE_OLAP 7
 
 #ifndef MINF
 #define MINF __int_as_float(0xff800000)
@@ -54,22 +55,39 @@ namespace voxhash {
 
 //status flags for hash entries
 static const int LOCK_ENTRY = -1;
-static const int FREE_ENTRY = -2;
+static const int FREE_ENTRY = -2147483648;
 static const int NO_OFFSET = 0;
+
+static const uint kFlagSurface = 0x00000001;
+
+struct __align__(16) HashEntryHead {
+	union {
+	short4 posXYZ;		// hash position (lower left corner of SDFBlock))
+	uint64_t pos;
+	};
+	int offset;	// offset for collisions
+	uint flags;
+};
 
 struct __align__(16) HashEntry 
 {
-	int3	pos;		//hash position (lower left corner of SDFBlock))
-	int		ptr;		//pointer into heap to SDFBlock
-	uint	offset;		//offset for collisions
-	uint	flags;		//for interframe checks (Nick)
+	HashEntryHead head;
+	uint voxels[16];  // 512 bits, 1 bit per voxel
 	
-	__device__ void operator=(const struct HashEntry& e) {
+	/*__device__ void operator=(const struct HashEntry& e) {
 		((long long*)this)[0] = ((const long long*)&e)[0];
 		((long long*)this)[1] = ((const long long*)&e)[1];
 		//((int*)this)[4] = ((const int*)&e)[4];
 		((long long*)this)[2] = ((const long long*)&e)[2];
-	}
+		((long long*)this)[2] = ((const long long*)&e)[3];
+		((long long*)this)[2] = ((const long long*)&e)[4];
+		((long long*)this)[2] = ((const long long*)&e)[5];
+		((long long*)this)[2] = ((const long long*)&e)[6];
+		((long long*)this)[2] = ((const long long*)&e)[7];
+		((long long*)this)[2] = ((const long long*)&e)[8];
+		((long long*)this)[2] = ((const long long*)&e)[9];
+		((long long*)this)[2] = ((const long long*)&e)[10];
+	}*/
 };
 
 struct __align__(8) Voxel {
@@ -95,14 +113,14 @@ struct HashData {
 
 	__device__ __host__
 	HashData() {
-		d_heap = NULL;
-		d_heapCounter = NULL;
+		//d_heap = NULL;
+		//d_heapCounter = NULL;
 		d_hash = NULL;
 		d_hashDecision = NULL;
 		d_hashDecisionPrefix = NULL;
 		d_hashCompactified = NULL;
 		d_hashCompactifiedCounter = NULL;
-		d_SDFBlocks = NULL;
+		//d_SDFBlocks = NULL;
 		d_hashBucketMutex = NULL;
 		m_bIsOnGPU = false;
 	}
@@ -166,18 +184,18 @@ struct HashData {
 		//out.color = 0.5f * (v0.color + v1.color);	//exponential running average 
 		
 
-		//float3 c0 = make_float3(v0.color.x, v0.color.y, v0.color.z);
-		//float3 c1 = make_float3(v1.color.x, v1.color.y, v1.color.z);
+		float3 c0 = make_float3(v0.color.x, v0.color.y, v0.color.z);
+		float3 c1 = make_float3(v1.color.x, v1.color.y, v1.color.z);
 
 		//float3 res = (c0.x+c0.y+c0.z == 0) ? c1 : 0.5f*c0 + 0.5f*c1;
 		//float3 res = (c0+c1)/2;
-		//float3 res = (c0 * (float)v0.weight + c1 * (float)v1.weight) / ((float)v0.weight + (float)v1.weight);
+		float3 res = (c0 * (float)v0.weight + c1 * (float)v1.weight) / ((float)v0.weight + (float)v1.weight);
 		//float3 res = c1;
 
-		//out.color.x = (uchar)(res.x+0.5f);	out.color.y = (uchar)(res.y+0.5f); out.color.z = (uchar)(res.z+0.5f);
+		out.color.x = (uchar)(res.x+0.5f);	out.color.y = (uchar)(res.y+0.5f); out.color.z = (uchar)(res.z+0.5f);
 		
 		// Nick: reduces colour flicker but not ideal..
-		out.color = v1.color;
+		//out.color = v1.color;
 
 		// Option 3 (Nick): Use colour with minimum SDF since it should be closest to surface.
 		// Results in stable but pixelated output
@@ -220,20 +238,20 @@ struct HashData {
 
 	__device__ 
 	int3 virtualVoxelPosToSDFBlock(int3 virtualVoxelPos) const {
-		if (virtualVoxelPos.x < 0) virtualVoxelPos.x -= SDF_BLOCK_SIZE-1;
-		if (virtualVoxelPos.y < 0) virtualVoxelPos.y -= SDF_BLOCK_SIZE-1;
-		if (virtualVoxelPos.z < 0) virtualVoxelPos.z -= SDF_BLOCK_SIZE-1;
+		if (virtualVoxelPos.x < 0) virtualVoxelPos.x -= SDF_BLOCK_SIZE_OLAP-1;
+		if (virtualVoxelPos.y < 0) virtualVoxelPos.y -= SDF_BLOCK_SIZE_OLAP-1;
+		if (virtualVoxelPos.z < 0) virtualVoxelPos.z -= SDF_BLOCK_SIZE_OLAP-1;
 
 		return make_int3(
-			virtualVoxelPos.x/SDF_BLOCK_SIZE,
-			virtualVoxelPos.y/SDF_BLOCK_SIZE,
-			virtualVoxelPos.z/SDF_BLOCK_SIZE);
+			virtualVoxelPos.x/SDF_BLOCK_SIZE_OLAP,
+			virtualVoxelPos.y/SDF_BLOCK_SIZE_OLAP,
+			virtualVoxelPos.z/SDF_BLOCK_SIZE_OLAP);
 	}
 
 	// Computes virtual voxel position of corner sample position
 	__device__ 
 	int3 SDFBlockToVirtualVoxelPos(const int3& sdfBlock) const	{
-		return sdfBlock*SDF_BLOCK_SIZE;
+		return sdfBlock*SDF_BLOCK_SIZE_OLAP;
 	}
 
 	__device__ 
@@ -300,7 +318,7 @@ struct HashData {
 
 		//! returns the hash entry for a given worldPos; if there was no hash entry the returned entry will have a ptr with FREE_ENTRY set
 	__device__ 
-	HashEntry getHashEntry(const float3& worldPos) const	{
+	int getHashEntry(const float3& worldPos) const	{
 		//int3 blockID = worldToSDFVirtualVoxelPos(worldPos)/SDF_BLOCK_SIZE;	//position of sdf block
 		int3 blockID = worldToSDFBlock(worldPos);
 		return getHashEntryForSDFBlockPos(blockID);
@@ -314,15 +332,15 @@ struct HashData {
 
 	__device__ 
 		void deleteHashEntry(HashEntry& hashEntry) {
-			hashEntry.pos = make_int3(0);
-			hashEntry.offset = 0;
-			hashEntry.ptr = FREE_ENTRY;
+			hashEntry.head.pos = 0;
+			hashEntry.head.offset = FREE_ENTRY;
+			for (int i=0; i<16; ++i) hashEntry.voxels[i] = 0;
 	}
 
 	__device__ 
 		bool voxelExists(const float3& worldPos) const	{
-			HashEntry hashEntry = getHashEntry(worldPos);
-			return (hashEntry.ptr != FREE_ENTRY);
+			int hashEntry = getHashEntry(worldPos);
+			return (hashEntry != -1);
 	}
 
 	__device__  
@@ -331,48 +349,44 @@ struct HashData {
 		v.weight = 0;
 		v.sdf = 0.0f;
 	}
-	__device__ 
-		void deleteVoxel(uint id) {
-			deleteVoxel(d_SDFBlocks[id]);
-	}
 
 
 	__device__ 
-	Voxel getVoxel(const float3& worldPos) const	{
-		HashEntry hashEntry = getHashEntry(worldPos);
-		Voxel v;
-		if (hashEntry.ptr == FREE_ENTRY) {
-			deleteVoxel(v);			
+	bool getVoxel(const float3& worldPos) const	{
+		int hashEntry = getHashEntry(worldPos);
+		if (hashEntry == -1) {
+			return false;		
 		} else {
 			int3 virtualVoxelPos = worldToVirtualVoxelPos(worldPos);
-			v = d_SDFBlocks[hashEntry.ptr + virtualVoxelPosToLocalSDFBlockIndex(virtualVoxelPos)];
+			int ix = virtualVoxelPosToLocalSDFBlockIndex(virtualVoxelPos);
+			return d_hash[hashEntry].voxels[ix/32] & (0x1 << (ix % 32));
 		}
-		return v;
 	}
 
 	__device__ 
-	Voxel getVoxel(const int3& virtualVoxelPos) const	{
-		HashEntry hashEntry = getHashEntryForSDFBlockPos(virtualVoxelPosToSDFBlock(virtualVoxelPos));
-		Voxel v;
-		if (hashEntry.ptr == FREE_ENTRY) {
-			deleteVoxel(v);			
+	bool getVoxel(const int3& virtualVoxelPos) const	{
+		int hashEntry = getHashEntryForSDFBlockPos(virtualVoxelPosToSDFBlock(virtualVoxelPos));
+		if (hashEntry == -1) {
+			return false;		
 		} else {
-			v = d_SDFBlocks[hashEntry.ptr + virtualVoxelPosToLocalSDFBlockIndex(virtualVoxelPos)];
+			int ix = virtualVoxelPosToLocalSDFBlockIndex(virtualVoxelPos);
+			return d_hash[hashEntry].voxels[ix >> 5] & (0x1 << (ix & 0x1F));
 		}
-		return v;
 	}
 	
-	__device__ 
-	void setVoxel(const int3& virtualVoxelPos, Voxel& voxelInput) const {
-		HashEntry hashEntry = getHashEntryForSDFBlockPos(virtualVoxelPosToSDFBlock(virtualVoxelPos));
-		if (hashEntry.ptr != FREE_ENTRY) {
+	/*__device__ 
+	void setVoxel(const int3& virtualVoxelPos, bool voxelInput) const {
+		int hashEntry = getHashEntryForSDFBlockPos(virtualVoxelPosToSDFBlock(virtualVoxelPos));
+		if (hashEntry == -1) {
 			d_SDFBlocks[hashEntry.ptr + virtualVoxelPosToLocalSDFBlockIndex(virtualVoxelPos)] = voxelInput;
+			int ix = virtualVoxelPosToLocalSDFBlockIndex(virtualVoxelPos);
+			d_hash[hashEntry].voxels[ix >> 5] |= (0x1 << (ix & 0x1F));
 		}
-	}
+	}*/
 
 	//! returns the hash entry for a given sdf block id; if there was no hash entry the returned entry will have a ptr with FREE_ENTRY set
 	__device__ 
-	HashEntry getHashEntryForSDFBlockPos(const int3& sdfBlock) const;
+	int getHashEntryForSDFBlockPos(const int3& sdfBlock) const;
 
 	//for histogram (no collision traversal)
 	__device__ 
@@ -383,22 +397,9 @@ struct HashData {
 	unsigned int getNumHashLinkedList(unsigned int bucketID);
 
 
-	__device__
-	uint consumeHeap() {
-		uint addr = atomicSub(&d_heapCounter[0], 1);
-		//TODO MATTHIAS check some error handling?
-		return d_heap[addr];
-	}
-	__device__
-	void appendHeap(uint ptr) {
-		uint addr = atomicAdd(&d_heapCounter[0], 1);
-		//TODO MATTHIAS check some error handling?
-		d_heap[addr+1] = ptr;
-	}
-
 	//pos in SDF block coordinates
 	__device__
-	void allocBlock(const int3& pos, const uchar frame);
+	void allocBlock(const int3& pos);
 
 	//!inserts a hash entry without allocating any memory: used by streaming: TODO MATTHIAS check the atomics in this function
 	__device__
@@ -410,14 +411,11 @@ struct HashData {
 
 #endif	//CUDACC
 
-	uint*		d_heap;						//heap that manages free memory
-	uint*		d_heapCounter;				//single element; used as an atomic counter (points to the next free block)
 	int*		d_hashDecision;				//
 	int*		d_hashDecisionPrefix;		//
 	HashEntry*	d_hash;						//hash that stores pointers to sdf blocks
-	HashEntry*	d_hashCompactified;			//same as before except that only valid pointers are there
+	HashEntry**	d_hashCompactified;			//same as before except that only valid pointers are there
 	int*		d_hashCompactifiedCounter;	//atomic counter to add compactified entries atomically 
-	Voxel*		d_SDFBlocks;				//sub-blocks that contain 8x8x8 voxels (linearized); are allocated by heap
 	int*		d_hashBucketMutex;			//binary flag per hash bucket; used for allocation to atomically lock a bucket
 
 	bool		m_bIsOnGPU;					//the class be be used on both cpu and gpu

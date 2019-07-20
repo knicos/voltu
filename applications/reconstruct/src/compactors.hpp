@@ -7,12 +7,13 @@ namespace ftl {
 namespace cuda {
 
 // Compact visible
-void compactifyVisible(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraParams &camera, cudaStream_t);
+//void compactifyVisible(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraParams &camera, cudaStream_t);
 
 // Compact allocated
 void compactifyAllocated(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t);
 
 // Compact visible surfaces
+void compactifyOccupied(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t stream);
 
 }
 }

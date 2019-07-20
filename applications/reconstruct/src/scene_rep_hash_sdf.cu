@@ -26,6 +26,7 @@ using ftl::voxhash::FREE_ENTRY;
 __device__ __constant__ HashParams c_hashParams;
 __device__ __constant__ RayCastParams c_rayCastParams;
 //__device__ __constant__ DepthCameraParams c_depthCameraParams;
+__device__ __constant__ ftl::voxhash::DepthCameraCUDA c_cameras[MAX_CAMERAS];
 
 extern "C" void updateConstantHashParams(const HashParams& params) {
 
@@ -40,7 +41,7 @@ extern "C" void updateConstantHashParams(const HashParams& params) {
 	}
 
 
-extern "C" void updateConstantRayCastParams(const RayCastParams& params) {
+/*extern "C" void updateConstantRayCastParams(const RayCastParams& params) {
 	//printf("Update ray cast params\n");
 	size_t size;
 	cudaSafeCall(cudaGetSymbolSize(&size, c_rayCastParams));
@@ -51,30 +52,23 @@ extern "C" void updateConstantRayCastParams(const RayCastParams& params) {
 	//cutilCheckMsg(__FUNCTION__);
 #endif
 
-}
+}*/
 
-/*extern "C" void updateConstantDepthCameraParams(const DepthCameraParams& params) {
+extern "C" void updateCUDACameraConstant(ftl::voxhash::DepthCameraCUDA *data, int count) {
+	if (count == 0 || count >= MAX_CAMERAS) return;
 	//printf("Update depth camera params\n");
 	size_t size;
-	cudaSafeCall(cudaGetSymbolSize(&size, c_depthCameraParams));
-	cudaSafeCall(cudaMemcpyToSymbol(c_depthCameraParams, &params, size, 0, cudaMemcpyHostToDevice));
+	cudaSafeCall(cudaGetSymbolSize(&size, c_cameras));
+	cudaSafeCall(cudaMemcpyToSymbol(c_cameras, data, sizeof(ftl::voxhash::DepthCameraCUDA)*count, 0, cudaMemcpyHostToDevice));
 	
 #ifdef DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
 	//cutilCheckMsg(__FUNCTION__);
 #endif
 
-}*/
-
-extern "C" void bindInputDepthColorTextures(const DepthCameraData& depthCameraData) 
-{
-	/*cudaSafeCall(cudaBindTextureToArray(depthTextureRef, depthCameraData.d_depthArray, depthCameraData.h_depthChannelDesc));
-	cudaSafeCall(cudaBindTextureToArray(colorTextureRef, depthCameraData.d_colorArray, depthCameraData.h_colorChannelDesc));
-	depthTextureRef.filterMode = cudaFilterModePoint;
-	colorTextureRef.filterMode = cudaFilterModePoint;*/
 }
 
-__global__ void resetHeapKernel(HashData hashData) 
+/*__global__ void resetHeapKernel(HashData hashData) 
 {
 	const HashParams& hashParams = c_hashParams;
 	unsigned int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -92,7 +86,7 @@ __global__ void resetHeapKernel(HashData hashData)
 			hashData.deleteVoxel(base_idx+i);
 		}
 	}
-}
+}*/
 
 __global__ void resetHashKernel(HashData hashData) 
 {
@@ -100,7 +94,7 @@ __global__ void resetHashKernel(HashData hashData)
 	const unsigned int idx = blockIdx.x*blockDim.x + threadIdx.x;
 	if (idx < hashParams.m_hashNumBuckets) {
 		hashData.deleteHashEntry(hashData.d_hash[idx]);
-		hashData.deleteHashEntry(hashData.d_hashCompactified[idx]);
+		//hashData.deleteHashEntry(hashData.d_hashCompactified[idx]);
 	}
 }
 
@@ -116,20 +110,20 @@ __global__ void resetHashBucketMutexKernel(HashData hashData)
 
 extern "C" void resetCUDA(HashData& hashData, const HashParams& hashParams)
 {
-	{
+	//{
 		//resetting the heap and SDF blocks
-		const dim3 gridSize((hashParams.m_numSDFBlocks + (T_PER_BLOCK*T_PER_BLOCK) - 1)/(T_PER_BLOCK*T_PER_BLOCK), 1);
-		const dim3 blockSize((T_PER_BLOCK*T_PER_BLOCK), 1);
+		//const dim3 gridSize((hashParams.m_numSDFBlocks + (T_PER_BLOCK*T_PER_BLOCK) - 1)/(T_PER_BLOCK*T_PER_BLOCK), 1);
+		//const dim3 blockSize((T_PER_BLOCK*T_PER_BLOCK), 1);
 
-		resetHeapKernel<<<gridSize, blockSize>>>(hashData);
+		//resetHeapKernel<<<gridSize, blockSize>>>(hashData);
 
 
-		#ifdef _DEBUG
-			cudaSafeCall(cudaDeviceSynchronize());
+		//#ifdef _DEBUG
+		//	cudaSafeCall(cudaDeviceSynchronize());
 			//cutilCheckMsg(__FUNCTION__);
-		#endif
+		//#endif
 
-	}
+	//}
 
 	{
 		//resetting the hash
@@ -212,17 +206,18 @@ bool isSDFBlockStreamedOut(const int3& sdfBlock, const HashData& hashData, const
 // Note: bitMask used for Streaming out code... could be set to nullptr if not streaming out
 // Note: Allocations might need to be around fat rays since multiple voxels could correspond
 // to same depth map pixel at larger distances.
-__global__ void allocKernel(HashData hashData, DepthCameraData cameraData, HashParams hashParams, DepthCameraParams cameraParams) 
+__global__ void allocKernel(HashData hashData, HashParams hashParams, int camnum) 
 {
 	//const HashParams& hashParams = c_hashParams;
-	//const DepthCameraParams& cameraParams = c_depthCameraParams;
+	const ftl::voxhash::DepthCameraCUDA camera = c_cameras[camnum];
+	const DepthCameraParams &cameraParams = camera.params;
 
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x < cameraParams.m_imageWidth && y < cameraParams.m_imageHeight)
 	{
-		float d = tex2D<float>(cameraData.depth_obj_, x, y);
+		float d = tex2D<float>(camera.depth, x, y);
 		//if (d == MINF || d < cameraParams.m_sensorDepthWorldMin || d > cameraParams.m_sensorDepthWorldMax)	return;
 		if (d == MINF || d == 0.0f)	return;
 
@@ -239,10 +234,10 @@ __global__ void allocKernel(HashData hashData, DepthCameraData cameraData, HashP
 		// camera intrinsics? Same as what reprojectTo3D does in OpenCV?
 		float3 rayMin = cameraParams.kinectDepthToSkeleton(x, y, minDepth);
 		// Is the rigid transform then the estimated camera pose?
-		rayMin = hashParams.m_rigidTransform * rayMin;
+		rayMin = camera.pose * rayMin;
 		//printf("Ray min: %f,%f,%f\n", rayMin.x, rayMin.y, rayMin.z);
 		float3 rayMax = cameraParams.kinectDepthToSkeleton(x, y, maxDepth);
-		rayMax = hashParams.m_rigidTransform * rayMax;
+		rayMax = camera.pose * rayMax;
 
 		float3 rayDir = normalize(rayMax - rayMin);
 	
@@ -278,7 +273,7 @@ __global__ void allocKernel(HashData hashData, DepthCameraData cameraData, HashP
 
 			//check if it's in the frustum and not checked out
 			if (hashData.isSDFBlockInCameraFrustumApprox(hashParams, cameraParams, idCurrentVoxel)) { //} && !isSDFBlockStreamedOut(idCurrentVoxel, hashData, d_bitMask)) {		
-				hashData.allocBlock(idCurrentVoxel, cameraParams.flags & 0xFF);
+				hashData.allocBlock(idCurrentVoxel);
 				//printf("Allocate block: %d\n",idCurrentVoxel.x);
 			}
 
@@ -304,7 +299,7 @@ __global__ void allocKernel(HashData hashData, DepthCameraData cameraData, HashP
 	}
 }
 
-extern "C" void allocCUDA(HashData& hashData, const HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream) 
+extern "C" void allocCUDA(HashData& hashData, const HashParams& hashParams, int camnum, const DepthCameraParams &depthCameraParams, cudaStream_t stream) 
 {
 
 	//printf("Allocating: %d\n",depthCameraParams.m_imageWidth);
@@ -312,7 +307,7 @@ extern "C" void allocCUDA(HashData& hashData, const HashParams& hashParams, cons
 	const dim3 gridSize((depthCameraParams.m_imageWidth + T_PER_BLOCK - 1)/T_PER_BLOCK, (depthCameraParams.m_imageHeight + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	allocKernel<<<gridSize, blockSize, 0, stream>>>(hashData, depthCameraData, hashParams, depthCameraParams);
+	allocKernel<<<gridSize, blockSize, 0, stream>>>(hashData, hashParams, camnum);
 
 
 	#ifdef _DEBUG
