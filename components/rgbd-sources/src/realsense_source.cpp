@@ -33,7 +33,7 @@ RealsenseSource::RealsenseSource(ftl::rgbd::Source *host)
     params_.maxDepth = 11.0;
     params_.minDepth = 0.1;
 
-    //LOG(INFO) << "Realsense Intrinsics: " << params_.fx << "," << params_.fy << " - " << params_.cx << "," << params_.cy << " - " << params_.width;
+    LOG(INFO) << "Realsense Intrinsics: " << params_.fx << "," << params_.fy << " - " << params_.cx << "," << params_.cy << " - " << params_.width;
 }
 
 RealsenseSource::~RealsenseSource() {
@@ -41,9 +41,12 @@ RealsenseSource::~RealsenseSource() {
 }
 
 bool RealsenseSource::grab(int n, int b) {
-    rs2::frameset frames = pipe_.wait_for_frames();
-    //rs2::align align(RS2_STREAM_DEPTH);
-    //frames = align_to_depth_.process(frames); //align_to_depth_.process(frames);
+    rs2::frameset frames;
+	if (!pipe_.poll_for_frames(&frames)) return false;  //wait_for_frames();
+
+	//std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+
+	frames = align_to_depth_.process(frames);
 
     rs2::depth_frame depth = frames.get_depth_frame();
     float w = depth.get_width();
