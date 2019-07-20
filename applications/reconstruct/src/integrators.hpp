@@ -7,11 +7,14 @@
 namespace ftl {
 namespace cuda {
 
-void integrateDepthMap(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams,
+/*void integrateDepthMap(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams,
 		const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream);
 
 void integrateRegistration(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams,
 		const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream);
+*/
+
+void integrateDepthMaps(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, int numcams, cudaStream_t stream);
 
 }
 }

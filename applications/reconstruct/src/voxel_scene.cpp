@@ -17,11 +17,11 @@ using std::vector;
 
 extern "C" void resetCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 extern "C" void resetHashBucketMutexCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t);
-extern "C" void allocCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t);
+extern "C" void allocCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, int camid, const DepthCameraParams &depthCameraParams, cudaStream_t);
 //extern "C" void fillDecisionArrayCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData);
 //extern "C" void compactifyHashCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 //extern "C" unsigned int compactifyHashAllInOneCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
-extern "C" void integrateDepthMapCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t);
+//extern "C" void integrateDepthMapCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t);
 //extern "C" void bindInputDepthColorTextures(const DepthCameraData& depthCameraData);
 
 
@@ -97,6 +97,18 @@ void SceneRep::addSource(ftl::rgbd::Source *src) {
 	cam.params.m_imageWidth = 0;
 }
 
+extern "C" void updateCUDACameraConstant(ftl::voxhash::DepthCameraCUDA *data, int count);
+
+void SceneRep::_updateCameraConstant() {
+	std::vector<ftl::voxhash::DepthCameraCUDA> cams(cameras_.size());
+	for (size_t i=0; i<cameras_.size(); ++i) {
+		cams[i] = cameras_[i].gpu.data;
+		cams[i].pose = MatrixConversion::toCUDA(cameras_[i].source->getPose().cast<float>());
+		cams[i].poseInverse = MatrixConversion::toCUDA(cameras_[i].source->getPose().cast<float>().inverse());
+	}
+	updateCUDACameraConstant(cams.data(), cams.size());
+}
+
 int SceneRep::upload() {
 	int active = 0;
 
@@ -130,6 +142,15 @@ int SceneRep::upload() {
 			}
 		}
 
+		cam.params.flags = m_frameCount;
+	}
+
+	_updateCameraConstant();
+	//cudaSafeCall(cudaDeviceSynchronize());
+
+	for (size_t i=0; i<cameras_.size(); ++i) {
+		auto &cam = cameras_[i];
+
 		// Get the RGB-Depth frame from input
 		Source *input = cam.source;
 		Mat rgb, depth;
@@ -145,13 +166,11 @@ int SceneRep::upload() {
 		Mat rgba;
 		cv::cvtColor(rgb,rgba, cv::COLOR_BGR2BGRA);
 
-		cam.params.flags = m_frameCount;
-
 		// Send to GPU and merge view into scene
 		//cam.gpu.updateParams(cam.params);
 		cam.gpu.updateData(depth, rgba, cam.stream);
 
-		setLastRigidTransform(input->getPose().cast<float>());
+		//setLastRigidTransform(input->getPose().cast<float>());
 
 		//make the rigid transform available on the GPU
 		//m_hashData.updateParams(m_hashParams, cv::cuda::StreamAccessor::getStream(cam.stream));
@@ -159,7 +178,7 @@ int SceneRep::upload() {
 		//if (i > 0) cudaSafeCall(cudaStreamSynchronize(cv::cuda::StreamAccessor::getStream(cameras_[i-1].stream)));
 
 		//allocate all hash blocks which are corresponding to depth map entries
-		_alloc(cam.gpu, cam.params, cv::cuda::StreamAccessor::getStream(cam.stream));
+		_alloc(i, cv::cuda::StreamAccessor::getStream(cam.stream));
 	}
 
 	// Must have finished all allocations and rendering before next integration
@@ -169,7 +188,7 @@ int SceneRep::upload() {
 }
 
 void SceneRep::integrate() {
-	for (size_t i=0; i<cameras_.size(); ++i) {
+	/*for (size_t i=0; i<cameras_.size(); ++i) {
 		auto &cam = cameras_[i];
 
 		setLastRigidTransform(cam.source->getPose().cast<float>());
@@ -179,16 +198,19 @@ void SceneRep::integrate() {
 		_compactifyVisible(cam.params);
 
 		//volumetrically integrate the depth data into the depth SDFBlocks
-		_integrateDepthMap(cam.gpu, cam.params);
+		//_integrateDepthMap(cam.gpu, cam.params);
 
 		//_garbageCollect();
 
 		m_numIntegratedFrames++;
-	}
+	}*/
+
+	_compactifyAllocated();
+	_integrateDepthMaps();
 }
 
 void SceneRep::garbage() {
-	_compactifyAllocated();
+	//_compactifyAllocated();
 	_garbageCollect();
 
 	//cudaSafeCall(cudaStreamSynchronize(integ_stream_));
@@ -248,125 +270,17 @@ void SceneRep::nextFrame() {
 void SceneRep::reset() {
 	m_numIntegratedFrames = 0;
 
-	m_hashParams.m_rigidTransform.setIdentity();
-	m_hashParams.m_rigidTransformInverse.setIdentity();
+	//m_hashParams.m_rigidTransform.setIdentity();
+	//m_hashParams.m_rigidTransformInverse.setIdentity();
 	m_hashParams.m_numOccupiedBlocks = 0;
 	m_hashData.updateParams(m_hashParams);
 	resetCUDA(m_hashData, m_hashParams);
 }
 
-//! debug only!
-unsigned int SceneRep::getHeapFreeCount() {
+unsigned int SceneRep::getOccupiedCount() {
 	unsigned int count;
-	cudaSafeCall(cudaMemcpy(&count, m_hashData.d_heapCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost));
+	cudaSafeCall(cudaMemcpy(&count, m_hashData.d_hashCompactifiedCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost));
 	return count+1;	//there is one more free than the address suggests (0 would be also a valid address)
-}
-
-//! debug only!
-void SceneRep::debugHash() {
-	HashEntry* hashCPU = new HashEntry[m_hashParams.m_hashNumBuckets];
-	unsigned int* heapCPU = new unsigned int[m_hashParams.m_numSDFBlocks];
-	unsigned int heapCounterCPU;
-
-	cudaSafeCall(cudaMemcpy(&heapCounterCPU, m_hashData.d_heapCounter, sizeof(unsigned int), cudaMemcpyDeviceToHost));
-	heapCounterCPU++;	//points to the first free entry: number of blocks is one more
-
-	cudaSafeCall(cudaMemcpy(heapCPU, m_hashData.d_heap, sizeof(unsigned int)*m_hashParams.m_numSDFBlocks, cudaMemcpyDeviceToHost));
-	cudaSafeCall(cudaMemcpy(hashCPU, m_hashData.d_hash, sizeof(HashEntry)*m_hashParams.m_hashNumBuckets, cudaMemcpyDeviceToHost));
-
-	//Check for duplicates
-	class myint3Voxel {
-	public:
-		myint3Voxel() {}
-		~myint3Voxel() {}
-		bool operator<(const myint3Voxel& other) const {
-			if (x == other.x) {
-				if (y == other.y) {
-					return z < other.z;
-				}
-				return y < other.y;
-			}
-			return x < other.x;
-		}
-
-		bool operator==(const myint3Voxel& other) const {
-			return x == other.x && y == other.y && z == other.z;
-		}
-
-		int x,y,z, i;
-		int offset;
-		int ptr;
-	}; 
-
-
-	std::unordered_set<unsigned int> pointersFreeHash;
-	std::vector<int> pointersFreeVec(m_hashParams.m_numSDFBlocks, 0);  // CHECK Nick Changed to int from unsigned in
-	for (unsigned int i = 0; i < heapCounterCPU; i++) {
-		pointersFreeHash.insert(heapCPU[i]);
-		pointersFreeVec[heapCPU[i]] = FREE_ENTRY;
-	}
-	if (pointersFreeHash.size() != heapCounterCPU) {
-		throw std::runtime_error("ERROR: duplicate free pointers in heap array");
-	}
-		
-
-	unsigned int numOccupied = 0;
-	unsigned int numMinusOne = 0;
-	//unsigned int listOverallFound = 0;
-
-	std::list<myint3Voxel> l;
-	//std::vector<myint3Voxel> v;
-	
-	for (unsigned int i = 0; i < m_hashParams.m_hashNumBuckets; i++) {
-		if (hashCPU[i].ptr == -1) {
-			numMinusOne++;
-		}
-
-		if (hashCPU[i].ptr != -2) {
-			numOccupied++;	// != FREE_ENTRY
-			myint3Voxel a;	
-			a.x = hashCPU[i].pos.x;
-			a.y = hashCPU[i].pos.y;
-			a.z = hashCPU[i].pos.z;
-			l.push_back(a);
-			//v.push_back(a);
-
-			unsigned int linearBlockSize = m_hashParams.m_SDFBlockSize*m_hashParams.m_SDFBlockSize*m_hashParams.m_SDFBlockSize;
-			if (pointersFreeHash.find(hashCPU[i].ptr / linearBlockSize) != pointersFreeHash.end()) {
-				throw std::runtime_error("ERROR: ptr is on free heap, but also marked as an allocated entry");
-			}
-			pointersFreeVec[hashCPU[i].ptr / linearBlockSize] = LOCK_ENTRY;
-		}
-	}
-
-	unsigned int numHeapFree = 0;
-	unsigned int numHeapOccupied = 0;
-	for (unsigned int i = 0; i < m_hashParams.m_numSDFBlocks; i++) {
-		if		(pointersFreeVec[i] == FREE_ENTRY) numHeapFree++;
-		else if (pointersFreeVec[i] == LOCK_ENTRY) numHeapOccupied++;
-		else {
-			throw std::runtime_error("memory leak detected: neither free nor allocated");
-		}
-	}
-	if (numHeapFree + numHeapOccupied == m_hashParams.m_numSDFBlocks) std::cout << "HEAP OK!" << std::endl;
-	else throw std::runtime_error("HEAP CORRUPTED");
-
-	l.sort();
-	size_t sizeBefore = l.size();
-	l.unique();
-	size_t sizeAfter = l.size();
-
-
-	std::cout << "diff: " << sizeBefore - sizeAfter << std::endl;
-	std::cout << "minOne: " << numMinusOne << std::endl;
-	std::cout << "numOccupied: " << numOccupied << "\t numFree: " << getHeapFreeCount() << std::endl;
-	std::cout << "numOccupied + free: " << numOccupied + getHeapFreeCount() << std::endl;
-	std::cout << "numInFrustum: " << m_hashParams.m_numOccupiedBlocks << std::endl;
-
-	SAFE_DELETE_ARRAY(heapCPU);
-	SAFE_DELETE_ARRAY(hashCPU);
-
-	//getchar();
 }
 
 HashParams SceneRep::_parametersFromConfig() {
@@ -404,15 +318,15 @@ void SceneRep::_destroy() {
 	m_hashData.free();
 }
 
-void SceneRep::_alloc(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams, cudaStream_t stream) {
+void SceneRep::_alloc(int camid, cudaStream_t stream) {
 	// NOTE (nick): We might want this later...
-	if (false) {
+	/*if (false) {
 		// TODO(Nick) Make this work without memcpy to host first
-		//allocate until all blocks are allocated
-		unsigned int prevFree = getHeapFreeCount();
+		allocate until all blocks are allocated
+		unsigned int prevFree = 0; //getHeapFreeCount();
 		while (1) {
 			resetHashBucketMutexCUDA(m_hashData, m_hashParams, stream);
-			allocCUDA(m_hashData, m_hashParams, depthCameraData, depthCameraParams, stream);
+			allocCUDA(m_hashData, m_hashParams, camid, cameras_[camid].params, stream);
 
 			unsigned int currFree = getHeapFreeCount();
 
@@ -424,16 +338,16 @@ void SceneRep::_alloc(const DepthCameraData& depthCameraData, const DepthCameraP
 			}
 		}
 	}
-	else {
+	else {*/
 		//this version is faster, but it doesn't guarantee that all blocks are allocated (staggers alloc to the next frame)
 		resetHashBucketMutexCUDA(m_hashData, m_hashParams, stream);
-		allocCUDA(m_hashData, m_hashParams, depthCameraData, depthCameraParams, stream);
-	}
+		allocCUDA(m_hashData, m_hashParams, camid, cameras_[camid].params, stream);
+	//}
 }
 
 
 void SceneRep::_compactifyVisible(const DepthCameraParams &camera) { //const DepthCameraData& depthCameraData) {
-	ftl::cuda::compactifyVisible(m_hashData, m_hashParams, camera, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
+	ftl::cuda::compactifyOccupied(m_hashData, m_hashParams, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
 	//m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }
 
@@ -443,13 +357,17 @@ void SceneRep::_compactifyAllocated() {
 	//m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }
 
-void SceneRep::_integrateDepthMap(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams) {
+/*void SceneRep::_integrateDepthMap(const DepthCameraData& depthCameraData, const DepthCameraParams& depthCameraParams) {
 	if (!reg_mode_) ftl::cuda::integrateDepthMap(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
 	else ftl::cuda::integrateRegistration(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
+}*/
+
+void SceneRep::_integrateDepthMaps() {
+	ftl::cuda::integrateDepthMaps(m_hashData, m_hashParams, cameras_.size(), integ_stream_);
 }
 
 void SceneRep::_garbageCollect() {
-	ftl::cuda::garbageCollectIdentify(m_hashData, m_hashParams, integ_stream_);
+	//ftl::cuda::garbageCollectIdentify(m_hashData, m_hashParams, integ_stream_);
 	resetHashBucketMutexCUDA(m_hashData, m_hashParams, integ_stream_);	//needed if linked lists are enabled -> for memeory deletion
 	ftl::cuda::garbageCollectFree(m_hashData, m_hashParams, integ_stream_);
 }

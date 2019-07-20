@@ -1,5 +1,7 @@
 #include "realsense_source.hpp"
 #include <loguru.hpp>
+#include <ftl/threads.hpp>
+#include <ftl/rgbd/source.hpp>
 
 using ftl::rgbd::detail::RealsenseSource;
 using std::string;
@@ -41,7 +43,7 @@ RealsenseSource::~RealsenseSource() {
 bool RealsenseSource::grab(int n, int b) {
     rs2::frameset frames = pipe_.wait_for_frames();
     //rs2::align align(RS2_STREAM_DEPTH);
-    frames = align_to_depth_.process(frames); //align_to_depth_.process(frames);
+    //frames = align_to_depth_.process(frames); //align_to_depth_.process(frames);
 
     rs2::depth_frame depth = frames.get_depth_frame();
     float w = depth.get_width();

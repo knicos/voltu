@@ -47,13 +47,15 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 	params.camera.m_sensorDepthWorldMax = camera.maxDepth;
 	params.camera.m_sensorDepthWorldMin = camera.minDepth;
 
-	ftl::cuda::compactifyVisible(scene_->getHashData(), scene_->getHashParams(), params.camera, stream);
-	ftl::cuda::isosurface_point_image(scene_->getHashData(), depth1_, colour1_, params, stream);
-	ftl::cuda::splat_points(depth1_, colour1_, depth2_, colour2_, params, stream);
+	ftl::cuda::compactifyAllocated(scene_->getHashData(), scene_->getHashParams(), stream);
+	LOG(INFO) << "Occupied: " << scene_->getOccupiedCount();
+	ftl::cuda::isosurface_point_image(scene_->getHashData(), depth1_, params, stream);
+	ftl::cuda::splat_points(depth1_, depth2_, params, stream);
+	ftl::cuda::dibr(depth2_, colour1_, scene_->cameraCount(), params, stream);
 
 	// TODO: Second pass
 
-	src->writeFrames(colour2_, depth2_, stream);
+	src->writeFrames(colour1_, depth2_, stream);
 }
 
 void Splatter::setOutputDevice(int device) {

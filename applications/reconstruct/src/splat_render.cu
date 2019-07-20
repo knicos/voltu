@@ -13,13 +13,13 @@
 using ftl::cuda::TextureObject;
 using ftl::render::SplatParams;
 
-__global__ void clearDepthKernel(ftl::voxhash::HashData hashData, TextureObject<uint> depth, TextureObject<uchar4> colour) {
+__global__ void clearDepthKernel(ftl::voxhash::HashData hashData, TextureObject<uint> depth) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x < depth.width() && y < depth.height()) {
 		depth(x,y) = 0x7f800000; //PINF;
-		colour(x,y) = make_uchar4(76,76,82,0);
+		//colour(x,y) = make_uchar4(76,76,82,0);
 	}
 }
 
@@ -72,10 +72,14 @@ __device__ inline uint blockLinear(int x, int y, int z) {
 	return x + (y << 1) + (z << 2);
 }
 
-__global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, TextureObject<uint> depth, TextureObject<uchar4> colour, SplatParams params) {
+__device__ inline bool getVoxel(uint *voxels, int ix) {
+	return voxels[ix/32] & (0x1 << (ix % 32));
+}
+
+__global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, TextureObject<uint> depth, SplatParams params) {
 	// TODO:(Nick) Reduce bank conflicts by aligning these
-	__shared__ ftl::voxhash::Voxel voxels[SDF_BLOCK_BUFFER];
-	__shared__ ftl::voxhash::HashEntry block;
+	__shared__ uint voxels[16];
+	__shared__ ftl::voxhash::HashEntryHead block;
 
 	// Stride over all allocated blocks
 	for (int bi=blockIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
@@ -83,34 +87,38 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 
 	const uint i = threadIdx.x;	//inside of an SDF block
 
-	if (i == 0) block = hashData.d_hashCompactified[bi];
+	if (i == 0) block = hashData.d_hashCompactified[bi]->head;
+	if (i < 16) voxels[i] = hashData.d_hashCompactified[bi]->voxels[i];
 
 	// Make sure all hash entries are cached
 	__syncthreads();
 
-	const int3 pi_base = hashData.SDFBlockToVirtualVoxelPos(block.pos);
+	const int3 pi_base = hashData.SDFBlockToVirtualVoxelPos(make_int3(block.posXYZ));
 	const int3 vp = make_int3(hashData.delinearizeVoxelIndex(i));
 	const int3 pi = pi_base + vp;
-	const uint j = plinVoxelPos(vp);  // Padded linear index
+	//const uint j = plinVoxelPos(vp);  // Padded linear index
 	const float3 worldPos = hashData.virtualVoxelPosToWorld(pi);
 
 	// Load distances and colours into shared memory + padding
-	const ftl::voxhash::Voxel &v = hashData.d_SDFBlocks[block.ptr + i];
-	voxels[j] = v;
+	//const ftl::voxhash::Voxel &v = hashData.d_SDFBlocks[block.ptr + i];
+	//voxels[j] = v;
+	const bool v = getVoxel(voxels, i);
 
-	__syncthreads();
+	//__syncthreads();
 
-	if (voxels[j].weight == 0) continue;
+	//if (voxels[j].weight == 0) continue;
+	if (vp.x == 7 || vp.y == 7 || vp.z == 7) continue;
 
 
 	int edgeX = (vp.x == 0 ) ? 1 : 0;
 	int edgeY = (vp.y == 0 ) ? 1 : 0;
 	int edgeZ = (vp.z == 0 ) ? 1 : 0;
 
-	bool is_surface = ((params.m_flags & kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
-	if (is_surface) voxels[j].color = make_uchar3(255,(vp.x == 0 && vp.y == 0 && vp.z == 0) ? 255 : 0,0);
+	uchar4 color = make_uchar4(255,0,0,255);
+	bool is_surface = false; //((params.m_flags & ftl::render::kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
+	//if (is_surface) color = make_uchar4(255,(vp.x == 0 && vp.y == 0 && vp.z == 0) ? 255 : 0,0,255);
 
-	if (!is_surface && voxels[j].sdf <= 0.0f) continue;
+	if (!is_surface && v) continue;
 
 	//if (vp.z == 7) voxels[j].color = make_uchar3(0,255,(voxels[j].sdf < 0.0f) ? 255 : 0);
 
@@ -125,10 +133,10 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 				const int3 uvi = make_int3(vp.x+u,vp.y+v,vp.z+w);
 
 				// Skip these cases since we didn't load voxels properly
-				if (uvi.x == 8 || uvi.z == 8 || uvi.y == 8) continue;
+				//if (uvi.x == 8 || uvi.z == 8 || uvi.y == 8) continue;
 
-				const auto &vox = voxels[plinVoxelPos(uvi)];
-				if (vox.weight > 0 && vox.sdf <= 0.0f) {
+				const bool vox = getVoxel(voxels, hashData.linearizeVoxelPos(uvi));
+				if (vox) {
 					is_surface = true;
 					// Should break but is slower?
 				}
@@ -138,6 +146,8 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 
 	// Only for surface voxels, work out screen coordinates
 	if (!is_surface) continue;
+
+	// TODO: For each original camera, render a new depth map
 
 	const float3 camPos = params.m_viewMatrix * worldPos;
 	const float2 screenPosf = params.camera.cameraToKinectScreenFloat(camPos);
@@ -157,27 +167,7 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 
 	// See: Gunther et al. 2013. A GPGPU-based Pipeline for Accelerated Rendering of Point Clouds
 	if (x < depth.width() && y < depth.height()) {
-		// TODO:(Nick) Would warp and shared mem considerations improve things?
-		// Probably not given we now have thin surfaces...
-
-		// FIXME: Needs a lock here to ensure correct colour is written.
-		if (atomicMin(&depth(x,y), idepth) > idepth) {
-			colour(x,y) = make_uchar4(voxels[j].color.x, voxels[j].color.y, voxels[j].color.z, 255);
-		}
-
-		/*bool p = false;
-		while (!p) {
-			int ld = atomicExch(&depth(x,y), LOCKED);
-			if (ld != LOCKED) {
-				p = true;
-				if (ld > idepth) {
-					colour(x,y) = make_uchar4(voxels[j].color.x, voxels[j].color.y, voxels[j].color.z, 255);
-					depth(x,y) = idepth;
-				} else {
-					depth(x,y) = ld;
-				}
-			}
-		}*/
+		atomicMin(&depth(x,y), idepth);
 	}
 
 	}  // Stride
@@ -185,13 +175,12 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 
 void ftl::cuda::isosurface_point_image(const ftl::voxhash::HashData& hashData,
 			const TextureObject<uint> &depth,
-			const TextureObject<uchar4> &colour,
 			const SplatParams &params, cudaStream_t stream) {
 
 	const dim3 clear_gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 clear_blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	clearDepthKernel<<<clear_gridSize, clear_blockSize, 0, stream>>>(hashData, depth, colour);
+	clearDepthKernel<<<clear_gridSize, clear_blockSize, 0, stream>>>(hashData, depth);
 
 	//cudaSafeCall( cudaDeviceSynchronize() );
 
@@ -199,7 +188,7 @@ void ftl::cuda::isosurface_point_image(const ftl::voxhash::HashData& hashData,
 	const dim3 gridSize(NUM_CUDA_BLOCKS, 1);
 	const dim3 blockSize(threadsPerBlock, 1);
 
-	isosurface_image_kernel<<<gridSize, blockSize, 0, stream>>>(hashData, depth, colour, params);
+	isosurface_image_kernel<<<gridSize, blockSize, 0, stream>>>(hashData, depth, params);
 
 	cudaSafeCall( cudaGetLastError() );
 	//cudaSafeCall( cudaDeviceSynchronize() );
@@ -221,9 +210,7 @@ __device__ float distance2(float3 a, float3 b) {
 
 __global__ void splatting_kernel(
 		TextureObject<uint> depth_in,
-		TextureObject<uchar4> colour_in,
-		TextureObject<float> depth_out,
-		TextureObject<uchar4> colour_out, SplatParams params) {
+		TextureObject<float> depth_out, SplatParams params) {
 	// Read an NxN region and
 	// - interpolate a depth value for this pixel
 	// - interpolate an rgb value for this pixel
@@ -291,11 +278,11 @@ __global__ void splatting_kernel(
 
 	if (minidx == -1) {
 		depth_out(x,y) = 0.0f;
-		colour_out(x,y) = make_uchar4(76,76,82,255);
+		//colour_out(x,y) = make_uchar4(76,76,82,255);
 		return;
 	}
 
-	float3 colour = make_float3(0.0f, 0.0f, 0.0f);
+	//float3 colour = make_float3(0.0f, 0.0f, 0.0f);
 	float depth = 0.0f;
 	float contrib = 0.0f;
 	float3 pos = params.camera.kinectDepthToSkeleton(x, y, mindepth);  // TODO:(Nick) Mindepth assumption is poor choice.
@@ -314,32 +301,32 @@ __global__ void splatting_kernel(
 
 			// Fast and simple trilinear interpolation
 			float c = fabs((1.0f - delta.x) * (1.0f - delta.y) * (1.0f - delta.z));
-			uchar4 col = colour_in.tex2D((int)sx, (int)sy);
-			colour.x += col.x*c;
-			colour.y += col.y*c;
-			colour.z += col.z*c;
+			//uchar4 col = colour_in.tex2D((int)sx, (int)sy);
+			//colour.x += col.x*c;
+			//colour.y += col.y*c;
+			//colour.z += col.z*c;
 			contrib += c;
 			depth += posp.z * c;
 		}
 	}
 
 	// Normalise
-	colour.x /= contrib;
-	colour.y /= contrib;
-	colour.z /= contrib;
+	//colour.x /= contrib;
+	//colour.y /= contrib;
+	//colour.z /= contrib;
 	depth /= contrib;
 
 	depth_out(x,y) = depth;
-	colour_out(x,y) = make_uchar4(colour.x, colour.y, colour.z, 255);
+	//colour_out(x,y) = make_uchar4(colour.x, colour.y, colour.z, 255);
 }
 
-void ftl::cuda::splat_points(const TextureObject<uint> &depth_in, const TextureObject<uchar4> &colour_in,
-		const TextureObject<float> &depth_out, const TextureObject<uchar4> &colour_out, const SplatParams &params, cudaStream_t stream) 
+void ftl::cuda::splat_points(const TextureObject<uint> &depth_in,
+		const TextureObject<float> &depth_out, const SplatParams &params, cudaStream_t stream) 
 {
 
 	const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	splatting_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, colour_in, depth_out, colour_out, params);
+	splatting_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, params);
 	cudaSafeCall( cudaGetLastError() );
 }
