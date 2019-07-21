@@ -1,6 +1,7 @@
 #include "middlebury_source.hpp"
 
 #include "disparity.hpp"
+#include "cuda_algorithms.hpp"
 
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::detail::Disparity;
@@ -183,7 +184,8 @@ void MiddleburySource::_performDisparity() {
 	if (disp_tmp_.empty()) disp_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
 	//calib_->rectifyStereo(left_, right_, stream_);
 	disp_->compute(left_, right_, disp_tmp_, stream_);
-	disparityToDepth(disp_tmp_, depth_tmp_, params_, stream_);
+	//disparityToDepth(disp_tmp_, depth_tmp_, params_, stream_);
+	ftl::cuda::disparity_to_depth(disp_tmp_, depth_tmp_, params_, stream_);
 	//left_.download(rgb_, stream_);
 	//rgb_ = lsrc_->cachedLeft();
 	depth_tmp_.download(depth_, stream_);

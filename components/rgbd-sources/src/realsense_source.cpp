@@ -32,6 +32,7 @@ RealsenseSource::RealsenseSource(ftl::rgbd::Source *host)
     params_.fy = intrin.fy;
     params_.maxDepth = 11.0;
     params_.minDepth = 0.1;
+	params_.doffs = 0.0;
 
     LOG(INFO) << "Realsense Intrinsics: " << params_.fx << "," << params_.fy << " - " << params_.cx << "," << params_.cy << " - " << params_.width;
 }

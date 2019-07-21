@@ -6,6 +6,7 @@
 #define _FTL_CUDA_ALGORITHMS_HPP_
 
 #include <ftl/cuda_common.hpp>
+#include <ftl/rgbd/camera.hpp>
 
 namespace ftl {
 namespace cuda {
@@ -33,6 +34,10 @@ namespace cuda {
 	 */	
 	void texture_map(const TextureObject<uchar4> &t,
 			TextureObject<float> &f);
+
+	void disparity_to_depth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
+				const ftl::rgbd::Camera &c, cv::cuda::Stream &stream);
+
 
 }
 }

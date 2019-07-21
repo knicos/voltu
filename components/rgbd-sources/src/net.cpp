@@ -40,6 +40,7 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 				host_->getConfig()["centre_x"] = p.cx;
 				host_->getConfig()["centre_y"] = p.cy;
 				host_->getConfig()["baseline"] = p.baseline;
+				host_->getConfig()["doffs"] = p.doffs;
 				
 				return true;
 			} else {
@@ -77,6 +78,11 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 		params_.fx = host_->value("focal", 400.0);
 		params_.fy = params_.fx;
 		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/focal", host_->getConfig()["focal"].dump());
+	});
+
+	host->on("doffs", [this,host](const ftl::config::Event&) {
+		params_.doffs = host_->value("doffs", params_.doffs);
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/doffs", host_->getConfig()["doffs"].dump());
 	});
 
 	host->on("baseline", [this,host](const ftl::config::Event&) {

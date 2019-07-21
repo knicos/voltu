@@ -5,6 +5,7 @@
 #include "calibrate.hpp"
 #include "local.hpp"
 #include "disparity.hpp"
+#include "cuda_algorithms.hpp"
 
 using ftl::rgbd::detail::Calibrate;
 using ftl::rgbd::detail::LocalSource;
@@ -69,14 +70,17 @@ void StereoVideoSource::init(const string &file) {
 		(unsigned int)lsrc_->height(),
 		0.0f,	// 0m min
 		15.0f,	// 15m max
-		1.0 / calib_->getQ().at<double>(3,2) // Baseline
+		1.0 / calib_->getQ().at<double>(3,2), // Baseline
+		0.0f  // doffs
 	};
+	params_.doffs = -calib_->getQ().at<double>(3,3) * params_.baseline;
 
 	// Add calibration to config object
 	host_->getConfig()["focal"] = params_.fx;
 	host_->getConfig()["centre_x"] = params_.cx;
 	host_->getConfig()["centre_y"] = params_.cy;
 	host_->getConfig()["baseline"] = params_.baseline;
+	host_->getConfig()["doffs"] = params_.doffs;
 
 	// Add event handlers to allow calibration changes...
 	host_->on("baseline", [this](const ftl::config::Event &e) {
@@ -90,6 +94,10 @@ void StereoVideoSource::init(const string &file) {
 		params_.fy = params_.fx;
 		UNIQUE_LOCK(host_->mutex(), lk);
 		calib_->updateCalibration(params_);
+	});
+
+	host_->on("doffs", [this](const ftl::config::Event &e) {
+		params_.doffs = host_->value("doffs", params_.doffs);
 	});
 	
 	// left and right masks (areas outside rectified images)
@@ -130,7 +138,7 @@ bool StereoVideoSource::grab(int n, int b) {
 		if (disp_tmp_.empty()) disp_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
 		calib_->rectifyStereo(left_, right_, stream_);
 		disp_->compute(left_, right_, disp_tmp_, stream_);
-		disparityToDepth(disp_tmp_, depth_tmp_, calib_->getQ(), stream_);
+		ftl::cuda::disparity_to_depth(disp_tmp_, depth_tmp_, params_, stream_);
 		left_.download(rgb_, stream_);
 		//rgb_ = lsrc_->cachedLeft();
 		depth_tmp_.download(depth_, stream_);
