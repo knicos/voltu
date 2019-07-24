@@ -49,7 +49,7 @@ struct StreamSource {
 /**
  * The maximum number of frames a client can request in a single request.
  */
-static const int kMaxFrames = 25;
+static const int kMaxFrames = 100;
 
 /**
  * Allows network streaming of a number of RGB-Depth sources. Remote machines
