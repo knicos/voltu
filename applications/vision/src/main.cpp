@@ -64,7 +64,7 @@ void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q
 			cv::Vec4d homg_pt = _Q*cv::Vec4d(x, y, d, 1.0);
 			//dptr[x] = Vec3d(homg_pt.val);
 			//dptr[x] /= homg_pt[3];
-			dptr[x] = (homg_pt[2] / homg_pt[3]) / 1000.0f; // Depth in meters
+			dptr[x] = (homg_pt[2] / homg_pt[3]); // Depth in meters
 
 			if( fabs(d) <= FLT_EPSILON )
 				dptr[x] = 1000.0f;

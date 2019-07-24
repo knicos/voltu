@@ -178,7 +178,7 @@ CalibrationChessboard::CalibrationChessboard(const map<string, string> &opt) {
 							getOptionInt(opt, "rows", 6));
 	image_size_ = Size(	getOptionInt(opt, "width", 1280),
 						getOptionInt(opt, "height", 720));
-	pattern_square_size_ = getOptionDouble(opt, "square_size", 36.0);
+	pattern_square_size_ = getOptionDouble(opt, "square_size", 0.036);
 
 	LOG(INFO) << "Chessboard calibration parameters";
 	LOG(INFO) << "         rows: " << pattern_size_.height;
