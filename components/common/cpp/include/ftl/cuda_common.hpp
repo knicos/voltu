@@ -54,8 +54,11 @@ class TextureObject {
 
 	__host__ __device__ inline const T &operator()(int u, int v) const { return ptr_[u+v*pitch2_]; }
 	__host__ __device__ inline T &operator()(int u, int v) { return ptr_[u+v*pitch2_]; }
+
+	void upload(const cv::Mat &, cudaStream_t stream=0);
+	void download(cv::Mat &, cudaStream_t stream=0) const;
 	
-	void free() {
+	__host__ void free() {
 		if (texobj_ != 0) cudaSafeCall( cudaDestroyTextureObject (texobj_) );
 		if (ptr_ && needsfree_) cudaFree(ptr_);
 		ptr_ = nullptr;
@@ -220,7 +223,39 @@ template <typename T>
 TextureObject<T>::~TextureObject() {
 	//if (needsdestroy_) cudaSafeCall( cudaDestroyTextureObject (texobj_) );
 	//if (needsfree_) cudaFree(ptr_);
+	free();
 }
+
+template <>
+void TextureObject<uchar4>::upload(const cv::Mat &m, cudaStream_t stream);
+
+template <>
+void TextureObject<float>::upload(const cv::Mat &m, cudaStream_t stream);
+
+template <>
+void TextureObject<float2>::upload(const cv::Mat &m, cudaStream_t stream);
+
+template <>
+void TextureObject<float4>::upload(const cv::Mat &m, cudaStream_t stream);
+
+template <>
+void TextureObject<uchar>::upload(const cv::Mat &m, cudaStream_t stream);
+
+
+template <>
+void TextureObject<uchar4>::download(cv::Mat &m, cudaStream_t stream) const;
+
+template <>
+void TextureObject<float>::download(cv::Mat &m, cudaStream_t stream) const;
+
+template <>
+void TextureObject<float2>::download(cv::Mat &m, cudaStream_t stream) const;
+
+template <>
+void TextureObject<float4>::download(cv::Mat &m, cudaStream_t stream) const;
+
+template <>
+void TextureObject<uchar>::download(cv::Mat &m, cudaStream_t stream) const;
 
 }
 }

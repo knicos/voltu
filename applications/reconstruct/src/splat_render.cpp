@@ -1,6 +1,7 @@
 #include "splat_render.hpp"
 #include "splat_render_cuda.hpp"
 #include "compactors.hpp"
+#include "depth_camera_cuda.hpp"
 
 using ftl::render::Splatter;
 
@@ -20,7 +21,7 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 	cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 
 	if ((unsigned int)depth1_.width() != camera.width || (unsigned int)depth1_.height() != camera.height) {
-		depth1_ = ftl::cuda::TextureObject<uint>(camera.width, camera.height);
+		depth1_ = ftl::cuda::TextureObject<int>(camera.width, camera.height);
 	}
 	if ((unsigned int)colour1_.width() != camera.width || (unsigned int)colour1_.height() != camera.height) {
 		colour1_ = ftl::cuda::TextureObject<uchar4>(camera.width, camera.height);
@@ -47,11 +48,25 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 	params.camera.m_sensorDepthWorldMax = camera.maxDepth;
 	params.camera.m_sensorDepthWorldMin = camera.minDepth;
 
-	ftl::cuda::compactifyAllocated(scene_->getHashData(), scene_->getHashParams(), stream);
-	LOG(INFO) << "Occupied: " << scene_->getOccupiedCount();
-	ftl::cuda::isosurface_point_image(scene_->getHashData(), depth1_, params, stream);
-	ftl::cuda::splat_points(depth1_, depth2_, params, stream);
-	ftl::cuda::dibr(depth2_, colour1_, scene_->cameraCount(), params, stream);
+	//ftl::cuda::compactifyAllocated(scene_->getHashData(), scene_->getHashParams(), stream);
+	//LOG(INFO) << "Occupied: " << scene_->getOccupiedCount();
+
+	if (scene_->value("voxels", false)) {
+		ftl::cuda::isosurface_point_image(scene_->getHashData(), depth1_, params, stream);
+		ftl::cuda::splat_points(depth1_, depth2_, params, stream);
+		ftl::cuda::dibr(depth2_, colour1_, scene_->cameraCount(), params, stream);
+	} else {
+		//ftl::cuda::clear_colour(colour1_, stream);
+		ftl::cuda::clear_depth(depth1_, stream);
+		ftl::cuda::clear_depth(depth2_, stream);
+		ftl::cuda::dibr(depth1_, colour1_, scene_->cameraCount(), params, stream);
+		//ftl::cuda::hole_fill(depth1_, depth2_, params.camera, stream);
+		ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+		//ftl::cuda::mls_resample(depth1_, colour1_, depth2_, scene_->getHashParams(), scene_->cameraCount(), params, stream);
+	}
+
+	//ftl::cuda::median_filter(depth1_, depth2_, stream);
+	//ftl::cuda::splat_points(depth1_, depth2_, params, stream);
 
 	// TODO: Second pass
 

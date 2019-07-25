@@ -13,7 +13,7 @@
 using ftl::cuda::TextureObject;
 using ftl::render::SplatParams;
 
-__global__ void clearDepthKernel(ftl::voxhash::HashData hashData, TextureObject<uint> depth) {
+__global__ void clearDepthKernel(ftl::voxhash::HashData hashData, TextureObject<int> depth) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
@@ -76,8 +76,7 @@ __device__ inline bool getVoxel(uint *voxels, int ix) {
 	return voxels[ix/32] & (0x1 << (ix % 32));
 }
 
-__global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, TextureObject<uint> depth, SplatParams params) {
-	// TODO:(Nick) Reduce bank conflicts by aligning these
+__global__ void occupied_image_kernel(ftl::voxhash::HashData hashData, TextureObject<int> depth, SplatParams params) {
 	__shared__ uint voxels[16];
 	__shared__ ftl::voxhash::HashEntryHead block;
 
@@ -88,7 +87,67 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 	const uint i = threadIdx.x;	//inside of an SDF block
 
 	if (i == 0) block = hashData.d_hashCompactified[bi]->head;
-	if (i < 16) voxels[i] = hashData.d_hashCompactified[bi]->voxels[i];
+	if (i < 16) {
+		voxels[i] = hashData.d_hashCompactified[bi]->voxels[i];
+		//valid[i] = hashData.d_hashCompactified[bi]->validity[i];
+	}
+
+	// Make sure all hash entries are cached
+	__syncthreads();
+
+	const int3 pi_base = hashData.SDFBlockToVirtualVoxelPos(make_int3(block.posXYZ));
+	const int3 vp = make_int3(hashData.delinearizeVoxelIndex(i));
+	const int3 pi = pi_base + vp;
+	const float3 worldPos = hashData.virtualVoxelPosToWorld(pi);
+
+	const bool v = getVoxel(voxels, i);
+
+	uchar4 color = make_uchar4(255,0,0,255);
+	bool is_surface = v; //((params.m_flags & ftl::render::kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
+
+
+	// Only for surface voxels, work out screen coordinates
+	if (!is_surface) continue;
+
+	// TODO: For each original camera, render a new depth map
+
+	const float3 camPos = params.m_viewMatrix * worldPos;
+	const float2 screenPosf = params.camera.cameraToKinectScreenFloat(camPos);
+	const uint2 screenPos = make_uint2(make_int2(screenPosf)); //  + make_float2(0.5f, 0.5f)
+
+	//printf("Worldpos: %f,%f,%f\n", camPos.x, camPos.y, camPos.z);
+
+	if (camPos.z < params.camera.m_sensorDepthWorldMin) continue;
+
+	const unsigned int x = screenPos.x;
+	const unsigned int y = screenPos.y;
+	const int idepth = static_cast<int>(camPos.z * 1000.0f);
+
+	// See: Gunther et al. 2013. A GPGPU-based Pipeline for Accelerated Rendering of Point Clouds
+	if (x < depth.width() && y < depth.height()) {
+		atomicMin(&depth(x,y), idepth);
+	}
+
+	}  // Stride
+}
+
+__global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, TextureObject<int> depth, SplatParams params) {
+	// TODO:(Nick) Reduce bank conflicts by aligning these
+	__shared__ uint voxels[16];
+	//__shared__ uint valid[16];
+	__shared__ ftl::voxhash::HashEntryHead block;
+
+	// Stride over all allocated blocks
+	for (int bi=blockIdx.x; bi<*hashData.d_hashCompactifiedCounter; bi+=NUM_CUDA_BLOCKS) {
+	__syncthreads();
+
+	const uint i = threadIdx.x;	//inside of an SDF block
+
+	if (i == 0) block = hashData.d_hashCompactified[bi]->head;
+	if (i < 16) {
+		voxels[i] = hashData.d_hashCompactified[bi]->voxels[i];
+		//valid[i] = hashData.d_hashCompactified[bi]->validity[i];
+	}
 
 	// Make sure all hash entries are cached
 	__syncthreads();
@@ -115,10 +174,10 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 	int edgeZ = (vp.z == 0 ) ? 1 : 0;
 
 	uchar4 color = make_uchar4(255,0,0,255);
-	bool is_surface = false; //((params.m_flags & ftl::render::kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
+	bool is_surface = v; //((params.m_flags & ftl::render::kShowBlockBorders) && edgeX + edgeY + edgeZ >= 2);
 	//if (is_surface) color = make_uchar4(255,(vp.x == 0 && vp.y == 0 && vp.z == 0) ? 255 : 0,0,255);
 
-	if (!is_surface && v) continue;
+	if (v) continue;  // !getVoxel(valid, i)
 
 	//if (vp.z == 7) voxels[j].color = make_uchar3(0,255,(voxels[j].sdf < 0.0f) ? 255 : 0);
 
@@ -136,7 +195,7 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 				//if (uvi.x == 8 || uvi.z == 8 || uvi.y == 8) continue;
 
 				const bool vox = getVoxel(voxels, hashData.linearizeVoxelPos(uvi));
-				if (vox) {
+				if (vox) { //getVoxel(valid, hashData.linearizeVoxelPos(uvi))) {
 					is_surface = true;
 					// Should break but is slower?
 				}
@@ -174,7 +233,7 @@ __global__ void isosurface_image_kernel(ftl::voxhash::HashData hashData, Texture
 }
 
 void ftl::cuda::isosurface_point_image(const ftl::voxhash::HashData& hashData,
-			const TextureObject<uint> &depth,
+			const TextureObject<int> &depth,
 			const SplatParams &params, cudaStream_t stream) {
 
 	const dim3 clear_gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
@@ -182,16 +241,21 @@ void ftl::cuda::isosurface_point_image(const ftl::voxhash::HashData& hashData,
 
 	clearDepthKernel<<<clear_gridSize, clear_blockSize, 0, stream>>>(hashData, depth);
 
-	//cudaSafeCall( cudaDeviceSynchronize() );
+#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+#endif
 
 	const unsigned int threadsPerBlock = SDF_BLOCK_SIZE*SDF_BLOCK_SIZE*SDF_BLOCK_SIZE;
 	const dim3 gridSize(NUM_CUDA_BLOCKS, 1);
 	const dim3 blockSize(threadsPerBlock, 1);
 
-	isosurface_image_kernel<<<gridSize, blockSize, 0, stream>>>(hashData, depth, params);
+	occupied_image_kernel<<<gridSize, blockSize, 0, stream>>>(hashData, depth, params);
 
 	cudaSafeCall( cudaGetLastError() );
-	//cudaSafeCall( cudaDeviceSynchronize() );
+
+#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+#endif
 }
 
 // ---- Pass 2: Expand the point splats ----------------------------------------
@@ -199,7 +263,7 @@ void ftl::cuda::isosurface_point_image(const ftl::voxhash::HashData& hashData,
 #define SPLAT_RADIUS 7
 #define SPLAT_BOUNDS (2*SPLAT_RADIUS+T_PER_BLOCK+1)
 #define SPLAT_BUFFER_SIZE (SPLAT_BOUNDS*SPLAT_BOUNDS)
-#define MAX_VALID 8
+#define MAX_VALID 100
 
 __device__ float distance2(float3 a, float3 b) {
 	const float x = a.x-b.x;
@@ -209,7 +273,7 @@ __device__ float distance2(float3 a, float3 b) {
 }
 
 __global__ void splatting_kernel(
-		TextureObject<uint> depth_in,
+		TextureObject<int> depth_in,
 		TextureObject<float> depth_out, SplatParams params) {
 	// Read an NxN region and
 	// - interpolate a depth value for this pixel
@@ -240,7 +304,7 @@ __global__ void splatting_kernel(
 
 	__syncthreads();
 
-	if (x >= depth_in.width() && y >= depth_in.height()) return;
+	if (x >= depth_in.width() || y >= depth_in.height()) return;
 
 	const float voxelSquared = params.voxelSize*params.voxelSize;
 	float mindepth = 1000.0f;
@@ -266,7 +330,7 @@ __global__ void splatting_kernel(
 			if (dist < voxelSquared) {
 				// Valid so check for minimum
 				//validPos[validix] = pos;
-				validIndices[validix++] = idx;
+				//validIndices[validix++] = idx;
 				if (d < mindepth) {
 					mindepth = d;
 					minidx = idx;
@@ -287,8 +351,8 @@ __global__ void splatting_kernel(
 	float contrib = 0.0f;
 	float3 pos = params.camera.kinectDepthToSkeleton(x, y, mindepth);  // TODO:(Nick) Mindepth assumption is poor choice.
 
-	for (int j=0; j<validix; ++j) {
-		const int idx = validIndices[j];
+	//for (int j=0; j<validix; ++j) {
+		const int idx = minidx; //validIndices[j];
 		float3 posp = positions[idx];
 		//float3 pos = params.camera.kinectDepthToSkeleton(x, y, posp.z);
 		float3 delta = (posp - pos) / 2*params.voxelSize;
@@ -308,7 +372,7 @@ __global__ void splatting_kernel(
 			contrib += c;
 			depth += posp.z * c;
 		}
-	}
+	//}
 
 	// Normalise
 	//colour.x /= contrib;
@@ -320,7 +384,7 @@ __global__ void splatting_kernel(
 	//colour_out(x,y) = make_uchar4(colour.x, colour.y, colour.z, 255);
 }
 
-void ftl::cuda::splat_points(const TextureObject<uint> &depth_in,
+void ftl::cuda::splat_points(const TextureObject<int> &depth_in,
 		const TextureObject<float> &depth_out, const SplatParams &params, cudaStream_t stream) 
 {
 
@@ -329,4 +393,8 @@ void ftl::cuda::splat_points(const TextureObject<uint> &depth_in,
 
 	splatting_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, params);
 	cudaSafeCall( cudaGetLastError() );
+
+#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+#endif
 }
