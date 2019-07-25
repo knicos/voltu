@@ -168,41 +168,6 @@ extern "C" void resetHashBucketMutexCUDA(HashData& hashData, const HashParams& h
 }
 
 
-__device__
-unsigned int linearizeChunkPos(const int3& chunkPos)
-{
-	int3 p = chunkPos-c_hashParams.m_streamingMinGridPos;
-	return  p.z * c_hashParams.m_streamingGridDimensions.x * c_hashParams.m_streamingGridDimensions.y +
-			p.y * c_hashParams.m_streamingGridDimensions.x +
-			p.x;
-}
-
-__device__
-int3 worldToChunks(const float3& posWorld)
-{
-	float3 p;
-	p.x = posWorld.x/c_hashParams.m_streamingVoxelExtents.x;
-	p.y = posWorld.y/c_hashParams.m_streamingVoxelExtents.y;
-	p.z = posWorld.z/c_hashParams.m_streamingVoxelExtents.z;
-
-	float3 s;
-	s.x = (float)sign(p.x);
-	s.y = (float)sign(p.y);
-	s.z = (float)sign(p.z);
-
-	return make_int3(p+s*0.5f);
-}
-
-__device__
-bool isSDFBlockStreamedOut(const int3& sdfBlock, const HashData& hashData, const unsigned int* d_bitMask)	//TODO MATTHIAS (-> move to HashData)
-{
-	float3 posWorld = hashData.virtualVoxelPosToWorld(hashData.SDFBlockToVirtualVoxelPos(sdfBlock)); // sdfBlock is assigned to chunk by the bottom right sample pos
-
-	uint index = linearizeChunkPos(worldToChunks(posWorld));
-	uint nBitsInT = 32;
-	return ((d_bitMask[index/nBitsInT] & (0x1 << (index%nBitsInT))) != 0x0);
-}
-
 // Note: bitMask used for Streaming out code... could be set to nullptr if not streaming out
 // Note: Allocations might need to be around fat rays since multiple voxels could correspond
 // to same depth map pixel at larger distances.
@@ -272,7 +237,7 @@ __global__ void allocKernel(HashData hashData, HashParams hashParams, int camnum
 		while(iter < g_MaxLoopIterCount) {
 
 			//check if it's in the frustum and not checked out
-			if (hashData.isSDFBlockInCameraFrustumApprox(hashParams, cameraParams, idCurrentVoxel)) { //} && !isSDFBlockStreamedOut(idCurrentVoxel, hashData, d_bitMask)) {		
+			if (hashData.isInBoundingBox(hashParams, idCurrentVoxel)) { //} && !isSDFBlockStreamedOut(idCurrentVoxel, hashData, d_bitMask)) {		
 				hashData.allocBlock(idCurrentVoxel);
 				//printf("Allocate block: %d\n",idCurrentVoxel.x);
 			}

@@ -37,7 +37,7 @@ typedef signed char schar;
 #include <ftl/depth_camera.hpp>
 
 #define SDF_BLOCK_SIZE 8
-#define SDF_BLOCK_SIZE_OLAP 7
+#define SDF_BLOCK_SIZE_OLAP 8
 
 #ifndef MINF
 #define MINF __int_as_float(0xff800000)
@@ -73,6 +73,7 @@ struct __align__(16) HashEntry
 {
 	HashEntryHead head;
 	uint voxels[16];  // 512 bits, 1 bit per voxel
+	//uint validity[16];  // Is the voxel valid, 512 bit
 	
 	/*__device__ void operator=(const struct HashEntry& e) {
 		((long long*)this)[0] = ((const long long*)&e)[0];
@@ -270,11 +271,13 @@ struct HashData {
 	}
 
 	__device__
-	bool isSDFBlockInCameraFrustumApprox(const HashParams &hashParams, const DepthCameraParams &camera, const int3& sdfBlock) {
+	bool isInBoundingBox(const HashParams &hashParams, const int3& sdfBlock) {
 		// NOTE (Nick): Changed, just assume all voxels are potentially in frustrum
 		//float3 posWorld = virtualVoxelPosToWorld(SDFBlockToVirtualVoxelPos(sdfBlock)) + hashParams.m_virtualVoxelSize * 0.5f * (SDF_BLOCK_SIZE - 1.0f);
 		//return camera.isInCameraFrustumApprox(hashParams.m_rigidTransformInverse, posWorld);
-		return true;
+		return !(hashParams.m_flags & ftl::voxhash::kFlagClipping) || sdfBlock.x > hashParams.m_minBounds.x && sdfBlock.x < hashParams.m_maxBounds.x &&
+			sdfBlock.y > hashParams.m_minBounds.y && sdfBlock.y < hashParams.m_maxBounds.y &&
+			sdfBlock.z > hashParams.m_minBounds.z && sdfBlock.z < hashParams.m_maxBounds.z;
 	}
 
 	//! computes the (local) virtual voxel pos of an index; idx in [0;511]

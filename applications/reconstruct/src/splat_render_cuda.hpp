@@ -15,7 +15,7 @@ namespace cuda {
  * of objects up to at most truncation depth.
  */
 void isosurface_point_image(const ftl::voxhash::HashData& hashData,
-			const ftl::cuda::TextureObject<uint> &depth,
+			const ftl::cuda::TextureObject<int> &depth,
 			const ftl::render::SplatParams &params, cudaStream_t stream);
 
 //void isosurface_point_image_stereo(const ftl::voxhash::HashData& hashData,
@@ -25,13 +25,16 @@ void isosurface_point_image(const ftl::voxhash::HashData& hashData,
 
 // TODO: isosurface_point_cloud
 
-void splat_points(const ftl::cuda::TextureObject<uint> &depth_in,
+void splat_points(const ftl::cuda::TextureObject<int> &depth_in,
 		const ftl::cuda::TextureObject<float> &depth_out,
 		const ftl::render::SplatParams &params, cudaStream_t stream);
 
-void dibr(const ftl::cuda::TextureObject<float> &depth_in,
+void dibr(const ftl::cuda::TextureObject<int> &depth_out,
 		const ftl::cuda::TextureObject<uchar4> &colour_out, int numcams,
 		const ftl::render::SplatParams &params, cudaStream_t stream);
+
+void dibr(const ftl::cuda::TextureObject<float> &depth_out,
+    const ftl::cuda::TextureObject<uchar4> &colour_out, int numcams, const ftl::render::SplatParams &params, cudaStream_t stream);
 
 }
 }

@@ -12,35 +12,29 @@
 namespace ftl {
 namespace voxhash {
 
+static const unsigned int kFlagClipping = 0x00000001;
+static const unsigned int kFlagMLS = 0x00000002;
+
 //TODO might have to be split into static and dynamics
 struct __align__(16) HashParams {
 	HashParams() {
 	}
 
-	float4x4		m_rigidTransform;
-	float4x4		m_rigidTransformInverse;
-
 	unsigned int	m_hashNumBuckets;
-	unsigned int	m_deprecated1;
-	unsigned int	m_deprecated2; //m_hashMaxCollisionLinkedListSize;
-	unsigned int	m_numSDFBlocks;
-
-	int				m_SDFBlockSize;
 	float			m_virtualVoxelSize;
-	unsigned int	m_numOccupiedBlocks;	//occupied blocks in the viewing frustum
-	
 	float			m_maxIntegrationDistance;
 	float			m_truncScale;
 	float			m_truncation;
 	unsigned int	m_integrationWeightSample;
 	unsigned int	m_integrationWeightMax;
 
-	float3			m_streamingVoxelExtents;
-	int3			m_streamingGridDimensions;
-	int3			m_streamingMinGridPos;
-	unsigned int	m_streamingInitialChunkListSize;
-	uint2			m_dummy;
+	int3 m_minBounds;
+	int3 m_maxBounds;
+	float m_spatialSmoothing;
+	float m_colourSmoothing;
+	float m_confidenceThresh;
 
+	unsigned int m_flags;
 };
 
 }  // namespace voxhash
