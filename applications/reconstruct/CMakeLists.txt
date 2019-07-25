@@ -19,6 +19,8 @@ set(REPSRC
 	#src/virtual_source.cpp
 	src/splat_render.cpp
 	src/dibr.cu
+	src/depth_camera.cu
+	src/depth_camera.cpp
 )
 
 add_executable(ftl-reconstruct ${REPSRC})

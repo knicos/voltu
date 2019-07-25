@@ -2,6 +2,7 @@
 #include "compactors.hpp"
 #include "garbage.hpp"
 #include "integrators.hpp"
+#include "depth_camera_cuda.hpp"
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
@@ -88,6 +89,8 @@ bool SceneRep::_initCUDA() {
 	// TODO:(Nick) Check memory is sufficient
 	// TODO:(Nick) Find out what our compute capability should be.
 
+	LOG(INFO) << "CUDA Compute: " << properties[cuda_device_].major << "." << properties[cuda_device_].minor;
+
 	return true;
 }
 
@@ -138,7 +141,8 @@ int SceneRep::upload() {
 				cam.params.m_imageHeight = in->parameters().height;
 				cam.params.m_sensorDepthWorldMax = in->parameters().maxDepth;
 				cam.params.m_sensorDepthWorldMin = in->parameters().minDepth;
-				cam.gpu.alloc(cam.params);
+				cam.gpu.alloc(cam.params, true);
+				LOG(INFO) << "GPU Allocated camera " << i;
 			}
 		}
 
@@ -163,8 +167,9 @@ int SceneRep::upload() {
 		if (depth.cols == 0) continue;
 
 		// Must be in RGBA for GPU
-		Mat rgba;
-		cv::cvtColor(rgb,rgba, cv::COLOR_BGR2BGRA);
+		Mat rgbt, rgba;
+		cv::cvtColor(rgb,rgbt, cv::COLOR_BGR2Lab);
+		cv::cvtColor(rgbt,rgba, cv::COLOR_BGR2BGRA);
 
 		// Send to GPU and merge view into scene
 		//cam.gpu.updateParams(cam.params);
@@ -178,7 +183,9 @@ int SceneRep::upload() {
 		//if (i > 0) cudaSafeCall(cudaStreamSynchronize(cv::cuda::StreamAccessor::getStream(cameras_[i-1].stream)));
 
 		//allocate all hash blocks which are corresponding to depth map entries
-		_alloc(i, cv::cuda::StreamAccessor::getStream(cam.stream));
+		if (value("voxels", false)) _alloc(i, cv::cuda::StreamAccessor::getStream(cam.stream));
+
+		// Calculate normals
 	}
 
 	// Must have finished all allocations and rendering before next integration
@@ -211,7 +218,7 @@ void SceneRep::integrate() {
 
 void SceneRep::garbage() {
 	//_compactifyAllocated();
-	_garbageCollect();
+	if (value("voxels", false)) _garbageCollect();
 
 	//cudaSafeCall(cudaStreamSynchronize(integ_stream_));
 }
@@ -237,20 +244,10 @@ void SceneRep::garbage() {
 	m_numIntegratedFrames++;
 }*/
 
-void SceneRep::setLastRigidTransform(const Eigen::Matrix4f& lastRigidTransform) {
-	m_hashParams.m_rigidTransform = MatrixConversion::toCUDA(lastRigidTransform);
-	m_hashParams.m_rigidTransformInverse = MatrixConversion::toCUDA(lastRigidTransform.inverse()); //m_hashParams.m_rigidTransform.getInverse();
-}
-
 /*void SceneRep::setLastRigidTransformAndCompactify(const Eigen::Matrix4f& lastRigidTransform, const DepthCameraData& depthCameraData) {
 	setLastRigidTransform(lastRigidTransform);
 	_compactifyHashEntries();
 }*/
-
-
-const Eigen::Matrix4f SceneRep::getLastRigidTransform() const {
-	return MatrixConversion::toEigen(m_hashParams.m_rigidTransform);
-}
 
 /* Nick: To reduce weights between frames */
 void SceneRep::nextFrame() {
@@ -260,7 +257,7 @@ void SceneRep::nextFrame() {
 		_create(_parametersFromConfig());
 	} else {
 		//ftl::cuda::compactifyAllocated(m_hashData, m_hashParams, integ_stream_);
-		if (reg_mode_) ftl::cuda::clearVoxels(m_hashData, m_hashParams); 
+		//if (reg_mode_) ftl::cuda::clearVoxels(m_hashData, m_hashParams); 
 		//else ftl::cuda::starveVoxels(m_hashData, m_hashParams, integ_stream_);
 		m_numIntegratedFrames = 0;
 	}
@@ -269,10 +266,6 @@ void SceneRep::nextFrame() {
 //! resets the hash to the initial state (i.e., clears all data)
 void SceneRep::reset() {
 	m_numIntegratedFrames = 0;
-
-	//m_hashParams.m_rigidTransform.setIdentity();
-	//m_hashParams.m_rigidTransformInverse.setIdentity();
-	m_hashParams.m_numOccupiedBlocks = 0;
 	m_hashData.updateParams(m_hashParams);
 	resetCUDA(m_hashData, m_hashParams);
 }
@@ -288,22 +281,27 @@ HashParams SceneRep::_parametersFromConfig() {
 	HashParams params;
 	// First camera view is set to identity pose to be at the centre of
 	// the virtual coordinate space.
-	params.m_rigidTransform.setIdentity();
-	params.m_rigidTransformInverse.setIdentity();
 	params.m_hashNumBuckets = value("hashNumBuckets", 100000);
-	params.m_SDFBlockSize = SDF_BLOCK_SIZE;
-	params.m_numSDFBlocks = value("hashNumSDFBlocks",500000);
 	params.m_virtualVoxelSize = value("SDFVoxelSize", 0.006f);
 	params.m_maxIntegrationDistance = value("SDFMaxIntegrationDistance", 10.0f);
 	params.m_truncation = value("SDFTruncation", 0.1f);
 	params.m_truncScale = value("SDFTruncationScale", 0.01f);
 	params.m_integrationWeightSample = value("SDFIntegrationWeightSample", 10);
 	params.m_integrationWeightMax = value("SDFIntegrationWeightMax", 255);
-	// Note (Nick): We are not streaming voxels in/out of GPU
-	//params.m_streamingVoxelExtents = MatrixConversion::toCUDA(gas.s_streamingVoxelExtents);
-	//params.m_streamingGridDimensions = MatrixConversion::toCUDA(gas.s_streamingGridDimensions);
-	//params.m_streamingMinGridPos = MatrixConversion::toCUDA(gas.s_streamingMinGridPos);
-	//params.m_streamingInitialChunkListSize = gas.s_streamingInitialChunkListSize;
+	params.m_spatialSmoothing = value("spatialSmoothing", 0.04f); // 4cm
+	params.m_colourSmoothing = value("colourSmoothing", 20.0f);
+	params.m_confidenceThresh = value("confidenceThreshold", 20.0f);
+	params.m_flags = 0;
+	params.m_flags |= (value("clipping", false)) ? ftl::voxhash::kFlagClipping : 0;
+	params.m_flags |= (value("mls", false)) ? ftl::voxhash::kFlagMLS : 0;
+	params.m_maxBounds = make_int3(
+		value("bbox_x_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
+		value("bbox_y_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
+		value("bbox_z_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE));
+	params.m_minBounds = make_int3(
+		value("bbox_x_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
+		value("bbox_y_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
+		value("bbox_z_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE));
 	return params;
 }
 
@@ -362,8 +360,20 @@ void SceneRep::_compactifyAllocated() {
 	else ftl::cuda::integrateRegistration(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
 }*/
 
+extern "C" void bilateralFilterFloatMap(float* d_output, float* d_input, float sigmaD, float sigmaR, unsigned int width, unsigned int height);
+
 void SceneRep::_integrateDepthMaps() {
-	ftl::cuda::integrateDepthMaps(m_hashData, m_hashParams, cameras_.size(), integ_stream_);
+	//cudaSafeCall(cudaDeviceSynchronize());
+
+	for (size_t i=0; i<cameras_.size(); ++i) {
+		//ftl::cuda::clear_depth(*(cameras_[i].gpu.depth2_tex_), integ_stream_);
+		ftl::cuda::clear_points(*(cameras_[i].gpu.points_tex_), integ_stream_);
+		ftl::cuda::mls_smooth(*(cameras_[i].gpu.points_tex_), m_hashParams, cameras_.size(), i, integ_stream_);
+		//ftl::cuda::int_to_float(*(cameras_[i].gpu.depth2_tex_), *(cameras_[i].gpu.depth_tex_), 1.0f / 1000.0f, integ_stream_);
+		//ftl::cuda::hole_fill(*(cameras_[i].gpu.depth2_tex_), *(cameras_[i].gpu.depth_tex_), cameras_[i].params, integ_stream_);
+		//bilateralFilterFloatMap(cameras_[i].gpu.depth_tex_->devicePtr(), cameras_[i].gpu.depth3_tex_->devicePtr(), 3, 7, cameras_[i].gpu.depth_tex_->width(), cameras_[i].gpu.depth_tex_->height());
+	}
+	if (value("voxels", false)) ftl::cuda::integrateDepthMaps(m_hashData, m_hashParams, cameras_.size(), integ_stream_);
 }
 
 void SceneRep::_garbageCollect() {

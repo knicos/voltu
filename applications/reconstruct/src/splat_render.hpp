@@ -32,7 +32,7 @@ class Splatter {
 
 	private:
 	int device_;
-	ftl::cuda::TextureObject<uint> depth1_;
+	ftl::cuda::TextureObject<int> depth1_;
 	ftl::cuda::TextureObject<uchar4> colour1_;
 	ftl::cuda::TextureObject<float> depth2_;
 	ftl::cuda::TextureObject<uchar4> colour2_;

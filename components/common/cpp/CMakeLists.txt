@@ -5,6 +5,7 @@ set(COMMONSRC
 	src/configurable.cpp
 	src/loguru.cpp
 	src/opencv_to_pcl.cpp
+	src/cuda_common.cpp
 )
 
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
