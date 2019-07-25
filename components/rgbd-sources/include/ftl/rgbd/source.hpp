@@ -191,6 +191,10 @@ class Source : public ftl::Configurable {
 
 	SHARED_MUTEX &mutex() { return mutex_; }
 
+	std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> &callback() { return callback_; }
+	void setCallback(std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> cb) { callback_ = cb; }
+
+
 	private:
 	detail::Source *impl_;
 	cv::Mat rgb_;
@@ -205,6 +209,7 @@ class Source : public ftl::Configurable {
 	channel_t channel_;
 	cudaStream_t stream_;
 	int64_t timestamp_;
+	std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> callback_;
 
 	detail::Source *_createImplementation();
 	detail::Source *_createFileImpl(const ftl::URI &uri);

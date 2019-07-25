@@ -8,6 +8,7 @@ set(RGBDSRC
 	src/net.cpp
 	src/streamer.cpp
 	src/colour.cpp
+	src/group.cpp
 #	src/algorithms/rtcensus.cpp
 #	src/algorithms/rtcensus_sgm.cpp
 #	src/algorithms/opencv_sgbm.cpp
