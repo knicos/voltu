@@ -153,6 +153,13 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 
 		timestamp_ = current_frame_*40;  // FIXME: Don't hardcode 40ms
 		current_frame_ = frame;
+
+		if (host_->callback()) {
+			//ftl::pool.push([this](id) {
+			//	UNIQUE_LOCK(host_->mutex(),lk);
+				host_->callback()(timestamp_, rgb_, depth_);
+			//});
+		}
 	} else if (frame < current_frame_) {
 		LOG(WARNING) << "Chunk dropped";
 		if (chunk == 0) N_--;
