@@ -117,6 +117,7 @@ class Source : public ftl::Configurable {
 	void writeFrames(const cv::Mat &rgb, const cv::Mat &depth);
 	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
 	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
+	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream);
 
 	int64_t timestamp() const { return timestamp_; }
 
