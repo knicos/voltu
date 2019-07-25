@@ -278,6 +278,25 @@ void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl:
 	}
 }
 
+void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream) {
+	if (!impl_) {
+		UNIQUE_LOCK(mutex_,lk);
+		rgb.download(rgb_, stream);
+		//rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
+		//cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
+		rgb2.download(depth_, stream);
+		//depth_.create(depth.height(), depth.width(), CV_32FC1);
+		//cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(float), depth_.rows, cudaMemcpyDeviceToHost, stream));
+		
+		stream_ = stream;
+		cudaSafeCall(cudaStreamSynchronize(stream_));
+		cv::cvtColor(rgb_,rgb_, cv::COLOR_BGRA2BGR);
+		cv::cvtColor(rgb_,rgb_, cv::COLOR_Lab2BGR);
+		cv::cvtColor(depth_,depth_, cv::COLOR_BGRA2BGR);
+		cv::cvtColor(depth_,depth_, cv::COLOR_Lab2BGR);
+	}
+}
+
 bool Source::thumbnail(cv::Mat &t) {
 	if (!impl_ && stream_ != 0) {
 		cudaSafeCall(cudaStreamSynchronize(stream_));
