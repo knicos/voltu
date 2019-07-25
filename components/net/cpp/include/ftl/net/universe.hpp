@@ -216,6 +216,7 @@ class Universe : public ftl::Configurable {
 	ftl::net::Dispatcher disp_;
 	std::thread thread_;
 	std::list<ReconnectInfo> reconnects_;
+	size_t phase_;
 
 	struct ConnHandler {
 		callback_t id;
