@@ -24,12 +24,12 @@ using ftl::net::callback_t;
 
 callback_t ftl::net::Universe::cbid__ = 0;
 
-Universe::Universe() : Configurable(), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this) {
+Universe::Universe() : Configurable(), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this), phase_(0) {
 	_installBindings();
 }
 
 Universe::Universe(nlohmann::json &config) :
-		Configurable(config), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this) {
+		Configurable(config), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this), phase_(0) {
 
 	_installBindings();
 }
@@ -305,7 +305,9 @@ void Universe::_run() {
 			SHARED_LOCK(net_mutex_, lk);
 
 			// Also check each clients socket to see if any messages or errors are waiting
-			for (auto s : peers_) {
+			for (size_t p=0; p<peers_.size(); ++p) {
+				auto s = peers_[(p+phase_)%peers_.size()];
+
 				if (s != NULL && s->isValid()) {
 					// Note: It is possible that the socket becomes invalid after check but before
 					// looking at the FD sets, therefore cache the original socket
@@ -323,6 +325,7 @@ void Universe::_run() {
 					}
 				}
 			}
+			++phase_;
 		}
 	}
 }
