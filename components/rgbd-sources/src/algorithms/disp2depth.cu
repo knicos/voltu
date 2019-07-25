@@ -8,7 +8,7 @@ __global__ void d2d_kernel(cv::cuda::PtrStepSz<float> disp, cv::cuda::PtrStepSz<
 	for (STRIDE_Y(v,disp.rows)) {
 	for (STRIDE_X(u,disp.cols)) {
 		float d = disp(v,u);
-		depth(v,u) = (d == 0) ? 50.0f : ((cam.baseline*cam.fx) / (d + cam.doffs));
+		depth(v,u) = (d == 0) ? 50.0f : ((cam.baseline*cam.fx) / (d - cam.doffs));
 	}
 	}
 }
