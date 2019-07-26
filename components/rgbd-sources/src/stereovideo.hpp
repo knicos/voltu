@@ -28,6 +28,7 @@ class StereoVideoSource : public detail::Source {
 
 	bool grab(int n, int b);
 	bool isReady();
+	Camera parameters(channel_t chan);
 
 	//const cv::Mat &getRight() const { return right_; }
 

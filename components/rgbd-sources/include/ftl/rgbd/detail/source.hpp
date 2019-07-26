@@ -10,6 +10,17 @@ namespace rgbd {
 
 class Source;
 
+typedef unsigned int channel_t;
+
+static const channel_t kChanNone = 0;
+static const channel_t kChanLeft = 0x0001;
+static const channel_t kChanDepth = 0x0002;
+static const channel_t kChanRight = 0x0004;
+static const channel_t kChanDisparity = 0x0008;
+static const channel_t kChanDeviation = 0x0010;
+
+static const channel_t kChanOverlay1 = 0x1000;
+
 typedef unsigned int capability_t;
 
 static const capability_t kCapMovable	= 0x0001;	// A movable virtual cam
@@ -34,6 +45,8 @@ class Source {
 	virtual bool grab(int n, int b)=0;
 	virtual bool isReady() { return false; };
 	virtual void setPose(const Eigen::Matrix4d &pose) { };
+
+	virtual Camera parameters(channel_t) { return params_; };
 
 	protected:
 	capability_t capabilities_;

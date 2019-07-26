@@ -323,3 +323,7 @@ bool Source::setChannel(ftl::rgbd::channel_t c) {
 	// FIXME:(Nick) Verify channel is supported by this source...
 	return true;
 }
+
+const ftl::rgbd::Camera Source::parameters(channel_t chan) const {
+	return (impl_) ? impl_->parameters(chan) : parameters();
+}

@@ -26,6 +26,7 @@ class NetSource : public detail::Source {
 	bool isReady();
 
 	void setPose(const Eigen::Matrix4d &pose);
+	Camera parameters(channel_t chan);
 
 	void reset();
 
@@ -54,7 +55,7 @@ class NetSource : public detail::Source {
 	cv::Mat d_depth_;
 	cv::Mat d_rgb_;
 
-	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p);
+	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p, ftl::rgbd::channel_t chan);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
 	void _recvChunk(int64_t frame, int chunk, bool delta, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
 	void _updateURI();

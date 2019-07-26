@@ -18,10 +18,10 @@ using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using std::tuple;
 
-bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p) {
+bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::rgbd::channel_t chan) {
 	try {
 		while(true) {
-			auto [cap,buf] = net.call<tuple<unsigned int,vector<unsigned char>>>(peer_, "source_details", src);
+			auto [cap,buf] = net.call<tuple<unsigned int,vector<unsigned char>>>(peer_, "source_details", src, chan);
 
 			capabilities_ = cap;
 
@@ -216,6 +216,19 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 	//Source::setPose(pose);
 }
 
+ftl::rgbd::Camera NetSource::parameters(ftl::rgbd::channel_t chan) {
+	if (chan == ftl::rgbd::kChanRight) {
+		auto uri = host_->get<string>("uri");
+		if (!uri) return params_;
+
+		ftl::rgbd::Camera params;
+		_getCalibration(*host_->getNet(), peer_, *uri, params, chan);
+		return params;
+	} else {
+		return params_;
+	}
+}
+
 void NetSource::_updateURI() {
 	UNIQUE_LOCK(mutex_,lk);
 	active_ = false;
@@ -234,7 +247,7 @@ void NetSource::_updateURI() {
 		}
 		peer_ = *p;
 
-		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_);
+		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::rgbd::kChanLeft);
 
 		host_->getNet()->bind(*uri, [this](int64_t frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 			_recvChunk(frame, chunk, delta, jpg, d);

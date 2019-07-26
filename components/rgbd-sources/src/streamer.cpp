@@ -75,14 +75,15 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	});
 
 	// Allow remote users to access camera calibration matrix
-	net->bind("source_details", [this](const std::string &uri) -> tuple<unsigned int,vector<unsigned char>> {
+	net->bind("source_details", [this](const std::string &uri, ftl::rgbd::channel_t chan) -> tuple<unsigned int,vector<unsigned char>> {
 		vector<unsigned char> buf;
 		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
 			buf.resize(sizeof(Camera));
 			LOG(INFO) << "Calib buf size = " << buf.size();
-			memcpy(buf.data(), &sources_[uri]->src->parameters(), buf.size());
+			auto params = sources_[uri]->src->parameters(chan);
+			memcpy(buf.data(), &params, buf.size());
 			return make_tuple(sources_[uri]->src->getCapabilities(), buf);
 		} else {
 			return make_tuple(0u,buf);

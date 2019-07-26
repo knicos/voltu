@@ -120,6 +120,28 @@ void StereoVideoSource::init(const string &file) {
 	ready_ = true;
 }
 
+ftl::rgbd::Camera StereoVideoSource::parameters(ftl::rgbd::channel_t chan) {
+	if (chan == ftl::rgbd::kChanRight) {
+		cv::Mat q = calib_->getCameraMatrixRight();
+		ftl::rgbd::Camera params = {
+			q.at<double>(0,0),	// Fx
+			q.at<double>(1,1),	// Fy
+			-q.at<double>(0,2),	// Cx
+			-q.at<double>(1,2),	// Cy
+			(unsigned int)lsrc_->width(),
+			(unsigned int)lsrc_->height(),
+			0.0f,	// 0m min
+			15.0f,	// 15m max
+			1.0 / calib_->getQ().at<double>(3,2), // Baseline
+			0.0f  // doffs
+		};
+		return params;
+		//params_.doffs = -calib_->getQ().at<double>(3,3) * params_.baseline;
+	} else {
+		return params_;
+	}
+}
+
 static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
 							 const cv::Mat &Q, cv::cuda::Stream &stream) {
 	// Q(3, 2) = -1/Tx

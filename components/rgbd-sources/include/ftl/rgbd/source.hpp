@@ -25,17 +25,6 @@ static inline bool isValidDepth(float d) { return (d > 0.01f) && (d < 39.99f); }
 
 class SnapshotReader;
 
-typedef unsigned int channel_t;
-
-static const channel_t kChanNone = 0;
-static const channel_t kChanLeft = 0x0001;
-static const channel_t kChanDepth = 0x0002;
-static const channel_t kChanRight = 0x0004;
-static const channel_t kChanDisparity = 0x0008;
-static const channel_t kChanDeviation = 0x0010;
-
-static const channel_t kChanOverlay1 = 0x1000;
-
 /**
  * RGBD Generic data source configurable entity. This class hides the
  * internal implementation of an RGBD source by providing accessor functions
@@ -136,6 +125,8 @@ class Source : public ftl::Configurable {
 		if (impl_) return impl_->params_;
 		else return params_;
 	}
+
+	const Camera parameters(channel_t) const;
 
 	cv::Mat cameraMatrix() const;
 
