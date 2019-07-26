@@ -390,7 +390,8 @@ void Streamer::_schedule() {
 		// Create jobs for each chunk
 		for (int i=0; i<kChunkCount; ++i) {
 			// Add chunk job to thread pool
-			ftl::pool.push([this,src](int id, int chunk) {
+			ftl::pool.push([this,src,i](int id) {
+				int chunk = i;
 				try {
 				if (!src->rgb.empty() && (src->src->getChannel() == ftl::rgbd::kChanNone || !src->depth.empty())) {
 					_encodeAndTransmit(src, chunk);
@@ -404,7 +405,7 @@ void Streamer::_schedule() {
 				std::unique_lock<std::mutex> lk(job_mtx_);
 				--jobs_;
 				job_cv_.notify_one();
-			}, i);
+			});
 		}
 	}
 }

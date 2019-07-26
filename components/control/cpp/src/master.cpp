@@ -26,10 +26,10 @@ Master::Master(Configurable *root, Universe *net)
 		return {json.dump()};
 	});
 
-	net->broadcast("log_subscribe", net->id());
+	//net->broadcast("log_subscribe", net->id());
 
 	net->onConnect([this](ftl::net::Peer*) {
-		net_->broadcast("log_subscribe", net_->id());
+		//net_->broadcast("log_subscribe", net_->id());
 	});
 }
 

@@ -14,7 +14,10 @@ int main(int argc, char **argv) {
 	auto sources = ftl::createArray<ftl::rgbd::Source>(root, "sources", net);
 
 	ftl::rgbd::Group group;
-	for (auto s : sources) group.addSource(s);
+	for (auto s : sources) {
+		s->setChannel(ftl::rgbd::kChanRight);
+		group.addSource(s);
+	}
 
 	group.sync([](const ftl::rgbd::FrameSet &fs) {
 		LOG(INFO) << "Complete set: " << fs.timestamp;
@@ -23,7 +26,7 @@ int main(int argc, char **argv) {
 
 	while (ftl::running) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(20));
-		for (auto s : sources) s->grab();
+		for (auto s : sources) s->grab(30);
 	}
 
 	return 0;

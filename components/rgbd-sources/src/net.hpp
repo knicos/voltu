@@ -11,6 +11,8 @@ namespace ftl {
 namespace rgbd {
 namespace detail {
 
+static const int kDefaultFrameCount = 30;
+
 /**
  * RGBD source from either a stereo video file with left + right images, or
  * direct from two camera devices. A variety of algorithms are included for
