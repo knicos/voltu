@@ -28,7 +28,7 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	Size image_size = Size(	getOptionInt(opt, "width", 1280),
 							getOptionInt(opt, "height", 720));
 	// iterations
-	int iter = getOptionInt(opt, "iter", 3);
+	int iter = getOptionInt(opt, "iter", 50);
 	// delay between images
 	double delay = getOptionInt(opt, "delay", 250);
 	// max_error for a single image; if error larger image discarded
@@ -38,7 +38,7 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	// intrinsics filename
 	string filename_intrinsics = getOptionString(opt, "profile", "./panasonic.yml");
 
-	bool use_grid = (bool) getOptionInt(opt, "use_grid", 1);
+	bool use_grid = (bool) getOptionInt(opt, "use_grid", 0);
 
 	LOG(INFO) << "Stereo calibration parameters";
 	LOG(INFO) << "     profile: " << filename_intrinsics;
@@ -94,9 +94,7 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	vector<Mat> dist_coeffs(2);
 	vector<Mat> camera_matrices(2);
 
-	// assume identical cameras; load intrinsic parameters
-	if (!(	loadIntrinsics(filename_intrinsics, camera_matrices[0], dist_coeffs[0]) &&
-			loadIntrinsics(filename_intrinsics, camera_matrices[1], dist_coeffs[1]))) {
+	if (!loadIntrinsics(filename_intrinsics, camera_matrices, dist_coeffs)) {
 		LOG(FATAL) << "Failed to load intrinsic camera parameters from file.";
 	}
 	

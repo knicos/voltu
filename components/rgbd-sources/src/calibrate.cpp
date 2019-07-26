@@ -78,11 +78,21 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 		return false;
 	}
 
-	fs["M"] >> M1_;
-	fs["D"] >> D1_;
+	{
+		vector<Mat> K, D;
+		fs["K"] >> K;
+		fs["D"] >> D;
+		
+		K[0].copyTo(M1_);
+		K[1].copyTo(M2_);
+		D[0].copyTo(D1_);
+		D[1].copyTo(D2_);
+	}
 
-	M2_ = M1_;
-	D2_ = D1_;
+	CHECK(M1_.size() == Size(3, 3));
+	CHECK(M2_.size() == Size(3, 3));
+	CHECK(D1_.size() == Size(5, 1));
+	CHECK(D2_.size() == Size(5, 1));
 
 	auto efile = ftl::locateFile("extrinsics.yml");
 	if (efile) {
@@ -105,8 +115,6 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 	fs["P1"] >> P1_;
 	fs["P2"] >> P2_;
 	fs["Q"] >> Q_;
-
-	P_ = P1_;
 
 	img_size_ = img_size;
 

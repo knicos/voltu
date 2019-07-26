@@ -116,66 +116,70 @@ using config::configure;
 
 template <typename T, typename... ARGS>
 T *ftl::config::create(json_t &link, ARGS ...args) {
-    //auto &r = link; // = ftl::config::resolve(link);
+	//auto &r = link; // = ftl::config::resolve(link);
 
-    if (!link["$id"].is_string()) {
-        LOG(FATAL) << "Entity does not have $id or parent: " << link;
-        return nullptr;
-    }
+	if (!link["$id"].is_string()) {
+		LOG(FATAL) << "Entity does not have $id or parent: " << link;
+		return nullptr;
+	}
 
-    ftl::Configurable *cfg = ftl::config::find(link["$id"].get<std::string>());
-    if (!cfg) {
-        try {
-            cfg = new T(link, args...);
-        } catch(...) {
-            LOG(FATAL) << "Could not construct " << link;
-        }
-    } else {
-        // Make sure configurable has newest object pointer
-        cfg->patchPtr(link);
-    }
+	ftl::Configurable *cfg = ftl::config::find(link["$id"].get<std::string>());
+	if (!cfg) {
+		try {
+			cfg = new T(link, args...);
+		} catch (std::exception &ex) {	
+			LOG(ERROR) << ex.what();
+			LOG(FATAL) << "Could not construct " << link;
+		} catch(...) {
+			LOG(ERROR) << "Unknown exception";
+			LOG(FATAL) << "Could not construct " << link;
+		}
+	} else {
+		// Make sure configurable has newest object pointer
+		cfg->patchPtr(link);
+	}
 
-    try {
-        return dynamic_cast<T*>(cfg);
-    } catch(...) {
-        LOG(FATAL) << "Configuration URI object is of wrong type: " << link;
-        return nullptr;
-    }
+	try {
+		return dynamic_cast<T*>(cfg);
+	} catch(...) {
+		LOG(FATAL) << "Configuration URI object is of wrong type: " << link;
+		return nullptr;
+	}
 }
 
 template <typename T, typename... ARGS>
 T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
-    nlohmann::json &entity = (!parent->getConfig()[name].is_null())
+	nlohmann::json &entity = (!parent->getConfig()[name].is_null())
 			? parent->getConfig()[name]
 			: ftl::config::resolve(parent->getConfig())[name];
 
-    if (entity.is_object()) {
-        if (!entity["$id"].is_string()) {
-            std::string id_str = *parent->get<std::string>("$id");
-            if (id_str.find('#') != std::string::npos) {
-                entity["$id"] = id_str + std::string("/") + name;
-            } else {
-                entity["$id"] = id_str + std::string("#") + name;
-            }
-        }
+	if (entity.is_object()) {
+		if (!entity["$id"].is_string()) {
+			std::string id_str = *parent->get<std::string>("$id");
+			if (id_str.find('#') != std::string::npos) {
+				entity["$id"] = id_str + std::string("/") + name;
+			} else {
+				entity["$id"] = id_str + std::string("#") + name;
+			}
+		}
 
-        return create<T>(entity, args...);
-    } else if (entity.is_null()) {
-        // Must create the object from scratch...
-        std::string id_str = *parent->get<std::string>("$id");
-        if (id_str.find('#') != std::string::npos) {
-            id_str = id_str + std::string("/") + name;
-        } else {
-            id_str = id_str + std::string("#") + name;
-        }
-        parent->getConfig()[name] = {
+		return create<T>(entity, args...);
+	} else if (entity.is_null()) {
+		// Must create the object from scratch...
+		std::string id_str = *parent->get<std::string>("$id");
+		if (id_str.find('#') != std::string::npos) {
+			id_str = id_str + std::string("/") + name;
+		} else {
+			id_str = id_str + std::string("#") + name;
+		}
+		parent->getConfig()[name] = {
 			// cppcheck-suppress constStatement
-            {"$id", id_str}
-        };
+			{"$id", id_str}
+		};
 
-        nlohmann::json &entity2 = parent->getConfig()[name];
-        return create<T>(entity2, args...);
-    }
+		nlohmann::json &entity2 = parent->getConfig()[name];
+		return create<T>(entity2, args...);
+	}
 
 	LOG(ERROR) << "Unable to create Configurable entity '" << name << "'";
 	return nullptr;
@@ -183,7 +187,7 @@ T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS 
 
 template <typename T, typename... ARGS>
 std::vector<T*> ftl::config::createArray(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
-    nlohmann::json &base = (!parent->getConfig()[name].is_null())
+	nlohmann::json &base = (!parent->getConfig()[name].is_null())
 			? parent->getConfig()[name]
 			: ftl::config::resolve(parent->getConfig())[name];
 
