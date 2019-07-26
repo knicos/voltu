@@ -20,6 +20,7 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 
 	cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 
+	// Create buffers if they don't exists
 	if ((unsigned int)depth1_.width() != camera.width || (unsigned int)depth1_.height() != camera.height) {
 		depth1_ = ftl::cuda::TextureObject<int>(camera.width, camera.height);
 	}
@@ -33,6 +34,7 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 		colour2_ = ftl::cuda::TextureObject<uchar4>(camera.width, camera.height);
 	}
 
+	// Parameters object to pass to CUDA describing the camera
 	SplatParams params;
 	params.m_flags = 0;
 	params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
@@ -66,14 +68,20 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 
 		// Splat the depth from first DIBR to expand the points
 		ftl::cuda::splat_points(depth1_, depth2_, params, stream);
+
+		// Alternative to above...
+		//ftl::cuda::mls_resample(depth1_, colour1_, depth2_, scene_->getHashParams(), scene_->cameraCount(), params, stream);
+
+
 		// Use reverse sampling to obtain more colour details
 		// Should use nearest neighbor point depths to verify which camera to use
-		ftl::cuda::dibr(depth2_, colour1_, scene_->cameraCount(), params, stream);
+		//ftl::cuda::dibr(depth2_, colour1_, scene_->cameraCount(), params, stream);
 
 		if (src->getChannel() == ftl::rgbd::kChanDepth) {
 			ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			src->writeFrames(colour1_, depth2_, stream);
 		} else if (src->getChannel() == ftl::rgbd::kChanRight) {
+			// Adjust pose to right eye position
 			Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
 			Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
 			params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
@@ -85,9 +93,6 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 		} else {
 			src->writeFrames(colour1_, depth2_, stream);
 		}
-
-
-		//ftl::cuda::mls_resample(depth1_, colour1_, depth2_, scene_->getHashParams(), scene_->cameraCount(), params, stream);
 	}
 
 	//ftl::cuda::median_filter(depth1_, depth2_, stream);
