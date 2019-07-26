@@ -15,8 +15,8 @@ int getOptionInt(const std::map<std::string, std::string> &options, const std::s
 double getOptionDouble(const std::map<std::string, std::string> &options, const std::string &opt, double default_value);
 std::string getOptionString(const std::map<std::string, std::string> &options, const std::string &opt, std::string default_value);
 
-bool loadIntrinsics(const std::string &ifile, cv::Mat &M1, cv::Mat &D1);
-bool saveIntrinsics(const std::string &ofile, const cv::Mat &M1, const cv::Mat &D1);
+bool loadIntrinsics(const std::string &ifile, std::vector<cv::Mat> &K, std::vector<cv::Mat> &D);
+bool saveIntrinsics(const std::string &ofile, const std::vector<cv::Mat> &K, const std::vector<cv::Mat> &D);
 
 // TODO loadExtrinsics()
 bool saveExtrinsics(const std::string &ofile, cv::Mat &R, cv::Mat &T, cv::Mat &R1, cv::Mat &R2, cv::Mat &P1, cv::Mat &P2, cv::Mat &Q);

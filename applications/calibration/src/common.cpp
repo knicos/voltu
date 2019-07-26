@@ -62,10 +62,10 @@ bool saveExtrinsics(const string &ofile, Mat &R, Mat &T, Mat &R1, Mat &R2, Mat &
 	return false;
 }
 
-bool saveIntrinsics(const string &ofile, const Mat &M, const Mat& D) {
+bool saveIntrinsics(const string &ofile, const vector<Mat> &M, const vector<Mat>& D) {
 	cv::FileStorage fs(ofile, cv::FileStorage::WRITE);
 	if (fs.isOpened()) {
-		fs << "M" << M << "D" << D;
+		fs << "K" << M << "D" << D;
 		fs.release();
 		return true;
 	}
@@ -75,7 +75,7 @@ bool saveIntrinsics(const string &ofile, const Mat &M, const Mat& D) {
 	return false;
 }
 
-bool loadIntrinsics(const string &ifile, Mat &M1, Mat &D1) {
+bool loadIntrinsics(const string &ifile, vector<Mat> &K1, vector<Mat> &D1) {
 	using namespace cv;
 
 	FileStorage fs;
@@ -89,7 +89,7 @@ bool loadIntrinsics(const string &ifile, Mat &M1, Mat &D1) {
 	
 	LOG(INFO) << "Intrinsics from: " << ifile;
 
-	fs["M"] >> M1;
+	fs["M"] >> K1;
 	fs["D"] >> D1;
 
 	return true;
@@ -188,7 +188,14 @@ CalibrationChessboard::CalibrationChessboard(const map<string, string> &opt) {
 	LOG(INFO) << "  square_size: " << pattern_square_size_;
 	LOG(INFO) << "-----------------------------------";
 
-	// CALIB_CB_NORMALIZE_IMAGE | CALIB_CB_EXHAUSTIVE | CALIB_CB_ACCURACY 
+	// From OpenCV (4.1.0) Documentation
+	//
+	// CALIB_CB_NORMALIZE_IMAGE	Normalize the image gamma with equalizeHist before detection.
+	// CALIB_CB_EXHAUSTIVE		Run an exhaustive search to improve detection rate.
+	// CALIB_CB_ACCURACY		Up sample input image to improve sub-pixel accuracy due to
+	//							aliasing effects. This should be used if an accurate camera
+	//							calibration is required.
+
 	chessboard_flags_ = cv::CALIB_CB_NORMALIZE_IMAGE | cv::CALIB_CB_ACCURACY;
 }
 

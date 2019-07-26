@@ -63,7 +63,6 @@ private:
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map1_gpu_;
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map2_gpu_;
 
-	cv::Mat P_;
 	cv::Mat Q_;
 	cv::Mat R_, T_, R1_, P1_, R2_, P2_;
 	cv::Mat M1_, D1_, M2_, D2_;
