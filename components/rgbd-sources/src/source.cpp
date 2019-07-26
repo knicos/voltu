@@ -324,6 +324,6 @@ bool Source::setChannel(ftl::rgbd::channel_t c) {
 	return true;
 }
 
-const ftl::rgbd::Camera Source::parameters(channel_t chan) const {
+const ftl::rgbd::Camera Source::parameters(ftl::rgbd::channel_t chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
