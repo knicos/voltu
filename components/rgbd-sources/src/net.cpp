@@ -269,14 +269,14 @@ void NetSource::_updateURI() {
 
 bool NetSource::grab(int n, int b) {
 	// Choose highest requested number of frames
-	maxN_ = std::max(maxN_,(n == -1) ? 10 : n);
+	maxN_ = std::max(maxN_,(n == -1) ? ftl::rgbd::detail::kDefaultFrameCount : n);
 
 	// Choose best requested quality
 	minB_ = std::min(minB_,(b == -1) ? 0 : b);
 
 	// Send k frames before end to prevent unwanted pause
 	// Unless only a single frame is requested
-	if ((N_ <= 2 && maxN_ > 1) || N_ == 0) {
+	if ((N_ <= maxN_/2 && maxN_ > 1) || N_ == 0) {
 		const ftl::rgbd::channel_t chan = host_->getChannel();
 
 		N_ = maxN_;

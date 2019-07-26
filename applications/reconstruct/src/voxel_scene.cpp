@@ -366,6 +366,7 @@ void SceneRep::_integrateDepthMaps() {
 	//cudaSafeCall(cudaDeviceSynchronize());
 
 	for (size_t i=0; i<cameras_.size(); ++i) {
+		if (!cameras_[i].source->isReady()) continue;
 		//ftl::cuda::clear_depth(*(cameras_[i].gpu.depth2_tex_), integ_stream_);
 		ftl::cuda::clear_points(*(cameras_[i].gpu.points_tex_), integ_stream_);
 		ftl::cuda::mls_smooth(*(cameras_[i].gpu.points_tex_), m_hashParams, cameras_.size(), i, integ_stream_);

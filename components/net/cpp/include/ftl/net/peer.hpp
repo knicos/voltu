@@ -300,8 +300,14 @@ R Peer::call(const std::string &name, ARGS... args) {
 		cv.notify_one();
 	}, std::forward<ARGS>(args)...);
 	
+	// While waiting, do some other thread jobs...
+	std::function<void(int)> j;
+	while (!hasreturned && (bool)(j=ftl::pool.pop())) {
+			LOG(INFO) << "Doing job whilst waiting...";
+			j(-1);
+	}
+
 	{  // Block thread until async callback notifies us
-		//UNIQUE_LOCK(m,lk);
 		std::unique_lock<std::mutex> lk(m);
 		cv.wait_for(lk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
 	}
