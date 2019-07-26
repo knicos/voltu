@@ -107,6 +107,7 @@ void ftl::cuda::int_to_float(const ftl::cuda::TextureObject<int> &in, ftl::cuda:
 
 // TODO:(Nick) Put this in a common location (used in integrators.cu)
 extern __device__ float spatialWeighting(float r);
+extern __device__ float spatialWeighting(float r, float h);
 
 /*
  * Kim, K., Chalidabhongse, T. H., Harwood, D., & Davis, L. (2005).
@@ -162,6 +163,39 @@ __device__ float mlsCamera(int cam, const float3 &mPos, uchar4 c1, float3 &wpos)
 					weight *= colourWeighting(colordiffFloat2(c1,c2));
 
 					if (weight > 0.0f) {
+						wpos += weight* (camera.pose * camPos);
+						weights += weight;
+					}
+				}			
+			//}
+		}
+	}
+
+	//wpos += (camera.pose * pos);
+
+	return weights;
+}
+
+__device__ float mlsCameraNoColour(int cam, const float3 &mPos, uchar4 c1, float3 &wpos, float h) {
+	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
+
+	const float3 pf = camera.poseInverse * mPos;
+	float3 pos = make_float3(0.0f, 0.0f, 0.0f);
+	const uint2 screenPos = make_uint2(camera.params.cameraToKinectScreenInt(pf));
+	float weights = 0.0f;
+
+	//#pragma unroll
+	for (int v=-WINDOW_RADIUS; v<=WINDOW_RADIUS; ++v) {
+		for (int u=-WINDOW_RADIUS; u<=WINDOW_RADIUS; ++u) {
+			//if (screenPos.x+u < width && screenPos.y+v < height) {	//on creen
+				float depth = tex2D<float>(camera.depth, screenPos.x+u, screenPos.y+v);
+				const float3 camPos = camera.params.kinectDepthToSkeleton(screenPos.x+u, screenPos.y+v, depth);
+				float weight = spatialWeighting(length(pf - camPos), h);
+
+				if (weight > 0.0f) {
+					uchar4 c2 = tex2D<uchar4>(camera.colour, screenPos.x+u, screenPos.y+v);
+
+					if (colourWeighting(colordiffFloat2(c1,c2)) > 0.0f) {
 						wpos += weight* (camera.pose * camPos);
 						weights += weight;
 					}
@@ -260,8 +294,12 @@ __global__ void mls_smooth_kernel(ftl::cuda::TextureObject<float4> output, HashP
 
 				if (hashParams.m_flags & ftl::voxhash::kFlagMLS) {
 					for (uint cam2=0; cam2<numcams; ++cam2) {
-						if (cam2 == cam) continue; //weights += mlsCamera(cam2, mPos, c1, wpos);
-						weights += mlsCameraBest(cam2, mPos, c1, wpos);
+						if (cam2 == cam) weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing*0.1f); //weights += 0.5*mlsCamera(cam2, mPos, c1, wpos);
+						weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing*5.0f);
+
+						// Previous approach
+						//if (cam2 == cam) continue;
+						//weights += mlsCameraBest(cam2, mPos, c1, wpos);
 					}
 					wpos /= weights;
 				} else {

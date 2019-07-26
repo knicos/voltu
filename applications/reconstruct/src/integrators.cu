@@ -58,6 +58,14 @@ __device__ float spatialWeighting(float r) {
 	return rh*rh*rh*rh;
 }
 
+__device__ float spatialWeighting(float r, float h) {
+	//const float h = c_hashParams.m_spatialSmoothing;
+	if (r >= h) return 0.0f;
+	float rh = r / h;
+	rh = 1.0f - rh*rh;
+	return rh*rh*rh*rh;
+}
+
 
 __global__ void integrateDepthMapsKernel(HashData hashData, HashParams hashParams, int numcams) {
 	__shared__ uint all_warp_ballot;
