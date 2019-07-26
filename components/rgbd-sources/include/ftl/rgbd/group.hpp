@@ -20,7 +20,7 @@ struct FrameSet {
 	unsigned int mask;
 };
 
-static const size_t kFrameBufferSize = 10;
+static const size_t kFrameBufferSize = 20;
 
 class Group {
 	public:

@@ -43,6 +43,8 @@ using ftl::net::Universe;
 using ftl::net::callback_t;
 using std::vector;
 
+#define TCP_BUFFER_SIZE	(1024*1024*10)
+
 /*static std::string hexStr(const std::string &s)
 {
 	const char *data = s.data();
@@ -82,8 +84,16 @@ static SOCKET tcpConnect(URI &uri) {
 		return INVALID_SOCKET;
 	}
 
-	//int flags =1; 
-    //if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
+	int flags =1; 
+    if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
+
+	int a = TCP_BUFFER_SIZE;
+	if (setsockopt(csocket, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
+		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
+	}
+	if (setsockopt(csocket, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
+		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
+	}
 
 	addrinfo hints = {}, *addrs;
 	hints.ai_family = AF_INET;
@@ -166,8 +176,15 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	is_waiting_ = true;
 	scheme_ = ftl::URI::SCHEME_TCP;
 
-	//int flags =1; 
-    //if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
+	int flags =1; 
+    if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
+	int a = TCP_BUFFER_SIZE;
+	if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
+		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
+	}
+	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
+		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
+	}
 	
 	// Send the initiating handshake if valid
 	if (status_ == kConnecting) {
@@ -394,46 +411,52 @@ void Peer::error(int e) {
 }
 
 void Peer::data() {
-	UNIQUE_LOCK(recv_mtx_,lk);
-	recv_buf_.reserve_buffer(kMaxMessage);
+	{
+		UNIQUE_LOCK(recv_mtx_,lk);
 
-	if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
-		LOG(WARNING) << "Net buffer at capacity";
-		return;
+		int rc=0;
+		int c=0;
+
+		//do {
+			recv_buf_.reserve_buffer(kMaxMessage);
+
+			if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
+				LOG(WARNING) << "Net buffer at capacity";
+				return;
+			}
+
+			int cap = recv_buf_.buffer_capacity();
+			rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), cap, 0);
+			//if (c > 0 && rc > 0) LOG(INFO) << "RECV: " << rc;
+
+			if (rc >= cap-1) {
+				LOG(WARNING) << "More than buffers worth of data received"; 
+			}
+			if (cap < (kMaxMessage / 10)) LOG(WARNING) << "NO BUFFER";
+
+			if (rc == 0) {
+				close();
+				return;
+			} else if (rc < 0 && c == 0) {
+				socketError();
+				return;
+			}
+
+			//if (rc == -1) break;
+			++c;
+			
+			recv_buf_.buffer_consumed(rc);
+		//} while (rc > 0);
 	}
 
-	int cap = recv_buf_.buffer_capacity();
-	int rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), cap, 0);
-
-	if (rc >= cap) {
-		LOG(WARNING) << "More than buffers worth of data received"; 
-	}
-	if (cap < (kMaxMessage / 10)) LOG(WARNING) << "NO BUFFER";
-
-	if (rc == 0) {
-		close();
-		return;
-	} else if (rc < 0) {
-		socketError();
-		return;
-	}
-	
-	recv_buf_.buffer_consumed(rc);
-
-	// No thread currently processing messages so start one
-	if (is_waiting_) {
-		ftl::pool.push([](int id, Peer *p) {
-			p->_data();
-			//p->is_waiting_ = true;
-		}, this);
-		is_waiting_ = false;
-	}
-	lk.unlock();
-
-	//LOG(INFO) << "Received " << rc << " bytes";
+	ftl::pool.push([this](int id) {
+		_data();
+	});
 }
 
 bool Peer::_data() {
+	msgpack::object_handle msg;
+
 	UNIQUE_LOCK(recv_mtx_,lk);
 
 	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
@@ -444,10 +467,18 @@ bool Peer::_data() {
 		ws_read_header_ = true;
 	}
 
-	msgpack::object_handle msg;
-	while (recv_buf_.next(msg)) {
-		ws_read_header_ = false;
-		msgpack::object obj = msg.get();
+	if (!recv_buf_.next(msg)) return false;
+	msgpack::object obj = msg.get();
+	lk.unlock();
+
+	ftl::pool.push([this](int id) {
+		_data();
+	});
+
+	if (status_ != kConnected) {
+		// If not connected, must lock to make sure no other thread performs this step
+		UNIQUE_LOCK(recv_mtx_,lk);
+		// Verify still not connected after lock
 		if (status_ != kConnected) {
 			// First message must be a handshake
 			try {
@@ -463,32 +494,21 @@ bool Peer::_data() {
 					// to read next message before completion.
 					// The handshake handler must not block.
 					disp_->dispatch(*this, obj);
+					return true;
 				}
 			} catch(...) {
 				_badClose(false);
 				LOG(ERROR) << "Bad first message format";
 				return false;
 			}
-		} else {
-			// CHECK Safe to unlock here?
-			is_waiting_ = true;
-			lk.unlock();
-			disp_->dispatch(*this, obj);
-			// Relock before next loop of while
-			lk.lock();
-			is_waiting_ = false;
-		}
-
-		if (scheme_ == ftl::URI::SCHEME_WS && recv_buf_.nonparsed_size() > 0) {
-			wsheader_type ws;
-			if (ws_parse(recv_buf_, ws) < 0) {
-				return false;
-			}
-			ws_read_header_ = true;	
 		}
 	}
-	is_waiting_ = true;  // Can start another thread...
-	return false;
+	
+	disp_->dispatch(*this, obj);
+
+	// Lock again before freeing msg handle
+	UNIQUE_LOCK(recv_mtx_,lk2);
+	return true;
 }
 
 void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
