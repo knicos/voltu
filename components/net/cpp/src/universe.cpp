@@ -170,6 +170,14 @@ void Universe::_installBindings() {
 // Note: should be called inside a net lock
 void Universe::_cleanupPeers() {
 
+	if (ftl::pool.n_idle() == ftl::pool.size()) {
+		if (garbage_.size() > 0) LOG(INFO) << "Garbage collection";
+		while (garbage_.size() > 0) {
+			delete garbage_.front();
+			garbage_.pop_front();
+		}
+	}
+
 	auto i = peers_.begin();
 	while (i != peers_.end()) {
 		if (!(*i)->isValid()) {
@@ -185,7 +193,8 @@ void Universe::_cleanupPeers() {
 			if (p->status() == ftl::net::Peer::kReconnecting) {
 				reconnects_.push_back({50, 1.0f, p});
 			} else {
-				delete p;
+				//delete p;
+				garbage_.push_back(p);
 			}
 		} else {
 			i++;
@@ -210,7 +219,8 @@ void Universe::_periodic() {
 			(*i).tries--;
 			i++;
 		} else {
-			delete (*i).peer;
+			//delete (*i).peer;
+			garbage_.push_back((*i).peer);
 			i = reconnects_.erase(i);
 			LOG(WARNING) << "Reconnection to peer failed";
 		}
