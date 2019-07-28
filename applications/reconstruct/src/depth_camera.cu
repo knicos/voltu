@@ -140,7 +140,7 @@ __device__ float colordiffFloat2(const uchar4 &pa, const uchar4 &pb) {
 	return ch*ch*ch*ch;
 }
 
-#define WINDOW_RADIUS 9
+#define WINDOW_RADIUS 5
 
 __device__ float mlsCamera(int cam, const float3 &mPos, uchar4 c1, float3 &wpos) {
 	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
@@ -190,13 +190,19 @@ __device__ float mlsCameraNoColour(int cam, const float3 &mPos, uchar4 c1, float
 			//if (screenPos.x+u < width && screenPos.y+v < height) {	//on creen
 				float depth = tex2D<float>(camera.depth, screenPos.x+u, screenPos.y+v);
 				const float3 camPos = camera.params.kinectDepthToSkeleton(screenPos.x+u, screenPos.y+v, depth);
+
+				// TODO:(Nick) dot product of normals < 0 means the point
+				// should be ignored with a weight of 0 since it is facing the wrong direction
+				// May be good to simply weight using the dot product to give
+				// a stronger weight to those whose normals are closer
+
 				float weight = spatialWeighting(length(pf - camPos), h);
 
 				if (weight > 0.0f) {
 					uchar4 c2 = tex2D<uchar4>(camera.colour, screenPos.x+u, screenPos.y+v);
 
 					if (colourWeighting(colordiffFloat2(c1,c2)) > 0.0f) {
-						wpos += weight* (camera.pose * camPos);
+						pos += weight*camPos; // (camera.pose * camPos);
 						weights += weight;
 					}
 				}			
@@ -204,7 +210,7 @@ __device__ float mlsCameraNoColour(int cam, const float3 &mPos, uchar4 c1, float
 		}
 	}
 
-	//wpos += (camera.pose * pos);
+	if (weights > 0.0f) wpos += (camera.pose * (pos / weights)) * weights;
 
 	return weights;
 }
@@ -294,8 +300,8 @@ __global__ void mls_smooth_kernel(ftl::cuda::TextureObject<float4> output, HashP
 
 				if (hashParams.m_flags & ftl::voxhash::kFlagMLS) {
 					for (uint cam2=0; cam2<numcams; ++cam2) {
-						if (cam2 == cam) weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing*0.1f); //weights += 0.5*mlsCamera(cam2, mPos, c1, wpos);
-						weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing*5.0f);
+						//if (cam2 == cam) weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing*0.1f); //weights += 0.5*mlsCamera(cam2, mPos, c1, wpos);
+						weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing); //*((cam == cam2)? 0.1f : 5.0f));
 
 						// Previous approach
 						//if (cam2 == cam) continue;
@@ -309,10 +315,12 @@ __global__ void mls_smooth_kernel(ftl::cuda::TextureObject<float4> output, HashP
 
 				//output(x,y) = (weights >= hashParams.m_confidenceThresh) ? make_float4(wpos, 0.0f) : make_float4(MINF,MINF,MINF,MINF);
 
-				const uint2 screenPos = make_uint2(mainCamera.params.cameraToKinectScreenInt(mainCamera.poseInverse * wpos));
-				if (screenPos.x < output.width() && screenPos.y < output.height()) {
-					output(screenPos.x,screenPos.y) = (weights >= hashParams.m_confidenceThresh) ? make_float4(wpos, 0.0f) : make_float4(MINF,MINF,MINF,MINF);
-				}
+				if (weights >= hashParams.m_confidenceThresh) output(x,y) = make_float4(wpos, 0.0f);
+
+				//const uint2 screenPos = make_uint2(mainCamera.params.cameraToKinectScreenInt(mainCamera.poseInverse * wpos));
+				//if (screenPos.x < output.width() && screenPos.y < output.height()) {
+				//	output(screenPos.x,screenPos.y) = (weights >= hashParams.m_confidenceThresh) ? make_float4(wpos, 0.0f) : make_float4(MINF,MINF,MINF,MINF);
+				//}
 			}
 		}
 	}
