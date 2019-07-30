@@ -18,15 +18,25 @@ static const channel_t kChanDepth = 0x0002;
 static const channel_t kChanRight = 0x0004;
 static const channel_t kChanDisparity = 0x0008;
 static const channel_t kChanDeviation = 0x0010;
+static const channel_t kChanNormals = 0x0020;
+static const channel_t kChanConfidence = 0x0040;
+static const channel_t kChanFlow = 0x0080;
 
 static const channel_t kChanOverlay1 = 0x1000;
+
+inline bool isFloatChannel(ftl::rgbd::channel_t chan) {
+	return (chan == ftl::rgbd::kChanDepth);
+}
+
 
 typedef unsigned int capability_t;
 
 static const capability_t kCapMovable	= 0x0001;	// A movable virtual cam
 static const capability_t kCapVideo		= 0x0002;	// Is a video feed
 static const capability_t kCapActive	= 0x0004;	// An active depth sensor
-static const capability_t kCapStereo	= 0x0005;	// Has right RGB
+static const capability_t kCapStereo	= 0x0008;	// Has right RGB
+static const capability_t kCapDepth		= 0x0010;	// Has depth capabilities
+
 
 namespace detail {
 

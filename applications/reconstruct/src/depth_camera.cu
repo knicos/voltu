@@ -176,7 +176,7 @@ __device__ float mlsCamera(int cam, const float3 &mPos, uchar4 c1, float3 &wpos)
 	return weights;
 }
 
-__device__ float mlsCameraNoColour(int cam, const float3 &mPos, uchar4 c1, float3 &wpos, float h) {
+__device__ float mlsCameraNoColour(int cam, const float3 &mPos, uchar4 c1, const float4 &norm, float3 &wpos, float h) {
 	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
 
 	const float3 pf = camera.poseInverse * mPos;
@@ -199,11 +199,15 @@ __device__ float mlsCameraNoColour(int cam, const float3 &mPos, uchar4 c1, float
 				float weight = spatialWeighting(length(pf - camPos), h);
 
 				if (weight > 0.0f) {
-					uchar4 c2 = tex2D<uchar4>(camera.colour, screenPos.x+u, screenPos.y+v);
+					float4 n2 = tex2D<float4>(camera.normal, screenPos.x+u, screenPos.y+v);
+					if (dot(make_float3(norm), make_float3(n2)) > 0.0f) {
 
-					if (colourWeighting(colordiffFloat2(c1,c2)) > 0.0f) {
-						pos += weight*camPos; // (camera.pose * camPos);
-						weights += weight;
+						uchar4 c2 = tex2D<uchar4>(camera.colour, screenPos.x+u, screenPos.y+v);
+
+						if (colourWeighting(colordiffFloat2(c1,c2)) > 0.0f) {
+							pos += weight*camPos; // (camera.pose * camPos);
+							weights += weight;
+						}
 					}
 				}			
 			//}
@@ -286,6 +290,8 @@ __global__ void mls_smooth_kernel(ftl::cuda::TextureObject<float4> output, HashP
 
 		const float depth = tex2D<float>(mainCamera.depth, x, y);
 		const uchar4 c1 = tex2D<uchar4>(mainCamera.colour, x, y);
+		const float4 norm = tex2D<float4>(mainCamera.normal, x, y);
+		//if (x == 400 && y == 200) printf("NORMX: %f\n", norm.x);
 
 		float3 wpos = make_float3(0.0f);
 		float3 wnorm = make_float3(0.0f);
@@ -301,7 +307,7 @@ __global__ void mls_smooth_kernel(ftl::cuda::TextureObject<float4> output, HashP
 				if (hashParams.m_flags & ftl::voxhash::kFlagMLS) {
 					for (uint cam2=0; cam2<numcams; ++cam2) {
 						//if (cam2 == cam) weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing*0.1f); //weights += 0.5*mlsCamera(cam2, mPos, c1, wpos);
-						weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing); //*((cam == cam2)? 0.1f : 5.0f));
+						weights += mlsCameraNoColour(cam2, mPos, c1, norm, wpos, c_hashParams.m_spatialSmoothing); //*((cam == cam2)? 0.1f : 5.0f));
 
 						// Previous approach
 						//if (cam2 == cam) continue;
@@ -567,7 +573,7 @@ void ftl::cuda::hole_fill(const TextureObject<int> &depth_in,
 
 /// ===== Point cloud from depth =====
 
-__global__ void point_cloud_kernel(float3* output, DepthCameraCUDA depthCameraData)
+__global__ void point_cloud_kernel(ftl::cuda::TextureObject<float4> output, DepthCameraCUDA depthCameraData)
 {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -578,13 +584,13 @@ __global__ void point_cloud_kernel(float3* output, DepthCameraCUDA depthCameraDa
 	if (x < width && y < height) {
 		float depth = tex2D<float>(depthCameraData.depth, x, y);
 
-		output[y*width+x] = (depth >= depthCameraData.params.m_sensorDepthWorldMin && depth <= depthCameraData.params.m_sensorDepthWorldMax) ?
-			depthCameraData.params.kinectDepthToSkeleton(x, y, depth) :
-			make_float3(MINF, MINF, MINF);
+		output(x,y) = (depth >= depthCameraData.params.m_sensorDepthWorldMin && depth <= depthCameraData.params.m_sensorDepthWorldMax) ?
+			make_float4(depthCameraData.pose * depthCameraData.params.kinectDepthToSkeleton(x, y, depth), 0.0f) :
+			make_float4(MINF, MINF, MINF, MINF);
 	}
 }
 
-void ftl::cuda::point_cloud(float3* output, const DepthCameraCUDA &depthCameraData, cudaStream_t stream) {
+void ftl::cuda::point_cloud(ftl::cuda::TextureObject<float4> &output, const DepthCameraCUDA &depthCameraData, cudaStream_t stream) {
 	const dim3 gridSize((depthCameraData.params.m_imageWidth + T_PER_BLOCK - 1)/T_PER_BLOCK, (depthCameraData.params.m_imageHeight + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
@@ -598,7 +604,7 @@ void ftl::cuda::point_cloud(float3* output, const DepthCameraCUDA &depthCameraDa
 /// ===== NORMALS =====
 
 
-__global__ void compute_normals_kernel(const float3 *input, ftl::cuda::TextureObject<float4> output)
+__global__ void compute_normals_kernel(const ftl::cuda::TextureObject<float4> input, ftl::cuda::TextureObject<float4> output)
 {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -611,31 +617,31 @@ __global__ void compute_normals_kernel(const float3 *input, ftl::cuda::TextureOb
 
 	if(x > 0 && x < output.width()-1 && y > 0 && y < output.height()-1)
 	{
-		// TODO:(Nick) Should use a 7x7 window
-		const float3 CC = input[(y+0)*width+(x+0)];
-		const float3 PC = input[(y+1)*width+(x+0)];
-		const float3 CP = input[(y+0)*width+(x+1)];
-		const float3 MC = input[(y-1)*width+(x+0)];
-		const float3 CM = input[(y+0)*width+(x-1)];
+		const float3 CC = make_float3(input(x,y)); //input[(y+0)*width+(x+0)];
+		const float3 PC = make_float3(input(x,y+1)); //input[(y+1)*width+(x+0)];
+		const float3 CP = make_float3(input(x+1,y)); //input[(y+0)*width+(x+1)];
+		const float3 MC = make_float3(input(x,y-1)); //input[(y-1)*width+(x+0)];
+		const float3 CM = make_float3(input(x-1,y)); //input[(y+0)*width+(x-1)];
 
 		if(CC.x != MINF && PC.x != MINF && CP.x != MINF && MC.x != MINF && CM.x != MINF)
 		{
 			const float3 n = cross(PC-MC, CP-CM);
-			//const float  l = length(n);
+			const float  l = length(n);
 
-			//if(l > 0.0f)
-			//{
-				output(x,y) = make_float4(n, 1.0f); //make_float4(n/-l, 1.0f);
-			//}
+			if(l > 0.0f)
+			{
+				//if (x == 400 && y == 200) printf("Cam NORMX: %f\n", (n/-l).x);
+				output(x,y) = make_float4(n.x/-l, n.y/-l, n.z/-l, 0.0f); //make_float4(n/-l, 1.0f);
+			}
 		}
 	}
 }
 
-void ftl::cuda::compute_normals(const float3 *input, ftl::cuda::TextureObject<float4> *output, cudaStream_t stream) {
-	const dim3 gridSize((output->width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (output->height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+void ftl::cuda::compute_normals(const ftl::cuda::TextureObject<float4> &input, ftl::cuda::TextureObject<float4> &output, cudaStream_t stream) {
+	const dim3 gridSize((output.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (output.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	compute_normals_kernel<<<gridSize, blockSize, 0, stream>>>(input, *output);
+	compute_normals_kernel<<<gridSize, blockSize, 0, stream>>>(input, output);
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());

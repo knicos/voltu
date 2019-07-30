@@ -110,7 +110,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     Popup *popup = popbutton->popup();
     popup->setLayout(new GroupLayout());
 	popup->setTheme(screen->toolbuttheme);
-    popup->setAnchorHeight(100);
+    popup->setAnchorHeight(150);
 
     button = new Button(popup, "Left");
     button->setFlags(Button::RadioButton);
@@ -140,6 +140,14 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
         }
     });
 
+	popbutton = new PopupButton(popup, "More");
+    popbutton->setSide(Popup::Side::Right);
+	popbutton->setChevronIcon(ENTYPO_ICON_CHEVRON_SMALL_RIGHT);
+    popup = popbutton->popup();
+    popup->setLayout(new GroupLayout());
+	popup->setTheme(screen->toolbuttheme);
+    popup->setAnchorHeight(150);
+
     button = new Button(popup, "Deviation");
     button->setFlags(Button::RadioButton);
     button->setCallback([this]() {
@@ -148,6 +156,34 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
             cam->setChannel(ftl::rgbd::kChanDeviation);
         }
     });
+
+	button = new Button(popup, "Normals");
+    button->setFlags(Button::RadioButton);
+    button->setCallback([this]() {
+        ftl::gui::Camera *cam = screen_->activeCamera();
+        if (cam) {
+            cam->setChannel(ftl::rgbd::kChanNormals);
+        }
+    });
+
+	button = new Button(popup, "Flow");
+    button->setFlags(Button::RadioButton);
+    button->setCallback([this]() {
+        ftl::gui::Camera *cam = screen_->activeCamera();
+        if (cam) {
+            cam->setChannel(ftl::rgbd::kChanFlow);
+        }
+    });
+
+	button = new Button(popup, "Confidence");
+    button->setFlags(Button::RadioButton);
+    button->setCallback([this]() {
+        ftl::gui::Camera *cam = screen_->activeCamera();
+        if (cam) {
+            cam->setChannel(ftl::rgbd::kChanConfidence);
+        }
+    });
+
 }
 
 MediaPanel::~MediaPanel() {

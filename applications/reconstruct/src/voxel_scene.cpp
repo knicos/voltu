@@ -105,9 +105,9 @@ extern "C" void updateCUDACameraConstant(ftl::voxhash::DepthCameraCUDA *data, in
 void SceneRep::_updateCameraConstant() {
 	std::vector<ftl::voxhash::DepthCameraCUDA> cams(cameras_.size());
 	for (size_t i=0; i<cameras_.size(); ++i) {
+		cameras_[i].gpu.data.pose = MatrixConversion::toCUDA(cameras_[i].source->getPose().cast<float>());
+		cameras_[i].gpu.data.poseInverse = MatrixConversion::toCUDA(cameras_[i].source->getPose().cast<float>().inverse());
 		cams[i] = cameras_[i].gpu.data;
-		cams[i].pose = MatrixConversion::toCUDA(cameras_[i].source->getPose().cast<float>());
-		cams[i].poseInverse = MatrixConversion::toCUDA(cameras_[i].source->getPose().cast<float>().inverse());
 	}
 	updateCUDACameraConstant(cams.data(), cams.size());
 }
