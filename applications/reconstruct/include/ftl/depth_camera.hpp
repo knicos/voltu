@@ -46,7 +46,7 @@ struct DepthCamera {
 
 	__host__ void free();
 
-	__host__ void _computeNormals(cudaStream_t stream);
+	__host__ void computeNormals(cudaStream_t stream);
 
 	ftl::cuda::TextureObject<float> *depth_tex_;
 	ftl::cuda::TextureObject<int> *depth2_tex_;

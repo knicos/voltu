@@ -27,7 +27,7 @@ void hole_fill(const TextureObject<int> &depth_in, const TextureObject<float> &d
 
 void point_cloud(ftl::cuda::TextureObject<float4> &output, const ftl::voxhash::DepthCameraCUDA &depthCameraData, cudaStream_t stream);
 
-void compute_normals(const ftl::cuda::TextureObject<float4> &points, ftl::cuda::TextureObject<float4> &normals, cudaStream_t stream);
+void compute_normals(const ftl::cuda::TextureObject<float> &depth, ftl::cuda::TextureObject<float4> &normals, const ftl::voxhash::DepthCameraCUDA &camera, cudaStream_t stream);
 
 }
 }

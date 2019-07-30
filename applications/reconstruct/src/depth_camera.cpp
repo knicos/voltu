@@ -45,11 +45,11 @@ void DepthCamera::updateData(const cv::Mat &depth, const cv::Mat &rgb, cv::cuda:
 	depth_tex_->upload(depth, cv::cuda::StreamAccessor::getStream(stream));
 	colour_tex_->upload(rgb, cv::cuda::StreamAccessor::getStream(stream));
 	//if (normal_mat_) {
-		_computeNormals(cv::cuda::StreamAccessor::getStream(stream));
+		//computeNormals(cv::cuda::StreamAccessor::getStream(stream));
 	//}
 }
 
-void DepthCamera::_computeNormals(cudaStream_t stream) {
-	ftl::cuda::point_cloud(*points_tex_, data, stream);
-	ftl::cuda::compute_normals(*points_tex_, *normal_tex_, stream);
+void DepthCamera::computeNormals(cudaStream_t stream) {
+	//ftl::cuda::point_cloud(*points_tex_, data, stream);
+	ftl::cuda::compute_normals(*depth_tex_, *normal_tex_, data, stream);
 }

@@ -604,7 +604,7 @@ void ftl::cuda::point_cloud(ftl::cuda::TextureObject<float4> &output, const Dept
 /// ===== NORMALS =====
 
 
-__global__ void compute_normals_kernel(const ftl::cuda::TextureObject<float4> input, ftl::cuda::TextureObject<float4> output)
+__global__ void compute_normals_kernel(const ftl::cuda::TextureObject<float> input, ftl::cuda::TextureObject<float4> output, DepthCameraCUDA camera)
 {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -617,11 +617,11 @@ __global__ void compute_normals_kernel(const ftl::cuda::TextureObject<float4> in
 
 	if(x > 0 && x < output.width()-1 && y > 0 && y < output.height()-1)
 	{
-		const float3 CC = make_float3(input(x,y)); //input[(y+0)*width+(x+0)];
-		const float3 PC = make_float3(input(x,y+1)); //input[(y+1)*width+(x+0)];
-		const float3 CP = make_float3(input(x+1,y)); //input[(y+0)*width+(x+1)];
-		const float3 MC = make_float3(input(x,y-1)); //input[(y-1)*width+(x+0)];
-		const float3 CM = make_float3(input(x-1,y)); //input[(y+0)*width+(x-1)];
+		const float3 CC = camera.pose * camera.params.kinectDepthToSkeleton(x,y,input(x,y)); //input[(y+0)*width+(x+0)];
+		const float3 PC = camera.pose * camera.params.kinectDepthToSkeleton(x,y,input(x,y+1)); //input[(y+1)*width+(x+0)];
+		const float3 CP = camera.pose * camera.params.kinectDepthToSkeleton(x,y,input(x+1,y)); //input[(y+0)*width+(x+1)];
+		const float3 MC = camera.pose * camera.params.kinectDepthToSkeleton(x,y,input(x,y-1)); //input[(y-1)*width+(x+0)];
+		const float3 CM = camera.pose * camera.params.kinectDepthToSkeleton(x,y,input(x-1,y)); //input[(y+0)*width+(x-1)];
 
 		if(CC.x != MINF && PC.x != MINF && CP.x != MINF && MC.x != MINF && CM.x != MINF)
 		{
@@ -637,11 +637,11 @@ __global__ void compute_normals_kernel(const ftl::cuda::TextureObject<float4> in
 	}
 }
 
-void ftl::cuda::compute_normals(const ftl::cuda::TextureObject<float4> &input, ftl::cuda::TextureObject<float4> &output, cudaStream_t stream) {
+void ftl::cuda::compute_normals(const ftl::cuda::TextureObject<float> &input, ftl::cuda::TextureObject<float4> &output, const DepthCameraCUDA &camera, cudaStream_t stream) {
 	const dim3 gridSize((output.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (output.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	compute_normals_kernel<<<gridSize, blockSize, 0, stream>>>(input, output);
+	compute_normals_kernel<<<gridSize, blockSize, 0, stream>>>(input, output, camera);
 
 #ifdef _DEBUG
 	cudaSafeCall(cudaDeviceSynchronize());
