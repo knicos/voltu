@@ -1,3 +1,4 @@
+#include <loguru.hpp>
 #include <ftl/depth_camera.hpp>
 #include "depth_camera_cuda.hpp"
 #include <opencv2/core/cuda_stream_accessor.hpp>
@@ -24,12 +25,12 @@ void DepthCamera::alloc(const DepthCameraParams& params, bool withNormals) { //!
 	data.colour = colour_tex_->cudaTexture();
 	data.params = params;
 
-	if (withNormals) {
+	//if (withNormals) {
 		normal_tex_ = new ftl::cuda::TextureObject<float4>(params.m_imageWidth, params.m_imageHeight);
 		data.normal = normal_tex_->cudaTexture();
-	} else {
-		data.normal = 0;
-	}
+	//} else {
+	//	data.normal = 0;
+	//}
 }
 
 void DepthCamera::free() {
@@ -44,11 +45,11 @@ void DepthCamera::updateData(const cv::Mat &depth, const cv::Mat &rgb, cv::cuda:
 	depth_tex_->upload(depth, cv::cuda::StreamAccessor::getStream(stream));
 	colour_tex_->upload(rgb, cv::cuda::StreamAccessor::getStream(stream));
 	//if (normal_mat_) {
-	//	_computeNormals(cv::cuda::StreamAccessor::getStream(stream));
+		_computeNormals(cv::cuda::StreamAccessor::getStream(stream));
 	//}
 }
 
 void DepthCamera::_computeNormals(cudaStream_t stream) {
-	//ftl::cuda::point_cloud((float3*)point_mat_->data, data, stream);
-	//ftl::cuda::compute_normals((float3*)point_mat_->data, normal_tex_, stream);
+	ftl::cuda::point_cloud(*points_tex_, data, stream);
+	ftl::cuda::compute_normals(*points_tex_, *normal_tex_, stream);
 }

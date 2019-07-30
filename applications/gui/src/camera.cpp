@@ -222,6 +222,9 @@ void ftl::gui::Camera::showSettings() {
 void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
 	channel_ = c;
 	switch (c) {
+	case ftl::rgbd::kChanFlow:
+	case ftl::rgbd::kChanConfidence:
+	case ftl::rgbd::kChanNormals:
 	case ftl::rgbd::kChanRight:
 		src_->setChannel(c);
 		break;
@@ -293,6 +296,9 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				texture_.update(tmp);
 				break;
 
+		case ftl::rgbd::kChanFlow:
+		case ftl::rgbd::kChanConfidence:
+		case ftl::rgbd::kChanNormals:
 			case ftl::rgbd::kChanRight:
 				if (depth.rows == 0 || depth.type() != CV_8UC3) { break; }
 				texture_.update(depth);

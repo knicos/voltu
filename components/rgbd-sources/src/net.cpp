@@ -295,9 +295,9 @@ bool NetSource::grab(int n, int b) {
 		N_ = maxN_;
 
 		// Verify depth destination is of required type
-		if (chan == ftl::rgbd::kChanDepth && depth_.type() != CV_32F) {
+		if (isFloatChannel(chan) && depth_.type() != CV_32F) {
 			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
-		} else if (chan == ftl::rgbd::kChanRight && depth_.type() != CV_8UC3) {
+		} else if (!isFloatChannel(chan) && depth_.type() != CV_8UC3) {
 			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
 		}
 

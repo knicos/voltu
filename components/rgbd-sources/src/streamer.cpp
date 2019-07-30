@@ -491,11 +491,11 @@ void Streamer::_encodeChannel1(const cv::Mat &in, vector<unsigned char> &out, un
 bool Streamer::_encodeChannel2(const cv::Mat &in, vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b) {
 	if (c == ftl::rgbd::kChanNone) return false;  // NOTE: Should not happen
 
-	if (c == ftl::rgbd::kChanDepth && in.type() == CV_16U && in.channels() == 1) {
+	if (isFloatChannel(c) && in.type() == CV_16U && in.channels() == 1) {
 		vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, bitrate_settings[b].png_compression};
 		cv::imencode(".png", in, out, params);
 		return true;
-	} else if (c == ftl::rgbd::kChanRight && in.type() == CV_8UC3) {
+	} else if (!isFloatChannel(c) && in.type() == CV_8UC3) {
 		vector<int> params = {cv::IMWRITE_JPEG_QUALITY, bitrate_settings[b].jpg_quality};
 		cv::imencode(".jpg", in, out, params);
 		return true;
