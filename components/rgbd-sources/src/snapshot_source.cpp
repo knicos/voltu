@@ -17,6 +17,10 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, 
     Eigen::Matrix4d pose;
     reader.getCameraRGBD(id, rgb_, depth_, pose, params_);
 
+	if (rgb_.empty()) LOG(ERROR) << "Did not load snapshot rgb - " << id;
+	if (depth_.empty()) LOG(ERROR) << "Did not load snapshot depth - " << id;
+	if (params_.width != rgb_.cols) LOG(ERROR) << "Camera parameters corrupt for " << id;
+
 	ftl::rgbd::colourCorrection(rgb_, host->value("gamma", 1.0f), host->value("temperature", 6500));
 
 	host->on("gamma", [this,host](const ftl::config::Event&) {
@@ -42,5 +46,7 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, 
 		params_.cy = host_->value("centre_y", params_.cy);
 	});
 
-    setPose(pose);
+	LOG(INFO) << "POSE = " << pose;
+
+    host->setPose(pose);
 }

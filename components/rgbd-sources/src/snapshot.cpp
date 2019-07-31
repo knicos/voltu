@@ -275,11 +275,12 @@ bool SnapshotReader::readArchive() {
 		else if (path.rfind("-D.") != string::npos) {
 			if (!readEntry(data)) continue;
 			snapshot.depth = cv::imdecode(data, cv::IMREAD_ANYDEPTH);
+			snapshot.depth.convertTo(snapshot.depth, CV_32FC1, 1.0f / 1000.0f);
 			snapshot.status &= ~(1 << 1);
 		}
 		else if (path.rfind("-POSE.pfm") != string::npos) {
 			if (!readEntry(data)) continue;
-			Mat m_ = cv::imdecode(Mat(data), 0);
+			Mat m_ = cv::imdecode(Mat(data), cv::IMREAD_ANYDEPTH);
 			if ((m_.rows != 4) || (m_.cols != 4)) continue;
 			cv::Matx44d pose_(m_);
 			cv::cv2eigen(pose_, snapshot.pose);
