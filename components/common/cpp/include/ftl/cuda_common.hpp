@@ -59,10 +59,12 @@ class TextureObject {
 	void download(cv::Mat &, cudaStream_t stream=0) const;
 	
 	__host__ void free() {
-		if (texobj_ != 0) cudaSafeCall( cudaDestroyTextureObject (texobj_) );
-		if (ptr_ && needsfree_) cudaFree(ptr_);
-		ptr_ = nullptr;
-		texobj_ = 0;
+		if (needsfree_) {
+			if (texobj_ != 0) cudaSafeCall( cudaDestroyTextureObject (texobj_) );
+			if (ptr_) cudaFree(ptr_);
+			ptr_ = nullptr;
+			texobj_ = 0;
+		}
 	}
 	
 	private:
