@@ -105,6 +105,7 @@ void Group::_addFrameset(int64_t timestamp) {
 		framesets_[head_].channel1.resize(sources_.size());
 		framesets_[head_].channel2.resize(sources_.size());
 
+		framesets_[head_].sources.clear();
 		for (auto s : sources_) framesets_[head_].sources.push_back(s);
 	}
 }

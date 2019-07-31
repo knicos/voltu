@@ -130,74 +130,91 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 	// Make certain last frame has finished decoding before swap
 	while (frame > current_frame_ && chunk_count_ < 16 && chunk_count_ > 0) {
 		std::this_thread::yield();
+		//std::function<void(int)> j = ftl::pool.pop();
+		//if ((bool)j) j(-1);
+		//else std::this_thread::yield();
 	}
 
-	// Lock host to prevent grab
-	UNIQUE_LOCK(host_->mutex(),lk);
+	//{
+		// A new frame has been started... finish the last one
+		if (frame > current_frame_) {
+			// Lock host to prevent grab
+			UNIQUE_LOCK(host_->mutex(),lk);
+			if (frame > current_frame_) {
+				{
+					// Lock to allow buffer swap
+					UNIQUE_LOCK(mutex_,lk2);
 
-	// A new frame has been started... finish the last one
-	if (frame > current_frame_) {
-		// Lock host to prevent grab
-		//UNIQUE_LOCK(host_->mutex(),lk);
+					chunk_count_ = 0;
 
-		chunk_count_ = 0;
+					// Swap the double buffers
+					cv::Mat tmp;
+					tmp = rgb_;
+					rgb_ = d_rgb_;
+					d_rgb_ = tmp;
+					tmp = depth_;
+					depth_ = d_depth_;
+					d_depth_ = tmp;
 
-		// Swap the double buffers
-		cv::Mat tmp;
-		tmp = rgb_;
-		rgb_ = d_rgb_;
-		d_rgb_ = tmp;
-		tmp = depth_;
-		depth_ = d_depth_;
-		d_depth_ = tmp;
+					timestamp_ = current_frame_*40;  // FIXME: Don't hardcode 40ms
+					current_frame_ = frame;
+				}
 
-		timestamp_ = current_frame_*40;  // FIXME: Don't hardcode 40ms
-		current_frame_ = frame;
-
-		if (host_->callback()) {
-			//ftl::pool.push([this](id) {
-			//	UNIQUE_LOCK(host_->mutex(),lk);
-				host_->callback()(timestamp_, rgb_, depth_);
-			//});
+				if (host_->callback()) {
+					//ftl::pool.push([this](id) {
+					//	UNIQUE_LOCK(host_->mutex(),lk);
+						host_->callback()(timestamp_, rgb_, depth_);
+					//});
+				}
+			}
+		} else if (frame < current_frame_) {
+			LOG(WARNING) << "Chunk dropped";
+			if (chunk == 0) N_--;
+			return;
 		}
-	} else if (frame < current_frame_) {
-		LOG(WARNING) << "Chunk dropped";
-		if (chunk == 0) N_--;
-		return;
-	}
+	//}
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
-	
-	cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
-	cv::Mat chunkRGB = d_rgb_(roi);
-	cv::Mat chunkDepth = d_depth_(roi);
 
-	// Original size so just copy
-	if (tmp_rgb.cols == chunkRGB.cols) {
-		tmp_rgb.copyTo(chunkRGB);
-		if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
-			tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-		} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
-			tmp_depth.copyTo(chunkDepth);
+	{
+		SHARED_LOCK(mutex_, lk);
+		
+		cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
+		cv::Mat chunkRGB = d_rgb_(roi);
+		cv::Mat chunkDepth = d_depth_(roi);
+
+		// Original size so just copy
+		if (tmp_rgb.cols == chunkRGB.cols) {
+			tmp_rgb.copyTo(chunkRGB);
+			if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
+				tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
+			} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
+				tmp_depth.copyTo(chunkDepth);
+			} else {
+				// Silent ignore?
+			}
+		// Downsized so needs a scale up
 		} else {
-			// Silent ignore?
-		}
-	// Downsized so needs a scale up
-	} else {
-		cv::resize(tmp_rgb, chunkRGB, chunkRGB.size());
-		tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f);
-		if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
-			tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-			cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
-		} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
-			cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
-		} else {
-			// Silent ignore?
+			cv::resize(tmp_rgb, chunkRGB, chunkRGB.size());
+			tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f);
+			if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
+				tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
+				cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
+			} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
+				cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
+			} else {
+				// Silent ignore?
+			}
 		}
 	}
 
-	++chunk_count_;
+	{
+		
+		++chunk_count_;
+	}
+
 	if (chunk == 0) {
+		UNIQUE_LOCK(host_->mutex(),lk);
 		N_--;
 	}
 }

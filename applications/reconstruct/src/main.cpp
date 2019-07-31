@@ -79,11 +79,12 @@ static void run(ftl::Configurable *root) {
 			auto T = transformations.find(uri);
 			if (T == transformations.end()) {
 				LOG(ERROR) << "Camera pose for " + uri + " not found in transformations";
-				LOG(WARNING) << "Using only first configured source";
+				//LOG(WARNING) << "Using only first configured source";
 				// TODO: use target source if configured and found
-				sources = { sources[0] };
-				sources[0]->setPose(Eigen::Matrix4d::Identity());
-				break;
+				//sources = { sources[0] };
+				//sources[0]->setPose(Eigen::Matrix4d::Identity());
+				//break;
+				continue;
 			}
 			input->setPose(T->second);
 		}

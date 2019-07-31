@@ -39,7 +39,7 @@ class NetSource : public detail::Source {
 	bool active_;
 	std::string uri_;
 	ftl::net::callback_t h_;
-	MUTEX mutex_;
+	SHARED_MUTEX mutex_;
 	int chunks_dim_;
 	int chunk_width_;
 	int chunk_height_;
@@ -51,7 +51,7 @@ class NetSource : public detail::Source {
 	int default_quality_;
 	ftl::rgbd::channel_t prev_chan_;
 	int64_t current_frame_;
-	int chunk_count_;
+	std::atomic<int> chunk_count_;
 
 	// Double buffering
 	cv::Mat d_depth_;

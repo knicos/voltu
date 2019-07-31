@@ -128,6 +128,7 @@
 				"SDFUseGradients": false,
 				"showBlockBorders": false
 			},
+			"baseline": 0.5,
 			"uri": "device:virtual"
 		}
 	},
@@ -146,10 +147,10 @@
 			"colourSmoothing": 200.0,
 			"colourInfluence": 2.0,
 			"spatialSmoothing": 0.04,
-			"confidenceThreshold": 0.00001,
-			"mls": false,
+			"confidenceThreshold": 0.0,
+			"mls": true,
 			"voxels": false,
-			"clipping": true,
+			"clipping": false,
 			"bbox_x_max": 1.5,
 			"bbox_x_min": -1.5,
 			"bbox_y_max": 3.0,
@@ -192,12 +193,19 @@
 
 	"viewer_default": {
 		"net": {
-			"peers": ["tcp://ftl-node-4:9001", "tcp://ftl-node-3:9001", "tcp://ftl-node-1:9001"]
+			"peers": ["tcp://ftl-node-4:9001",
+				"tcp://ftl-node-5:9001",
+				"tcp://ftl-node-1:9001",
+				"tcp://ftl-node-6:9001",
+				"tcp://ftl-node-3:9001"],
+			"listen": "tcp://*:9001"
 		},
 		"sources": [
+			{"uri":"ftl://utu.fi/node1#vision_default/source"},
+			{"uri":"ftl://utu.fi/node6#vision_default/source"},
+			//{"uri":"ftl://utu.fi/node3#vision_default/source"},
 			{"uri":"ftl://utu.fi/node4#vision_default/source"},
-			{"uri":"ftl://utu.fi/node3#vision_default/source"},
-			{"uri":"ftl://utu.fi/node1#vision_default/source"}
+			{"uri":"ftl://utu.fi/node5#vision_default/source"}
 		]
 	},
 
@@ -308,6 +316,195 @@
 				"patternsize" : [9, 6]
 				}
 		}
+	},
+
+	"reconstruction_snap2": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9001"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest2.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest2.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest2.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest2.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
+	},
+
+	"reconstruction_snap3": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9001"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest3.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest3.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest3.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest3.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
+	},
+
+	"reconstruction_snap4": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9001"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest4.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest4.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest4.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest4.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
+	},
+
+	"reconstruction_snap5": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9001"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest5.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest5.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest5.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest5.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
+	},
+
+	"reconstruction_snap6": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9001"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest6.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest6.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest6.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest6.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
+	},
+
+	"reconstruction_snap7": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9001"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest7.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest7.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest7.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest7.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
+	},
+
+	"reconstruction_snap8": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9001"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest8.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest8.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest8.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest8.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
 	},
 
 	"reconstruction_lab": {
@@ -428,16 +625,16 @@
 			"peers": ["tcp://ftl-node-4:9001",
 				"tcp://ftl-node-5:9001",
 				"tcp://ftl-node-1:9001",
-				"tcp://ftl-node-2:9001",
+				"tcp://ftl-node-6:9001",
 				"tcp://ftl-node-3:9001"],
 			"listen": "tcp://*:9001"
 		},
 		"sources": [
-			{"uri":"ftl://utu.fi/node1#vision_default/source", "gamma": 0.8, "temperature": 6500, "scaling": 1.0},
-			{"uri":"ftl://utu.fi/node2#vision_default/source", "gamma": 1.2, "temperature": 6500, "scaling": 1.0},
-			{"uri":"ftl://utu.fi/node3#vision_default/source", "gamma": 1.2, "temperature": 6500, "scaling": 1.0},
-			{"uri":"ftl://utu.fi/node4#vision_default/source", "gamma": 1.2, "temperature": 6500, "scaling": 1.0},
-			{"uri":"ftl://utu.fi/node5#vision_default/source", "gamma": 1.2, "temperature": 6500, "scaling": 1.0}
+			{"uri":"ftl://utu.fi/node1#vision_default/source"},
+			{"uri":"ftl://utu.fi/node6#vision_default/source"},
+			//{"uri":"ftl://utu.fi/node3#vision_default/source"},
+			{"uri":"ftl://utu.fi/node4#vision_default/source"},
+			{"uri":"ftl://utu.fi/node5#vision_default/source"}
 		],
 		"display": { "$ref": "#displays/left" },
 		"virtual": { "$ref": "#virtual_cams/default" },
