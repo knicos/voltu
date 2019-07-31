@@ -94,7 +94,7 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 	CHECK(D1_.size() == Size(5, 1));
 	CHECK(D2_.size() == Size(5, 1));
 
-	auto efile = ftl::locateFile("extrinsics.yml");
+	auto efile = ftl::locateFile(value("extrinsics", std::string("extrinsics.yml")));
 	if (efile) {
 		fs.open((*efile).c_str(), FileStorage::READ);
 		if (!fs.isOpened()) {
