@@ -244,10 +244,31 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 
 	setVisible(true);
 	performLayout();
+
+
+	#ifdef HAVE_OPENVR
+	if (vr::VR_IsHmdPresent()) {
+		// Loading the SteamVR Runtime
+		vr::EVRInitError eError = vr::VRInitError_None;
+		HMD_ = vr::VR_Init( &eError, vr::VRApplication_Scene );
+
+		if ( eError != vr::VRInitError_None )
+		{
+			HMD_ = nullptr;
+			LOG(ERROR) << "Unable to init VR runtime: " << vr::VR_GetVRInitErrorAsEnglishDescription( eError );
+		}
+	} else {
+		HMD_ = nullptr;
+	}
+	#endif
 }
 
 ftl::gui::Screen::~Screen() {
 	mShader.free();
+
+	#ifdef HAVE_OPENVR
+	vr::VR_Shutdown();
+	#endif
 }
 
 void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
@@ -337,6 +358,17 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		imageSize = {camera_->width(), camera_->height()};
 
 		mImageID = camera_->captureFrame().texture();
+		leftEye_ = mImageID;
+		rightEye_ = mImageID;
+
+		#ifdef HAVE_OPENVR
+		if (hasVR() && (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) && camera_->getLeft().isValid()) {
+			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
+			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
+		}
+		#endif
 
 		if (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) {
 			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());

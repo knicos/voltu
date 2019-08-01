@@ -6,6 +6,10 @@
 
 #include <string>
 
+#ifdef HAVE_OPENVR
+#include <openvr/openvr.h>
+#endif
+
 class StatisticsImage;
 
 namespace ftl {
@@ -39,6 +43,7 @@ class Camera {
 	const std::vector<ftl::rgbd::channel_t> &availableChannels();
 
 	const GLTexture &captureFrame();
+	const GLTexture &getLeft() const { return texture_; }
 
 	nlohmann::json getMetaData();
 
@@ -62,6 +67,10 @@ class Camera {
 	bool pause_;
 	ftl::rgbd::channel_t channel_;
 	std::vector<ftl::rgbd::channel_t> channels_;
+
+	#ifdef HAVE_OPENVR
+	vr::TrackedDevicePose_t rTrackedDevicePose_[ vr::k_unMaxTrackedDeviceCount ];
+	#endif
 };
 
 }

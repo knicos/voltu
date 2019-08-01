@@ -242,6 +242,17 @@ void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
 	}
 }
 
+static Eigen::Matrix4d ConvertSteamVRMatrixToMatrix4( const vr::HmdMatrix34_t &matPose )
+{
+	Eigen::Matrix4d matrixObj;
+	matrixObj <<
+		matPose.m[0][0], matPose.m[1][0], matPose.m[2][0], 0.0,
+		matPose.m[0][1], matPose.m[1][1], matPose.m[2][1], 0.0,
+		matPose.m[0][2], matPose.m[1][2], matPose.m[2][2], 0.0,
+		matPose.m[0][3], matPose.m[1][3], matPose.m[2][3], 1.0f;
+	return matrixObj;
+}
+
 const GLTexture &ftl::gui::Camera::captureFrame() {
 	float now = (float)glfwGetTime();
 	delta_ = now - ftime_;
@@ -250,16 +261,32 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 	if (src_ && src_->isReady()) {
 		cv::Mat rgb, depth;
 
-		// Lerp the Eye
-		eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
-		eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
-		eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+		if (screen_->hasVR()) {
+			#ifdef HAVE_OPENVR
+			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
-		Eigen::Translation3d trans(eye_);
-		Eigen::Affine3d t(trans);
-		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
+			if ( rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
+			{
+				auto pose = ConvertSteamVRMatrixToMatrix4( rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking );
+				pose.inverse();
+				if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(pose);
+			} else {
+				LOG(ERROR) << "No VR Pose";
+			}
+			#endif
+		} else {
+			// Lerp the Eye
+			eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+			eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+			eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
 
-		if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
+			Eigen::Translation3d trans(eye_);
+			Eigen::Affine3d t(trans);
+			Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
+
+			if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
+		}
+
 		src_->grab();
 		src_->getFrames(rgb, depth);
 
