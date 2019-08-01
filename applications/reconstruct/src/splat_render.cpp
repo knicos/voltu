@@ -13,6 +13,21 @@ Splatter::~Splatter() {
 
 }
 
+static Eigen::Matrix4f adjustPose(const Eigen::Matrix4f &pose, float baseline) {
+	Eigen::Affine3f transform(Eigen::Translation3f(baseline,0.0f,0.0f));
+	Eigen::Matrix4f matrix = pose;
+	Eigen::Matrix4f rmat = pose;
+	rmat(0,3) = 0.0f;
+	rmat(1,3) = 0.0f;
+	rmat(2,3) = 0.0f;
+	Eigen::Matrix4f tmat = transform.matrix();
+	tmat(0,0) = 0.0f;
+	tmat(1,1) = 0.0f;
+	tmat(2,2) = 0.0f;
+	tmat(3,3) = 0.0f;
+	return (tmat * pose) + pose;
+}
+
 void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 	if (!src->isReady()) return;
 
@@ -37,8 +52,14 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 	// Parameters object to pass to CUDA describing the camera
 	SplatParams params;
 	params.m_flags = 0;
-	params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
-	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
+
+	// Adjust pose to left eye position
+	Eigen::Matrix4f matrix =  adjustPose(src->getPose().cast<float>(), -camera.baseline/2.0f);
+	params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
+	params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
+
+	//params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
+	//params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.voxelSize = scene_->getHashParams().m_virtualVoxelSize;
 	params.camera.flags = 0;
 	params.camera.fx = camera.fx;
@@ -82,13 +103,7 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 			src->writeFrames(colour1_, depth2_, stream);
 		} else if (src->getChannel() == ftl::rgbd::kChanRight) {
 			// Adjust pose to right eye position
-			Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
-			Eigen::Matrix4f tmat = transform.matrix();
-			Eigen::Matrix4f rmat = src->getPose().cast<float>();
-			rmat(3,0) = 0.0f;
-			rmat(3,1) = 0.0f;
-			rmat(3,2) = 0.0f;
-			Eigen::Matrix4f matrix =  (rmat * transform.matrix()) + src->getPose().cast<float>();
+			Eigen::Matrix4f matrix =  adjustPose(src->getPose().cast<float>(), camera.baseline/2.0f);
 			params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 			params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
 

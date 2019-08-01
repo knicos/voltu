@@ -37,7 +37,7 @@ namespace {
             uv = vertex;
             vec2 scaledVertex = (vertex * scaleFactor) + position;
             gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
-                                1.0 - 2.0*scaledVertex.y,
+                                2.0*scaledVertex.y - 1.0,
                                 0.0, 1.0);
         })";
 
@@ -365,6 +365,7 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		if (hasVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
 			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
+			glBindTexture(GL_TEXTURE_2D, rightEye_);
 			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
 		}

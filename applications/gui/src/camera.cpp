@@ -271,7 +271,17 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			{
 				auto pose = ConvertSteamVRMatrixToMatrix4( rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking );
 				pose.inverse();
-				if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(pose);
+
+				// Lerp the Eye
+				eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+				eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+				eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+
+				Eigen::Translation3d trans(eye_);
+				Eigen::Affine3d t(trans);
+				Eigen::Matrix4d viewPose = t.matrix() * pose;
+
+				if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
 			} else {
 				LOG(ERROR) << "No VR Pose";
 			}
