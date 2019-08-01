@@ -44,6 +44,7 @@ class Camera {
 
 	const GLTexture &captureFrame();
 	const GLTexture &getLeft() const { return texture_; }
+	const GLTexture &getRight() const { return textureRight_; }
 
 	nlohmann::json getMetaData();
 
@@ -54,6 +55,7 @@ class Camera {
 	ftl::rgbd::Source *src_;
 	GLTexture thumb_;
 	GLTexture texture_;
+	GLTexture textureRight_;
 	ftl::gui::PoseWindow *posewin_;
 	nlohmann::json meta_;
 	Eigen::Vector4d neye_;

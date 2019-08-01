@@ -263,6 +263,8 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 
 		if (screen_->hasVR()) {
 			#ifdef HAVE_OPENVR
+			src_->setChannel(ftl::rgbd::kChanRight);
+
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
 			if ( rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
@@ -289,6 +291,9 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 
 		src_->grab();
 		src_->getFrames(rgb, depth);
+
+		cv::flip(rgb,rgb,0);
+		cv::flip(depth,depth,0);
 
 		// When switching from right to depth, client may still receive
 		// right images from previous batch (depth.channels() == 1 check)
@@ -335,6 +340,13 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				if (rgb.rows == 0) { break; }
 				//imageSize = Vector2f(rgb.cols,rgb.rows);
 				texture_.update(rgb);
+
+				#ifdef HAVE_OPENVR
+				if (screen_->hasVR() && depth.channels() >= 3) {
+					LOG(INFO) << "DRAW RIGHT";
+					textureRight_.update(depth);
+				}
+				#endif
 		}
 	}
 

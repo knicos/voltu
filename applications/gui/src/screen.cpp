@@ -359,10 +359,10 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 
 		mImageID = camera_->captureFrame().texture();
 		leftEye_ = mImageID;
-		rightEye_ = mImageID;
+		rightEye_ = camera_->getRight().texture();
 
 		#ifdef HAVE_OPENVR
-		if (hasVR() && (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) && camera_->getLeft().isValid()) {
+		if (hasVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
 			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
 			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
