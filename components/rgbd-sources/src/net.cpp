@@ -90,6 +90,11 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/baseline", host_->getConfig()["baseline"].dump());
 	});
 
+	host->on("doffs", [this,host](const ftl::config::Event&) {
+		params_.doffs = host_->value("doffs", params_.doffs);
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/doffs", host_->getConfig()["doffs"].dump());
+	});
+
 	host->on("quality", [this,host](const ftl::config::Event&) {
 		default_quality_ = host->value("quality", 0);
 	});

@@ -6,7 +6,6 @@ include(CheckLanguage)
 
 project (ftl.utu.fi)
 
-set(CMAKE_CODELITE_USE_TARGETS ON)
 include(GNUInstallDirs)
 include(CTest)
 enable_testing()
@@ -16,6 +15,7 @@ option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
 option(BUILD_RENDERER "Enable the renderer component" ON)
+option(BUILD_CALIBRATION "Enable the calibration component" OFF)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
@@ -185,6 +185,11 @@ endif()
 
 if (BUILD_VISION)
 	add_subdirectory(applications/vision)
+endif()
+
+if (BUILD_CALIBRATION)
+	find_package( cvsba REQUIRED )
+	add_subdirectory(applications/calibration-multi)
 endif()
 
 if (HAVE_PCL)

@@ -7,6 +7,8 @@
 #include "disparity.hpp"
 #include "cuda_algorithms.hpp"
 
+#include "cuda_algorithms.hpp"
+
 using ftl::rgbd::detail::Calibrate;
 using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::StereoVideoSource;
@@ -151,7 +153,7 @@ static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat
 	cv::cuda::divide(val, disparity, depth, 1.0f / 1000.0f, -1, stream);
 }
 
-bool StereoVideoSource::grab(int n, int b) {
+bool StereoVideoSource::grab(int n, int b) {	
 	const ftl::rgbd::channel_t chan = host_->getChannel();
 
 	if (chan == ftl::rgbd::kChanDepth) {

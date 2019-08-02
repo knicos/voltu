@@ -35,6 +35,8 @@ void ftl::registration::aruco(ftl::Configurable *root) {
 
 	if (sources.size() == 0) return;
 
+	for (auto *src : sources) src->setChannel(ftl::rgbd::kChanDepth);
+
 	cv::namedWindow("Target", cv::WINDOW_KEEPRATIO);
 	cv::namedWindow("Source", cv::WINDOW_KEEPRATIO);
 
