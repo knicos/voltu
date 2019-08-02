@@ -51,7 +51,8 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	LOG(INFO) << " aperture_height: " << aperture_height;
 	LOG(INFO) << "-----------------------------------";
 
-	int calibrate_flags = cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_ASPECT_RATIO;
+	int calibrate_flags =	cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_ASPECT_RATIO |
+							cv::CALIB_FIX_PRINCIPAL_POINT;
 	// PARAMETERS
 
 	vector<cv::VideoCapture> cameras;

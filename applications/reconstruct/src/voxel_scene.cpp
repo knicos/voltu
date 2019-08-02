@@ -98,6 +98,7 @@ void SceneRep::addSource(ftl::rgbd::Source *src) {
 	auto &cam = cameras_.emplace_back();
 	cam.source = src;
 	cam.params.m_imageWidth = 0;
+	src->setChannel(ftl::rgbd::kChanDepth);
 }
 
 extern "C" void updateCUDACameraConstant(ftl::voxhash::DepthCameraCUDA *data, int count);
