@@ -37,7 +37,11 @@ class FixstarsSGM : public ftl::rgbd::detail::Disparity {
 	}
 
 	private:
+	void init(const cv::Size size);
+
 	float uniqueness_;
+	int P1_;
+	int P2_;
 	bool use_filter_;
 	cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
 	sgm::StereoSGM *ssgm_;
