@@ -13,7 +13,7 @@ struct BitrateSetting {
 };
 
 static const BitrateSetting bitrate_settings[] = {
-	1280, 720, 95, 1,
+	1920, 1080, 95, 1,
 	1280, 720, 95, 1,
 	1280, 720, 95, 1,
 	1280, 720, 75, 1,
