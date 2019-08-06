@@ -242,6 +242,31 @@ void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
 	}
 }
 
+static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
+								const float max_depth)
+{
+	DCHECK(max_depth > 0.0);
+
+	depth.convertTo(out, CV_8U, 255.0f / max_depth);
+	out = 255 - out;
+	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
+	
+	applyColorMap(out, out, cv::COLORMAP_JET);
+	out.setTo(cv::Scalar(255, 255, 255), mask);
+}
+
+static void drawEdges(	const cv::Mat &in, cv::Mat &out,
+						const int ksize = 3, double weight = -1.0, const int threshold = 32,
+						const int threshold_type = cv::THRESH_TOZERO)
+{
+	cv::Mat edges;
+	cv::Laplacian(in, edges, 8, ksize);
+	cv::threshold(edges, edges, threshold, 255, threshold_type);
+
+	cv::Mat edges_color(in.size(), CV_8UC3);
+	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC3);
+}
+
 const GLTexture &ftl::gui::Camera::captureFrame() {
 	float now = (float)glfwGetTime();
 	delta_ = now - ftime_;
@@ -280,10 +305,8 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		switch(channel_) {
 			case ftl::rgbd::kChanDepth:
 				if (depth.rows == 0) { break; }
-				//imageSize = Vector2f(depth.cols,depth.rows);
-				depth.convertTo(tmp, CV_8U, 255.0f / 5.0f);
-				tmp = 255 - tmp;
-				applyColorMap(tmp, tmp, cv::COLORMAP_JET);
+				visualizeDepthMap(depth, tmp, 7.0);
+				drawEdges(rgb, tmp);
 				texture_.update(tmp);
 				break;
 			
