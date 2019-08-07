@@ -165,18 +165,18 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 
 void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
 	SHARED_LOCK(mutex_,lk);
-	//rgb_.copyTo(rgb);
-	//depth_.copyTo(depth);
+	rgb_.copyTo(rgb);
+	depth_.copyTo(depth);
 	//rgb = rgb_;
 	//depth = depth_;
 
-	cv::Mat tmp;
+	/*cv::Mat tmp;
 	tmp = rgb;
 	rgb = rgb_;
 	rgb_ = tmp;
 	tmp = depth;
 	depth = depth_;
-	depth_ = tmp;
+	depth_ = tmp;*/
 }
 
 Eigen::Vector4d Source::point(uint ux, uint uy) {

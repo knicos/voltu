@@ -15,7 +15,10 @@ using std::vector;
 
 SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, const string &id) : detail::Source(host) {
     Eigen::Matrix4d pose;
-    reader.getCameraRGBD(id, rgb_, depth_, pose, params_);
+    reader.getCameraRGBD(id, snap_rgb_, snap_depth_, pose, params_);
+
+	rgb_ = snap_rgb_;
+	depth_ = snap_depth_;
 
 	if (rgb_.empty()) LOG(ERROR) << "Did not load snapshot rgb - " << id;
 	if (depth_.empty()) LOG(ERROR) << "Did not load snapshot depth - " << id;
@@ -49,4 +52,10 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, 
 	LOG(INFO) << "POSE = " << pose;
 
     host->setPose(pose);
+}
+
+bool SnapshotSource::compute(int n, int b) {
+	snap_rgb_.copyTo(rgb_);
+	snap_depth_.copyTo(depth_);
+	return true;
 }

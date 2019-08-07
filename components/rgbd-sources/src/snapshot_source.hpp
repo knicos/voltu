@@ -17,11 +17,13 @@ class SnapshotSource : public detail::Source {
 	SnapshotSource(ftl::rgbd::Source *, ftl::rgbd::SnapshotReader &reader, const std::string &id);
 	~SnapshotSource() {};
 
-	bool compute(int n, int b) override { return true; };
+	bool compute(int n, int b);
 	bool isReady() { return true; }
 
 	//void reset();
-
+	private:
+	cv::Mat snap_rgb_;
+	cv::Mat snap_depth_;
 };
 
 }
