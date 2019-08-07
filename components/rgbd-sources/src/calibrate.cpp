@@ -53,7 +53,7 @@ Calibrate::Calibrate(nlohmann::json &config, cv::Size image_size, cv::cuda::Stre
 	else {
 		LOG(WARNING) << "Calibration not loaded";
 	}
-	
+
 	this->on("use_intrinsics", [this](const ftl::config::Event &e) {
 		_updateIntrinsics();
 	});
@@ -70,7 +70,7 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 			LOG(WARNING) << "Could not open intrinsics file";
 			return false;
 		}
-		
+
 		LOG(INFO) << "Intrinsics from: " << *ifile;
 	}
 	else {
@@ -82,7 +82,7 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 		vector<Mat> K, D;
 		fs["K"] >> K;
 		fs["D"] >> D;
-		
+
 		K[0].copyTo(M1_);
 		K[1].copyTo(M2_);
 		D[0].copyTo(D1_);
@@ -101,9 +101,10 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 			LOG(WARNING) << "Could not open extrinsics file";
 			return false;
 		}
-		
+
 		LOG(INFO) << "Extrinsics from: " << *efile;
-	} else {
+	}
+	else {
 		LOG(WARNING) << "Calibration extrinsics file not found";
 		return false;
 	}
@@ -115,8 +116,25 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 	fs["P1"] >> P1_;
 	fs["P2"] >> P2_;
 	fs["Q"] >> Q_;
-
 	img_size_ = img_size;
+
+	// TODO: normalize calibration
+	double scale_x = 1.0 / 1280.0;
+	double scale_y = 1.0 / 720.0;
+
+	Mat scale(cv::Size(3, 3), CV_64F, 0.0);
+	scale.at<double>(0, 0) = (double) img_size.width * scale_x;
+	scale.at<double>(1, 1) = (double) img_size.height * scale_y;
+	scale.at<double>(2, 2) = 1.0;
+
+	M1_ = scale * M1_;
+	M2_ = scale * M2_;
+	P1_ = scale * P1_;
+	P2_ = scale * P2_;
+
+	Q_.at<double>(0, 3) = Q_.at<double>(3, 2) * (double) img_size.width * scale_x;
+	Q_.at<double>(1, 3) = Q_.at<double>(3, 2) * (double) img_size.height * scale_y;
+	Q_.at<double>(3, 3) = Q_.at<double>(3, 3) * (double) img_size.width * scale_x;
 
 	// cv::cuda::remap() works only with CV_32FC1
 	initUndistortRectifyMap(M1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);
@@ -128,10 +146,10 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 void Calibrate::updateCalibration(const ftl::rgbd::Camera &p) {
 	std::pair<Mat, Mat> map1, map2;
 
-	Q_.at<double>(3,2) = 1.0 / p.baseline;
-	Q_.at<double>(2,3) = p.fx;
-	Q_.at<double>(0,3) = p.cx;
-	Q_.at<double>(1,3) = p.cy;
+	Q_.at<double>(3, 2) = 1.0 / p.baseline;
+	Q_.at<double>(2, 3) = p.fx;
+	Q_.at<double>(0, 3) = p.cx;
+	Q_.at<double>(1, 3) = p.cy;
 
 	// FIXME:(Nick) Update camera matrix also...
 	_updateIntrinsics();
@@ -166,7 +184,7 @@ void Calibrate::_updateIntrinsics() {
 
 	initUndistortRectifyMap(M1_, D1_, R1, P1, img_size_, CV_32FC1, map1.first, map2.first);
 	initUndistortRectifyMap(M2_, D2_, R2, P2, img_size_, CV_32FC1, map1.second, map2.second);
-	
+
 	// CHECK Is this thread safe!!!!
 	map1_gpu_.first.upload(map1.first);
 	map1_gpu_.second.upload(map1.second);
@@ -176,7 +194,7 @@ void Calibrate::_updateIntrinsics() {
 
 void Calibrate::rectifyStereo(GpuMat &l, GpuMat &r, Stream &stream) {
 	// cv::cuda::remap() can not use same Mat for input and output
-	
+
 	GpuMat l_tmp(l.size(), l.type());
 	GpuMat r_tmp(r.size(), r.type());
 	cv::cuda::remap(l, l_tmp, map1_gpu_.first, map2_gpu_.first, cv::INTER_LINEAR, 0, cv::Scalar(), stream);
