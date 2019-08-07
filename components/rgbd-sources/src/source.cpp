@@ -165,10 +165,10 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 
 void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
 	SHARED_LOCK(mutex_,lk);
-	rgb_.copyTo(rgb);
-	depth_.copyTo(depth);
-	//rgb = rgb_;
-	//depth = depth_;
+	//rgb_.copyTo(rgb);
+	//depth_.copyTo(depth);
+	rgb = rgb_;
+	depth = depth_;
 
 	/*cv::Mat tmp;
 	tmp = rgb;
@@ -244,7 +244,7 @@ bool Source::compute(int N, int B) {
 		return true;
 	} else if (impl_ && impl_->compute(N,B)) {
 		timestamp_ = impl_->timestamp_;
-		cv::Mat tmp;
+		/*cv::Mat tmp;
 		rgb_.create(impl_->rgb_.size(), impl_->rgb_.type());
 		depth_.create(impl_->depth_.size(), impl_->depth_.type());
 		tmp = rgb_;
@@ -252,10 +252,10 @@ bool Source::compute(int N, int B) {
 		impl_->rgb_ = tmp;
 		tmp = depth_;
 		depth_ = impl_->depth_;
-		impl_->depth_ = tmp;
+		impl_->depth_ = tmp;*/
 
-		//impl_->rgb_.copyTo(rgb_);
-		//impl_->depth_.copyTo(depth_);
+		impl_->rgb_.copyTo(rgb_);
+		impl_->depth_.copyTo(depth_);
 		return true;
 	}
 	return false;
