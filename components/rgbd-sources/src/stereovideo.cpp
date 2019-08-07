@@ -62,14 +62,14 @@ void StereoVideoSource::init(const string &file) {
 	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 
 	// Generate camera parameters from camera matrix
-	cv::Mat q = calib_->getCameraMatrix();
+	cv::Mat K = calib_->getCameraMatrix();
 	params_ = {
-		q.at<double>(0,0),	// Fx
-		q.at<double>(1,1),	// Fy
-		-q.at<double>(0,2),	// Cx
-		-q.at<double>(1,2),	// Cy
-		(unsigned int)lsrc_->width(),
-		(unsigned int)lsrc_->height(),
+		K.at<double>(0,0),	// Fx
+		K.at<double>(1,1),	// Fy
+		-K.at<double>(0,2),	// Cx
+		-K.at<double>(1,2),	// Cy
+		(unsigned int) lsrc_->width(),
+		(unsigned int) lsrc_->height(),
 		0.0f,	// 0m min
 		15.0f,	// 15m max
 		1.0 / calib_->getQ().at<double>(3,2), // Baseline
@@ -115,7 +115,7 @@ void StereoVideoSource::init(const string &file) {
 	mask_l_ = (mask_l == 0);
 	
 	disp_ = Disparity::create(host_, "disparity");
-    if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << *host_->get<ftl::config::json_t>("disparity");
+	if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << *host_->get<ftl::config::json_t>("disparity");
 	disp_->setMask(mask_l_);
 
 	LOG(INFO) << "StereoVideo source ready...";
