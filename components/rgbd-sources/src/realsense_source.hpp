@@ -17,7 +17,7 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 	RealsenseSource(ftl::rgbd::Source *host);
 	~RealsenseSource();
 
-	bool grab(int n=-1, int b=-1);
+	bool compute(int n=-1, int b=-1);
 	bool isReady();
 
 	private:

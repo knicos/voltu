@@ -167,8 +167,16 @@ void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
 	SHARED_LOCK(mutex_,lk);
 	//rgb_.copyTo(rgb);
 	//depth_.copyTo(depth);
+	//rgb = rgb_;
+	//depth = depth_;
+
+	cv::Mat tmp;
+	tmp = rgb;
 	rgb = rgb_;
+	rgb_ = tmp;
+	tmp = depth;
 	depth = depth_;
+	depth_ = tmp;
 }
 
 Eigen::Vector4d Source::point(uint ux, uint uy) {
@@ -222,16 +230,21 @@ void Source::reset() {
 	impl_ = _createImplementation();
 }
 
-bool Source::grab(int N, int B) {
+bool Source::capture() {
+	if (impl_) return impl_->capture();
+	else return true;
+}
+
+bool Source::compute(int N, int B) {
 	UNIQUE_LOCK(mutex_,lk);
 	if (!impl_ && stream_ != 0) {
 		cudaSafeCall(cudaStreamSynchronize(stream_));
 		if (depth_.type() == CV_32SC1) depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
 		stream_ = 0;
 		return true;
-	} else if (impl_ && impl_->grab(N,B)) {
+	} else if (impl_ && impl_->compute(N,B)) {
 		timestamp_ = impl_->timestamp_;
-		/*cv::Mat tmp;
+		cv::Mat tmp;
 		rgb_.create(impl_->rgb_.size(), impl_->rgb_.type());
 		depth_.create(impl_->depth_.size(), impl_->depth_.type());
 		tmp = rgb_;
@@ -239,9 +252,10 @@ bool Source::grab(int N, int B) {
 		impl_->rgb_ = tmp;
 		tmp = depth_;
 		depth_ = impl_->depth_;
-		impl_->depth_ = tmp;*/
-		impl_->rgb_.copyTo(rgb_);
-		impl_->depth_.copyTo(depth_);
+		impl_->depth_ = tmp;
+
+		//impl_->rgb_.copyTo(rgb_);
+		//impl_->depth_.copyTo(depth_);
 		return true;
 	}
 	return false;
@@ -314,7 +328,9 @@ bool Source::thumbnail(cv::Mat &t) {
 		return true;
 	} else if (impl_) {
 		UNIQUE_LOCK(mutex_,lk);
-		impl_->grab(1, 9);
+		impl_->capture();
+		impl_->swap();
+		impl_->compute(1, 9);
 		impl_->rgb_.copyTo(rgb_);
 		impl_->depth_.copyTo(depth_);
 	}

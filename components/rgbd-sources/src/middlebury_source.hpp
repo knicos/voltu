@@ -19,7 +19,7 @@ class MiddleburySource : public detail::Source {
 	MiddleburySource(ftl::rgbd::Source *, const std::string &dir);
 	~MiddleburySource() {};
 
-	bool grab(int n, int b);
+	bool compute(int n, int b);
 	bool isReady() { return ready_; }
 
 	private:

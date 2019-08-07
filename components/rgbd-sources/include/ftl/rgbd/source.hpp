@@ -71,19 +71,34 @@ class Source : public ftl::Configurable {
 	/**
 	 * Perform the hardware or virtual frame grab operation. 
 	 */
-	bool grab(int N=-1, int B=-1);
+	bool capture();
+
+	/**
+	 * Between frames, do any required buffer swaps.
+	 */
+	void swap() { if (impl_) impl_->swap(); }
 
 	/**
 	 * Do any post-grab processing. This function
 	 * may take considerable time to return, especially for sources requiring
-	 * software stereo correspondance. If `process` is not called manually
-	 * after a `grab` and before a `get`, then it will be called automatically
-	 * on first `get`.
+	 * software stereo correspondance.
 	 */
-	//void process();
+	bool compute(int N=-1, int B=-1);
 
 	/**
-	 * Get a copy of both colour and depth frames.
+	 * Wrapper grab that performs capture, swap and computation steps in one.
+	 * It is more optimal to perform capture and compute in parallel.
+	 */
+	bool grab(int N=-1, int B=-1) {
+		bool c = capture();
+		swap();
+		return c && compute(N,B);
+	}
+
+	/**
+	 * Get a copy of both colour and depth frames. Note that this does a buffer
+	 * swap rather than a copy, so the parameters should be persistent buffers for
+	 * best performance.
 	 */
 	void getFrames(cv::Mat &c, cv::Mat &d);
 

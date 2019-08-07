@@ -49,10 +49,22 @@ class Source {
 	virtual ~Source() {}
 
 	/**
+	 * Perform hardware data capture.
+	 */
+	virtual bool capture() { return true; };
+
+	/**
+	 * Do any processing from previously captured frames...
 	 * @param n Number of frames to request in batch. Default -1 means automatic (10)
 	 * @param b Bit rate setting. -1 = automatic, 0 = best quality, 9 = lowest quality
 	 */
-	virtual bool grab(int n, int b)=0;
+	virtual bool compute(int n, int b)=0;
+
+	/**
+	 * Between frames, or before next frame, do any buffer swapping operations.
+	 */
+	virtual void swap() {}
+
 	virtual bool isReady() { return false; };
 	virtual void setPose(const Eigen::Matrix4d &pose) { };
 

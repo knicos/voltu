@@ -24,7 +24,7 @@ class NetSource : public detail::Source {
 	explicit NetSource(ftl::rgbd::Source *);
 	~NetSource();
 
-	bool grab(int n, int b);
+	bool compute(int n, int b);
 	bool isReady();
 
 	void setPose(const Eigen::Matrix4d &pose);
