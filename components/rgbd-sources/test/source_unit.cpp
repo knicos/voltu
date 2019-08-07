@@ -26,7 +26,7 @@ class ImageSource : public ftl::rgbd::detail::Source {
 		last_type = "image";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -39,7 +39,7 @@ class StereoVideoSource : public ftl::rgbd::detail::Source {
 		last_type = "video";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -49,7 +49,7 @@ class NetSource : public ftl::rgbd::detail::Source {
 		last_type = "net";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -59,7 +59,7 @@ class SnapshotSource : public ftl::rgbd::detail::Source {
 		last_type = "snapshot";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -69,7 +69,7 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 		last_type = "realsense";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -79,7 +79,7 @@ class MiddleburySource : public ftl::rgbd::detail::Source {
 		last_type = "middlebury";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 

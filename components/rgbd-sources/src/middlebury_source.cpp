@@ -160,7 +160,7 @@ void MiddleburySource::_performDisparity() {
 	//disparityToDepthTRUE(depth_, depth_, params_);
 }
 
-bool MiddleburySource::grab(int n, int b) {
+bool MiddleburySource::compute(int n, int b) {
 	//_performDisparity();
 	return true;
 }

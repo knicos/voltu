@@ -274,6 +274,7 @@ void Streamer::_swap(StreamSource *src) {
 		}
 
 		src->src->getFrames(src->rgb, src->depth);
+		src->src->swap();
 
 		//if (!src->rgb.empty() && src->prev_depth.empty()) {
 			//src->prev_depth = cv::Mat(src->rgb.size(), CV_16UC1, cv::Scalar(0));
@@ -325,14 +326,14 @@ void Streamer::_schedule() {
 
 		// There will be two jobs for this source...
 		//UNIQUE_LOCK(job_mtx_,lk);
-		jobs_ += 1 + kChunkCount;
+		jobs_ += 2 + kChunkCount;
 		//lk.unlock();
 
 		StreamSource *src = sources_[uri];
 		if (src == nullptr || src->jobs != 0) continue;
-		src->jobs = 1 + kChunkCount;
+		src->jobs = 2 + kChunkCount;
 
-		// Grab job
+		// Grab / capture job
 		ftl::pool.push([this,src](int id) {
 			//auto start = std::chrono::high_resolution_clock::now();
 
@@ -362,7 +363,7 @@ void Streamer::_schedule() {
 			last_frame_ = now/40;
 
 			try {
-				src->src->grab();
+				src->src->capture();
 			} catch (std::exception &ex) {
 				LOG(ERROR) << "Exception when grabbing frame";
 				LOG(ERROR) << ex.what();
@@ -377,6 +378,27 @@ void Streamer::_schedule() {
 			//std::chrono::duration<double> elapsed =
 			//	std::chrono::high_resolution_clock::now() - start;
 			//LOG(INFO) << "Grab in " << elapsed.count() << "s";
+
+			src->jobs--;
+			_swap(src);
+
+			// Mark job as finished
+			std::unique_lock<std::mutex> lk(job_mtx_);
+			--jobs_;
+			job_cv_.notify_one();
+		});
+
+		// Compute job
+		ftl::pool.push([this,src](int id) {
+			try {
+				src->src->compute();
+			} catch (std::exception &ex) {
+				LOG(ERROR) << "Exception when computing frame";
+				LOG(ERROR) << ex.what();
+			}
+			catch (...) {
+				LOG(ERROR) << "Unknown exception when computing frame";
+			}
 
 			src->jobs--;
 			_swap(src);

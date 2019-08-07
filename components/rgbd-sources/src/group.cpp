@@ -60,7 +60,9 @@ void Group::addSource(ftl::rgbd::Source *src) {
 // Callback returns true if it wishes to continue receiving frames.
 void Group::sync(int N, int B) {
 	for (auto s : sources_) {
-		s->grab(N,B);
+		s->capture();
+		s->swap();
+		s->compute(N,B);
 	}
 }
 

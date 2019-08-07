@@ -26,7 +26,9 @@ class StereoVideoSource : public detail::Source {
 	StereoVideoSource(ftl::rgbd::Source*, const std::string &);
 	~StereoVideoSource();
 
-	bool grab(int n, int b);
+	void swap();
+	bool capture();
+	bool compute(int n, int b);
 	bool isReady();
 	Camera parameters(channel_t chan);
 
@@ -40,9 +42,12 @@ class StereoVideoSource : public detail::Source {
 	bool ready_;
 	
 	cv::cuda::Stream stream_;
+	cv::cuda::Stream stream2_;
 
 	cv::cuda::GpuMat left_;
 	cv::cuda::GpuMat right_;
+	cv::cuda::GpuMat cap_left_;
+	cv::cuda::GpuMat cap_right_;
 	cv::cuda::GpuMat disp_tmp_;
 	cv::cuda::GpuMat depth_tmp_;
 	

@@ -17,7 +17,7 @@ class SnapshotSource : public detail::Source {
 	SnapshotSource(ftl::rgbd::Source *, ftl::rgbd::SnapshotReader &reader, const std::string &id);
 	~SnapshotSource() {};
 
-	bool grab(int n, int b) override { return true; };
+	bool compute(int n, int b) override { return true; };
 	bool isReady() { return true; }
 
 	//void reset();

@@ -302,7 +302,7 @@ void NetSource::_updateURI() {
 	}
 }
 
-bool NetSource::grab(int n, int b) {
+bool NetSource::compute(int n, int b) {
 	// Choose highest requested number of frames
 	maxN_ = std::max(maxN_,(n == -1) ? ftl::rgbd::detail::kDefaultFrameCount : n);
 
