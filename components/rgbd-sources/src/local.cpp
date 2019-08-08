@@ -9,11 +9,13 @@
 #include <thread>
 
 #include "local.hpp"
+#include "calibrate.hpp"
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/xphoto.hpp>
 
 using ftl::rgbd::detail::LocalSource;
+using ftl::rgbd::detail::Calibrate;
 using cv::Mat;
 using cv::VideoCapture;
 using cv::Rect;
@@ -27,28 +29,15 @@ using std::this_thread::sleep_for;
 LocalSource::LocalSource(nlohmann::json &config)
 		: Configurable(config), timestamp_(0.0) {
 
-	REQUIRED({
-		{"flip","Switch left and right views","boolean"},
-		{"flip_vert","Rotate image 180 degrees","boolean"},
-		{"nostereo","Force single camera mode","boolean"},
-		{"width","Pixel width of camera source","number"},
-		{"height","Pixel height of camera source","number"},
-		{"max_fps","Maximum frames per second","number"},
-		{"scale","Change the input image or video scaling","number"}
-	});
-
-	flip_ = value("flip", false);
-	flip_v_ = value("flip_vert", false);
 	nostereo_ = value("nostereo", false);
-	downsize_ = value("scale", 1.0f);
 
 	// Use cameras
 	camera_a_ = new VideoCapture;
 	LOG(INFO) << "Cameras check... ";
-	camera_a_->open((flip_) ? 1 : 0);
+	camera_a_->open(0);
 
 	if (!nostereo_) {
-		camera_b_ = new VideoCapture((flip_) ? 0 : 1);
+		camera_b_ = new VideoCapture(1);
 	} else {
 		camera_b_ = nullptr;
 	}
@@ -82,26 +71,18 @@ LocalSource::LocalSource(nlohmann::json &config)
 		stereo_ = true;
 	}
 
-	tps_ = 1.0 / value("max_fps", 25.0);
+	// Allocate page locked host memory for fast GPU transfer
+	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
+	right_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
 }
 
 LocalSource::LocalSource(nlohmann::json &config, const string &vid)
 	:	Configurable(config), timestamp_(0.0) {
 
-	REQUIRED({
-		{"flip","Switch left and right views","boolean"},
-		{"flip_vert","Rotate image 180 degrees","boolean"},
-		{"nostereo","Force single camera mode","boolean"},
-		{"width","Pixel width of camera source","number"},
-		{"height","Pixel height of camera source","number"},
-		{"max_fps","Maximum frames per second","number"},
-		{"scale","Change the input image or video scaling","number"}
-	});
-
-	flip_ = value("flip", false);
-	flip_v_ = value("flip_vert", false);
+	//flip_ = value("flip", false);
+	//flip_v_ = value("flip_vert", false);
 	nostereo_ = value("nostereo", false);
-	downsize_ = value("scale", 1.0f);
+	//downsize_ = value("scale", 1.0f);
 
 	if (vid == "") {
 		LOG(FATAL) << "No video file specified";
@@ -138,10 +119,14 @@ LocalSource::LocalSource(nlohmann::json &config, const string &vid)
 		stereo_ = false;
 	}
 
-	tps_ = 1.0 / value("max_fps", 25.0);
+	// Allocate page locked host memory for fast GPU transfer
+	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
+	right_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
+
+	//tps_ = 1.0 / value("max_fps", 25.0);
 }
 
-bool LocalSource::left(cv::Mat &l) {
+/*bool LocalSource::left(cv::Mat &l) {
 	if (!camera_a_) return false;
 
 	if (!camera_a_->grab()) {
@@ -174,9 +159,9 @@ bool LocalSource::left(cv::Mat &l) {
 	}
 
 	return true;
-}
+}*/
 
-bool LocalSource::right(cv::Mat &r) {
+/*bool LocalSource::right(cv::Mat &r) {
 	if (!camera_a_->grab()) {
 		LOG(ERROR) << "Unable to grab from camera A";
 		return false;
@@ -212,10 +197,15 @@ bool LocalSource::right(cv::Mat &r) {
 	}
 
 	return true;
-}
+}*/
 
-bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda::Stream &stream) {
+bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, Calibrate *c, cv::cuda::Stream &stream) {
 	Mat l, r;
+
+	// Use page locked memory
+	l = left_hm_.createMatHeader();
+	r = right_hm_.createMatHeader();
+
 	if (!camera_a_) return false;
 
 	if (!camera_a_->grab()) {
@@ -239,7 +229,7 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 	timestamp_ = timestamp;
 
 	if (camera_b_ || !stereo_) {
-		if (!camera_a_->retrieve(left_)) {
+		if (!camera_a_->retrieve(l)) {
 			LOG(ERROR) << "Unable to read frame from camera A";
 			return false;
 		}
@@ -255,23 +245,23 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 		}
 
 		int resx = frame.cols / 2;
-		if (flip_) {
-			r = Mat(frame, Rect(0, 0, resx, frame.rows));
-			left_ = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
-		} else {
-			left_ = Mat(frame, Rect(0, 0, resx, frame.rows));
+		//if (flip_) {
+		//	r = Mat(frame, Rect(0, 0, resx, frame.rows));
+		//	l = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
+		//} else {
+			l = Mat(frame, Rect(0, 0, resx, frame.rows));
 			r = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
-		}
+		//}
 	}
 
-	if (downsize_ != 1.0f) {
+	/*if (downsize_ != 1.0f) {
 		// cv::cuda::resize()
 
 		cv::resize(left_, left_, cv::Size((int)(left_.cols * downsize_), (int)(left_.rows * downsize_)),
 				0, 0, cv::INTER_LINEAR);
 		cv::resize(r, r, cv::Size((int)(r.cols * downsize_), (int)(r.rows * downsize_)),
 				0, 0, cv::INTER_LINEAR);
-	}
+	}*/
 
 	// Note: this seems to be too slow on CPU...
 	/*cv::Ptr<cv::xphoto::WhiteBalancer> wb;
@@ -279,15 +269,17 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 	wb->balanceWhite(l, l);
 	wb->balanceWhite(r, r);*/
 
-	if (flip_v_) {
+	/*if (flip_v_) {
 		Mat tl, tr;
 		cv::flip(left_, tl, 0);
 		cv::flip(r, tr, 0);
 		left_ = tl;
 		r = tr;
-	}
+	}*/
 
-	l_out.upload(left_, stream);
+	c->rectifyStereo(l, r);
+
+	l_out.upload(l, stream);
 	r_out.upload(r, stream);
 
 	return true;

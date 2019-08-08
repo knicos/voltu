@@ -138,9 +138,7 @@ int Universe::_setDescriptors() {
 				n = s->_socket();
 			}
 
-			//if (s->isWaiting()) {
-				FD_SET(s->_socket(), &sfdread_);
-			//}
+			FD_SET(s->_socket(), &sfdread_);
 			FD_SET(s->_socket(), &sfderror_);
 		}
 	}
@@ -154,17 +152,7 @@ void Universe::_installBindings(Peer *p) {
 }
 
 void Universe::_installBindings() {
-	/*bind("__subscribe__", [this](const UUID &id, const string &uri) -> bool {
-		LOG(INFO) << "Subscription to " << uri << " by " << id.to_string();
-		unique_lock<shared_mutex> lk(net_mutex_);
-		subscribers_[ftl::URI(uri).to_string()].push_back(id);
-		return true;
-	});
-	
-	bind("__owner__", [this](const std::string &res) -> optional<UUID> {
-		if (owned_.count(res) > 0) return this_peer;
-		else return {};
-	});*/
+
 }
 
 // Note: should be called inside a net lock
@@ -173,6 +161,8 @@ void Universe::_cleanupPeers() {
 	if (ftl::pool.n_idle() == ftl::pool.size()) {
 		if (garbage_.size() > 0) LOG(INFO) << "Garbage collection";
 		while (garbage_.size() > 0) {
+			// FIXME: There is possibly still something with a peer pointer
+			// that is causing this throw an exception sometimes?
 			delete garbage_.front();
 			garbage_.pop_front();
 		}
@@ -287,8 +277,8 @@ void Universe::_run() {
 			continue;
 		}
 
-		// CHECK Could this mutex be the problem!?
 		{
+			// TODO:(Nick) Shared lock unless connection is made
 			UNIQUE_LOCK(net_mutex_,lk);
 
 			//If connection request is waiting
@@ -304,7 +294,7 @@ void Universe::_run() {
 						if (csock != INVALID_SOCKET) {
 							auto p = new Peer(csock, this, &disp_);
 							peers_.push_back(p);
-							_installBindings(p);
+							//_installBindings(p);
 						}
 					}
 				}

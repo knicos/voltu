@@ -161,7 +161,7 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 					depth_ = d_depth_;
 					d_depth_ = tmp;
 
-					timestamp_ = current_frame_*40;  // FIXME: Don't hardcode 40ms
+					timestamp_ = current_frame_;
 					current_frame_ = frame;
 				}
 
@@ -276,13 +276,6 @@ void NetSource::_updateURI() {
 		});
 
 		N_ = 0;
-
-		// Initiate stream with request for first 10 frames
-		//try {
-		//	host_->getNet()->send(peer_, "get_stream", *uri, N_, 0, host_->getNet()->id(), *uri);
-		//} catch(...) {
-		//	LOG(ERROR) << "Could not connect to stream " << *uri;
-		//}
 
 		// Update chunk details
 		chunks_dim_ = ftl::rgbd::kChunkDim;

@@ -47,6 +47,21 @@ void ftl::cuda::clear_depth(const ftl::cuda::TextureObject<int> &depth, cudaStre
 	clear_depth_kernel<<<clear_gridSize, clear_blockSize, 0, stream>>>(depth);
 }
 
+__global__ void clear_to_zero_kernel(ftl::cuda::TextureObject<float> depth) {
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < depth.width() && y < depth.height()) {
+		depth(x,y) = 0.0f; //PINF;
+	}
+}
+
+void ftl::cuda::clear_to_zero(const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream) {
+	const dim3 clear_gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 clear_blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	clear_to_zero_kernel<<<clear_gridSize, clear_blockSize, 0, stream>>>(depth);
+}
+
 __global__ void clear_points_kernel(ftl::cuda::TextureObject<float4> depth) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -79,6 +94,21 @@ void ftl::cuda::clear_colour(const ftl::cuda::TextureObject<uchar4> &depth, cuda
 	clear_colour_kernel<<<clear_gridSize, clear_blockSize, 0, stream>>>(depth);
 }
 
+__global__ void clear_colour_kernel(ftl::cuda::TextureObject<float4> depth) {
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < depth.width() && y < depth.height()) {
+		depth(x,y) = make_float4(0.0f);
+	}
+}
+
+void ftl::cuda::clear_colour(const ftl::cuda::TextureObject<float4> &depth, cudaStream_t stream) {
+	const dim3 clear_gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 clear_blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	clear_colour_kernel<<<clear_gridSize, clear_blockSize, 0, stream>>>(depth);
+}
+
 // ===== Type convert =====
 
 template <typename A, typename B>
@@ -102,331 +132,6 @@ void ftl::cuda::int_to_float(const ftl::cuda::TextureObject<int> &in, ftl::cuda:
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 	convert_kernel<int,float><<<gridSize, blockSize, 0, stream>>>(in, out, scale);
 }
-
-/// ===== MLS Smooth
-
-// TODO:(Nick) Put this in a common location (used in integrators.cu)
-extern __device__ float spatialWeighting(float r);
-extern __device__ float spatialWeighting(float r, float h);
-
-/*
- * Kim, K., Chalidabhongse, T. H., Harwood, D., & Davis, L. (2005).
- * Real-time foreground-background segmentation using codebook model.
- * Real-Time Imaging. https://doi.org/10.1016/j.rti.2004.12.004
- */
- __device__ float colordiffFloat(const uchar4 &pa, const uchar4 &pb) {
-	const float x_2 = pb.x * pb.x + pb.y * pb.y + pb.z * pb.z;
-	const float v_2 = pa.x * pa.x + pa.y * pa.y + pa.z * pa.z;
-	const float xv_2 = pow(pb.x * pa.x + pb.y * pa.y + pb.z * pa.z, 2);
-	const float p_2 = xv_2 / v_2;
-	return sqrt(x_2 - p_2);
-}
-
-__device__ float colordiffFloat2(const uchar4 &pa, const uchar4 &pb) {
-	float3 delta = make_float3((float)pa.x - (float)pb.x, (float)pa.y - (float)pb.y, (float)pa.z - (float)pb.z);
-	return length(delta);
-}
-
-/*
- * Colour weighting as suggested in:
- * C. Kuster et al. Spatio-Temporal Geometry Fusion for Multiple Hybrid Cameras using Moving Least Squares Surfaces. 2014.
- * c = colour distance
- */
- __device__ float colourWeighting(float c) {
-	const float h = c_hashParams.m_colourSmoothing;
-	if (c >= h) return 0.0f;
-	float ch = c / h;
-	ch = 1.0f - ch*ch;
-	return ch*ch*ch*ch;
-}
-
-#define WINDOW_RADIUS 5
-
-__device__ float mlsCamera(int cam, const float3 &mPos, uchar4 c1, float3 &wpos) {
-	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
-
-	const float3 pf = camera.poseInverse * mPos;
-	float3 pos = make_float3(0.0f, 0.0f, 0.0f);
-	const uint2 screenPos = make_uint2(camera.params.cameraToKinectScreenInt(pf));
-	float weights = 0.0f;
-
-	//#pragma unroll
-	for (int v=-WINDOW_RADIUS; v<=WINDOW_RADIUS; ++v) {
-		for (int u=-WINDOW_RADIUS; u<=WINDOW_RADIUS; ++u) {
-			//if (screenPos.x+u < width && screenPos.y+v < height) {	//on screen
-				float depth = tex2D<float>(camera.depth, screenPos.x+u, screenPos.y+v);
-				const float3 camPos = camera.params.kinectDepthToSkeleton(screenPos.x+u, screenPos.y+v, depth);
-				float weight = spatialWeighting(length(pf - camPos));
-
-				if (weight > 0.0f) {
-					uchar4 c2 = tex2D<uchar4>(camera.colour, screenPos.x+u, screenPos.y+v);
-					weight *= colourWeighting(colordiffFloat2(c1,c2));
-
-					if (weight > 0.0f) {
-						wpos += weight* (camera.pose * camPos);
-						weights += weight;
-					}
-				}			
-			//}
-		}
-	}
-
-	//wpos += (camera.pose * pos);
-
-	return weights;
-}
-
-__device__ float mlsCameraNoColour(int cam, const float3 &mPos, uchar4 c1, const float4 &norm, float3 &wpos, float h) {
-	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
-
-	const float3 pf = camera.poseInverse * mPos;
-	float3 pos = make_float3(0.0f, 0.0f, 0.0f);
-	const uint2 screenPos = make_uint2(camera.params.cameraToKinectScreenInt(pf));
-	float weights = 0.0f;
-
-	//#pragma unroll
-	for (int v=-WINDOW_RADIUS; v<=WINDOW_RADIUS; ++v) {
-		for (int u=-WINDOW_RADIUS; u<=WINDOW_RADIUS; ++u) {
-			//if (screenPos.x+u < width && screenPos.y+v < height) {	//on creen
-				float depth = tex2D<float>(camera.depth, screenPos.x+u, screenPos.y+v);
-				const float3 camPos = camera.params.kinectDepthToSkeleton(screenPos.x+u, screenPos.y+v, depth);
-
-				// TODO:(Nick) dot product of normals < 0 means the point
-				// should be ignored with a weight of 0 since it is facing the wrong direction
-				// May be good to simply weight using the dot product to give
-				// a stronger weight to those whose normals are closer
-
-				float weight = spatialWeighting(length(pf - camPos), h);
-
-				if (weight > 0.0f) {
-					float4 n2 = tex2D<float4>(camera.normal, screenPos.x+u, screenPos.y+v);
-					if (dot(make_float3(norm), make_float3(n2)) > 0.0f) {
-
-						uchar4 c2 = tex2D<uchar4>(camera.colour, screenPos.x+u, screenPos.y+v);
-
-						if (colourWeighting(colordiffFloat2(c1,c2)) > 0.0f) {
-							pos += weight*camPos; // (camera.pose * camPos);
-							weights += weight;
-						}
-					}
-				}			
-			//}
-		}
-	}
-
-	if (weights > 0.0f) wpos += (camera.pose * (pos / weights)) * weights;
-
-	return weights;
-}
-
-__device__ float mlsCameraBest(int cam, const float3 &mPos, uchar4 c1, float3 &wpos) {
-	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
-
-	const float3 pf = camera.poseInverse * mPos;
-	float3 pos = make_float3(0.0f, 0.0f, 0.0f);
-	const uint2 screenPos = make_uint2(camera.params.cameraToKinectScreenInt(pf));
-	float weights = 0.0f;
-
-	//#pragma unroll
-	for (int v=-WINDOW_RADIUS; v<=WINDOW_RADIUS; ++v) {
-		for (int u=-WINDOW_RADIUS; u<=WINDOW_RADIUS; ++u) {
-			//if (screenPos.x+u < width && screenPos.y+v < height) {	//on screen
-				float depth = tex2D<float>(camera.depth, screenPos.x+u, screenPos.y+v);
-				const float3 camPos = camera.params.kinectDepthToSkeleton(screenPos.x+u, screenPos.y+v, depth);
-				float weight = spatialWeighting(length(pf - camPos));
-
-				if (weight > 0.0f) {
-					uchar4 c2 = tex2D<uchar4>(camera.colour, screenPos.x+u, screenPos.y+v);
-					weight *= colourWeighting(colordiffFloat2(c1,c2));
-
-					if (weight > weights) {
-						pos = weight* (camera.pose * camPos);
-						weights = weight;
-					}
-				}			
-			//}
-		}
-	}
-
-	wpos += pos;
-	//wpos += (camera.pose * pos);
-
-	return weights;
-}
-
-__device__ float mlsCameraPoint(int cam, const float3 &mPos, uchar4 c1, float3 &wpos) {
-	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
-
-	const float3 pf = camera.poseInverse * mPos;
-	float3 pos = make_float3(0.0f, 0.0f, 0.0f);
-	const uint2 screenPos = make_uint2(camera.params.cameraToKinectScreenInt(pf));
-	float weights = 0.0f;
-
-
-	//float depth = tex2D<float>(camera.depth, screenPos.x, screenPos.y);
-	const float3 worldPos = make_float3(tex2D<float4>(camera.points, screenPos.x, screenPos.y));
-	if (worldPos.z == MINF) return 0.0f;
-
-	float weight = spatialWeighting(length(mPos - worldPos));
-
-	if (weight > 0.0f) {
-		wpos += weight* (worldPos);
-		weights += weight;
-	}
-
-	return weights;
-}
-
-__global__ void mls_smooth_kernel(ftl::cuda::TextureObject<float4> output, HashParams hashParams, int numcams, int cam) {
-	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-	const int width = output.width();
-	const int height = output.height();
-
-	const DepthCameraCUDA &mainCamera = c_cameras[cam];
-
-	if (x < width && y < height) {
-
-		const float depth = tex2D<float>(mainCamera.depth, x, y);
-		const uchar4 c1 = tex2D<uchar4>(mainCamera.colour, x, y);
-		const float4 norm = tex2D<float4>(mainCamera.normal, x, y);
-		//if (x == 400 && y == 200) printf("NORMX: %f\n", norm.x);
-
-		float3 wpos = make_float3(0.0f);
-		float3 wnorm = make_float3(0.0f);
-		float weights = 0.0f;
-
-		if (depth >= mainCamera.params.m_sensorDepthWorldMin && depth <= mainCamera.params.m_sensorDepthWorldMax) {
-			float3 mPos = mainCamera.pose * mainCamera.params.kinectDepthToSkeleton(x, y, depth);
-
-			if ((!(hashParams.m_flags & ftl::voxhash::kFlagClipping)) || (mPos.x > hashParams.m_minBounds.x && mPos.x < hashParams.m_maxBounds.x &&
-					mPos.y > hashParams.m_minBounds.y && mPos.y < hashParams.m_maxBounds.y &&
-					mPos.z > hashParams.m_minBounds.z && mPos.z < hashParams.m_maxBounds.z)) {
-
-				if (hashParams.m_flags & ftl::voxhash::kFlagMLS) {
-					for (uint cam2=0; cam2<numcams; ++cam2) {
-						//if (cam2 == cam) weights += mlsCameraNoColour(cam2, mPos, c1, wpos, c_hashParams.m_spatialSmoothing*0.1f); //weights += 0.5*mlsCamera(cam2, mPos, c1, wpos);
-						weights += mlsCameraNoColour(cam2, mPos, c1, norm, wpos, c_hashParams.m_spatialSmoothing); //*((cam == cam2)? 0.1f : 5.0f));
-
-						// Previous approach
-						//if (cam2 == cam) continue;
-						//weights += mlsCameraBest(cam2, mPos, c1, wpos);
-					}
-					wpos /= weights;
-				} else {
-					weights = 1000.0f;
-					wpos = mPos;
-				} 
-
-				//output(x,y) = (weights >= hashParams.m_confidenceThresh) ? make_float4(wpos, 0.0f) : make_float4(MINF,MINF,MINF,MINF);
-
-				if (weights >= hashParams.m_confidenceThresh) output(x,y) = make_float4(wpos, 0.0f);
-
-				//const uint2 screenPos = make_uint2(mainCamera.params.cameraToKinectScreenInt(mainCamera.poseInverse * wpos));
-				//if (screenPos.x < output.width() && screenPos.y < output.height()) {
-				//	output(screenPos.x,screenPos.y) = (weights >= hashParams.m_confidenceThresh) ? make_float4(wpos, 0.0f) : make_float4(MINF,MINF,MINF,MINF);
-				//}
-			}
-		}
-	}
-}
-
-void ftl::cuda::mls_smooth(TextureObject<float4> &output, const HashParams &hashParams, int numcams, int cam, cudaStream_t stream) {
-	const dim3 gridSize((output.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (output.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
-
-	mls_smooth_kernel<<<gridSize, blockSize, 0, stream>>>(output, hashParams, numcams, cam);
-
-#ifdef _DEBUG
-	cudaSafeCall(cudaDeviceSynchronize());
-#endif
-}
-
-#define RESAMPLE_RADIUS 7
-
-__global__ void mls_resample_kernel(ftl::cuda::TextureObject<int> depthin, ftl::cuda::TextureObject<uchar4> colourin, ftl::cuda::TextureObject<float> depthout, HashParams hashParams, int numcams, SplatParams params) {
-	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-	const int width = depthin.width();
-	const int height = depthin.height();
-
-	if (x < width && y < height) {
-
-		//const int depth = depthin.tex2D((int)x, (int)y);
-		//if (depth != 0x7FFFFFFF) {
-		//	depthout(x,y) = (float)depth / 1000.0f;
-		//	return;
-		//}
-
-		struct map_t {
-			int d;
-			int quad;
-		};
-
-		map_t mappings[5];
-		int mapidx = 0;
-
-		for (int v=-RESAMPLE_RADIUS; v<=RESAMPLE_RADIUS; ++v) {
-			for (int u=-RESAMPLE_RADIUS; u<=RESAMPLE_RADIUS; ++u) {
-
-				const int depth = depthin.tex2D((int)x+u, (int)y+v);
-				const uchar4 c1 = colourin.tex2D((int)x+u, (int)y+v);
-				
-				if (depth != 0x7FFFFFFF) {
-					int i=0;
-					for (i=0; i<mapidx; ++i) {
-						if (abs(mappings[i].d - depth) < 100) {
-							if (u < 0 && v < 0) mappings[i].quad |= 0x1;
-							if (u > 0 && v < 0) mappings[i].quad |= 0x2;
-							if (u > 0 && v > 0) mappings[i].quad |= 0x4;
-							if (u < 0 && v > 0) mappings[i].quad |= 0x8;
-							break;
-						}
-					}
-					if (i == mapidx && i < 5) {
-						mappings[mapidx].d = depth;
-						mappings[mapidx].quad = 0;
-						if (u < 0 && v < 0) mappings[mapidx].quad |= 0x1;
-						if (u > 0 && v < 0) mappings[mapidx].quad |= 0x2;
-						if (u > 0 && v > 0) mappings[mapidx].quad |= 0x4;
-						if (u < 0 && v > 0) mappings[mapidx].quad |= 0x8;
-						++mapidx;
-					} else {
-						//printf("EXCEEDED\n");
-					}
-				}
-			}
-		}
-
-		int bestdepth = 1000000;
-		//int count = 0;
-		for (int i=0; i<mapidx; ++i) {
-			if (__popc(mappings[i].quad) >= 3 && mappings[i].d < bestdepth) bestdepth = mappings[i].d;
-			//if (mappings[i].quad == 15 && mappings[i].d < bestdepth) bestdepth = mappings[i].d;
-			//if (mappings[i].quad == 15) count ++;
-		}
-
-		//depthout(x,y) = (mapidx == 5) ? 3.0f : 0.0f;
-
-		if (bestdepth < 1000000) {
-			depthout(x,y) = (float)bestdepth / 1000.0f;
-		}
-	}
-}
-
-void ftl::cuda::mls_resample(const TextureObject<int> &depthin, const TextureObject<uchar4> &colourin, TextureObject<float> &depthout, const HashParams &hashParams, int numcams, const SplatParams &params, cudaStream_t stream) {
-	const dim3 gridSize((depthin.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depthin.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
-
-	mls_resample_kernel<<<gridSize, blockSize, 0, stream>>>(depthin, colourin, depthout, hashParams, numcams, params);
-
-#ifdef _DEBUG
-	cudaSafeCall(cudaDeviceSynchronize());
-#endif
-}
-
 
 /// ===== Median Filter ======
 

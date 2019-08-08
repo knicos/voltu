@@ -4,6 +4,7 @@
 #include <thread>
 #include <chrono>
 #include <tuple>
+#include <algorithm>
 
 #include "bitrate_settings.hpp"
 
@@ -31,6 +32,9 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	net_ = net;
 	time_peer_ = ftl::UUID(0);
 	clock_adjust_ = 0;
+	mspf_ = 1000 / value("fps", 25);
+	//last_dropped_ = 0;
+	//drop_count_ = 0;
 
 	compress_level_ = value("compression", 1);
 	
@@ -199,42 +203,43 @@ void Streamer::remove(const std::string &) {
 
 }
 
+void Streamer::_decideFrameRate(int64_t framesdropped, int64_t msremainder) {
+	actual_fps_ = 1000.0f / (float)((framesdropped+1)*mspf_+(msremainder));
+	LOG(INFO) << "Actual FPS = " << actual_fps_;
+
+	/*if (framesdropped > 0) {
+		// If N consecutive frames are dropped, work out new rate
+		if (last_dropped_/mspf_ >= last_frame_/mspf_ - 2*framesdropped) drop_count_++;
+		else drop_count_ = 0;
+
+		last_dropped_ = last_frame_+mspf_;
+
+		if (drop_count_ >= ftl::rgbd::detail::kFrameDropLimit) {
+			drop_count_ = 0;
+
+			const int64_t actualmspf = std::min((int64_t)1000, framesdropped*mspf_+(mspf_ - msremainder));
+
+			LOG(WARNING) << "Suggest FPS @ " << (1000 / actualmspf);
+			//mspf_ = actualmspf;
+
+			// Also notify all clients of change
+		}
+	} else {
+		// Perhaps we can boost framerate?
+		const int64_t actualmspf = std::min((int64_t)1000, framesdropped*mspf_+(mspf_ - msremainder));
+		LOG(INFO) << "Boost framerate: " << (1000 / actualmspf);
+		//mspf_ = actualmspf;
+	}*/
+}
+
 void Streamer::stop() {
 	active_ = false;
 	wait();
 }
 
 void Streamer::poll() {
-	//double wait = 1.0f / 25.0f;  // TODO:(Nick) Should be in config
-	//auto start = std::chrono::high_resolution_clock::now();
-	//int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
-
-	//int64_t msdelay = 40 - (now % 40);
-	//while (msdelay >= 20) {
-	//	sleep_for(milliseconds(10));
-	//	now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-	//	msdelay = 40 - (now % 40);
-	//}
-	//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
-
 	// Create frame jobs at correct FPS interval
 	_schedule();
-	//std::function<void(int)> j = ftl::pool.pop();
-	//if (j) j(-1);
-
-	//std::chrono::duration<double> elapsed =
-	//	std::chrono::high_resolution_clock::now() - start;
-
-	//if (elapsed.count() >= wait) {
-		//LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
-	//} else {
-		//LOG(INFO) << "Frame rate @ " << (1.0f / elapsed.count());
-		// Otherwise, wait until next frame should start.
-		// FIXME:(Nick) Is this accurate enough? Almost certainly not
-		// TODO:(Nick) Synchronise by time corrections and use of fixed time points
-		// but this only works if framerate can be achieved.
-		//sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
-	//}
 }
 
 void Streamer::run(bool block) {
@@ -304,6 +309,117 @@ void Streamer::wait() {
 	frame_no_ = last_frame_;
 }
 
+void Streamer::_schedule(StreamSource *src) {
+	// There will be two jobs for this source...
+	//UNIQUE_LOCK(job_mtx_,lk);
+	jobs_ += 2 + kChunkCount;
+	//lk.unlock();
+
+	//StreamSource *src = sources_[uri];
+	if (src == nullptr || src->jobs != 0) return;
+	src->jobs = 2 + kChunkCount;
+
+	// Grab / capture job
+	ftl::pool.push([this,src](int id) {
+		//auto start = std::chrono::high_resolution_clock::now();
+
+		auto start = std::chrono::high_resolution_clock::now();
+		int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
+		int64_t target = now / mspf_;
+		int64_t msdelay = mspf_ - (now % mspf_);
+
+		if (target != last_frame_ && msdelay != mspf_) LOG(WARNING) << "Frame " << "(" << (target-last_frame_) << ") dropped by " << (now%mspf_) << "ms";
+
+		// Use sleep_for for larger delays
+		
+		//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
+		while (msdelay >= 20 && msdelay < mspf_) {
+			sleep_for(milliseconds(10));
+			now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+			msdelay = mspf_ - (now % mspf_);
+		}
+
+		// Spin loop until exact grab time
+		//LOG(INFO) << "Spin Delay: " << (now / 40) << " = " << (40 - (now%40));
+
+		if (msdelay != mspf_) {
+			target = now / mspf_;
+			while ((now/mspf_) == target) {
+				_mm_pause();  // SSE2 nano pause intrinsic
+				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+			};
+		}
+		last_frame_ = now/mspf_;
+
+		try {
+			src->src->capture();
+		} catch (std::exception &ex) {
+			LOG(ERROR) << "Exception when grabbing frame";
+			LOG(ERROR) << ex.what();
+		}
+		catch (...) {
+			LOG(ERROR) << "Unknown exception when grabbing frame";
+		}
+
+		//now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+		//if (now%40 > 0) LOG(INFO) << "Grab in: " << (now%40) << "ms";
+
+		//std::chrono::duration<double> elapsed =
+		//	std::chrono::high_resolution_clock::now() - start;
+		//LOG(INFO) << "Grab in " << elapsed.count() << "s";
+
+		src->jobs--;
+		_swap(src);
+
+		// Mark job as finished
+		std::unique_lock<std::mutex> lk(job_mtx_);
+		--jobs_;
+		job_cv_.notify_one();
+	});
+
+	// Compute job
+	ftl::pool.push([this,src](int id) {
+		try {
+			src->src->compute();
+		} catch (std::exception &ex) {
+			LOG(ERROR) << "Exception when computing frame";
+			LOG(ERROR) << ex.what();
+		}
+		catch (...) {
+			LOG(ERROR) << "Unknown exception when computing frame";
+		}
+
+		src->jobs--;
+		_swap(src);
+
+		// Mark job as finished
+		std::unique_lock<std::mutex> lk(job_mtx_);
+		--jobs_;
+		job_cv_.notify_one();
+	});
+
+	// Create jobs for each chunk
+	for (int i=0; i<kChunkCount; ++i) {
+		// Add chunk job to thread pool
+		ftl::pool.push([this,src,i](int id) {
+			int chunk = i;
+			try {
+			if (!src->rgb.empty() && (src->src->getChannel() == ftl::rgbd::kChanNone || !src->depth.empty())) {
+				_encodeAndTransmit(src, chunk);
+			}
+			} catch(...) {
+				LOG(ERROR) << "Encode Exception: " << chunk;
+			}
+
+			src->jobs--;
+			_swap(src);
+			std::unique_lock<std::mutex> lk(job_mtx_);
+			--jobs_;
+			job_cv_.notify_one();
+		});
+	}
+}
+
 void Streamer::_schedule() {
 	wait();
 	//std::mutex job_mtx;
@@ -324,111 +440,7 @@ void Streamer::_schedule() {
 			continue;
 		}
 
-		// There will be two jobs for this source...
-		//UNIQUE_LOCK(job_mtx_,lk);
-		jobs_ += 2 + kChunkCount;
-		//lk.unlock();
-
-		StreamSource *src = sources_[uri];
-		if (src == nullptr || src->jobs != 0) continue;
-		src->jobs = 2 + kChunkCount;
-
-		// Grab / capture job
-		ftl::pool.push([this,src](int id) {
-			//auto start = std::chrono::high_resolution_clock::now();
-
-			auto start = std::chrono::high_resolution_clock::now();
-			int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
-			int64_t target = now / 40;
-
-			// TODO:(Nick) A now%40 == 0 should be accepted
-			if (target != last_frame_) LOG(WARNING) << "Frame " << "(" << (target-last_frame_) << ") dropped by " << (now%40) << "ms";
-
-			// Use sleep_for for larger delays
-			int64_t msdelay = 40 - (now % 40);
-			//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
-			while (msdelay >= 20) {
-				sleep_for(milliseconds(10));
-				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-				msdelay = 40 - (now % 40);
-			}
-
-			// Spin loop until exact grab time
-			//LOG(INFO) << "Spin Delay: " << (now / 40) << " = " << (40 - (now%40));
-			target = now / 40;
-			while ((now/40) == target) {
-				_mm_pause();  // SSE2 nano pause intrinsic
-				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-			};
-			last_frame_ = now/40;
-
-			try {
-				src->src->capture();
-			} catch (std::exception &ex) {
-				LOG(ERROR) << "Exception when grabbing frame";
-				LOG(ERROR) << ex.what();
-			}
-			catch (...) {
-				LOG(ERROR) << "Unknown exception when grabbing frame";
-			}
-
-			//now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-			//if (now%40 > 0) LOG(INFO) << "Grab in: " << (now%40) << "ms";
-
-			//std::chrono::duration<double> elapsed =
-			//	std::chrono::high_resolution_clock::now() - start;
-			//LOG(INFO) << "Grab in " << elapsed.count() << "s";
-
-			src->jobs--;
-			_swap(src);
-
-			// Mark job as finished
-			std::unique_lock<std::mutex> lk(job_mtx_);
-			--jobs_;
-			job_cv_.notify_one();
-		});
-
-		// Compute job
-		ftl::pool.push([this,src](int id) {
-			try {
-				src->src->compute();
-			} catch (std::exception &ex) {
-				LOG(ERROR) << "Exception when computing frame";
-				LOG(ERROR) << ex.what();
-			}
-			catch (...) {
-				LOG(ERROR) << "Unknown exception when computing frame";
-			}
-
-			src->jobs--;
-			_swap(src);
-
-			// Mark job as finished
-			std::unique_lock<std::mutex> lk(job_mtx_);
-			--jobs_;
-			job_cv_.notify_one();
-		});
-
-		// Create jobs for each chunk
-		for (int i=0; i<kChunkCount; ++i) {
-			// Add chunk job to thread pool
-			ftl::pool.push([this,src,i](int id) {
-				int chunk = i;
-				try {
-				if (!src->rgb.empty() && (src->src->getChannel() == ftl::rgbd::kChanNone || !src->depth.empty())) {
-					_encodeAndTransmit(src, chunk);
-				}
-				} catch(...) {
-					LOG(ERROR) << "Encode Exception: " << chunk;
-				}
-
-				src->jobs--;
-				_swap(src);
-				std::unique_lock<std::mutex> lk(job_mtx_);
-				--jobs_;
-				job_cv_.notify_one();
-			});
-		}
+		_schedule(s.second);
 	}
 }
 
@@ -490,8 +502,8 @@ void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
 		auto c = src->clients[b].begin();
 		while (c != src->clients[b].end()) {
 			try {
-				// TODO:(Nick) Send pose and timestamp
-				if (!net_->send((*c).peerid, (*c).uri, frame_no_, chunk, delta, rgb_buf, d_buf)) {
+				// TODO:(Nick) Send pose
+				if (!net_->send((*c).peerid, (*c).uri, frame_no_*mspf_, chunk, delta, rgb_buf, d_buf)) {
 					// Send failed so mark as client stream completed
 					(*c).txcount = (*c).txmax;
 				} else {

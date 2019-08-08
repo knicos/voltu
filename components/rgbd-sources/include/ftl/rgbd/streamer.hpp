@@ -29,7 +29,9 @@ struct StreamClient {
 
 static const unsigned int kGrabbed = 0x1;
 static const unsigned int kRGB = 0x2;
-static const unsigned int kDepth = 0x4; 
+static const unsigned int kDepth = 0x4;
+
+static const unsigned int kFrameDropLimit = 5;
 
 struct StreamSource {
 	ftl::rgbd::Source *src;
@@ -119,12 +121,19 @@ class Streamer : public ftl::Configurable {
 	int64_t last_frame_;
 	int64_t frame_no_;
 
+	int64_t mspf_;
+	float actual_fps_;
+	//int64_t last_dropped_;
+	//int drop_count_;
+
 	void _schedule();
+	void _schedule(detail::StreamSource *);
 	void _swap(detail::StreamSource *);
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
 	void _encodeAndTransmit(detail::StreamSource *src, int chunk);
 	void _encodeChannel1(const cv::Mat &in, std::vector<unsigned char> &out, unsigned int b);
 	bool _encodeChannel2(const cv::Mat &in, std::vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b);
+	void _decideFrameRate(int64_t framesdropped, int64_t msremainder);
 };
 
 }

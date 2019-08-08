@@ -406,6 +406,12 @@ inline __host__ __device__ float length(float3 v)
     return sqrtf(dot(v, v));
 }
 
+// length squared
+inline __host__ __device__ float length2(const float3 &v)
+{
+    return dot(v, v);
+}
+
 // normalize
 inline __host__ __device__ float3 normalize(float3 v)
 {
