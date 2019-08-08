@@ -149,7 +149,7 @@ void stack(const vector<Mat> &img, Mat &out, const int rows, const int cols) {
 void stack(const vector<Mat> &img, Mat &out) {
 	// TODO
 	int rows = 2;
-	int cols = 5;
+	int cols = (img.size() + 1) / 2;
 	stack(img, out, rows, cols);
 }
 
@@ -158,6 +158,31 @@ string time_now_string() {
 	std::time_t t=std::time(NULL);
 	std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
 	return string(timestamp);
+}
+
+void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
+				 			vector<Mat> &rgb, const vector<Mat> &map1,
+							const vector<Mat> &map2, const vector<cv::Rect> &roi)
+{
+	vector<Scalar> colors = {
+		Scalar(64, 64, 255),
+		Scalar(64, 64, 255),
+		Scalar(64, 255, 64),
+		Scalar(64, 255, 64),
+	};
+
+	vector<int> markers = {cv::MARKER_SQUARE, cv::MARKER_DIAMOND};
+
+	for (size_t c = 0; c < rgb.size(); c++) {
+		cv::rectangle(rgb[c], roi[c], Scalar(24, 224, 24), 2);
+		cv::remap(rgb[c], rgb[c], map1[c], map2[c], cv::INTER_CUBIC);
+
+		for (int r = 50; r < rgb[c].rows; r = r+50) {
+			cv::line(rgb[c], cv::Point(0, r), cv::Point(rgb[c].cols-1, r), cv::Scalar(0,0,255), 1);
+		}
+	}
+
+	stack(rgb, out);
 }
 
 struct CalibrationParams {
@@ -172,7 +197,7 @@ struct CalibrationParams {
 };
 
 void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
-				const CalibrationParams &params, vector<Mat> &map1, vector<Mat> &map2)
+				const CalibrationParams &params, vector<Mat> &map1, vector<Mat> &map2, vector<cv::Rect> &roi)
 {
 	int reference_camera = -1;
 	if (params.reference_camera < 0) {
@@ -193,6 +218,7 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 	vector<Mat> Rt_out(n_cameras);
 	map1.resize(n_cameras);
 	map2.resize(n_cameras);
+	roi.resize(n_cameras);
 
 	for (size_t c = 0; c < n_cameras; c += 2) {
 		Mat K1 = calib.getCameraMat(c);
@@ -222,12 +248,15 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 			}
 			if (params.save_intrinsic) {
 				saveIntrinsics(params.output_path + node_name + "-intrinsic.yml",
-					{calib.getCameraMat(c), calib.getCameraMat(c + 1)}
+					{calib.getCameraMatNormalized(c, 1280, 720), calib.getCameraMatNormalized(c + 1, 1280, 720)}
 				);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-intrinsic.yml";
 			}
 		}
-		cv::stereoRectify(K1, D1, K2, D2, Size(1280, 720), R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, 1.0);
+
+		// for visualization
+		Size new_size;
+		cv::stereoRectify(K1, D1, K2, D2, Size(1280, 720), R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, 1.0, new_size, &roi[c], &roi[c + 1]);
 		cv::initUndistortRectifyMap(K1, D1, R1, P1, Size(1280, 720), CV_16SC2, map1[c], map2[c]);
 		cv::initUndistortRectifyMap(K2, D2, R2, P2, Size(1280, 720), CV_16SC2, map1[c + 1], map2[c + 1]);
 	}
@@ -260,19 +289,21 @@ void calibrateFromPath(	const string &path,
 						bool visualize=false)
 {
 	size_t reference_camera = 0;
-	auto calib = MultiCameraCalibrationNew(0, reference_camera, CalibrationTarget(0.250));
+	auto calib = MultiCameraCalibrationNew(0, reference_camera, Size(0, 0), CalibrationTarget(0.250));
 	
 	vector<string> uri_cameras;
 	cv::FileStorage fs(path + filename, cv::FileStorage::READ);
 	fs["uri"] >> uri_cameras;
 
+	//params.idx_cameras = {6, 7};
 	params.idx_cameras.resize(uri_cameras.size() * 2);
 	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
 
 	calib.loadInput(path + filename, params.idx_cameras);
 	
 	vector<Mat> map1, map2;
-	calibrate(calib, uri_cameras, params, map1, map2);
+	vector<cv::Rect> roi;
+	calibrate(calib, uri_cameras, params, map1, map2, roi);
 
 	if (!visualize) return;
 
@@ -284,65 +315,78 @@ void calibrateFromPath(	const string &path,
 	};
 	vector<int> markers = {cv::MARKER_SQUARE, cv::MARKER_DIAMOND};
 
-	Mat show;
+	Mat out;
 	size_t n_cameras = calib.getCamerasCount();
 	vector<Mat> rgb(n_cameras);
 	size_t i = 0;
 	while(ftl::running) {
 		for (size_t c = 0; c < n_cameras; c++) {
 			rgb[c] = cv::imread(path + std::to_string(params.idx_cameras[c]) + "_" + std::to_string(i) + ".jpg");
-
-			for (size_t j = 0; j < n_cameras; j++) {
+			for (size_t j = 0; j < rgb.size(); j++) {
 				vector<Point2d> points;
+				// TODO: indexing incorrect if all cameras used (see also loadInput)
 				calib.projectPointsOptimized(c, i, points); // project BA point to image
 
 				for (Point2d &p : points) {
 					cv::drawMarker(rgb[c], cv::Point2i(p), colors[j % colors.size()], markers[j % markers.size()], 10 + 3 * j, 1);
 				}
 			}
-			cv::remap(rgb[c], rgb[c], map1[c], map2[c], cv::INTER_CUBIC);
-
-			for (int r = 50; r < rgb[c].rows; r = r+50) {
-				cv::line(rgb[c], cv::Point(0, r), cv::Point(rgb[c].cols-1, r), cv::Scalar(0,0,255), 1);
-			}
 		}
-
-		stack(rgb, show);
-		cv::namedWindow("Calibration", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
-		cv::imshow("Calibration", show);
 		
+		visualizeCalibration(calib, out, rgb, map1, map2, roi);	
+		cv::namedWindow("Calibration", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
+		cv::imshow("Calibration", out);
+
 		i = (i + 1) % calib.getViewsCount();
+		
 		if (cv::waitKey(50) != -1) { ftl::running = false; }
 	}
 }
 
-void calibrateCameras(	ftl::Configurable* root,
-						int n_views, int min_visible,
-						string path, string filename,
-						bool save_input,
-						CalibrationParams &params)
+void runCameraCalibration(	ftl::Configurable* root,
+							int n_views, int min_visible,
+							string path, string filename,
+							bool save_input,
+							CalibrationParams &params)
 {
 	Universe *net = ftl::create<Universe>(root, "net");
 	net->start();
 	net->waitConnections();
 
 	vector<Source*> sources = ftl::createArray<Source>(root, "sources", net);
-
+	
 	const size_t n_sources = sources.size();
 	const size_t n_cameras = n_sources * 2;
 	size_t reference_camera = 0;
+	Size resolution;
+	{
+		auto params = sources[0]->parameters();
+		resolution = Size(params.width, params.height);
+		LOG(INFO) << "Camera resolution: " << resolution;
+	}
 
 	params.idx_cameras.resize(n_cameras);
 	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
 
 	// TODO: parameter for calibration target type
-	auto calib = MultiCameraCalibrationNew(n_cameras, reference_camera, CalibrationTarget(0.250));
+	auto calib = MultiCameraCalibrationNew(	n_cameras, reference_camera,
+											resolution, CalibrationTarget(0.250)
+	);
 
 	for (size_t i = 0; i < n_sources; i++) {
+		auto params_r = sources[i]->parameters(ftl::rgbd::kChanRight);
+		auto params_l = sources[i]->parameters(ftl::rgbd::kChanLeft);
+
+		CHECK(resolution == Size(params_r.width, params_r.height));
+		CHECK(resolution == Size(params_l.width, params_l.height));
+		
 		Mat K;
-		K = getCameraMatrix(sources[i]->parameters(ftl::rgbd::kChanRight));
+		K = getCameraMatrix(params_r);
+		LOG(INFO) << "K[" << 2 * i + 1 << "] = \n" << K;
 		calib.setCameraParameters(2 * i + 1, K);
-		K = getCameraMatrix(sources[i]->parameters(ftl::rgbd::kChanLeft));
+
+		K = getCameraMatrix(params_l);
+		LOG(INFO) << "K[" << 2 * i << "] = \n" << K;
 		calib.setCameraParameters(2 * i, K);
 	}
 
@@ -443,9 +487,29 @@ void calibrateCameras(	ftl::Configurable* root,
 		calib.saveInput(fs);
 		fs.release();
 	}
-	vector<Mat> m1, m2;
+
+	Mat out;
+	vector<Mat> map1, map2;
+	vector<cv::Rect> roi;
 	vector<size_t> idx;
-	calibrate(calib, uri, params, m1, m2);
+	calibrate(calib, uri, params, map1, map2, roi);
+
+	// visualize
+	while(ftl::running) {
+		while (!new_frames) {
+			for (auto src : sources) { src->grab(30); }
+			if (cv::waitKey(50) != -1) { ftl::running = false; }
+		}
+
+		mutex.lock();
+		rgb.swap(rgb_new);
+		new_frames = false;
+		mutex.unlock();
+
+		visualizeCalibration(calib, out, rgb, map1, map2, roi);
+		cv::namedWindow("Calibration", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
+		cv::imshow("Calibration", out);
+	}
 }
 
 int main(int argc, char **argv) {
@@ -502,7 +566,7 @@ int main(int argc, char **argv) {
 		calibrateFromPath(calibration_data_dir, calibration_data_file, params, true);
 	}
 	else {
-		calibrateCameras(root, n_views, min_visible, calibration_data_dir, calibration_data_file, save_input, params);
+		runCameraCalibration(root, n_views, min_visible, calibration_data_dir, calibration_data_file, save_input, params);
 	}
 
 	return 0;
