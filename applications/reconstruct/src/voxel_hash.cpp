@@ -1,4 +1,5 @@
 #include <ftl/voxel_hash.hpp>
+#include <loguru.hpp>
 
 using ftl::voxhash::HashData;
 using ftl::voxhash::HashParams;

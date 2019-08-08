@@ -10,7 +10,7 @@ set(REPSRC
 	src/garbage.cu
 	src/integrators.cu
 	#src/ray_cast_sdf.cu
-	src/splat_render.cu
+	src/voxel_render.cu
 	src/camera_util.cu
 	src/voxel_hash.cu
 	src/voxel_hash.cpp
@@ -19,6 +19,7 @@ set(REPSRC
 	#src/virtual_source.cpp
 	src/splat_render.cpp
 	src/dibr.cu
+	src/mls.cu
 	src/depth_camera.cu
 	src/depth_camera.cpp
 )

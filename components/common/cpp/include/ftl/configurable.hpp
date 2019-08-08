@@ -68,7 +68,9 @@ class Configurable {
 	template <typename T>
 	T value(const std::string &name, T def) {
 		auto r = get<T>(name);
-		return (r) ? *r : def;
+		if (r) return *r;
+		(*config_)[name] = def;
+		return def;
 	}
 
 	/**
