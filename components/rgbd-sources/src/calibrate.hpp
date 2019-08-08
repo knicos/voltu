@@ -40,6 +40,11 @@ class Calibrate : public ftl::Configurable {
 	 */
 	void rectifyStereo(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::Stream &stream);
 
+	/**
+	 * Rectify and remove distortions from from images l and r using cv::remap()
+	 */
+	void rectifyStereo(cv::Mat &l, cv::Mat &r);
+
 	bool isCalibrated();
 
 	void updateCalibration(const ftl::rgbd::Camera &p);
@@ -60,6 +65,8 @@ private:
 	private:
 	bool calibrated_;
 
+	std::pair<cv::Mat, cv::Mat> map1_;
+	std::pair<cv::Mat, cv::Mat> map2_;
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map1_gpu_;
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map2_gpu_;
 

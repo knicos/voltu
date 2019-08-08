@@ -127,6 +127,7 @@ class Streamer : public ftl::Configurable {
 	//int drop_count_;
 
 	void _schedule();
+	void _schedule(detail::StreamSource *);
 	void _swap(detail::StreamSource *);
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
 	void _encodeAndTransmit(detail::StreamSource *src, int chunk);

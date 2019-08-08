@@ -309,8 +309,125 @@ void Streamer::wait() {
 	frame_no_ = last_frame_;
 }
 
+void Streamer::_schedule(StreamSource *src) {
+	// There will be two jobs for this source...
+	//UNIQUE_LOCK(job_mtx_,lk);
+	jobs_ += 2 + kChunkCount;
+	//lk.unlock();
+
+	//StreamSource *src = sources_[uri];
+	if (src == nullptr || src->jobs != 0) return;
+	src->jobs = 2 + kChunkCount;
+
+	// Grab / capture job
+	ftl::pool.push([this,src](int id) {
+		//auto start = std::chrono::high_resolution_clock::now();
+
+		auto start = std::chrono::high_resolution_clock::now();
+		int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
+		int64_t target = now / mspf_;
+		int64_t msdelay = mspf_ - (now % mspf_);
+
+		if (target != last_frame_ && msdelay != mspf_) LOG(WARNING) << "Frame " << "(" << (target-last_frame_) << ") dropped by " << (now%mspf_) << "ms";
+
+		// Use sleep_for for larger delays
+		
+		//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
+		while (msdelay >= 20 && msdelay < mspf_) {
+			sleep_for(milliseconds(10));
+			now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+			msdelay = mspf_ - (now % mspf_);
+		}
+
+		// Spin loop until exact grab time
+		//LOG(INFO) << "Spin Delay: " << (now / 40) << " = " << (40 - (now%40));
+
+		if (msdelay != mspf_) {
+			target = now / mspf_;
+			while ((now/mspf_) == target) {
+				_mm_pause();  // SSE2 nano pause intrinsic
+				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+			};
+		}
+		last_frame_ = now/mspf_;
+
+		try {
+			src->src->capture();
+		} catch (std::exception &ex) {
+			LOG(ERROR) << "Exception when grabbing frame";
+			LOG(ERROR) << ex.what();
+		}
+		catch (...) {
+			LOG(ERROR) << "Unknown exception when grabbing frame";
+		}
+
+		//now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+		//if (now%40 > 0) LOG(INFO) << "Grab in: " << (now%40) << "ms";
+
+		//std::chrono::duration<double> elapsed =
+		//	std::chrono::high_resolution_clock::now() - start;
+		//LOG(INFO) << "Grab in " << elapsed.count() << "s";
+
+		src->jobs--;
+		_swap(src);
+
+		// Mark job as finished
+		std::unique_lock<std::mutex> lk(job_mtx_);
+		--jobs_;
+		job_cv_.notify_one();
+	});
+
+	// Compute job
+	ftl::pool.push([this,src](int id) {
+		try {
+			src->src->compute();
+		} catch (std::exception &ex) {
+			LOG(ERROR) << "Exception when computing frame";
+			LOG(ERROR) << ex.what();
+		}
+		catch (...) {
+			LOG(ERROR) << "Unknown exception when computing frame";
+		}
+
+		src->jobs--;
+		_swap(src);
+
+		// Mark job as finished
+		std::unique_lock<std::mutex> lk(job_mtx_);
+		--jobs_;
+		job_cv_.notify_one();
+	});
+
+	// Create jobs for each chunk
+	for (int i=0; i<kChunkCount; ++i) {
+		// Add chunk job to thread pool
+		ftl::pool.push([this,src,i](int id) {
+			int chunk = i;
+			try {
+			if (!src->rgb.empty() && (src->src->getChannel() == ftl::rgbd::kChanNone || !src->depth.empty())) {
+				_encodeAndTransmit(src, chunk);
+			}
+			} catch(...) {
+				LOG(ERROR) << "Encode Exception: " << chunk;
+			}
+
+			src->jobs--;
+			_swap(src);
+			std::unique_lock<std::mutex> lk(job_mtx_);
+			--jobs_;
+			job_cv_.notify_one();
+		});
+	}
+}
+
 void Streamer::_schedule() {
 	wait();
+	//std::mutex job_mtx;
+	//std::condition_variable job_cv;
+	//int jobs = 0;
+
+	//auto now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
+	//LOG(INFO) << "Frame time = " << (now-(last_frame_*40)) << "ms";
 
 	// Prevent new clients during processing.
 	SHARED_LOCK(mutex_,slk);
@@ -323,106 +440,7 @@ void Streamer::_schedule() {
 			continue;
 		}
 
-		// There will be two jobs for this source...
-		//UNIQUE_LOCK(job_mtx_,lk);
-		jobs_ += 2 + kChunkCount;
-		//lk.unlock();
-
-		StreamSource *src = sources_[uri];
-		if (src == nullptr || src->jobs != 0) continue;
-		src->jobs = 2 + kChunkCount;
-
-		// Grab / capture job
-		ftl::pool.push([this,src](int id) {
-			//auto start = std::chrono::high_resolution_clock::now();
-
-			auto start = std::chrono::high_resolution_clock::now();
-			int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
-			int64_t target = now / mspf_;
-
-			// TODO:(Nick) A now%mspf_ == 0 should be accepted
-			if (target != last_frame_) {
-				LOG(WARNING) << "Frame " << "(" << (target-last_frame_) << ") dropped by " << (now%mspf_) << "ms";
-			}
-			//_decideFrameRate(target-last_frame_, now%mspf_);
-
-			// Use sleep_for for larger delays
-			int64_t msdelay = mspf_ - (now % mspf_);
-			//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
-			while (msdelay >= 20) {
-				sleep_for(milliseconds(10));
-				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-				msdelay = mspf_ - (now % mspf_);
-			}
-
-			// Spin loop until exact grab time
-			target = now / mspf_;
-			while ((now/mspf_) == target) {
-				_mm_pause();  // SSE2 nano pause intrinsic
-				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-			};
-			last_frame_ = now/mspf_;
-
-			try {
-				src->src->capture();
-			} catch (std::exception &ex) {
-				LOG(ERROR) << "Exception when grabbing frame";
-				LOG(ERROR) << ex.what();
-			}
-			catch (...) {
-				LOG(ERROR) << "Unknown exception when grabbing frame";
-			}
-
-			src->jobs--;
-			_swap(src);
-
-			// Mark job as finished
-			std::unique_lock<std::mutex> lk(job_mtx_);
-			--jobs_;
-			if (jobs_ == 0) job_cv_.notify_one();
-		});
-
-		// Compute job
-		ftl::pool.push([this,src](int id) {
-			try {
-				src->src->compute();
-			} catch (std::exception &ex) {
-				LOG(ERROR) << "Exception when computing frame";
-				LOG(ERROR) << ex.what();
-			}
-			catch (...) {
-				LOG(ERROR) << "Unknown exception when computing frame";
-			}
-
-			src->jobs--;
-			_swap(src);
-
-			// Mark job as finished
-			std::unique_lock<std::mutex> lk(job_mtx_);
-			--jobs_;
-			job_cv_.notify_one();
-		});
-
-		// Create jobs for each chunk
-		for (int i=0; i<kChunkCount; ++i) {
-			// Add chunk job to thread pool
-			ftl::pool.push([this,src,i](int id) {
-				int chunk = i;
-				try {
-				if (!src->rgb.empty() && (src->src->getChannel() == ftl::rgbd::kChanNone || !src->depth.empty())) {
-					_encodeAndTransmit(src, chunk);
-				}
-				} catch(...) {
-					LOG(ERROR) << "Encode Exception: " << chunk;
-				}
-
-				src->jobs--;
-				_swap(src);
-				std::unique_lock<std::mutex> lk(job_mtx_);
-				--jobs_;
-				if (jobs_ == 0) job_cv_.notify_one();
-			});
-		}
+		_schedule(s.second);
 	}
 }
 
