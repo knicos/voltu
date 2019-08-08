@@ -9,6 +9,7 @@ namespace ftl {
 namespace render {
 
 static const uint kShowBlockBorders = 0x0001;
+static const uint kNoSplatting = 0x0002;
 
 struct __align__(16) SplatParams {
 	float4x4 m_viewMatrix;
@@ -16,6 +17,7 @@ struct __align__(16) SplatParams {
 
 	uint m_flags;
 	float voxelSize;
+	float depthThreshold;
 
 	DepthCameraParams camera;
 };

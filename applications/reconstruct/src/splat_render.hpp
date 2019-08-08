@@ -33,9 +33,12 @@ class Splatter {
 	private:
 	int device_;
 	ftl::cuda::TextureObject<int> depth1_;
+	ftl::cuda::TextureObject<int> depth3_;
 	ftl::cuda::TextureObject<uchar4> colour1_;
+	ftl::cuda::TextureObject<float4> colour_tmp_;
 	ftl::cuda::TextureObject<float> depth2_;
 	ftl::cuda::TextureObject<uchar4> colour2_;
+	ftl::cuda::TextureObject<float4> normal1_;
 	SplatParams params_;
 	ftl::voxhash::SceneRep *scene_;
 };
