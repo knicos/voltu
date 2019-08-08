@@ -154,7 +154,7 @@ static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat
 }
 
 bool StereoVideoSource::capture() {
-	lsrc_->get(cap_left_, cap_right_, stream2_);
+	lsrc_->get(cap_left_, cap_right_, calib_, stream2_);
 	stream2_.waitForCompletion();
 	return true;
 }
@@ -178,7 +178,7 @@ bool StereoVideoSource::compute(int n, int b) {
 		//lsrc_->get(left_, right_, stream_);
 		if (depth_tmp_.empty()) depth_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
 		if (disp_tmp_.empty()) disp_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
-		calib_->rectifyStereo(left_, right_, stream_);
+		//calib_->rectifyStereo(left_, right_, stream_);
 		disp_->compute(left_, right_, disp_tmp_, stream_);
 		ftl::cuda::disparity_to_depth(disp_tmp_, depth_tmp_, params_, stream_);
 		left_.download(rgb_, stream_);
@@ -188,13 +188,13 @@ bool StereoVideoSource::compute(int n, int b) {
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	} else if (chan == ftl::rgbd::kChanRight) {
 		//lsrc_->get(left_, right_, stream_);
-		calib_->rectifyStereo(left_, right_, stream_);
+		//calib_->rectifyStereo(left_, right_, stream_);
 		left_.download(rgb_, stream_);
 		right_.download(depth_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	} else {
 		//lsrc_->get(left_, right_, stream_);
-		calib_->rectifyStereo(left_, right_, stream_);
+		//calib_->rectifyStereo(left_, right_, stream_);
 		//rgb_ = lsrc_->cachedLeft();
 		left_.download(rgb_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames

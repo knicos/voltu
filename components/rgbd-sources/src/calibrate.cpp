@@ -159,7 +159,6 @@ void Calibrate::_updateIntrinsics() {
 	// TODO: pass parameters?
 
 	Mat R1, R2, P1, P2;
-	std::pair<Mat, Mat> map1, map2;
 	ftl::rgbd::Camera params();
 
 	if (this->value("use_intrinsics", true)) {
@@ -182,14 +181,14 @@ void Calibrate::_updateIntrinsics() {
 	C_l_ = P1;
 	C_r_ = P2;
 
-	initUndistortRectifyMap(M1_, D1_, R1, P1, img_size_, CV_32FC1, map1.first, map2.first);
-	initUndistortRectifyMap(M2_, D2_, R2, P2, img_size_, CV_32FC1, map1.second, map2.second);
+	initUndistortRectifyMap(M1_, D1_, R1, P1, img_size_, CV_32FC1, map1_.first, map2_.first);
+	initUndistortRectifyMap(M2_, D2_, R2, P2, img_size_, CV_32FC1, map1_.second, map2_.second);
 
 	// CHECK Is this thread safe!!!!
-	map1_gpu_.first.upload(map1.first);
-	map1_gpu_.second.upload(map1.second);
-	map2_gpu_.first.upload(map2.first);
-	map2_gpu_.second.upload(map2.second);
+	map1_gpu_.first.upload(map1_.first);
+	map1_gpu_.second.upload(map1_.second);
+	map2_gpu_.first.upload(map2_.first);
+	map2_gpu_.second.upload(map2_.second);
 }
 
 void Calibrate::rectifyStereo(GpuMat &l, GpuMat &r, Stream &stream) {
@@ -202,6 +201,21 @@ void Calibrate::rectifyStereo(GpuMat &l, GpuMat &r, Stream &stream) {
 	stream.waitForCompletion();
 	l = l_tmp;
 	r = r_tmp;
+}
+
+void Calibrate::rectifyStereo(cv::Mat &l, cv::Mat &r) {
+	// cv::cuda::remap() can not use same Mat for input and output
+
+	cv::remap(l, l, map1_.first, map2_.first, cv::INTER_LINEAR, 0, cv::Scalar());
+	cv::remap(r, r, map1_.second, map2_.second, cv::INTER_LINEAR, 0, cv::Scalar());
+
+	/*GpuMat l_tmp(l.size(), l.type());
+	GpuMat r_tmp(r.size(), r.type());
+	cv::cuda::remap(l, l_tmp, map1_gpu_.first, map2_gpu_.first, cv::INTER_LINEAR, 0, cv::Scalar(), stream);
+	cv::cuda::remap(r, r_tmp, map1_gpu_.second, map2_gpu_.second, cv::INTER_LINEAR, 0, cv::Scalar(), stream);
+	stream.waitForCompletion();
+	l = l_tmp;
+	r = r_tmp;*/
 }
 
 bool Calibrate::isCalibrated() {
