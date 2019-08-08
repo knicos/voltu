@@ -150,13 +150,13 @@
 			"confidenceThreshold": 0.0,
 			"mls": true,
 			"voxels": false,
-			"clipping": false,
-			"bbox_x_max": 1.5,
-			"bbox_x_min": -1.5,
+			"clipping": true,
+			"bbox_x_max": 0.6,
+			"bbox_x_min": -0.6,
 			"bbox_y_max": 3.0,
 			"bbox_y_min": -3.0,
-			"bbox_z_max": 2.5,
-			"bbox_z_min": 0.0,
+			"bbox_z_max": 3.5,
+			"bbox_z_min": 2.0,
 			"cudaDevice": 1
 		},
 		"rs": {
@@ -490,6 +490,34 @@
 			{"uri":"file:///home/nick/Pictures/FTL/snaptest8.tar.gz#1", "index": "camera1"},
 			{"uri":"file:///home/nick/Pictures/FTL/snaptest8.tar.gz#2", "index": "camera2"},
 			{"uri":"file:///home/nick/Pictures/FTL/snaptest8.tar.gz#3", "index": "camera3"}
+		],
+		"display": { "$ref": "#displays/left" },
+		"virtual": { "$ref": "#virtual_cams/default" },
+		"voxelhash": { "$ref": "#hash_conf/default" },
+		"merge": {
+			"$id": "ftl://blah/blah",
+			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
+			"register": false,
+			"chain": false,
+			"maxerror": 100,
+			"iterations" : 10,
+			"delay" : 500,
+			"patternsize" : [9, 6]
+		},
+		"stream": {}
+	},
+
+	"reconstruction_snap10": {
+		"net": {
+			"peers": [],
+			"listen": "tcp://*:9002"
+		},
+		"sources": [
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#0", "index": "camera0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#1", "index": "camera1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#2", "index": "camera2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#3", "index": "camera3"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#4", "index": "camera4"}
 		],
 		"display": { "$ref": "#displays/left" },
 		"virtual": { "$ref": "#virtual_cams/default" },

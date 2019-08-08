@@ -295,14 +295,14 @@ HashParams SceneRep::_parametersFromConfig() {
 	params.m_flags = 0;
 	params.m_flags |= (value("clipping", false)) ? ftl::voxhash::kFlagClipping : 0;
 	params.m_flags |= (value("mls", false)) ? ftl::voxhash::kFlagMLS : 0;
-	params.m_maxBounds = make_int3(
-		value("bbox_x_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_y_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_z_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE));
-	params.m_minBounds = make_int3(
-		value("bbox_x_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_y_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_z_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE));
+	params.m_maxBounds = make_float3(
+		value("bbox_x_max", 2.0f),
+		value("bbox_y_max", 2.0f),
+		value("bbox_z_max", 2.0f));
+	params.m_minBounds = make_float3(
+		value("bbox_x_min", -2.0f),
+		value("bbox_y_min", -2.0f),
+		value("bbox_z_min", -2.0f));
 	return params;
 }
 
