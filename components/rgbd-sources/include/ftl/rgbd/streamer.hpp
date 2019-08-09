@@ -35,7 +35,7 @@ static const unsigned int kFrameDropLimit = 5;
 
 struct StreamSource {
 	ftl::rgbd::Source *src;
-	std::atomic<unsigned int> jobs;				// Busy or ready to swap?
+	std::atomic<int> jobs;				// Busy or ready to swap?
 	std::atomic<unsigned int> clientCount;
 	cv::Mat rgb;									// Tx buffer
 	cv::Mat depth;									// Tx buffer
