@@ -150,8 +150,6 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 					// Lock to allow buffer swap
 					UNIQUE_LOCK(mutex_,lk2);
 
-					chunk_count_ = 0;
-
 					// Swap the double buffers
 					cv::Mat tmp;
 					tmp = rgb_;
@@ -161,6 +159,7 @@ void NetSource::_recvChunk(int64_t frame, int chunk, bool delta, const vector<un
 					depth_ = d_depth_;
 					d_depth_ = tmp;
 
+					chunk_count_ = 0;
 					timestamp_ = current_frame_;
 					current_frame_ = frame;
 				}
