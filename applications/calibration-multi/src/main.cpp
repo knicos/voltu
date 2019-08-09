@@ -174,8 +174,8 @@ void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
 	vector<int> markers = {cv::MARKER_SQUARE, cv::MARKER_DIAMOND};
 
 	for (size_t c = 0; c < rgb.size(); c++) {
-		cv::rectangle(rgb[c], roi[c], Scalar(24, 224, 24), 2);
 		cv::remap(rgb[c], rgb[c], map1[c], map2[c], cv::INTER_CUBIC);
+		cv::rectangle(rgb[c], roi[c], Scalar(24, 224, 24), 2);
 
 		for (int r = 50; r < rgb[c].rows; r = r+50) {
 			cv::line(rgb[c], cv::Point(0, r), cv::Point(rgb[c].cols-1, r), cv::Scalar(0,0,255), 1);
@@ -241,7 +241,8 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 			size_t pos1 = uri_cameras[c/2].find("node");
 			size_t pos2 = uri_cameras[c/2].find("#", pos1);
 			node_name = uri_cameras[c/2].substr(pos1, pos2 - pos1);
-		
+			//LOG(INFO) << c << ":" << calib.getCameraMatNormalized(c, 1280, 720);
+			//LOG(INFO) << c + 1 << ":" << calib.getCameraMatNormalized(c + 1, 1280, 720);
 			if (params.save_extrinsic) {
 				saveExtrinsics(params.output_path + node_name + "-extrinsic.yml", R_c1c2, T_c1c2, R1, R2, P1, P2, Q);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-extrinsic.yml";
@@ -295,7 +296,7 @@ void calibrateFromPath(	const string &path,
 	cv::FileStorage fs(path + filename, cv::FileStorage::READ);
 	fs["uri"] >> uri_cameras;
 
-	//params.idx_cameras = {6, 7};
+	//params.idx_cameras = {2, 3};//{0, 1, 4, 5, 6, 7, 8, 9, 10, 11};
 	params.idx_cameras.resize(uri_cameras.size() * 2);
 	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
 

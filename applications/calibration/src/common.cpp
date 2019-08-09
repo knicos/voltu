@@ -89,7 +89,7 @@ bool loadIntrinsics(const string &ifile, vector<Mat> &K1, vector<Mat> &D1) {
 	
 	LOG(INFO) << "Intrinsics from: " << ifile;
 
-	fs["M"] >> K1;
+	fs["K"] >> K1;
 	fs["D"] >> D1;
 
 	return true;
