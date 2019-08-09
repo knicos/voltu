@@ -10,7 +10,7 @@ include(GNUInstallDirs)
 include(CTest)
 enable_testing()
 
-option(WITH_PCL "Use PCL if available" ON)
+option(WITH_PCL "Use PCL if available" OFF)
 option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
