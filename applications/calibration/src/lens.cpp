@@ -33,12 +33,13 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	const Size image_size = Size(	getOptionInt(opt, "width", 1280),
 							getOptionInt(opt, "height", 720));
 	const int n_cameras = getOptionInt(opt, "n_cameras", 2);
-	const int iter = getOptionInt(opt, "iter", 60);
-	const int delay = getOptionInt(opt, "delay", 750);
+	const int iter = getOptionInt(opt, "iter", 40);
+	const int delay = getOptionInt(opt, "delay", 1000);
 	const double aperture_width = getOptionDouble(opt, "aperture_width", 6.2);
 	const double aperture_height = getOptionDouble(opt, "aperture_height", 4.6);
 	const string filename_intrinsics = getOptionString(opt, "profile", FTL_LOCAL_CONFIG_ROOT "/intrinsics.yml");
 	CalibrationChessboard calib(opt);
+	const bool use_guess = getOptionInt(opt, "use_guess", 1);
 
 	LOG(INFO) << "Intrinsic calibration parameters";
 	LOG(INFO) << "         profile: " << filename_intrinsics;
@@ -49,11 +50,24 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	LOG(INFO) << "           delay: " << delay;
 	LOG(INFO) << "  aperture_width: " << aperture_width;
 	LOG(INFO) << " aperture_height: " << aperture_height;
+	LOG(INFO) << "       use_guess: " << use_guess;
 	LOG(INFO) << "-----------------------------------";
 
-	int calibrate_flags =	cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_ASPECT_RATIO |
-							cv::CALIB_FIX_PRINCIPAL_POINT;
+	int calibrate_flags =	cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_ASPECT_RATIO;
+	if (use_guess) { calibrate_flags |= cv::CALIB_USE_INTRINSIC_GUESS; }
+	//						cv::CALIB_FIX_PRINCIPAL_POINT;
 	// PARAMETERS
+
+
+	vector<Mat> camera_matrix(n_cameras), dist_coeffs(n_cameras);
+
+	if (use_guess) {
+		camera_matrix.clear();
+		vector<Mat> tmp;
+		//dist_coeffs.clear();
+		loadIntrinsics(filename_intrinsics, camera_matrix, tmp);
+		CHECK(camera_matrix.size() == n_cameras); // (camera_matrix.size() == dist_coeffs.size())
+	}
 
 	vector<cv::VideoCapture> cameras;
 	cameras.reserve(n_cameras);
@@ -102,8 +116,6 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 
 		cv::waitKey(delay);
 	}
-	
-	vector<Mat> camera_matrix(n_cameras), dist_coeffs(n_cameras);
 
 	for (int c = 0; c < n_cameras; c++) {
 		LOG(INFO) << "Calculating intrinsic paramters for camera " << std::to_string(c);

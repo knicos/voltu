@@ -89,6 +89,8 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 		D[1].copyTo(D2_);
 	}
 
+	fs.release();
+
 	CHECK(M1_.size() == Size(3, 3));
 	CHECK(M2_.size() == Size(3, 3));
 	CHECK(D1_.size() == Size(5, 1));
@@ -116,15 +118,18 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 	fs["P1"] >> P1_;
 	fs["P2"] >> P2_;
 	fs["Q"] >> Q_;
+
+	fs.release();
+
 	img_size_ = img_size;
 
 	// TODO: normalize calibration
-	double scale_x = 1.0 / 1280.0;
-	double scale_y = 1.0 / 720.0;
-
+	double scale_x = ((double) img_size.width) / 1280.0;
+	double scale_y = ((double) img_size.height) / 720.0;
+	
 	Mat scale(cv::Size(3, 3), CV_64F, 0.0);
-	scale.at<double>(0, 0) = (double) img_size.width * scale_x;
-	scale.at<double>(1, 1) = (double) img_size.height * scale_y;
+	scale.at<double>(0, 0) = scale_x;
+	scale.at<double>(1, 1) = scale_y;
 	scale.at<double>(2, 2) = 1.0;
 
 	M1_ = scale * M1_;
@@ -132,9 +137,10 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 	P1_ = scale * P1_;
 	P2_ = scale * P2_;
 
-	Q_.at<double>(0, 3) = Q_.at<double>(3, 2) * (double) img_size.width * scale_x;
-	Q_.at<double>(1, 3) = Q_.at<double>(3, 2) * (double) img_size.height * scale_y;
-	Q_.at<double>(3, 3) = Q_.at<double>(3, 3) * (double) img_size.width * scale_x;
+	Q_.at<double>(0, 3) = Q_.at<double>(0, 3) * scale_x;
+	Q_.at<double>(1, 3) = Q_.at<double>(1, 3) * scale_y;
+	Q_.at<double>(2, 3) = Q_.at<double>(2, 3) * scale_x; // TODO: scaling?
+	Q_.at<double>(3, 3) = Q_.at<double>(3, 3) * scale_x;
 
 	// cv::cuda::remap() works only with CV_32FC1
 	initUndistortRectifyMap(M1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);

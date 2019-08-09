@@ -81,16 +81,18 @@ double CalibrationTarget::estimateScale(vector<Point3d> points) {
 }
 
 MultiCameraCalibrationNew::MultiCameraCalibrationNew(
-			size_t n_cameras, size_t reference_camera, CalibrationTarget target, int fix_intrinsics) :
+			size_t n_cameras, size_t reference_camera, Size resolution,
+			CalibrationTarget target, int fix_intrinsics) :
 		
 	target_(target),
 	visibility_graph_(n_cameras),
 	is_calibrated_(false),
 	n_cameras_(n_cameras),
 	reference_camera_(reference_camera),
-	min_visible_points_(25),
+	min_visible_points_(50),
 	fix_intrinsics_(fix_intrinsics == 1 ? 5 : 0),
 
+	resolution_(resolution),
 	K_(n_cameras),
 	dist_coeffs_(n_cameras),
 	R_(n_cameras),
@@ -114,6 +116,23 @@ Mat MultiCameraCalibrationNew::getCameraMat(size_t idx) {
 	Mat K;
 	K_[idx].copyTo(K);
 	return K;
+}
+
+
+Mat MultiCameraCalibrationNew::getCameraMatNormalized(size_t idx, double scale_x, double scale_y)
+{
+	Mat K = getCameraMat(idx);
+	CHECK((scale_x != 0.0 && scale_y != 0.0) || ((scale_x == 0.0) && scale_y == 0.0));
+
+	scale_x = scale_x / (double) resolution_.width;
+	scale_y = scale_y / (double) resolution_.height;
+
+	Mat scale(Size(3, 3), CV_64F, 0.0);
+	scale.at<double>(0, 0) = scale_x;
+	scale.at<double>(1, 1) = scale_y;
+	scale.at<double>(2, 2) = 1.0;
+	
+	return (scale * K);
 }
 
 Mat MultiCameraCalibrationNew::getDistCoeffs(size_t idx) {
@@ -149,6 +168,7 @@ void MultiCameraCalibrationNew::addPoints(vector<vector<Point2d>> points, vector
 
 void MultiCameraCalibrationNew::reset() {
 	is_calibrated_ = false;
+	weights_ = vector(n_cameras_, vector(points2d_[0].size(), 0.0));
 	inlier_ = vector(n_cameras_, vector(points2d_[0].size(), 0));
 	points3d_ = vector(n_cameras_, vector(points2d_[0].size(), Point3d()));
 	points3d_optimized_ = vector(points2d_[0].size(), Point3d());
@@ -163,6 +183,7 @@ void MultiCameraCalibrationNew::saveInput(const string &filename) {
 }
 
 void MultiCameraCalibrationNew::saveInput(cv::FileStorage &fs) {
+	fs << "resolution" << resolution_;
 	fs << "K" << K_;
 	fs << "points2d" << points2d_;
 	fs << "visible" << visible_;
@@ -182,6 +203,7 @@ void MultiCameraCalibrationNew::loadInput(const std::string &filename, const vec
 	fs["K"] >> K;
 	fs["points2d"] >> points2d;
 	fs["visible"] >> visible;
+	fs["resolution"] >> resolution_;
 	fs.release();
 	
 	vector<size_t> cameras;
@@ -287,13 +309,13 @@ void MultiCameraCalibrationNew::updatePoints3D(size_t camera, Point3d new_point,
 		// 			instead store all triangulations and handle outliers
 		//			(perhaps inverse variance weighted mean?)
 		
-		if (euclideanDistance(point, new_point) > 1.0) {
+		if (euclideanDistance(point, new_point) > 10.0) {
 			LOG(ERROR) << "bad value (skipping) " << "(" << point << " vs " << new_point << ")";
 			f = -1;
 		}
 		else {
 			point = (point * f + new_point) / (double) (f + 1);
-			f = f + 1;
+			f++;
 		}
 	}
 	else {
@@ -365,8 +387,8 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 	// cameras possibly lack line of sight?
 	DCHECK(points1.size() > 8);
 
-	Mat K1 = K_[camera_from];
-	Mat K2 = K_[camera_to];
+	Mat &K1 = K_[camera_from];
+	Mat &K2 = K_[camera_to];
 
 	vector<uchar> inliers;
 	Mat F, E;
@@ -462,12 +484,12 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 	// Bundle Adjustment
 	// vector<Point3d> points3d_triangulated;
 	// points3d_triangulated.insert(points3d_triangulated.begin(), points3d.begin(), points3d.end());
-	
+	LOG(INFO) << K1;
 	double err;
 	cvsba::Sba sba;
 	{
-		sba.setParams(cvsba::Sba::Params(cvsba::Sba::TYPE::MOTION, 200, 1.0e-30, fix_intrinsics_, 5, false));
-
+		sba.setParams(cvsba::Sba::Params(cvsba::Sba::TYPE::MOTIONSTRUCTURE, 200, 1.0e-30, 5, 5, false));
+		
 		Mat rvec1, rvec2;
 		cv::Rodrigues(R1, rvec1);
 		cv::Rodrigues(R2, rvec2);
@@ -488,16 +510,21 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 		cv::Rodrigues(r[1], R2);
 		t1 = t[0];
 		t2 = t[1];
-		err = sba.getFinalReprjError();
 
+		// intrinsic parameters should only be optimized at final BA
+		//K1 = K[0];
+		//K2 = K[1];
+
+		err = sba.getFinalReprjError();
 		LOG(INFO) << "SBA reprojection error before BA " << sba.getInitialReprjError();
 		LOG(INFO) << "SBA reprojection error after BA " << err;
 	}
 
 	calculateTransform(R2, t2, R1, t1, rmat, tvec);
-	
+
 	// Store and average 3D points for both cameras (skip garbage)
 	if (err < 10.0) {
+		Mat rmat1, tvec1;
 		updatePoints3D(camera_from, points3d, idx, R1, t1);
 		updatePoints3D(camera_to, points3d, idx, R2, t2);
 	}
@@ -507,11 +534,8 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 					<< "), not updating points!";
 	}
 
-	// LOG(INFO) << "Final error: " << reprojectionError(points3d, points2, K2, rmat, tvec);
-	//if (reprojectionError(points3d, points2, K2, rmat, tvec) > 10.0) {
-		// TODO: should ignore results
-		// LOG(ERROR) << "pairwise calibration failed! RMS: " << reprojectionError(points3d, points2, K2, rmat, tvec);
-	//};
+	//LOG(INFO) << reprojectionError(points3d, points1, K1, R1, t1);
+	//LOG(INFO) << reprojectionError(points3d, points2, K2, R2, t2);
 
 	return err;
 }
@@ -598,16 +622,26 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 			);
 			continue;
 		}
-		LOG(INFO) << "Running pairwise calibration for cameras " << c1 << " and " << c2;
+
 		size_t n_visible = getVisiblePointsCount({c1, c2});
-		
-		if (n_visible < min_visible_points_) continue;
+
+		if (n_visible < min_visible_points_) {
+			LOG(INFO)	<< "Not enough (" << min_visible_points_ << ") points  between "
+						<< "cameras " << c1 << " and " << c2 << " (" << n_visible << " points), "
+						<< "skipping";
+			continue;
+		}
+		LOG(INFO)	<< "Running pairwise calibration for cameras "
+					<< c1 << " and " << c2 << "(" << n_visible << " points)";
+
 		if (transformations.find(make_pair(c2, c1)) != transformations.end()) {
 			continue;
 		}
 		Mat R, t, R_i, t_i;
 
-		if (calibratePair(c1, c2, R, t) > 10.0) {
+		// TODO: threshold parameter, 16.0 possibly too high
+
+		if (calibratePair(c1, c2, R, t) > 16.0) {
 			LOG(ERROR)	<< "Pairwise calibration failed, skipping cameras "
 						<< c1 << " and " << c2;
 			continue;

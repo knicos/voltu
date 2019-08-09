@@ -34,7 +34,8 @@ private:
 class MultiCameraCalibrationNew {
 public:
 	MultiCameraCalibrationNew(	size_t n_cameras, size_t reference_camera,
-								CalibrationTarget target, int fix_intrinsics=1);
+								Size resolution, CalibrationTarget target,
+								int fix_intrinsics=1);
 	
 	void setCameraParameters(size_t idx, const Mat &K, const Mat &distCoeffs);
 	void setCameraParameters(size_t idx, const Mat &K);
@@ -56,6 +57,8 @@ public:
 	void saveInput(const std::string &filename);
 
 	Mat getCameraMat(size_t idx);
+	Mat getCameraMatNormalized(size_t idx, double scale_x = 1.0, double scale_y = 1.0);
+
 	Mat getDistCoeffs(size_t idx);
 
 	double calibrateAll(int reference_camera = -1);
@@ -133,6 +136,7 @@ private:
 	size_t min_visible_points_;
 	int fix_intrinsics_;
 
+	Size resolution_;
 	vector<Mat> K_;
 	vector<Mat> dist_coeffs_;
 	vector<Mat> R_;
@@ -143,6 +147,7 @@ private:
 	vector<vector<Point2d>> points2d_;
 	vector<vector<int>> visible_;
 	vector<vector<int>> inlier_; // "inlier"
+	vector<vector<double>> weights_;
 
 	int fm_method_;
 	double fm_ransac_threshold_;
