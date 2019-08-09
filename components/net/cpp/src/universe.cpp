@@ -24,12 +24,12 @@ using ftl::net::callback_t;
 
 callback_t ftl::net::Universe::cbid__ = 0;
 
-Universe::Universe() : Configurable(), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this), phase_(0) {
+Universe::Universe() : Configurable(), active_(true), this_peer(ftl::net::this_peer), phase_(0), thread_(Universe::__start, this) {
 	_installBindings();
 }
 
 Universe::Universe(nlohmann::json &config) :
-		Configurable(config), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this), phase_(0) {
+		Configurable(config), active_(true), this_peer(ftl::net::this_peer), phase_(0), thread_(Universe::__start, this) {
 
 	_installBindings();
 }

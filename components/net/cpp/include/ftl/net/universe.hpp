@@ -214,10 +214,10 @@ class Universe : public ftl::Configurable {
 	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
-	std::thread thread_;
 	std::list<ReconnectInfo> reconnects_;
 	size_t phase_;
 	std::list<ftl::net::Peer*> garbage_;
+	std::thread thread_;
 
 	struct ConnHandler {
 		callback_t id;
