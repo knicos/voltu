@@ -244,7 +244,7 @@ bool Source::compute(int N, int B) {
 		return true;
 	} else if (impl_ && impl_->compute(N,B)) {
 		timestamp_ = impl_->timestamp_;
-		cv::Mat tmp;
+		/*cv::Mat tmp;
 		rgb_.create(impl_->rgb_.size(), impl_->rgb_.type());
 		depth_.create(impl_->depth_.size(), impl_->depth_.type());
 		tmp = rgb_;
@@ -252,10 +252,13 @@ bool Source::compute(int N, int B) {
 		impl_->rgb_ = tmp;
 		tmp = depth_;
 		depth_ = impl_->depth_;
-		impl_->depth_ = tmp;
+		impl_->depth_ = tmp;*/
 
-		//impl_->rgb_.copyTo(rgb_);
-		//impl_->depth_.copyTo(depth_);
+		// TODO:(Nick) Reduce buffer copies
+		impl_->rgb_.copyTo(rgb_);
+		impl_->depth_.copyTo(depth_);
+		//rgb_ = impl_->rgb_;
+		//depth_ = impl_->depth_;
 		return true;
 	}
 	return false;
