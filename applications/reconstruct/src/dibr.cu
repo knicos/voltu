@@ -13,8 +13,8 @@
 #define WARP_SIZE 32
 #define DEPTH_THRESHOLD 0.05f
 #define UPSAMPLE_MAX 60
-#define MAX_ITERATIONS 10
-#define SPATIAL_SMOOTHING 0.01f
+#define MAX_ITERATIONS 32  // Note: Must be multiple of 32
+#define SPATIAL_SMOOTHING 0.005f
 
 using ftl::cuda::TextureObject;
 using ftl::render::SplatParams;
@@ -39,12 +39,101 @@ __device__ inline bool isStable(const float3 &previous, const float3 &estimate, 
         fabs(previous.z - estimate.z) <= psize;
 }
 
+// ===== PASS 1 : Gather & Upsample (Depth) ====================================
+
 /*
- * Pass 1: Determine depth buffer with enough accuracy for a visibility test in pass 2.
+ * Pass 1: Directly render raw points from all cameras, but upsample the points
+ * if their spacing is within smoothing threshold but greater than their pixel
+ * size in the original image.
+ */
+ __global__ void dibr_merge_upsample_kernel(TextureObject<int> depth, int cam, SplatParams params) {
+	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
+
+	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const float3 worldPos = make_float3(tex2D<float4>(camera.points, x, y));
+	//const float3 normal = make_float3(tex2D<float4>(camera.normal, x, y));
+	if (worldPos.x == MINF) return;
+    const float r = (camera.poseInverse * worldPos).z / camera.params.fx;
+
+	// Get virtual camera ray for splat centre and backface cull if possible
+	//const float3 rayOrigin = params.m_viewMatrixInverse * make_float3(0.0f,0.0f,0.0f);
+	//const float3 rayDir = normalize(params.m_viewMatrixInverse * params.camera.kinectDepthToSkeleton(x,y,1.0f) - rayOrigin);
+	//if (dot(rayDir, normal) > 0.0f) return;
+
+    // Find the virtual screen position of current point
+	const float3 camPos = params.m_viewMatrix * worldPos;
+	if (camPos.z < params.camera.m_sensorDepthWorldMin) return;
+	if (camPos.z > params.camera.m_sensorDepthWorldMax) return;
+
+	// TODO: Don't upsample so much that only minimum depth makes it through
+	// Consider also using some SDF style approach to accumulate and smooth a
+	// depth value between points
+	const int upsample = min(UPSAMPLE_MAX-2, int(0.01 * params.camera.fx / camPos.z))+3;
+	const float interval = 1.0f / float(upsample / 2);
+
+            
+    // TODO:(Nick) Check depth buffer and don't do anything if already hidden?
+
+	// Each thread in warp takes an upsample point and updates corresponding depth buffer.
+	const int lane = threadIdx.x % WARP_SIZE;
+	for (int i=lane; i<upsample*upsample; i+=WARP_SIZE) {
+		const float u = (i % upsample) - (upsample / 2);
+		const float v = (i / upsample) - (upsample / 2);
+
+        // Make an initial estimate of the points location
+		// Use centroid depth as estimate...?
+		const float3 point = params.m_viewMatrix * ftl::cuda::upsampled_point(camera.points, make_float2(float(x)+float(u)*interval, float(y)+float(v)*interval));
+		const float d = point.z;
+
+		const uint2 screenPos = params.camera.cameraToKinectScreen(point);
+		const unsigned int cx = screenPos.x;//+u;
+        const unsigned int cy = screenPos.y;//+v;
+		if (d > params.camera.m_sensorDepthWorldMin && d < params.camera.m_sensorDepthWorldMax && cx < depth.width() && cy < depth.height()) {
+			// Transform estimated point to virtual cam space and output z
+			atomicMin(&depth(cx,cy), d * 1000.0f);
+		}
+	}
+}
+
+/*
+ * Pass 1: Directly render each camera into virtual view but with no upsampling
+ * for sparse points.
+ */
+ __global__ void dibr_merge_kernel(TextureObject<int> depth, int cam, SplatParams params) {
+	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
+
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const float3 worldPos = make_float3(tex2D<float4>(camera.points, x, y));
+	if (worldPos.x == MINF) return;
+
+    // Find the virtual screen position of current point
+	const float3 camPos = params.m_viewMatrix * worldPos;
+	if (camPos.z < params.camera.m_sensorDepthWorldMin) return;
+	if (camPos.z > params.camera.m_sensorDepthWorldMax) return;
+
+	const float d = camPos.z;
+
+	const uint2 screenPos = params.camera.cameraToKinectScreen(camPos);
+	const unsigned int cx = screenPos.x;
+	const unsigned int cy = screenPos.y;
+	if (d > params.camera.m_sensorDepthWorldMin && d < params.camera.m_sensorDepthWorldMax && cx < depth.width() && cy < depth.height()) {
+		// Transform estimated point to virtual cam space and output z
+		atomicMin(&depth(cx,cy), d * 1000.0f);
+	}
+}
+
+// ===== PASS 2 : Splat Visible Surface ========================================
+
+/*
+ * Pass 2: Determine depth buffer with enough accuracy for a visibility test in pass 2.
  * These values are also used as the actual surface estimate during rendering so should
  * at least be plane or sphere fitted if not MLS smoothed onto the actual surface.
  */
-__global__ void dibr_visibility_kernel(TextureObject<int> depth, int cam, SplatParams params) {
+__global__ void OLD_dibr_visibility_kernel(TextureObject<int> depth, int cam, SplatParams params) {
 	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
 
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
@@ -66,7 +155,7 @@ __global__ void dibr_visibility_kernel(TextureObject<int> depth, int cam, SplatP
 	if (camPos.z > params.camera.m_sensorDepthWorldMax) return;
 	const uint2 screenPos = params.camera.cameraToKinectScreen(camPos);
 
-	const int upsample = min(UPSAMPLE_MAX, int((5.0f*r) * params.camera.fx / camPos.z));
+	const int upsample = min(UPSAMPLE_MAX, int((r) * params.camera.fx / camPos.z));
 
 	// Not on screen so stop now...
 	if (screenPos.x + upsample < 0 || screenPos.y + upsample < 0 ||
@@ -158,13 +247,13 @@ __global__ void dibr_visibility_kernel(TextureObject<int> depth, int cam, SplatP
 	}
 }
 
-// ------ Alternative for pass 1: principle surfaces ---------------------------
+// ------ Alternative for pass 2: principle surfaces ---------------------------
 
 #define NEIGHBOR_RADIUS 1
 #define MAX_NEIGHBORS ((NEIGHBOR_RADIUS*2+1)*(NEIGHBOR_RADIUS*2+1))
 
 /*
- * Pass 1: Determine depth buffer with enough accuracy for a visibility test in pass 2.
+ * Pass 2: Determine depth buffer with enough accuracy for a visibility test in pass 2.
  * These values are also used as the actual surface estimate during rendering so should
  * at least be plane or sphere fitted if not MLS smoothed onto the actual surface.
  */
@@ -288,6 +377,150 @@ __global__ void dibr_visibility_kernel(TextureObject<int> depth, int cam, SplatP
 	}
 }
 
+#define NEIGHBOR_RADIUS_2 3
+#define NEIGHBOR_WINDOW ((NEIGHBOR_RADIUS_2*2+1)*(NEIGHBOR_RADIUS_2*2+1))
+#define MAX_NEIGHBORS_2 32
+
+#define FULL_MASK 0xffffffff
+
+__device__ inline float warpMax(float e) {
+	for (int i = WARP_SIZE/2; i > 0; i /= 2) {
+		const float other = __shfl_xor_sync(FULL_MASK, e, i, WARP_SIZE);
+		e = max(e, other);
+	}
+	return e;
+}
+
+__device__ inline float warpMin(float e) {
+	for (int i = WARP_SIZE/2; i > 0; i /= 2) {
+		const float other = __shfl_xor_sync(FULL_MASK, e, i, WARP_SIZE);
+		e = min(e, other);
+	}
+	return e;
+}
+
+
+/*
+ * Pass 2: Determine depth buffer with enough accuracy for a visibility test in pass 2.
+ * These values are also used as the actual surface estimate during rendering so should
+ * at least be plane or sphere fitted if not MLS smoothed onto the actual surface.
+ *
+ * This version uses a previous point render as neighbour source.
+ */
+ __global__ void dibr_visibility_principal_kernel2(TextureObject<int> point_in, TextureObject<int> depth, SplatParams params) {
+	__shared__ float3 neighborhood_cache[2*T_PER_BLOCK][MAX_NEIGHBORS_2];
+	__shared__ int minimum[2*T_PER_BLOCK];
+	__shared__ int maximum[2*T_PER_BLOCK];
+	__shared__ unsigned int nidx[2*T_PER_BLOCK];
+
+	const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
+	const int warp = tid / WARP_SIZE; //threadIdx.x / WARP_SIZE + threadIdx.y*2;
+	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const int lane = tid % WARP_SIZE;
+	if (lane == 0) {
+		minimum[warp] = 100000000;
+		maximum[warp] = -100000000;
+		nidx[warp] = 0;
+	}
+
+	__syncwarp();
+
+	// Search for a valid minimum neighbour
+	for (int i=lane; i<NEIGHBOR_WINDOW; i+=WARP_SIZE) {
+		const int u = (i % (2*NEIGHBOR_RADIUS_2+1)) - NEIGHBOR_RADIUS_2;
+		const int v = (i / (2*NEIGHBOR_RADIUS_2+1)) - NEIGHBOR_RADIUS_2;
+		const float3 point = params.camera.kinectDepthToSkeleton(x+u, y+v, float(point_in.tex2D(x+u, y+v)) / 1000.0f);
+		const float3 camPos = params.camera.kinectDepthToSkeleton(x, y, point.z);
+
+		// If it is close enough...
+		if (point.z > params.camera.m_sensorDepthWorldMin && point.z < params.camera.m_sensorDepthWorldMax && length(point - camPos) <= 0.02f) {
+			atomicMin(&minimum[warp], point.z*1000.0f);
+		}
+	}
+
+	__syncwarp();
+
+	const float minDepth = float(minimum[warp])/1000.0f;
+	
+	// Preload valid neighbour points from within a window. A point is valid
+	// if it is within a specific distance of the minimum.
+	// Also calculate the maximum at the same time.
+	// TODO: Could here do a small search in each camera? This would allow all
+	// points to be considered, even those masked in our depth input.
+	const float3 minPos = params.camera.kinectDepthToSkeleton(x, y, minDepth);
+
+	for (int i=lane; i<NEIGHBOR_WINDOW; i+=WARP_SIZE) {
+		const int u = (i % (2*NEIGHBOR_RADIUS_2+1)) - NEIGHBOR_RADIUS_2;
+		const int v = (i / (2*NEIGHBOR_RADIUS_2+1)) - NEIGHBOR_RADIUS_2;
+		const float3 point = params.camera.kinectDepthToSkeleton(x+u, y+v, float(point_in.tex2D(x+u, y+v)) / 1000.0f);
+
+		// If it is close enough...
+		if (point.z > params.camera.m_sensorDepthWorldMin && point.z < params.camera.m_sensorDepthWorldMax && length(point - minPos) <= 0.02f) {
+			// Append to neighbour list
+			//unsigned int idx = atomicInc(&nidx[warp], MAX_NEIGHBORS_2-1);
+			unsigned int idx = atomicAdd(&nidx[warp], 1);
+			if (idx >= MAX_NEIGHBORS_2) break;
+			neighborhood_cache[warp][idx] = point;
+			atomicMax(&maximum[warp], point.z*1000.0f);
+		}
+	}
+
+	__syncwarp();
+
+	// FIXME: What if minDepth fails energy test, an alternate min is needed.
+	// Perhaps a second pass can be used?
+
+	const float maxDepth = float(maximum[warp])/1000.0f;
+	const float interval = (maxDepth - minDepth) / float(MAX_ITERATIONS);
+
+	if (minDepth >= params.camera.m_sensorDepthWorldMax) return;
+	if (maxDepth <= params.camera.m_sensorDepthWorldMin) return;
+	//if (y == 200) printf("interval: %f\n", maxDepth);
+
+	// If all samples say same depth, then agree and return
+	// TODO: Check this is valid, since small energies should be removed...
+	/*if (fabs(minDepth - maxDepth) < 0.0001f) {
+		if (lane == 0) {
+			const unsigned int cx = x;
+			const unsigned int cy = y;
+			if (minDepth < params.camera.m_sensorDepthWorldMax && cx < depth.width() && cy < depth.height()) {
+				// Transform estimated point to virtual cam space and output z
+				atomicMin(&depth(cx,cy), minDepth * 1000.0f);
+			}
+		}
+		return;
+	}*/
+
+
+	float maxenergy = -1.0f;
+	float bestdepth = 0.0f;
+
+	// Search for best or threshold energy
+	for (int k=lane; k<MAX_ITERATIONS; k+=WARP_SIZE) {
+		const float3 nearest = params.camera.kinectDepthToSkeleton(x,y,minDepth+float(k)*interval);
+		const float myenergy = ftl::cuda::mls_point_energy<MAX_NEIGHBORS_2>(neighborhood_cache[warp], nearest, min(nidx[warp], MAX_NEIGHBORS_2), SPATIAL_SMOOTHING);
+		const float newenergy = warpMax(max(myenergy, maxenergy));
+		bestdepth = (myenergy == newenergy) ? nearest.z : (newenergy > maxenergy) ? 0.0f : bestdepth;
+		maxenergy = newenergy;
+	}
+
+	// Search for first energy maximum above a threshold
+	if (bestdepth > 0.0f && maxenergy >= 0.1f) {
+		//printf("E D %f %f\n", maxenergy, bestdepth);
+		const unsigned int cx = x;
+		const unsigned int cy = y;
+		if (bestdepth > params.camera.m_sensorDepthWorldMin && bestdepth < params.camera.m_sensorDepthWorldMax && cx < depth.width() && cy < depth.height()) {
+			// Transform estimated point to virtual cam space and output z
+			atomicMin(&depth(cx,cy), bestdepth * 1000.0f);
+			//depth(cx,cy) = bestdepth * 1000.0f;
+		}
+	}
+}
+
+// ===== Pass 2 and 3 : Attribute contributions ================================
+
 __device__ inline float4 make_float4(const uchar4 &c) {
     return make_float4(c.x,c.y,c.z,c.w);
 }
@@ -304,6 +537,8 @@ __global__ void dibr_attribute_contrib_kernel(
         
 	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
 
+	const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
+	const int warp = tid / WARP_SIZE;
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
@@ -317,22 +552,22 @@ __global__ void dibr_attribute_contrib_kernel(
 	if (camPos.z > params.camera.m_sensorDepthWorldMax) return;
 	const uint2 screenPos = params.camera.cameraToKinectScreen(camPos);
 
-    const int upsample = min(UPSAMPLE_MAX, int((10.0f*r) * params.camera.fx / camPos.z));
+    const int upsample = min(UPSAMPLE_MAX, int((5.0f*r) * params.camera.fx / camPos.z));
 
 	// Not on screen so stop now...
-	if (screenPos.x + upsample < 0 || screenPos.y + upsample < 0 ||
-            screenPos.x - upsample >= depth_in.width() || screenPos.y - upsample >= depth_in.height()) return;
+	if (screenPos.x < 0 || screenPos.y < 0 ||
+            screenPos.x >= depth_in.width() || screenPos.y >= depth_in.height()) return;
             
     // Is this point near the actual surface and therefore a contributor?
     const float d = ((float)depth_in.tex2D((int)screenPos.x, (int)screenPos.y)/1000.0f);
-    if (abs(d - camPos.z) > DEPTH_THRESHOLD) return;
+    //if (abs(d - camPos.z) > DEPTH_THRESHOLD) return;
 
     // TODO:(Nick) Should just one thread load these to shared mem?
     const float4 colour = make_float4(tex2D<uchar4>(camera.colour, x, y));
     const float4 normal = tex2D<float4>(camera.normal, x, y);
 
 	// Each thread in warp takes an upsample point and updates corresponding depth buffer.
-	const int lane = threadIdx.x % WARP_SIZE;
+	const int lane = tid % WARP_SIZE;
 	for (int i=lane; i<upsample*upsample; i+=WARP_SIZE) {
 		const float u = (i % upsample) - (upsample / 2);
 		const float v = (i / upsample) - (upsample / 2);
@@ -345,7 +580,9 @@ __global__ void dibr_attribute_contrib_kernel(
         const float weight = ftl::cuda::spatialWeighting(length(nearest - camPos), SPATIAL_SMOOTHING);
         if (screenPos.x+u < colour_out.width() && screenPos.y+v < colour_out.height() && weight > 0.0f) {  // TODO: Use confidence threshold here
             const float4 wcolour = colour * weight;
-            const float4 wnormal = normal * weight;
+			const float4 wnormal = normal * weight;
+			
+			//printf("Z %f\n", d);
 
             // Add this points contribution to the pixel buffer
             atomicAdd((float*)&colour_out(screenPos.x+u, screenPos.y+v), wcolour.x);
@@ -428,7 +665,8 @@ void ftl::cuda::dibr(const TextureObject<int> &depth_out,
         const TextureObject<uchar4> &colour_out,
         const TextureObject<float4> &normal_out,
         const TextureObject<float> &confidence_out,
-        const TextureObject<float4> &tmp_colour,
+		const TextureObject<float4> &tmp_colour,
+		const TextureObject<int> &tmp_depth,
         int numcams,
         const SplatParams &params,
         cudaStream_t stream) {
@@ -447,16 +685,39 @@ void ftl::cuda::dibr(const TextureObject<int> &depth_out,
 	cudaSafeCall(cudaDeviceSynchronize());
 #endif
 
-    int i=3;
-    // Pass 1, merge a depth map from each camera.
-	for (int i=0; i<numcams; ++i)
-        dibr_visibility_principal_kernel<<<sgridSize, sblockSize, 0, stream>>>(depth_out, i, params);
+	int i=3;
 
-    // Pass 2, accumulate all point contributions to pixels
-    for (int i=0; i<numcams; ++i)
-        dibr_attribute_contrib_kernel<<<sgridSize, sblockSize, 0, stream>>>(depth_out, tmp_colour, normal_out, confidence_out, i, params);
+	bool noSplatting = params.m_flags & ftl::render::kNoSplatting;
 
-    // Pass 3, normalise contributions
+	// Pass 1, gather and upsample depth maps
+	if (params.m_flags & ftl::render::kNoUpsampling) {
+		for (int i=0; i<numcams; ++i)
+			dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>((noSplatting) ? depth_out : tmp_depth, i, params);
+	} else {
+		for (int i=0; i<numcams; ++i)
+			dibr_merge_upsample_kernel<<<sgridSize, sblockSize, 0, stream>>>((noSplatting) ? depth_out : tmp_depth, i, params);
+	}
+
+	if (noSplatting) {
+		// Pass 3, accumulate all point contributions to pixels
+		for (int i=0; i<numcams; ++i)
+        	dibr_attribute_contrib_kernel<<<sgridSize, sblockSize, 0, stream>>>(depth_out, tmp_colour, normal_out, confidence_out, i, params);
+	} else {
+		// Pass 2
+		dibr_visibility_principal_kernel2<<<sgridSize, sblockSize, 0, stream>>>(tmp_depth, depth_out, params);
+
+		// Pass 3, accumulate all point contributions to pixels
+		for (int i=0; i<numcams; ++i)
+        	dibr_attribute_contrib_kernel<<<sgridSize, sblockSize, 0, stream>>>(depth_out, tmp_colour, normal_out, confidence_out, i, params);
+	}
+	// Pass 2
+	//dibr_visibility_principal_kernel2<<<sgridSize, sblockSize, 0, stream>>>(tmp_depth, depth_out, params);
+
+    // Pass 2, merge a depth map from each camera.
+	//for (int i=0; i<numcams; ++i)
+    //    dibr_visibility_principal_kernel<<<sgridSize, sblockSize, 0, stream>>>(depth_out, i, params);
+
+    // Pass 4, normalise contributions
     dibr_normalise_kernel<<<gridSize, blockSize, 0, stream>>>(tmp_colour, colour_out, normal_out, confidence_out);
 
 	cudaSafeCall( cudaGetLastError() );

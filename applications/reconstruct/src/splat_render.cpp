@@ -46,6 +46,10 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 	// Parameters object to pass to CUDA describing the camera
 	SplatParams params;
 	params.m_flags = 0;
+	if (src->value("splatting", true) == false) params.m_flags |= ftl::render::kNoSplatting;
+	if (src->value("upsampling", true) == false) params.m_flags |= ftl::render::kNoUpsampling;
+	if (src->value("texturing", true) == false) params.m_flags |= ftl::render::kNoTexturing;
+
 	params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
 	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.voxelSize = scene_->getHashParams().m_virtualVoxelSize;
@@ -73,7 +77,7 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 		ftl::cuda::clear_depth(depth3_, stream);
 		ftl::cuda::clear_depth(depth2_, stream);
 		ftl::cuda::clear_colour(colour2_, stream);
-		ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, scene_->cameraCount(), params, stream);
+		ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
 
 		// Step 1: Put all points into virtual view to gather them
 		//ftl::cuda::dibr_raw(depth1_, scene_->cameraCount(), params, stream);
@@ -85,7 +89,8 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			if (src->value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
-				src->writeFrames(colour2_, depth2_, stream);
+				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+				src->writeFrames(colour1_, depth2_, stream);
 			} else {
 				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 				src->writeFrames(colour1_, depth2_, stream);
@@ -98,12 +103,12 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 			params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
 
 			ftl::cuda::clear_depth(depth1_, stream);
-			ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, scene_->cameraCount(), params, stream);
+			ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
 			src->writeFrames(colour1_, colour2_, stream);
 		} else {
 			if (src->value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
-				src->writeFrames(colour2_, depth2_, stream);
+				src->writeFrames(colour1_, depth2_, stream);
 			} else {
 				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 				src->writeFrames(colour1_, depth2_, stream);

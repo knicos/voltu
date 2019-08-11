@@ -109,7 +109,8 @@ void dibr(const ftl::cuda::TextureObject<int> &depth_out,
 		const ftl::cuda::TextureObject<uchar4> &colour_out,
 		const ftl::cuda::TextureObject<float4> &normal_out,
         const ftl::cuda::TextureObject<float> &confidence_out,
-        const ftl::cuda::TextureObject<float4> &tmp_colour, int numcams,
+        const ftl::cuda::TextureObject<float4> &tmp_colour,
+        const ftl::cuda::TextureObject<int> &tmp_depth, int numcams,
 		const ftl::render::SplatParams &params, cudaStream_t stream);
 
 /**
