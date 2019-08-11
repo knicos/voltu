@@ -276,6 +276,28 @@ __device__ float mls_point_energy(
 }
 
 /**
+ * Calculate the point sample energy.
+ */
+template <int M>
+__device__ float mls_point_energy(
+		const float3 (&pointset)[M],
+		const float3 &nearPoint,
+		unsigned int N,
+		float smoothing) {
+
+	float weights = 0.0f;
+
+	//#pragma unroll
+	for (int i=0; i<N; ++i) {
+		const float3 samplePoint = pointset[i];
+		const float weight = ftl::cuda::spatialWeighting(length(nearPoint - samplePoint), smoothing);
+		weights += weight;
+	}
+
+	return weights;
+}
+
+/**
  * Estimate a point set surface location near an existing and return also
  * an estimate of the normal and colour of that point.
  */

@@ -306,7 +306,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			case ftl::rgbd::kChanDepth:
 				if (depth.rows == 0) { break; }
 				visualizeDepthMap(depth, tmp, 7.0);
-				drawEdges(rgb, tmp);
+				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(rgb, tmp);
 				texture_.update(tmp);
 				break;
 			

@@ -8,8 +8,10 @@
 namespace ftl {
 namespace render {
 
-static const uint kShowBlockBorders = 0x0001;
-static const uint kNoSplatting = 0x0002;
+static const uint kShowBlockBorders = 0x00000001;  // Deprecated: from voxels system
+static const uint kNoSplatting = 0x00000002;
+static const uint kNoUpsampling = 0x00000004;
+static const uint kNoTexturing = 0x00000008;
 
 struct __align__(16) SplatParams {
 	float4x4 m_viewMatrix;
