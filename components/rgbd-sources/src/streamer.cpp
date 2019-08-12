@@ -101,6 +101,8 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	net->bind("set_channel", [this](const string &uri, unsigned int chan) {
 		SHARED_LOCK(mutex_,slk);
 
+		LOG(INFO) << "SET CHANNEL " << chan;
+
 		if (sources_.find(uri) != sources_.end()) {
 			sources_[uri]->src->setChannel((ftl::rgbd::channel_t)chan);
 		}

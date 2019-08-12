@@ -95,6 +95,16 @@ void Splatter::render(ftl::rgbd::Source *src, cudaStream_t stream) {
 				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 				src->writeFrames(colour1_, depth2_, stream);
 			}
+		} else if (src->getChannel() == ftl::rgbd::kChanEnergy) {
+			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+			//if (src->value("splatting",  false)) {
+				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
+				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+				src->writeFrames(colour1_, depth2_, stream);
+			//} else {
+				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+			//	src->writeFrames(colour1_, depth2_, stream);
+			//}
 		} else if (src->getChannel() == ftl::rgbd::kChanRight) {
 			// Adjust pose to right eye position
 			Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));

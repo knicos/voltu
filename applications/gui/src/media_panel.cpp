@@ -184,6 +184,15 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
         }
     });
 
+    button = new Button(popup, "Energy");
+    button->setFlags(Button::RadioButton);
+    button->setCallback([this]() {
+        ftl::gui::Camera *cam = screen_->activeCamera();
+        if (cam) {
+            cam->setChannel(ftl::rgbd::kChanEnergy);
+        }
+    });
+
 }
 
 MediaPanel::~MediaPanel() {

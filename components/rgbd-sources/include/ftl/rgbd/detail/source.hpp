@@ -21,11 +21,12 @@ static const channel_t kChanDeviation = 0x0010;
 static const channel_t kChanNormals = 0x0020;
 static const channel_t kChanConfidence = 0x0040;
 static const channel_t kChanFlow = 0x0080;
+static const channel_t kChanEnergy = 0x0100;
 
 static const channel_t kChanOverlay1 = 0x1000;
 
 inline bool isFloatChannel(ftl::rgbd::channel_t chan) {
-	return (chan == ftl::rgbd::kChanDepth);
+	return (chan == ftl::rgbd::kChanDepth || chan == ftl::rgbd::kChanEnergy);
 }
 
 
