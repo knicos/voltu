@@ -399,6 +399,8 @@ __device__ inline float warpMin(float e) {
 	return e;
 }
 
+#define ENERGY_THRESHOLD 0.1f
+
 
 /*
  * Pass 2: Determine depth buffer with enough accuracy for a visibility test in pass 2.
@@ -418,6 +420,12 @@ __device__ inline float warpMin(float e) {
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
+	// Starting point for surface minimum
+	float clusterBase = params.camera.m_sensorDepthWorldMin;
+
+	// Loop to a deeper surface if not on the first one selected...
+	while (clusterBase < params.camera.m_sensorDepthWorldMax) {
+
 	const int lane = tid % WARP_SIZE;
 	if (lane == 0) {
 		minimum[warp] = 100000000;
@@ -428,6 +436,8 @@ __device__ inline float warpMin(float e) {
 	__syncwarp();
 
 	// Search for a valid minimum neighbour
+	// TODO: Should this really be minimum or the median of a depth cluster?
+	// cluster median seems very hard to calculate...
 	for (int i=lane; i<NEIGHBOR_WINDOW; i+=WARP_SIZE) {
 		const int u = (i % (2*NEIGHBOR_RADIUS_2+1)) - NEIGHBOR_RADIUS_2;
 		const int v = (i / (2*NEIGHBOR_RADIUS_2+1)) - NEIGHBOR_RADIUS_2;
@@ -435,7 +445,11 @@ __device__ inline float warpMin(float e) {
 		const float3 camPos = params.camera.kinectDepthToSkeleton(x, y, point.z);
 
 		// If it is close enough...
-		if (point.z > params.camera.m_sensorDepthWorldMin && point.z < params.camera.m_sensorDepthWorldMax && length(point - camPos) <= 0.02f) {
+		// TODO: smoothing / strength should be determined by a number of factors including:
+		//     1) Depth from original source
+		//     2) Colour contrast in underlying RGB
+		//     3) Estimated noise levels in depth values
+		if (point.z > clusterBase && point.z < params.camera.m_sensorDepthWorldMax && length(point - camPos) <= 0.04f) {
 			atomicMin(&minimum[warp], point.z*1000.0f);
 		}
 	}
@@ -457,7 +471,7 @@ __device__ inline float warpMin(float e) {
 		const float3 point = params.camera.kinectDepthToSkeleton(x+u, y+v, float(point_in.tex2D(x+u, y+v)) / 1000.0f);
 
 		// If it is close enough...
-		if (point.z > params.camera.m_sensorDepthWorldMin && point.z < params.camera.m_sensorDepthWorldMax && length(point - minPos) <= 0.02f) {
+		if (point.z > params.camera.m_sensorDepthWorldMin && point.z < params.camera.m_sensorDepthWorldMax && length(point - minPos) <= 0.04f) {
 			// Append to neighbour list
 			//unsigned int idx = atomicInc(&nidx[warp], MAX_NEIGHBORS_2-1);
 			unsigned int idx = atomicAdd(&nidx[warp], 1);
@@ -468,9 +482,6 @@ __device__ inline float warpMin(float e) {
 	}
 
 	__syncwarp();
-
-	// FIXME: What if minDepth fails energy test, an alternate min is needed.
-	// Perhaps a second pass can be used?
 
 	const float maxDepth = float(maximum[warp])/1000.0f;
 	const float interval = (maxDepth - minDepth) / float(MAX_ITERATIONS);
@@ -506,8 +517,9 @@ __device__ inline float warpMin(float e) {
 		maxenergy = newenergy;
 	}
 
-	// Search for first energy maximum above a threshold
-	if (bestdepth > 0.0f && maxenergy >= 0.1f) {
+	// If enough energy was found and this thread was the one that found the best
+	// then output the depth that this energy occured at.
+	if (bestdepth > 0.0f && maxenergy >= ENERGY_THRESHOLD) {
 		//printf("E D %f %f\n", maxenergy, bestdepth);
 		const unsigned int cx = x;
 		const unsigned int cy = y;
@@ -517,6 +529,28 @@ __device__ inline float warpMin(float e) {
 			//depth(cx,cy) = bestdepth * 1000.0f;
 		}
 	}
+
+	// TODO: Could the threshold depend upon the number of points? Fewer points
+	// due to distance is incorrect since really there may not be fewer points
+	// Perhaps the best option is to make it depend on depth ... really close
+	// and really far both has lower thresholds due to point densities. Other
+	// option is smoothing factor and surface distances alter with distance to
+	// vary the number of points used ... smoothing factor could be a multiple
+	// of pixel size at given distance. Density from original source is also
+	// an influencer of smoothing factor and thresholds. Colour contrast also
+	// has a weighting influence, high contrast is high certainty in the
+	// disparity so such points should have a high influence over choice of
+	// surface location.
+	//
+	// Magnitude vs dispersion factor in the energy function ...
+	//   * Mag is certainty of surface location
+	//   * Dispersion is how far to propagate that certainty,
+	if (maxenergy >= ENERGY_THRESHOLD) return;
+
+	// Move to next possible surface...
+	clusterBase = minDepth + 0.04f;
+
+	};
 }
 
 // ===== Pass 2 and 3 : Attribute contributions ================================
