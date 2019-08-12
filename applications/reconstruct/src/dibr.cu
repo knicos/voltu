@@ -400,6 +400,9 @@ __device__ inline float warpMin(float e) {
 }
 
 #define ENERGY_THRESHOLD 0.1f
+#define SMOOTHING_MULTIPLIER_A 10.0f	// For surface search
+#define SMOOTHING_MULTIPLIER_B 4.0f		// For z contribution
+#define SMOOTHING_MULTIPLIER_C 4.0f		// For colour contribution
 
 
 /*
@@ -449,7 +452,7 @@ __device__ inline float warpMin(float e) {
 		//     1) Depth from original source
 		//     2) Colour contrast in underlying RGB
 		//     3) Estimated noise levels in depth values
-		if (point.z > clusterBase && point.z < params.camera.m_sensorDepthWorldMax && length(point - camPos) <= 0.04f) {
+		if (point.z > clusterBase && point.z < params.camera.m_sensorDepthWorldMax && length(point - camPos) <= SMOOTHING_MULTIPLIER_A*(point.z / params.camera.fx)) {
 			atomicMin(&minimum[warp], point.z*1000.0f);
 		}
 	}
@@ -471,7 +474,7 @@ __device__ inline float warpMin(float e) {
 		const float3 point = params.camera.kinectDepthToSkeleton(x+u, y+v, float(point_in.tex2D(x+u, y+v)) / 1000.0f);
 
 		// If it is close enough...
-		if (point.z > params.camera.m_sensorDepthWorldMin && point.z < params.camera.m_sensorDepthWorldMax && length(point - minPos) <= 0.04f) {
+		if (point.z > params.camera.m_sensorDepthWorldMin && point.z < params.camera.m_sensorDepthWorldMax && length(point - minPos) <= SMOOTHING_MULTIPLIER_A*(point.z / params.camera.fx)) {
 			// Append to neighbour list
 			//unsigned int idx = atomicInc(&nidx[warp], MAX_NEIGHBORS_2-1);
 			unsigned int idx = atomicAdd(&nidx[warp], 1);
@@ -511,7 +514,7 @@ __device__ inline float warpMin(float e) {
 	// Search for best or threshold energy
 	for (int k=lane; k<MAX_ITERATIONS; k+=WARP_SIZE) {
 		const float3 nearest = params.camera.kinectDepthToSkeleton(x,y,minDepth+float(k)*interval);
-		const float myenergy = ftl::cuda::mls_point_energy<MAX_NEIGHBORS_2>(neighborhood_cache[warp], nearest, min(nidx[warp], MAX_NEIGHBORS_2), SPATIAL_SMOOTHING);
+		const float myenergy = ftl::cuda::mls_point_energy<MAX_NEIGHBORS_2>(neighborhood_cache[warp], nearest, min(nidx[warp], MAX_NEIGHBORS_2), SMOOTHING_MULTIPLIER_B*(nearest.z/params.camera.fx));
 		const float newenergy = warpMax(max(myenergy, maxenergy));
 		bestdepth = (myenergy == newenergy) ? nearest.z : (newenergy > maxenergy) ? 0.0f : bestdepth;
 		maxenergy = newenergy;
@@ -548,7 +551,7 @@ __device__ inline float warpMin(float e) {
 	if (maxenergy >= ENERGY_THRESHOLD) return;
 
 	// Move to next possible surface...
-	clusterBase = minDepth + 0.04f;
+	clusterBase = minDepth + SMOOTHING_MULTIPLIER_B*(minDepth / params.camera.fx);
 
 	};
 }
@@ -586,7 +589,7 @@ __global__ void dibr_attribute_contrib_kernel(
 	if (camPos.z > params.camera.m_sensorDepthWorldMax) return;
 	const uint2 screenPos = params.camera.cameraToKinectScreen(camPos);
 
-    const int upsample = min(UPSAMPLE_MAX, int((5.0f*r) * params.camera.fx / camPos.z));
+    const int upsample = 8; //min(UPSAMPLE_MAX, int((5.0f*r) * params.camera.fx / camPos.z));
 
 	// Not on screen so stop now...
 	if (screenPos.x < 0 || screenPos.y < 0 ||
@@ -611,7 +614,7 @@ __global__ void dibr_attribute_contrib_kernel(
 		const float3 nearest = params.camera.kinectDepthToSkeleton((int)(screenPos.x+u),(int)(screenPos.y+v),d);
 
         // What is contribution of our current point at this pixel?
-        const float weight = ftl::cuda::spatialWeighting(length(nearest - camPos), SPATIAL_SMOOTHING);
+        const float weight = ftl::cuda::spatialWeighting(length(nearest - camPos), SMOOTHING_MULTIPLIER_C*(nearest.z/params.camera.fx));
         if (screenPos.x+u < colour_out.width() && screenPos.y+v < colour_out.height() && weight > 0.0f) {  // TODO: Use confidence threshold here
             const float4 wcolour = colour * weight;
 			const float4 wnormal = normal * weight;

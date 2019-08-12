@@ -222,6 +222,7 @@ void ftl::gui::Camera::showSettings() {
 void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
 	channel_ = c;
 	switch (c) {
+	case ftl::rgbd::kChanEnergy:
 	case ftl::rgbd::kChanFlow:
 	case ftl::rgbd::kChanConfidence:
 	case ftl::rgbd::kChanNormals:
@@ -249,6 +250,19 @@ static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
 
 	depth.convertTo(out, CV_8U, 255.0f / max_depth);
 	out = 255 - out;
+	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
+	
+	applyColorMap(out, out, cv::COLORMAP_JET);
+	out.setTo(cv::Scalar(255, 255, 255), mask);
+}
+
+static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
+								const float max_depth)
+{
+	DCHECK(max_depth > 0.0);
+
+	depth.convertTo(out, CV_8U, 255.0f / max_depth);
+	//out = 255 - out;
 	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
 	
 	applyColorMap(out, out, cv::COLORMAP_JET);
@@ -303,6 +317,11 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		cv::Mat tmp;
 
 		switch(channel_) {
+			case ftl::rgbd::kChanEnergy:
+				if (depth.rows == 0) { break; }
+				visualizeEnergy(depth, tmp, 10.0);
+				texture_.update(tmp);
+				break;
 			case ftl::rgbd::kChanDepth:
 				if (depth.rows == 0) { break; }
 				visualizeDepthMap(depth, tmp, 7.0);
