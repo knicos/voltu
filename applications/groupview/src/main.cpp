@@ -13,7 +13,11 @@
 using Eigen::Matrix4d;
 using std::map;
 using std::string;
+using std::vector;
+using cv::Size;
+using cv::Mat;
 
+// TODO: remove code duplication (function from reconstruction)
 static void from_json(nlohmann::json &json, map<string, Matrix4d> &transformations) {
 	for (auto it = json.begin(); it != json.end(); ++it) {
 		Eigen::Matrix4d m;
@@ -23,6 +27,7 @@ static void from_json(nlohmann::json &json, map<string, Matrix4d> &transformatio
 	}
 }
 
+// TODO: remove code duplication (function from reconstruction)
 static bool loadTransformations(const string &path, map<string, Matrix4d> &data) {
 	std::ifstream file(path);
 	if (!file.is_open()) {
@@ -36,8 +41,105 @@ static bool loadTransformations(const string &path, map<string, Matrix4d> &data)
 	return true;
 }
 
-int main(int argc, char **argv) {
-	auto root = ftl::configure(argc, argv, "viewer_default");
+// TODO: remove code duplication (function from calibrate-multi)
+void stack(const vector<Mat> &img, Mat &out, const int rows, const int cols) {
+	Size size = img[0].size();
+	Size size_out = Size(size.width * cols, size.height * rows);
+	if (size_out != out.size() || out.type() != CV_8UC3) {
+		out = Mat(size_out, CV_8UC3, cv::Scalar(0, 0, 0));
+	}
+
+	for (size_t i = 0; i < img.size(); i++) {
+		int row = i % rows;
+		int col = i / rows;
+		auto rect = cv::Rect(size.width * col, size.height * row, size.width, size.height);
+		img[i].copyTo(out(rect));
+	}
+}
+
+// TODO: remove code duplication (function from calibrate-multi)
+void stack(const vector<Mat> &img, Mat &out) {
+	// TODO
+	int rows = 2;
+	int cols = (img.size() + 1) / 2;
+	stack(img, out, rows, cols);
+}
+
+void modeLeftRight(ftl::Configurable *root) {
+	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
+
+	net->start();
+	net->waitConnections();
+
+	auto sources = ftl::createArray<ftl::rgbd::Source>(root, "sources", net);
+	const string path = root->value<string>("save_to", "./");
+	const string file_type = root->value<string>("file_type", "jpg");
+
+	const size_t n_cameras = sources.size() * 2;
+	ftl::rgbd::Group group;
+
+	for (auto* src : sources) {
+		src->setChannel(ftl::rgbd::kChanRight);
+		group.addSource(src);
+	}
+
+	std::mutex mutex;
+	std::atomic<bool> new_frames = false;
+	vector<Mat> rgb(n_cameras), rgb_new(n_cameras);
+	
+	group.sync([&mutex, &new_frames, &rgb_new](const ftl::rgbd::FrameSet &frames) {
+		mutex.lock();
+		bool good = true;
+		for (size_t i = 0; i < frames.channel1.size(); i ++) {
+			if (frames.channel1[i].empty()) good = false;
+			if (frames.channel1[i].empty()) good = false;
+			if (frames.channel1[i].channels() != 3) good = false; // ASSERT
+			if (frames.channel2[i].channels() != 3) good = false;
+			if (!good) break;
+			
+			frames.channel1[i].copyTo(rgb_new[2 * i]);
+			frames.channel2[i].copyTo(rgb_new[2 * i + 1]);
+		}
+
+		new_frames = good;
+		mutex.unlock();
+		return true;
+	});
+	
+	int idx = 0;
+	int key;
+
+	Mat show;
+	
+	while (ftl::running) {
+		while (!new_frames) {
+			for (auto src : sources) { src->grab(30); }
+			key = cv::waitKey(10);
+		}
+
+		mutex.lock();
+		rgb.swap(rgb_new);
+		new_frames = false;
+		mutex.unlock();
+		
+		stack(rgb, show);
+		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
+		cv::imshow("Cameras", show);
+
+		key = cv::waitKey(100);
+		// TODO: fix
+		if (key == 's') {
+			 for (size_t c = 0; c < n_cameras; c++ ) {
+			 	cv::imwrite(path + "camera" + std::to_string(c) + "_" + std::to_string(idx) + "." + file_type, rgb[c]);
+			 }
+			 LOG(INFO) << "Saved (" << idx << ")";
+			 idx++;
+		}
+		if (key == 27) break;
+	}
+}
+
+void modeFrame(ftl::Configurable *root, int frames=1) {
 	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
 
 	net->start();
@@ -66,10 +168,11 @@ int main(int argc, char **argv) {
 		group.addSource(s);
 	}
 
-	bool grab = false;
+	std::atomic<bool> grab = false;
 
 	group.sync([&grab](const ftl::rgbd::FrameSet &fs) {
 		LOG(INFO) << "Complete set: " << fs.timestamp;
+		if (!ftl::running) { return false; }
 		if (grab) {
 			grab = false;
 
@@ -89,20 +192,91 @@ int main(int argc, char **argv) {
 		return true;
 	});
 
-	int current = 0;
+	cv::Mat show;
+	vector<cv::Mat> rgb(sources.size());
+	vector<cv::Mat> depth(sources.size());
 
 	while (ftl::running) {
-		//std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		for (auto s : sources) s->grab(30);
-		cv::Mat rgb,depth;
-		sources[current%sources.size()]->getFrames(rgb, depth);
-		if (!rgb.empty()) cv::imshow("View", rgb);
-		auto key = cv::waitKey(20);
+		for (size_t i = 0; i < sources.size(); i++) {
+			do { sources[i]->getFrames(rgb[i], depth[i]); }
+			while(rgb[i].empty());
+		}
 
+		stack(rgb, show);
+		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
+		cv::imshow("Cameras", show);
+
+		auto key = cv::waitKey(20);
 		if (key == 27) break;
-		if (key == 'n') current++;
 		if (key == 'g') grab = true;
 	}
+}
 
+void modeVideo(ftl::Configurable *root) {
+
+	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
+
+	net->start();
+	net->waitConnections();
+
+	auto sources = ftl::createArray<ftl::rgbd::Source>(root, "sources", net);
+	const string path = root->value<string>("save_to", "./");
+
+	for (auto* src : sources) { src->setChannel(ftl::rgbd::kChanDepth); }
+
+	cv::Mat show;
+	vector<cv::Mat> rgb(sources.size());
+	vector<cv::Mat> depth(sources.size());
+
+	int count = 0;
+	int remaining = 0;
+
+	Mat depth_out;
+
+	while (ftl::running) {
+		for (auto s : sources) s->grab(30);
+		for (size_t i = 0; i < sources.size(); i++) {
+			do { sources[i]->getFrames(rgb[i], depth[i]); }
+			while(rgb[i].empty() || depth[i].empty());
+		}
+
+		if (remaining > 0) {
+			for (size_t i = 0; i < sources.size(); i++) {
+				depth[i].convertTo(depth_out, CV_16UC1, 1000.0f);
+				cv::imwrite(path + "rgb-" + std::to_string(i) + "-" + std::to_string(count) + ".jpg", rgb[i]);
+				cv::imwrite(path + "depth-" + std::to_string(i) + "-" + std::to_string(count) + ".png", depth_out);
+			}
+			count++;
+			remaining--;
+			LOG(INFO) << "remaining: " << remaining;
+		}
+
+		stack(rgb, show);
+		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
+		cv::imshow("Cameras", show);
+
+		auto key = cv::waitKey(20);
+		if (key == 'g' && remaining == 0) {
+			remaining = 250;
+		}
+		if (key == 27) break;
+	}
+}
+
+int main(int argc, char **argv) {
+	auto root = ftl::configure(argc, argv, "viewer_default");
+
+	if (root->value("stereo", false)) {
+		LOG(INFO) << "Stereo images mode";
+		modeLeftRight(root);
+	} else if (root->value("video", false)) {
+		LOG(INFO) << "Video mode";
+		modeVideo(root);
+	} else {
+		modeFrame(root);
+	}
+
+	ftl::running = false;
 	return 0;
 }
