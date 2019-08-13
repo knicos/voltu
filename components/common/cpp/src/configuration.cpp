@@ -437,8 +437,13 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 	}
 }
 
+static bool sig_int_called = false;
+
 static void signalIntHandler( int signum ) {
    std::cout << "Closing...\n";
+
+   if (sig_int_called) quick_exit(-1);
+   sig_int_called = true;
 
    // cleanup and close up stuff here  
    // terminate program  
