@@ -199,7 +199,8 @@ class Source : public ftl::Configurable {
 	SHARED_MUTEX &mutex() { return mutex_; }
 
 	std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> &callback() { return callback_; }
-	void setCallback(std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> cb) { callback_ = cb; }
+	void setCallback(std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> cb);
+	void removeCallback() { callback_ = nullptr; }
 
 
 	private:

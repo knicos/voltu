@@ -355,3 +355,8 @@ bool Source::setChannel(ftl::rgbd::channel_t c) {
 const ftl::rgbd::Camera Source::parameters(ftl::rgbd::channel_t chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
+
+void Source::setCallback(std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> cb) {
+	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
+	callback_ = cb;
+}
