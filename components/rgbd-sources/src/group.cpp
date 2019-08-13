@@ -11,7 +11,9 @@ Group::Group() : framesets_(kFrameBufferSize), head_(0) {
 }
 
 Group::~Group() {
-
+	for (auto s : sources_) {
+		s->removeCallback();
+	}
 }
 
 void Group::addSource(ftl::rgbd::Source *src) {
