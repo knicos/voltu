@@ -169,32 +169,35 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 	}
 
 	std::atomic<bool> grab = false;
+	std::atomic<bool> video = false;
+	
+	std::vector<cv::Mat> rgb(sources.size());
+	std::vector<cv::Mat> depth(sources.size());
+	std::mutex m;
 
 	group.sync([&grab](const ftl::rgbd::FrameSet &fs) {
 		LOG(INFO) << "Complete set: " << fs.timestamp;
 		if (!ftl::running) { return false; }
-		if (grab) {
-			grab = false;
 
 #ifdef HAVE_LIBARCHIVE
+		if (grab) {
+			grab = false;
 			char timestamp[18];
 			std::time_t t=std::time(NULL);
 			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
 			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
 
 			for (size_t i=0; i<fs.sources.size(); ++i) {
-				writer.addCameraParams(std::string("camera")+std::to_string(i), fs.sources[i]->getPose(), fs.sources[i]->parameters());
+				writer.addSource(fs.sources[i]->getURI(), fs.sources[i]->parameters(), fs.sources[i]->getPose());
 				LOG(INFO) << "SAVE: " << fs.channel1[i].cols << ", " << fs.channel2[i].type();
-				writer.addCameraRGBD(std::string("camera")+std::to_string(i), fs.channel1[i], fs.channel2[i]);
+				writer.addRGBD(i, fs.channel1[i], fs.channel2[i]);
 			}
-#endif  // HAVE_LIBARCHIVE
 		}
+#endif  // HAVE_LIBARCHIVE
 		return true;
 	});
 
 	cv::Mat show;
-	vector<cv::Mat> rgb(sources.size());
-	vector<cv::Mat> depth(sources.size());
 
 	while (ftl::running) {
 		for (auto s : sources) s->grab(30);
@@ -229,10 +232,18 @@ void modeVideo(ftl::Configurable *root) {
 	vector<cv::Mat> rgb(sources.size());
 	vector<cv::Mat> depth(sources.size());
 
-	int count = 0;
-	int remaining = 0;
+#ifdef HAVE_LIBARCHIVE
+	char timestamp[18];
+	std::time_t t=std::time(NULL);
+	std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+	ftl::rgbd::SnapshotWriter writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
 
-	Mat depth_out;
+	for (size_t i = 0; i < sources.size(); i++) {
+		writer.addSource(sources[i]->getURI(), sources[i]->parameters(), sources[i]->getPose());
+	}
+#endif // HAVE_LIBARCHIVE
+
+	bool save = false;
 
 	while (ftl::running) {
 		for (auto s : sources) s->grab(30);
@@ -241,24 +252,24 @@ void modeVideo(ftl::Configurable *root) {
 			while(rgb[i].empty() || depth[i].empty());
 		}
 
-		if (remaining > 0) {
+#ifdef HAVE_LIBARCHIVE
+		if (save) {
 			for (size_t i = 0; i < sources.size(); i++) {
-				depth[i].convertTo(depth_out, CV_16UC1, 1000.0f);
-				cv::imwrite(path + "rgb-" + std::to_string(i) + "-" + std::to_string(count) + ".jpg", rgb[i]);
-				cv::imwrite(path + "depth-" + std::to_string(i) + "-" + std::to_string(count) + ".png", depth_out);
+				writer.addRGBD(i, rgb[i], depth[i]);
 			}
-			count++;
-			remaining--;
-			LOG(INFO) << "remaining: " << remaining;
 		}
+#endif // HAVE_LIBARCHIVE
 
 		stack(rgb, show);
 		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
 		cv::imshow("Cameras", show);
 
 		auto key = cv::waitKey(20);
-		if (key == 'g' && remaining == 0) {
-			remaining = 250;
+		if (key == 'r') {
+			save = true;
+		}
+		if (key == 's') {
+			save = false;
 		}
 		if (key == 27) break;
 	}
@@ -274,7 +285,8 @@ int main(int argc, char **argv) {
 		LOG(INFO) << "Video mode";
 		modeVideo(root);
 	} else {
-		modeFrame(root);
+		modeVideo(root);
+		//modeFrame(root);
 	}
 
 	ftl::running = false;

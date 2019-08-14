@@ -120,7 +120,8 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 		} else if (ext == "tar" || ext == "gz") {
 #ifdef HAVE_LIBARCHIVE
 			ftl::rgbd::SnapshotReader reader(path);
-			return new ftl::rgbd::detail::SnapshotSource(this, reader, value("index", std::string("0")));  // TODO: Use URI fragment
+			auto snapshot = reader.readArchive();
+			return new ftl::rgbd::detail::SnapshotSource(this, snapshot, value("index", std::string("0")));  // TODO: Use URI fragment
 #else
 			LOG(ERROR) << "Cannot read snapshots, libarchive not installed";
 			return nullptr;

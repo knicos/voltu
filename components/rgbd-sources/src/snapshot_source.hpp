@@ -14,7 +14,7 @@ namespace detail {
 class SnapshotSource : public detail::Source {
 	public:
 	SnapshotSource(ftl::rgbd::Source *);
-	SnapshotSource(ftl::rgbd::Source *, ftl::rgbd::SnapshotReader &reader, const std::string &id);
+	SnapshotSource(ftl::rgbd::Source *, ftl::rgbd::Snapshot &snapshot, const std::string &id);
 	~SnapshotSource() {};
 
 	bool compute(int n, int b);
@@ -22,6 +22,11 @@ class SnapshotSource : public detail::Source {
 
 	//void reset();
 	private:
+	size_t frame_idx_;
+	size_t camera_idx_;
+	
+	ftl::rgbd::Snapshot snapshot_;
+
 	cv::Mat snap_rgb_;
 	cv::Mat snap_depth_;
 };
