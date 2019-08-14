@@ -10,9 +10,12 @@ static std::string last_type = "";
 namespace ftl {
 namespace rgbd {
 
+class Snapshot {};
+
 class SnapshotReader {
 	public:
 	SnapshotReader(const std::string &) {}
+	Snapshot readArchive() { return Snapshot(); };
 };
 
 namespace detail {
@@ -55,7 +58,7 @@ class NetSource : public ftl::rgbd::detail::Source {
 
 class SnapshotSource : public ftl::rgbd::detail::Source {
 	public:
-	SnapshotSource(ftl::rgbd::Source *host, ftl::rgbd::SnapshotReader &r, const std::string &) : ftl::rgbd::detail::Source(host) {
+	SnapshotSource(ftl::rgbd::Source *host, ftl::rgbd::Snapshot &r, const std::string &) : ftl::rgbd::detail::Source(host) {
 		last_type = "snapshot";
 	}
 
