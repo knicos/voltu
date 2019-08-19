@@ -33,11 +33,16 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	net_ = net;
 	time_peer_ = ftl::UUID(0);
 	clock_adjust_ = 0;
-	mspf_ = 1000 / value("fps", 20);
+	mspf_ = ftl::timer::getInterval(); //1000 / value("fps", 20);
 	//last_dropped_ = 0;
 	//drop_count_ = 0;
 
-	group_.setFPS(value("fps", 20));
+	chunk_dim_ = value("chunking",4);
+	chunk_count_ = chunk_dim_*chunk_dim_;
+
+	LOG(INFO) << "CHUNK COUNT = " << chunk_count_;
+
+	//group_.setFPS(value("fps", 20));
 	group_.setLatency(10);
 
 	compress_level_ = value("compression", 1);
@@ -104,8 +109,6 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	net->bind("set_channel", [this](const string &uri, unsigned int chan) {
 		SHARED_LOCK(mutex_,slk);
-
-		LOG(INFO) << "SET CHANNEL " << chan;
 
 		if (sources_.find(uri) != sources_.end()) {
 			sources_[uri]->src->setChannel((ftl::rgbd::channel_t)chan);
@@ -189,7 +192,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	for (auto &client : s->clients[rate]) {
 		// If already listening, just update chunk counters
 		if (client.peerid == peer) {
-			client.txmax = N * kChunkCount;
+			client.txmax = N * chunk_count_;
 			client.txcount = 0;
 			return;
 		}
@@ -200,7 +203,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	c.peerid = peer;
 	c.uri = dest;
 	c.txcount = 0;
-	c.txmax = N * kChunkCount;
+	c.txmax = N * chunk_count_;
 	++s->clientCount;
 }
 
@@ -279,7 +282,7 @@ void Streamer::_transmit(ftl::rgbd::FrameSet &fs) {
 		totalclients += src->clientCount;
 
 		// Create jobs for each chunk
-		for (int i=0; i<kChunkCount; ++i) {
+		for (int i=0; i<chunk_count_; ++i) {
 			// Add chunk job to thread pool
 			ftl::pool.push([this,&fs,j,i,src](int id) {
 				int chunk = i;
@@ -296,7 +299,7 @@ void Streamer::_transmit(ftl::rgbd::FrameSet &fs) {
 			});
 		}
 
-		jobs_ += kChunkCount;
+		jobs_ += chunk_count_;
 	}
 
 	std::unique_lock<std::mutex> lk(job_mtx_);
@@ -314,12 +317,12 @@ void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const c
 	bool hasChan2 = (!depth.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
 
 	bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
-	int chunk_width = rgb.cols / kChunkDim;
-	int chunk_height = rgb.rows / kChunkDim;
+	int chunk_width = rgb.cols / chunk_dim_;
+	int chunk_height = rgb.rows / chunk_dim_;
 
 	// Build chunk heads
-	int cx = (chunk % kChunkDim) * chunk_width;
-	int cy = (chunk / kChunkDim) * chunk_height;
+	int cx = (chunk % chunk_dim_) * chunk_width;
+	int cy = (chunk / chunk_dim_) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
 	vector<unsigned char> rgb_buf;
 	cv::Mat chunkRGB = rgb(roi);
@@ -354,8 +357,8 @@ void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const c
 		// TODO:(Nick) could reuse downscales
 		} else {
 			cv::Mat downrgb, downdepth;
-			cv::resize(chunkRGB, downrgb, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
-			if (hasChan2) cv::resize(d2, downdepth, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
+			cv::resize(chunkRGB, downrgb, cv::Size(bitrate_settings[b].width / chunk_dim_, bitrate_settings[b].height / chunk_dim_));
+			if (hasChan2) cv::resize(d2, downdepth, cv::Size(bitrate_settings[b].width / chunk_dim_, bitrate_settings[b].height / chunk_dim_));
 
 			_encodeChannel1(downrgb, rgb_buf, b);
 			if (hasChan2) _encodeChannel2(downdepth, d_buf, src->src->getChannel(), b);
@@ -374,7 +377,7 @@ void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const c
 					(*c).txcount = (*c).txmax;
 				} else {
 					++(*c).txcount;
-					//LOG(INFO) << "SENT CHUNK : " << frame_no_*mspf_ << "-" << chunk;
+					//LOG(INFO) << "SENT CHUNK : " << frame_no_ << "-" << chunk;
 				}
 			} catch(...) {
 				(*c).txcount = (*c).txmax;

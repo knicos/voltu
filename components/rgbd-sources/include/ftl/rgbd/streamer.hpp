@@ -16,8 +16,8 @@
 namespace ftl {
 namespace rgbd {
 
-static const int kChunkDim = 4;
-static constexpr int kChunkCount = kChunkDim * kChunkDim;
+//static const int kChunkDim = 4;
+//static constexpr int kChunkCount = kChunkDim * kChunkDim;
 
 namespace detail {
 
@@ -122,6 +122,8 @@ class Streamer : public ftl::Configurable {
 	ftl::UUID time_peer_;
 	int64_t last_frame_;
 	int64_t frame_no_;
+	size_t chunk_count_;
+	size_t chunk_dim_;
 
 	int64_t mspf_;
 	float actual_fps_;

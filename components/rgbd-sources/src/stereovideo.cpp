@@ -206,8 +206,6 @@ bool StereoVideoSource::compute(int n, int b) {
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	}
 
-	LOG(INFO) << "STEREO VIDEO COMPUTE: " << timestamp_;
-
 	auto cb = host_->callback();
 	if (cb) cb(timestamp_, rgb_, depth_);
 	return true;
