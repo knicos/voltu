@@ -11,6 +11,9 @@ This monorepo contains all elements of the FTL software system.
 * Applications : Executable apps for the different node machines
   * vision : Stereo vision node in p2p network, generates an RGB-Depth net stream
   * reconstruct : Performs scene reconstruction from synchronised RGB-Depth sources
+  * calibration-multi : All camera intrinsic and extrinsic calibration in one process
+  * groupview : A quick camera viewing app that supports frame and video capture
+  * gui : Desktop GUI
 * front-end : Client side FTL code, both web and native
 * web-service : A web backend service provider acting as a form of proxy
 * www : FTL Website
