@@ -35,7 +35,7 @@ using ftl::is_file;
 using ftl::is_directory;
 using ftl::Configurable;
 
-ctpl::thread_pool ftl::pool(POOL_SIZE);
+ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
 
 // Store loaded configuration
 namespace ftl {

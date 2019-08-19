@@ -18,6 +18,11 @@
 #pragma comment(lib, "Rpcrt4.lib")
 #endif
 
+#ifndef WIN32
+#include <sys/ioctl.h>
+#include <linux/sockios.h>
+#endif
+
 #include <ftl/uri.hpp>
 #include <ftl/net/peer.hpp>
 #include <ftl/net/ws_internal.hpp>
@@ -43,7 +48,8 @@ using ftl::net::Universe;
 using ftl::net::callback_t;
 using std::vector;
 
-#define TCP_BUFFER_SIZE	(1024*1024*10)
+#define TCP_SEND_BUFFER_SIZE	(1024*1024*1)
+#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
 
 /*static std::string hexStr(const std::string &s)
 {
@@ -87,10 +93,11 @@ static SOCKET tcpConnect(URI &uri) {
 	int flags =1; 
     if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 
-	int a = TCP_BUFFER_SIZE;
+	int a = TCP_RECEIVE_BUFFER_SIZE;
 	if (setsockopt(csocket, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
+	a = TCP_SEND_BUFFER_SIZE;
 	if (setsockopt(csocket, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -178,10 +185,11 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 
 	int flags =1; 
     if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
-	int a = TCP_BUFFER_SIZE;
+	int a = TCP_RECEIVE_BUFFER_SIZE;
 	if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
+	a = TCP_SEND_BUFFER_SIZE;
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -412,7 +420,11 @@ void Peer::error(int e) {
 
 void Peer::data() {
 	{
+		//auto start = std::chrono::high_resolution_clock::now();
+		//int64_t startts = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count();
 		UNIQUE_LOCK(recv_mtx_,lk);
+
+		//LOG(INFO) << "Pool size: " << ftl::pool.q_size();
 
 		int rc=0;
 		int c=0;
@@ -426,8 +438,19 @@ void Peer::data() {
 			}
 
 			int cap = recv_buf_.buffer_capacity();
-			rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), cap, 0);
-			//if (c > 0 && rc > 0) LOG(INFO) << "RECV: " << rc;
+			auto buf = recv_buf_.buffer();
+			lk.unlock();
+
+			#ifndef WIN32
+			int n;
+			unsigned int m = sizeof(n);
+			getsockopt(sock_,SOL_SOCKET,SO_RCVBUF,(void *)&n, &m);
+
+			int pending;
+			ioctl(sock_, SIOCINQ, &pending);
+			if (pending > 100000) LOG(INFO) << "Buffer usage: " << float(pending) / float(n);
+			#endif
+			rc = ftl::net::internal::recv(sock_, buf, cap, 0);
 
 			if (rc >= cap-1) {
 				LOG(WARNING) << "More than buffers worth of data received"; 
@@ -445,13 +468,23 @@ void Peer::data() {
 			//if (rc == -1) break;
 			++c;
 			
+			lk.lock();
 			recv_buf_.buffer_consumed(rc);
 		//} while (rc > 0);
-	}
 
-	ftl::pool.push([this](int id) {
-		_data();
-	});
+		//auto end = std::chrono::high_resolution_clock::now();
+		//int64_t endts = std::chrono::time_point_cast<std::chrono::milliseconds>(end).time_since_epoch().count();
+		//if (endts - startts > 50) LOG(ERROR) << "Excessive delay";
+
+		if (is_waiting_) {
+			is_waiting_ = false;
+			lk.unlock();
+
+			ftl::pool.push([this](int id) {
+				_data();
+			});
+		}
+	}
 }
 
 bool Peer::_data() {
@@ -467,10 +500,14 @@ bool Peer::_data() {
 		ws_read_header_ = true;
 	}
 
-	if (!recv_buf_.next(msg)) return false;
-	msgpack::object obj = msg.get();
+	if (!recv_buf_.next(msg)) {
+		is_waiting_ = true;
+		return false;
+	}
+	
 	lk.unlock();
 
+	msgpack::object obj = msg.get();
 	ftl::pool.push([this](int id) {
 		_data();
 	});

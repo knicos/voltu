@@ -52,7 +52,12 @@ class Source {
 	/**
 	 * Perform hardware data capture.
 	 */
-	virtual bool capture() { return true; };
+	virtual bool capture(int64_t ts)=0;
+
+	/**
+	 * Perform IO operation to get the data.
+	 */
+	virtual bool retrieve()=0;
 
 	/**
 	 * Do any processing from previously captured frames...

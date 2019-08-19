@@ -69,9 +69,15 @@ class Source : public ftl::Configurable {
 	channel_t getChannel() const { return channel_; }
 
 	/**
-	 * Perform the hardware or virtual frame grab operation. 
+	 * Perform the hardware or virtual frame grab operation. This should be
+	 * fast and non-blocking. 
 	 */
-	bool capture();
+	bool capture(int64_t ts);
+
+	/**
+	 * Download captured frame. This could be a blocking IO operation.
+	 */
+	bool retrieve();
 
 	/**
 	 * Between frames, do any required buffer swaps.
@@ -90,7 +96,8 @@ class Source : public ftl::Configurable {
 	 * It is more optimal to perform capture and compute in parallel.
 	 */
 	bool grab(int N=-1, int B=-1) {
-		bool c = capture();
+		bool c = capture(0);
+		c = c && retrieve();
 		swap();
 		return c && compute(N,B);
 	}
@@ -118,10 +125,10 @@ class Source : public ftl::Configurable {
 	 * their data provided from an external rendering class. This function only
 	 * works when there is no internal generator.
 	 */
-	void writeFrames(const cv::Mat &rgb, const cv::Mat &depth);
-	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
-	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
-	void writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream);
+	void writeFrames(int64_t ts, const cv::Mat &rgb, const cv::Mat &depth);
+	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
+	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
+	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream);
 
 	int64_t timestamp() const { return timestamp_; }
 
@@ -132,6 +139,8 @@ class Source : public ftl::Configurable {
 
 	void uploadColour(cv::cuda::GpuMat&);
 	void uploadDepth(cv::cuda::GpuMat&);
+
+	bool isVirtual() const { return impl_ == nullptr; }
 
 	/**
 	 * Get the source's camera intrinsics.
@@ -198,8 +207,8 @@ class Source : public ftl::Configurable {
 
 	SHARED_MUTEX &mutex() { return mutex_; }
 
-	std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> &callback() { return callback_; }
-	void setCallback(std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> cb);
+	std::function<void(int64_t, cv::Mat &, cv::Mat &)> &callback() { return callback_; }
+	void setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb);
 	void removeCallback() { callback_ = nullptr; }
 
 
@@ -217,7 +226,7 @@ class Source : public ftl::Configurable {
 	channel_t channel_;
 	cudaStream_t stream_;
 	int64_t timestamp_;
-	std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> callback_;
+	std::function<void(int64_t, cv::Mat &, cv::Mat &)> callback_;
 
 	detail::Source *_createImplementation();
 	detail::Source *_createFileImpl(const ftl::URI &uri);

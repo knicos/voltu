@@ -39,6 +39,11 @@ Universe::~Universe() {
 }
 
 void Universe::start() {
+	/*cpu_set_t cpus;
+    CPU_ZERO(&cpus);
+    CPU_SET(1, &cpus);
+    pthread_setaffinity_np(thread_.native_handle(), sizeof(cpus), &cpus);*/
+
 	auto l = get<json_t>("listen");
 
 	if (l && (*l).is_array()) {
@@ -252,6 +257,7 @@ void Universe::_run() {
 
 		// It is an error to use "select" with no sockets ... so just sleep
 		if (n == 0) {
+			LOG(ERROR) << "NO SOCKETS";
 			std::this_thread::sleep_for(std::chrono::milliseconds(300));
 			continue;
 		}

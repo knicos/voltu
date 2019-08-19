@@ -14,6 +14,34 @@ namespace detail {
 static const int kDefaultFrameCount = 30;
 
 /**
+ * Buffers for a single frame as it is being received over the network.
+ */
+struct NetFrame {
+	cv::Mat channel1;
+	cv::Mat channel2;
+	volatile int64_t timestamp;
+	std::atomic<int> chunk_count;
+	MUTEX mtx;
+};
+
+/**
+ * Manage multiple frames with their timestamp as an identifier. Once a frame
+ * is completed it should be freed from the queue for reuse.
+ */
+class NetFrameQueue {
+	public:
+	explicit NetFrameQueue(int size=2);
+	~NetFrameQueue();
+
+	NetFrame &getFrame(int64_t ts, const cv::Size &, int c1type, int c2type);
+	void freeFrame(NetFrame &);
+
+	private:
+	std::vector<NetFrame> frames_;
+	MUTEX mtx_;
+};
+
+/**
  * RGBD source from either a stereo video file with left + right images, or
  * direct from two camera devices. A variety of algorithms are included for
  * calculating disparity, before converting to depth.  Calibration of the images
@@ -24,6 +52,8 @@ class NetSource : public detail::Source {
 	explicit NetSource(ftl::rgbd::Source *);
 	~NetSource();
 
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b);
 	bool isReady();
 
@@ -35,7 +65,7 @@ class NetSource : public detail::Source {
 	private:
 	bool has_calibration_;
 	ftl::UUID peer_;
-	int N_;
+	std::atomic<int> N_;
 	bool active_;
 	std::string uri_;
 	ftl::net::callback_t h_;
@@ -50,12 +80,14 @@ class NetSource : public detail::Source {
 	int maxN_;
 	int default_quality_;
 	ftl::rgbd::channel_t prev_chan_;
-	int64_t current_frame_;
-	std::atomic<int> chunk_count_;
+	//volatile int64_t current_frame_;
+	//std::atomic<int> chunk_count_;
 
 	// Double buffering
-	cv::Mat d_depth_;
-	cv::Mat d_rgb_;
+	//cv::Mat d_depth_;
+	//cv::Mat d_rgb_;
+
+	NetFrameQueue queue_;
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p, ftl::rgbd::channel_t chan);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);

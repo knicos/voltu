@@ -5,6 +5,7 @@
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/rgbd/source.hpp>
+#include <ftl/rgbd/group.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/threads.hpp>
 #include <string>
@@ -106,6 +107,7 @@ class Streamer : public ftl::Configurable {
 	Source *get(const std::string &uri);
 
 	private:
+	ftl::rgbd::Group group_;
 	std::map<std::string, detail::StreamSource*> sources_;
 	//ctpl::thread_pool pool_;
 	SHARED_MUTEX mutex_;
@@ -126,14 +128,12 @@ class Streamer : public ftl::Configurable {
 	//int64_t last_dropped_;
 	//int drop_count_;
 
-	void _schedule();
-	void _schedule(detail::StreamSource *);
-	void _swap(detail::StreamSource *);
+	void _transmit(ftl::rgbd::FrameSet &);
+	void _cleanUp();
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
-	void _encodeAndTransmit(detail::StreamSource *src, int chunk);
+	void _encodeAndTransmit(detail::StreamSource *src, const cv::Mat &, const cv::Mat &, int chunk);
 	void _encodeChannel1(const cv::Mat &in, std::vector<unsigned char> &out, unsigned int b);
 	bool _encodeChannel2(const cv::Mat &in, std::vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b);
-	void _decideFrameRate(int64_t framesdropped, int64_t msremainder);
 };
 
 }

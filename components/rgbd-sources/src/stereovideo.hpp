@@ -27,7 +27,8 @@ class StereoVideoSource : public detail::Source {
 	~StereoVideoSource();
 
 	void swap();
-	bool capture();
+	bool capture(int64_t ts);
+	bool retrieve();
 	bool compute(int n, int b);
 	bool isReady();
 	Camera parameters(channel_t chan);

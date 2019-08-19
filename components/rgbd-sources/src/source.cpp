@@ -165,6 +165,7 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 }
 
 void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
+	if (bool(callback_)) LOG(WARNING) << "Cannot use getFrames and callback in source";
 	SHARED_LOCK(mutex_,lk);
 	rgb_.copyTo(rgb);
 	depth_.copyTo(depth);
@@ -231,8 +232,14 @@ void Source::reset() {
 	impl_ = _createImplementation();
 }
 
-bool Source::capture() {
-	if (impl_) return impl_->capture();
+bool Source::capture(int64_t ts) {
+	//timestamp_ = ts;
+	if (impl_) return impl_->capture(ts);
+	else return true;
+}
+
+bool Source::retrieve() {
+	if (impl_) return impl_->retrieve();
 	else return true;
 }
 
@@ -265,17 +272,19 @@ bool Source::compute(int N, int B) {
 	return false;
 }
 
-void Source::writeFrames(const cv::Mat &rgb, const cv::Mat &depth) {
+void Source::writeFrames(int64_t ts, const cv::Mat &rgb, const cv::Mat &depth) {
 	if (!impl_) {
 		UNIQUE_LOCK(mutex_,lk);
 		rgb.copyTo(rgb_);
 		depth.copyTo(depth_);
+		timestamp_ = ts;
 	}
 }
 
-void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream) {
+void Source::writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream) {
 	if (!impl_) {
 		UNIQUE_LOCK(mutex_,lk);
+		timestamp_ = ts;
 		rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
 		cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
 		depth_.create(depth.height(), depth.width(), CV_32SC1);
@@ -288,9 +297,10 @@ void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl:
 	}
 }
 
-void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream) {
+void Source::writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream) {
 	if (!impl_) {
 		UNIQUE_LOCK(mutex_,lk);
+		timestamp_ = ts;
 		rgb.download(rgb_, stream);
 		//rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
 		//cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
@@ -302,12 +312,15 @@ void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl:
 		cudaSafeCall(cudaStreamSynchronize(stream_));
 		cv::cvtColor(rgb_,rgb_, cv::COLOR_BGRA2BGR);
 		cv::cvtColor(rgb_,rgb_, cv::COLOR_Lab2BGR);
+
+		if (callback_) callback_(timestamp_, rgb_, depth_);
 	}
 }
 
-void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream) {
+void Source::writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream) {
 	if (!impl_) {
 		UNIQUE_LOCK(mutex_,lk);
+		timestamp_ = ts;
 		rgb.download(rgb_, stream);
 		//rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
 		//cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
@@ -332,7 +345,7 @@ bool Source::thumbnail(cv::Mat &t) {
 		return true;
 	} else if (impl_) {
 		UNIQUE_LOCK(mutex_,lk);
-		impl_->capture();
+		impl_->capture(0);
 		impl_->swap();
 		impl_->compute(1, 9);
 		impl_->rgb_.copyTo(rgb_);
@@ -357,7 +370,7 @@ const ftl::rgbd::Camera Source::parameters(ftl::rgbd::channel_t chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
 
-void Source::setCallback(std::function<void(int64_t, const cv::Mat &, const cv::Mat &)> cb) {
+void Source::setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb) {
 	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
 	callback_ = cb;
 }

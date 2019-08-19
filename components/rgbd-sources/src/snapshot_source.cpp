@@ -50,7 +50,9 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, Snapshot &snapshot, cons
 
 	LOG(INFO) << "POSE = " << pose;
 
-	host->setPose(pose);
+    host->setPose(pose);
+
+	mspf_ = 1000 / host_->value("fps", 20);
 }
 
 bool SnapshotSource::compute(int n, int b) {
@@ -59,6 +61,9 @@ bool SnapshotSource::compute(int n, int b) {
 
 	snap_rgb_.copyTo(rgb_);
 	snap_depth_.copyTo(depth_);
+
+	auto cb = host_->callback();
+	if (cb) cb(timestamp_, rgb_, depth_);
 
 	frame_idx_ = (frame_idx_ + 1) % snapshot_.getFramesCount();
 

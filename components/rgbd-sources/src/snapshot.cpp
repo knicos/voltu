@@ -458,12 +458,10 @@ Snapshot SnapshotReader::readArchive() {
 	else {
 		LOG(INFO) << "Using old format snapshot archive";
 
-		result.n_cameras = 1;
+		result.n_cameras = 0;
 		result.n_frames = 1;
-		Mat &rgb = result.rgb_left.emplace_back().emplace_back();
-		Mat &depth = result.depth_left.emplace_back().emplace_back();
-		Mat &pose = result.extrinsic.emplace_back();
-		Camera &params = result.parameters.emplace_back();
+
+		std::map<string,int> cammap;
 
 		for (auto const& [path, data] : files_) {
 			if (path.rfind("-") == string::npos) {
@@ -471,6 +469,25 @@ Snapshot SnapshotReader::readArchive() {
 				continue;
 			}
 			string id = path.substr(0, path.find("-"));
+			int idx;
+
+			if (cammap.find(id) == cammap.end()) {
+				cammap[id] = result.n_cameras;
+				idx = result.n_cameras;
+				result.n_cameras++;
+
+				result.rgb_left.emplace_back().emplace_back();
+				result.depth_left.emplace_back().emplace_back();
+				result.extrinsic.emplace_back();
+				result.parameters.emplace_back();
+			} else {
+				idx = cammap[id];
+			}
+
+			Mat &rgb = result.rgb_left[idx][0];
+			Mat &depth = result.depth_left[idx][0];
+			Mat &pose = result.extrinsic[idx];
+			Camera &params = result.parameters[idx];
 
 			// TODO: verify that input is valid
 			// TODO: check that earlier results are not overwritten (status)
