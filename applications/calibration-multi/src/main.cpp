@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <fstream>
 
 #include "util.hpp"
 #include "multicalibrate.hpp"
