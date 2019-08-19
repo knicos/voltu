@@ -147,6 +147,9 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 		default_quality_ = host->value("quality", 0);
 	});
 
+	chunks_dim_ = host->value("chunking",4);
+	chunk_count_ = chunks_dim_*chunks_dim_;
+
 	_updateURI();
 
 	h_ = host_->getNet()->onConnect([this](ftl::net::Peer *p) {
@@ -182,7 +185,7 @@ void NetSource::_recvChunk(int64_t ts, int chunk, bool delta, const vector<unsig
 
 	auto start = std::chrono::high_resolution_clock::now();
 	int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count();
-	//if (now-ts < 10) LOG(INFO) << ts << " - Chunk Latency = " << (now - ts) << " - " << ftl::pool.q_size();
+	//LOG(INFO) << ts << " - Chunk Latency (" << chunk_count_ << ") = " << (now - ts) << " - " << ftl::pool.q_size();
 	//if (now - ts > 160) {
 	//	LOG(INFO) << "OLD PACKET: " << host_->getURI() << " (" << chunk << ") - " << ts << " (" << (now - ts) << ")";
 	//}
@@ -228,14 +231,14 @@ void NetSource::_recvChunk(int64_t ts, int chunk, bool delta, const vector<unsig
 		
 	++frame.chunk_count;
 
-	if (frame.chunk_count > kChunkCount) LOG(FATAL) << "TOO MANY CHUNKS";
+	if (frame.chunk_count > chunk_count_) LOG(FATAL) << "TOO MANY CHUNKS";
 
-	if (frame.chunk_count == kChunkCount) {
+	if (frame.chunk_count == chunk_count_) {
 		UNIQUE_LOCK(frame.mtx, flk);
 		timestamp_ = frame.timestamp;
 
-		if (frame.timestamp >= 0 && frame.chunk_count == kChunkCount) {
-			//LOG(INFO) << "Frame finished";
+		if (frame.timestamp >= 0 && frame.chunk_count == chunk_count_) {
+			//LOG(INFO) << "Frame finished: " << frame.timestamp;
 			auto cb = host_->callback();
 			if (cb) {
 				cb(frame.timestamp, frame.channel1, frame.channel2);
@@ -308,7 +311,7 @@ void NetSource::_updateURI() {
 		N_ = 0;
 
 		// Update chunk details
-		chunks_dim_ = ftl::rgbd::kChunkDim;
+		//chunks_dim_ = ftl::rgbd::kChunkDim;
 		chunk_width_ = params_.width / chunks_dim_;
 		chunk_height_ = params_.height / chunks_dim_;
 		//chunk_count_ = 0;

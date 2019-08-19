@@ -79,6 +79,7 @@ class NetSource : public detail::Source {
 	int minB_;
 	int maxN_;
 	int default_quality_;
+	int chunk_count_;
 	ftl::rgbd::channel_t prev_chan_;
 	//volatile int64_t current_frame_;
 	//std::atomic<int> chunk_count_;

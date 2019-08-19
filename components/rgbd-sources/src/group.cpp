@@ -15,7 +15,10 @@ Group::Group() : framesets_(kFrameBufferSize), head_(0) {
 	framesets_[0].timestamp = -1;
 	jobs_ = 0;
 	skip_ = false;
-	setFPS(20);
+	//setFPS(20);
+
+	mspf_ = ftl::timer::getInterval();
+
 	setLatency(5);
 }
 
@@ -188,7 +191,7 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 				// The buffers are invalid after callback so mark stale
 				fs->stale = true;
 			} else {
-				DLOG(INFO) << "NO FRAME FOUND: " << last_ts_ - latency_*mspf_;
+				//LOG(INFO) << "NO FRAME FOUND: " << last_ts_ - latency_*mspf_;
 			}
 		}
 
@@ -229,11 +232,12 @@ ftl::rgbd::FrameSet *Group::_getFrameset(int f) {
 }
 
 void Group::_addFrameset(int64_t timestamp) {
-	int count = (framesets_[head_].timestamp == -1) ? 1 : (timestamp - framesets_[head_].timestamp) / mspf_;
+	int count = (framesets_[head_].timestamp == -1) ? 200 : (timestamp - framesets_[head_].timestamp) / mspf_;
+	//LOG(INFO) << "Massive timestamp difference: " << count;
 
 	// Allow for massive timestamp changes (Windows clock adjust)
 	// Only add a single frameset for large changes
-	if (count < -kFrameBufferSize || count >= kFrameBufferSize-1) {
+	if (count < -int(kFrameBufferSize) || count >= kFrameBufferSize-1) {
 		head_ = (head_+1) % kFrameBufferSize;
 
 		if (!framesets_[head_].mtx.try_lock()) {

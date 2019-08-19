@@ -48,9 +48,6 @@ using ftl::net::Universe;
 using ftl::net::callback_t;
 using std::vector;
 
-#define TCP_SEND_BUFFER_SIZE	(1024*1024*1)
-#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
-
 /*static std::string hexStr(const std::string &s)
 {
 	const char *data = s.data();
@@ -70,7 +67,7 @@ ftl::UUID ftl::net::this_peer;
 //static ctpl::thread_pool pool(5);
 
 // TODO:(nick) Move to tcp_internal.cpp
-static SOCKET tcpConnect(URI &uri) {
+static SOCKET tcpConnect(URI &uri, int ssize, int rsize) {
 	int rc;
 	//sockaddr_in destAddr;
 
@@ -93,11 +90,11 @@ static SOCKET tcpConnect(URI &uri) {
 	int flags =1; 
     if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 
-	int a = TCP_RECEIVE_BUFFER_SIZE;
+	int a = rsize;
 	if (setsockopt(csocket, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
-	a = TCP_SEND_BUFFER_SIZE;
+	a = ssize;
 	if (setsockopt(csocket, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -185,11 +182,11 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 
 	int flags =1; 
     if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
-	int a = TCP_RECEIVE_BUFFER_SIZE;
+	int a = u->getRecvBufferSize();
 	if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
-	a = TCP_SEND_BUFFER_SIZE;
+	a = u->getSendBufferSize();
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -242,12 +239,12 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, u->getSendBufferSize(), u->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) status_ = kConnecting;
 		else status_ = kReconnecting;
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
 		LOG(INFO) << "Websocket connect " << uri.getPath();
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, u->getSendBufferSize(), u->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) {
 			if (!ws_connect(sock_, uri)) {
 				LOG(ERROR) << "Websocket connection failed";
@@ -310,7 +307,7 @@ bool Peer::reconnect() {
 	LOG(INFO) << "Reconnecting to " << uri_ << " ...";
 
 	if (scheme_ == URI::SCHEME_TCP) {
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, universe_->getSendBufferSize(), universe_->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) {
 			status_ = kConnecting;
 			is_waiting_ = true;
@@ -319,7 +316,7 @@ bool Peer::reconnect() {
 			return false;
 		}
 	} else if (scheme_ == URI::SCHEME_WS) {
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, universe_->getSendBufferSize(), universe_->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) {
 			if (!ws_connect(sock_, uri)) {
 				return false;
@@ -441,7 +438,7 @@ void Peer::data() {
 			auto buf = recv_buf_.buffer();
 			lk.unlock();
 
-			#ifndef WIN32
+			/*#ifndef WIN32
 			int n;
 			unsigned int m = sizeof(n);
 			getsockopt(sock_,SOL_SOCKET,SO_RCVBUF,(void *)&n, &m);
@@ -449,7 +446,7 @@ void Peer::data() {
 			int pending;
 			ioctl(sock_, SIOCINQ, &pending);
 			if (pending > 100000) LOG(INFO) << "Buffer usage: " << float(pending) / float(n);
-			#endif
+			#endif*/
 			rc = ftl::net::internal::recv(sock_, buf, cap, 0);
 
 			if (rc >= cap-1) {

@@ -77,6 +77,10 @@ void ftl::timer::setInterval(int ms) {
 	mspf = ms;
 }
 
+int ftl::timer::getInterval() {
+	return mspf;
+}
+
 void ftl::timer::setClockAdjustment(int64_t ms) {
 	clock_adjust = ms;
 }

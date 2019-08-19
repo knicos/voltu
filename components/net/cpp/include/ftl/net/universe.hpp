@@ -188,6 +188,9 @@ class Universe : public ftl::Configurable {
 	ftl::net::callback_t onError(const std::function<void(ftl::net::Peer*, const ftl::net::Error &)>&);
 
 	void removeCallback(ftl::net::callback_t cbid);
+
+	size_t getSendBufferSize() const { return send_size_; }
+	size_t getRecvBufferSize() const { return recv_size_; }
 	
 	private:
 	void _run();
@@ -220,6 +223,13 @@ class Universe : public ftl::Configurable {
 	std::list<ReconnectInfo> reconnects_;
 	size_t phase_;
 	std::list<ftl::net::Peer*> garbage_;
+
+	size_t send_size_;
+	size_t recv_size_;
+	double periodic_time_;
+	int reconnect_attempts_;
+
+	// NOTE: Must always be last member
 	std::thread thread_;
 
 	struct ConnHandler {

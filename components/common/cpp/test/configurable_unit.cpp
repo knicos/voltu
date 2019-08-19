@@ -6,6 +6,12 @@
 using ftl::Configurable;
 using std::string;
 
+namespace ftl {
+namespace timer {
+void setInterval(int i) {}
+}
+}
+
 SCENARIO( "Configurable::get()" ) {
 	GIVEN( "a non-existent property" ) {
 		// cppcheck-suppress constStatement

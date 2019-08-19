@@ -19,6 +19,7 @@
 #include <ftl/configurable.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/threads.hpp>
+#include <ftl/timer.hpp>
 
 #include <fstream>
 #include <string>
@@ -514,6 +515,13 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 			ftl::branch_name = *e.entity->get<std::string>("branch");
 		}
 	});
+
+	// Some global settings
+	ftl::timer::setInterval(rootcfg->value("fps",20));
+
+	int pool_size = rootcfg->value("thread_pool_factor", 2.0f)*std::thread::hardware_concurrency();
+	if (pool_size != ftl::pool.size()) ftl::pool.resize(pool_size);
+
 
 	//LOG(INFO) << "CONFIG: " << config["vision_default"];
 	//CHECK_EQ( &config, config_index["ftl://utu.fi"] );
