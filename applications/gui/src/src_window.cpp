@@ -116,7 +116,7 @@ void SourceWindow::draw(NVGcontext *ctx) {
 			cv::Mat t;
 			auto *cam = cameras_[available_[i]];
 			if (cam) {
-				if (cam->source()->thumbnail(t)) {
+				if (cam->thumbnail(t)) {
 					thumbs_[i].update(t);
 				} else {
 					refresh_thumbs_ = true;

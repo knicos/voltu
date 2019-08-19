@@ -14,6 +14,7 @@
 #include <ftl/virtual_source.hpp>
 #include <ftl/rgbd/streamer.hpp>
 #include <ftl/slave.hpp>
+#include <ftl/rgbd/group.hpp>
 
 #include "splat_render.hpp"
 
@@ -94,6 +95,7 @@ static void run(ftl::Configurable *root) {
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::Source *virt = ftl::create<ftl::rgbd::Source>(root, "virtual", net);
 	ftl::render::Splatter *splat = new ftl::render::Splatter(scene);
+	ftl::rgbd::Group group;
 
 	//auto virtimpl = new ftl::rgbd::VirtualSource(virt);
 	//virt->customImplementation(virtimpl);
@@ -103,11 +105,47 @@ static void run(ftl::Configurable *root) {
 	for (size_t i=0; i<sources.size(); i++) {
 		Source *in = sources[i];
 		in->setChannel(ftl::rgbd::kChanDepth);
-		stream->add(in);
+		//stream->add(in);
 		scene->addSource(in);
+		group.addSource(in);
 	}
 
-	int active = sources.size();
+	stream->run();
+
+	bool busy = false;
+
+	group.sync([scene,splat,virt,&busy,&slave](ftl::rgbd::FrameSet &fs) -> bool {
+		if (busy) {
+			LOG(INFO) << "Group frameset dropped: " << fs.timestamp;
+			return true;
+		}
+		busy = true;
+		scene->nextFrame();
+
+		// Send all frames to GPU, block until done?
+		// TODO: Allow non-block and keep frameset locked until later
+		if (!slave.isPaused()) scene->upload(fs);
+
+		int64_t ts = fs.timestamp;
+
+		ftl::pool.push([scene,splat,virt,&busy,ts,&slave](int id) {
+			// TODO: Release frameset here...
+			cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
+
+			if (!slave.isPaused()) {
+				scene->integrate();
+				scene->garbage();
+			}
+
+			// Don't render here... but update timestamp.
+			splat->render(ts, virt, scene->getIntegrationStream());
+			busy = false;
+		});
+		return true;
+	});
+
+
+	/*int active = sources.size();
 	while (ftl::running) {
 		if (active == 0) {
 			LOG(INFO) << "Waiting for sources...";
@@ -144,7 +182,7 @@ static void run(ftl::Configurable *root) {
 
 		// Start virtual camera rendering and previous frame compression
 		stream->poll();
-	}
+	}*/
 }
 
 int main(int argc, char **argv) {

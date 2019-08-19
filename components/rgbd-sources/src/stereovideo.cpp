@@ -153,7 +153,13 @@ static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat
 	cv::cuda::divide(val, disparity, depth, 1.0f / 1000.0f, -1, stream);
 }
 
-bool StereoVideoSource::capture() {
+bool StereoVideoSource::capture(int64_t ts) {
+	timestamp_ = ts;
+	lsrc_->grab();
+	return true;
+}
+
+bool StereoVideoSource::retrieve() {
 	lsrc_->get(cap_left_, cap_right_, calib_, stream2_);
 	stream2_.waitForCompletion();
 	return true;
@@ -199,6 +205,9 @@ bool StereoVideoSource::compute(int n, int b) {
 		left_.download(rgb_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	}
+
+	auto cb = host_->callback();
+	if (cb) cb(timestamp_, rgb_, depth_);
 	return true;
 }
 

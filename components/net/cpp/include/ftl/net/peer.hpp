@@ -168,6 +168,9 @@ class Peer {
 	 */
 	template <typename... ARGS>
 	int send(const std::string &name, ARGS... args);
+
+	template <typename... ARGS>
+	int try_send(const std::string &name, ARGS... args);
 	
 	/**
 	 * Bind a function to an RPC call name. Note: if an overriding dispatcher
@@ -240,7 +243,7 @@ class Peer {
 	ftl::net::Universe *universe_;	// Origin net universe
 	
 	// Receive buffers
-	bool is_waiting_;
+	volatile bool is_waiting_;
 	msgpack::unpacker recv_buf_;
 	RECURSIVE_MUTEX recv_mtx_;
 	bool ws_read_header_;
@@ -275,6 +278,32 @@ int Peer::send(const std::string &s, ARGS... args) {
 	msgpack::pack(send_buf_, call_obj);
 	int rc = _send();
 	return rc;
+}
+
+template <typename... ARGS>
+int Peer::try_send(const std::string &s, ARGS... args) {
+#ifdef WIN32
+	WSAPOLLFD fds;
+	fds.fd = sock_;
+	fds.events = POLLOUT;
+	int rc = WSAPoll(&fds, 1, 0);
+#else
+	pollfd fds;
+	fds.fd = sock_;
+	fds.events = POLLOUT;
+	int rc = poll(&fds, 1, 0);
+#endif
+	if (rc == SOCKET_ERROR) return -1;
+	if (rc == 0) return 0;
+
+	UNIQUE_LOCK(send_mtx_, lk);
+	// Leave a blank entry for websocket header
+	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
+	auto args_obj = std::make_tuple(args...);
+	auto call_obj = std::make_tuple(0,s,args_obj);
+	msgpack::pack(send_buf_, call_obj);
+	rc = _send();
+	return (rc < 0) ? -1 : 1;
 }
 
 template <typename F>

@@ -26,7 +26,7 @@ class Splatter {
 	explicit Splatter(ftl::voxhash::SceneRep *scene);
 	~Splatter();
 
-	void render(ftl::rgbd::Source *src, cudaStream_t stream=0);
+	void render(int64_t ts, ftl::rgbd::Source *src, cudaStream_t stream=0);
 
 	void setOutputDevice(int);
 

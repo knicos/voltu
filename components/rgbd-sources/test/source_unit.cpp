@@ -29,6 +29,8 @@ class ImageSource : public ftl::rgbd::detail::Source {
 		last_type = "image";
 	}
 
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
@@ -42,6 +44,8 @@ class StereoVideoSource : public ftl::rgbd::detail::Source {
 		last_type = "video";
 	}
 
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
@@ -52,6 +56,8 @@ class NetSource : public ftl::rgbd::detail::Source {
 		last_type = "net";
 	}
 
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
@@ -62,6 +68,8 @@ class SnapshotSource : public ftl::rgbd::detail::Source {
 		last_type = "snapshot";
 	}
 
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
@@ -72,6 +80,8 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 		last_type = "realsense";
 	}
 
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
@@ -82,6 +92,8 @@ class MiddleburySource : public ftl::rgbd::detail::Source {
 		last_type = "middlebury";
 	}
 
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };

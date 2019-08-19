@@ -1,4 +1,5 @@
 #include <ftl/rgbd/streamer.hpp>
+#include <ftl/timer.hpp>
 #include <vector>
 #include <optional>
 #include <thread>
@@ -32,9 +33,17 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	net_ = net;
 	time_peer_ = ftl::UUID(0);
 	clock_adjust_ = 0;
-	mspf_ = 1000 / value("fps", 25);
+	mspf_ = ftl::timer::getInterval(); //1000 / value("fps", 20);
 	//last_dropped_ = 0;
 	//drop_count_ = 0;
+
+	chunk_dim_ = value("chunking",4);
+	chunk_count_ = chunk_dim_*chunk_dim_;
+
+	LOG(INFO) << "CHUNK COUNT = " << chunk_count_;
+
+	//group_.setFPS(value("fps", 20));
+	group_.setLatency(10);
 
 	compress_level_ = value("compression", 1);
 	
@@ -101,8 +110,6 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	net->bind("set_channel", [this](const string &uri, unsigned int chan) {
 		SHARED_LOCK(mutex_,slk);
 
-		LOG(INFO) << "SET CHANNEL " << chan;
-
 		if (sources_.find(uri) != sources_.end()) {
 			sources_[uri]->src->setChannel((ftl::rgbd::channel_t)chan);
 		}
@@ -139,6 +146,8 @@ void Streamer::add(Source *src) {
 		s->frame = 0;
 		s->clientCount = 0;
 		sources_[src->getID()] = s;
+
+		group_.addSource(src);
 	}
 
 	LOG(INFO) << "Streaming: " << src->getID();
@@ -172,6 +181,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 			LOG(INFO) << "Clock adjustment: " << clock_adjust_;
 			LOG(INFO) << "Latency: " << (latency / 2);
 			LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
+			ftl::timer::setClockAdjustment(clock_adjust_);
 		}
 	}
 
@@ -182,7 +192,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	for (auto &client : s->clients[rate]) {
 		// If already listening, just update chunk counters
 		if (client.peerid == peer) {
-			client.txmax = N * kChunkCount;
+			client.txmax = N * chunk_count_;
 			client.txcount = 0;
 			return;
 		}
@@ -193,7 +203,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	c.peerid = peer;
 	c.uri = dest;
 	c.txcount = 0;
-	c.txmax = N * kChunkCount;
+	c.txmax = N * chunk_count_;
 	++s->clientCount;
 }
 
@@ -205,255 +215,117 @@ void Streamer::remove(const std::string &) {
 
 }
 
-void Streamer::_decideFrameRate(int64_t framesdropped, int64_t msremainder) {
-	actual_fps_ = 1000.0f / (float)((framesdropped+1)*mspf_+(msremainder));
-	LOG(INFO) << "Actual FPS = " << actual_fps_;
-
-	/*if (framesdropped > 0) {
-		// If N consecutive frames are dropped, work out new rate
-		if (last_dropped_/mspf_ >= last_frame_/mspf_ - 2*framesdropped) drop_count_++;
-		else drop_count_ = 0;
-
-		last_dropped_ = last_frame_+mspf_;
-
-		if (drop_count_ >= ftl::rgbd::detail::kFrameDropLimit) {
-			drop_count_ = 0;
-
-			const int64_t actualmspf = std::min((int64_t)1000, framesdropped*mspf_+(mspf_ - msremainder));
-
-			LOG(WARNING) << "Suggest FPS @ " << (1000 / actualmspf);
-			//mspf_ = actualmspf;
-
-			// Also notify all clients of change
-		}
-	} else {
-		// Perhaps we can boost framerate?
-		const int64_t actualmspf = std::min((int64_t)1000, framesdropped*mspf_+(mspf_ - msremainder));
-		LOG(INFO) << "Boost framerate: " << (1000 / actualmspf);
-		//mspf_ = actualmspf;
-	}*/
-}
-
 void Streamer::stop() {
-	active_ = false;
-	wait();
-}
-
-void Streamer::poll() {
-	// Create frame jobs at correct FPS interval
-	_schedule();
+	group_.stop();
 }
 
 void Streamer::run(bool block) {
-	active_ = true;
-
 	if (block) {
-		while (ftl::running && active_) {
-			poll();
-		}
+		group_.sync([this](FrameSet &fs) -> bool {
+			_transmit(fs);
+			return true;
+		});
 	} else {
 		// Create thread job for frame ticking
 		ftl::pool.push([this](int id) {
-			while (ftl::running && active_) {
-				poll();
-			}
+			group_.sync([this](FrameSet &fs) -> bool {
+				_transmit(fs);
+				return true;
+			});
 		});
 	}
 }
 
-// Must be called in source locked state or src.state must be atomic
-void Streamer::_swap(StreamSource *src) {
-	if (src->jobs == 0) {
+void Streamer::_cleanUp() {
+	for (auto &s : sources_) {
+		StreamSource *src = s.second;
 		UNIQUE_LOCK(src->mutex,lk);
-		if (src->jobs == 0) {
-			for (unsigned int b=0; b<10; ++b) {
-				auto i = src->clients[b].begin();
-				while (i != src->clients[b].end()) {
-					// Client request completed so remove from list
-					if ((*i).txcount >= (*i).txmax) {
-						LOG(INFO) << "Remove client: " << (*i).uri;
-						i = src->clients[b].erase(i);
-						--src->clientCount;
-					} else {
-						i++;
-					}
+
+		for (unsigned int b=0; b<10; ++b) {
+			auto i = src->clients[b].begin();
+			while (i != src->clients[b].end()) {
+				// Client request completed so remove from list
+				if ((*i).txcount >= (*i).txmax) {
+					LOG(INFO) << "Remove client: " << (*i).uri;
+					i = src->clients[b].erase(i);
+					--src->clientCount;
+				} else {
+					i++;
 				}
 			}
-
-			src->src->swap();
-			src->src->getFrames(src->rgb, src->depth);
-
-			//if (!src->rgb.empty() && src->prev_depth.empty()) {
-				//src->prev_depth = cv::Mat(src->rgb.size(), CV_16UC1, cv::Scalar(0));
-				//LOG(INFO) << "Creating prevdepth: " << src->rgb.cols << "," << src->rgb.rows;
-			//}
-			src->jobs = -1;
-			src->frame++;
 		}
 	}
 }
 
-void Streamer::wait() {
-	// Do some jobs in this thread, might as well...
-	std::function<void(int)> j;
-	while ((bool)(j=ftl::pool.pop())) {
-		j(-1);
+void Streamer::_transmit(ftl::rgbd::FrameSet &fs) {
+	// Prevent new clients during processing.
+	SHARED_LOCK(mutex_,slk);
+
+	if (fs.sources.size() != sources_.size()) {
+		LOG(ERROR) << "Incorrect number of sources in frameset: " << fs.sources.size() << " vs " << sources_.size();
+		return;
 	}
 
-	// Wait for all jobs to complete before finishing frame
-	//UNIQUE_LOCK(job_mtx_, lk);
+	int totalclients = 0;
+
+	frame_no_ = fs.timestamp;
+
+	for (int j=0; j<fs.sources.size(); ++j) {
+		StreamSource *src = sources_[fs.sources[j]->getID()];
+
+		// Don't do any work in the following cases
+		if (!src) continue;
+		if (!fs.sources[j]->isReady()) continue;
+		if (src->clientCount == 0) continue;
+		if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
+
+		totalclients += src->clientCount;
+
+		// Create jobs for each chunk
+		for (int i=0; i<chunk_count_; ++i) {
+			// Add chunk job to thread pool
+			ftl::pool.push([this,&fs,j,i,src](int id) {
+				int chunk = i;
+				try {
+					_encodeAndTransmit(src, fs.channel1[j], fs.channel2[j], chunk);
+				} catch(...) {
+					LOG(ERROR) << "Encode Exception: " << chunk;
+				}
+
+				//src->jobs--;
+				std::unique_lock<std::mutex> lk(job_mtx_);
+				--jobs_;
+				if (jobs_ == 0) job_cv_.notify_one();
+			});
+		}
+
+		jobs_ += chunk_count_;
+	}
+
 	std::unique_lock<std::mutex> lk(job_mtx_);
 	job_cv_.wait_for(lk, std::chrono::seconds(20), [this]{ return jobs_ == 0; });
 	if (jobs_ != 0) {
 		LOG(FATAL) << "Deadlock detected";
 	}
 
-	// Capture frame number?
-	frame_no_ = last_frame_;
+	// Go to sleep if no clients instead of spinning the cpu
+	if (totalclients == 0 || sources_.size() == 0) sleep_for(milliseconds(200));
+	else _cleanUp();
 }
 
-void Streamer::_schedule(StreamSource *src) {
-	if (src == nullptr || src->jobs > 0) return;
-
-	jobs_ += 2 + kChunkCount;
-	src->jobs = 2 + kChunkCount;
-
-	// Grab / capture job
-	ftl::pool.push([this,src](int id) {
-		auto start = std::chrono::high_resolution_clock::now();
-		int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
-		int64_t target = now / mspf_;
-		int64_t msdelay = mspf_ - (now % mspf_);
-
-		if (target != last_frame_ && msdelay != mspf_) LOG(WARNING) << "Frame " << "(" << (target-last_frame_) << ") dropped by " << (now%mspf_) << "ms";
-
-		// Use sleep_for for larger delays
-		
-		//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
-		while (msdelay >= 20 && msdelay < mspf_) {
-			sleep_for(milliseconds(10));
-			now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-			msdelay = mspf_ - (now % mspf_);
-		}
-
-		// Spin loop until exact grab time
-		//LOG(INFO) << "Spin Delay: " << (now / 40) << " = " << (40 - (now%40));
-
-		if (msdelay != mspf_) {
-			target = now / mspf_;
-			while ((now/mspf_) == target) {
-				_mm_pause();  // SSE2 nano pause intrinsic
-				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-			};
-		}
-		last_frame_ = now/mspf_;
-
-		try {
-			src->src->capture();
-		} catch (std::exception &ex) {
-			LOG(ERROR) << "Exception when grabbing frame";
-			LOG(ERROR) << ex.what();
-		}
-		catch (...) {
-			LOG(ERROR) << "Unknown exception when grabbing frame";
-		}
-
-		//now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-		//if (now%40 > 0) LOG(INFO) << "Grab in: " << (now%40) << "ms";
-
-		//std::chrono::duration<double> elapsed =
-		//	std::chrono::high_resolution_clock::now() - start;
-		//LOG(INFO) << "Grab in " << elapsed.count() << "s";
-
-		src->jobs--;
-		_swap(src);
-
-		// Mark job as finished
-		std::unique_lock<std::mutex> lk(job_mtx_);
-		--jobs_;
-		if (jobs_ == 0) job_cv_.notify_one();
-	});
-
-	// Compute job
-	ftl::pool.push([this,src](int id) {
-		try {
-			src->src->compute();
-		} catch (std::exception &ex) {
-			LOG(ERROR) << "Exception when computing frame";
-			LOG(ERROR) << ex.what();
-		}
-		catch (...) {
-			LOG(ERROR) << "Unknown exception when computing frame";
-		}
-
-		src->jobs--;
-		_swap(src);
-
-		// Mark job as finished
-		std::unique_lock<std::mutex> lk(job_mtx_);
-		--jobs_;
-		if (jobs_ == 0) job_cv_.notify_one();
-	});
-
-	// Create jobs for each chunk
-	for (int i=0; i<kChunkCount; ++i) {
-		// Add chunk job to thread pool
-		ftl::pool.push([this,src,i](int id) {
-			int chunk = i;
-			try {
-			if (!src->rgb.empty() && (src->src->getChannel() == ftl::rgbd::kChanNone || !src->depth.empty())) {
-				_encodeAndTransmit(src, chunk);
-			}
-			} catch(...) {
-				LOG(ERROR) << "Encode Exception: " << chunk;
-			}
-
-			src->jobs--;
-			_swap(src);
-			std::unique_lock<std::mutex> lk(job_mtx_);
-			--jobs_;
-			if (jobs_ == 0) job_cv_.notify_one();
-		});
-	}
-}
-
-void Streamer::_schedule() {
-	wait();
-	//std::mutex job_mtx;
-	//std::condition_variable job_cv;
-	//int jobs = 0;
-
-	//auto now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-	//LOG(INFO) << "Frame time = " << (now-(last_frame_*40)) << "ms";
-
-	// Prevent new clients during processing.
-	SHARED_LOCK(mutex_,slk);
-
-	for (auto s : sources_) {
-		string uri = s.first;
-
-		// No point in doing work if no clients
-		if (s.second->clientCount == 0) {
-			continue;
-		}
-
-		_schedule(s.second);
-	}
-}
-
-void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
-	bool hasChan2 = (!src->depth.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
+void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const cv::Mat &depth, int chunk) {
+	bool hasChan2 = (!depth.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
 
 	bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
-	int chunk_width = src->rgb.cols / kChunkDim;
-	int chunk_height = src->rgb.rows / kChunkDim;
+	int chunk_width = rgb.cols / chunk_dim_;
+	int chunk_height = rgb.rows / chunk_dim_;
 
 	// Build chunk heads
-	int cx = (chunk % kChunkDim) * chunk_width;
-	int cy = (chunk / kChunkDim) * chunk_height;
+	int cx = (chunk % chunk_dim_) * chunk_width;
+	int cy = (chunk / chunk_dim_) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
 	vector<unsigned char> rgb_buf;
-	cv::Mat chunkRGB = src->rgb(roi);
+	cv::Mat chunkRGB = rgb(roi);
 	cv::Mat chunkDepth;
 	//cv::Mat chunkDepthPrev = src->prev_depth(roi);
 
@@ -461,7 +333,7 @@ void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
 	vector<unsigned char> d_buf;
 
 	if (hasChan2) {
-		chunkDepth = src->depth(roi);
+		chunkDepth = depth(roi);
 		if (chunkDepth.type() == CV_32F) chunkDepth.convertTo(d2, CV_16UC1, 1000); // 16*10);
 		else d2 = chunkDepth;
 		//if (delta) d3 = (d2 * 2) - chunkDepthPrev;
@@ -485,8 +357,8 @@ void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
 		// TODO:(Nick) could reuse downscales
 		} else {
 			cv::Mat downrgb, downdepth;
-			cv::resize(chunkRGB, downrgb, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
-			if (hasChan2) cv::resize(d2, downdepth, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
+			cv::resize(chunkRGB, downrgb, cv::Size(bitrate_settings[b].width / chunk_dim_, bitrate_settings[b].height / chunk_dim_));
+			if (hasChan2) cv::resize(d2, downdepth, cv::Size(bitrate_settings[b].width / chunk_dim_, bitrate_settings[b].height / chunk_dim_));
 
 			_encodeChannel1(downrgb, rgb_buf, b);
 			if (hasChan2) _encodeChannel2(downdepth, d_buf, src->src->getChannel(), b);
@@ -500,11 +372,12 @@ void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
 		while (c != src->clients[b].end()) {
 			try {
 				// TODO:(Nick) Send pose
-				if (!net_->send((*c).peerid, (*c).uri, frame_no_*mspf_, chunk, delta, rgb_buf, d_buf)) {
+				if (!net_->send((*c).peerid, (*c).uri, frame_no_, chunk, delta, rgb_buf, d_buf)) {
 					// Send failed so mark as client stream completed
 					(*c).txcount = (*c).txmax;
 				} else {
 					++(*c).txcount;
+					//LOG(INFO) << "SENT CHUNK : " << frame_no_ << "-" << chunk;
 				}
 			} catch(...) {
 				(*c).txcount = (*c).txmax;

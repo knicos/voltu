@@ -87,7 +87,7 @@ void modeLeftRight(ftl::Configurable *root) {
 	std::atomic<bool> new_frames = false;
 	vector<Mat> rgb(n_cameras), rgb_new(n_cameras);
 	
-	group.sync([&mutex, &new_frames, &rgb_new](const ftl::rgbd::FrameSet &frames) {
+	group.sync([&mutex, &new_frames, &rgb_new](ftl::rgbd::FrameSet &frames) {
 		mutex.lock();
 		bool good = true;
 		for (size_t i = 0; i < frames.channel1.size(); i ++) {
@@ -170,14 +170,32 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 
 	std::atomic<bool> grab = false;
 	std::atomic<bool> video = false;
-	
-	std::vector<cv::Mat> rgb(sources.size());
-	std::vector<cv::Mat> depth(sources.size());
-	std::mutex m;
 
-	group.sync([&grab](const ftl::rgbd::FrameSet &fs) {
-		LOG(INFO) << "Complete set: " << fs.timestamp;
+	vector<cv::Mat> rgb(sources.size());
+	vector<cv::Mat> depth(sources.size());
+	MUTEX mtx;
+
+	group.sync([&grab,&rgb,&depth,&mtx](ftl::rgbd::FrameSet &fs) {
+		UNIQUE_LOCK(mtx, lk);
+		//LOG(INFO) << "Complete set: " << fs.timestamp;
 		if (!ftl::running) { return false; }
+		
+
+		for (size_t i=0; i<fs.sources.size(); ++i) {
+			if (fs.channel1[i].empty() || fs.channel2[i].empty()) return true;	
+		}
+
+		cv::Mat show;
+
+		stack(fs.channel1, show);
+
+		cv::resize(show, show, cv::Size(1280,720));
+		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
+		cv::imshow("Cameras", show);
+
+		auto key = cv::waitKey(1);
+		if (key == 27) ftl::running = false;
+		if (key == 'g') grab = true;
 
 #ifdef HAVE_LIBARCHIVE
 		if (grab) {
@@ -197,23 +215,27 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 		return true;
 	});
 
-	cv::Mat show;
+	/*cv::Mat show;
 
 	while (ftl::running) {
 		for (auto s : sources) s->grab(30);
 		for (size_t i = 0; i < sources.size(); i++) {
-			do { sources[i]->getFrames(rgb[i], depth[i]); }
+			//do { sources[i]->getFrames(rgb[i], depth[i]); }
 			while(rgb[i].empty());
 		}
 
-		stack(rgb, show);
+		{
+			UNIQUE_LOCK(mtx, lk);
+			stack(rgb, show);
+		}
+		cv::resize(show, show, cv::Size(1280,720));
 		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
 		cv::imshow("Cameras", show);
 
 		auto key = cv::waitKey(20);
 		if (key == 27) break;
 		if (key == 'g') grab = true;
-	}
+	}*/
 }
 
 void modeVideo(ftl::Configurable *root) {

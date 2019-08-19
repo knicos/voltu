@@ -199,13 +199,7 @@ LocalSource::LocalSource(nlohmann::json &config, const string &vid)
 	return true;
 }*/
 
-bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, Calibrate *c, cv::cuda::Stream &stream) {
-	Mat l, r;
-
-	// Use page locked memory
-	l = left_hm_.createMatHeader();
-	r = right_hm_.createMatHeader();
-
+bool LocalSource::grab() {
 	if (!camera_a_) return false;
 
 	if (!camera_a_->grab()) {
@@ -227,6 +221,18 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, Calibrat
 	//}
 
 	timestamp_ = timestamp;
+
+	return true;
+}
+
+bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, Calibrate *c, cv::cuda::Stream &stream) {
+	Mat l, r;
+
+	// Use page locked memory
+	l = left_hm_.createMatHeader();
+	r = right_hm_.createMatHeader();
+
+	if (!camera_a_) return false;
 
 	if (camera_b_ || !stereo_) {
 		if (!camera_a_->retrieve(l)) {
