@@ -17,6 +17,8 @@ class SnapshotSource : public detail::Source {
 	SnapshotSource(ftl::rgbd::Source *, ftl::rgbd::Snapshot &snapshot, const std::string &id);
 	~SnapshotSource() {};
 
+	bool capture(int64_t ts) { timestamp_ = ts; return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b);
 	bool isReady() { return true; }
 
@@ -29,6 +31,7 @@ class SnapshotSource : public detail::Source {
 
 	cv::Mat snap_rgb_;
 	cv::Mat snap_depth_;
+	int mspf_;
 };
 
 }

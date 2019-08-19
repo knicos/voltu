@@ -129,7 +129,7 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	rotmat_.setIdentity();
 	//up_ = Eigen::Vector3f(0,1.0f,0);
 	lerpSpeed_ = 0.999f;
-	depth_ = false;
+	sdepth_ = false;
 	ftime_ = (float)glfwGetTime();
 	pause_ = false;
 
@@ -142,6 +142,14 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	posewin_ = new PoseWindow(screen, src_->getURI());
 	posewin_->setTheme(screen->windowtheme);
 	posewin_->setVisible(false);
+
+	src->setCallback([this](int64_t ts, cv::Mat &rgb, cv::Mat &depth) {
+		UNIQUE_LOCK(mutex_, lk);
+		rgb_.create(rgb.size(), rgb.type());
+		depth_.create(depth.size(), depth.type());
+		cv::swap(rgb_,rgb);
+		cv::swap(depth_, depth);
+	});
 }
 
 ftl::gui::Camera::~Camera() {
@@ -281,13 +289,21 @@ static void drawEdges(	const cv::Mat &in, cv::Mat &out,
 	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC3);
 }
 
+bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
+	UNIQUE_LOCK(mutex_, lk);
+	src_->grab(1,9);
+	if (rgb_.empty()) return false;
+	cv::resize(rgb_, thumb, cv::Size(320,180));
+	return true;
+}
+
 const GLTexture &ftl::gui::Camera::captureFrame() {
 	float now = (float)glfwGetTime();
 	delta_ = now - ftime_;
 	ftime_ = now;
 
 	if (src_ && src_->isReady()) {
-		cv::Mat rgb, depth;
+		UNIQUE_LOCK(mutex_, lk);
 
 		// Lerp the Eye
 		eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
@@ -300,37 +316,37 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 
 		if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
 		src_->grab();
-		src_->getFrames(rgb, depth);
+		//src_->getFrames(rgb, depth);
 
 		// When switching from right to depth, client may still receive
 		// right images from previous batch (depth.channels() == 1 check)
 		if (channel_ == ftl::rgbd::kChanDeviation &&
-			depth.rows > 0 && depth.channels() == 1)
+			depth_.rows > 0 && depth_.channels() == 1)
 		{
 			if (!stats_) {
-				stats_ = new StatisticsImage(depth.size());
+				stats_ = new StatisticsImage(depth_.size());
 			}
 			
-			stats_->update(depth);
+			stats_->update(depth_);
 		}
 
 		cv::Mat tmp;
 
 		switch(channel_) {
 			case ftl::rgbd::kChanEnergy:
-				if (depth.rows == 0) { break; }
-				visualizeEnergy(depth, tmp, 10.0);
+				if (depth_.rows == 0) { break; }
+				visualizeEnergy(depth_, tmp, 10.0);
 				texture_.update(tmp);
 				break;
 			case ftl::rgbd::kChanDepth:
-				if (depth.rows == 0) { break; }
-				visualizeDepthMap(depth, tmp, 7.0);
-				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(rgb, tmp);
+				if (depth_.rows == 0) { break; }
+				visualizeDepthMap(depth_, tmp, 7.0);
+				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(rgb_, tmp);
 				texture_.update(tmp);
 				break;
 			
 			case ftl::rgbd::kChanDeviation:
-				if (depth.rows == 0) { break; }
+				if (depth_.rows == 0) { break; }
 				//imageSize = Vector2f(depth.cols, depth.rows);
 				stats_->getStdDev(tmp);
 				tmp.convertTo(tmp, CV_8U, 1000.0);
@@ -342,14 +358,14 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		case ftl::rgbd::kChanConfidence:
 		case ftl::rgbd::kChanNormals:
 			case ftl::rgbd::kChanRight:
-				if (depth.rows == 0 || depth.type() != CV_8UC3) { break; }
-				texture_.update(depth);
+				if (depth_.rows == 0 || depth_.type() != CV_8UC3) { break; }
+				texture_.update(depth_);
 				break;
 
 			default:
-				if (rgb.rows == 0) { break; }
+				if (rgb_.rows == 0) { break; }
 				//imageSize = Vector2f(rgb.cols,rgb.rows);
-				texture_.update(rgb);
+				texture_.update(rgb_);
 		}
 	}
 

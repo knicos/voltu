@@ -40,6 +40,8 @@ class Camera {
 
 	const GLTexture &captureFrame();
 
+	bool thumbnail(cv::Mat &thumb);
+
 	nlohmann::json getMetaData();
 
 	StatisticsImage *stats_ = nullptr;
@@ -58,10 +60,13 @@ class Camera {
 	float ftime_;
 	float delta_;
 	float lerpSpeed_;
-	bool depth_;
+	bool sdepth_;
 	bool pause_;
 	ftl::rgbd::channel_t channel_;
 	std::vector<ftl::rgbd::channel_t> channels_;
+	cv::Mat rgb_;
+	cv::Mat depth_;
+	MUTEX mutex_;
 };
 
 }

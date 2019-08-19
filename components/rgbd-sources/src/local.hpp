@@ -24,6 +24,7 @@ class LocalSource : public Configurable {
 	
 	//bool left(cv::Mat &m);
 	//bool right(cv::Mat &m);
+	bool grab();
 	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, Calibrate *c, cv::cuda::Stream &stream);
 
 	unsigned int width() const { return width_; }

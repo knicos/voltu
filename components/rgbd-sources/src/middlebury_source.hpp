@@ -19,6 +19,8 @@ class MiddleburySource : public detail::Source {
 	MiddleburySource(ftl::rgbd::Source *, const std::string &dir);
 	~MiddleburySource() {};
 
+	bool capture(int64_t ts) { timestamp_ = ts; return true; }
+	bool retrieve() { return true; }
 	bool compute(int n, int b);
 	bool isReady() { return ready_; }
 

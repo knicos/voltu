@@ -195,6 +195,84 @@ int SceneRep::upload() {
 	return active;
 }
 
+int SceneRep::upload(ftl::rgbd::FrameSet &fs) {
+	int active = 0;
+
+	for (size_t i=0; i<cameras_.size(); ++i) {
+		auto &cam = cameras_[i];
+
+		if (!cam.source->isReady()) {
+			cam.params.m_imageWidth = 0;
+			// TODO(Nick) : Free gpu allocs if was ready before
+			LOG(INFO) << "Source not ready: " << cam.source->getURI();
+			continue;
+		} else {
+			auto in = cam.source;
+
+			cam.params.fx = in->parameters().fx;
+			cam.params.fy = in->parameters().fy;
+			cam.params.mx = -in->parameters().cx;
+			cam.params.my = -in->parameters().cy;
+
+			// Only now do we have camera parameters for allocations...
+			if (cam.params.m_imageWidth == 0) {
+				cam.params.m_imageWidth = in->parameters().width;
+				cam.params.m_imageHeight = in->parameters().height;
+				cam.params.m_sensorDepthWorldMax = in->parameters().maxDepth;
+				cam.params.m_sensorDepthWorldMin = in->parameters().minDepth;
+				cam.gpu.alloc(cam.params, true);
+				LOG(INFO) << "GPU Allocated camera " << i;
+			}
+		}
+
+		cam.params.flags = m_frameCount;
+	}
+
+	_updateCameraConstant();
+	//cudaSafeCall(cudaDeviceSynchronize());
+
+	for (size_t i=0; i<cameras_.size(); ++i) {
+		auto &cam = cameras_[i];
+
+		// Get the RGB-Depth frame from input
+		Source *input = cam.source;
+		//Mat rgb, depth;
+
+		// TODO(Nick) Direct GPU upload to save copy
+		//input->getFrames(rgb,depth);
+		
+		active += 1;
+
+		//if (depth.cols == 0) continue;
+
+		// Must be in RGBA for GPU
+		Mat rgbt, rgba;
+		cv::cvtColor(fs.channel1[i],rgbt, cv::COLOR_BGR2Lab);
+		cv::cvtColor(rgbt,rgba, cv::COLOR_BGR2BGRA);
+
+		// Send to GPU and merge view into scene
+		//cam.gpu.updateParams(cam.params);
+		cam.gpu.updateData(fs.channel2[i], rgba, cam.stream);
+
+		//setLastRigidTransform(input->getPose().cast<float>());
+
+		//make the rigid transform available on the GPU
+		//m_hashData.updateParams(m_hashParams, cv::cuda::StreamAccessor::getStream(cam.stream));
+
+		//if (i > 0) cudaSafeCall(cudaStreamSynchronize(cv::cuda::StreamAccessor::getStream(cameras_[i-1].stream)));
+
+		//allocate all hash blocks which are corresponding to depth map entries
+		if (value("voxels", false)) _alloc(i, cv::cuda::StreamAccessor::getStream(cam.stream));
+
+		// Calculate normals
+	}
+
+	// Must have finished all allocations and rendering before next integration
+	cudaSafeCall(cudaDeviceSynchronize());
+
+	return active;
+}
+
 void SceneRep::integrate() {
 	/*for (size_t i=0; i<cameras_.size(); ++i) {
 		auto &cam = cameras_[i];
