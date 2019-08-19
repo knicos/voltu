@@ -38,10 +38,10 @@ Group::~Group() {
 	}
 }
 
-void Group::setFPS(int fps) {
-	mspf_ = 1000 / fps;
-	ftl::timer::setInterval(mspf_);
-}
+//void Group::setFPS(int fps) {
+//	mspf_ = 1000 / fps;
+//	ftl::timer::setInterval(mspf_);
+//}
 
 void Group::addSource(ftl::rgbd::Source *src) {
 	UNIQUE_LOCK(mutex_, lk);

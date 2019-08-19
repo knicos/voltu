@@ -78,7 +78,7 @@ class Group {
 
 	/** To be deprecated in favour of ftl::timer::setInterval.
 	 */
-	void setFPS(int fps);
+	//void setFPS(int fps);
 
 	/**
 	 * Set the minimum number of frames latency. The latency is from the most

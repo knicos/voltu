@@ -517,7 +517,7 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	});
 
 	// Some global settings
-	ftl::timer::setInterval(rootcfg->value("fps",20));
+	ftl::timer::setInterval(1000 / rootcfg->value("fps",20));
 
 	int pool_size = rootcfg->value("thread_pool_factor", 2.0f)*std::thread::hardware_concurrency();
 	if (pool_size != ftl::pool.size()) ftl::pool.resize(pool_size);
