@@ -402,7 +402,9 @@ void runCameraCalibration(	ftl::Configurable* root,
 	std::atomic<bool> new_frames = false;
 	vector<Mat> rgb(n_cameras), rgb_new(n_cameras);
 	
-	group.sync([&mutex, &new_frames, &rgb_new](const ftl::rgbd::FrameSet &frames) {
+	ftl::timer::start(false);
+
+	group.sync([&mutex, &new_frames, &rgb_new](ftl::rgbd::FrameSet &frames) {
 		mutex.lock();
 		bool good = true;
 		for (size_t i = 0; i < frames.channel1.size(); i ++) {
@@ -411,9 +413,8 @@ void runCameraCalibration(	ftl::Configurable* root,
 			if (frames.channel1[i].channels() != 3) good = false; // ASSERT
 			if (frames.channel2[i].channels() != 3) good = false;
 			if (!good) break;
-			
-			frames.channel1[i].copyTo(rgb_new[2 * i]);
-			frames.channel2[i].copyTo(rgb_new[2 * i + 1]);
+			cv::swap(frames.channel1[i], rgb_new[2 * i]);
+			cv::swap(frames.channel2[i], rgb_new[2 * i + 1]);
 		}
 
 		new_frames = good;
