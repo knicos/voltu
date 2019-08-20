@@ -2,18 +2,18 @@
 
 This monorepo contains all elements of the FTL software system.
 
-* Components : Modular components compiled as static libs
-  * net : A p2p messaging library for C++ and JavaScript
-  * rgbd-sources : Abstraction and implementations of different RGB-Depth data sources
+* [Components](components/) : Modular components compiled as static libs
+  * [net](components/net/) : A p2p messaging library for C++ and JavaScript
+  * [rgbd-sources](components/rgbd-sources/) : Abstraction and implementations of different RGB-Depth data sources
   * renderers : A collection of visualisation tools, including for RGB-D and point clouds
   * scene-sources : Abstraction and implementations of 3D scene data sources
-  * common : Utility and configuration tools
-* Applications : Executable apps for the different node machines
-  * vision : Stereo vision node in p2p network, generates an RGB-Depth net stream
-  * reconstruct : Performs scene reconstruction from synchronised RGB-Depth sources
+  * [common](components/common/) : Utility and configuration tools
+* [Applications](applications/) : Executable apps for the different node machines
+  * [ftl-vision](applications/vision/) : Stereo vision node in p2p network, generates an RGB-Depth net stream
+  * [ftl-reconstruct](applications/reconstruct/) : Performs scene reconstruction from synchronised RGB-Depth sources
   * calibration-multi : All camera intrinsic and extrinsic calibration in one process
   * groupview : A quick camera viewing app that supports frame and video capture
-  * gui : Desktop GUI
+  * [ftl-gui](applications/gui/) : Desktop GUI
 * front-end : Client side FTL code, both web and native
 * web-service : A web backend service provider acting as a form of proxy
 * www : FTL Website
