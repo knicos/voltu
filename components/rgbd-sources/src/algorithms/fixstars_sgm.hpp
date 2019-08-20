@@ -12,7 +12,7 @@
 #include <opencv2/cudastereo.hpp>
 #include <ftl/configuration.hpp>
 
-#include "ftl/cb_segmentation.hpp"
+#include "ftl/offilter.hpp"
 
 namespace ftl {
 	namespace algorithms {
@@ -44,6 +44,7 @@ namespace ftl {
 			int P2_;
 			cv::Size size_;
 			bool use_filter_;
+			bool use_off_;
 			cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
 			sgm::StereoSGM *ssgm_;
 			cv::cuda::GpuMat lbw_;
@@ -52,6 +53,7 @@ namespace ftl {
 
 			cv::cuda::GpuMat l_downscaled_;
 			cv::cuda::GpuMat dispt_full_res_;
+			ftl::rgbd::OFDisparityFilter off_;
 		};
 	};
 };
