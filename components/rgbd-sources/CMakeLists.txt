@@ -14,6 +14,7 @@ set(RGBDSRC
 #	src/algorithms/opencv_sgbm.cpp
 #	src/algorithms/opencv_bm.cpp
 	src/cb_segmentation.cpp
+	src/abr.cpp
 	src/offilter.cpp
 )
 

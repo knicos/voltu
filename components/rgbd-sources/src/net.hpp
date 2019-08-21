@@ -4,7 +4,9 @@
 
 #include <ftl/net/universe.hpp>
 #include <ftl/rgbd/source.hpp>
+#include <ftl/rgbd/detail/abr.hpp>
 #include <ftl/threads.hpp>
+#include <ftl/rgbd/detail/netframe.hpp>
 #include <string>
 
 namespace ftl {
@@ -12,40 +14,12 @@ namespace rgbd {
 namespace detail {
 
 static const int kDefaultFrameCount = 30;
+static const int kLatencyThreshold = 5;		// Milliseconds delay considered as late
+static const int kSlowFramesThreshold = 5;	// Number of late frames before change
+static const int kAdaptationRate = 5000;	// Milliseconds between bitrate changes
 
 /**
- * Buffers for a single frame as it is being received over the network.
- */
-struct NetFrame {
-	cv::Mat channel1;
-	cv::Mat channel2;
-	volatile int64_t timestamp;
-	std::atomic<int> chunk_count;
-	MUTEX mtx;
-};
-
-/**
- * Manage multiple frames with their timestamp as an identifier. Once a frame
- * is completed it should be freed from the queue for reuse.
- */
-class NetFrameQueue {
-	public:
-	explicit NetFrameQueue(int size=2);
-	~NetFrameQueue();
-
-	NetFrame &getFrame(int64_t ts, const cv::Size &, int c1type, int c2type);
-	void freeFrame(NetFrame &);
-
-	private:
-	std::vector<NetFrame> frames_;
-	MUTEX mtx_;
-};
-
-/**
- * RGBD source from either a stereo video file with left + right images, or
- * direct from two camera devices. A variety of algorithms are included for
- * calculating disparity, before converting to depth.  Calibration of the images
- * is also performed.
+ * A two channel network streamed source for RGB-Depth.
  */
 class NetSource : public detail::Source {
 	public:
@@ -81,19 +55,21 @@ class NetSource : public detail::Source {
 	int default_quality_;
 	int chunk_count_;
 	ftl::rgbd::channel_t prev_chan_;
-	//volatile int64_t current_frame_;
-	//std::atomic<int> chunk_count_;
 
-	// Double buffering
-	//cv::Mat d_depth_;
-	//cv::Mat d_rgb_;
+	ftl::rgbd::detail::ABRController abr_;
+
+	// Adaptive bitrate functionality
+	ftl::rgbd::detail::bitrate_t adaptive_;	 // Current adapted bitrate
+	//unsigned int slow_log_;		// Bit count of delayed frames
+	//int64_t last_br_change_;	// Time of last adaptive change
 
 	NetFrameQueue queue_;
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p, ftl::rgbd::channel_t chan);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
-	void _recvChunk(int64_t frame, int chunk, bool delta, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
+	void _recvChunk(int64_t frame, short ttimeoff, int chunk, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
 	void _updateURI();
+	//void _checkAdaptive(int64_t);
 };
 
 }

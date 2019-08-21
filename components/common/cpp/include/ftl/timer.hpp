@@ -64,6 +64,8 @@ void setInterval(int ms);
 
 int getInterval();
 
+int64_t get_time();
+
 /**
  * Add the specified number of milliseconds to the clock when generating
  * timestamps. This is used to synchronise clocks on multiple machines as it

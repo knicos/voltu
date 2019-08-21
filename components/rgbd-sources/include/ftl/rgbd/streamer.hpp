@@ -26,6 +26,7 @@ struct StreamClient {
 	ftl::UUID peerid;
 	std::atomic<int> txcount;	// Frames sent since last request
 	int txmax;					// Frames to send in request
+	int bitrate;
 };
 
 static const unsigned int kGrabbed = 0x1;
@@ -33,6 +34,7 @@ static const unsigned int kRGB = 0x2;
 static const unsigned int kDepth = 0x4;
 
 static const unsigned int kFrameDropLimit = 5;
+static const unsigned int kMaxBitrateLevels = 10;
 
 struct StreamSource {
 	ftl::rgbd::Source *src;
@@ -42,7 +44,7 @@ struct StreamSource {
 	cv::Mat depth;									// Tx buffer
 	cv::Mat prev_rgb;
 	cv::Mat prev_depth;
-	std::list<detail::StreamClient> clients[10];	// One list per bitrate
+	std::list<detail::StreamClient> clients;
 	SHARED_MUTEX mutex;
 	unsigned long long frame;
 };
