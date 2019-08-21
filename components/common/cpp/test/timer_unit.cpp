@@ -19,7 +19,7 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 		auto rc = ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
 			didrun = true;
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		REQUIRE( (rc.id >= 0) );
@@ -37,7 +37,7 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 			didrun = true;
 			std::this_thread::sleep_for(std::chrono::milliseconds(5));
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		REQUIRE( (rc.id >= 0) );
@@ -54,7 +54,7 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 		auto rc = ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
 			didrun[0] = true;
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		REQUIRE( (rc.id >= 0) );
@@ -62,19 +62,74 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 		ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
 			didrun[1] = true;
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
 			didrun[2] = true;
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		ftl::timer::start(true);
 		REQUIRE( didrun[0] == true );
 		REQUIRE( didrun[1] == true );
 		REQUIRE( didrun[2] == true );
+	}
+}
+
+TEST_CASE( "Timer::add() Idle10 job" ) {
+	SECTION( "Quick idle job" ) {
+		bool didrun = false;
+
+		ftl::timer::reset();
+
+		auto rc = ftl::timer::add(ftl::timer::kTimerIdle10, [&didrun](int64_t ts) {
+			didrun = true;
+			ftl::timer::stop(false);
+			return true;
+		});
+
+		REQUIRE( (rc.id >= 0) );
+
+		ftl::timer::start(true);
+		REQUIRE( didrun == true );
+	}
+
+	SECTION( "Slow idle job" ) {
+		bool didrun = false;
+
+		ftl::timer::reset();
+
+		auto rc = ftl::timer::add(ftl::timer::kTimerIdle10, [&didrun](int64_t ts) {
+			didrun = true;
+			std::this_thread::sleep_for(std::chrono::milliseconds(60));
+			ftl::timer::stop(false);
+			return true;
+		});
+
+		REQUIRE( (rc.id >= 0) );
+
+		ftl::timer::start(true);
+		REQUIRE( didrun == true );
+	}
+
+	SECTION( "Return remove idle job" ) {
+		bool didrun = false;
+
+		ftl::timer::reset();
+
+		auto rc = ftl::timer::add(ftl::timer::kTimerIdle10, [&didrun](int64_t ts) {
+			didrun = true;
+			ftl::timer::stop(false);
+			return false;
+		});
+
+		REQUIRE( (rc.id >= 0) );
+
+		ftl::timer::start(true);
+		REQUIRE( didrun == true );
+		REQUIRE( ftl::timer::count(ftl::timer::kTimerIdle10) == 0 );
 	}
 }
 
@@ -87,7 +142,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 		auto rc = ftl::timer::add(ftl::timer::kTimerMain, [&didrun](int64_t ts) {
 			didrun = true;
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		REQUIRE( (rc.id >= 0) );
@@ -105,7 +160,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 			didrun = true;
 			std::this_thread::sleep_for(std::chrono::milliseconds(60));
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		REQUIRE( (rc.id >= 0) );
@@ -124,18 +179,36 @@ TEST_CASE( "Timer::add() Main job" ) {
 			job1++;
 			std::this_thread::sleep_for(std::chrono::milliseconds(60));
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		REQUIRE( (rc.id >= 0) );
 
 		ftl::timer::add(ftl::timer::kTimerMain, [&job2](int64_t ts) {
 			job2++;
-			return;
+			return true;
 		});
 
 		ftl::timer::start(true);
 		REQUIRE( (job1 == 1 && job2 == 2) );
+	}
+
+	SECTION( "Return remove main job" ) {
+		bool didrun = false;
+
+		ftl::timer::reset();
+
+		auto rc = ftl::timer::add(ftl::timer::kTimerMain, [&didrun](int64_t ts) {
+			didrun = true;
+			ftl::timer::stop(false);
+			return false;
+		});
+
+		REQUIRE( (rc.id >= 0) );
+
+		ftl::timer::start(true);
+		REQUIRE( didrun == true );
+		REQUIRE( ftl::timer::count(ftl::timer::kTimerMain) == 0 );
 	}
 }
 
@@ -147,7 +220,7 @@ TEST_CASE( "TimerHandle::cancel()" ) {
 		ftl::timer::add(ftl::timer::kTimerMain, [&didjob](int64_t ts) {
 			didjob = true;
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		// Fake Handle
@@ -164,7 +237,7 @@ TEST_CASE( "TimerHandle::cancel()" ) {
 		auto id = ftl::timer::add(ftl::timer::kTimerMain, [&didjob](int64_t ts) {
 			didjob = true;
 			ftl::timer::stop(false);
-			return;
+			return true;
 		});
 
 		id.cancel();
