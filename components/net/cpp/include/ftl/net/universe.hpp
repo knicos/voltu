@@ -209,7 +209,7 @@ class Universe : public ftl::Configurable {
 	private:
 	bool active_;
 	ftl::UUID this_peer;
-	SHARED_MUTEX net_mutex_;
+	mutable SHARED_MUTEX net_mutex_;
 	RECURSIVE_MUTEX handler_mutex_;
 	fd_set sfderror_;
 	fd_set sfdread_;

@@ -220,6 +220,7 @@ void Universe::_cleanupPeers() {
 }
 
 Peer *Universe::getPeer(const UUID &id) const {
+	SHARED_LOCK(net_mutex_,lk);
 	auto ix = peer_ids_.find(id);
 	if (ix == peer_ids_.end()) return nullptr;
 	else return ix->second;

@@ -3,6 +3,7 @@
 #include <thread>
 #include <chrono>
 #include <tuple>
+#include <bitset>
 
 #include "colour.hpp"
 
@@ -43,6 +44,7 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 		if (f.timestamp == -1) {
 			f.timestamp = ts;
 			f.chunk_count = 0;
+			f.tx_size = 0;
 			f.channel1.create(s, c1type);
 			f.channel2.create(s, c2type);
 			return f;
@@ -108,7 +110,7 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 }
 
 NetSource::NetSource(ftl::rgbd::Source *host)
-		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1), queue_(3) {
+		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1), adaptive_(0), queue_(3) {
 
 	gamma_ = host->value("gamma", 1.0f);
 	temperature_ = host->value("temperature", 6500);
@@ -150,6 +152,9 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 	chunks_dim_ = host->value("chunking",4);
 	chunk_count_ = chunks_dim_*chunks_dim_;
 
+	abr_.setMaximumBitrate(host->value("max_bitrate", -1));
+	abr_.setMinimumBitrate(host->value("min_bitrate", -1));
+
 	_updateURI();
 
 	h_ = host_->getNet()->onConnect([this](ftl::net::Peer *p) {
@@ -167,14 +172,47 @@ NetSource::~NetSource() {
 	host_->getNet()->removeCallback(h_);
 }
 
-void NetSource::_recvChunk(int64_t ts, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+/*void NetSource::_checkAdaptive(int64_t ts) {
+	const int64_t current = ftl::timer::get_time();
+	int64_t net_latency = current - ts;
+
+	// Only change bit rate gradually
+	if (current - last_br_change_ > ftl::rgbd::detail::kAdaptationRate) {
+		// Was this frame late?
+		if (adaptive_ < ftl::rgbd::detail::kMaxBitrateLevels && net_latency > ftl::rgbd::detail::kLatencyThreshold) {
+			slow_log_ = (slow_log_ << 1) + 1;
+			std::bitset<32> bs(slow_log_);
+
+			// Enough late frames to reduce bit rate
+			if (bs.count() > ftl::rgbd::detail::kSlowFramesThreshold) {
+				adaptive_++;
+				slow_log_ = 0;
+				last_br_change_ = current;
+				LOG(WARNING) << "Adjust bitrate to " << adaptive_;
+			}
+		// No late frames in recent history...
+		} else if (adaptive_ > 0 && slow_log_ == 0) {
+			// TODO: (Nick) Don't change bitrate up so quickly as down?
+			// Try a higher bitrate again?
+			adaptive_--;
+		}
+	}
+}*/
+
+void NetSource::_recvChunk(int64_t ts, short ttimeoff, int chunk, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
 	// TODO: Don't allocate these each chunk
 	cv::Mat tmp_rgb, tmp_depth;
 
-	//if (!active_ || ts == 0) return;
+	// Capture time here for better net latency estimate
+	int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
+
+	if (!active_) return;
 
 	const ftl::rgbd::channel_t chan = host_->getChannel();
 	NetFrame &frame = queue_.getFrame(ts, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
+
+	// Update frame statistics
+	frame.tx_size += jpg.size() + d.size();
 
 	// Build chunk head
 	int cx = (chunk % chunks_dim_) * chunk_width_;
@@ -182,13 +220,6 @@ void NetSource::_recvChunk(int64_t ts, int chunk, bool delta, const vector<unsig
 	cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
 	cv::Mat chunkRGB = frame.channel1(roi);
 	cv::Mat chunkDepth = frame.channel2(roi);
-
-	auto start = std::chrono::high_resolution_clock::now();
-	int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count();
-	//LOG(INFO) << ts << " - Chunk Latency (" << chunk_count_ << ") = " << (now - ts) << " - " << ftl::pool.q_size();
-	//if (now - ts > 160) {
-	//	LOG(INFO) << "OLD PACKET: " << host_->getURI() << " (" << chunk << ") - " << ts << " (" << (now - ts) << ")";
-	//}
 
 	// Decode in temporary buffers to prevent long locks
 	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
@@ -213,10 +244,10 @@ void NetSource::_recvChunk(int64_t ts, int chunk, bool delta, const vector<unsig
 	// Downsized so needs a scale up
 	} else {
 		cv::resize(tmp_rgb, chunkRGB, chunkRGB.size());
-		tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f);
+		//tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f);
 		if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
 			tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-			cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
+			cv::resize(tmp_depth, chunkDepth, chunkDepth.size(), 0, 0, cv::INTER_NEAREST);
 		} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
 			cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
 		} else {
@@ -233,11 +264,23 @@ void NetSource::_recvChunk(int64_t ts, int chunk, bool delta, const vector<unsig
 
 	if (frame.chunk_count > chunk_count_) LOG(FATAL) << "TOO MANY CHUNKS";
 
+	// Capture tx time of first received chunk
+	if (frame.chunk_count == 1) {
+		UNIQUE_LOCK(frame.mtx, flk);
+		if (frame.chunk_count == 1) {
+			frame.tx_latency = int64_t(ttimeoff);
+		}
+	}
+
+	// Last chunk now received
 	if (frame.chunk_count == chunk_count_) {
 		UNIQUE_LOCK(frame.mtx, flk);
-		timestamp_ = frame.timestamp;
 
 		if (frame.timestamp >= 0 && frame.chunk_count == chunk_count_) {
+			timestamp_ = frame.timestamp;
+			frame.tx_latency = now-(ts+frame.tx_latency);
+
+			adaptive_ = abr_.selectBitrate(frame);
 			//LOG(INFO) << "Frame finished: " << frame.timestamp;
 			auto cb = host_->callback();
 			if (cb) {
@@ -304,8 +347,8 @@ void NetSource::_updateURI() {
 
 		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::rgbd::kChanLeft);
 
-		host_->getNet()->bind(*uri, [this](int64_t frame, int chunk, bool delta, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-			_recvChunk(frame, chunk, delta, jpg, d);
+		host_->getNet()->bind(*uri, [this](int64_t frame, short ttimeoff, int chunk, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
+			_recvChunk(frame, ttimeoff, chunk, jpg, d);
 		});
 
 		N_ = 0;
@@ -333,7 +376,7 @@ bool NetSource::compute(int n, int b) {
 	maxN_ = std::max(maxN_,(n == -1) ? ftl::rgbd::detail::kDefaultFrameCount : n);
 
 	// Choose best requested quality
-	minB_ = std::min(minB_,(b == -1) ? 0 : b);
+	minB_ = std::min(minB_,(b == -1) ? int(adaptive_) : b);
 
 	// Send k frames before end to prevent unwanted pause
 	// Unless only a single frame is requested
@@ -359,6 +402,8 @@ bool NetSource::compute(int n, int b) {
 				host_->getNet()->id(), *host_->get<string>("uri"))) {
 			active_ = false;
 		}
+
+		abr_.notifyChanged();
 
 		maxN_ = 1;  // Reset to single frame
 		minB_ = 9;  // Reset to worst quality

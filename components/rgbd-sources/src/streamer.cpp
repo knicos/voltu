@@ -7,13 +7,14 @@
 #include <tuple>
 #include <algorithm>
 
-#include "bitrate_settings.hpp"
+#include <ftl/rgbd/detail/abr.hpp>
 
 using ftl::rgbd::Streamer;
 using ftl::rgbd::Source;
 using ftl::rgbd::detail::StreamSource;
 using ftl::rgbd::detail::StreamClient;
 using ftl::rgbd::detail::bitrate_settings;
+using ftl::rgbd::detail::ABRController;
 using ftl::net::Universe;
 using std::string;
 using std::list;
@@ -207,21 +208,23 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 
 	SHARED_LOCK(mutex_, slk);
 	UNIQUE_LOCK(s->mutex, lk2);
-	for (auto &client : s->clients[rate]) {
+	for (auto &client : s->clients) {
 		// If already listening, just update chunk counters
 		if (client.peerid == peer) {
 			client.txmax = N * chunk_count_;
 			client.txcount = 0;
+			client.bitrate = rate;
 			return;
 		}
 	}
 
 	// Not an existing client so add one
-	StreamClient &c = s->clients[rate].emplace_back();
+	StreamClient &c = s->clients.emplace_back();
 	c.peerid = peer;
 	c.uri = dest;
 	c.txcount = 0;
 	c.txmax = N * chunk_count_;
+	c.bitrate = rate;
 	++s->clientCount;
 }
 
@@ -259,17 +262,20 @@ void Streamer::_cleanUp() {
 		StreamSource *src = s.second;
 		UNIQUE_LOCK(src->mutex,lk);
 
-		for (unsigned int b=0; b<10; ++b) {
-			auto i = src->clients[b].begin();
-			while (i != src->clients[b].end()) {
-				// Client request completed so remove from list
-				if ((*i).txcount >= (*i).txmax) {
-					LOG(INFO) << "Remove client: " << (*i).uri;
-					i = src->clients[b].erase(i);
-					--src->clientCount;
-				} else {
-					i++;
+		auto i = src->clients.begin();
+		while (i != src->clients.end()) {
+			// Client request completed so remove from list
+			if ((*i).txcount >= (*i).txmax) {
+				// If peer was clock sync master, the remove that...
+				if ((*i).peerid == time_peer_) {
+					timer_job_.cancel();
+					time_peer_ = ftl::UUID(0);
 				}
+				LOG(INFO) << "Remove client: " << (*i).uri;
+				i = src->clients.erase(i);
+				--src->clientCount;
+			} else {
+				i++;
 			}
 		}
 	}
@@ -327,14 +333,18 @@ void Streamer::_transmit(ftl::rgbd::FrameSet &fs) {
 	}
 
 	// Go to sleep if no clients instead of spinning the cpu
-	if (totalclients == 0 || sources_.size() == 0) sleep_for(milliseconds(200));
-	else _cleanUp();
+	if (totalclients == 0 || sources_.size() == 0) {
+		// Make sure to unlock so clients can connect!
+		lk.unlock();
+		slk.unlock();
+		sleep_for(milliseconds(50));
+	} else _cleanUp();
 }
 
 void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const cv::Mat &depth, int chunk) {
 	bool hasChan2 = (!depth.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
 
-	bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
+	//bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
 	int chunk_width = rgb.cols / chunk_dim_;
 	int chunk_height = rgb.rows / chunk_dim_;
 
@@ -342,13 +352,13 @@ void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const c
 	int cx = (chunk % chunk_dim_) * chunk_width;
 	int cy = (chunk / chunk_dim_) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
-	vector<unsigned char> rgb_buf;
+	//vector<unsigned char> rgb_buf;
 	cv::Mat chunkRGB = rgb(roi);
 	cv::Mat chunkDepth;
 	//cv::Mat chunkDepthPrev = src->prev_depth(roi);
 
 	cv::Mat d2, d3;
-	vector<unsigned char> d_buf;
+	//vector<unsigned char> d_buf;
 
 	if (hasChan2) {
 		chunkDepth = depth(roi);
@@ -359,8 +369,52 @@ void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const c
 		//d2.copyTo(chunkDepthPrev);
 	}
 
+	// TODO: Verify these don't allocate memory if not needed.
+	// TODO: Reuse these buffers to reduce allocations.
+	vector<unsigned char> brgb[ftl::rgbd::detail::kMaxBitrateLevels];
+	vector<unsigned char> bdepth[ftl::rgbd::detail::kMaxBitrateLevels];
+
+	// Lock to prevent clients being added / removed
+	SHARED_LOCK(src->mutex,lk);
+	auto c = src->clients.begin();
+	while (c != src->clients.end()) {
+		const int b = (*c).bitrate;
+
+		if (brgb[b].empty()) {
+			// Max bitrate means no changes
+			if (b == 0) {
+				_encodeChannel1(chunkRGB, brgb[b], b);
+				if (hasChan2) _encodeChannel2(d2, bdepth[b], src->src->getChannel(), b);
+
+			// Otherwise must downscale and change compression params
+			} else {
+				cv::Mat downrgb, downdepth;
+				cv::resize(chunkRGB, downrgb, cv::Size(ABRController::getColourWidth(b) / chunk_dim_, ABRController::getColourHeight(b) / chunk_dim_));
+				if (hasChan2) cv::resize(d2, downdepth, cv::Size(ABRController::getDepthWidth(b) / chunk_dim_, ABRController::getDepthHeight(b) / chunk_dim_), 0, 0, cv::INTER_NEAREST);
+
+				_encodeChannel1(downrgb, brgb[b], b);
+				if (hasChan2) _encodeChannel2(downdepth, bdepth[b], src->src->getChannel(), b);
+			}
+		}
+
+		try {
+			// TODO:(Nick) Send pose
+			short pre_transmit_latency = short(ftl::timer::get_time() - frame_no_);
+			if (!net_->send((*c).peerid, (*c).uri, frame_no_, pre_transmit_latency, chunk, brgb[b], bdepth[b])) {
+				// Send failed so mark as client stream completed
+				(*c).txcount = (*c).txmax;
+			} else {
+				++(*c).txcount;
+				//LOG(INFO) << "SENT CHUNK : " << frame_no_ << "-" << chunk;
+			}
+		} catch(...) {
+			(*c).txcount = (*c).txmax;
+		}
+		++c;
+	}
+
 	// For each allowed bitrate setting (0 = max quality)
-	for (unsigned int b=0; b<10; ++b) {
+	/*for (unsigned int b=0; b<10; ++b) {
 		{
 			//SHARED_LOCK(src->mutex,lk);
 			if (src->clients[b].size() == 0) continue;
@@ -390,7 +444,8 @@ void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const c
 		while (c != src->clients[b].end()) {
 			try {
 				// TODO:(Nick) Send pose
-				if (!net_->send((*c).peerid, (*c).uri, frame_no_, chunk, delta, rgb_buf, d_buf)) {
+				short pre_transmit_latency = short(ftl::timer::get_time() - frame_no_);
+				if (!net_->send((*c).peerid, (*c).uri, frame_no_, pre_transmit_latency, chunk, rgb_buf, d_buf)) {
 					// Send failed so mark as client stream completed
 					(*c).txcount = (*c).txmax;
 				} else {
@@ -402,11 +457,11 @@ void Streamer::_encodeAndTransmit(StreamSource *src, const cv::Mat &rgb, const c
 			}
 			++c;
 		}
-	}
+	}*/
 }
 
 void Streamer::_encodeChannel1(const cv::Mat &in, vector<unsigned char> &out, unsigned int b) {
-	vector<int> jpgparams = {cv::IMWRITE_JPEG_QUALITY, bitrate_settings[b].jpg_quality};
+	vector<int> jpgparams = {cv::IMWRITE_JPEG_QUALITY, ABRController::getColourQuality(b)};
 	cv::imencode(".jpg", in, out, jpgparams);
 }
 
@@ -414,11 +469,14 @@ bool Streamer::_encodeChannel2(const cv::Mat &in, vector<unsigned char> &out, ft
 	if (c == ftl::rgbd::kChanNone) return false;  // NOTE: Should not happen
 
 	if (isFloatChannel(c) && in.type() == CV_16U && in.channels() == 1) {
-		vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, bitrate_settings[b].png_compression};
-		cv::imencode(".png", in, out, params);
+		vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, ABRController::getDepthQuality(b)};
+		if (!cv::imencode(".png", in, out, params)) {
+			LOG(ERROR) << "PNG Encoding error";
+			return false;
+		}
 		return true;
 	} else if (!isFloatChannel(c) && in.type() == CV_8UC3) {
-		vector<int> params = {cv::IMWRITE_JPEG_QUALITY, bitrate_settings[b].jpg_quality};
+		vector<int> params = {cv::IMWRITE_JPEG_QUALITY, ABRController::getColourQuality(b)};
 		cv::imencode(".jpg", in, out, params);
 		return true;
 	} else {
