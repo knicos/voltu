@@ -37,6 +37,7 @@ FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 		filter_ = cv::cuda::createDisparityBilateralFilter(max_disp_ << 4, radius, iter);
 	}
 	
+#ifdef HAVE_OPTFLOW
 	bool use_off_ = value("use_off", false);
 
 	if (use_off_)
@@ -45,6 +46,7 @@ FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 		double off_threshold = value("off_threshold", 0.9);
 		off_ = ftl::rgbd::OFDisparityFilter(size_, off_size, off_threshold);
 	}
+#endif
 
 	init(size_);
 }
@@ -105,11 +107,13 @@ void FixstarsSGM::compute(const cv::cuda::GpuMat &l, const cv::cuda::GpuMat &r,
 
 	dispt_full_res_.convertTo(disp, CV_32F, 1.0f / 16.0f, stream);
 
+#ifdef HAVE_OPTFLOW
 	if (use_off_) {
 		Mat disp_host(disp);
 		off_.filter(disp_host, Mat(lbw_));
 		disp.upload(disp_host);
 	}
+#endif
 }
 
 void FixstarsSGM::setMask(Mat &mask) {

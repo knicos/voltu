@@ -1,3 +1,5 @@
+#ifdef HAVE_OPTFLOW
+
 #include <loguru.hpp>
 
 #include "ftl/offilter.hpp"
@@ -107,3 +109,5 @@ void OFDisparityFilter::filter(Mat &disp, const Mat &gray)
 		}
 	}
 }
+
+#endif  // HAVE_OPTFLOW

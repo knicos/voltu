@@ -53,7 +53,10 @@ namespace ftl {
 
 			cv::cuda::GpuMat l_downscaled_;
 			cv::cuda::GpuMat dispt_full_res_;
+
+			#ifdef HAVE_OPTFLOW
 			ftl::rgbd::OFDisparityFilter off_;
+			#endif
 		};
 	};
 };

@@ -1,4 +1,8 @@
 #pragma once
+
+#include <ftl/config.h>
+
+#ifdef HAVE_OPTFLOW
 #include <opencv2/core.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudaoptflow.hpp>
@@ -29,3 +33,5 @@ private:
 
 }
 }
+
+#endif  // HAVE_OPTFLOW
