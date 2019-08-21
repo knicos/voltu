@@ -130,6 +130,8 @@ class Streamer : public ftl::Configurable {
 	//int64_t last_dropped_;
 	//int drop_count_;
 
+	ftl::timer::TimerHandle timer_job_;
+
 	void _transmit(ftl::rgbd::FrameSet &);
 	void _cleanUp();
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);

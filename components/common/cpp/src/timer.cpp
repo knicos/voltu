@@ -28,7 +28,7 @@ static int last_id = 0;
 
 struct TimerJob {
 	int id;
-	function<void(int64_t)> job;
+	function<bool(int64_t)> job;
 	volatile bool active;
 	bool paused;
 	int multiplier;
@@ -38,7 +38,7 @@ struct TimerJob {
 
 static list<TimerJob> jobs[kTimerMAXLEVEL];
 
-static inline int64_t get_time() {
+int64_t ftl::timer::get_time() {
 	return time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count()+clock_adjust;
 }
 
@@ -58,6 +58,25 @@ static void waitTimePoint() {
 		sleep_for(milliseconds(10));
 		now = get_time();
 		msdelay = mspf - (now % mspf);
+	}
+
+	// Still lots of time so do some idle jobs
+	if (msdelay >= 10 && sincelast != mspf) {
+		UNIQUE_LOCK(mtx, lk);
+		auto idle_job = jobs[kTimerIdle10].begin();
+		while (idle_job != jobs[kTimerIdle10].end() && msdelay >= 10 && sincelast != mspf) {
+			(*idle_job).active = true;
+			bool doremove = !(*idle_job).job(now);
+
+			if (doremove) {
+				idle_job = jobs[kTimerIdle10].erase(idle_job);
+				LOG(INFO) << "Timer job removed";
+			} else {
+				(*idle_job++).active = false;
+			}
+			now = get_time();
+			msdelay = mspf - (now % mspf);
+		}
 	}
 
 	// Spin loop until exact grab time
@@ -82,10 +101,10 @@ int ftl::timer::getInterval() {
 }
 
 void ftl::timer::setClockAdjustment(int64_t ms) {
-	clock_adjust = ms;
+	clock_adjust += ms;
 }
 
-const TimerHandle ftl::timer::add(timerlevel_t l, const std::function<void(int64_t ts)> &f) {
+const TimerHandle ftl::timer::add(timerlevel_t l, const std::function<bool(int64_t ts)> &f) {
 	if (l < 0 || l >= kTimerMAXLEVEL) return {-1};
 
 	UNIQUE_LOCK(mtx, lk);
@@ -137,9 +156,10 @@ static void trigger_jobs() {
 		j.active = true;
 		active_jobs++;
 		ftl::pool.push([&j,ts](int id) {
-			j.job(ts);
+			bool doremove = !j.job(ts);
 			j.active = false;
 			active_jobs--;
+			if (doremove) removeJob(j.id);
 		});
 	}
 }
@@ -180,6 +200,11 @@ void ftl::timer::stop(bool wait) {
 			sleep_for(milliseconds(10));
 		}
 	}
+}
+
+size_t ftl::timer::count(ftl::timer::timerlevel_t l) {
+	if (l < 0 || l >= kTimerMAXLEVEL) return 0;
+	return jobs[l].size();
 }
 
 void ftl::timer::reset() {

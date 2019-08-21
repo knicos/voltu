@@ -55,6 +55,8 @@ struct TimerHandle {
 	TimerHandle &operator=(const TimerHandle &h) { const_cast<int&>(id) = h.id; return *this; }
 };
 
+int64_t get_time();
+
 /**
  * Milliseconds between calls.
  */
@@ -78,7 +80,7 @@ void setClockAdjustment(int64_t ms);
  * If all high precision callbacks together take more than 1ms to complete, a
  * warning is produced.
  */
-const TimerHandle add(timerlevel_t, const std::function<void(int64_t ts)> &);
+const TimerHandle add(timerlevel_t, const std::function<bool(int64_t ts)> &);
 
 /**
  * Initiate the timer and optionally block the current process.
@@ -89,6 +91,8 @@ void start(bool block=false);
  * Stop the timer after any current callbacks complete. Blocks until stopped.
  */
 void stop(bool wait=true);
+
+size_t count(timerlevel_t);
 
 /**
  * Stop and clear all callbacks. Used for testing purposes.

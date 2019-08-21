@@ -140,26 +140,29 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 	cap_id_ = ftl::timer::add(ftl::timer::kTimerHighPrecision, [this](int64_t ts) {
 		skip_ = jobs_ != 0;  // Last frame not finished so skip all steps
 
-		if (skip_) return;
+		if (skip_) return true;
 
 		last_ts_ = ts;
 		for (auto s : sources_) {
 			s->capture(ts);
 		}
+
+		return true;
 	});
 
 	// 2. After capture, swap any internal source double buffers
 	swap_id_ = ftl::timer::add(ftl::timer::kTimerSwap, [this](int64_t ts) {
-		if (skip_) return;
+		if (skip_) return true;
 		for (auto s : sources_) {
 			s->swap();
 		}
+		return true;
 	});
 
 	// 3. Issue IO retrieve ad compute jobs before finding a valid
 	// frame at required latency to pass to callback.
 	main_id_ = ftl::timer::add(ftl::timer::kTimerMain, [this,cb](int64_t ts) {
-		if (skip_) return;
+		if (skip_) return true;
 		jobs_++;
 
 		for (auto s : sources_) {
@@ -196,6 +199,7 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 		}
 
 		jobs_--;
+		return true;
 	});
 
 	ftl::timer::start(true);

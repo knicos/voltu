@@ -125,6 +125,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 }
 
 Streamer::~Streamer() {
+	timer_job_.cancel();
 	net_->unbind("find_stream");
 	net_->unbind("list_streams");
 	net_->unbind("source_calibration");
@@ -172,16 +173,33 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 		if (time_peer_ == ftl::UUID(0)) {
 			time_peer_ = peer;
 
-			// Also do a time sync (but should be repeated periodically)
-			auto start = std::chrono::high_resolution_clock::now();
-			int64_t mastertime = net_->call<int64_t>(peer, "__ping__");
-			auto elapsed = std::chrono::high_resolution_clock::now() - start;
-			int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-			clock_adjust_ = mastertime - (std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() + (latency/2));
-			LOG(INFO) << "Clock adjustment: " << clock_adjust_;
-			LOG(INFO) << "Latency: " << (latency / 2);
-			LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
-			ftl::timer::setClockAdjustment(clock_adjust_);
+			// Do a time sync whenever the CPU is idle for 10ms or more.
+			// FIXME: Could be starved
+			timer_job_ = ftl::timer::add(ftl::timer::kTimerIdle10, [peer,this](int id) {
+				auto start = std::chrono::high_resolution_clock::now();
+				int64_t mastertime;
+
+				try {
+					mastertime = net_->call<int64_t>(peer, "__ping__");
+				} catch (...) {
+					// Reset time peer and remove timer
+					time_peer_ = ftl::UUID(0);
+					return false;
+				}
+
+				auto elapsed = std::chrono::high_resolution_clock::now() - start;
+				int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+				auto clock_adjust = mastertime - (ftl::timer::get_time() + (latency/2));
+
+				if (clock_adjust > 0) {
+					LOG(INFO) << "Clock adjustment: " << clock_adjust;
+					//LOG(INFO) << "Latency: " << (latency / 2);
+					//LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
+					ftl::timer::setClockAdjustment(clock_adjust);
+				}
+
+				return true;
+			});
 		}
 	}
 
