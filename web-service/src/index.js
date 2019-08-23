@@ -11,31 +11,55 @@ let peer_uris = {};
 
 let uri_data = {};
 
+/**
+ * A client stream request object. Each source maintains a list of clients who
+ * are wanting frames from that source. Clients can only request N frames at a
+ * time, after that if no new request is received then the client is removed.
+ * 
+ * @param {Peer} peer Peer websocket wrapper
+ * @param {number} N Number of frames requested
+ * @param {number} rate Bitrate index requested
+ * @param {string} dest URI destination
+ */
 function RGBDClient(peer, N, rate, dest) {
 	this.peer = peer;
-	this.txmax = N*16;
+	this.txmax = N*16;  // 16 is for 16 blocks per frame... this will change in the near future
 	this.rate = rate;
 	this.dest = dest;
 	this.txcount = 0;
 }
 
+/**
+ * Actually send a frame over network to the client.
+ */
 RGBDClient.prototype.push = function(uri, frame, ttime, chunk,  rgb, depth) {
 	this.peer.send(uri, frame, ttime, chunk, rgb, depth);
 	this.txcount++;
 }
 
+/**
+ * A video stream. Each peer provides a list of these streams. Each stream can
+ * receive frames from the source and forward those frames to any clients.
+ * Therefore each of these stream objects maintains a list of clients and
+ * loops over them whenever a new frame is received.
+ * 
+ * @param {string} uri Address of the stream
+ * @param {Peer} peer Origin of the stream
+ */
 function RGBDStream(uri, peer) {
 	this.uri = uri;
 	this.peer = peer;
 	this.title = "";
-	this.rgb = null;
-	this.depth = null;
+	this.rgb = null;		// TODO: No longer works as an image
+	this.depth = null;		// TODO: No longer works as an image
 	this.pose = null;
 	this.clients = [];
 	this.rxcount = 10;
 	this.rxmax = 10;
 
+	// Add RPC handler to receive frames from the source
 	peer.bind(uri, (frame, ttime, chunk, rgb, depth) => {
+		// Forward frames to all clients
 		this.pushFrames(frame, ttime, chunk, rgb, depth);
 		this.rxcount++;
 		if (this.rxcount >= this.rxmax && this.clients.length > 0) {
@@ -176,6 +200,7 @@ app.ws('/', (ws, req) => {
 		checkStreams(p);
 	});
 
+	// Used to sync clocks
 	p.bind("__ping__", () => {
 		return Date.now();
 	});
@@ -198,6 +223,7 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
+	// Requests camera calibration information
 	p.proxy("source_details", (cb, uri, chan) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
@@ -205,6 +231,7 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
+	// Get the current position of a camera
 	p.proxy("get_pose", (cb, uri) => {
 		//console.log("SET POSE");
 		let peer = uri_data[uri].peer;
@@ -213,6 +240,7 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
+	// Change the position of a camera
 	p.bind("set_pose", (uri, vec) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
@@ -221,6 +249,7 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
+	// Request from frames from a source
 	p.bind("get_stream", (uri, N, rate, pid, dest) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
@@ -229,6 +258,7 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
+	// Register a new stream
 	p.bind("add_stream", (uri) => {
 		console.log("Adding stream: ", uri);
 		//uri_to_peer[streams[i]] = peer;

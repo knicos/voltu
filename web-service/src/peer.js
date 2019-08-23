@@ -6,6 +6,7 @@ const kConnecting = 1;
 const kConnected = 2;
 const kDisconnected = 3;
 
+// Generate a unique id for this webservice
 let my_uuid = new Uint8Array(16);
 my_uuid[0] = 44;
 my_uuid = Buffer.from(my_uuid);
@@ -13,6 +14,10 @@ my_uuid = Buffer.from(my_uuid);
 const kMagic = 0x0009340053640912;
 const kVersion = 0;
 
+/**
+ * Wrap a web socket with a MsgPack RCP protocol that works with our C++ version.
+ * @param {websocket} ws Websocket object
+ */
 function Peer(ws) {
 	this.sock = ws;
 	this.status = kConnecting;
@@ -79,6 +84,9 @@ function Peer(ws) {
 
 Peer.uuid = my_uuid;
 
+/**
+ * @private
+ */
 Peer.prototype._dispatchNotification = function(name, args) {
 	if (this.bindings.hasOwnProperty(name)) {
 		//console.log("Notification for: ", name);
@@ -88,6 +96,9 @@ Peer.prototype._dispatchNotification = function(name, args) {
 	}
 }
 
+/**
+ * @private
+ */
 Peer.prototype._dispatchCall = function(name, id, args) {
 	if (this.bindings.hasOwnProperty(name)) {
 		//console.log("Call for:", name, id);
@@ -114,6 +125,9 @@ Peer.prototype._dispatchCall = function(name, id, args) {
 	}
 }
 
+/**
+ * @private
+ */
 Peer.prototype._dispatchResponse = function(id, res) {
 	if (this.callbacks.hasOwnProperty(id)) {
 		this.callbacks[id].call(this, res);
@@ -123,6 +137,14 @@ Peer.prototype._dispatchResponse = function(id, res) {
 	}
 }
 
+/**
+ * Register an RPC handler that will be called from a remote machine. Remotely
+ * passed arguments are provided to the given function as normal arguments, and
+ * if the function returns a value, it will be returned over the network also.
+ * 
+ * @param {string} name The name of the function
+ * @param {function} f A function or lambda to be callable remotely
+ */
 Peer.prototype.bind = function(name, f) {
 	if (this.bindings.hasOwnProperty(name)) {
 		//console.error("Duplicate bind to same procedure");
@@ -132,6 +154,10 @@ Peer.prototype.bind = function(name, f) {
 	}
 }
 
+/**
+ * Allow an RPC call to pass through to another machine with minimal local
+ * processing.
+ */
 Peer.prototype.proxy = function(name, f) {
 	if (this.proxies.hasOwnProperty(name)) {
 		//console.error("Duplicate proxy to same procedure");
@@ -141,6 +167,13 @@ Peer.prototype.proxy = function(name, f) {
 	}
 }
 
+/**
+ * Call a procedure on a remote machine.
+ * 
+ * @param {string} name Name of the procedure
+ * @param {function} cb Callback to receive return value as argument
+ * @param {...} args Any number of arguments to also pass to remote procedure
+ */
 Peer.prototype.rpc = function(name, cb, ...args) {
 	let id = this.cbid++;
 	this.callbacks[id] = cb;
@@ -160,6 +193,12 @@ Peer.prototype.sendB = function(name, args) {
 	}
 }
 
+/**
+ * Call a remote procedure but with no return value expected.
+ * 
+ * @param {string} name Name of the procedure
+ * @param {...} args Any number of arguments to also pass to remote procedure
+ */
 Peer.prototype.send = function(name, ...args) {
 	try {
 		this.sock.send(encode([0, name, args]));
@@ -173,6 +212,9 @@ Peer.prototype.close = function() {
 	this.status = kDisconnected;
 }
 
+/**
+ * @private
+ */
 Peer.prototype._notify = function(evt, ...args) {
 	if (this.events.hasOwnProperty(evt)) {
 		for (let i=0; i<this.events[evt].length; i++) {
@@ -182,6 +224,13 @@ Peer.prototype._notify = function(evt, ...args) {
 	}
 }
 
+/**
+ * Register a callback for socket events. Events include: 'connect',
+ * 'disconnect' and 'error'.
+ * 
+ * @param {string} evt Event name
+ * @param {function} f Callback on event
+ */
 Peer.prototype.on = function(evt, f) {
 	if (!this.events.hasOwnProperty(evt)) {
 		this.events[evt] = [];
