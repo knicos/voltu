@@ -81,7 +81,7 @@ Peer.uuid = my_uuid;
 
 Peer.prototype._dispatchNotification = function(name, args) {
 	if (this.bindings.hasOwnProperty(name)) {
-		console.log("Notification for: ", name);
+		//console.log("Notification for: ", name);
 		this.bindings[name].apply(this, args);
 	} else {
 		console.log("Missing handler for: ", name);
@@ -90,7 +90,7 @@ Peer.prototype._dispatchNotification = function(name, args) {
 
 Peer.prototype._dispatchCall = function(name, id, args) {
 	if (this.bindings.hasOwnProperty(name)) {
-		console.log("Call for:", name, id);
+		//console.log("Call for:", name, id);
 
 		try {
 			let res = this.bindings[name].apply(this, args);
@@ -100,7 +100,7 @@ Peer.prototype._dispatchCall = function(name, id, args) {
 			this.close();
 		}
 	} else if (this.proxies.hasOwnProperty(name)) {
-		console.log("Proxy for:", name, id);
+		//console.log("Proxy for:", name, id);
 		args.unshift((res) => {
 			try {
 				this.sock.send(encode([1,id,name,res]));

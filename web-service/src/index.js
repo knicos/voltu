@@ -21,7 +21,6 @@ function RGBDClient(peer, N, rate, dest) {
 
 RGBDClient.prototype.push = function(uri, frame, ttime, chunk,  rgb, depth) {
 	this.peer.send(uri, frame, ttime, chunk, rgb, depth);
-	console.log("Push frame: ", uri, frame, ttime, chunk);
 	this.txcount++;
 }
 
@@ -61,7 +60,7 @@ RGBDStream.prototype.addClient = function(peer, N, rate, dest) {
 RGBDStream.prototype.subscribe = function() {
 	this.rxcount = 0;
 	this.rxmax = 10;
-	console.log("Subscribe to ", this.uri);
+	//console.log("Subscribe to ", this.uri);
 	this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
 }
 
@@ -215,7 +214,6 @@ app.ws('/', (ws, req) => {
 	});
 
 	p.bind("set_pose", (uri, vec) => {
-		//console.log("SET POSE");
 		let peer = uri_data[uri].peer;
 		if (peer) {
 			uri_data[uri].pose = vec;
