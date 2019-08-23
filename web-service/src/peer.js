@@ -90,11 +90,12 @@ Peer.prototype._dispatchNotification = function(name, args) {
 Peer.prototype._dispatchCall = function(name, id, args) {
 	if (this.bindings.hasOwnProperty(name)) {
 		console.log("Call for:", name, id);
-		let res = this.bindings[name].apply(this, args);
 
 		try {
+			let res = this.bindings[name].apply(this, args);
 			this.sock.send(encode([1,id,name,res]));
 		} catch(e) {
+			console.error("Could to dispatch or return call");
 			this.close();
 		}
 	} else if (this.proxies.hasOwnProperty(name)) {

@@ -139,7 +139,7 @@ app.ws('/', (ws, req) => {
 	let p = new Peer(ws);
 
 	p.on("connect", (peer) => {
-		console.log("Node connected...");
+		console.log("Node connected...", peer.string_id);
 		peer_uris[peer.string_id] = [];
 		peer_by_id[peer.string_id] = peer;
 
@@ -150,6 +150,7 @@ app.ws('/', (ws, req) => {
 			peer.name = obj.title;
 			peer.master = (obj.kind == "master");
 			console.log("Peer name = ", peer.name);
+			console.log("Details: ", details);
 
 			checkStreams(peer);
 		});
@@ -175,6 +176,10 @@ app.ws('/', (ws, req) => {
 		checkStreams(p);
 	});
 
+	p.bind("node_details", () => {
+		return ['{"title": "FTL Web-Service", "id": "0", "kind": "master"}'];
+	});
+
 	p.bind("list_streams", () => {
 		return Object.keys(uri_data);
 	});
@@ -189,10 +194,10 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
-	p.proxy("source_calibration", (cb, uri) => {
+	p.proxy("source_details", (cb, uri) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
-			peer.rpc("source_calibration", cb, uri);
+			peer.rpc("source_details", cb, uri);
 		}
 	});
 

@@ -489,9 +489,13 @@ bool Peer::_data() {
 
 	UNIQUE_LOCK(recv_mtx_,lk);
 
-	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
+	if (scheme_ == ftl::URI::SCHEME_WS) {
+		LOG(INFO) << "Reading WS Header";
 		wsheader_type ws;
+		ws.header_size = 0;
 		if (ws_parse(recv_buf_, ws) < 0) {
+			LOG(ERROR) << "Bad WS header " << ws.header_size;
+			is_waiting_ = true;
 			return false;
 		}
 		ws_read_header_ = true;
@@ -571,6 +575,7 @@ void Peer::cancelCall(int id) {
 }
 
 void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
+	LOG(INFO) << "Sending response: " << id;
 	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
 	UNIQUE_LOCK(send_mtx_,lk);
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);

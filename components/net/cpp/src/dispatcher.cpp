@@ -65,15 +65,15 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     // assert(type == 0);
     
     if (type == 1) {
-    	DLOG(INFO) << "RPC return for " << id;
+    	LOG(INFO) << "RPC return for " << id;
     	s._dispatchResponse(id, args);
     } else if (type == 0) {
-		DLOG(INFO) << "RPC " << name << "() <- " << s.getURI();
+		LOG(INFO) << "RPC " << name << "() <- " << s.getURI();
 
 		auto func = _locateHandler(name);
 
 		if (func) {
-			DLOG(INFO) << "Found binding for " << name;
+			LOG(INFO) << "Found binding for " << name;
 		    try {
 		        auto result = (*func)(args); //->get();
 		        s._sendResponse(id, result->get());
