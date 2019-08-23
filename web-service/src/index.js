@@ -13,7 +13,7 @@ let uri_data = {};
 
 function RGBDClient(peer, N, rate, dest) {
 	this.peer = peer;
-	this.txmax = N;
+	this.txmax = N*16;
 	this.rate = rate;
 	this.dest = dest;
 	this.txcount = 0;
@@ -21,6 +21,7 @@ function RGBDClient(peer, N, rate, dest) {
 
 RGBDClient.prototype.push = function(uri, frame, ttime, chunk,  rgb, depth) {
 	this.peer.send(uri, frame, ttime, chunk, rgb, depth);
+	console.log("Push frame: ", uri, frame, ttime, chunk);
 	this.txcount++;
 }
 
