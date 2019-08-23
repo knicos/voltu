@@ -81,6 +81,7 @@ Peer.uuid = my_uuid;
 
 Peer.prototype._dispatchNotification = function(name, args) {
 	if (this.bindings.hasOwnProperty(name)) {
+		console.log("Notification for: ", name);
 		this.bindings[name].apply(this, args);
 	} else {
 		console.log("Missing handler for: ", name);

@@ -489,12 +489,12 @@ bool Peer::_data() {
 
 	UNIQUE_LOCK(recv_mtx_,lk);
 
-	if (scheme_ == ftl::URI::SCHEME_WS) {
-		LOG(INFO) << "Reading WS Header";
+	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
+		//LOG(INFO) << "Reading WS Header";
 		wsheader_type ws;
 		ws.header_size = 0;
 		if (ws_parse(recv_buf_, ws) < 0) {
-			LOG(ERROR) << "Bad WS header " << ws.header_size;
+			//LOG(ERROR) << "Bad WS header " << ws.header_size;
 			is_waiting_ = true;
 			return false;
 		}
@@ -505,6 +505,7 @@ bool Peer::_data() {
 		is_waiting_ = true;
 		return false;
 	}
+	ws_read_header_ = false;
 	
 	lk.unlock();
 
