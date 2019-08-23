@@ -27,7 +27,7 @@ extern __constant__ HashParams c_hashParams;
  __device__ float colordiffFloat(const uchar4 &pa, const uchar4 &pb) {
 	const float x_2 = pb.x * pb.x + pb.y * pb.y + pb.z * pb.z;
 	const float v_2 = pa.x * pa.x + pa.y * pa.y + pa.z * pa.z;
-	const float xv_2 = pow(pb.x * pa.x + pb.y * pa.y + pb.z * pa.z, 2);
+	const float xv_2 = powf(float(pb.x * pa.x + pb.y * pa.y + pb.z * pa.z), 2.0f);
 	const float p_2 = xv_2 / v_2;
 	return sqrt(x_2 - p_2);
 }

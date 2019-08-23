@@ -193,10 +193,10 @@ if (BUILD_CALIBRATION)
 endif()
 
 if (HAVE_PCL)
-	add_subdirectory(applications/registration)
+	#add_subdirectory(applications/registration)
 endif()
 
-if (BUILD_RECONSTRUCT AND HAVE_PCL)
+if (BUILD_RECONSTRUCT)
 	add_subdirectory(applications/reconstruct)
 endif()
 
