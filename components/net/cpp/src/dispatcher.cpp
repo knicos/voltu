@@ -149,7 +149,7 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_t found,
                                    std::size_t expected) {
     if (found != expected) {
-    	LOG(FATAL) << "RPC argument missmatch - " << found << " != " << expected;
+    	LOG(FATAL) << "RPC argument missmatch for '" << func << "' - " << found << " != " << expected;
         throw -1;
     }
 }

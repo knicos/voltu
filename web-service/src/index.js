@@ -19,8 +19,8 @@ function RGBDClient(peer, N, rate, dest) {
 	this.txcount = 0;
 }
 
-RGBDClient.prototype.push = function(uri, rgb, depth) {
-	this.peer.send(uri, rgb, depth);
+RGBDClient.prototype.push = function(uri, frame, ttime, chunk,  rgb, depth) {
+	this.peer.send(uri, frame, ttime, chunk, rgb, depth);
 	this.txcount++;
 }
 
@@ -35,8 +35,8 @@ function RGBDStream(uri, peer) {
 	this.rxcount = 10;
 	this.rxmax = 10;
 
-	peer.bind(uri, (rgb, depth) => {
-		this.pushFrames(rgb, depth);
+	peer.bind(uri, (frame, ttime, chunk, rgb, depth) => {
+		this.pushFrames(frame, ttime, chunk, rgb, depth);
 		this.rxcount++;
 		if (this.rxcount >= this.rxmax && this.clients.length > 0) {
 			this.subscribe();
@@ -64,12 +64,12 @@ RGBDStream.prototype.subscribe = function() {
 	this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
 }
 
-RGBDStream.prototype.pushFrames = function(rgb, depth) {
+RGBDStream.prototype.pushFrames = function(frame, ttime, chunk, rgb, depth) {
 	this.rgb = rgb;
 	this.depth = depth;
 
 	for (let i=0; i < this.clients.length; i++) {
-		this.clients[i].push(this.uri, rgb, depth);
+		this.clients[i].push(this.uri, frame, ttime, chunk, rgb, depth);
 	}
 
 	let i=0;
@@ -176,6 +176,10 @@ app.ws('/', (ws, req) => {
 		checkStreams(p);
 	});
 
+	p.bind("__ping__", () => {
+		return Date.now();
+	});
+
 	p.bind("node_details", () => {
 		return ['{"title": "FTL Web-Service", "id": "0", "kind": "master"}'];
 	});
@@ -194,10 +198,18 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
-	p.proxy("source_details", (cb, uri) => {
+	p.proxy("source_details", (cb, uri, chan) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
-			peer.rpc("source_details", cb, uri);
+			peer.rpc("source_details", cb, uri, chan);
+		}
+	});
+
+	p.proxy("get_pose", (cb, uri) => {
+		//console.log("SET POSE");
+		let peer = uri_data[uri].peer;
+		if (peer) {
+			peer.rpc("get_pose", cb, uri);
 		}
 	});
 
