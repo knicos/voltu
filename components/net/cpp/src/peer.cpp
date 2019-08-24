@@ -514,11 +514,11 @@ bool Peer::_data() {
 		_data();
 	});
 
-	if (status_ != kConnected) {
+	if (status_ == kConnecting) {
 		// If not connected, must lock to make sure no other thread performs this step
 		UNIQUE_LOCK(recv_mtx_,lk);
 		// Verify still not connected after lock
-		if (status_ != kConnected) {
+		if (status_ == kConnecting) {
 			// First message must be a handshake
 			try {
 				tuple<uint32_t, std::string, msgpack::object> hs;
@@ -554,7 +554,7 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 	// TODO: Handle error reporting...
 	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
-		DLOG(1) << "Received return RPC value";
+		//DLOG(1) << "Received return RPC value";
 		
 		// Allow for unlock before callback
 		auto cb = std::move(callbacks_[id]);
@@ -576,7 +576,6 @@ void Peer::cancelCall(int id) {
 }
 
 void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
-	LOG(INFO) << "Sending response: " << id;
 	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
 	UNIQUE_LOCK(send_mtx_,lk);
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
