@@ -1,4 +1,5 @@
 #include <ftl/net/universe.hpp>
+#include <ftl/timer.hpp>
 #include <chrono>
 
 #ifdef WIN32
@@ -38,6 +39,8 @@ Universe::Universe() :
 		reconnect_attempts_(50),
 		thread_(Universe::__start, this) {
 	_installBindings();
+
+	LOG(WARNING) << "Deprecated Universe constructor";
 }
 
 Universe::Universe(nlohmann::json &config) :
@@ -53,7 +56,22 @@ Universe::Universe(nlohmann::json &config) :
 
 	_installBindings();
 
-	LOG(INFO) << "SEND BUFFER SIZE = " << send_size_;
+	// Add an idle timer job to garbage collect peer objects
+	// Note: Important to be a timer job to ensure no other timer jobs are
+	// using the object.
+	ftl::timer::add(ftl::timer::kTimerIdle10, [this](int64_t ts) {
+		if (garbage_.size() > 0) {
+			UNIQUE_LOCK(net_mutex_,lk);
+			if (ftl::pool.n_idle() == ftl::pool.size()) {
+				if (garbage_.size() > 0) LOG(INFO) << "Garbage collection";
+				while (garbage_.size() > 0) {
+					delete garbage_.front();
+					garbage_.pop_front();
+				}
+			}
+		}
+		return true;
+	});
 }
 
 Universe::~Universe() {
@@ -184,17 +202,6 @@ void Universe::_installBindings() {
 
 // Note: should be called inside a net lock
 void Universe::_cleanupPeers() {
-
-	if (ftl::pool.n_idle() == ftl::pool.size()) {
-		if (garbage_.size() > 0) LOG(INFO) << "Garbage collection";
-		while (garbage_.size() > 0) {
-			// FIXME: There is possibly still something with a peer pointer
-			// that is causing this throw an exception sometimes?
-			delete garbage_.front();
-			garbage_.pop_front();
-		}
-	}
-
 	auto i = peers_.begin();
 	while (i != peers_.end()) {
 		if (!(*i)->isValid()) {
