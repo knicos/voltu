@@ -22,10 +22,10 @@ struct FrameSet {
 	std::vector<Source*> sources;	// All source objects involved.
 	std::vector<cv::Mat> channel1;	// RGB
 	std::vector<cv::Mat> channel2;	// Depth (usually)
-	volatile int count;				// Number of valid frames
-	volatile unsigned int mask;		// Mask of all sources that contributed
+	std::atomic<int> count;				// Number of valid frames
+	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
 	bool stale;						// True if buffers have been invalidated
-	MUTEX mtx;
+	SHARED_MUTEX mtx;
 };
 
 // Allows a latency of 20 frames maximum
@@ -45,6 +45,11 @@ class Group {
 	public:
 	Group();
 	~Group();
+
+	/**
+	 * Give this group a name for logging purposes.
+	 */
+	void setName(const std::string &name);
 
 	/**
 	 * Add a new source to the group. Framesets generated prior to the source
@@ -104,6 +109,7 @@ class Group {
 	ftl::timer::TimerHandle cap_id_;
 	ftl::timer::TimerHandle swap_id_;
 	ftl::timer::TimerHandle main_id_;
+	std::string name_;
 
 	/* Insert a new frameset into the buffer, along with all intermediate
 	 * framesets between the last in buffer and the new one.

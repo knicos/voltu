@@ -11,6 +11,8 @@ include(CTest)
 enable_testing()
 
 option(WITH_PCL "Use PCL if available" OFF)
+option(WITH_NVPIPE "Use NvPipe for compression if available" ON)
+option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
 option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
@@ -85,6 +87,28 @@ if (NANOGUI_LIBRARY)
 	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
 	set_property(TARGET nanogui PROPERTY IMPORTED_LOCATION ${NANOGUI_LIBRARY})
     message(STATUS "Found NanoGUI: ${NANOGUI_LIBRARY}")
+endif()
+
+find_library( NVPIPE_LIBRARY NAMES NvPipe libNvPipe PATHS ${NVPIPE_DIR} PATH_SUFFIXES lib)
+if (NVPIPE_LIBRARY)
+	set(HAVE_NVPIPE TRUE)
+	add_library(nvpipe UNKNOWN IMPORTED)
+	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+	set_property(TARGET nvpipe PROPERTY IMPORTED_LOCATION ${NVPIPE_LIBRARY})
+	message(STATUS "Found NvPipe: ${NVPIPE_LIBRARY}")
+	
+	if(WIN32)
+		# Find include
+		find_path(NVPIPE_INCLUDE_DIRS
+		    NAMES NvPipe.h
+		    PATHS "C:/Program Files/NvPipe" "C:/Program Files (x86)/NvPipe" ${NVPIPE_DIR}
+		    PATH_SUFFIXES include
+		)
+		set_property(TARGET nvpipe PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NVPIPE_INCLUDE_DIRS})
+	endif()
+else()
+	set(NVPIPE_LIBRARY "")
+	add_library(nvpipe INTERFACE)
 endif()
 
 find_program( NODE_NPM NAMES npm )
@@ -172,6 +196,7 @@ SET(CMAKE_USE_RELATIVE_PATHS ON)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_subdirectory(components/common/cpp)
+add_subdirectory(components/codecs)
 add_subdirectory(components/net)
 add_subdirectory(components/rgbd-sources)
 add_subdirectory(components/control/cpp)
