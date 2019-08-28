@@ -38,7 +38,7 @@ FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	}
 	
 #ifdef HAVE_OPTFLOW
-	bool use_off_ = value("use_off", false);
+	use_off_ = value("use_off", false);
 
 	if (use_off_)
 	{
