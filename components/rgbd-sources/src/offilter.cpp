@@ -1,8 +1,8 @@
+#include "ftl/offilter.hpp"
+
 #ifdef HAVE_OPTFLOW
 
 #include <loguru.hpp>
-
-#include "ftl/offilter.hpp"
 
 using namespace ftl::rgbd;
 

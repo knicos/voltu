@@ -16,6 +16,7 @@
 #cmakedefine HAVE_URIPARSESINGLE
 #cmakedefine HAVE_CUDA
 #cmakedefine HAVE_OPENCV
+#cmakedefine HAVE_OPTFLOW
 #cmakedefine HAVE_PCL
 #cmakedefine HAVE_RENDER
 #cmakedefine HAVE_LIBSGM
