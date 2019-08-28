@@ -7,11 +7,13 @@
 
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
-#include <libsgm.h>
-#include "../disparity.hpp"
 #include <opencv2/cudastereo.hpp>
-#include <ftl/configuration.hpp>
 
+#include "../disparity.hpp"
+#include <ftl/configuration.hpp>
+#include <ftl/config.h>
+
+#include <libsgm.h>
 #include "ftl/offilter.hpp"
 
 namespace ftl {
