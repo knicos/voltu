@@ -30,6 +30,11 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
 
+if (WITH_OPTFLOW)
+	# TODO check that cudaoptflow.hpp exists (OpenCV built with correct contrib modules)
+	set(HAVE_OPTFLOW true)
+endif()
+
 find_package( LibArchive )
 if (LibArchive_FOUND)
 	set(HAVE_LIBARCHIVE true)
