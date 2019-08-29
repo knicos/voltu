@@ -393,6 +393,13 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 	vector<uchar> inliers;
 	Mat F, E;
 	F = cv::findFundamentalMat(points1, points2, fm_method_, fm_ransac_threshold_, fm_confidence_, inliers);
+
+	if (F.empty())
+	{
+		LOG(ERROR) << "Fundamental matrix estimation failed. Possibly degenerate configuration?";
+		return INFINITY;
+	}
+
 	E = K2.t() * F * K1;
 
 	// Only include inliers
