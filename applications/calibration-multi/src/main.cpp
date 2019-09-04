@@ -204,8 +204,9 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 	if (params.reference_camera < 0) {
 		reference_camera = calib.getOptimalReferenceCamera();
 		reference_camera -= (reference_camera & 1);
+		LOG(INFO) << "optimal camera (automatic): " << reference_camera;
 	}
-	LOG(INFO) << "optimal camera: " << reference_camera;
+	LOG(INFO) << "reference camera: " << reference_camera;
 
 	if (params.optimize_intrinsic) calib.setFixIntrinsic(0);
 
@@ -536,11 +537,13 @@ int main(int argc, char **argv) {
 	const int min_visible = root->value<int>("min_visible", 3);
 	// minimum for how many times pattern is seen per camera
 	const int n_views = root->value<int>("n_views", 500);
+	// reference camera, -1 for automatic
+	const int ref_camera = root->value<int>("reference_camera", -1);
 	// registration file path
 	const string registration_file = root->value<string>("registration_file", FTL_LOCAL_CONFIG_ROOT "/registration.json");
 	// location where extrinsic calibration files saved
 	const string output_directory = root->value<string>("output_directory", "./");
-
+	
 	CalibrationParams params;
 	params.save_extrinsic = save_extrinsic;
 	params.save_intrinsic = save_intrinsic;
@@ -560,6 +563,7 @@ int main(int argc, char **argv) {
 				<< "\n     calibration_data_file: " << calibration_data_file
 				<< "\n               min_visible: " << min_visible
 				<< "\n                   n_views: " << n_views
+				<< "\n          reference_camera: " << ref_camera << (ref_camera != -1 ? "" : " (automatic)")
 				<< "\n         registration_file: " << registration_file
 				<< "\n          output_directory: " << output_directory
 				<< "\n";
