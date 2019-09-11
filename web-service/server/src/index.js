@@ -87,6 +87,10 @@ app.get('/', (req, res) => {
 	res.end();
 });
 
+// app.get('/login/google', (req, res) => {
+// })
+
+
 app.get('/streams', (req, res) => {
 	res.json(Object.keys(uri_data));
 });

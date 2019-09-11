@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "watch": "nodemon src/index.js",
     "test": "mocha test"
   },
   "author": "Nicolas Pope",
@@ -16,5 +17,8 @@
     "express": "^4.16.4",
     "express-ws": "^4.0.0",
     "msgpack5": "^4.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^1.19.2"
   }
 }
