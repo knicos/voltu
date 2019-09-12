@@ -365,7 +365,8 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 		if (!src) continue;
 		if (!fs.sources[j]->isReady()) continue;
 		if (src->clientCount == 0) continue;
-		if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
+		//if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
+		if (!fs.frames[j].hasChannel(ftl::rgbd::kChanColour) || !fs.frames[j].hasChannel(fs.sources[j]->getChannel())) continue;
 
 		bool hasChan2 = fs.sources[j]->getChannel() != ftl::rgbd::kChanNone;
 
@@ -387,14 +388,14 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Receiver only waits for channel 1 by default
 				// TODO: Each encode could be done in own thread
 				if (hasChan2) {
-					enc2->encode(fs.channel2[j], src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].getChannel<cv::Mat>(fs.sources[j]->getChannel()), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, 1, hasChan2, true);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
-				enc1->encode(fs.channel1[j], src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].getChannel<cv::Mat>(ftl::rgbd::kChanColour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, 0, hasChan2, true);
 				});
 			}
@@ -415,14 +416,14 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Important to send channel 2 first if needed...
 				// Receiver only waits for channel 1 by default
 				if (hasChan2) {
-					enc2->encode(fs.channel2[j], src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].getChannel<cv::Mat>(fs.sources[j]->getChannel()), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, 1, hasChan2, false);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
-				enc1->encode(fs.channel1[j], src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].getChannel<cv::Mat>(ftl::rgbd::kChanColour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, 0, hasChan2, false);
 				});
 			}

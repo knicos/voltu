@@ -233,6 +233,8 @@ int SceneRep::upload(ftl::rgbd::FrameSet &fs) {
 
 	for (size_t i=0; i<cameras_.size(); ++i) {
 		auto &cam = cameras_[i];
+		auto &chan1 = fs.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
+		auto &chan2 = fs.frames[i].getChannel<cv::Mat>(fs.sources[i]->getChannel());
 
 		// Get the RGB-Depth frame from input
 		Source *input = cam.source;
@@ -247,12 +249,12 @@ int SceneRep::upload(ftl::rgbd::FrameSet &fs) {
 
 		// Must be in RGBA for GPU
 		Mat rgbt, rgba;
-		cv::cvtColor(fs.channel1[i],rgbt, cv::COLOR_BGR2Lab);
+		cv::cvtColor(chan1,rgbt, cv::COLOR_BGR2Lab);
 		cv::cvtColor(rgbt,rgba, cv::COLOR_BGR2BGRA);
 
 		// Send to GPU and merge view into scene
 		//cam.gpu.updateParams(cam.params);
-		cam.gpu.updateData(fs.channel2[i], rgba, cam.stream);
+		cam.gpu.updateData(chan2, rgba, cam.stream);
 
 		//setLastRigidTransform(input->getPose().cast<float>());
 

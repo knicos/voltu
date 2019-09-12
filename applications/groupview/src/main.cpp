@@ -90,15 +90,17 @@ void modeLeftRight(ftl::Configurable *root) {
 	group.sync([&mutex, &new_frames, &rgb_new](ftl::rgbd::FrameSet &frames) {
 		mutex.lock();
 		bool good = true;
-		for (size_t i = 0; i < frames.channel1.size(); i ++) {
-			if (frames.channel1[i].empty()) good = false;
-			if (frames.channel1[i].empty()) good = false;
-			if (frames.channel1[i].channels() != 3) good = false; // ASSERT
-			if (frames.channel2[i].channels() != 3) good = false;
+		for (size_t i = 0; i < frames.frames.size(); i ++) {
+			auto &chan1 = frames.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
+			auto &chan2 = frames.frames[i].getChannel<cv::Mat>(frames.sources[i]->getChannel());
+			if (chan1.empty()) good = false;
+			if (chan2.empty()) good = false;
+			if (chan1.channels() != 3) good = false; // ASSERT
+			if (chan2.channels() != 3) good = false;
 			if (!good) break;
 			
-			frames.channel1[i].copyTo(rgb_new[2 * i]);
-			frames.channel2[i].copyTo(rgb_new[2 * i + 1]);
+			chan1.copyTo(rgb_new[2 * i]);
+			chan2.copyTo(rgb_new[2 * i + 1]);
 		}
 
 		new_frames = good;
@@ -180,14 +182,19 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 		//LOG(INFO) << "Complete set: " << fs.timestamp;
 		if (!ftl::running) { return false; }
 		
+		std::vector<cv::Mat> frames;
 
 		for (size_t i=0; i<fs.sources.size(); ++i) {
-			if (fs.channel1[i].empty() || fs.channel2[i].empty()) return true;	
+			auto &chan1 = fs.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
+			auto &chan2 = fs.frames[i].getChannel<cv::Mat>(fs.sources[i]->getChannel());
+			if (chan1.empty() || chan2.empty()) return true;
+
+			frames.push_back(chan1);
 		}
 
 		cv::Mat show;
 
-		stack(fs.channel1, show);
+		stack(frames, show);
 
 		cv::resize(show, show, cv::Size(1280,720));
 		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
@@ -206,9 +213,12 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
 
 			for (size_t i=0; i<fs.sources.size(); ++i) {
+				auto &chan1 = fs.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
+				auto &chan2 = fs.frames[i].getChannel<cv::Mat>(fs.sources[i]->getChannel());
+
 				writer.addSource(fs.sources[i]->getURI(), fs.sources[i]->parameters(), fs.sources[i]->getPose());
-				LOG(INFO) << "SAVE: " << fs.channel1[i].cols << ", " << fs.channel2[i].type();
-				writer.addRGBD(i, fs.channel1[i], fs.channel2[i]);
+				//LOG(INFO) << "SAVE: " << fs.channel1[i].cols << ", " << fs.channel2[i].type();
+				writer.addRGBD(i, chan1, chan2);
 			}
 		}
 #endif  // HAVE_LIBARCHIVE

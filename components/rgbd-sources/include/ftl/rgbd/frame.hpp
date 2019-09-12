@@ -12,6 +12,7 @@ namespace rgbd {
 typedef unsigned int channel_t;
 
 static const channel_t kChanNone = 0;
+static const channel_t kChanColour = 0x0001;
 static const channel_t kChanLeft = 0x0001;		// CV_8UC3
 static const channel_t kChanDepth = 0x0002;		// CV_32FC1
 static const channel_t kChanRight = 0x0004;		// CV_8UC3
@@ -58,7 +59,7 @@ public:
 	 */
 	bool hasChannel(const ftl::rgbd::channel_t& channel)
 	{
-		return available_[_channelIdx(channel)];
+		return (channel == ftl::rgbd::kChanNone) ? true : available_[_channelIdx(channel)];
 	}
 
 	/* @brief	Method to get reference to the channel content
