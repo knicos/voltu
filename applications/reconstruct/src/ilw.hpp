@@ -1,7 +1,20 @@
 #ifndef _FTL_RECONSTRUCT_ILW_HPP_
 #define _FTL_RECONSTRUCT_ILW_HPP_
 
+#include <ftl/cuda_common.hpp>
+#include <ftl/rgbd/frameset.hpp>
+#include <vector>
+
 namespace ftl {
+
+namespace detail {
+struct ILWData{
+    // x,y,z + confidence
+    ftl::cuda::TextureObject<float4> correspondence;
+
+    ftl::cuda::TextureObject<float4> points;
+};
+}
 
 /**
  * For a set of sources, perform Iterative Lattice Warping to correct the
@@ -18,18 +31,27 @@ class ILW {
     ~ILW();
 
     /**
-     * Set a physical scene that is composed of a set of source cameras.
-     */
-    void setScene(ftl::CameraSetScene *);
-
-    /**
-     * Take a frameset and perform the iterative lattice warping to update
-     * a scene object.
+     * Take a frameset and perform the iterative lattice warping.
      */
     bool process(ftl::rgbd::FrameSet &fs);
 
     private:
-    ftl::CameraSetScene *scene_;
+    /*
+     * Initialise data.
+     */
+    bool _phase0(ftl::rgbd::FrameSet &fs);
+
+    /*
+     * Find possible correspondences and a confidence value.
+     */
+    bool _phase1(ftl::rgbd::FrameSet &fs);
+
+    /*
+     * Calculate energies and move the points.
+     */
+    bool _phase2(ftl::rgbd::FrameSet &fs);
+
+    std::vector<detail::ILWData> data_;
 };
 
 }

@@ -6,14 +6,9 @@ set(REPSRC
 	src/main.cpp
 	src/voxel_scene.cpp
 	src/scene_rep_hash_sdf.cu
-	src/compactors.cu
-	src/garbage.cu
-	src/integrators.cu
 	#src/ray_cast_sdf.cu
 	src/voxel_render.cu
 	src/camera_util.cu
-	src/voxel_hash.cu
-	src/voxel_hash.cpp
 	#src/ray_cast_sdf.cpp
 	src/registration.cpp
 	#src/virtual_source.cpp
@@ -22,6 +17,7 @@ set(REPSRC
 	src/mls.cu
 	src/depth_camera.cu
 	src/depth_camera.cpp
+	src/ilw.cpp
 )
 
 add_executable(ftl-reconstruct ${REPSRC})
