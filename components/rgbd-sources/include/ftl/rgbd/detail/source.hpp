@@ -4,31 +4,12 @@
 #include <Eigen/Eigen>
 #include <opencv2/opencv.hpp>
 #include <ftl/rgbd/camera.hpp>
+#include <ftl/rgbd/frame.hpp>
 
 namespace ftl{
 namespace rgbd {
 
 class Source;
-
-typedef unsigned int channel_t;
-
-static const channel_t kChanNone = 0;
-static const channel_t kChanLeft = 0x0001;
-static const channel_t kChanDepth = 0x0002;
-static const channel_t kChanRight = 0x0004;
-static const channel_t kChanDisparity = 0x0008;
-static const channel_t kChanDeviation = 0x0010;
-static const channel_t kChanNormals = 0x0020;
-static const channel_t kChanConfidence = 0x0040;
-static const channel_t kChanFlow = 0x0080;
-static const channel_t kChanEnergy = 0x0100;
-
-static const channel_t kChanOverlay1 = 0x1000;
-
-inline bool isFloatChannel(ftl::rgbd::channel_t chan) {
-	return (chan == ftl::rgbd::kChanDepth || chan == ftl::rgbd::kChanEnergy);
-}
-
 
 typedef unsigned int capability_t;
 

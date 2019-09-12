@@ -3,6 +3,7 @@ set(RGBDSRC
 	src/local.cpp
 	src/disparity.cpp
 	src/source.cpp
+	src/frame.cpp
 	src/stereovideo.cpp
 	src/middlebury_source.cpp
 	src/net.cpp

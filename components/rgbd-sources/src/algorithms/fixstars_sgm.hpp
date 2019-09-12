@@ -30,7 +30,7 @@ namespace ftl {
 		public:
 			explicit FixstarsSGM(nlohmann::json &config);
 
-			void compute(const cv::cuda::GpuMat &l, const cv::cuda::GpuMat &r, cv::cuda::GpuMat &disp, cv::cuda::Stream &stream) override;
+			void compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream) override;
 			void setMask(cv::Mat &mask) override;
 
 			/* Factory creator */
@@ -44,7 +44,6 @@ namespace ftl {
 			float uniqueness_;
 			int P1_;
 			int P2_;
-			cv::Size size_;
 			bool use_filter_;
 			bool use_off_;
 			cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
@@ -52,9 +51,6 @@ namespace ftl {
 			cv::cuda::GpuMat lbw_;
 			cv::cuda::GpuMat rbw_;
 			cv::cuda::GpuMat dispt_;
-
-			cv::cuda::GpuMat l_downscaled_;
-			cv::cuda::GpuMat dispt_full_res_;
 
 			#ifdef HAVE_OPTFLOW
 			ftl::rgbd::OFDisparityFilter off_;
