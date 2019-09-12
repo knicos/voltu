@@ -12,6 +12,7 @@
 #include <string>
 
 #include <ftl/cuda_common.hpp>
+#include <ftl/rgbd/frame.hpp>
 
 namespace ftl {
 

@@ -41,18 +41,20 @@ class StereoVideoSource : public detail::Source {
 	Disparity *disp_;
 	
 	bool ready_;
+	bool use_optflow_;
 	
 	cv::cuda::Stream stream_;
 	cv::cuda::Stream stream2_;
 
-	cv::cuda::GpuMat left_;
-	cv::cuda::GpuMat right_;
-	cv::cuda::GpuMat cap_left_;
-	cv::cuda::GpuMat cap_right_;
-	cv::cuda::GpuMat disp_tmp_;
-	cv::cuda::GpuMat depth_tmp_;
-	
+	std::vector<Frame> frames_;
+
 	cv::Mat mask_l_;
+
+#ifdef HAVE_OPTFLOW
+	// see comments in https://gitlab.utu.fi/nicolas.pope/ftl/issues/155
+	cv::Ptr<cv::cuda::NvidiaOpticalFlow_1_0> nvof_;
+	cv::cuda::GpuMat optflow_;
+#endif
 
 	void init(const std::string &);
 };
