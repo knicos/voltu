@@ -13,6 +13,12 @@ struct ILWData{
     ftl::cuda::TextureObject<float4> correspondence;
 
     ftl::cuda::TextureObject<float4> points;
+
+	// Residual potential energy
+	ftl::cuda::TextureObject<float> residual;
+
+	// Flow magnitude
+	ftl::cuda::TextureObject<float> flow;
 };
 }
 

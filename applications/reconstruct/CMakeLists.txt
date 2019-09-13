@@ -5,9 +5,7 @@
 set(REPSRC
 	src/main.cpp
 	src/voxel_scene.cpp
-	src/scene_rep_hash_sdf.cu
 	#src/ray_cast_sdf.cu
-	src/voxel_render.cu
 	src/camera_util.cu
 	#src/ray_cast_sdf.cpp
 	src/registration.cpp
