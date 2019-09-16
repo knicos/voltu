@@ -90,7 +90,7 @@ public:
  */
 class CalibrationChessboard : Calibration {
 public:
-	CalibrationChessboard(const std::map<std::string, std::string> &opt);
+	explicit CalibrationChessboard(const std::map<std::string, std::string> &opt);
 	void objectPoints(std::vector<cv::Vec3f> &out);
 	bool findPoints(cv::Mat &in, std::vector<cv::Vec2f> &out);
 	void drawPoints(cv::Mat &img, const std::vector<cv::Vec2f> &points);

@@ -30,8 +30,6 @@ void NvPipeEncoder::reset() {
 
 /* Check preset resolution is not better than actual resolution. */
 definition_t NvPipeEncoder::_verifiedDefinition(definition_t def, const cv::Mat &in) {
-	bool is_float = in.type() == CV_32F;
-
 	int height = ftl::codecs::getHeight(def);
 
 	// FIXME: Make sure this can't go forever

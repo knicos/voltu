@@ -7,12 +7,13 @@ add_executable(configurable_unit
 	../src/configuration.cpp
 	../src/loguru.cpp
 	../src/ctpl_stl.cpp
+	../src/cuda_common.cpp
 	./configurable_unit.cpp
 )
 target_include_directories(configurable_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(configurable_unit
 	${URIPARSER_LIBRARIES}
-	Threads::Threads ${OS_LIBS})
+	Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${CUDA_LIBRARIES})
 
 ### URI ########################################################################
 add_executable(uri_unit

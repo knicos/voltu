@@ -110,11 +110,12 @@ void modeLeftRight(ftl::Configurable *root) {
 	});
 	
 	int idx = 0;
-	int key;
 
 	Mat show;
 	
 	while (ftl::running) {
+		int key;
+		
 		while (!new_frames) {
 			for (auto src : sources) { src->grab(30); }
 			key = cv::waitKey(10);

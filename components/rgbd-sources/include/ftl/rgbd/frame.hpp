@@ -14,6 +14,7 @@
 #include <ftl/cuda_common.hpp>
 
 #include <type_traits>
+#include <array>
 
 namespace ftl {
 namespace rgbd {
@@ -125,7 +126,7 @@ private:
 		ftl::cuda::TextureObjectBase tex;
 	};
 
-	ChannelData data_[Channels::kMax];
+	std::array<ChannelData, Channels::kMax> data_;
 
 	ftl::rgbd::Channels channels_;	// Does it have a channel
 	ftl::rgbd::Channels gpu_;		// Is the channel on a GPU

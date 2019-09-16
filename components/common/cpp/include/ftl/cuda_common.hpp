@@ -22,6 +22,12 @@
 namespace ftl {
 namespace cuda {
 
+bool initialise();
+
+bool hasCompute(int major, int minor);
+
+int deviceCount();
+
 /**
  * Represent a CUDA texture object. Instances of this class can be used on both
  * host and device. A texture object base cannot be constructed directly, it
@@ -142,6 +148,7 @@ TextureObject<T>::TextureObject(const cv::cuda::GpuMat &d) {
 	resDesc.res.pitch2D.height = d.rows;
 
 	cudaTextureDesc texDesc;
+	// cppcheck-suppress memsetClassFloat
 	memset(&texDesc, 0, sizeof(texDesc));
 	texDesc.readMode = cudaReadModeElementType;
 
@@ -175,6 +182,7 @@ TextureObject<T>::TextureObject(const cv::cuda::PtrStepSz<T> &d) {
 	resDesc.res.pitch2D.height = d.rows;
 
 	cudaTextureDesc texDesc;
+	// cppcheck-suppress memsetClassFloat
 	memset(&texDesc, 0, sizeof(texDesc));
 	texDesc.readMode = cudaReadModeElementType;
 
@@ -207,6 +215,7 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 	resDesc.res.pitch2D.height = height;
 
 	cudaTextureDesc texDesc;
+	// cppcheck-suppress memsetClassFloat
 	memset(&texDesc, 0, sizeof(texDesc));
 	texDesc.readMode = cudaReadModeElementType;
 
@@ -240,6 +249,7 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 		resDesc.res.pitch2D.height = height;
 
 		cudaTextureDesc texDesc;
+		// cppcheck-suppress memsetClassFloat
 		memset(&texDesc, 0, sizeof(texDesc));
 		texDesc.readMode = cudaReadModeElementType;
 		cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
