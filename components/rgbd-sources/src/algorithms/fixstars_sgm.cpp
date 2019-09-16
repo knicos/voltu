@@ -131,11 +131,7 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 	dispt_scaled.convertTo(disp, CV_32F, 1.0f / 16.0f, stream);
 
 #ifdef HAVE_OPTFLOW
-	if (use_off_)
-	{
-		frame.getChannel<Mat>(ftl::rgbd::kChanDisparity);
-		off_.filter(frame.setChannel<Mat>(ftl::rgbd::kChanDisparity), Mat(lbw_));
-	}
+	if (use_off_) { off_.filter(frame, stream); }
 #endif
 }
 
