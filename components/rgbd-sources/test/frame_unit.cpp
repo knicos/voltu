@@ -32,7 +32,7 @@ TEST_CASE("Frame::get()", "") {
 		bool hadexception = false;
 
 		try {
-			auto &m = f.get<cv::Mat>(Channel::Colour);
+			f.get<cv::Mat>(Channel::Colour);
 		} catch (ftl::exception &e) {
 			hadexception = true;
 		}
@@ -45,7 +45,7 @@ TEST_CASE("Frame::get()", "") {
 		bool hadexception = false;
 
 		try {
-			auto &m = f.get<cv::cuda::GpuMat>(Channel::Colour);
+			f.get<cv::cuda::GpuMat>(Channel::Colour);
 		} catch (ftl::exception &e) {
 			hadexception = true;
 		}
@@ -138,7 +138,7 @@ TEST_CASE("Frame::createTexture()", "") {
 		bool hadexception = false;
 
 		try {
-			auto &t = f.createTexture<float>(Channel::Depth);
+			f.createTexture<float>(Channel::Depth);
 		} catch (ftl::exception &e) {
 			hadexception = true;
 		}
@@ -169,7 +169,7 @@ TEST_CASE("Frame::createTexture()", "") {
 
 		try {
 			f.create<cv::Mat>(Channel::Depth, Format<uchar4>(100,100));
-			auto &t = f.createTexture<float>(Channel::Depth);
+			f.createTexture<float>(Channel::Depth);
 		} catch (ftl::exception &e) {
 			hadexception = true;
 		}
@@ -228,7 +228,7 @@ TEST_CASE("Frame::getTexture()", "") {
 		bool hadexception = false;
 
 		try {
-			auto &t = f.getTexture<float>(Channel::Depth);
+			f.getTexture<float>(Channel::Depth);
 		} catch (ftl::exception &e) {
 			hadexception = true;
 		}
@@ -242,7 +242,7 @@ TEST_CASE("Frame::getTexture()", "") {
 
 		try {
 			f.createTexture<uchar4>(Channel::Depth, Format<uchar4>(100,100));
-			auto &t = f.getTexture<float>(Channel::Depth);
+			f.getTexture<float>(Channel::Depth);
 		} catch (ftl::exception &e) {
 			hadexception = true;
 		}

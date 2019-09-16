@@ -18,7 +18,7 @@ private:
 	float n_;		// total number of samples
 
 public:
-	StatisticsImage(cv::Size size);
+	explicit StatisticsImage(cv::Size size);
 	StatisticsImage(cv::Size size, float max_f);
 
 	/* @brief reset all statistics to 0

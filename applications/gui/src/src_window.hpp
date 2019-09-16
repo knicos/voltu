@@ -22,7 +22,7 @@ class Camera;
 
 class SourceWindow : public nanogui::Window {
 	public:
-	SourceWindow(ftl::gui::Screen *screen);
+	explicit SourceWindow(ftl::gui::Screen *screen);
 	~SourceWindow();
 
 	const std::vector<ftl::gui::Camera*> &getCameras();

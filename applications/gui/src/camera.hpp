@@ -19,6 +19,8 @@ class Camera {
 	Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src);
 	~Camera();
 
+	Camera(const Camera &)=delete;
+
 	ftl::rgbd::Source *source();
 
 	int width() { return (src_) ? src_->parameters().width : 0; }

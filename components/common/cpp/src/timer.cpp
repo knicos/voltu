@@ -30,9 +30,10 @@ struct TimerJob {
 	int id;
 	function<bool(int64_t)> job;
 	volatile bool active;
-	bool paused;
-	int multiplier;
-	int countdown;
+	// TODO: (Nick) Implement richer forms of timer
+	//bool paused;
+	//int multiplier;
+	//int countdown;
 	std::string name;
 };
 
@@ -109,7 +110,7 @@ const TimerHandle ftl::timer::add(timerlevel_t l, const std::function<bool(int64
 
 	UNIQUE_LOCK(mtx, lk);
 	int newid = last_id++;
-	jobs[l].push_back({newid, f, false, false, 0, 0, "NoName"});
+	jobs[l].push_back({newid, f, false, "NoName"});
 	return TimerHandle(newid);
 }
 

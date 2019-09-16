@@ -150,8 +150,6 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 }
 
 void Calibrate::updateCalibration(const ftl::rgbd::Camera &p) {
-	std::pair<Mat, Mat> map1, map2;
-
 	Q_.at<double>(3, 2) = 1.0 / p.baseline;
 	Q_.at<double>(2, 3) = p.fx;
 	Q_.at<double>(0, 3) = p.cx;
