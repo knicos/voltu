@@ -9,13 +9,13 @@
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
 #include <ftl/depth_camera.hpp>
-#include <ftl/voxel_scene.hpp>
 #include <ftl/rgbd.hpp>
 #include <ftl/virtual_source.hpp>
 #include <ftl/rgbd/streamer.hpp>
 #include <ftl/slave.hpp>
 #include <ftl/rgbd/group.hpp>
 
+#include "ilw.hpp"
 #include "splat_render.hpp"
 
 #include <string>
@@ -92,11 +92,12 @@ static void run(ftl::Configurable *root) {
 		}
 	}
 
-	ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
+	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::Source *virt = ftl::create<ftl::rgbd::Source>(root, "virtual", net);
-	ftl::render::Splatter *splat = new ftl::render::Splatter(scene);
+	ftl::render::Splatter *splat = new ftl::render::Splatter();
 	ftl::rgbd::Group group;
+	ftl::ILW align;
 
 	//auto virtimpl = new ftl::rgbd::VirtualSource(virt);
 	//virt->customImplementation(virtimpl);
@@ -107,7 +108,7 @@ static void run(ftl::Configurable *root) {
 		Source *in = sources[i];
 		in->setChannel(Channel::Depth);
 		//stream->add(in);
-		scene->addSource(in);
+		//scene->addSource(in);
 		group.addSource(in);
 	}
 
@@ -116,34 +117,40 @@ static void run(ftl::Configurable *root) {
 	bool busy = false;
 
 	group.setName("ReconGroup");
-	group.sync([scene,splat,virt,&busy,&slave](ftl::rgbd::FrameSet &fs) -> bool {
-		cudaSetDevice(scene->getCUDADevice());
+	group.sync([splat,virt,&busy,&slave](ftl::rgbd::FrameSet &fs) -> bool {
+		//cudaSetDevice(scene->getCUDADevice());
 		
 		if (busy) {
 			LOG(INFO) << "Group frameset dropped: " << fs.timestamp;
 			return true;
 		}
 		busy = true;
-		scene->nextFrame();
+		//scene->nextFrame();
 
 		// Send all frames to GPU, block until done?
 		// TODO: Allow non-block and keep frameset locked until later
-		if (!slave.isPaused()) scene->upload(fs);
+		if (!slave.isPaused()) {
+			//scene->upload(fs);
+			for (auto &f : fs.frames) {
+				f.upload(Channel::Colour + Channel::Depth); // TODO: (Nick) Add scene stream
+			}
+		}
 
-		int64_t ts = fs.timestamp;
+		//int64_t ts = fs.timestamp;
 
-		ftl::pool.push([scene,splat,virt,&busy,ts,&slave](int id) {
-			cudaSetDevice(scene->getCUDADevice());
+		ftl::pool.push([splat,virt,&busy,&fs,&slave](int id) {
+			//cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
-			cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
+			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 
 			if (!slave.isPaused()) {
-				scene->integrate();
-				scene->garbage();
+				//scene->integrate();
+				//scene->garbage();
+				align.process(fs);
 			}
 
 			// Don't render here... but update timestamp.
-			splat->render(ts, virt, scene->getIntegrationStream());
+			splat->render(fs, virt); //, scene->getIntegrationStream());
 			busy = false;
 		});
 		return true;
