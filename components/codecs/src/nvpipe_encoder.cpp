@@ -2,7 +2,7 @@
 #include <loguru.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/codecs/bitrates.hpp>
-#include <cuda_runtime.h>
+#include <ftl/cuda_util.hpp>
 
 using ftl::codecs::NvPipeEncoder;
 using ftl::codecs::bitrate_t;

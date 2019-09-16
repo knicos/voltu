@@ -1,6 +1,7 @@
 #ifndef _FTL_CODECS_ENCODER_HPP_
 #define _FTL_CODECS_ENCODER_HPP_
 
+#include <ftl/cuda_util.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 

@@ -1,7 +1,7 @@
 #include "integrators.hpp"
 //#include <ftl/ray_cast_params.hpp>
-#include <vector_types.h>
-#include <cuda_runtime.h>
+//#include <vector_types.h>
+//#include <cuda_runtime.h>
 #include <ftl/cuda_matrix_util.hpp>
 #include <ftl/cuda_util.hpp>
 #include <ftl/cuda_common.hpp>

@@ -28,12 +28,13 @@ OFDisparityFilter::OFDisparityFilter(Size size, int n_frames, float threshold) :
 
 void OFDisparityFilter::filter(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 {
-	const cv::cuda::GpuMat &optflow = frame.getChannel<cv::cuda::GpuMat>(kChanFlow, stream);
-	frame.getChannel<cv::cuda::GpuMat>(kChanDisparity, stream);
+	frame.upload(Channel::Flow, stream);
+	const cv::cuda::GpuMat &optflow = frame.get<cv::cuda::GpuMat>(Channel::Flow);
+	//frame.get<cv::cuda::GpuMat>(Channel::Disparity);
 	stream.waitForCompletion();
 	if (optflow.empty()) { return; }
 
-	cv::cuda::GpuMat &disp = frame.setChannel<cv::cuda::GpuMat>(kChanDisparity);
+	cv::cuda::GpuMat &disp = frame.create<cv::cuda::GpuMat>(Channel::Disparity);
 	ftl::cuda::optflow_filter(disp, optflow, disp_old_, n_max_, threshold_, stream);
 }
 

@@ -6,7 +6,12 @@
 #undef max
 #undef min
 
+#ifdef CPPCHECK
+#define __align__(A)
+#endif
+
 #include <cuda_runtime.h>
+#include <vector_types.h>
 #include <ftl/cuda_operators.hpp>
 
 // Enable run time assertion checking in kernel code

@@ -4,11 +4,12 @@
 
 //#include <cutil_inline.h>
 //#include <cutil_math.h>
-#include <vector_types.h>
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
 
 #include <ftl/cuda_matrix_util.hpp>
 #include <ftl/rgbd/camera.hpp>
+
+//#include <vector_types.h>
 
 struct __align__(16) DepthCameraParams {
 	float fx;

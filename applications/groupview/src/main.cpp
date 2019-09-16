@@ -16,6 +16,7 @@ using std::string;
 using std::vector;
 using cv::Size;
 using cv::Mat;
+using ftl::rgbd::Channel;
 
 // TODO: remove code duplication (function from reconstruction)
 static void from_json(nlohmann::json &json, map<string, Matrix4d> &transformations) {
@@ -79,7 +80,7 @@ void modeLeftRight(ftl::Configurable *root) {
 	ftl::rgbd::Group group;
 
 	for (auto* src : sources) {
-		src->setChannel(ftl::rgbd::kChanRight);
+		src->setChannel(Channel::Right);
 		group.addSource(src);
 	}
 
@@ -91,8 +92,8 @@ void modeLeftRight(ftl::Configurable *root) {
 		mutex.lock();
 		bool good = true;
 		for (size_t i = 0; i < frames.frames.size(); i ++) {
-			auto &chan1 = frames.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
-			auto &chan2 = frames.frames[i].getChannel<cv::Mat>(frames.sources[i]->getChannel());
+			auto &chan1 = frames.frames[i].get<cv::Mat>(Channel::Colour);
+			auto &chan2 = frames.frames[i].get<cv::Mat>(frames.sources[i]->getChannel());
 			if (chan1.empty()) good = false;
 			if (chan2.empty()) good = false;
 			if (chan1.channels() != 3) good = false; // ASSERT
@@ -166,7 +167,7 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 		} else {
 			s->setPose(T->second);
 		}
-		s->setChannel(ftl::rgbd::kChanDepth);
+		s->setChannel(Channel::Depth);
 		group.addSource(s);
 	}
 
@@ -185,8 +186,8 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 		std::vector<cv::Mat> frames;
 
 		for (size_t i=0; i<fs.sources.size(); ++i) {
-			auto &chan1 = fs.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
-			auto &chan2 = fs.frames[i].getChannel<cv::Mat>(fs.sources[i]->getChannel());
+			auto &chan1 = fs.frames[i].get<cv::Mat>(Channel::Colour);
+			auto &chan2 = fs.frames[i].get<cv::Mat>(fs.sources[i]->getChannel());
 			if (chan1.empty() || chan2.empty()) return true;
 
 			frames.push_back(chan1);
@@ -213,8 +214,8 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
 
 			for (size_t i=0; i<fs.sources.size(); ++i) {
-				auto &chan1 = fs.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
-				auto &chan2 = fs.frames[i].getChannel<cv::Mat>(fs.sources[i]->getChannel());
+				auto &chan1 = fs.frames[i].get<cv::Mat>(Channel::Colour);
+				auto &chan2 = fs.frames[i].get<cv::Mat>(fs.sources[i]->getChannel());
 
 				writer.addSource(fs.sources[i]->getURI(), fs.sources[i]->parameters(), fs.sources[i]->getPose());
 				//LOG(INFO) << "SAVE: " << fs.channel1[i].cols << ", " << fs.channel2[i].type();
@@ -258,7 +259,7 @@ void modeVideo(ftl::Configurable *root) {
 	auto sources = ftl::createArray<ftl::rgbd::Source>(root, "sources", net);
 	const string path = root->value<string>("save_to", "./");
 
-	for (auto* src : sources) { src->setChannel(ftl::rgbd::kChanDepth); }
+	for (auto* src : sources) { src->setChannel(Channel::Depth); }
 
 	cv::Mat show;
 	vector<cv::Mat> rgb(sources.size());

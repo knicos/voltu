@@ -37,6 +37,7 @@ using std::string;
 using std::vector;
 using ftl::rgbd::Source;
 using ftl::config::json_t;
+using ftl::rgbd::Channel;
 
 using json = nlohmann::json;
 using std::this_thread::sleep_for;
@@ -104,7 +105,7 @@ static void run(ftl::Configurable *root) {
 
 	for (size_t i=0; i<sources.size(); i++) {
 		Source *in = sources[i];
-		in->setChannel(ftl::rgbd::kChanDepth);
+		in->setChannel(Channel::Depth);
 		//stream->add(in);
 		scene->addSource(in);
 		group.addSource(in);
