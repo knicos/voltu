@@ -48,10 +48,11 @@ class Disparity : public ftl::Configurable {
 	virtual void compute(Frame &frame, cv::cuda::Stream &stream)=0;
 	virtual void compute(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &disp, cv::cuda::Stream &stream)
 	{
-		ftl::rgbd::Frame frame;
-		frame.setChannel<cv::cuda::GpuMat>(kChanLeft) = l;
-		frame.setChannel<cv::cuda::GpuMat>(kChanRight) = r;
-		frame.setChannel<cv::cuda::GpuMat>(kChanDisparity) = disp;
+		// FIXME: What were these for?
+		//ftl::rgbd::Frame frame;
+		//frame.create<cv::cuda::GpuMat>(ftl::rgbd::Channel::Left) = l;
+		//frame.create<cv::cuda::GpuMat>(ftl::rgbd::Channel::Right) = r;
+		//frame.create<cv::cuda::GpuMat>(ftl::rgbd::Channel::Disparity) = disp;
 	}
 
 	/**

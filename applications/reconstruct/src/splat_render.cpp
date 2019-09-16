@@ -4,6 +4,7 @@
 #include "depth_camera_cuda.hpp"
 
 using ftl::render::Splatter;
+using ftl::rgbd::Channel;
 
 Splatter::Splatter(ftl::voxhash::SceneRep *scene) : scene_(scene) {
 
@@ -85,7 +86,7 @@ void Splatter::render(int64_t ts, ftl::rgbd::Source *src, cudaStream_t stream) {
 		// Step 2: For each point, use a warp to do MLS and up sample
 		//ftl::cuda::mls_render_depth(depth1_, depth3_, params, scene_->cameraCount(), stream);
 
-		if (src->getChannel() == ftl::rgbd::kChanDepth) {
+		if (src->getChannel() == Channel::Depth) {
 			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			if (src->value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
@@ -95,7 +96,7 @@ void Splatter::render(int64_t ts, ftl::rgbd::Source *src, cudaStream_t stream) {
 				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 				src->writeFrames(ts, colour1_, depth2_, stream);
 			}
-		} else if (src->getChannel() == ftl::rgbd::kChanEnergy) {
+		} else if (src->getChannel() == Channel::Energy) {
 			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			//if (src->value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
@@ -105,7 +106,7 @@ void Splatter::render(int64_t ts, ftl::rgbd::Source *src, cudaStream_t stream) {
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			//	src->writeFrames(colour1_, depth2_, stream);
 			//}
-		} else if (src->getChannel() == ftl::rgbd::kChanRight) {
+		} else if (src->getChannel() == Channel::Right) {
 			// Adjust pose to right eye position
 			Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
 			Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();

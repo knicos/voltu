@@ -4,6 +4,7 @@
 #include <ftl/rgbd/frame.hpp>
 
 #ifdef HAVE_OPTFLOW
+#include <ftl/cuda_util.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudaoptflow.hpp>

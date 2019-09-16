@@ -39,7 +39,7 @@ class NetSource : public detail::Source {
 	bool isReady();
 
 	void setPose(const Eigen::Matrix4d &pose);
-	Camera parameters(channel_t chan);
+	Camera parameters(ftl::rgbd::Channel chan);
 
 	void reset();
 
@@ -57,7 +57,7 @@ class NetSource : public detail::Source {
 	int minB_;
 	int maxN_;
 	int default_quality_;
-	ftl::rgbd::channel_t prev_chan_;
+	ftl::rgbd::Channel prev_chan_;
 
 	ftl::rgbd::detail::ABRController abr_;
 	int last_bitrate_;
@@ -77,7 +77,7 @@ class NetSource : public detail::Source {
 
 	NetFrameQueue queue_;
 
-	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p, ftl::rgbd::channel_t chan);
+	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p, ftl::rgbd::Channel chan);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
 	void _recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &);
 	//void _recvChunk(int64_t frame, short ttimeoff, uint8_t bitrate, int chunk, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);

@@ -1,5 +1,5 @@
 #include "splat_render_cuda.hpp"
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
 
 #include <ftl/cuda_matrix_util.hpp>
 

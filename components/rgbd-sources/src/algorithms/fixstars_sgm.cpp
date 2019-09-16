@@ -7,6 +7,8 @@
 using ftl::algorithms::FixstarsSGM;
 using cv::Mat;
 using cv::cuda::GpuMat;
+using ftl::rgbd::Channel;
+using ftl::rgbd::Format;
 
 //static ftl::Disparity::Register fixstarssgm("libsgm", FixstarsSGM::create);
 
@@ -78,14 +80,9 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 		cv::cuda::cvtColor(rgb, gray, cv::COLOR_BGR2GRAY, 0, stream);
 	}*/
 
-	const auto &l = frame.getChannel<GpuMat>(ftl::rgbd::kChanLeft, stream);
-	const auto &r = frame.getChannel<GpuMat>(ftl::rgbd::kChanRight, stream);
-	auto &disp = frame.setChannel<GpuMat>(ftl::rgbd::kChanDisparity);
-
-	if (disp.size() != l.size())
-	{
-		disp = GpuMat(l.size(), CV_32FC1);
-	}
+	const auto &l = frame.get<GpuMat>(Channel::Left);
+	const auto &r = frame.get<GpuMat>(Channel::Right);
+	auto &disp = frame.create<GpuMat>(Channel::Disparity, Format<float>(l.size()));
 
 	GpuMat l_scaled;
 	if (l.size() != size_)

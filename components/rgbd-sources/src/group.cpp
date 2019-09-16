@@ -10,6 +10,7 @@ using ftl::rgbd::kFrameBufferSize;
 using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
+using ftl::rgbd::Channel;
 
 Group::Group() : framesets_(kFrameBufferSize), head_(0) {
 	framesets_[0].timestamp = -1;
@@ -77,13 +78,13 @@ void Group::addSource(ftl::rgbd::Source *src) {
 				// Ensure channels match source mat format
 				//fs.channel1[ix].create(rgb.size(), rgb.type());
 				//fs.channel2[ix].create(depth.size(), depth.type());
-				fs.frames[ix].setChannel<cv::Mat>(ftl::rgbd::kChanColour).create(rgb.size(), rgb.type());
-				fs.frames[ix].setChannel<cv::Mat>(chan).create(depth.size(), depth.type());
+				fs.frames[ix].create<cv::Mat>(Channel::Colour, Format<uchar3>(rgb.size())); //.create(rgb.size(), rgb.type());
+				if (chan != Channel::None) fs.frames[ix].create<cv::Mat>(chan, ftl::rgbd::FormatBase(depth.cols, depth.rows, depth.type())); //.create(depth.size(), depth.type());
 
 				//cv::swap(rgb, fs.channel1[ix]);
 				//cv::swap(depth, fs.channel2[ix]);
-				cv::swap(rgb, fs.frames[ix].setChannel<cv::Mat>(ftl::rgbd::kChanColour));
-				cv::swap(depth, fs.frames[ix].setChannel<cv::Mat>(chan));
+				cv::swap(rgb, fs.frames[ix].get<cv::Mat>(Channel::Colour));
+				if (chan != Channel::None) cv::swap(depth, fs.frames[ix].get<cv::Mat>(chan));
 
 				++fs.count;
 				fs.mask |= (1 << ix);
