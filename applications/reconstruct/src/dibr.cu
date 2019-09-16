@@ -158,8 +158,7 @@ __global__ void OLD_dibr_visibility_kernel(TextureObject<int> depth, int cam, Sp
 	const int upsample = min(UPSAMPLE_MAX, int((r) * params.camera.fx / camPos.z));
 
 	// Not on screen so stop now...
-	if (screenPos.x + upsample < 0 || screenPos.y + upsample < 0 ||
-            screenPos.x - upsample >= depth.width() || screenPos.y - upsample >= depth.height()) return;
+	if (screenPos.x - upsample >= depth.width() || screenPos.y - upsample >= depth.height()) return;
             
     // TODO:(Nick) Check depth buffer and don't do anything if already hidden?
 
@@ -181,7 +180,7 @@ __global__ void OLD_dibr_visibility_kernel(TextureObject<int> depth, int cam, Sp
 		// and depth remains within the bounds.
 		// How to find min and max depths?
 
-        float ld = nearest.z;
+        //float ld = nearest.z;
 
 		// TODO: (Nick) Estimate depth using points plane, but needs better normals.
 		//float t;
@@ -241,7 +240,7 @@ __global__ void OLD_dibr_visibility_kernel(TextureObject<int> depth, int cam, Sp
                 }*/
 
                 //nearest = params.camera.kinectDepthToSkeleton(screenPos.x+u,screenPos.y+v,d);  // ld + (d - ld)*0.8f
-                ld = d;
+                //ld = d;
 			}
 		//}
 	}
@@ -287,8 +286,7 @@ __global__ void OLD_dibr_visibility_kernel(TextureObject<int> depth, int cam, Sp
 	const int upsample = min(UPSAMPLE_MAX, int((4.0f*r) * params.camera.fx / camPos.z));
 
 	// Not on screen so stop now...
-	if (screenPos.x + upsample < 0 || screenPos.y + upsample < 0 ||
-            screenPos.x - upsample >= depth.width() || screenPos.y - upsample >= depth.height()) return;
+	if (screenPos.x - upsample >= depth.width() || screenPos.y - upsample >= depth.height()) return;
             
 	// TODO:(Nick) Check depth buffer and don't do anything if already hidden?
 	
@@ -575,7 +573,7 @@ __global__ void dibr_attribute_contrib_kernel(
 	const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
 
 	const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
-	const int warp = tid / WARP_SIZE;
+	//const int warp = tid / WARP_SIZE;
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
@@ -592,8 +590,7 @@ __global__ void dibr_attribute_contrib_kernel(
     const int upsample = 8; //min(UPSAMPLE_MAX, int((5.0f*r) * params.camera.fx / camPos.z));
 
 	// Not on screen so stop now...
-	if (screenPos.x < 0 || screenPos.y < 0 ||
-            screenPos.x >= depth_in.width() || screenPos.y >= depth_in.height()) return;
+	if (screenPos.x >= depth_in.width() || screenPos.y >= depth_in.height()) return;
             
     // Is this point near the actual surface and therefore a contributor?
     const float d = ((float)depth_in.tex2D((int)screenPos.x, (int)screenPos.y)/1000.0f);
@@ -722,7 +719,7 @@ void ftl::cuda::dibr(const TextureObject<int> &depth_out,
 	cudaSafeCall(cudaDeviceSynchronize());
 #endif
 
-	int i=3;
+	//int i=3;
 
 	bool noSplatting = params.m_flags & ftl::render::kNoSplatting;
 

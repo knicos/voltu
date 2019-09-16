@@ -458,7 +458,7 @@ Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
 	loguru::g_preamble_uptime = false;
 	loguru::g_preamble_thread = false;
 	int argc = 1;
-	const char *argv[] = {"d",0};
+	const char *argv[]{"d",0};
 	loguru::init(argc, const_cast<char**>(argv), "--verbosity");
 
 	config_index.clear();

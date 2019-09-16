@@ -1606,6 +1606,7 @@ inline __device__ __host__ matNxM<2, 2> matNxM<2, 2>::getInverse() const
 
 // To Matrix from floatNxN
 template<>
+// cppcheck-suppress syntaxError
 template<>
 inline __device__ __host__  matNxM<1, 1>::matNxM(const float& other)
 {

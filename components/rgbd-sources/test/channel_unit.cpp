@@ -26,7 +26,7 @@ TEST_CASE("Channel or-ing", "") {
 
         cs |= Channel::Right;
 
-        REQUIRE( cs.count() == 2 );
+        REQUIRE( (cs.count() == 2) );
         REQUIRE( cs.has(Channel::Right) );
         REQUIRE( cs.has(Channel::Depth) );
 	}
@@ -36,7 +36,7 @@ TEST_CASE("Channel or-ing", "") {
 
         cs = Channel::Right | Channel::Flow | Channel::Left;
 
-        REQUIRE( cs.count() == 3 );
+        REQUIRE( (cs.count() == 3) );
         REQUIRE( cs.has(Channel::Right) );
         REQUIRE( cs.has(Channel::Flow) );
         REQUIRE( cs.has(Channel::Left) );
@@ -45,7 +45,7 @@ TEST_CASE("Channel or-ing", "") {
     SECTION("Combine multiple channels at init") {
 		Channels cs = Channel::Right | Channel::Flow | Channel::Left;
 
-        REQUIRE( cs.count() == 3 );
+        REQUIRE( (cs.count() == 3) );
         REQUIRE( cs.has(Channel::Right) );
         REQUIRE( cs.has(Channel::Flow) );
         REQUIRE( cs.has(Channel::Left) );
@@ -58,7 +58,7 @@ TEST_CASE("Channel adding", "") {
 
         cs += Channel::Right;
 
-        REQUIRE( cs.count() == 2 );
+        REQUIRE( (cs.count() == 2) );
         REQUIRE( cs.has(Channel::Right) );
         REQUIRE( cs.has(Channel::Depth) );
 	}
@@ -68,7 +68,7 @@ TEST_CASE("Channel adding", "") {
 
         cs = Channel::Right + Channel::Flow + Channel::Left;
 
-        REQUIRE( cs.count() == 3 );
+        REQUIRE( (cs.count() == 3) );
         REQUIRE( cs.has(Channel::Right) );
         REQUIRE( cs.has(Channel::Flow) );
         REQUIRE( cs.has(Channel::Left) );
@@ -81,7 +81,7 @@ TEST_CASE("Channel subtracting", "") {
 
         cs -= Channel::Flow;
 
-        REQUIRE( cs.count() == 2 );
+        REQUIRE( (cs.count() == 2) );
         REQUIRE( cs.has(Channel::Right) );
         REQUIRE( cs.has(Channel::Left) );
 	}

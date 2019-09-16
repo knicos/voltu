@@ -41,8 +41,9 @@ void URI::_parse(uri_t puri) {
 	// NOTE: Non-standard additions to allow for Unix style relative file names.
 	if (suri[0] == '.') {
 		char cwdbuf[1024];
-		getcwd(cwdbuf, 1024);
-		suri = string("file://") + string(cwdbuf) + suri.substr(1);
+		if (getcwd(cwdbuf, 1024)) {
+			suri = string("file://") + string(cwdbuf) + suri.substr(1);
+		}
 	} else if (suri[0] == '~') {
 #ifdef WIN32
 		suri = string("file://") + string(std::getenv("HOMEDRIVE")) + string(std::getenv("HOMEPATH")) + suri.substr(1);
