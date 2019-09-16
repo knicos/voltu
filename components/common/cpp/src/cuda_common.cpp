@@ -2,6 +2,40 @@
 
 using ftl::cuda::TextureObjectBase;
 
+static int dev_count = 0;
+static std::vector<cudaDeviceProp> properties;
+
+bool ftl::cuda::initialise() {
+	// Do an initial CUDA check
+	cudaSafeCall(cudaGetDeviceCount(&dev_count));
+	CHECK_GE(dev_count, 1) << "No CUDA devices found";
+
+	LOG(INFO) << "CUDA Devices (" << dev_count << "):";
+
+	properties.resize(dev_count);
+	for (int i=0; i<dev_count; i++) {
+		cudaSafeCall(cudaGetDeviceProperties(&properties[i], i));
+		LOG(INFO) << " - " << properties[i].name;
+	}
+
+	return true;
+}
+
+bool ftl::cuda::hasCompute(int major, int minor) {
+	int dev = -1;
+	cudaSafeCall(cudaGetDevice(&dev));
+
+	if (dev > 0) {
+		return properties[dev].major > major ||
+			(properties[dev].major == major && properties[dev].minor >= minor);
+	}
+	return false;
+}
+
+int ftl::cuda::deviceCount() {
+	return dev_count;
+}
+
 TextureObjectBase::~TextureObjectBase() {
 	free();
 }
