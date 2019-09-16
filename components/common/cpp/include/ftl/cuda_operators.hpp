@@ -19,7 +19,8 @@
 #ifndef _FTL_CUDA_OPERATORS_HPP_
 #define _FTL_CUDA_OPERATORS_HPP_
 
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
+#include <ftl/cuda_util.hpp>
 
 
 ////////////////////////////////////////////////////////////////////////////////

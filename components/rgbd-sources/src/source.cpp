@@ -25,6 +25,7 @@ using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
+using ftl::rgbd::Channel;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
@@ -227,7 +228,7 @@ capability_t Source::getCapabilities() const {
 
 void Source::reset() {
 	UNIQUE_LOCK(mutex_,lk);
-	channel_ = kChanNone;
+	channel_ = Channel::None;
 	if (impl_) delete impl_;
 	impl_ = _createImplementation();
 }
@@ -360,13 +361,13 @@ bool Source::thumbnail(cv::Mat &t) {
 	return !thumb_.empty();
 }
 
-bool Source::setChannel(ftl::rgbd::channel_t c) {
+bool Source::setChannel(ftl::rgbd::Channel c) {
 	channel_ = c;
 	// FIXME:(Nick) Verify channel is supported by this source...
 	return true;
 }
 
-const ftl::rgbd::Camera Source::parameters(ftl::rgbd::channel_t chan) const {
+const ftl::rgbd::Camera Source::parameters(ftl::rgbd::Channel chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
 

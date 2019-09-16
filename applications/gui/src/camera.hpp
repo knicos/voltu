@@ -32,11 +32,11 @@ class Camera {
 	void showPoseWindow();
 	void showSettings();
 
-	void setChannel(ftl::rgbd::channel_t c);
+	void setChannel(ftl::rgbd::Channel c);
 
 	void togglePause();
 	void isPaused();
-	const std::vector<ftl::rgbd::channel_t> &availableChannels();
+	const ftl::rgbd::Channels &availableChannels();
 
 	const GLTexture &captureFrame();
 
@@ -62,8 +62,8 @@ class Camera {
 	float lerpSpeed_;
 	bool sdepth_;
 	bool pause_;
-	ftl::rgbd::channel_t channel_;
-	std::vector<ftl::rgbd::channel_t> channels_;
+	ftl::rgbd::Channel channel_;
+	ftl::rgbd::Channels channels_;
 	cv::Mat rgb_;
 	cv::Mat depth_;
 	MUTEX mutex_;

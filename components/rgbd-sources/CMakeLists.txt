@@ -37,6 +37,7 @@ endif (LIBSGM_FOUND)
 if (CUDA_FOUND)
 	list(APPEND RGBDSRC
 		src/algorithms/disp2depth.cu
+		src/algorithms/offilter.cu
 #		"src/algorithms/opencv_cuda_bm.cpp"
 #		"src/algorithms/opencv_cuda_bp.cpp"
 #		"src/algorithms/rtcensus.cu"

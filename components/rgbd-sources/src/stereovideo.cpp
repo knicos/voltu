@@ -12,6 +12,7 @@
 using ftl::rgbd::detail::Calibrate;
 using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::StereoVideoSource;
+using ftl::rgbd::Channel;
 using std::string;
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
@@ -135,8 +136,8 @@ void StereoVideoSource::init(const string &file)
 	ready_ = true;
 }
 
-ftl::rgbd::Camera StereoVideoSource::parameters(ftl::rgbd::channel_t chan) {
-	if (chan == ftl::rgbd::kChanRight) {
+ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
+	if (chan == Channel::Right) {
 		cv::Mat q = calib_->getCameraMatrixRight();
 		ftl::rgbd::Camera params = {
 			q.at<double>(0,0),	// Fx
@@ -175,8 +176,8 @@ bool StereoVideoSource::capture(int64_t ts) {
 bool StereoVideoSource::retrieve() {
 	auto &frame = frames_[0];
 	frame.reset();
-	auto &left = frame.setChannel<cv::cuda::GpuMat>(ftl::rgbd::kChanLeft);
-	auto &right = frame.setChannel<cv::cuda::GpuMat>(ftl::rgbd::kChanRight);
+	auto &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
+	auto &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
 	lsrc_->get(left, right, calib_, stream2_);
 
 #ifdef HAVE_OPTFLOW
@@ -184,17 +185,18 @@ bool StereoVideoSource::retrieve() {
 	
 	if (use_optflow_)
 	{
-		auto &left_gray = frame.setChannel<cv::cuda::GpuMat>(kChanLeftGray);
-		auto &right_gray = frame.setChannel<cv::cuda::GpuMat>(kChanRightGray);
+		auto &left_gray = frame.create<cv::cuda::GpuMat>(Channel::LeftGray);
+		auto &right_gray = frame.create<cv::cuda::GpuMat>(Channel::RightGray);
 
 		cv::cuda::cvtColor(left, left_gray, cv::COLOR_BGR2GRAY, 0, stream2_);
 		cv::cuda::cvtColor(right, right_gray, cv::COLOR_BGR2GRAY, 0, stream2_);
 
-		if (frames_[1].hasChannel(kChanLeftGray))
+		if (frames_[1].hasChannel(Channel::LeftGray))
 		{
-			auto &left_gray_prev = frame.getChannel<cv::cuda::GpuMat>(kChanLeftGray, stream2_);
-			auto &optflow = frame.setChannel<cv::cuda::GpuMat>(kChanFlow);
-			nvof_->calc(left_gray, left_gray_prev, optflow_, stream2_);
+			//frames_[1].download(Channel::LeftGray);
+			auto &left_gray_prev = frames_[1].get<cv::cuda::GpuMat>(Channel::LeftGray);
+			auto &optflow = frame.create<cv::cuda::GpuMat>(Channel::Flow);
+			nvof_->calc(left_gray, left_gray_prev, optflow, stream2_);
 			// nvof_->upSampler() isn't implemented with CUDA
 			// cv::cuda::resize() does not work wiht 2-channel input
 			// cv::cuda::resize(optflow_, optflow, left.size(), 0.0, 0.0, cv::INTER_NEAREST, stream2_);
@@ -207,32 +209,33 @@ bool StereoVideoSource::retrieve() {
 }
 
 void StereoVideoSource::swap() {
-	auto tmp = frames_[0];
-	frames_[0] = frames_[1];
-	frames_[1] = tmp;
+	auto tmp = std::move(frames_[0]);
+	frames_[0] = std::move(frames_[1]);
+	frames_[1] = std::move(tmp);
 }
 
 bool StereoVideoSource::compute(int n, int b) {
 	auto &frame = frames_[1];
-	auto &left = frame.getChannel<cv::cuda::GpuMat>(ftl::rgbd::kChanLeft);
-	auto &right = frame.getChannel<cv::cuda::GpuMat>(ftl::rgbd::kChanRight);
+	auto &left = frame.get<cv::cuda::GpuMat>(Channel::Left);
+	auto &right = frame.get<cv::cuda::GpuMat>(Channel::Right);
 
-	const ftl::rgbd::channel_t chan = host_->getChannel();
+	const ftl::rgbd::Channel chan = host_->getChannel();
 	if (left.empty() || right.empty()) return false;
 
-	if (chan == ftl::rgbd::kChanDepth) {
+	if (chan == Channel::Depth) {
 		disp_->compute(frame, stream_);
 		
-		auto &disp = frame.getChannel<cv::cuda::GpuMat>(ftl::rgbd::kChanDisparity);
-		auto &depth = frame.setChannel<cv::cuda::GpuMat>(ftl::rgbd::kChanDepth);
+		auto &disp = frame.get<cv::cuda::GpuMat>(Channel::Disparity);
+		auto &depth = frame.create<cv::cuda::GpuMat>(Channel::Depth);
 		if (depth.empty()) depth = cv::cuda::GpuMat(left.size(), CV_32FC1);
 
 		ftl::cuda::disparity_to_depth(disp, depth, params_, stream_);
 		
 		left.download(rgb_, stream_);
 		depth.download(depth_, stream_);
+		//frame.download(Channel::Left + Channel::Depth);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
-	} else if (chan == ftl::rgbd::kChanRight) {
+	} else if (chan == Channel::Right) {
 		left.download(rgb_, stream_);
 		right.download(depth_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames

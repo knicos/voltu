@@ -5,6 +5,7 @@
 #ifndef _FTL_ALGORITHMS_FIXSTARS_SGM_HPP_
 #define _FTL_ALGORITHMS_FIXSTARS_SGM_HPP_
 
+#include <ftl/cuda_util.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/cudastereo.hpp>

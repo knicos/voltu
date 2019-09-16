@@ -1,6 +1,7 @@
 #ifndef _FTL_RGBD_GROUP_HPP_
 #define _FTL_RGBD_GROUP_HPP_
 
+#include <ftl/cuda_util.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/rgbd/frame.hpp>

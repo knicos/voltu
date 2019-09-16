@@ -7,6 +7,7 @@
 
 using namespace ftl::voxhash;
 using ftl::rgbd::Source;
+using ftl::rgbd::Channel;
 using ftl::Configurable;
 using cv::Mat;
 using std::vector;
@@ -95,7 +96,7 @@ void SceneRep::addSource(ftl::rgbd::Source *src) {
 	auto &cam = cameras_.emplace_back();
 	cam.source = src;
 	cam.params.m_imageWidth = 0;
-	src->setChannel(ftl::rgbd::kChanDepth);
+	src->setChannel(Channel::Depth);
 }
 
 extern "C" void updateCUDACameraConstant(ftl::voxhash::DepthCameraCUDA *data, int count);
@@ -230,8 +231,10 @@ int SceneRep::upload(ftl::rgbd::FrameSet &fs) {
 
 	for (size_t i=0; i<cameras_.size(); ++i) {
 		auto &cam = cameras_[i];
-		auto &chan1 = fs.frames[i].getChannel<cv::Mat>(ftl::rgbd::kChanColour);
-		auto &chan2 = fs.frames[i].getChannel<cv::Mat>(fs.sources[i]->getChannel());
+		auto &chan1 = fs.frames[i].get<cv::Mat>(Channel::Colour);
+		auto &chan2 = fs.frames[i].get<cv::Mat>(fs.sources[i]->getChannel());
+
+		auto test = fs.frames[i].createTexture<uchar4>(Channel::Flow, ftl::rgbd::Format<uchar4>(100,100));
 
 		// Get the RGB-Depth frame from input
 		Source *input = cam.source;
