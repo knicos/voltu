@@ -192,9 +192,9 @@ bool StereoVideoSource::retrieve() {
 
 		if (frames_[1].hasChannel(kChanLeftGray))
 		{
-			auto &left_gray_prev = frame.getChannel<cv::cuda::GpuMat>(kChanLeftGray, stream2_);
+			auto &left_gray_prev = frames_[1].getChannel<cv::cuda::GpuMat>(kChanLeftGray, stream2_);
 			auto &optflow = frame.setChannel<cv::cuda::GpuMat>(kChanFlow);
-			nvof_->calc(left_gray, left_gray_prev, optflow_, stream2_);
+			nvof_->calc(left_gray, left_gray_prev, optflow, stream2_);
 			// nvof_->upSampler() isn't implemented with CUDA
 			// cv::cuda::resize() does not work wiht 2-channel input
 			// cv::cuda::resize(optflow_, optflow, left.size(), 0.0, 0.0, cv::INTER_NEAREST, stream2_);

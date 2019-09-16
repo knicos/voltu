@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ftl/config.h>
+#include <ftl/rgbd/frame.hpp>
 
 #ifdef HAVE_OPTFLOW
 #include <opencv2/core.hpp>
@@ -12,23 +13,15 @@ namespace rgbd {
 
 class OFDisparityFilter {
 public:
-	OFDisparityFilter() : n_max_(0), threshold_(0.0), size_(0, 0) {} // TODO: invalid state
+	OFDisparityFilter() : n_max_(0), threshold_(0.0) {}
 	OFDisparityFilter(cv::Size size, int n_frames, float threshold);
-	void filter(cv::Mat &disp, const cv::Mat &rgb);
+	void filter(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream);
 
 private:
-	int n_;
 	int n_max_;
 	float threshold_;
-	cv::Size size_;
 
-	cv::Mat disp_;
-	cv::Mat gray_;
-
-	cv::Mat flowxy_;
-	cv::Mat flowxy_up_;
-
-	cv::Ptr<cv::cuda::NvidiaOpticalFlow_1_0> nvof_;
+	cv::cuda::GpuMat disp_old_;
 };
 
 }
