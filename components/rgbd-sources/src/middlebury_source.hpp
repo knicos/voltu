@@ -15,7 +15,7 @@ class Disparity;
 
 class MiddleburySource : public detail::Source {
 	public:
-	MiddleburySource(ftl::rgbd::Source *);
+	explicit MiddleburySource(ftl::rgbd::Source *);
 	MiddleburySource(ftl::rgbd::Source *, const std::string &dir);
 	~MiddleburySource() {};
 

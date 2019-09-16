@@ -13,7 +13,7 @@ namespace detail {
 
 class SnapshotSource : public detail::Source {
 	public:
-	SnapshotSource(ftl::rgbd::Source *);
+	explicit SnapshotSource(ftl::rgbd::Source *);
 	SnapshotSource(ftl::rgbd::Source *, ftl::rgbd::Snapshot &snapshot, const std::string &id);
 	~SnapshotSource() {};
 

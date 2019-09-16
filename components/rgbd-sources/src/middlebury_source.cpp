@@ -16,14 +16,13 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host)
 
 static bool loadMiddleburyCalib(const std::string &filename, ftl::rgbd::Camera &params, double scaling) {
 	FILE* fp = fopen(filename.c_str(), "r");
-	char buff[512];
 	
-	float cam0[3][3];
+	float cam0[3][3] = {};
 	float cam1[3][3];
-	float doffs;
-	float baseline;
-	int width;
-	int height;
+	float doffs = 0.0f;
+	float baseline = 0.0f;
+	int width = 0;
+	int height = 0;
 	int ndisp;
 	int isint;
 	int vmin;
@@ -31,8 +30,8 @@ static bool loadMiddleburyCalib(const std::string &filename, ftl::rgbd::Camera &
 	float dyavg;
 	float dymax;
 
-	if (fp != nullptr)
-	{
+	if (fp != nullptr) {
+		char buff[512];
 		if (fgets(buff, sizeof(buff), fp) != nullptr) sscanf(buff, "cam0 = [%f %f %f; %f %f %f; %f %f %f]\n", &cam0[0][0], &cam0[0][1], &cam0[0][2], &cam0[1][0], &cam0[1][1], &cam0[1][2], &cam0[2][0], &cam0[2][1], &cam0[2][2]);
 		if (fgets(buff, sizeof(buff), fp) != nullptr) sscanf(buff, "cam1 = [%f %f %f; %f %f %f; %f %f %f]\n", &cam1[0][0], &cam1[0][1], &cam1[0][2], &cam1[1][0], &cam1[1][1], &cam1[1][2], &cam1[2][0], &cam1[2][1], &cam1[2][2]);
 		if (fgets(buff, sizeof(buff), fp) != nullptr) sscanf(buff, "doffs = %f\n", &doffs);
@@ -122,7 +121,7 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 	mask_l_ = (mask_l == 0);
 
 	if (!host_->getConfig()["disparity"].is_object()) {
-		host_->getConfig()["disparity"] = {{"algorithm","libsgm"}};
+		host_->getConfig()["disparity"] = ftl::config::json_t{{"algorithm","libsgm"}};
 	}
 	
 	disp_ = Disparity::create(host_, "disparity");

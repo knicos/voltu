@@ -22,7 +22,7 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -40,7 +40,7 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -57,7 +57,7 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
 			didrun[1] = true;
@@ -90,7 +90,7 @@ TEST_CASE( "Timer::add() Idle10 job" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -108,7 +108,7 @@ TEST_CASE( "Timer::add() Idle10 job" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -125,7 +125,7 @@ TEST_CASE( "Timer::add() Idle10 job" ) {
 			return false;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -145,7 +145,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -163,7 +163,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -182,7 +182,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 			return true;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::add(ftl::timer::kTimerMain, [&job2](int64_t ts) {
 			job2++;
@@ -204,7 +204,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 			return false;
 		});
 
-		REQUIRE( (rc.id >= 0) );
+		REQUIRE( (rc.id() >= 0) );
 
 		ftl::timer::start(true);
 		REQUIRE( didrun == true );
@@ -224,7 +224,7 @@ TEST_CASE( "TimerHandle::cancel()" ) {
 		});
 
 		// Fake Handle
-		ftl::timer::TimerHandle h = {44};
+		ftl::timer::TimerHandle h(44);
 		h.cancel();
 		ftl::timer::start(true);
 		REQUIRE( didjob );

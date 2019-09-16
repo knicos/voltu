@@ -29,7 +29,7 @@ using ftl::rgbd::Channel;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
-	params_ = {0};
+	params_ = {};
 	stream_ = 0;
 	timestamp_ = 0;
 	reset();
@@ -42,7 +42,7 @@ Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matri
 
 Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(net) {
 	impl_ = nullptr;
-	params_ = {0};
+	params_ = {};
 	stream_ = 0;
 	timestamp_ = 0;
 	reset();

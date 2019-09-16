@@ -105,12 +105,12 @@ void ftl::timer::setClockAdjustment(int64_t ms) {
 }
 
 const TimerHandle ftl::timer::add(timerlevel_t l, const std::function<bool(int64_t ts)> &f) {
-	if (l < 0 || l >= kTimerMAXLEVEL) return {-1};
+	if (l < 0 || l >= kTimerMAXLEVEL) return {};
 
 	UNIQUE_LOCK(mtx, lk);
 	int newid = last_id++;
 	jobs[l].push_back({newid, f, false, false, 0, 0, "NoName"});
-	return {newid};
+	return TimerHandle(newid);
 }
 
 static void removeJob(int id) {
@@ -217,7 +217,7 @@ void ftl::timer::reset() {
 // ===== TimerHandle ===========================================================
 
 void ftl::timer::TimerHandle::cancel() const {
-	removeJob(id);
+	removeJob(id());
 }
 
 void ftl::timer::TimerHandle::pause() const {
