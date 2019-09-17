@@ -37,6 +37,7 @@ using cv::Vec4d;
 
 using ftl::net::Universe;
 using ftl::rgbd::Source;
+using ftl::rgbd::Channel;
 
 Mat getCameraMatrix(const ftl::rgbd::Camera &parameters) {
 	Mat m = (cv::Mat_<double>(3,3) << parameters.fx, 0.0, -parameters.cx, 0.0, parameters.fy, -parameters.cy, 0.0, 0.0, 1.0);
@@ -377,8 +378,8 @@ void runCameraCalibration(	ftl::Configurable* root,
 	);
 
 	for (size_t i = 0; i < n_sources; i++) {
-		auto params_r = sources[i]->parameters(ftl::rgbd::kChanRight);
-		auto params_l = sources[i]->parameters(ftl::rgbd::kChanLeft);
+		auto params_r = sources[i]->parameters(Channel::Right);
+		auto params_l = sources[i]->parameters(Channel::Left);
 
 		CHECK(resolution == Size(params_r.width, params_r.height));
 		CHECK(resolution == Size(params_l.width, params_l.height));
@@ -395,7 +396,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	ftl::rgbd::Group group;
 	for (Source* src : sources) {
-		src->setChannel(ftl::rgbd::kChanRight);
+		src->setChannel(Channel::Right);
 		group.addSource(src);
 	}
 
@@ -408,14 +409,14 @@ void runCameraCalibration(	ftl::Configurable* root,
 	group.sync([&mutex, &new_frames, &rgb_new](ftl::rgbd::FrameSet &frames) {
 		mutex.lock();
 		bool good = true;
-		for (size_t i = 0; i < frames.channel1.size(); i ++) {
-			if (frames.channel1[i].empty()) good = false;
-			if (frames.channel1[i].empty()) good = false;
-			if (frames.channel1[i].channels() != 3) good = false; // ASSERT
-			if (frames.channel2[i].channels() != 3) good = false;
+		for (size_t i = 0; i < frames.sources.size(); i ++) {
+			if (frames.frames[i].get<cv::Mat>(Channel::Left).empty()) good = false;
+			if (frames.frames[i].get<cv::Mat>(Channel::Right).empty()) good = false;
+			if (frames.frames[i].get<cv::Mat>(Channel::Left).channels() != 3) good = false; // ASSERT
+			if (frames.frames[i].get<cv::Mat>(Channel::Right).channels() != 3) good = false;
 			if (!good) break;
-			cv::swap(frames.channel1[i], rgb_new[2 * i]);
-			cv::swap(frames.channel2[i], rgb_new[2 * i + 1]);
+			cv::swap(frames.frames[i].get<cv::Mat>(Channel::Left), rgb_new[2 * i]);
+			cv::swap(frames.frames[i].get<cv::Mat>(Channel::Right), rgb_new[2 * i + 1]);
 		}
 
 		new_frames = good;
