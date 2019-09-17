@@ -3,6 +3,7 @@
 
 using ftl::rgbd::Frame;
 using ftl::rgbd::Channel;
+using ftl::rgbd::Channels;
 using ftl::rgbd::Format;
 
 TEST_CASE("Frame::create() cpu mat", "") {
@@ -265,5 +266,18 @@ TEST_CASE("Frame::getTexture()", "") {
 		}
 
 		REQUIRE( !hadexception );
+	}
+}
+
+TEST_CASE("Frame::swapTo()", "") {
+	SECTION("Single host channel to empty frame") {
+		Frame f1;
+		Frame f2;
+
+		f1.create<cv::Mat>(Channel::Colour, Format<uchar3>(100,100));
+		f1.swapTo(Channels::All(), f2);
+
+		REQUIRE( f2.hasChannel(Channel::Colour) );
+		REQUIRE( (f2.get<cv::Mat>(Channel::Colour).cols == 100) );
 	}
 }

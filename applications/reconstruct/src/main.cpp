@@ -92,23 +92,25 @@ static void run(ftl::Configurable *root) {
 		}
 	}
 
+	ftl::rgbd::FrameSet scene_A;  // Output of align process
+	ftl::rgbd::FrameSet scene_B;  // Input of render process
+
 	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
-	ftl::rgbd::Source *virt = ftl::create<ftl::rgbd::Source>(root, "virtual", net);
-	ftl::render::Splatter *splat = new ftl::render::Splatter();
+	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual", net);
+	ftl::render::Splatter *splat = ftl::create<ftl::render::Splatter>(root, "renderer", scene);
 	ftl::rgbd::Group group;
 	ftl::ILW align;
 
-	//auto virtimpl = new ftl::rgbd::VirtualSource(virt);
-	//virt->customImplementation(virtimpl);
-	//virtimpl->setScene(scene);
+	// Generate virtual camera render when requested by streamer
+	virt->onRender([splat,&scene_B](ftl::rgbd::Frame &out) {
+		splat->render(scene_B, out);
+	});
 	stream->add(virt);
 
 	for (size_t i=0; i<sources.size(); i++) {
 		Source *in = sources[i];
 		in->setChannel(Channel::Depth);
-		//stream->add(in);
-		//scene->addSource(in);
 		group.addSource(in);
 	}
 
@@ -116,87 +118,37 @@ static void run(ftl::Configurable *root) {
 
 	bool busy = false;
 
-	ftl::rgbd::FrameSet scene;
-
 	group.setName("ReconGroup");
 	group.sync([splat,virt,&busy,&slave](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
+
+		if (slave.isPaused()) return true;
 		
 		if (busy) {
 			LOG(INFO) << "Group frameset dropped: " << fs.timestamp;
 			return true;
 		}
 		busy = true;
-		//scene->nextFrame();
 
-		// Send all frames to GPU, block until done?
-		// TODO: Allow non-block and keep frameset locked until later
-		if (!slave.isPaused()) {
-			//scene->upload(fs);
-			for (auto &f : fs.frames) {
-				f.upload(Channel::Colour + Channel::Depth); // TODO: (Nick) Add scene stream
-			}
-		}
+		// Swap the entire frameset to allow rapid return
+		fs.swapTo(scene_A);
 
-		//int64_t ts = fs.timestamp;
-
-		ftl::pool.push([splat,virt,&busy,&fs,&slave](int id) {
+		ftl::pool.push([&scene_B,&scene_A,&busy,&slave](int id) {
 			//cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
 			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 
-			if (!slave.isPaused()) {
-				//scene->integrate();
-				//scene->garbage();
-				align.process(fs, scene);
-			}
+			// Send all frames to GPU, block until done?
+			scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
+			align.process(scene_A);
 
-			// Don't render here... but update timestamp.
-			splat->render(scene, virt); //, scene->getIntegrationStream());
+			// TODO: To use second GPU, could do a download, swap, device change,
+			// then upload to other device. Or some direct device-2-device copy.
+			scene_A.swapTo(scene_B);
 			busy = false;
 		});
 		return true;
 	});
-
-
-	/*int active = sources.size();
-	while (ftl::running) {
-		if (active == 0) {
-			LOG(INFO) << "Waiting for sources...";
-			sleep_for(milliseconds(1000));
-		}
-
-		active = 0;
-
-		if (!slave.isPaused()) {
-			// Mark voxels as cleared
-			scene->nextFrame();
-		
-			// Grab, upload frames and allocate voxel blocks
-			active = scene->upload();
-
-			// Make sure previous virtual camera frame has finished rendering
-			//stream->wait();
-			cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
-
-
-			// Merge new frames into the voxel structure
-			scene->integrate();
-
-			//LOG(INFO) << "Allocated: " << scene->getOccupiedCount();
-
-			// Remove any redundant voxels
-			scene->garbage();
-
-		} else {
-			active = 1;
-		}
-
-		splat->render(virt, scene->getIntegrationStream());
-
-		// Start virtual camera rendering and previous frame compression
-		stream->poll();
-	}*/
 }
 
 int main(int argc, char **argv) {

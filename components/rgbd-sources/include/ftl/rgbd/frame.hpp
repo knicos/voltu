@@ -41,6 +41,13 @@ public:
 	void upload(ftl::rgbd::Channels c, cv::cuda::Stream& stream=cv::cuda::Stream::Null());
 
 	/**
+	 * Perform a buffer swap of the selected channels. This is intended to be
+	 * a copy from `this` to the passed frame object but by buffer swap
+	 * instead of memory copy, meaning `this` may become invalid afterwards.
+	 */
+	void swapTo(ftl::rgbd::Channels, Frame &);
+
+	/**
 	 * Create a channel with a given format. This will discard any existing
 	 * data associated with the channel and ensure all data structures and
 	 * memory allocations match the new format.

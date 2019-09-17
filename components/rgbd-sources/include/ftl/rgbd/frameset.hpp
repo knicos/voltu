@@ -24,6 +24,10 @@ struct FrameSet {
 	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
 	bool stale;						// True if buffers have been invalidated
 	SHARED_MUTEX mtx;
+
+	void upload(ftl::rgbd::Channels, cudaStream_t stream=0);
+	void download(ftl::rgbd::Channels, cudaStream_t stream=0);
+	void swapTo(ftl::rgbd::FrameSet &);
 };
 
 }

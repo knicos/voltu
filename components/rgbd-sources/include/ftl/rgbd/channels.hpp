@@ -28,6 +28,21 @@ enum struct Channel : int {
 
 class Channels {
     public:
+
+	class iterator {
+		public:
+		iterator(const Channels &c, unsigned int ix) : channels_(c), ix_(ix) { }
+		iterator operator++();
+		iterator operator++(int junk);
+		inline ftl::rgbd::Channel operator*() { return static_cast<Channel>(static_cast<int>(ix_)); }
+		//ftl::rgbd::Channel operator->() { return ptr_; }
+		inline bool operator==(const iterator& rhs) { return ix_ == rhs.ix_; }
+		inline bool operator!=(const iterator& rhs) { return ix_ != rhs.ix_; }
+		private:
+		const Channels &channels_;
+		unsigned int ix_;
+	};
+
     inline Channels() { mask = 0; }
     inline explicit Channels(unsigned int m) { mask = m; }
     inline explicit Channels(Channel c) { mask = (c == Channel::None) ? 0 : 0x1 << static_cast<unsigned int>(c); }
@@ -48,6 +63,9 @@ class Channels {
         return mask & (0x1 << c);
     }
 
+	inline iterator begin() { return iterator(*this, 0); }
+	inline iterator end() { return iterator(*this, 32); }
+
     inline operator unsigned int() { return mask; }
     inline operator bool() { return mask > 0; }
     inline operator Channel() {
@@ -63,9 +81,18 @@ class Channels {
 
     static const size_t kMax = 32;
 
+	static Channels All();
+
     private:
     unsigned int mask;
 };
+
+inline Channels::iterator Channels::iterator::operator++() { Channels::iterator i = *this; while (++ix_ < 32 && !channels_.has(ix_)); return i; }
+inline Channels::iterator Channels::iterator::operator++(int junk) { while (++ix_ < 32 && !channels_.has(ix_)); return *this; }
+
+inline Channels Channels::All() {
+	return Channels(0xFFFFFFFFu);
+}
 
 static const Channels kNoChannels;
 static const Channels kAllChannels(0xFFFFFFFFu);

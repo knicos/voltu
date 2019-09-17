@@ -39,6 +39,28 @@ void Frame::upload(Channels c, cv::cuda::Stream& stream) {
 	}
 }
 
+void Frame::swapTo(ftl::rgbd::Channels channels, Frame &f) {
+	// For all channels in this frame object
+	for (auto c : channels_) {
+		// Should we swap this channel?
+		if (channels.has(c)) {
+			// Does 'f' have this channel?
+			if (!f.hasChannel(c)) {
+				// No, so create it first
+				// FIXME: Allocate the memory as well?
+				if (isCPU(c)) f.create<cv::Mat>(c);
+				else f.create<cv::cuda::GpuMat>(c);
+			}
+
+			auto &m1 = _get(c);
+			auto &m2 = f._get(c);
+
+			cv::swap(m1.host, m2.host);
+			cv::cuda::swap(m1.gpu, m2.gpu);
+		}
+	}
+}
+
 template<> cv::Mat& Frame::get(ftl::rgbd::Channel channel) {
 	if (channel == Channel::None) {
 		DLOG(WARNING) << "Cannot get the None channel from a Frame";
