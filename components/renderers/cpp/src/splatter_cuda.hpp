@@ -1,10 +1,7 @@
 #ifndef _FTL_RECONSTRUCTION_SPLAT_CUDA_HPP_
 #define _FTL_RECONSTRUCTION_SPLAT_CUDA_HPP_
 
-#include <ftl/depth_camera.hpp>
-#include <ftl/voxel_hash.hpp>
-//#include <ftl/ray_cast_util.hpp>
-
+#include <ftl/cuda_common.hpp>
 #include "splat_params.hpp"
 
 namespace ftl {
@@ -83,21 +80,6 @@ __device__ inline float intersectDistance(const float3 &n, const float3 &p0, con
      }
      return PINF; 
 }
-
-/**
- * NOTE: Not strictly isosurface currently since it includes the internals
- * of objects up to at most truncation depth.
- */
-void isosurface_point_image(const ftl::voxhash::HashData& hashData,
-			const ftl::cuda::TextureObject<int> &depth,
-			const ftl::render::SplatParams &params, cudaStream_t stream);
-
-//void isosurface_point_image_stereo(const ftl::voxhash::HashData& hashData,
-//		const ftl::voxhash::HashParams& hashParams,
-//		const RayCastData &rayCastData, const RayCastParams &params,
-//		cudaStream_t stream);
-
-// TODO: isosurface_point_cloud
 
 void splat_points(const ftl::cuda::TextureObject<int> &depth_in,
 		const ftl::cuda::TextureObject<uchar4> &colour_in,

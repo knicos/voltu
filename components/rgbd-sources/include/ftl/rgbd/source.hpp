@@ -121,17 +121,6 @@ class Source : public ftl::Configurable {
 	 */
 	void getDepth(cv::Mat &d);
 
-	/**
-	 * Write frames into source buffers from an external renderer. Virtual
-	 * sources do not have an internal generator of frames but instead have
-	 * their data provided from an external rendering class. This function only
-	 * works when there is no internal generator.
-	 */
-	void writeFrames(int64_t ts, const cv::Mat &rgb, const cv::Mat &depth);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream);
-
 	int64_t timestamp() const { return timestamp_; }
 
 	/**
@@ -214,7 +203,7 @@ class Source : public ftl::Configurable {
 	void removeCallback() { callback_ = nullptr; }
 
 
-	private:
+	protected:
 	detail::Source *impl_;
 	cv::Mat rgb_;
 	cv::Mat depth_;
