@@ -116,6 +116,8 @@ static void run(ftl::Configurable *root) {
 
 	bool busy = false;
 
+	ftl::rgbd::FrameSet scene;
+
 	group.setName("ReconGroup");
 	group.sync([splat,virt,&busy,&slave](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
@@ -146,11 +148,11 @@ static void run(ftl::Configurable *root) {
 			if (!slave.isPaused()) {
 				//scene->integrate();
 				//scene->garbage();
-				align.process(fs);
+				align.process(fs, scene);
 			}
 
 			// Don't render here... but update timestamp.
-			splat->render(fs, virt); //, scene->getIntegrationStream());
+			splat->render(scene, virt); //, scene->getIntegrationStream());
 			busy = false;
 		});
 		return true;
