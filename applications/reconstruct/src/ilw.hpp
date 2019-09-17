@@ -3,6 +3,7 @@
 
 #include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/frameset.hpp>
+#include <ftl/configurable.hpp>
 #include <vector>
 
 namespace ftl {
@@ -31,15 +32,15 @@ struct ILWData{
  * point clouds to improve micro alignment that may have been incorrect due to
  * either inaccurate camera pose estimation or noise/errors in the depth maps.
  */
-class ILW {
+class ILW : public ftl::Configurable {
     public:
-    ILW();
+    explicit ILW(nlohmann::json &config);
     ~ILW();
 
     /**
      * Take a frameset and perform the iterative lattice warping.
      */
-    bool process(ftl::rgbd::FrameSet &fs);
+    bool process(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out);
 
     private:
     /*
