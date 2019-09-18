@@ -44,8 +44,8 @@ struct __align__(16) Camera {
 template <> __device__
 inline float2 ftl::rgbd::Camera::camToScreen<float2>(const float3 &pos) const {
 	return make_float2(
-			pos.x*fx/pos.z + cx,			
-			pos.y*fy/pos.z + cy);
+			pos.x*fx/pos.z - cx,			
+			pos.y*fy/pos.z - cy);
 }
 
 template <> __device__
@@ -62,8 +62,8 @@ inline uint2 ftl::rgbd::Camera::camToScreen<uint2>(const float3 &pos) const {
 
 __device__
 inline float3 ftl::rgbd::Camera::screenToCam(uint ux, uint uy, float depth) const {
-	const float x = ((float)ux-cx) / fx;
-	const float y = ((float)uy-cy) / fy;
+	const float x = ((float)ux+cx) / fx;
+	const float y = ((float)uy+cy) / fy;
 	return make_float3(depth*x, depth*y, depth);
 }
 
