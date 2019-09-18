@@ -41,7 +41,6 @@ void Frame::upload(Channels c, cv::cuda::Stream stream) {
 
 bool Frame::empty(ftl::rgbd::Channels channels) {
 	for (auto c : channels) {
-		LOG(INFO) << "Check empty for " << (int)c;
 		if (empty(c)) return true;
 	}
 	return false;
@@ -67,8 +66,6 @@ void Frame::swapTo(ftl::rgbd::Channels channels, Frame &f) {
 
 			cv::swap(m1.host, m2.host);
 			cv::cuda::swap(m1.gpu, m2.gpu);
-
-			LOG(INFO) << "Swapping channel: " << static_cast<int>(c);
 		}
 	}
 }

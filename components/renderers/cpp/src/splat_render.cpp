@@ -23,8 +23,6 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	SHARED_LOCK(scene_->mtx, lk);
 	if (!src->isReady()) return false;
 
-	if (scene_->frames.size() > 0) LOG(INFO) << "Render ready2 " << (unsigned int)scene_->frames[0].getChannels();
-
 	const auto &camera = src->parameters();
 
 	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
@@ -41,8 +39,6 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
 
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-
-	LOG(INFO) << "Render ready1";
 
 	// Create buffers if they don't exist
 	/*if ((unsigned int)depth1_.width() != camera.width || (unsigned int)depth1_.height() != camera.height) {
@@ -77,15 +73,13 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.camera = camera;
 
-	LOG(INFO) << "VPOSE = " << src->getPose();
-
 	// Clear all channels to 0 or max depth
 	temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
 	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(76,76,76), cvstream);
 
-	LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
+	//LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
 	// Render each camera into virtual view
 	for (size_t i=0; i<scene_->frames.size(); ++i) {
@@ -95,19 +89,17 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		if (f.empty(Channel::Depth + Channel::Colour)) {
 			LOG(ERROR) << "Missing required channel";
 			continue;
-		} else {
-			LOG(INFO) << "Channels found";
 		}
 
 		// Needs to create points channel first?
 		if (!f.hasChannel(Channel::Points)) {
-			LOG(INFO) << "Creating points... " << s->parameters().width;
+			//LOG(INFO) << "Creating points... " << s->parameters().width;
 			
 			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
-			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse());
+			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
 			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
 
-			LOG(INFO) << "POINTS Added";
+			//LOG(INFO) << "POINTS Added";
 		}
 
 		ftl::cuda::dibr_merge(
@@ -116,7 +108,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			params, stream
 		);
 
-		LOG(INFO) << "DIBR DONE";
+		//LOG(INFO) << "DIBR DONE";
 	}
 
 		//ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
@@ -128,7 +120,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		//ftl::cuda::mls_render_depth(depth1_, depth3_, params, scene_->cameraCount(), stream);
 
 		if (src->getChannel() == Channel::Depth) {
-			LOG(INFO) << "Rendering depth";
+			//LOG(INFO) << "Rendering depth";
 			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			if (value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
@@ -155,7 +147,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			//	src->writeFrames(colour1_, depth2_, stream);
 			//}
 		} else if (src->getChannel() == Channel::Right) {
-			LOG(INFO) << "Rendering right";
+			//LOG(INFO) << "Rendering right";
 			// Adjust pose to right eye position
 			Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
 			Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
@@ -167,7 +159,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			//src->writeFrames(ts, colour1_, colour2_, stream);
 			//src->write(scene_.timestamp, output_, stream);
 		} else {
-			LOG(INFO) << "No second rendering";
+			//LOG(INFO) << "No second rendering";
 			//if (value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
