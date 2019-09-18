@@ -14,6 +14,7 @@
 #include <ftl/rgbd/streamer.hpp>
 #include <ftl/slave.hpp>
 #include <ftl/rgbd/group.hpp>
+#include <ftl/threads.hpp>
 
 #include "ilw.hpp"
 #include <ftl/render/splat_render.hpp>
@@ -137,6 +138,8 @@ static void run(ftl::Configurable *root) {
 			//cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
 			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
+
+			UNIQUE_LOCK(scene_A.mtx, lk);
 
 			// Send all frames to GPU, block until done?
 			scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.

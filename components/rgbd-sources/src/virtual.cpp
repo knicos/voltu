@@ -6,8 +6,8 @@ using ftl::rgbd::Channel;
 
 class VirtualImpl : public ftl::rgbd::detail::Source {
 	public:
-	explicit VirtualImpl(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
-
+	explicit VirtualImpl(ftl::rgbd::Source *host, const ftl::rgbd::Camera &params) : ftl::rgbd::detail::Source(host) {
+		params_ = params;
 	}
 
 	~VirtualImpl() {
@@ -52,7 +52,8 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 };
 
 VirtualSource::VirtualSource(ftl::config::json_t &cfg) : Source(cfg) {
-	impl_ = new VirtualImpl(this);
+	auto params = params_;
+	impl_ = new VirtualImpl(this, params);
 }
 
 VirtualSource::~VirtualSource() {

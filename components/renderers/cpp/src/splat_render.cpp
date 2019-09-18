@@ -20,9 +20,10 @@ Splatter::~Splatter() {
 }
 
 bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream) {
+	SHARED_LOCK(scene_->mtx, lk);
 	if (!src->isReady()) return false;
 
-	LOG(INFO) << "Render ready2";
+	if (scene_->frames.size() > 0) LOG(INFO) << "Render ready2 " << (unsigned int)scene_->frames[0].getChannels();
 
 	const auto &camera = src->parameters();
 
@@ -82,16 +83,18 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
 	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0,0,0), cvstream);
 
-	LOG(INFO) << "Render ready";
+	LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
 	// Render each camera into virtual view
 	for (size_t i=0; i<scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
 		auto *s = scene_->sources[i];
 
-		if (!f.hasChannel(Channel::Depth) || f.isCPU(Channel::Depth)) {
-			LOG(ERROR) << "Missing required Depth channel";
-			return false;
+		if (f.empty(Channel::Depth + Channel::Colour)) {
+			LOG(ERROR) << "Missing required channel";
+			continue;
+		} else {
+			LOG(INFO) << "Channels found";
 		}
 
 		// Needs to create points channel first?
@@ -123,6 +126,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		//ftl::cuda::mls_render_depth(depth1_, depth3_, params, scene_->cameraCount(), stream);
 
 		if (src->getChannel() == Channel::Depth) {
+			LOG(INFO) << "Rendering depth";
 			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			if (value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
@@ -149,6 +153,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			//	src->writeFrames(colour1_, depth2_, stream);
 			//}
 		} else if (src->getChannel() == Channel::Right) {
+			LOG(INFO) << "Rendering right";
 			// Adjust pose to right eye position
 			Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
 			Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
@@ -160,13 +165,14 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			//src->writeFrames(ts, colour1_, colour2_, stream);
 			//src->write(scene_.timestamp, output_, stream);
 		} else {
+			LOG(INFO) << "No second rendering";
 			if (value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
 				//src->write(scene_.timestamp, out, stream);
 			} else {
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
+				//temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
 				//src->write(scene_.timestamp, output_, stream);
 			}

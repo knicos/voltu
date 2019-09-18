@@ -88,12 +88,21 @@ public:
 	 */
 	void reset();
 
+	bool empty(ftl::rgbd::Channels c);
+
+	inline bool empty(ftl::rgbd::Channel c) {
+		auto &m = _get(c);
+		return !hasChannel(c) || (m.host.empty() && m.gpu.empty());
+	}
+
 	/**
 	 * Is there valid data in channel (either host or gpu).
 	 */
 	inline bool hasChannel(ftl::rgbd::Channel channel) const {
 		return channels_.has(channel);
 	}
+
+	inline ftl::rgbd::Channels getChannels() const { return channels_; }
 
 	/**
 	 * Is the channel data currently located on GPU. This also returns false if
