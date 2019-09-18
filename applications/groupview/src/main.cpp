@@ -307,8 +307,8 @@ int main(int argc, char **argv) {
 		LOG(INFO) << "Video mode";
 		modeVideo(root);
 	} else {
-		modeVideo(root);
-		//modeFrame(root);
+		//modeVideo(root);
+		modeFrame(root);
 	}
 
 	ftl::running = false;

@@ -3,6 +3,7 @@ set(RGBDSRC
 	src/local.cpp
 	src/disparity.cpp
 	src/source.cpp
+	src/frame.cpp
 	src/stereovideo.cpp
 	src/middlebury_source.cpp
 	src/net.cpp
@@ -63,7 +64,7 @@ set_property(TARGET ftlrgbd PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen ${REALSENSE_LIBRARY} ftlnet ${LibArchive_LIBRARIES})
+target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen ${REALSENSE_LIBRARY} ftlnet ${LibArchive_LIBRARIES} ftlcodecs)
 
 add_subdirectory(test)
 

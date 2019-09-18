@@ -2,12 +2,19 @@
 #ifndef _FTL_RGBD_NET_HPP_
 #define _FTL_RGBD_NET_HPP_
 
+#include <ftl/config.h>
+
 #include <ftl/net/universe.hpp>
 #include <ftl/rgbd/source.hpp>
 #include <ftl/rgbd/detail/abr.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/rgbd/detail/netframe.hpp>
+#include <ftl/codecs/decoder.hpp>
 #include <string>
+
+#ifdef HAVE_NVPIPE
+#include <NvPipe.h>
+#endif
 
 namespace ftl {
 namespace rgbd {
@@ -44,19 +51,24 @@ class NetSource : public detail::Source {
 	std::string uri_;
 	ftl::net::callback_t h_;
 	SHARED_MUTEX mutex_;
-	int chunks_dim_;
-	int chunk_width_;
-	int chunk_height_;
 	cv::Mat idepth_;
 	float gamma_;
 	int temperature_;
 	int minB_;
 	int maxN_;
 	int default_quality_;
-	int chunk_count_;
 	ftl::rgbd::channel_t prev_chan_;
 
 	ftl::rgbd::detail::ABRController abr_;
+	int last_bitrate_;
+
+	//#ifdef HAVE_NVPIPE
+	//NvPipe *nv_channel1_decoder_;
+	//NvPipe *nv_channel2_decoder_;
+	//#endif
+
+	ftl::codecs::Decoder *decoder_c1_;
+	ftl::codecs::Decoder *decoder_c2_;
 
 	// Adaptive bitrate functionality
 	ftl::rgbd::detail::bitrate_t adaptive_;	 // Current adapted bitrate
@@ -67,9 +79,12 @@ class NetSource : public detail::Source {
 
 	bool _getCalibration(ftl::net::Universe &net, const ftl::UUID &peer, const std::string &src, ftl::rgbd::Camera &p, ftl::rgbd::channel_t chan);
 	void _recv(const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
-	void _recvChunk(int64_t frame, short ttimeoff, int chunk, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
+	void _recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &);
+	//void _recvChunk(int64_t frame, short ttimeoff, uint8_t bitrate, int chunk, const std::vector<unsigned char> &jpg, const std::vector<unsigned char> &d);
+	//void _recvVideo(int64_t ts, short ttimeoff, uint8_t bitrate, const std::vector<unsigned char> &chan1, const std::vector<unsigned char> &chan2);
 	void _updateURI();
 	//void _checkAdaptive(int64_t);
+	void _createDecoder(int chan, const ftl::codecs::Packet &);
 };
 
 }

@@ -13,7 +13,7 @@ using ftl::rgbd::detail::NetFrame;
 
 ABRController::ABRController() {
     bitrate_ = 0;
-    enabled_ = false;
+    enabled_ = true;
     max_ = kBitrateBest;
     min_ = kBitrateWorst;
 }
@@ -33,7 +33,7 @@ void ABRController::setMinimumBitrate(bitrate_t b) {
 }
 
 void ABRController::notifyChanged() {
-    //enabled_ = true;
+    enabled_ = true;
 }
 
 bitrate_t ABRController::selectBitrate(const NetFrame &frame) {
@@ -41,9 +41,11 @@ bitrate_t ABRController::selectBitrate(const NetFrame &frame) {
 
     float actual_mbps = (float(frame.tx_size) * 8.0f * (1000.0f / float(frame.tx_latency))) / 1048576.0f;
     float min_mbps = (float(frame.tx_size) * 8.0f * (1000.0f / float(ftl::timer::getInterval()))) / 1048576.0f;
-    LOG(INFO) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
+    //LOG(INFO) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
     float ratio = actual_mbps / min_mbps;
     //LOG(INFO) << "Rate Ratio = " << frame.tx_latency;
+
+    return bitrate_;
 
     down_log_ = down_log_ << 1;
     up_log_ = up_log_ << 1;
@@ -81,7 +83,7 @@ const BitrateSetting &ABRController::getBitrateInfo(bitrate_t b) {
 };
 
 int ABRController::getColourWidth(bitrate_t b) {
-    return std::ceil(bitrate_settings[b].colour_res * kAspectRatio);
+    return int(std::ceil(bitrate_settings[b].colour_res * kAspectRatio)) & 0x7FFFFFFFC;
 }
 
 int ABRController::getDepthWidth(bitrate_t b) {

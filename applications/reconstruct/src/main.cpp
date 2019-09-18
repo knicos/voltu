@@ -114,7 +114,10 @@ static void run(ftl::Configurable *root) {
 
 	bool busy = false;
 
+	group.setName("ReconGroup");
 	group.sync([scene,splat,virt,&busy,&slave](ftl::rgbd::FrameSet &fs) -> bool {
+		cudaSetDevice(scene->getCUDADevice());
+		
 		if (busy) {
 			LOG(INFO) << "Group frameset dropped: " << fs.timestamp;
 			return true;
@@ -129,6 +132,7 @@ static void run(ftl::Configurable *root) {
 		int64_t ts = fs.timestamp;
 
 		ftl::pool.push([scene,splat,virt,&busy,ts,&slave](int id) {
+			cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
 			cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 

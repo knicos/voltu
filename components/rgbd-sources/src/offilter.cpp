@@ -1,8 +1,8 @@
+#include "ftl/offilter.hpp"
+
 #ifdef HAVE_OPTFLOW
 
 #include <loguru.hpp>
-
-#include "ftl/offilter.hpp"
 
 using namespace ftl::rgbd;
 
@@ -16,7 +16,8 @@ template<typename T> static bool inline isValidDisparity(T d) { return (0.0 < d)
 OFDisparityFilter::OFDisparityFilter(Size size, int n_frames, float threshold) :
 	n_(0), n_max_(n_frames), threshold_(threshold), size_(size)
 {
-	disp_ = Mat::zeros(size, CV_64FC(n_frames));
+	
+	disp_ = Mat::zeros(cv::Size(size.width * n_frames, size.height), CV_64FC1);
 	gray_ = Mat::zeros(size, CV_8UC1);
 
 	nvof_ = cv::cuda::NvidiaOpticalFlow_1_0::create(size.width, size.height,

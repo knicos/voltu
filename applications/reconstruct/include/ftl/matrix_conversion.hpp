@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <eigen3/Eigen/Eigen>
+#include <Eigen/Eigen>
 // #include "d3dx9math.h"
 #include <ftl/cuda_matrix_util.hpp>
 

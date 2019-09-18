@@ -12,11 +12,9 @@ using cv::cuda::GpuMat;
 
 FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	ssgm_ = nullptr;
+	const int width = size_.width;
+	const int height = size_.height;
 
-	int width = value("width", 1280);
-	int height = value("height", 720);
-	
-	size_ = cv::Size(width, height);
 	CHECK((width >= 480) && (height >= 360));
 
 	uniqueness_ = value("uniqueness", 0.95f);
@@ -38,7 +36,7 @@ FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	}
 	
 #ifdef HAVE_OPTFLOW
-	bool use_off_ = value("use_off", false);
+	use_off_ = value("use_off", false);
 
 	if (use_off_)
 	{
@@ -64,54 +62,79 @@ void FixstarsSGM::init(const cv::Size size) {
 	);
 }
 
-void FixstarsSGM::compute(const cv::cuda::GpuMat &l, const cv::cuda::GpuMat &r,
-	cv::cuda::GpuMat &disp, cv::cuda::Stream &stream)
+void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 {
-	if (l.size() != size_) {
-		// re-use same buffer for l/r
-		cv::cuda::resize(r, l_downscaled_, size_, 0.0, 0.0, cv::INTER_CUBIC, stream);
-		cv::cuda::cvtColor(l_downscaled_, rbw_, cv::COLOR_BGR2GRAY, 0, stream);
-		cv::cuda::resize(l, l_downscaled_, size_, 0.0, 0.0, cv::INTER_CUBIC, stream);
-		cv::cuda::cvtColor(l_downscaled_, lbw_, cv::COLOR_BGR2GRAY, 0, stream);
+	/*if (!frame.hasChannel(ftl::rgbd::kChanLeftGray))
+	{
+		auto &rgb = frame.getChannel<GpuMat>(ftl::rgbd::kChanLeft, stream);
+		auto &gray = frame.setChannel<GpuMat>(ftl::rgbd::kChanLeftGray);
+		cv::cuda::cvtColor(rgb, gray, cv::COLOR_BGR2GRAY, 0, stream);
 	}
-	else {
+
+	if (!frame.hasChannel(ftl::rgbd::kChanRightGray))
+	{
+		auto &rgb = frame.getChannel<GpuMat>(ftl::rgbd::kChanRight, stream);
+		auto &gray = frame.setChannel<GpuMat>(ftl::rgbd::kChanRightGray);
+		cv::cuda::cvtColor(rgb, gray, cv::COLOR_BGR2GRAY, 0, stream);
+	}*/
+
+	const auto &l = frame.getChannel<GpuMat>(ftl::rgbd::kChanLeft, stream);
+	const auto &r = frame.getChannel<GpuMat>(ftl::rgbd::kChanRight, stream);
+	auto &disp = frame.setChannel<GpuMat>(ftl::rgbd::kChanDisparity);
+
+	if (disp.size() != l.size())
+	{
+		disp = GpuMat(l.size(), CV_32FC1);
+	}
+
+	GpuMat l_scaled;
+	if (l.size() != size_)
+	{
+		GpuMat _r;
+		scaleInput(l, r, l_scaled, _r, stream);
+		cv::cuda::cvtColor(l_scaled, lbw_, cv::COLOR_BGR2GRAY, 0, stream);
+		cv::cuda::cvtColor(_r, rbw_, cv::COLOR_BGR2GRAY, 0, stream);
+	}
+	else
+	{
 		cv::cuda::cvtColor(l, lbw_, cv::COLOR_BGR2GRAY, 0, stream);
 		cv::cuda::cvtColor(r, rbw_, cv::COLOR_BGR2GRAY, 0, stream);
 	}
 
 	stream.waitForCompletion();
-
 	ssgm_->execute(lbw_.data, rbw_.data, dispt_.data);
-
 	GpuMat left_pixels(dispt_, cv::Rect(0, 0, max_disp_, dispt_.rows));
 	left_pixels.setTo(0);
 	cv::cuda::threshold(dispt_, dispt_, 4096.0f, 0.0f, cv::THRESH_TOZERO_INV, stream);
 
 	// TODO: filter could be applied after upscaling (to the upscaled disparity image)
-	if (use_filter_) {
-		filter_->apply(dispt_,
-			l.size() != dispt_.size() ? l_downscaled_ : l,
+	if (use_filter_)
+	{
+		filter_->apply(
+			dispt_,
+			(l.size() == size_) ? l : l_scaled,
 			dispt_,
 			stream
 		);
 	}
 
-	if (l.size() != size_) {
-		cv::cuda::multiply(dispt_, (double)l.cols / (double)size_.width, dispt_);
-		// invalid areas (bad values) have to be taken into account in interpolation
-		cv::cuda::resize(dispt_, dispt_full_res_, l.size(), 0.0, 0.0, cv::INTER_NEAREST, stream);
+	GpuMat dispt_scaled;
+	if (l.size() != size_)
+	{
+		scaleDisparity(l.size(), dispt_, dispt_scaled, stream);
 	}
-	else {
-		dispt_full_res_ = dispt_;
+	else
+	{
+		dispt_scaled = dispt_;
 	}
 
-	dispt_full_res_.convertTo(disp, CV_32F, 1.0f / 16.0f, stream);
+	dispt_scaled.convertTo(disp, CV_32F, 1.0f / 16.0f, stream);
 
 #ifdef HAVE_OPTFLOW
-	if (use_off_) {
-		Mat disp_host(disp);
-		off_.filter(disp_host, Mat(lbw_));
-		disp.upload(disp_host);
+	if (use_off_)
+	{
+		frame.getChannel<Mat>(ftl::rgbd::kChanDisparity);
+		off_.filter(frame.setChannel<Mat>(ftl::rgbd::kChanDisparity), Mat(lbw_));
 	}
 #endif
 }
@@ -119,9 +142,7 @@ void FixstarsSGM::compute(const cv::cuda::GpuMat &l, const cv::cuda::GpuMat &r,
 void FixstarsSGM::setMask(Mat &mask) {
 	return; // TODO(Nick) Not needed, but also code below does not work with new GPU pipeline
 	CHECK(mask.type() == CV_8UC1) << "mask type must be CV_8U";
-
 	if (!ssgm_) { init(size_); }
-
-	mask_l_ = mask;
+	mask_l_ = GpuMat(mask);
 	ssgm_->setMask((uint8_t*)mask.data, mask.cols);
 }

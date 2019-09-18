@@ -490,8 +490,12 @@ bool Peer::_data() {
 	UNIQUE_LOCK(recv_mtx_,lk);
 
 	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
+		//LOG(INFO) << "Reading WS Header";
 		wsheader_type ws;
+		ws.header_size = 0;
 		if (ws_parse(recv_buf_, ws) < 0) {
+			//LOG(ERROR) << "Bad WS header " << ws.header_size;
+			is_waiting_ = true;
 			return false;
 		}
 		ws_read_header_ = true;
@@ -501,6 +505,7 @@ bool Peer::_data() {
 		is_waiting_ = true;
 		return false;
 	}
+	ws_read_header_ = false;
 	
 	lk.unlock();
 
@@ -509,11 +514,11 @@ bool Peer::_data() {
 		_data();
 	});
 
-	if (status_ != kConnected) {
+	if (status_ == kConnecting) {
 		// If not connected, must lock to make sure no other thread performs this step
 		UNIQUE_LOCK(recv_mtx_,lk);
 		// Verify still not connected after lock
-		if (status_ != kConnected) {
+		if (status_ == kConnecting) {
 			// First message must be a handshake
 			try {
 				tuple<uint32_t, std::string, msgpack::object> hs;
@@ -549,7 +554,7 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 	// TODO: Handle error reporting...
 	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
-		DLOG(1) << "Received return RPC value";
+		//DLOG(1) << "Received return RPC value";
 		
 		// Allow for unlock before callback
 		auto cb = std::move(callbacks_[id]);

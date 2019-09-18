@@ -2,8 +2,21 @@ const express = require('express');
 const app = express();
 const expressWs = require('express-ws')(app);
 const Peer = require('./peer.js');
+const passport = require('passport');
+const passportSetup = require('./passport/passport');
 
 // ---- INDEXES ----------------------------------------------------------------
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(express.static('build'))
+
+passport.serializeUser((user, done) => {
+    done(null, user);
+})
+
+passport.deserializeUser((userDataFromCookie, done) => {
+    done(null, userDataFromCookie);
+})
 
 let peer_by_id = {};
 //let uri_to_peer = {};
@@ -11,32 +24,56 @@ let peer_uris = {};
 
 let uri_data = {};
 
+/**
+ * A client stream request object. Each source maintains a list of clients who
+ * are wanting frames from that source. Clients can only request N frames at a
+ * time, after that if no new request is received then the client is removed.
+ * 
+ * @param {Peer} peer Peer websocket wrapper
+ * @param {number} N Number of frames requested
+ * @param {number} rate Bitrate index requested
+ * @param {string} dest URI destination
+ */
 function RGBDClient(peer, N, rate, dest) {
 	this.peer = peer;
-	this.txmax = N;
+	this.txmax = N*16;  // 16 is for 16 blocks per frame... this will change in the near future
 	this.rate = rate;
 	this.dest = dest;
 	this.txcount = 0;
 }
 
-RGBDClient.prototype.push = function(uri, rgb, depth) {
-	this.peer.send(uri, rgb, depth);
+/**
+ * Actually send a frame over network to the client.
+ */
+RGBDClient.prototype.push = function(uri, frame, ttime, chunk,  rgb, depth) {
+	this.peer.send(uri, frame, ttime, chunk, rgb, depth);
 	this.txcount++;
 }
 
+/**
+ * A video stream. Each peer provides a list of these streams. Each stream can
+ * receive frames from the source and forward those frames to any clients.
+ * Therefore each of these stream objects maintains a list of clients and
+ * loops over them whenever a new frame is received.
+ * 
+ * @param {string} uri Address of the stream
+ * @param {Peer} peer Origin of the stream
+ */
 function RGBDStream(uri, peer) {
 	this.uri = uri;
 	this.peer = peer;
 	this.title = "";
-	this.rgb = null;
-	this.depth = null;
+	this.rgb = null;		// TODO: No longer works as an image
+	this.depth = null;		// TODO: No longer works as an image
 	this.pose = null;
 	this.clients = [];
 	this.rxcount = 10;
 	this.rxmax = 10;
 
-	peer.bind(uri, (rgb, depth) => {
-		this.pushFrames(rgb, depth);
+	// Add RPC handler to receive frames from the source
+	peer.bind(uri, (frame, ttime, chunk, rgb, depth) => {
+		// Forward frames to all clients
+		this.pushFrames(frame, ttime, chunk, rgb, depth);
 		this.rxcount++;
 		if (this.rxcount >= this.rxmax && this.clients.length > 0) {
 			this.subscribe();
@@ -60,16 +97,16 @@ RGBDStream.prototype.addClient = function(peer, N, rate, dest) {
 RGBDStream.prototype.subscribe = function() {
 	this.rxcount = 0;
 	this.rxmax = 10;
-	console.log("Subscribe to ", this.uri);
+	//console.log("Subscribe to ", this.uri);
 	this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
 }
 
-RGBDStream.prototype.pushFrames = function(rgb, depth) {
+RGBDStream.prototype.pushFrames = function(frame, ttime, chunk, rgb, depth) {
 	this.rgb = rgb;
 	this.depth = depth;
 
 	for (let i=0; i < this.clients.length; i++) {
-		this.clients[i].push(this.uri, rgb, depth);
+		this.clients[i].push(this.uri, frame, ttime, chunk, rgb, depth);
 	}
 
 	let i=0;
@@ -115,6 +152,30 @@ app.get('/stream/depth', (req, res) => {
 
 //app.get('/stream', (req, res))
 
+/** 
+ * Route for Google authentication API
+*/
+app.get('/google', passport.authenticate('google', {
+	scope: ['profile']
+}))
+
+/** 
+ * Google authentication API callback route. 
+ * Sets the JWT to clients browser and redirects the user back to React app.
+*/
+app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
+	const htmlWithEmbeddedJWT = `
+    <html>
+        <body><h3> You will be automatically redirected to next page.<h3><body>
+        <script>
+			window.localStorage.setItem('token', 'bearer token');
+			window.location.href = '/';
+        </script>
+    <html>
+    `;
+    res.send(htmlWithEmbeddedJWT)
+})
+
 function checkStreams(peer) {
 	if (!peer.master) {
 		peer.rpc("list_streams", (streams) => {
@@ -143,7 +204,7 @@ app.ws('/', (ws, req) => {
 	let p = new Peer(ws);
 
 	p.on("connect", (peer) => {
-		console.log("Node connected...");
+		console.log("Node connected...", peer.string_id);
 		peer_uris[peer.string_id] = [];
 		peer_by_id[peer.string_id] = peer;
 
@@ -154,6 +215,7 @@ app.ws('/', (ws, req) => {
 			peer.name = obj.title;
 			peer.master = (obj.kind == "master");
 			console.log("Peer name = ", peer.name);
+			console.log("Details: ", details);
 
 			checkStreams(peer);
 		});
@@ -179,6 +241,15 @@ app.ws('/', (ws, req) => {
 		checkStreams(p);
 	});
 
+	// Used to sync clocks
+	p.bind("__ping__", () => {
+		return Date.now();
+	});
+
+	p.bind("node_details", () => {
+		return ['{"title": "FTL Web-Service", "id": "0", "kind": "master"}'];
+	});
+
 	p.bind("list_streams", () => {
 		return Object.keys(uri_data);
 	});
@@ -193,15 +264,25 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
-	p.proxy("source_calibration", (cb, uri) => {
+	// Requests camera calibration information
+	p.proxy("source_details", (cb, uri, chan) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
-			peer.rpc("source_calibration", cb, uri);
+			peer.rpc("source_details", cb, uri, chan);
 		}
 	});
 
-	p.bind("set_pose", (uri, vec) => {
+	// Get the current position of a camera
+	p.proxy("get_pose", (cb, uri) => {
 		//console.log("SET POSE");
+		let peer = uri_data[uri].peer;
+		if (peer) {
+			peer.rpc("get_pose", cb, uri);
+		}
+	});
+
+	// Change the position of a camera
+	p.bind("set_pose", (uri, vec) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
 			uri_data[uri].pose = vec;
@@ -209,6 +290,7 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
+	// Request from frames from a source
 	p.bind("get_stream", (uri, N, rate, pid, dest) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
@@ -217,6 +299,7 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
+	// Register a new stream
 	p.bind("add_stream", (uri) => {
 		console.log("Adding stream: ", uri);
 		//uri_to_peer[streams[i]] = peer;

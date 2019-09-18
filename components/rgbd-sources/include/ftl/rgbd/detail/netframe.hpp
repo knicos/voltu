@@ -18,6 +18,7 @@ struct NetFrame {
 	cv::Mat channel2;
 	volatile int64_t timestamp;
 	std::atomic<int> chunk_count;
+	int chunk_total;
 	std::atomic<int> tx_size;
 	int64_t tx_latency;
 	MUTEX mtx;

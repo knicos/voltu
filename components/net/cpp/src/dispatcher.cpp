@@ -65,15 +65,15 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     // assert(type == 0);
     
     if (type == 1) {
-    	DLOG(INFO) << "RPC return for " << id;
+    	//DLOG(INFO) << "RPC return for " << id;
     	s._dispatchResponse(id, args);
     } else if (type == 0) {
-		DLOG(INFO) << "RPC " << name << "() <- " << s.getURI();
+		//DLOG(INFO) << "RPC " << name << "() <- " << s.getURI();
 
 		auto func = _locateHandler(name);
 
 		if (func) {
-			DLOG(INFO) << "Found binding for " << name;
+			//DLOG(INFO) << "Found binding for " << name;
 		    try {
 		        auto result = (*func)(args); //->get();
 		        s._sendResponse(id, result->get());
@@ -149,7 +149,7 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_t found,
                                    std::size_t expected) {
     if (found != expected) {
-    	LOG(FATAL) << "RPC argument missmatch - " << found << " != " << expected;
+    	LOG(FATAL) << "RPC argument missmatch for '" << func << "' - " << found << " != " << expected;
         throw -1;
     }
 }

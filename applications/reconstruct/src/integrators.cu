@@ -39,7 +39,7 @@ __device__ float colourDistance(const uchar4 &c1, const uchar3 &c2) {
 __device__ bool colordiff(const uchar4 &pa, const uchar3 &pb, float epsilon) {
 	float x_2 = pb.x * pb.x + pb.y * pb.y + pb.z * pb.z;
 	float v_2 = pa.x * pa.x + pa.y * pa.y + pa.z * pa.z;
-	float xv_2 = pow(pb.x * pa.x + pb.y * pa.y + pb.z * pa.z, 2);
+	float xv_2 = powf(float(pb.x * pa.x + pb.y * pa.y + pb.z * pa.z), 2.0f);
 	float p_2 = xv_2 / v_2;
 	return sqrt(x_2 - p_2) < epsilon;
 }

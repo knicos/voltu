@@ -150,7 +150,7 @@ static void trigger_jobs() {
 	// Now use thread jobs to do more intensive callbacks
 	for (auto &j : jobs[kTimerMain]) {
 		if (j.active) {
-			DLOG(WARNING) << "Timer job too slow ... skipped for " << ts;
+			//LOG(WARNING) << "Timer job too slow ... skipped for " << ts;
 			continue;
 		}
 		j.active = true;

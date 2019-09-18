@@ -44,6 +44,7 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 		if (f.timestamp == -1) {
 			f.timestamp = ts;
 			f.chunk_count = 0;
+			f.chunk_total = 0;
 			f.tx_size = 0;
 			f.channel1.create(s, c1type);
 			f.channel2.create(s, c2type);
@@ -115,6 +116,10 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 	gamma_ = host->value("gamma", 1.0f);
 	temperature_ = host->value("temperature", 6500);
 	default_quality_ = host->value("quality", 0);
+	last_bitrate_ = 0;
+
+	decoder_c1_ = nullptr;
+	decoder_c2_ = nullptr;
 
 	host->on("gamma", [this,host](const ftl::config::Event&) {
 		gamma_ = host->value("gamma", 1.0f);
@@ -149,9 +154,6 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 		default_quality_ = host->value("quality", 0);
 	});
 
-	chunks_dim_ = host->value("chunking",4);
-	chunk_count_ = chunks_dim_*chunks_dim_;
-
 	abr_.setMaximumBitrate(host->value("max_bitrate", -1));
 	abr_.setMinimumBitrate(host->value("min_bitrate", -1));
 
@@ -165,6 +167,9 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 }
 
 NetSource::~NetSource() {
+	if (decoder_c1_) ftl::codecs::free(decoder_c1_);
+	if (decoder_c2_) ftl::codecs::free(decoder_c2_);
+
 	if (uri_.size() > 0) {
 		host_->getNet()->unbind(uri_);
 	}
@@ -199,70 +204,72 @@ NetSource::~NetSource() {
 	}
 }*/
 
-void NetSource::_recvChunk(int64_t ts, short ttimeoff, int chunk, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-	// TODO: Don't allocate these each chunk
-	cv::Mat tmp_rgb, tmp_depth;
+void NetSource::_createDecoder(int chan, const ftl::codecs::Packet &pkt) {
+	UNIQUE_LOCK(mutex_,lk);
+	auto *decoder = (chan == 0) ? decoder_c1_ : decoder_c2_;
+	if (decoder) {
+		if (!decoder->accepts(pkt)) {
+			ftl::codecs::free((chan == 0) ? decoder_c1_ : decoder_c2_);
+		} else {
+			return;
+		}
+	}
 
+	if (chan == 0) {
+		decoder_c1_ = ftl::codecs::allocateDecoder(pkt);
+	} else {
+		decoder_c2_ = ftl::codecs::allocateDecoder(pkt);
+	}
+}
+
+void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	// Capture time here for better net latency estimate
 	int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
-
 	if (!active_) return;
 
 	const ftl::rgbd::channel_t chan = host_->getChannel();
-	NetFrame &frame = queue_.getFrame(ts, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
+	int rchan = spkt.channel & 0x1;
+
+	// Ignore any unwanted second channel
+	if (chan == ftl::rgbd::kChanNone && rchan > 0) {
+		LOG(INFO) << "Unwanted channel";
+		//return;
+		// TODO: Allow decode to be skipped
+	}
+
+	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
 
 	// Update frame statistics
-	frame.tx_size += jpg.size() + d.size();
+	frame.tx_size += pkt.data.size();
 
-	// Build chunk head
-	int cx = (chunk % chunks_dim_) * chunk_width_;
-	int cy = (chunk / chunks_dim_) * chunk_height_;
-	cv::Rect roi(cx,cy,chunk_width_,chunk_height_);
-	cv::Mat chunkRGB = frame.channel1(roi);
-	cv::Mat chunkDepth = frame.channel2(roi);
+	_createDecoder(rchan, pkt);
+	auto *decoder = (rchan == 0) ? decoder_c1_ : decoder_c2_;
+	if (!decoder) {
+		LOG(ERROR) << "No frame decoder available";
+		return;
+	}
 
-	// Decode in temporary buffers to prevent long locks
-	cv::imdecode(jpg, cv::IMREAD_COLOR, &tmp_rgb);
-	if (d.size() > 0) cv::imdecode(d, cv::IMREAD_UNCHANGED, &tmp_depth);
+	decoder->decode(pkt, (rchan == 0) ? frame.channel1 : frame.channel2);
 
 	// Apply colour correction to chunk
-	ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
-
+	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
 
-	// Original size so just copy
-	if (tmp_rgb.cols == chunkRGB.cols) {
-		tmp_rgb.copyTo(chunkRGB);
-		if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
-			tmp_depth.convertTo(chunkDepth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-		} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
-			tmp_depth.copyTo(chunkDepth);
-		} else {
-			// Silent ignore?
-		}
-	// Downsized so needs a scale up
-	} else {
-		cv::resize(tmp_rgb, chunkRGB, chunkRGB.size());
-		//tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f);
-		if (!tmp_depth.empty() && tmp_depth.type() == CV_16U && chunkDepth.type() == CV_32F) {
-			tmp_depth.convertTo(tmp_depth, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-			cv::resize(tmp_depth, chunkDepth, chunkDepth.size(), 0, 0, cv::INTER_NEAREST);
-		} else if (!tmp_depth.empty() && tmp_depth.type() == CV_8UC3 && chunkDepth.type() == CV_8UC3) {
-			cv::resize(tmp_depth, chunkDepth, chunkDepth.size());
-		} else {
-			// Silent ignore?
-		}
-	}
-
 	if (timestamp_ > 0 && frame.timestamp <= timestamp_) {
-		LOG(ERROR) << "BAD DUPLICATE FRAME - " << timestamp_ - frame.timestamp;
+		LOG(ERROR) << "BAD DUPLICATE FRAME - " << frame.timestamp << " received=" << int(rchan) << " uri=" << uri_;
 		return;
 	}
-		
+
+	// Calculate how many packets to expect for this frame
+	if (frame.chunk_total == 0) {
+		// Getting a second channel first means expect double packets
+		frame.chunk_total = pkt.block_total * ((spkt.channel >> 1) + 1);
+	}		
+
 	++frame.chunk_count;
 
-	if (frame.chunk_count > chunk_count_) LOG(FATAL) << "TOO MANY CHUNKS";
+	if (frame.chunk_count > frame.chunk_total) LOG(FATAL) << "TOO MANY CHUNKS";
 
 	// Capture tx time of first received chunk
 	if (frame.chunk_count == 1) {
@@ -273,18 +280,22 @@ void NetSource::_recvChunk(int64_t ts, short ttimeoff, int chunk, const vector<u
 	}
 
 	// Last chunk now received
-	if (frame.chunk_count == chunk_count_) {
+	if (frame.chunk_count == frame.chunk_total) {
 		UNIQUE_LOCK(frame.mtx, flk);
 
-		if (frame.timestamp >= 0 && frame.chunk_count == chunk_count_) {
+		if (frame.timestamp >= 0 && frame.chunk_count == frame.chunk_total) {
 			timestamp_ = frame.timestamp;
-			frame.tx_latency = now-(ts+frame.tx_latency);
+			frame.tx_latency = now-(spkt.timestamp+frame.tx_latency);
 
 			adaptive_ = abr_.selectBitrate(frame);
 			//LOG(INFO) << "Frame finished: " << frame.timestamp;
 			auto cb = host_->callback();
 			if (cb) {
-				cb(frame.timestamp, frame.channel1, frame.channel2);
+				try {
+					cb(frame.timestamp, frame.channel1, frame.channel2);
+				} catch (...) {
+					LOG(ERROR) << "Exception in net frame callback";
+				}
 			} else {
 				LOG(ERROR) << "NO FRAME CALLBACK";
 			}
@@ -293,7 +304,6 @@ void NetSource::_recvChunk(int64_t ts, short ttimeoff, int chunk, const vector<u
 
 			{
 				// Decrement expected frame counter
-				//UNIQUE_LOCK(host_->mutex(),lk);
 				N_--;
 			}
 		}
@@ -347,17 +357,21 @@ void NetSource::_updateURI() {
 
 		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::rgbd::kChanLeft);
 
-		host_->getNet()->bind(*uri, [this](int64_t frame, short ttimeoff, int chunk, const vector<unsigned char> &jpg, const vector<unsigned char> &d) {
-			_recvChunk(frame, ttimeoff, chunk, jpg, d);
+		host_->getNet()->bind(*uri, [this](short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			//if (chunk == -1) {
+				//#ifdef HAVE_NVPIPE
+				//_recvVideo(frame, ttimeoff, bitrate, jpg, d);
+				//#else
+				//LOG(ERROR) << "Cannot receive HEVC, no NvPipe support";
+				//#endif
+			//} else {
+				//_recvChunk(frame, ttimeoff, bitrate, chunk, jpg, d);
+				_recvPacket(ttimeoff, spkt, pkt);
+			//}
 		});
 
 		N_ = 0;
 
-		// Update chunk details
-		//chunks_dim_ = ftl::rgbd::kChunkDim;
-		chunk_width_ = params_.width / chunks_dim_;
-		chunk_height_ = params_.height / chunks_dim_;
-		//chunk_count_ = 0;
 		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
 		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
 		//d_rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));

@@ -16,12 +16,14 @@
 #cmakedefine HAVE_URIPARSESINGLE
 #cmakedefine HAVE_CUDA
 #cmakedefine HAVE_OPENCV
+#cmakedefine HAVE_OPTFLOW
 #cmakedefine HAVE_PCL
 #cmakedefine HAVE_RENDER
 #cmakedefine HAVE_LIBSGM
 #cmakedefine HAVE_REALSENSE
 #cmakedefine HAVE_NANOGUI
 #cmakedefine HAVE_LIBARCHIVE
+#cmakedefine HAVE_NVPIPE
 
 extern const char *FTL_BRANCH;
 extern const char *FTL_VERSION_LONG;

@@ -18,6 +18,7 @@ Group::Group() : framesets_(kFrameBufferSize), head_(0) {
 	//setFPS(20);
 
 	mspf_ = ftl::timer::getInterval();
+	name_ = "NoName";
 
 	setLatency(5);
 }
@@ -68,7 +69,7 @@ void Group::addSource(ftl::rgbd::Source *src) {
 			FrameSet &fs = framesets_[(head_+kFrameBufferSize-i) % kFrameBufferSize];
 			if (fs.timestamp == timestamp) {
 				lk.unlock();
-				UNIQUE_LOCK(fs.mtx, lk2);
+				SHARED_LOCK(fs.mtx, lk2);
 
 				//LOG(INFO) << "Adding frame: " << ix << " for " << timestamp;
 				// Ensure channels match source mat format
@@ -83,17 +84,23 @@ void Group::addSource(ftl::rgbd::Source *src) {
 
 				if (fs.count == sources_.size()) {
 					//LOG(INFO) << "COMPLETE SET: " << fs.timestamp;
+				} else if (fs.count > sources_.size()) {
+					LOG(ERROR) << "Too many frames for frame set: " << fs.timestamp << " sources=" << sources_.size();
 				} else {
 					//LOG(INFO) << "INCOMPLETE SET ("  << ix << "): " << fs.timestamp;
 				}
 
 				if (callback_ && fs.count == sources_.size()) {
-					if (callback_(fs)) {
-						// TODO: Remove callback if returns false?
+					try {
+						if (callback_(fs)) {
+							// TODO: Remove callback if returns false?
+						}
+					} catch (...) {
+						LOG(ERROR) << "Exception in group callback";
 					}
 
 					// Reset count to prevent multiple reads of these frames
-					fs.count = 0;
+					//fs.count = 0;
 				}
 
 				return;
@@ -189,7 +196,13 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 			if (fs) {
 				UNIQUE_LOCK(fs->mtx, lk2);
 				lk.unlock();
-				cb(*fs);
+
+				try {
+					cb(*fs);
+					//LOG(INFO) << "Frameset processed (" << name_ << "): " << fs->timestamp;
+				} catch(...) {
+					LOG(ERROR) << "Exception in group sync callback";
+				}
 
 				// The buffers are invalid after callback so mark stale
 				fs->stale = true;
@@ -217,7 +230,8 @@ ftl::rgbd::FrameSet *Group::_getFrameset(int f) {
 		int idx = (head_+kFrameBufferSize-i)%kFrameBufferSize;
 
 		if (framesets_[idx].timestamp == lookfor && framesets_[idx].count != sources_.size()) {
-			LOG(INFO) << "Required frame not complete (mask " << (framesets_[idx].timestamp) << ")";
+			LOG(INFO) << "Required frame not complete (timestamp="  << (framesets_[idx].timestamp) << " buffer=" << i << ")";
+			//framesets_[idx].stale = true;
 			continue;
 		}
 
@@ -244,7 +258,12 @@ void Group::_addFrameset(int64_t timestamp) {
 	if (count < -int(kFrameBufferSize) || count >= kFrameBufferSize-1) {
 		head_ = (head_+1) % kFrameBufferSize;
 
-		if (!framesets_[head_].mtx.try_lock()) {
+		#ifdef DEBUG_MUTEX
+		std::unique_lock<std::shared_timed_mutex> lk(framesets_[head_].mtx, std::defer_lock);
+		#else
+		std::unique_lock<std::shared_mutex> lk(framesets_[head_].mtx, std::defer_lock);
+		#endif
+		if (!lk.try_lock()) {
 			LOG(ERROR) << "Frameset in use!!";
 			return;
 		}
@@ -259,7 +278,6 @@ void Group::_addFrameset(int64_t timestamp) {
 			framesets_[head_].sources.clear();
 			for (auto s : sources_) framesets_[head_].sources.push_back(s);
 		}
-		framesets_[head_].mtx.unlock();
 		return;
 	}
 
@@ -270,9 +288,14 @@ void Group::_addFrameset(int64_t timestamp) {
 		int64_t lt = (framesets_[head_].timestamp == -1) ? timestamp-mspf_ : framesets_[head_].timestamp;
 		head_ = (head_+1) % kFrameBufferSize;
 
-		if (!framesets_[head_].mtx.try_lock()) {
-			LOG(ERROR) << "Frameset in use!!";
-			break;
+		#ifdef DEBUG_MUTEX
+		std::unique_lock<std::shared_timed_mutex> lk(framesets_[head_].mtx, std::defer_lock);
+		#else
+		std::unique_lock<std::shared_mutex> lk(framesets_[head_].mtx, std::defer_lock);
+		#endif
+		if (!lk.try_lock()) {
+			LOG(ERROR) << "Frameset in use!! (" << name_ << ") " << framesets_[head_].timestamp << " stale=" << framesets_[head_].stale;
+			continue;
 		}
 		framesets_[head_].timestamp = lt+mspf_;
 		framesets_[head_].count = 0;
@@ -285,8 +308,11 @@ void Group::_addFrameset(int64_t timestamp) {
 			framesets_[head_].sources.clear();
 			for (auto s : sources_) framesets_[head_].sources.push_back(s);
 		}
-		framesets_[head_].mtx.unlock();
 	}
+}
+
+void Group::setName(const std::string &name) {
+	name_ = name;
 }
 
 
