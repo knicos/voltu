@@ -77,11 +77,13 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.camera = camera;
 
+	LOG(INFO) << "VPOSE = " << src->getPose();
+
 	// Clear all channels to 0 or max depth
 	temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
-	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0,0,0), cvstream);
+	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(76,76,76), cvstream);
 
 	LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
@@ -99,7 +101,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 
 		// Needs to create points channel first?
 		if (!f.hasChannel(Channel::Points)) {
-			LOG(INFO) << "Creating points...";
+			LOG(INFO) << "Creating points... " << s->parameters().width;
 			
 			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
 			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse());
@@ -166,16 +168,16 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			//src->write(scene_.timestamp, output_, stream);
 		} else {
 			LOG(INFO) << "No second rendering";
-			if (value("splatting",  false)) {
+			//if (value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
 				//src->write(scene_.timestamp, out, stream);
-			} else {
+			//} else {
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				//temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
+				temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
 				//src->write(scene_.timestamp, output_, stream);
-			}
+			//}
 		}
 	//}
 

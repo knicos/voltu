@@ -74,6 +74,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		if (sources_.find(uri) != sources_.end()) {
 			Eigen::Matrix4d pose;
 			memcpy(pose.data(), buf.data(), buf.size());
+			LOG(INFO) << "SET POSE:";
 			sources_[uri]->src->setPose(pose);
 		}
 	});

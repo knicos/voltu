@@ -8,6 +8,7 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 	public:
 	explicit VirtualImpl(ftl::rgbd::Source *host, const ftl::rgbd::Camera &params) : ftl::rgbd::detail::Source(host) {
 		params_ = params;
+		capabilities_ = ftl::rgbd::kCapMovable | ftl::rgbd::kCapVideo | ftl::rgbd::kCapStereo;
 	}
 
 	~VirtualImpl() {
@@ -15,6 +16,7 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 	}
 
 	bool capture(int64_t ts) override {
+		timestamp_ = ts;
 		return true;
 	}
 
@@ -38,9 +40,13 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 				frame.download(Channel::Colour + Channel::Depth);
 				cv::swap(frame.get<cv::Mat>(Channel::Colour), rgb_);
 				cv::swap(frame.get<cv::Mat>(Channel::Depth), depth_);
+				LOG(INFO) << "Written: " << rgb_.cols;
 			} else {
 				LOG(ERROR) << "Missing colour or depth frame in rendering";
 			}
+
+			auto cb = host_->callback();
+			if (cb) cb(timestamp_, rgb_, depth_);
 		}
 		return true;
 	}
