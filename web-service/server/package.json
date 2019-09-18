@@ -15,6 +15,8 @@
   "dependencies": {
     "express": "^4.16.4",
     "express-ws": "^4.0.0",
-    "msgpack5": "^4.2.1"
+    "msgpack5": "^4.2.1",
+    "passport": "^0.4.0",
+    "passport-google-oauth20": "^2.0.0"
   }
 }

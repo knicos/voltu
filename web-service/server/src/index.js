@@ -2,8 +2,20 @@ const express = require('express');
 const app = express();
 const expressWs = require('express-ws')(app);
 const Peer = require('./peer.js');
+const passport = require('passport');
+const passportSetup = require('./passport/passport');
 
 // ---- INDEXES ----------------------------------------------------------------
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.serializeUser((user, done) => {
+    done(null, user);
+})
+
+passport.deserializeUser((userDataFromCookie, done) => {
+    done(null, userDataFromCookie);
+})
 
 let peer_by_id = {};
 //let uri_to_peer = {};
@@ -134,6 +146,30 @@ app.get('/stream/depth', (req, res) => {
 });
 
 //app.get('/stream', (req, res))
+
+/** 
+ * Route for Google authentication API
+*/
+app.get('/google', passport.authenticate('google', {
+	scope: ['profile']
+}))
+
+/** 
+ * Google authentication API callback route. 
+ * Sets the JWT to clients browser and redirects the user back to React app.
+*/
+app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
+	const htmlWithEmbeddedJWT = `
+    <html>
+        <body><h3> You will be automatically redirected to next page.<h3><body>
+        <script>
+			window.localStorage.setItem('token', 'bearer token');
+			window.location.href = '/';
+        </script>
+    <html>
+    `;
+    res.send(htmlWithEmbeddedJWT)
+})
 
 function checkStreams(peer) {
 	if (!peer.master) {

@@ -10,3 +10,4 @@ lab-designs/viewer
 .vscode
 doc/
 web-service/npm-debug.log
+web-service/server/src/passport/keys.js
