@@ -7,6 +7,7 @@
 
 using ftl::render::Splatter;
 using ftl::rgbd::Channel;
+using ftl::rgbd::Channels;
 using ftl::rgbd::Format;
 using cv::cuda::GpuMat;
 
@@ -20,6 +21,8 @@ Splatter::~Splatter() {
 
 bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	if (!src->isReady()) return false;
+
+	LOG(INFO) << "Render ready2";
 
 	const auto &camera = src->parameters();
 
@@ -37,6 +40,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
 
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+	LOG(INFO) << "Render ready1";
 
 	// Create buffers if they don't exist
 	/*if ((unsigned int)depth1_.width() != camera.width || (unsigned int)depth1_.height() != camera.height) {
@@ -77,13 +82,27 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
 	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0,0,0), cvstream);
 
+	LOG(INFO) << "Render ready";
+
 	// Render each camera into virtual view
-	for (auto &f : scene_->frames) {
+	for (size_t i=0; i<scene_->frames.size(); ++i) {
+		auto &f = scene_->frames[i];
+		auto *s = scene_->sources[i];
+
+		if (!f.hasChannel(Channel::Depth) || f.isCPU(Channel::Depth)) {
+			LOG(ERROR) << "Missing required Depth channel";
+			return false;
+		}
+
 		// Needs to create points channel first?
 		if (!f.hasChannel(Channel::Points)) {
+			LOG(INFO) << "Creating points...";
+			
 			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
-			auto pose = MatrixConversion::toCUDA(f.source()->getPose().cast<float>().inverse());
-			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), f.source()->parameters(), pose, stream);
+			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse());
+			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
+
+			LOG(INFO) << "POINTS Added";
 		}
 
 		ftl::cuda::dibr_merge(
@@ -91,6 +110,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			temp_.createTexture<int>(Channel::Depth),
 			params, stream
 		);
+
+		LOG(INFO) << "DIBR DONE";
 	}
 
 		//ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);

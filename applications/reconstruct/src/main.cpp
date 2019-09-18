@@ -145,6 +145,7 @@ static void run(ftl::Configurable *root) {
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.
 			scene_A.swapTo(scene_B);
+			LOG(INFO) << "Align complete... " << scene_A.timestamp;
 			busy = false;
 		});
 		return true;

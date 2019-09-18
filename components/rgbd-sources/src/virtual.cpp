@@ -2,9 +2,57 @@
 
 using ftl::rgbd::VirtualSource;
 using ftl::rgbd::Source;
+using ftl::rgbd::Channel;
+
+class VirtualImpl : public ftl::rgbd::detail::Source {
+	public:
+	explicit VirtualImpl(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+
+	}
+
+	~VirtualImpl() {
+
+	}
+
+	bool capture(int64_t ts) override {
+		return true;
+	}
+
+	bool retrieve() override {
+		return true;
+	}
+
+	bool compute(int n, int b) override {
+		if (callback) {
+			frame.reset();
+
+			try {
+				callback(frame);
+			} catch (std::exception &e) {
+				LOG(ERROR) << "Exception in render callback: " << e.what();
+			} catch (...) {
+				LOG(ERROR) << "Unknown exception in render callback";
+			}
+
+			if (frame.hasChannel(Channel::Colour) && frame.hasChannel(Channel::Depth)) {
+				frame.download(Channel::Colour + Channel::Depth);
+				cv::swap(frame.get<cv::Mat>(Channel::Colour), rgb_);
+				cv::swap(frame.get<cv::Mat>(Channel::Depth), depth_);
+			} else {
+				LOG(ERROR) << "Missing colour or depth frame in rendering";
+			}
+		}
+		return true;
+	}
+
+	bool isReady() override { return true; }
+
+	std::function<void(ftl::rgbd::Frame &)> callback;
+	ftl::rgbd::Frame frame;
+};
 
 VirtualSource::VirtualSource(ftl::config::json_t &cfg) : Source(cfg) {
-
+	impl_ = new VirtualImpl(this);
 }
 
 VirtualSource::~VirtualSource() {
@@ -12,7 +60,7 @@ VirtualSource::~VirtualSource() {
 }
 
 void VirtualSource::onRender(const std::function<void(ftl::rgbd::Frame &)> &f) {
-
+	dynamic_cast<VirtualImpl*>(impl_)->callback = f;
 }
 
 /*
