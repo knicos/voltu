@@ -1,4 +1,5 @@
-#include "splat_params.hpp"
+#include <ftl/render/splat_params.hpp>
+#include "splatter_cuda.hpp"
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
 
@@ -19,7 +20,7 @@ using ftl::render::SplatParams;
  * Pass 1: Directly render each camera into virtual view but with no upsampling
  * for sparse points.
  */
- __global__ void dibr_merge_kernel(TextureObject<float4> points, TextureObject<int> depth, int cam, SplatParams params) {
+ __global__ void dibr_merge_kernel(TextureObject<float4> points, TextureObject<int> depth, SplatParams params) {
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
@@ -40,6 +41,14 @@ using ftl::render::SplatParams;
 		// Transform estimated point to virtual cam space and output z
 		atomicMin(&depth(cx,cy), d * 1000.0f);
 	}
+}
+
+void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<int> &depth, SplatParams params, cudaStream_t stream) {
+    const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>(points, depth, params);
+    cudaSafeCall( cudaGetLastError() );
 }
 
 __device__ inline float4 make_float4(const uchar4 &c) {

@@ -1,6 +1,7 @@
 #ifndef _FTL_RGBD_FRAMESET_HPP_
 #define _FTL_RGBD_FRAMESET_HPP_
 
+#include <ftl/threads.hpp>
 #include <ftl/rgbd/frame.hpp>
 
 #include <opencv2/opencv.hpp>

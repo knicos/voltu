@@ -4,6 +4,7 @@ set(RGBDSRC
 	src/disparity.cpp
 	src/source.cpp
 	src/frame.cpp
+	src/frameset.cpp
 	src/stereovideo.cpp
 	src/middlebury_source.cpp
 	src/net.cpp
@@ -17,6 +18,7 @@ set(RGBDSRC
 	src/cb_segmentation.cpp
 	src/abr.cpp
 	src/offilter.cpp
+	src/virtual.cpp
 )
 
 if (HAVE_REALSENSE)

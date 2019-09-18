@@ -6,6 +6,7 @@
 #include <ftl/exception.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/core/cuda.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
 
 #include <ftl/rgbd/channels.hpp>
 #include <ftl/rgbd/format.hpp>
@@ -23,22 +24,31 @@ namespace rgbd {
 //			NN for depth/disparity/optflow, linear/cubic/etc. for RGB
 
 class Frame;
+class Source;
 
 /**
  * Manage a set of image channels corresponding to a single camera frame.
  */
 class Frame {
 public:
-	Frame() {}
+	Frame() : src_(nullptr) {}
+	explicit Frame(ftl::rgbd::Source *src) : src_(src) {}
+
+	inline ftl::rgbd::Source *source() const { return src_; }
 
 	// Prevent frame copy, instead use a move.
 	//Frame(const Frame &)=delete;
 	//Frame &operator=(const Frame &)=delete;
 
-	void download(ftl::rgbd::Channel c, cv::cuda::Stream& stream=cv::cuda::Stream::Null());
-	void upload(ftl::rgbd::Channel c, cv::cuda::Stream& stream=cv::cuda::Stream::Null());
-	void download(ftl::rgbd::Channels c, cv::cuda::Stream& stream=cv::cuda::Stream::Null());
-	void upload(ftl::rgbd::Channels c, cv::cuda::Stream& stream=cv::cuda::Stream::Null());
+	void download(ftl::rgbd::Channel c, cv::cuda::Stream stream);
+	void upload(ftl::rgbd::Channel c, cv::cuda::Stream stream);
+	void download(ftl::rgbd::Channels c, cv::cuda::Stream stream);
+	void upload(ftl::rgbd::Channels c, cv::cuda::Stream stream);
+
+	inline void download(ftl::rgbd::Channel c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void upload(ftl::rgbd::Channel c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void download(ftl::rgbd::Channels c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void upload(ftl::rgbd::Channels c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
 
 	/**
 	 * Perform a buffer swap of the selected channels. This is intended to be
@@ -137,6 +147,8 @@ private:
 
 	ftl::rgbd::Channels channels_;	// Does it have a channel
 	ftl::rgbd::Channels gpu_;		// Is the channel on a GPU
+
+	ftl::rgbd::Source *src_;
 
 	inline ChannelData &_get(ftl::rgbd::Channel c) { return data_[static_cast<unsigned int>(c)]; }
 	inline const ChannelData &_get(ftl::rgbd::Channel c) const { return data_[static_cast<unsigned int>(c)]; }

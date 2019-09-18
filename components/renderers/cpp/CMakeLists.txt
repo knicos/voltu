@@ -1,6 +1,7 @@
 add_library(ftlrender
 	src/splat_render.cpp
 	src/splatter.cu
+	src/points.cu
 )
 
 # These cause errors in CI build and are being removed from PCL in newer versions

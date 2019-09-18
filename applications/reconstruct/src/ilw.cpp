@@ -3,7 +3,7 @@
 using ftl::ILW;
 using ftl::detail::ILWData;
 
-ILW::ILW() {
+ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
 
 }
 
@@ -32,14 +32,19 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs) {
     // Clear points channel...
 
 	// Upload camera data?
+    return true;
 }
 
 bool ILW::_phase1(ftl::rgbd::FrameSet &fs) {
     // Run correspondence kernel to find points
 
 	// For each camera combination
+
+    return true;
 }
 
 bool ILW::_phase2(ftl::rgbd::FrameSet &fs) {
     // Run energies and motion kernel
+
+    return true;
 }

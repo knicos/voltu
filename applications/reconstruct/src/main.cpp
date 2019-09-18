@@ -10,7 +10,7 @@
 #include <ftl/configuration.hpp>
 #include <ftl/depth_camera.hpp>
 #include <ftl/rgbd.hpp>
-#include <ftl/virtual_source.hpp>
+#include <ftl/rgbd/virtual.hpp>
 #include <ftl/rgbd/streamer.hpp>
 #include <ftl/slave.hpp>
 #include <ftl/rgbd/group.hpp>
@@ -97,14 +97,14 @@ static void run(ftl::Configurable *root) {
 
 	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
-	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual", net);
-	ftl::render::Splatter *splat = ftl::create<ftl::render::Splatter>(root, "renderer", scene);
+	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
+	ftl::render::Splatter *splat = ftl::create<ftl::render::Splatter>(root, "renderer", &scene_B);
 	ftl::rgbd::Group group;
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 
 	// Generate virtual camera render when requested by streamer
-	virt->onRender([splat,&scene_B](ftl::rgbd::Frame &out) {
-		splat->render(scene_B, out);
+	virt->onRender([splat,virt](ftl::rgbd::Frame &out) {
+		splat->render(virt, out);
 	});
 	stream->add(virt);
 
@@ -119,7 +119,7 @@ static void run(ftl::Configurable *root) {
 	bool busy = false;
 
 	group.setName("ReconGroup");
-	group.sync([splat,virt,&busy,&slave](ftl::rgbd::FrameSet &fs) -> bool {
+	group.sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
 
 		if (slave.isPaused()) return true;
@@ -133,14 +133,14 @@ static void run(ftl::Configurable *root) {
 		// Swap the entire frameset to allow rapid return
 		fs.swapTo(scene_A);
 
-		ftl::pool.push([&scene_B,&scene_A,&busy,&slave](int id) {
+		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align](int id) {
 			//cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
 			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 
 			// Send all frames to GPU, block until done?
 			scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
-			align.process(scene_A);
+			align->process(scene_A);
 
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.

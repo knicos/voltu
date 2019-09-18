@@ -11,13 +11,15 @@ class VirtualSource : public ftl::rgbd::Source {
     explicit VirtualSource(ftl::config::json_t &cfg);
 	~VirtualSource();
 
+	void onRender(const std::function<void(ftl::rgbd::Frame &)> &);
+
     /**
 	 * Write frames into source buffers from an external renderer. Virtual
 	 * sources do not have an internal generator of frames but instead have
 	 * their data provided from an external rendering class. This function only
 	 * works when there is no internal generator.
 	 */
-    void write(int64_t ts, ftl::rgbd::Frame &frame, cudaStream_t stream=0);
+    //void write(int64_t ts, ftl::rgbd::Frame &frame, cudaStream_t stream=0);
 };
 
 }

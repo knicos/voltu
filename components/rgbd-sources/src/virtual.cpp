@@ -1,3 +1,20 @@
+#include <ftl/rgbd/virtual.hpp>
+
+using ftl::rgbd::VirtualSource;
+using ftl::rgbd::Source;
+
+VirtualSource::VirtualSource(ftl::config::json_t &cfg) : Source(cfg) {
+
+}
+
+VirtualSource::~VirtualSource() {
+
+}
+
+void VirtualSource::onRender(const std::function<void(ftl::rgbd::Frame &)> &f) {
+
+}
+
 /*
 void Source::writeFrames(int64_t ts, const cv::Mat &rgb, const cv::Mat &depth) {
 	if (!impl_) {

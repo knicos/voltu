@@ -9,18 +9,19 @@ namespace rgbd {
 
 enum struct Channel : int {
     None = -1,
-    Colour = 0,
+    Colour = 0,         // 8UC3 or 8UC4
     Left = 0,
-    Depth = 1,
-    Right = 2,
+    Depth = 1,          // 32S or 32F
+    Right = 2,          // 8UC3 or 8UC4
     Colour2 = 2,
     Disparity = 3,
     Depth2 = 3,
     Deviation = 4,
-    Normals,
-    Confidence,
-    Flow,
-    Energy,
+    Normals,            // 32FC4
+    Points,             // 32FC4
+    Confidence,         // 32F
+    Flow,               // 32F
+    Energy,             // 32F
     LeftGray,
     RightGray,
     Overlay1

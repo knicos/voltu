@@ -26,6 +26,7 @@ namespace rgbd {
 static inline bool isValidDepth(float d) { return (d > 0.01f) && (d < 39.99f); }
 
 class SnapshotReader;
+class VirtualSource;
 
 /**
  * RGBD Generic data source configurable entity. This class hides the
@@ -40,6 +41,7 @@ class Source : public ftl::Configurable {
 	public:
 	template <typename T, typename... ARGS>
 	friend T *ftl::config::create(ftl::config::json_t &, ARGS ...);
+	friend class VirtualSource;
 
 	//template <typename T, typename... ARGS>
 	//friend T *ftl::config::create(ftl::Configurable *, const std::string &, ARGS ...);
@@ -51,7 +53,7 @@ class Source : public ftl::Configurable {
 	Source(const Source&)=delete;
 	Source &operator=(const Source&) =delete;
 
-	private:
+	protected:
 	explicit Source(ftl::config::json_t &cfg);
 	Source(ftl::config::json_t &cfg, ftl::rgbd::SnapshotReader *);
 	Source(ftl::config::json_t &cfg, ftl::net::Universe *net);

@@ -13,15 +13,15 @@ void Frame::reset() {
 	gpu_.clear();
 }
 
-void Frame::download(Channel c, cv::cuda::Stream& stream) {
+void Frame::download(Channel c, cv::cuda::Stream stream) {
 	download(Channels(c), stream);
 }
 
-void Frame::upload(Channel c, cv::cuda::Stream& stream) {
+void Frame::upload(Channel c, cv::cuda::Stream stream) {
 	upload(Channels(c), stream);
 }
 
-void Frame::download(Channels c, cv::cuda::Stream& stream) {
+void Frame::download(Channels c, cv::cuda::Stream stream) {
 	for (size_t i=0u; i<Channels::kMax; ++i) {
 		if (c.has(i) && channels_.has(i) && gpu_.has(i)) {
 			data_[i].gpu.download(data_[i].host, stream);
@@ -30,7 +30,7 @@ void Frame::download(Channels c, cv::cuda::Stream& stream) {
 	}
 }
 
-void Frame::upload(Channels c, cv::cuda::Stream& stream) {
+void Frame::upload(Channels c, cv::cuda::Stream stream) {
 	for (size_t i=0u; i<Channels::kMax; ++i) {
 		if (c.has(i) && channels_.has(i) && !gpu_.has(i)) {
 			data_[i].gpu.upload(data_[i].host, stream);

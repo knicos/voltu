@@ -27,12 +27,12 @@ void FrameSet::swapTo(ftl::rgbd::FrameSet &fs) {
 	}
 
 	fs.timestamp = timestamp;
-	fs.count = count;
+	fs.count = static_cast<int>(count);
 	fs.stale = stale;
-	fs.mask = mask;
+	fs.mask = static_cast<unsigned int>(mask);
 
 	for (size_t i=0; i<frames.size(); ++i) {
-		frames[i].swap(Channels::All(), fs.frames[i]);
+		frames[i].swapTo(Channels::All(), fs.frames[i]);
 	}
 
 	stale = true;

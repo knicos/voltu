@@ -3,7 +3,7 @@
 
 #include <ftl/render/renderer.hpp>
 #include <ftl/rgbd/frameset.hpp>
-#include "splat_params.hpp"
+#include <ftl/render/splat_params.hpp>
 
 namespace ftl {
 namespace render {
@@ -18,10 +18,10 @@ namespace render {
  */
 class Splatter : public ftl::render::Renderer {
 	public:
-	explicit Splatter(nlohmann::json &config, const ftl::rgbd::FrameSet &fs);
+	explicit Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs);
 	~Splatter();
 
-	bool render(ftl::rgbd::VirtualSource *src, cudaStream_t stream=0) override;
+	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream=0) override;
 
 	//void setOutputDevice(int);
 
@@ -36,9 +36,8 @@ class Splatter : public ftl::render::Renderer {
 	ftl::cuda::TextureObject<float4> normal1_;*/
 	//SplatParams params_;
 
-	ftl::rgbd::Frame output_;
 	ftl::rgbd::Frame temp_;
-	const ftl::rgbd::FrameSet &scene_;
+	ftl::rgbd::FrameSet *scene_;
 };
 
 }
