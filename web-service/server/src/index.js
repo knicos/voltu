@@ -4,10 +4,10 @@ const expressWs = require('express-ws')(app);
 const Peer = require('./peer.js');
 const passport = require('passport');
 const passportSetup = require('./passport/passport');
+const jwt = require('jsonwebtoken');
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
-app.use(passport.session());
 app.use(express.static('build'))
 
 passport.serializeUser((user, done) => {
@@ -164,11 +164,13 @@ app.get('/google', passport.authenticate('google', {
  * Sets the JWT to clients browser and redirects the user back to React app.
 */
 app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
+	console.log(req.user)
+	const token = jwt.sign(req.user.id, 'Somesecretkey14madlh£$');
 	const htmlWithEmbeddedJWT = `
     <html>
         <body><h3> You will be automatically redirected to next page.<h3><body>
         <script>
-			window.localStorage.setItem('token', 'bearer token');
+			window.localStorage.setItem('token', 'bearer ${token}');
 			window.location.href = '/';
         </script>
     <html>
