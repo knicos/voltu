@@ -55,7 +55,7 @@ class Source : public ftl::Configurable {
 	explicit Source(ftl::config::json_t &cfg);
 	Source(ftl::config::json_t &cfg, ftl::rgbd::SnapshotReader *);
 	Source(ftl::config::json_t &cfg, ftl::net::Universe *net);
-	~Source();
+	virtual ~Source();
 
 	public:
 	/**

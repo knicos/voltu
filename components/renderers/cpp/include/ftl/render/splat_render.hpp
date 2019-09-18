@@ -21,7 +21,7 @@ class Splatter : public ftl::render::Renderer {
 	explicit Splatter(nlohmann::json &config, const ftl::rgbd::FrameSet &fs);
 	~Splatter();
 
-	void render(ftl::rgbd::VirtualSource *src, cudaStream_t stream=0);
+	bool render(ftl::rgbd::VirtualSource *src, cudaStream_t stream=0) override;
 
 	//void setOutputDevice(int);
 

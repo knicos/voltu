@@ -2,6 +2,8 @@
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
 
+#include <ftl/cuda/weighting.hpp>
+
 #define T_PER_BLOCK 8
 #define UPSAMPLE_FACTOR 1.8f
 #define WARP_SIZE 32
@@ -43,6 +45,12 @@ using ftl::render::SplatParams;
 __device__ inline float4 make_float4(const uchar4 &c) {
     return make_float4(c.x,c.y,c.z,c.w);
 }
+
+
+#define ENERGY_THRESHOLD 0.1f
+#define SMOOTHING_MULTIPLIER_A 10.0f	// For surface search
+#define SMOOTHING_MULTIPLIER_B 4.0f		// For z contribution
+#define SMOOTHING_MULTIPLIER_C 4.0f		// For colour contribution
 
 /*
  * Pass 2: Accumulate attribute contributions if the points pass a visibility test.
@@ -100,7 +108,7 @@ __global__ void dibr_attribute_contrib_kernel(
         const float weight = ftl::cuda::spatialWeighting(length(nearest - camPos), SMOOTHING_MULTIPLIER_C*(nearest.z/params.camera.fx));
         if (screenPos.x+u < colour_out.width() && screenPos.y+v < colour_out.height() && weight > 0.0f) {  // TODO: Use confidence threshold here
             const float4 wcolour = colour * weight;
-			const float4 wnormal = normal * weight;
+			//const float4 wnormal = normal * weight;
 			
 			//printf("Z %f\n", d);
 

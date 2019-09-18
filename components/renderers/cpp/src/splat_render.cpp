@@ -14,22 +14,24 @@ Splatter::~Splatter() {
 
 }
 
-void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
+bool Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 	if (!src->isReady()) return;
 
 	const auto &camera = src->parameters();
 
 	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 
-	output_.create<cv::cuda::GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
-	output_.create<cv::cuda::GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
+	output_.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
+	output_.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
 
-	temp_.create<cv::cuda::GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
-	temp_.create<cv::cuda::GpuMat>(Channel::Colour2, Format<uchar4>(camera.width, camera.height));
-	temp_.create<cv::cuda::GpuMat>(Channel::Confidence, Format<float>(camera.width, camera.height));
-	temp_.create<cv::cuda::GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
-	temp_.create<cv::cuda::GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
-	temp_.create<cv::cuda::GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Colour2, Format<uchar4>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Confidence, Format<float>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
+
+	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
 	// Create buffers if they don't exist
 	/*if ((unsigned int)depth1_.width() != camera.width || (unsigned int)depth1_.height() != camera.height) {
@@ -90,10 +92,10 @@ void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 		//ftl::cuda::clear_depth(depth2_, stream);
 		//ftl::cuda::clear_colour(colour2_, stream);
 		
-		temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0), stream);
-		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0), stream);
-		output_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f), stream);
-		output_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0,0,0), stream);
+		temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0), cvstream);
+		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0), cvstream);
+		output_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f), cvstream);
+		output_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0,0,0), cvstream);
 
 		// Step 1: Put all points into virtual view to gather them
 		//ftl::cuda::dibr_raw(depth1_, scene_->cameraCount(), params, stream);
@@ -107,11 +109,11 @@ void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 
-				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, stream);
+				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
 				src->write(scene_.timestamp, output_, stream);
 			} else {
-				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, stream);
+				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
 				src->write(scene_.timestamp, output_, stream);
@@ -145,7 +147,7 @@ void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 				src->write(scene_.timestamp, output_, stream);
 			} else {
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, stream);
+				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 				//src->writeFrames(ts, colour1_, depth2_, stream);
 				src->write(scene_.timestamp, output_, stream);
 			}
@@ -156,6 +158,8 @@ void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 	//ftl::cuda::splat_points(depth1_, depth2_, params, stream);
 
 	// TODO: Second pass
+
+	return true;
 }
 
 void Splatter::setOutputDevice(int device) {

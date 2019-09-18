@@ -9,6 +9,7 @@ namespace rgbd {
 class VirtualSource : public ftl::rgbd::Source {
     public:
     explicit VirtualSource(ftl::config::json_t &cfg);
+	~VirtualSource();
 
     /**
 	 * Write frames into source buffers from an external renderer. Virtual
