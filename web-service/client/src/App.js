@@ -18,14 +18,15 @@ const App = () => {
 
     if(window.localStorage.getItem('token')){
         return (
-            <div className="margin: 'auto', text-align: 'center'">
+            <div style={{'margin': 'auto', 'text-align': 'center'}}>
                 <h1>IT WORKS!!</h1>
                 <h2>Namibia here we come!</h2>
+                <button onClick={() => {window.localStorage.clear()}}>Remove all cookies</button>
             </div>
         )
     }
     return (
-        <div className='loginForm'>
+        <div style={{'padding-top': '150px', 'text-align': 'center'}}>
             <h2>Welcome to Future Technology Lab</h2>
             <h3>Please login!</h3>
             <a className="button" onClick={handleLogin}>
