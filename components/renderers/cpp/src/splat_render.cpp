@@ -4,6 +4,7 @@
 using ftl::render::Splatter;
 using ftl::rgbd::Channel;
 using ftl::rgbd::Format;
+using cv::cuda::GpuMat;
 
 Splatter::Splatter(nlohmann::json &config, const ftl::rgbd::FrameSet &fs) : ftl::render::Renderer(config), scene_(fs) {
 
@@ -83,11 +84,16 @@ void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 		//ftl::cuda::dibr(depth2_, colour1_, scene_->cameraCount(), params, stream);
 		//src->writeFrames(ts, colour1_, depth2_, stream);
 	//} else {
-		ftl::cuda::clear_depth(depth1_, stream);
-		ftl::cuda::clear_depth(depth3_, stream);
-		ftl::cuda::clear_depth(depth2_, stream);
-		ftl::cuda::clear_colour(colour2_, stream);
-		ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
+
+		//ftl::cuda::clear_depth(depth1_, stream);
+		//ftl::cuda::clear_depth(depth3_, stream);
+		//ftl::cuda::clear_depth(depth2_, stream);
+		//ftl::cuda::clear_colour(colour2_, stream);
+		
+		temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0), stream);
+		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0), stream);
+		output_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f), stream);
+		output_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0,0,0), stream);
 
 		// Step 1: Put all points into virtual view to gather them
 		//ftl::cuda::dibr_raw(depth1_, scene_->cameraCount(), params, stream);
@@ -99,18 +105,24 @@ void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			if (value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
-				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				src->writeFrames(ts, colour1_, depth2_, stream);
+				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+
+				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, stream);
+				//src->writeFrames(ts, colour1_, depth2_, stream);
+				src->write(scene_.timestamp, output_, stream);
 			} else {
-				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				src->writeFrames(ts, colour1_, depth2_, stream);
+				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, stream);
+				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+				//src->writeFrames(ts, colour1_, depth2_, stream);
+				src->write(scene_.timestamp, output_, stream);
 			}
 		} else if (src->getChannel() == Channel::Energy) {
 			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			//if (src->value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				src->writeFrames(ts, colour1_, depth2_, stream);
+				//src->writeFrames(ts, colour1_, depth2_, stream);
+				src->write(scene_.timestamp, output_, stream);
 			//} else {
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 			//	src->writeFrames(colour1_, depth2_, stream);
@@ -122,16 +134,20 @@ void Splatter::render(ftl::rgbd::VirtualSource *src, cudaStream_t stream) {
 			params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 			params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
 
-			ftl::cuda::clear_depth(depth1_, stream);
+			//ftl::cuda::clear_depth(depth1_, stream);
 			ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
-			src->writeFrames(ts, colour1_, colour2_, stream);
+			//src->writeFrames(ts, colour1_, colour2_, stream);
+			src->write(scene_.timestamp, output_, stream);
 		} else {
 			if (value("splatting",  false)) {
 				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
-				src->writeFrames(ts, colour1_, depth2_, stream);
+				//src->writeFrames(ts, colour1_, depth2_, stream);
+				src->write(scene_.timestamp, output_, stream);
 			} else {
-				ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				src->writeFrames(ts, colour1_, depth2_, stream);
+				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
+				temp_.get<GpuMat>(Channel::Depth).convertTo(output_.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, stream);
+				//src->writeFrames(ts, colour1_, depth2_, stream);
+				src->write(scene_.timestamp, output_, stream);
 			}
 		}
 	//}

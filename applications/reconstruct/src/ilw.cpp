@@ -12,6 +12,8 @@ ILW::~ILW() {
 }
 
 bool ILW::process(ftl::rgbd::FrameSet &fs) {
+	return true;
+	
     _phase0(fs);
 
     for (int i=0; i<2; ++i) {

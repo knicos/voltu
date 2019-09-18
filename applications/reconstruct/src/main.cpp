@@ -16,7 +16,7 @@
 #include <ftl/rgbd/group.hpp>
 
 #include "ilw.hpp"
-#include "splat_render.hpp"
+#include <ftl/render/splat_render.hpp>
 
 #include <string>
 #include <vector>
@@ -100,7 +100,7 @@ static void run(ftl::Configurable *root) {
 	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual", net);
 	ftl::render::Splatter *splat = ftl::create<ftl::render::Splatter>(root, "renderer", scene);
 	ftl::rgbd::Group group;
-	ftl::ILW align;
+	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 
 	// Generate virtual camera render when requested by streamer
 	virt->onRender([splat,&scene_B](ftl::rgbd::Frame &out) {
@@ -149,6 +149,14 @@ static void run(ftl::Configurable *root) {
 		});
 		return true;
 	});
+
+	ftl::timer::stop();
+	net->shutdown();
+	delete align;
+	delete splat;
+	delete virt;
+	delete stream;
+	delete net;
 }
 
 int main(int argc, char **argv) {

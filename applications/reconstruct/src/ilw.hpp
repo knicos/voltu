@@ -40,7 +40,7 @@ class ILW : public ftl::Configurable {
     /**
      * Take a frameset and perform the iterative lattice warping.
      */
-    bool process(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out);
+    bool process(ftl::rgbd::FrameSet &fs);
 
     private:
     /*

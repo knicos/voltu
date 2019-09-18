@@ -12,9 +12,9 @@ set(REPSRC
 	#src/virtual_source.cpp
 	#src/splat_render.cpp
 	#src/dibr.cu
-	src/mls.cu
-	src/depth_camera.cu
-	src/depth_camera.cpp
+	#src/mls.cu
+	#src/depth_camera.cu
+	#src/depth_camera.cpp
 	src/ilw.cpp
 )
 

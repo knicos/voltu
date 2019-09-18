@@ -2,6 +2,14 @@
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
 
+#define T_PER_BLOCK 8
+#define UPSAMPLE_FACTOR 1.8f
+#define WARP_SIZE 32
+#define DEPTH_THRESHOLD 0.05f
+#define UPSAMPLE_MAX 60
+#define MAX_ITERATIONS 32  // Note: Must be multiple of 32
+#define SPATIAL_SMOOTHING 0.005f
+
 using ftl::cuda::TextureObject;
 using ftl::render::SplatParams;
 
@@ -13,7 +21,7 @@ using ftl::render::SplatParams;
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float3 worldPos = make_float3(tex2D<float4>(points, x, y));
+	const float3 worldPos = make_float3(points.tex2D(x, y));
 	if (worldPos.x == MINF) return;
 
     // Find the virtual screen position of current point
@@ -55,7 +63,7 @@ __global__ void dibr_attribute_contrib_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float3 worldPos = make_float3(tex2D<float4>(camera.points, x, y));
+	const float3 worldPos = make_float3(points.tex2D(x, y));
 	//const float3 normal = make_float3(tex2D<float4>(camera.normal, x, y));
 	if (worldPos.x == MINF) return;
     //const float r = (camera.poseInverse * worldPos).z / camera.params.fx;
@@ -75,7 +83,7 @@ __global__ void dibr_attribute_contrib_kernel(
     //if (abs(d - camPos.z) > DEPTH_THRESHOLD) return;
 
     // TODO:(Nick) Should just one thread load these to shared mem?
-    const float4 colour = make_float4(colour_in.tex2D<uchar4>(x, y));
+    const float4 colour = make_float4(colour_in.tex2D(x, y));
     //const float4 normal = tex2D<float4>(camera.normal, x, y);
 
 	// Each thread in warp takes an upsample point and updates corresponding depth buffer.
