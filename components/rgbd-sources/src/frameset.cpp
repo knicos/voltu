@@ -19,12 +19,12 @@ void FrameSet::download(ftl::rgbd::Channels c, cudaStream_t stream) {
 void FrameSet::swapTo(ftl::rgbd::FrameSet &fs) {
 	UNIQUE_LOCK(fs.mtx, lk);
 
-	if (fs.frames.size() != frames.size()) {
+	//if (fs.frames.size() != frames.size()) {
 		// Assume "this" is correct and "fs" is not.
 		fs.sources.clear();
 		for (auto s : sources) fs.sources.push_back(s);
 		fs.frames.resize(frames.size());
-	}
+	//}
 
 	fs.timestamp = timestamp;
 	fs.count = static_cast<int>(count);

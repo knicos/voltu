@@ -121,6 +121,7 @@ static void run(ftl::Configurable *root) {
 
 	bool busy = false;
 
+	group.setLatency(4);
 	group.setName("ReconGroup");
 	group.sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());

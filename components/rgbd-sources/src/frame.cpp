@@ -66,6 +66,10 @@ void Frame::swapTo(ftl::rgbd::Channels channels, Frame &f) {
 
 			cv::swap(m1.host, m2.host);
 			cv::cuda::swap(m1.gpu, m2.gpu);
+
+			auto temptex = std::move(m2.tex);
+			m2.tex = std::move(m1.tex);
+			m1.tex = std::move(temptex);
 		}
 	}
 }

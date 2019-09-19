@@ -40,13 +40,13 @@ class ILW : public ftl::Configurable {
     /**
      * Take a frameset and perform the iterative lattice warping.
      */
-    bool process(ftl::rgbd::FrameSet &fs);
+    bool process(ftl::rgbd::FrameSet &fs, cudaStream_t stream=0);
 
     private:
     /*
      * Initialise data.
      */
-    bool _phase0(ftl::rgbd::FrameSet &fs);
+    bool _phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream);
 
     /*
      * Find possible correspondences and a confidence value.
