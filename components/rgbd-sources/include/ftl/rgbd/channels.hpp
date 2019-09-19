@@ -17,9 +17,10 @@ enum struct Channel : int {
     Disparity = 3,
     Depth2 = 3,
     Deviation = 4,
-    Normals,            // 32FC4
-    Points,             // 32FC4
-    Confidence,         // 32F
+    Normals = 5,        // 32FC4
+    Points = 6,         // 32FC4
+    Confidence = 7,     // 32F
+    Contribution = 7,   // 32F
     Flow,               // 32F
     Energy,             // 32F
     LeftGray,

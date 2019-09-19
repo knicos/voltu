@@ -33,7 +33,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 
 	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Colour2, Format<uchar4>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Confidence, Format<float>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
@@ -81,6 +81,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 
 	//LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
+	temp_.createTexture<int>(Channel::Depth);
+
 	// Render each camera into virtual view
 	for (size_t i=0; i<scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
@@ -104,12 +106,46 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 
 		ftl::cuda::dibr_merge(
 			f.createTexture<float4>(Channel::Points),
-			temp_.createTexture<int>(Channel::Depth),
+			temp_.getTexture<int>(Channel::Depth),
 			params, stream
 		);
 
 		//LOG(INFO) << "DIBR DONE";
 	}
+
+	temp_.createTexture<float4>(Channel::Colour);
+	temp_.createTexture<float>(Channel::Contribution);
+
+	// Accumulate attribute contributions for each pixel
+	for (auto &f : scene_->frames) {
+		// Convert colour from BGR to BGRA if needed
+		if (f.get<GpuMat>(Channel::Colour).type() == CV_8UC3) {
+			// Convert to 4 channel colour
+			auto &col = f.get<GpuMat>(Channel::Colour);
+			GpuMat tmp(col.size(), CV_8UC4);
+			cv::cuda::swap(col, tmp);
+			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
+		}
+	
+		ftl::cuda::dibr_attribute(
+			f.createTexture<uchar4>(Channel::Colour),
+			f.createTexture<float4>(Channel::Points),
+			temp_.getTexture<int>(Channel::Depth),
+			temp_.getTexture<float4>(Channel::Colour),
+			temp_.getTexture<float>(Channel::Contribution),
+			params, stream
+		);
+	}
+
+	// Normalise attribute contributions
+	//for (auto &f : scene_->frames) {
+		ftl::cuda::dibr_normalise(
+			temp_.createTexture<float4>(Channel::Colour),
+			out.createTexture<uchar4>(Channel::Colour),
+			temp_.createTexture<float>(Channel::Contribution),
+			stream
+		);
+	//}
 
 		//ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
 

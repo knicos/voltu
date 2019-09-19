@@ -51,6 +51,8 @@ void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<int> &de
     cudaSafeCall( cudaGetLastError() );
 }
 
+//==============================================================================
+
 __device__ inline float4 make_float4(const uchar4 &c) {
     return make_float4(c.x,c.y,c.z,c.w);
 }
@@ -135,25 +137,54 @@ __global__ void dibr_attribute_contrib_kernel(
 	}
 }
 
+void ftl::cuda::dibr_attribute(
+        TextureObject<uchar4> &colour_in,    // Original colour image
+        TextureObject<float4> &points,       // Original 3D points
+        TextureObject<int> &depth_in,        // Virtual depth map
+        TextureObject<float4> &colour_out,   // Accumulated output
+        //TextureObject<float4> normal_out,
+        TextureObject<float> &contrib_out,
+        SplatParams &params, cudaStream_t stream) {
+    const dim3 gridSize((depth_in.width() + 2 - 1)/2, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(2*WARP_SIZE, T_PER_BLOCK);
 
+    dibr_attribute_contrib_kernel<<<gridSize, blockSize, 0, stream>>>(
+        colour_in,
+        points,
+        depth_in,
+        colour_out,
+        contrib_out,
+        params
+    );
+    cudaSafeCall( cudaGetLastError() );
+}
 
+//==============================================================================
 
 __global__ void dibr_normalise_kernel(
-    TextureObject<float4> colour_in,
-    TextureObject<uchar4> colour_out,
-    //TextureObject<float4> normals,
-    TextureObject<float> contribs) {
-const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+        TextureObject<float4> colour_in,
+        TextureObject<uchar4> colour_out,
+        //TextureObject<float4> normals,
+        TextureObject<float> contribs) {
+    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-if (x < colour_in.width() && y < colour_in.height()) {
-    const float4 colour = colour_in.tex2D((int)x,(int)y);
-    //const float4 normal = normals.tex2D((int)x,(int)y);
-    const float contrib = contribs.tex2D((int)x,(int)y);
+    if (x < colour_in.width() && y < colour_in.height()) {
+        const float4 colour = colour_in.tex2D((int)x,(int)y);
+        //const float4 normal = normals.tex2D((int)x,(int)y);
+        const float contrib = contribs.tex2D((int)x,(int)y);
 
-    if (contrib > 0.0f) {
-        colour_out(x,y) = make_uchar4(colour.x / contrib, colour.y / contrib, colour.z / contrib, 0);
-        //normals(x,y) = normal / contrib;
+        if (contrib > 0.0f) {
+            colour_out(x,y) = make_uchar4(colour.x / contrib, colour.y / contrib, colour.z / contrib, 0);
+            //normals(x,y) = normal / contrib;
+        }
     }
 }
+
+void ftl::cuda::dibr_normalise(TextureObject<float4> &colour_in, TextureObject<uchar4> &colour_out, TextureObject<float> &contribs, cudaStream_t stream) {
+    const dim3 gridSize((colour_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (colour_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    dibr_normalise_kernel<<<gridSize, blockSize, 0, stream>>>(colour_in, colour_out, contribs);
+    cudaSafeCall( cudaGetLastError() );
 }
