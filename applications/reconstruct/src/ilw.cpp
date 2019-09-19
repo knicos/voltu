@@ -49,7 +49,6 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
         ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
     }
 
-	// Upload camera data?
     return true;
 }
 

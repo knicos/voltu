@@ -140,15 +140,26 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	}
 
 	// Normalise attribute contributions
-	//for (auto &f : scene_->frames) {
-		ftl::cuda::dibr_normalise(
-			temp_.createTexture<float4>(Channel::Colour),
-			out.createTexture<uchar4>(Channel::Colour),
-			temp_.createTexture<float>(Channel::Contribution),
-			stream
-		);
-	//}
+	ftl::cuda::dibr_normalise(
+		temp_.createTexture<float4>(Channel::Colour),
+		out.createTexture<uchar4>(Channel::Colour),
+		temp_.createTexture<float>(Channel::Contribution),
+		stream
+	);
 
+	Channel chan = src->getChannel();
+	if (chan == Channel::Depth) {
+		temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
+	} else if (chan == Channel::Energy) {
+		cv::cuda::swap(temp_.get<GpuMat>(Channel::Energy), out.create<GpuMat>(Channel::Energy));
+	} else if (chan == Channel::Right) {
+		Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
+		Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
+		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
+		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
+	}
+
+	/*
 		//ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
 
 		// Step 1: Put all points into virtual view to gather them
@@ -165,8 +176,6 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
 
 				temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
-				//src->writeFrames(ts, colour1_, depth2_, stream);
-				//src->write(scene_.timestamp, output_, stream);
 			} else {
 				temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
@@ -210,6 +219,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			//}
 		}
 	//}
+	*/
 
 	//ftl::cuda::median_filter(depth1_, depth2_, stream);
 	//ftl::cuda::splat_points(depth1_, depth2_, params, stream);
