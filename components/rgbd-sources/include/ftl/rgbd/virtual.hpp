@@ -13,6 +13,8 @@ class VirtualSource : public ftl::rgbd::Source {
 
 	void onRender(const std::function<void(ftl::rgbd::Frame &)> &);
 
+	void setTimestamp(int64_t ts) { timestamp_ = ts; }
+
     /**
 	 * Write frames into source buffers from an external renderer. Virtual
 	 * sources do not have an internal generator of frames but instead have

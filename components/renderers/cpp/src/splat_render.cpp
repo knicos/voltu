@@ -76,6 +76,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	// Clear all channels to 0 or max depth
 	temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+	temp_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
+	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
 	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(76,76,76), cvstream);
 

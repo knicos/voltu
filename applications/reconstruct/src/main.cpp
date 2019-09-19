@@ -104,7 +104,8 @@ static void run(ftl::Configurable *root) {
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 
 	// Generate virtual camera render when requested by streamer
-	virt->onRender([splat,virt](ftl::rgbd::Frame &out) {
+	virt->onRender([splat,virt,&scene_B](ftl::rgbd::Frame &out) {
+		virt->setTimestamp(scene_B.timestamp);
 		splat->render(virt, out);
 	});
 	stream->add(virt);
