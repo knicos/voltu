@@ -21,6 +21,7 @@ enum struct Channel : int {
     Points = 6,         // 32FC4
     Confidence = 7,     // 32F
     Contribution = 7,   // 32F
+    EnergyVector,       // 32FC4
     Flow,               // 32F
     Energy,             // 32F
     LeftGray,

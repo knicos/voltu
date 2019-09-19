@@ -51,7 +51,7 @@ class ILW : public ftl::Configurable {
     /*
      * Find possible correspondences and a confidence value.
      */
-    bool _phase1(ftl::rgbd::FrameSet &fs);
+    bool _phase1(ftl::rgbd::FrameSet &fs, cudaStream_t stream);
 
     /*
      * Calculate energies and move the points.

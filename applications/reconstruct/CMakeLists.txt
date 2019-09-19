@@ -16,6 +16,7 @@ set(REPSRC
 	#src/depth_camera.cu
 	#src/depth_camera.cpp
 	src/ilw.cpp
+	src/ilw.cu
 )
 
 add_executable(ftl-reconstruct ${REPSRC})

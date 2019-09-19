@@ -31,6 +31,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
 	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
 
+	// FIXME: Use source resolutions, not virtual resolution
 	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Colour2, Format<uchar4>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
@@ -115,6 +116,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		//LOG(INFO) << "DIBR DONE";
 	}
 
+	// TODO: Add the depth splatting step..
+
 	temp_.createTexture<float4>(Channel::Colour);
 	temp_.createTexture<float>(Channel::Contribution);
 
@@ -157,74 +160,9 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
 		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
+
+		// TODO: Repeat rendering process...
 	}
-
-	/*
-		//ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
-
-		// Step 1: Put all points into virtual view to gather them
-		//ftl::cuda::dibr_raw(depth1_, scene_->cameraCount(), params, stream);
-
-		// Step 2: For each point, use a warp to do MLS and up sample
-		//ftl::cuda::mls_render_depth(depth1_, depth3_, params, scene_->cameraCount(), stream);
-
-		if (src->getChannel() == Channel::Depth) {
-			//LOG(INFO) << "Rendering depth";
-			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-			if (value("splatting",  false)) {
-				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
-				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-
-				temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
-			} else {
-				temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
-				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				//src->writeFrames(ts, colour1_, depth2_, stream);
-				//src->write(scene_.timestamp, output_, stream);
-			}
-		} else if (src->getChannel() == Channel::Energy) {
-			//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-			//if (src->value("splatting",  false)) {
-				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
-				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				//src->writeFrames(ts, colour1_, depth2_, stream);
-				//src->write(scene_.timestamp, output_, stream);
-			//} else {
-				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-			//	src->writeFrames(colour1_, depth2_, stream);
-			//}
-		} else if (src->getChannel() == Channel::Right) {
-			//LOG(INFO) << "Rendering right";
-			// Adjust pose to right eye position
-			Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
-			Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
-			params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
-			params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
-
-			//ftl::cuda::clear_depth(depth1_, stream);
-			//ftl::cuda::dibr(depth1_, colour1_, normal1_, depth2_, colour_tmp_, depth3_, scene_->cameraCount(), params, stream);
-			//src->writeFrames(ts, colour1_, colour2_, stream);
-			//src->write(scene_.timestamp, output_, stream);
-		} else {
-			//LOG(INFO) << "No second rendering";
-			//if (value("splatting",  false)) {
-				//ftl::cuda::splat_points(depth1_, colour1_, normal1_, depth2_, colour2_, params, stream);
-				//src->writeFrames(ts, colour1_, depth2_, stream);
-				//src->write(scene_.timestamp, out, stream);
-			//} else {
-				//ftl::cuda::int_to_float(depth1_, depth2_, 1.0f / 1000.0f, stream);
-				temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
-				//src->writeFrames(ts, colour1_, depth2_, stream);
-				//src->write(scene_.timestamp, output_, stream);
-			//}
-		}
-	//}
-	*/
-
-	//ftl::cuda::median_filter(depth1_, depth2_, stream);
-	//ftl::cuda::splat_points(depth1_, depth2_, params, stream);
-
-	// TODO: Second pass
 
 	return true;
 }
