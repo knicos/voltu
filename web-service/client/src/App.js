@@ -1,28 +1,30 @@
 import React, { useState } from 'react';
 import './App.css'
-//import Streams from 'Streams'
+//import {Route, BrowserRouter, Link} from 'react-router-domm
+import Streams from './Streams'
 
 const App = () => {
 
     const [user, setUser] = useState(null);
-    const [username, setUsername] = useState('');
 
-    const handleLogin = async() => {
-        /* User clicks on the image of either Haka login or Google Oauth
-        Server redirects the user then to google oauths site or to the haka site */
-
+    const handleLogin = () => {
         //BEFORE BUILD CHANGE THE URL TO /google
-        //Otherwise it wont work as a static build in node server
         window.location.href="/google";
+    }
+
+    const clearCookies = () => {
+        window.localStorage.clear(); 
+        window.location.reload();
     }
 
     if(window.localStorage.getItem('token')){
         return (
-            <div style={{'margin': 'auto', 'text-align': 'center'}}>
-                <h1>IT WORKS!!</h1>
-                <h2>Namibia here we come!</h2>
-                <button onClick={() => {window.localStorage.clear()}}>Remove all cookies</button>
-            </div>
+            /*
+            This should redirect the router path to point at /streams
+            So instead of the div down below it would render
+            <Streams />
+            */
+           <Streams clearCookies={clearCookies}/>
         )
     }
     return (
