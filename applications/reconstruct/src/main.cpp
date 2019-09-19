@@ -116,6 +116,7 @@ static void run(ftl::Configurable *root) {
 		group.addSource(in);
 	}
 
+	stream->setLatency(4);
 	stream->run();
 
 	bool busy = false;

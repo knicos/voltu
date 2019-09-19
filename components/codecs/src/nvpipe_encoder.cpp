@@ -91,7 +91,7 @@ bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_
 
 bool NvPipeEncoder::_encoderMatch(const cv::Mat &in, definition_t def) {
     return ((in.type() == CV_32F && is_float_channel_) ||
-        (in.type() == CV_8UC3 && !is_float_channel_)) && current_definition_ == def;
+        ((in.type() == CV_8UC3 || in.type() == CV_8UC4) && !is_float_channel_)) && current_definition_ == def;
 }
 
 bool NvPipeEncoder::_createEncoder(const cv::Mat &in, definition_t def, bitrate_t rate) {
