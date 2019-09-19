@@ -53,6 +53,19 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 
         // TODO: Create energy vector texture and clear it
         // Create energy and clear it
+
+        // Convert colour from BGR to BGRA if needed
+		if (f.get<GpuMat>(Channel::Colour).type() == CV_8UC3) {
+			// Convert to 4 channel colour
+			auto &col = f.get<GpuMat>(Channel::Colour);
+			GpuMat tmp(col.size(), CV_8UC4);
+			cv::cuda::swap(col, tmp);
+			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
+		}
+
+        f.createTexture<float4>(Channel::EnergyVector, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
+        f.createTexture<float>(Channel::Energy, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
+        f.createTexture<uchar4>(Channel::Colour);
     }
 
     return true;
@@ -75,6 +88,7 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 
             auto pose = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse());
 
+            try {
             //Calculate energy vector to best correspondence
             ftl::cuda::correspondence_energy_vector(
                 f1.getTexture<float4>(Channel::Points),
@@ -88,6 +102,9 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
                 s2->parameters(),
                 stream
             );
+            } catch (ftl::exception &e) {
+                LOG(ERROR) << "Exception in correspondence: " << e.what();
+            }
 
             LOG(INFO) << "Correspondences done... " << i;
         }
