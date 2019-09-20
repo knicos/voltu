@@ -1,17 +1,23 @@
 #include <ftl/rgbd/streamer.hpp>
+#include <ftl/timer.hpp>
 #include <vector>
 #include <optional>
 #include <thread>
 #include <chrono>
 #include <tuple>
+#include <algorithm>
 
-#include "bitrate_settings.hpp"
+#include <ftl/rgbd/detail/abr.hpp>
+#include <ftl/codecs/encoder.hpp>
 
 using ftl::rgbd::Streamer;
 using ftl::rgbd::Source;
 using ftl::rgbd::detail::StreamSource;
 using ftl::rgbd::detail::StreamClient;
-using ftl::rgbd::detail::bitrate_settings;
+using ftl::rgbd::detail::ABRController;
+using ftl::codecs::definition_t;
+using ftl::codecs::device_t;
+using ftl::rgbd::Channel;
 using ftl::net::Universe;
 using std::string;
 using std::list;
@@ -23,18 +29,29 @@ using std::chrono::milliseconds;
 using std::tuple;
 using std::make_tuple;
 
+static const ftl::codecs::preset_t kQualityThreshold = ftl::codecs::kPresetLQThreshold;
+
 
 Streamer::Streamer(nlohmann::json &config, Universe *net)
-		: ftl::Configurable(config), late_(false), jobs_(0) {
+		: ftl::Configurable(config), late_(false) {
 
 	active_ = false;
 	net_ = net;
 	time_peer_ = ftl::UUID(0);
 	clock_adjust_ = 0;
+	mspf_ = ftl::timer::getInterval(); //1000 / value("fps", 20);
+	//last_dropped_ = 0;
+	//drop_count_ = 0;
+
+	encode_mode_ = ftl::rgbd::kEncodeVideo;
+	hq_devices_ = (value("disable_hardware_encode", false)) ? device_t::Software : device_t::Any;
+
+	//group_.setFPS(value("fps", 20));
+	group_.setLatency(4);
 
 	compress_level_ = value("compression", 1);
 	
-	net->bind("find_stream", [this](const std::string &uri) -> optional<UUID> {
+	net->bind("find_stream", [this](const std::string &uri) -> optional<ftl::UUID> {
 		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
@@ -75,7 +92,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	});
 
 	// Allow remote users to access camera calibration matrix
-	net->bind("source_details", [this](const std::string &uri, ftl::rgbd::channel_t chan) -> tuple<unsigned int,vector<unsigned char>> {
+	net->bind("source_details", [this](const std::string &uri, ftl::rgbd::Channel chan) -> tuple<unsigned int,vector<unsigned char>> {
 		vector<unsigned char> buf;
 		SHARED_LOCK(mutex_,slk);
 
@@ -94,11 +111,11 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		_addClient(source, N, rate, peer, dest);
 	});
 
-	net->bind("set_channel", [this](const string &uri, unsigned int chan) {
+	net->bind("set_channel", [this](const string &uri, Channel chan) {
 		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
-			sources_[uri]->src->setChannel((ftl::rgbd::channel_t)chan);
+			sources_[uri]->src->setChannel(chan);
 		}
 	});
 
@@ -112,6 +129,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 }
 
 Streamer::~Streamer() {
+	timer_job_.cancel();
 	net_->unbind("find_stream");
 	net_->unbind("list_streams");
 	net_->unbind("source_calibration");
@@ -119,6 +137,19 @@ Streamer::~Streamer() {
 	net_->unbind("sync_streams");
 	net_->unbind("ping_streamer");
 	//pool_.stop();
+
+	{
+		UNIQUE_LOCK(mutex_,ulk);
+		for (auto &s : sources_) {
+			StreamSource *src = s.second;
+			src->clientCount = 0;
+		}
+	}
+	_cleanUp();
+	{
+		UNIQUE_LOCK(mutex_,ulk);
+		sources_.clear();
+	}
 }
 
 void Streamer::add(Source *src) {
@@ -132,7 +163,11 @@ void Streamer::add(Source *src) {
 		s->jobs = 0;
 		s->frame = 0;
 		s->clientCount = 0;
+		s->hq_count = 0;
+		s->lq_count = 0;
 		sources_[src->getID()] = s;
+
+		group_.addSource(src);
 	}
 
 	LOG(INFO) << "Streaming: " << src->getID();
@@ -149,7 +184,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 		if (rate < 0 || rate >= 10) return;
 		if (N < 0 || N > ftl::rgbd::kMaxFrames) return;
 
-		DLOG(INFO) << "Adding Stream Peer: " << peer.to_string() << " rate=" << rate << " N=" << N;
+		//DLOG(INFO) << "Adding Stream Peer: " << peer.to_string() << " rate=" << rate << " N=" << N;
 
 		s = sources_[source];
 
@@ -157,15 +192,33 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 		if (time_peer_ == ftl::UUID(0)) {
 			time_peer_ = peer;
 
-			// Also do a time sync (but should be repeated periodically)
-			auto start = std::chrono::high_resolution_clock::now();
-			int64_t mastertime = net_->call<int64_t>(peer, "__ping__");
-			auto elapsed = std::chrono::high_resolution_clock::now() - start;
-			int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-			clock_adjust_ = mastertime - (std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() + (latency/2));
-			LOG(INFO) << "Clock adjustment: " << clock_adjust_;
-			LOG(INFO) << "Latency: " << (latency / 2);
-			LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
+			// Do a time sync whenever the CPU is idle for 10ms or more.
+			// FIXME: Could be starved
+			timer_job_ = ftl::timer::add(ftl::timer::kTimerIdle10, [peer,this](int id) {
+				auto start = std::chrono::high_resolution_clock::now();
+				int64_t mastertime;
+
+				try {
+					mastertime = net_->call<int64_t>(peer, "__ping__");
+				} catch (...) {
+					// Reset time peer and remove timer
+					time_peer_ = ftl::UUID(0);
+					return false;
+				}
+
+				auto elapsed = std::chrono::high_resolution_clock::now() - start;
+				int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+				auto clock_adjust = mastertime - (ftl::timer::get_time() + (latency/2));
+
+				if (clock_adjust > 0) {
+					LOG(INFO) << "Clock adjustment: " << clock_adjust;
+					//LOG(INFO) << "Latency: " << (latency / 2);
+					//LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
+					ftl::timer::setClockAdjustment(clock_adjust);
+				}
+
+				return true;
+			});
 		}
 	}
 
@@ -173,21 +226,48 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 
 	SHARED_LOCK(mutex_, slk);
 	UNIQUE_LOCK(s->mutex, lk2);
-	for (auto &client : s->clients[rate]) {
+	for (auto &client : s->clients) {
 		// If already listening, just update chunk counters
 		if (client.peerid == peer) {
-			client.txmax = N * kChunkCount;
+			client.txmax = N;
 			client.txcount = 0;
+
+			// Possible switch from high quality to low quality encoding or vice versa
+			if (client.preset < kQualityThreshold && rate >= kQualityThreshold) {
+				s->hq_count--;
+				s->lq_count++;
+				if (s->lq_encoder_c1) s->lq_encoder_c1->reset();
+				if (s->lq_encoder_c2) s->lq_encoder_c2->reset();
+			} else if (client.preset >= kQualityThreshold && rate < kQualityThreshold) {
+				s->hq_count++;
+				s->lq_count--;
+				if (s->hq_encoder_c1) s->hq_encoder_c1->reset();
+				if (s->hq_encoder_c2) s->hq_encoder_c2->reset();
+			}
+
+			client.preset = rate;
 			return;
 		}
 	}
 
 	// Not an existing client so add one
-	StreamClient &c = s->clients[rate].emplace_back();
+	StreamClient &c = s->clients.emplace_back();
 	c.peerid = peer;
 	c.uri = dest;
 	c.txcount = 0;
-	c.txmax = N * kChunkCount;
+	c.txmax = N;
+	c.preset = rate;
+
+	if (rate >= kQualityThreshold) {
+		if (s->lq_encoder_c1) s->lq_encoder_c1->reset();
+		if (s->lq_encoder_c2) s->lq_encoder_c2->reset();
+		s->lq_count++;
+	} else {
+		if (s->hq_encoder_c1) s->hq_encoder_c1->reset();
+		if (s->hq_encoder_c2) s->hq_encoder_c2->reset();
+		s->hq_count++;
+	}
+
 	++s->clientCount;
 }
 
@@ -200,237 +280,387 @@ void Streamer::remove(const std::string &) {
 }
 
 void Streamer::stop() {
-	active_ = false;
-	wait();
-}
-
-void Streamer::poll() {
-	//double wait = 1.0f / 25.0f;  // TODO:(Nick) Should be in config
-	//auto start = std::chrono::high_resolution_clock::now();
-	//int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
-
-	//int64_t msdelay = 40 - (now % 40);
-	//while (msdelay >= 20) {
-	//	sleep_for(milliseconds(10));
-	//	now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-	//	msdelay = 40 - (now % 40);
-	//}
-	//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
-
-	// Create frame jobs at correct FPS interval
-	_schedule();
-	//std::function<void(int)> j = ftl::pool.pop();
-	//if (j) j(-1);
-
-	//std::chrono::duration<double> elapsed =
-	//	std::chrono::high_resolution_clock::now() - start;
-
-	//if (elapsed.count() >= wait) {
-		//LOG(WARNING) << "Frame rate below optimal @ " << (1.0f / elapsed.count());
-	//} else {
-		//LOG(INFO) << "Frame rate @ " << (1.0f / elapsed.count());
-		// Otherwise, wait until next frame should start.
-		// FIXME:(Nick) Is this accurate enough? Almost certainly not
-		// TODO:(Nick) Synchronise by time corrections and use of fixed time points
-		// but this only works if framerate can be achieved.
-		//sleep_for(milliseconds((long long)((wait - elapsed.count()) * 1000.0f)));
-	//}
+	group_.stop();
 }
 
 void Streamer::run(bool block) {
-	active_ = true;
-
 	if (block) {
-		while (ftl::running && active_) {
-			poll();
-		}
+		group_.sync([this](FrameSet &fs) -> bool {
+			_process(fs);
+			return true;
+		});
 	} else {
 		// Create thread job for frame ticking
 		ftl::pool.push([this](int id) {
-			while (ftl::running && active_) {
-				poll();
-			}
+			group_.sync([this](FrameSet &fs) -> bool {
+				_process(fs);
+				return true;
+			});
 		});
 	}
 }
 
-// Must be called in source locked state or src.state must be atomic
-void Streamer::_swap(StreamSource *src) {
-	if (src->jobs == 0) {
+void Streamer::_cleanUp() {
+	for (auto &s : sources_) {
+		StreamSource *src = s.second;
 		UNIQUE_LOCK(src->mutex,lk);
 
-		for (unsigned int b=0; b<10; ++b) {
-			auto i = src->clients[b].begin();
-			while (i != src->clients[b].end()) {
-				// Client request completed so remove from list
-				if ((*i).txcount >= (*i).txmax) {
-					LOG(INFO) << "Remove client: " << (*i).uri;
-					i = src->clients[b].erase(i);
-					--src->clientCount;
-				} else {
-					i++;
+		auto i = src->clients.begin();
+		while (i != src->clients.end()) {
+			// Client request completed so remove from list
+			if ((*i).txcount >= (*i).txmax) {
+				// If peer was clock sync master, the remove that...
+				if ((*i).peerid == time_peer_) {
+					timer_job_.cancel();
+					time_peer_ = ftl::UUID(0);
 				}
+				LOG(INFO) << "Remove client: " << (*i).uri;
+
+				if ((*i).preset < kQualityThreshold) {
+					src->hq_count--;
+				} else {
+					src->lq_count--;
+				}
+
+				i = src->clients.erase(i);
+				--src->clientCount;
+			} else {
+				i++;
 			}
 		}
 
-		src->src->getFrames(src->rgb, src->depth);
+		if (src->hq_count == 0) {
+			if (src->hq_encoder_c1) ftl::codecs::free(src->hq_encoder_c1);
+			if (src->hq_encoder_c2) ftl::codecs::free(src->hq_encoder_c2);
+		}
 
-		//if (!src->rgb.empty() && src->prev_depth.empty()) {
-			//src->prev_depth = cv::Mat(src->rgb.size(), CV_16UC1, cv::Scalar(0));
-			//LOG(INFO) << "Creating prevdepth: " << src->rgb.cols << "," << src->rgb.rows;
-		//}
-		src->jobs = 0;
-		src->frame++;
+		if (src->lq_count == 0) {
+			if (src->lq_encoder_c1) ftl::codecs::free(src->lq_encoder_c1);
+			if (src->lq_encoder_c2) ftl::codecs::free(src->lq_encoder_c2);
+		}
+
+		if (src->clientCount == 0) {
+
+		}
 	}
 }
 
-void Streamer::wait() {
-	// Do some jobs in this thread, might as well...
-	std::function<void(int)> j;
-	while ((bool)(j=ftl::pool.pop())) {
-		j(-1);
-	}
-
-	// Wait for all jobs to complete before finishing frame
-	//UNIQUE_LOCK(job_mtx_, lk);
-	std::unique_lock<std::mutex> lk(job_mtx_);
-	job_cv_.wait_for(lk, std::chrono::seconds(20), [this]{ return jobs_ == 0; });
-	if (jobs_ != 0) {
-		LOG(FATAL) << "Deadlock detected";
-	}
-
-	// Capture frame number?
-	frame_no_ = last_frame_;
-}
-
-void Streamer::_schedule() {
-	wait();
-	//std::mutex job_mtx;
-	//std::condition_variable job_cv;
-	//int jobs = 0;
-
-	//auto now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-	//LOG(INFO) << "Frame time = " << (now-(last_frame_*40)) << "ms";
-
+void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 	// Prevent new clients during processing.
 	SHARED_LOCK(mutex_,slk);
 
-	for (auto s : sources_) {
-		string uri = s.first;
+	if (fs.sources.size() != sources_.size()) {
+		LOG(ERROR) << "Incorrect number of sources in frameset: " << fs.sources.size() << " vs " << sources_.size();
+		return;
+	}
 
-		// No point in doing work if no clients
-		if (s.second->clientCount == 0) {
+	int totalclients = 0;
+
+	frame_no_ = fs.timestamp;
+
+	for (int j=0; j<fs.sources.size(); ++j) {
+		StreamSource *src = sources_[fs.sources[j]->getID()];
+		SHARED_LOCK(src->mutex,lk);
+
+		// Don't do any work in the following cases
+		if (!src) continue;
+		if (!fs.sources[j]->isReady()) continue;
+		if (src->clientCount == 0) continue;
+		//if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
+		if (!fs.frames[j].hasChannel(Channel::Colour) || !fs.frames[j].hasChannel(fs.sources[j]->getChannel())) continue;
+
+		bool hasChan2 = fs.sources[j]->getChannel() != Channel::None;
+
+		totalclients += src->clientCount;
+
+		// Do we need to do high quality encoding?
+		if (src->hq_count > 0) {
+			if (!src->hq_encoder_c1) src->hq_encoder_c1 = ftl::codecs::allocateEncoder(
+					definition_t::HD1080, hq_devices_);
+			if (!src->hq_encoder_c2 && hasChan2) src->hq_encoder_c2 = ftl::codecs::allocateEncoder(
+					definition_t::HD1080, hq_devices_);
+
+			// Do we have the resources to do a HQ encoding?
+			if (src->hq_encoder_c1 && (!hasChan2 || src->hq_encoder_c2)) {
+				auto *enc1 = src->hq_encoder_c1;
+				auto *enc2 = src->hq_encoder_c2;
+
+				// Important to send channel 2 first if needed...
+				// Receiver only waits for channel 1 by default
+				// TODO: Each encode could be done in own thread
+				if (hasChan2) {
+					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+						_transmitPacket(src, blk, 1, hasChan2, true);
+					});
+				} else {
+					if (enc2) enc2->reset();
+				}
+
+				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+					_transmitPacket(src, blk, 0, hasChan2, true);
+				});
+			}
+		}
+
+		// Do we need to do low quality encoding?
+		if (src->lq_count > 0) {
+			if (!src->lq_encoder_c1) src->lq_encoder_c1 = ftl::codecs::allocateEncoder(
+					definition_t::SD480, device_t::Software);
+			if (!src->lq_encoder_c2 && hasChan2) src->lq_encoder_c2 = ftl::codecs::allocateEncoder(
+					definition_t::SD480, device_t::Software);
+
+			// Do we have the resources to do a LQ encoding?
+			if (src->lq_encoder_c1 && (!hasChan2 || src->lq_encoder_c2)) {
+				auto *enc1 = src->lq_encoder_c1;
+				auto *enc2 = src->lq_encoder_c2;
+
+				// Important to send channel 2 first if needed...
+				// Receiver only waits for channel 1 by default
+				if (hasChan2) {
+					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+						_transmitPacket(src, blk, 1, hasChan2, false);
+					});
+				} else {
+					if (enc2) enc2->reset();
+				}
+
+				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+					_transmitPacket(src, blk, 0, hasChan2, false);
+				});
+			}
+		}
+
+		// Do we need to do low quality encoding?
+		/*if (src->lq_count > 0) {
+			if (!src->lq_encoder_c1) src->lq_encoder_c1 = ftl::codecs::allocateLQEncoder();
+			if (!src->lq_encoder_c2) src->lq_encoder_c2 = ftl::codecs::allocateLQEncoder();
+
+			// Do we have the resources to do a LQ encoding?
+			if (src->lq_encoder_c1 && src->lq_encoder_c2) {
+				const auto *enc1 = src->lq_encoder_c1;
+				const auto *enc2 = src->lq_encoder_c2;
+
+				// Do entire frame as single step
+				if (!enc1->useBlocks() || !enc2->useBlocks()) {
+					ftl::pool.push([this,&fs,j,src](int id) {
+						_encodeLQAndTransmit(src, fs.channel1[j], fs.channel2[j], -1);
+						std::unique_lock<std::mutex> lk(job_mtx_);
+						--jobs_;
+						if (jobs_ == 0) job_cv_.notify_one();
+					});
+
+					jobs_++;
+				// Or divide frame into blocks and encode each
+				} else {
+					// Create jobs for each chunk
+					for (int i=0; i<chunk_count_; ++i) {
+						// Add chunk job to thread pool
+						ftl::pool.push([this,&fs,j,i,src](int id) {
+							int chunk = i;
+							try {
+								_encodeLQAndTransmit(src, fs.channel1[j], fs.channel2[j], chunk);
+							} catch(...) {
+								LOG(ERROR) << "Encode Exception: " << chunk;
+							}
+
+							//src->jobs--;
+							std::unique_lock<std::mutex> lk(job_mtx_);
+							--jobs_;
+							if (jobs_ == 0) job_cv_.notify_one();
+						});
+					}
+
+					jobs_ += chunk_count_;
+				}
+			}
+		}*/
+	}
+
+	/*std::unique_lock<std::mutex> lk(job_mtx_);
+	job_cv_.wait_for(lk, std::chrono::seconds(20), [this]{ return jobs_ == 0; });
+	if (jobs_ != 0) {
+		LOG(FATAL) << "Deadlock detected";
+	}*/
+
+	// Go to sleep if no clients instead of spinning the cpu
+	if (totalclients == 0 || sources_.size() == 0) {
+		// Make sure to unlock so clients can connect!
+		//lk.unlock();
+		slk.unlock();
+		sleep_for(milliseconds(50));
+	} else _cleanUp();
+}
+
+void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, bool hqonly) {
+	ftl::codecs::StreamPacket spkt = {
+		frame_no_,
+		static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
+	};
+
+	// Lock to prevent clients being added / removed
+	//SHARED_LOCK(src->mutex,lk);
+	auto c = src->clients.begin();
+	while (c != src->clients.end()) {
+		const ftl::codecs::preset_t b = (*c).preset;
+		if ((hqonly && b >= kQualityThreshold) || (!hqonly && b < kQualityThreshold)) {
+			++c;
 			continue;
 		}
 
-		// There will be two jobs for this source...
-		//UNIQUE_LOCK(job_mtx_,lk);
-		jobs_ += 1 + kChunkCount;
-		//lk.unlock();
+		try {
+			// TODO:(Nick) Send pose
+			short pre_transmit_latency = short(ftl::timer::get_time() - spkt.timestamp);
+			if (!net_->send((*c).peerid,
+					(*c).uri,
+					pre_transmit_latency,  // Time since timestamp for tx
+					spkt,
+					pkt)) {
 
-		StreamSource *src = sources_[uri];
-		if (src == nullptr || src->jobs != 0) continue;
-		src->jobs = 1 + kChunkCount;
-
-		// Grab job
-		ftl::pool.push([this,src](int id) {
-			//auto start = std::chrono::high_resolution_clock::now();
-
-			auto start = std::chrono::high_resolution_clock::now();
-			int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count()+clock_adjust_;
-			int64_t target = now / 40;
-
-			// TODO:(Nick) A now%40 == 0 should be accepted
-			if (target != last_frame_) LOG(WARNING) << "Frame " << "(" << (target-last_frame_) << ") dropped by " << (now%40) << "ms";
-
-			// Use sleep_for for larger delays
-			int64_t msdelay = 40 - (now % 40);
-			//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
-			while (msdelay >= 20) {
-				sleep_for(milliseconds(10));
-				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-				msdelay = 40 - (now % 40);
+				// Send failed so mark as client stream completed
+				(*c).txcount = (*c).txmax;
+			} else {
+				// Count frame as completed only if last block and channel is 0
+				if (pkt.block_number == pkt.block_total - 1 && chan == 0) ++(*c).txcount;
 			}
-
-			// Spin loop until exact grab time
-			//LOG(INFO) << "Spin Delay: " << (now / 40) << " = " << (40 - (now%40));
-			target = now / 40;
-			while ((now/40) == target) {
-				_mm_pause();  // SSE2 nano pause intrinsic
-				now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-			};
-			last_frame_ = now/40;
-
-			try {
-				src->src->grab();
-			} catch (std::exception &ex) {
-				LOG(ERROR) << "Exception when grabbing frame";
-				LOG(ERROR) << ex.what();
-			}
-			catch (...) {
-				LOG(ERROR) << "Unknown exception when grabbing frame";
-			}
-
-			//now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count()+clock_adjust_;
-			//if (now%40 > 0) LOG(INFO) << "Grab in: " << (now%40) << "ms";
-
-			//std::chrono::duration<double> elapsed =
-			//	std::chrono::high_resolution_clock::now() - start;
-			//LOG(INFO) << "Grab in " << elapsed.count() << "s";
-
-			src->jobs--;
-			_swap(src);
-
-			// Mark job as finished
-			std::unique_lock<std::mutex> lk(job_mtx_);
-			--jobs_;
-			job_cv_.notify_one();
-		});
-
-		// Create jobs for each chunk
-		for (int i=0; i<kChunkCount; ++i) {
-			// Add chunk job to thread pool
-			ftl::pool.push([this,src,i](int id) {
-				int chunk = i;
-				try {
-				if (!src->rgb.empty() && (src->src->getChannel() == ftl::rgbd::kChanNone || !src->depth.empty())) {
-					_encodeAndTransmit(src, chunk);
-				}
-				} catch(...) {
-					LOG(ERROR) << "Encode Exception: " << chunk;
-				}
-
-				src->jobs--;
-				_swap(src);
-				std::unique_lock<std::mutex> lk(job_mtx_);
-				--jobs_;
-				job_cv_.notify_one();
-			});
+		} catch(...) {
+			(*c).txcount = (*c).txmax;
 		}
+		++c;
 	}
 }
 
-void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
-	bool hasChan2 = (!src->depth.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
+/*void Streamer::_encodeHQAndTransmit(StreamSource *src, const cv::Mat &c1, const cv::Mat &c2, int block) {
+	bool hasChan2 = (!c2.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
 
-	bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
-	int chunk_width = src->rgb.cols / kChunkDim;
-	int chunk_height = src->rgb.rows / kChunkDim;
+	LOG(INFO) << "Encode HQ: " << block;
+
+	vector<unsigned char> c1buff;
+	vector<unsigned char> c2buff;
+
+	if (block == -1) {
+		src->hq_encoder_c1->encode(c1, c1buff, src->hq_bitrate, false);
+		if (hasChan2) src->hq_encoder_c2->encode(c2, c2buff, src->hq_bitrate, false);
+	} else {
+		//bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
+		int chunk_width = c1.cols / chunk_dim_;
+		int chunk_height = c1.rows / chunk_dim_;
+
+		// Build chunk heads
+		int cx = (block % chunk_dim_) * chunk_width;
+		int cy = (block / chunk_dim_) * chunk_height;
+		cv::Rect roi(cx,cy,chunk_width,chunk_height);
+		//vector<unsigned char> rgb_buf;
+		cv::Mat chunkRGB = c1(roi);
+		src->hq_encoder_c1->encode(chunkRGB, c1buff, src->hq_bitrate, false);
+
+		if (hasChan2) {
+			cv::Mat chunkDepth = c2(roi);
+			src->hq_encoder_c2->encode(chunkDepth, c2buff, src->hq_bitrate, false);
+		}
+	}
+
+	// Lock to prevent clients being added / removed
+	SHARED_LOCK(src->mutex,lk);
+	auto c = src->clients.begin();
+	while (c != src->clients.end()) {
+		const int b = (*c).bitrate;
+		if (b >= kQualityThreshold) continue; // Not a HQ request
+
+		try {
+			// TODO:(Nick) Send pose
+			short pre_transmit_latency = short(ftl::timer::get_time() - frame_no_);
+			if (!net_->send((*c).peerid, (*c).uri, frame_no_, pre_transmit_latency, uint8_t(src->hq_bitrate), block, c1buff, c2buff)) {
+				// Send failed so mark as client stream completed
+				(*c).txcount = (*c).txmax;
+			} else {
+				++(*c).txcount;
+				//LOG(INFO) << "SENT CHUNK : " << frame_no_ << "-" << chunk;
+			}
+		} catch(...) {
+			(*c).txcount = (*c).txmax;
+		}
+		++c;
+	}
+}
+
+void Streamer::_encodeLQAndTransmit(StreamSource *src, const cv::Mat &c1, const cv::Mat &c2, int block) {
+	bool hasChan2 = (!c2.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
+
+	LOG(INFO) << "Encode LQ: " << block;
+
+	vector<unsigned char> c1buff;
+	vector<unsigned char> c2buff;
+
+	if (block == -1) {
+		src->lq_encoder_c1->encode(c1, c1buff, src->lq_bitrate, false);
+		if (hasChan2) src->lq_encoder_c2->encode(c2, c2buff, src->lq_bitrate, false);
+	} else {
+		//bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
+		int chunk_width = c1.cols / chunk_dim_;
+		int chunk_height = c1.rows / chunk_dim_;
+
+		// Build chunk heads
+		int cx = (block % chunk_dim_) * chunk_width;
+		int cy = (block / chunk_dim_) * chunk_height;
+		cv::Rect roi(cx,cy,chunk_width,chunk_height);
+		//vector<unsigned char> rgb_buf;
+		cv::Mat chunkRGB = c1(roi);
+		//cv::resize(chunkRGB, downrgb, cv::Size(ABRController::getColourWidth(b) / chunk_dim_, ABRController::getColourHeight(b) / chunk_dim_));
+
+		src->lq_encoder_c1->encode(chunkRGB, c1buff, src->lq_bitrate, false);
+
+		if (hasChan2) {
+			cv::Mat chunkDepth = c2(roi);
+			//cv::resize(chunkDepth, tmp, cv::Size(ABRController::getDepthWidth(b) / chunk_dim_, ABRController::getDepthHeight(b) / chunk_dim_), 0, 0, cv::INTER_NEAREST);
+			src->lq_encoder_c2->encode(chunkDepth, c2buff, src->lq_bitrate, false);
+		}
+	}
+
+	// Lock to prevent clients being added / removed
+	SHARED_LOCK(src->mutex,lk);
+	auto c = src->clients.begin();
+	while (c != src->clients.end()) {
+		const int b = (*c).bitrate;
+		if (b < kQualityThreshold) continue; // Not an LQ request
+
+		try {
+			// TODO:(Nick) Send pose
+			short pre_transmit_latency = short(ftl::timer::get_time() - frame_no_);
+			if (!net_->send((*c).peerid, (*c).uri, frame_no_, pre_transmit_latency, uint8_t(src->hq_bitrate), block, c1buff, c2buff)) {
+				// Send failed so mark as client stream completed
+				(*c).txcount = (*c).txmax;
+			} else {
+				++(*c).txcount;
+				//LOG(INFO) << "SENT CHUNK : " << frame_no_ << "-" << chunk;
+			}
+		} catch(...) {
+			(*c).txcount = (*c).txmax;
+		}
+		++c;
+	}
+}*/
+
+/*void Streamer::_encodeImagesAndTransmit(StreamSource *src, const cv::Mat &rgb, const cv::Mat &depth, int chunk) {
+	bool hasChan2 = (!depth.empty() && src->src->getChannel() != ftl::rgbd::kChanNone);
+
+	//bool delta = (chunk+src->frame) % 8 > 0;  // Do XOR or not
+	int chunk_width = rgb.cols / chunk_dim_;
+	int chunk_height = rgb.rows / chunk_dim_;
 
 	// Build chunk heads
-	int cx = (chunk % kChunkDim) * chunk_width;
-	int cy = (chunk / kChunkDim) * chunk_height;
+	int cx = (chunk % chunk_dim_) * chunk_width;
+	int cy = (chunk / chunk_dim_) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
-	vector<unsigned char> rgb_buf;
-	cv::Mat chunkRGB = src->rgb(roi);
+	//vector<unsigned char> rgb_buf;
+	cv::Mat chunkRGB = rgb(roi);
 	cv::Mat chunkDepth;
 	//cv::Mat chunkDepthPrev = src->prev_depth(roi);
 
 	cv::Mat d2, d3;
-	vector<unsigned char> d_buf;
+	//vector<unsigned char> d_buf;
 
 	if (hasChan2) {
-		chunkDepth = src->depth(roi);
+		chunkDepth = depth(roi);
 		if (chunkDepth.type() == CV_32F) chunkDepth.convertTo(d2, CV_16UC1, 1000); // 16*10);
 		else d2 = chunkDepth;
 		//if (delta) d3 = (d2 * 2) - chunkDepthPrev;
@@ -438,65 +668,68 @@ void Streamer::_encodeAndTransmit(StreamSource *src, int chunk) {
 		//d2.copyTo(chunkDepthPrev);
 	}
 
-	// For each allowed bitrate setting (0 = max quality)
-	for (unsigned int b=0; b<10; ++b) {
-		{
-			//SHARED_LOCK(src->mutex,lk);
-			if (src->clients[b].size() == 0) continue;
-		}
-		
-		// Max bitrate means no changes
-		if (b == 0) {
-			_encodeChannel1(chunkRGB, rgb_buf, b);
-			if (hasChan2) _encodeChannel2(d2, d_buf, src->src->getChannel(), b);
+	// TODO: Verify these don't allocate memory if not needed.
+	// TODO: Reuse these buffers to reduce allocations.
+	vector<unsigned char> brgb[ftl::rgbd::detail::kMaxBitrateLevels];
+	vector<unsigned char> bdepth[ftl::rgbd::detail::kMaxBitrateLevels];
 
-		// Otherwise must downscale and change compression params
-		// TODO:(Nick) could reuse downscales
-		} else {
-			cv::Mat downrgb, downdepth;
-			cv::resize(chunkRGB, downrgb, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
-			if (hasChan2) cv::resize(d2, downdepth, cv::Size(bitrate_settings[b].width / kChunkDim, bitrate_settings[b].height / kChunkDim));
+	// Lock to prevent clients being added / removed
+	SHARED_LOCK(src->mutex,lk);
+	auto c = src->clients.begin();
+	while (c != src->clients.end()) {
+		const int b = (*c).bitrate;
 
-			_encodeChannel1(downrgb, rgb_buf, b);
-			if (hasChan2) _encodeChannel2(downdepth, d_buf, src->src->getChannel(), b);
-		}
+		if (brgb[b].empty()) {
+			// Max bitrate means no changes
+			if (b == 0) {
+				_encodeImageChannel1(chunkRGB, brgb[b], b);
+				if (hasChan2) _encodeImageChannel2(d2, bdepth[b], src->src->getChannel(), b);
 
-		//if (chunk == 0) LOG(INFO) << "Sending chunk " << chunk << " : size = " << (d_buf.size()+rgb_buf.size()) << "bytes";
+			// Otherwise must downscale and change compression params
+			} else {
+				cv::Mat downrgb, downdepth;
+				cv::resize(chunkRGB, downrgb, cv::Size(ABRController::getColourWidth(b) / chunk_dim_, ABRController::getColourHeight(b) / chunk_dim_));
+				if (hasChan2) cv::resize(d2, downdepth, cv::Size(ABRController::getDepthWidth(b) / chunk_dim_, ABRController::getDepthHeight(b) / chunk_dim_), 0, 0, cv::INTER_NEAREST);
 
-		// Lock to prevent clients being added / removed
-		SHARED_LOCK(src->mutex,lk);
-		auto c = src->clients[b].begin();
-		while (c != src->clients[b].end()) {
-			try {
-				// TODO:(Nick) Send pose and timestamp
-				if (!net_->send((*c).peerid, (*c).uri, frame_no_, chunk, delta, rgb_buf, d_buf)) {
-					// Send failed so mark as client stream completed
-					(*c).txcount = (*c).txmax;
-				} else {
-					++(*c).txcount;
-				}
-			} catch(...) {
-				(*c).txcount = (*c).txmax;
+				_encodeImageChannel1(downrgb, brgb[b], b);
+				if (hasChan2) _encodeImageChannel2(downdepth, bdepth[b], src->src->getChannel(), b);
 			}
-			++c;
 		}
+
+		try {
+			// TODO:(Nick) Send pose
+			short pre_transmit_latency = short(ftl::timer::get_time() - frame_no_);
+			if (!net_->send((*c).peerid, (*c).uri, frame_no_, pre_transmit_latency, uint8_t(b), chunk, brgb[b], bdepth[b])) {
+				// Send failed so mark as client stream completed
+				(*c).txcount = (*c).txmax;
+			} else {
+				++(*c).txcount;
+				//LOG(INFO) << "SENT CHUNK : " << frame_no_ << "-" << chunk;
+			}
+		} catch(...) {
+			(*c).txcount = (*c).txmax;
+		}
+		++c;
 	}
 }
 
-void Streamer::_encodeChannel1(const cv::Mat &in, vector<unsigned char> &out, unsigned int b) {
-	vector<int> jpgparams = {cv::IMWRITE_JPEG_QUALITY, bitrate_settings[b].jpg_quality};
+void Streamer::_encodeImageChannel1(const cv::Mat &in, vector<unsigned char> &out, unsigned int b) {
+	vector<int> jpgparams = {cv::IMWRITE_JPEG_QUALITY, ABRController::getColourQuality(b)};
 	cv::imencode(".jpg", in, out, jpgparams);
 }
 
-bool Streamer::_encodeChannel2(const cv::Mat &in, vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b) {
+bool Streamer::_encodeImageChannel2(const cv::Mat &in, vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b) {
 	if (c == ftl::rgbd::kChanNone) return false;  // NOTE: Should not happen
 
 	if (isFloatChannel(c) && in.type() == CV_16U && in.channels() == 1) {
-		vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, bitrate_settings[b].png_compression};
-		cv::imencode(".png", in, out, params);
+		vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, ABRController::getDepthQuality(b)};
+		if (!cv::imencode(".png", in, out, params)) {
+			LOG(ERROR) << "PNG Encoding error";
+			return false;
+		}
 		return true;
 	} else if (!isFloatChannel(c) && in.type() == CV_8UC3) {
-		vector<int> params = {cv::IMWRITE_JPEG_QUALITY, bitrate_settings[b].jpg_quality};
+		vector<int> params = {cv::IMWRITE_JPEG_QUALITY, ABRController::getColourQuality(b)};
 		cv::imencode(".jpg", in, out, params);
 		return true;
 	} else {
@@ -510,4 +743,4 @@ Source *Streamer::get(const std::string &uri) {
 	SHARED_LOCK(mutex_,slk);
 	if (sources_.find(uri) != sources_.end()) return sources_[uri]->src;
 	else return nullptr;
-}
+}*/

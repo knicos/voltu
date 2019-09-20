@@ -23,6 +23,8 @@ class Camera {
 	Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src);
 	~Camera();
 
+	Camera(const Camera &)=delete;
+
 	ftl::rgbd::Source *source();
 
 	int width() { return (src_) ? src_->parameters().width : 0; }
@@ -36,15 +38,17 @@ class Camera {
 	void showPoseWindow();
 	void showSettings();
 
-	void setChannel(ftl::rgbd::channel_t c);
+	void setChannel(ftl::rgbd::Channel c);
 
 	void togglePause();
 	void isPaused();
-	const std::vector<ftl::rgbd::channel_t> &availableChannels();
+	const ftl::rgbd::Channels &availableChannels();
 
 	const GLTexture &captureFrame();
 	const GLTexture &getLeft() const { return texture_; }
 	const GLTexture &getRight() const { return textureRight_; }
+
+	bool thumbnail(cv::Mat &thumb);
 
 	nlohmann::json getMetaData();
 
@@ -65,10 +69,13 @@ class Camera {
 	float ftime_;
 	float delta_;
 	float lerpSpeed_;
-	bool depth_;
+	bool sdepth_;
 	bool pause_;
-	ftl::rgbd::channel_t channel_;
-	std::vector<ftl::rgbd::channel_t> channels_;
+	ftl::rgbd::Channel channel_;
+	ftl::rgbd::Channels channels_;
+	cv::Mat rgb_;
+	cv::Mat depth_;
+	MUTEX mutex_;
 
 	#ifdef HAVE_OPENVR
 	vr::TrackedDevicePose_t rTrackedDevicePose_[ vr::k_unMaxTrackedDeviceCount ];

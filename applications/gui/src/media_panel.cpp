@@ -12,91 +12,89 @@
 #endif
 
 using ftl::gui::MediaPanel;
+using ftl::rgbd::Channel;
 
 MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), screen_(screen) {
-    using namespace nanogui;
+	using namespace nanogui;
 
-    paused_ = false;
-    writer_ = nullptr;
+	paused_ = false;
+	writer_ = nullptr;
 
-    setLayout(new BoxLayout(Orientation::Horizontal,
+	setLayout(new BoxLayout(Orientation::Horizontal,
 									Alignment::Middle, 5, 10));
 
-    auto size = Vector2i(400, 60);
-    //setFixedSize(size);
-    setPosition(Vector2i(screen->width() / 2 - size[0]/2, screen->height() - 30 - size[1]));
+	auto size = Vector2i(400, 60);
+	//setFixedSize(size);
+	setPosition(Vector2i(screen->width() / 2 - size[0]/2, screen->height() - 30 - size[1]));
 
-    auto button = new Button(this, "", ENTYPO_ICON_EDIT);
+	auto button = new Button(this, "", ENTYPO_ICON_EDIT);
 	button->setTooltip("Edit camera properties");
-    button->setCallback([this]() {
-        auto *cam = screen_->activeCamera();
-        if (cam) cam->showPoseWindow();
-    });
+	button->setCallback([this]() {
+		auto *cam = screen_->activeCamera();
+		if (cam) cam->showPoseWindow();
+	});
 
-    button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
-    button->setFlags(Button::ToggleButton);
-    button->setChangeCallback([this,button](bool state) {
-        if (state){
-            auto *cam = screen_->activeCamera();
+	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
+	button->setFlags(Button::ToggleButton);
+	button->setChangeCallback([this,button](bool state) {
+		if (state){
+			auto *cam = screen_->activeCamera();
 
-            button->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
-            char timestamp[18];
+			button->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+			char timestamp[18];
 			std::time_t t=std::time(NULL);
 			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
 			writer_ = new ftl::rgbd::SnapshotStreamWriter(std::string(timestamp) + ".tar.gz", 1000 / 25);
-            writer_->addSource(cam->source());
-            writer_->start();
-        } else {
-            button->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
-            if (writer_) {
-                writer_->stop();
-                delete writer_;
-                writer_ = nullptr;
-            }
-        }
-        //if (state) ... start
-        //else ... stop
-    });
+			writer_->addSource(cam->source());
+			writer_->start();
+		} else {
+			button->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+			if (writer_) {
+				writer_->stop();
+				delete writer_;
+				writer_ = nullptr;
+			}
+		}
+		//if (state) ... start
+		//else ... stop
+	});
 
 	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_STOP);
-    button->setCallback([this]() {
-        screen_->setActiveCamera(nullptr);
-    });
+	button->setCallback([this]() {
+		screen_->setActiveCamera(nullptr);
+	});
 
-    button = new Button(this, "", ENTYPO_ICON_CONTROLLER_PAUS);
-    button->setCallback([this,button]() {
-        paused_ = !paused_;
-        screen_->control()->pause();
-        if (paused_) {
-            button->setIcon(ENTYPO_ICON_CONTROLLER_PLAY);
-        } else {
-            button->setIcon(ENTYPO_ICON_CONTROLLER_PAUS);
-        }
-    });
+	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_PAUS);
+	button->setCallback([this,button]() {
+		paused_ = !paused_;
+		screen_->control()->pause();
+		if (paused_) {
+			button->setIcon(ENTYPO_ICON_CONTROLLER_PLAY);
+		} else {
+			button->setIcon(ENTYPO_ICON_CONTROLLER_PAUS);
+		}
+	});
 
-    //button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
+	//button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
 
  #ifdef HAVE_LIBARCHIVE
 	auto button_snapshot = new Button(this, "", ENTYPO_ICON_IMAGES);
-    button_snapshot->setTooltip("Screen capture");
+	button_snapshot->setTooltip("Screen capture");
 	button_snapshot->setCallback([this] {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (!cam) return;
-    
-		try {
-			char timestamp[18];
+	ftl::gui::Camera *cam = screen_->activeCamera();
+	if (!cam) return;
+
+	try {
+		char timestamp[18];
 			std::time_t t=std::time(NULL);
 			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
 			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
 			cv::Mat rgb, depth;
 			cam->source()->getFrames(rgb, depth);
-			if (!writer.addCameraParams("0", cam->source()->getPose(), cam->source()->parameters()) || !writer.addCameraRGBD(
-					"0", // TODO
-					rgb,
-					depth
-				)) {
-				LOG(ERROR) << "Snapshot failed";
-			}
+			writer.addSource(	cam->source()->getURI(),
+								cam->source()->parameters(),
+								cam->source()->getPose());
+			writer.addRGBD(0, rgb, depth);
 		}
 		catch(std::runtime_error) {
 			LOG(ERROR) << "Snapshot failed (file error)";
@@ -118,7 +116,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanLeft);
+            cam->setChannel(Channel::Left);
         }
     });
 
@@ -127,7 +125,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     right_button_->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanRight);
+            cam->setChannel(Channel::Right);
         }
     });
 
@@ -136,7 +134,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     depth_button_->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanDepth);
+            cam->setChannel(Channel::Depth);
         }
     });
 
@@ -153,7 +151,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanDeviation);
+            cam->setChannel(Channel::Deviation);
         }
     });
 
@@ -162,7 +160,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanNormals);
+            cam->setChannel(Channel::Normals);
         }
     });
 
@@ -171,7 +169,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanFlow);
+            cam->setChannel(Channel::Flow);
         }
     });
 
@@ -180,7 +178,16 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanConfidence);
+            cam->setChannel(Channel::Confidence);
+        }
+    });
+
+    button = new Button(popup, "Energy");
+    button->setFlags(Button::RadioButton);
+    button->setCallback([this]() {
+        ftl::gui::Camera *cam = screen_->activeCamera();
+        if (cam) {
+            cam->setChannel(Channel::Energy);
         }
     });
 

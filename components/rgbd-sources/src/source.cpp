@@ -25,10 +25,11 @@ using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
+using ftl::rgbd::Channel;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
-	params_ = {0};
+	params_ = {};
 	stream_ = 0;
 	timestamp_ = 0;
 	reset();
@@ -41,7 +42,7 @@ Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matri
 
 Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(net) {
 	impl_ = nullptr;
-	params_ = {0};
+	params_ = {};
 	stream_ = 0;
 	timestamp_ = 0;
 	reset();
@@ -120,7 +121,8 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 		} else if (ext == "tar" || ext == "gz") {
 #ifdef HAVE_LIBARCHIVE
 			ftl::rgbd::SnapshotReader reader(path);
-			return new ftl::rgbd::detail::SnapshotSource(this, reader, value("index", std::string("0")));  // TODO: Use URI fragment
+			auto snapshot = reader.readArchive();
+			return new ftl::rgbd::detail::SnapshotSource(this, snapshot, value("index", std::string("0")));  // TODO: Use URI fragment
 #else
 			LOG(ERROR) << "Cannot read snapshots, libarchive not installed";
 			return nullptr;
@@ -164,11 +166,20 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 }
 
 void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
+	if (bool(callback_)) LOG(WARNING) << "Cannot use getFrames and callback in source";
 	SHARED_LOCK(mutex_,lk);
-	//rgb_.copyTo(rgb);
-	//depth_.copyTo(depth);
+	rgb_.copyTo(rgb);
+	depth_.copyTo(depth);
+	//rgb = rgb_;
+	//depth = depth_;
+
+	/*cv::Mat tmp;
+	tmp = rgb;
 	rgb = rgb_;
+	rgb_ = tmp;
+	tmp = depth;
 	depth = depth_;
+	depth_ = tmp;*/
 }
 
 Eigen::Vector4d Source::point(uint ux, uint uy) {
@@ -217,19 +228,30 @@ capability_t Source::getCapabilities() const {
 
 void Source::reset() {
 	UNIQUE_LOCK(mutex_,lk);
-	channel_ = kChanNone;
+	channel_ = Channel::None;
 	if (impl_) delete impl_;
 	impl_ = _createImplementation();
 }
 
-bool Source::grab(int N, int B) {
+bool Source::capture(int64_t ts) {
+	//timestamp_ = ts;
+	if (impl_) return impl_->capture(ts);
+	else return true;
+}
+
+bool Source::retrieve() {
+	if (impl_) return impl_->retrieve();
+	else return true;
+}
+
+bool Source::compute(int N, int B) {
 	UNIQUE_LOCK(mutex_,lk);
 	if (!impl_ && stream_ != 0) {
 		cudaSafeCall(cudaStreamSynchronize(stream_));
 		if (depth_.type() == CV_32SC1) depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
 		stream_ = 0;
 		return true;
-	} else if (impl_ && impl_->grab(N,B)) {
+	} else if (impl_ && impl_->compute(N,B)) {
 		timestamp_ = impl_->timestamp_;
 		/*cv::Mat tmp;
 		rgb_.create(impl_->rgb_.size(), impl_->rgb_.type());
@@ -240,70 +262,15 @@ bool Source::grab(int N, int B) {
 		tmp = depth_;
 		depth_ = impl_->depth_;
 		impl_->depth_ = tmp;*/
+
+		// TODO:(Nick) Reduce buffer copies
 		impl_->rgb_.copyTo(rgb_);
 		impl_->depth_.copyTo(depth_);
+		//rgb_ = impl_->rgb_;
+		//depth_ = impl_->depth_;
 		return true;
 	}
 	return false;
-}
-
-void Source::writeFrames(const cv::Mat &rgb, const cv::Mat &depth) {
-	if (!impl_) {
-		UNIQUE_LOCK(mutex_,lk);
-		rgb.copyTo(rgb_);
-		depth.copyTo(depth_);
-	}
-}
-
-void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream) {
-	if (!impl_) {
-		UNIQUE_LOCK(mutex_,lk);
-		rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
-		cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
-		depth_.create(depth.height(), depth.width(), CV_32SC1);
-		cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(uint), depth_.rows, cudaMemcpyDeviceToHost, stream));
-		//cudaSafeCall(cudaStreamSynchronize(stream));  // TODO:(Nick) Don't wait here.
-		stream_ = stream;
-		//depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
-	} else {
-		LOG(ERROR) << "writeFrames cannot be done on this source: " << getURI();
-	}
-}
-
-void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream) {
-	if (!impl_) {
-		UNIQUE_LOCK(mutex_,lk);
-		rgb.download(rgb_, stream);
-		//rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
-		//cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
-		depth.download(depth_, stream);
-		//depth_.create(depth.height(), depth.width(), CV_32FC1);
-		//cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(float), depth_.rows, cudaMemcpyDeviceToHost, stream));
-		
-		stream_ = stream;
-		cudaSafeCall(cudaStreamSynchronize(stream_));
-		cv::cvtColor(rgb_,rgb_, cv::COLOR_BGRA2BGR);
-		cv::cvtColor(rgb_,rgb_, cv::COLOR_Lab2BGR);
-	}
-}
-
-void Source::writeFrames(const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream) {
-	if (!impl_) {
-		UNIQUE_LOCK(mutex_,lk);
-		rgb.download(rgb_, stream);
-		//rgb_.create(rgb.height(), rgb.width(), CV_8UC4);
-		//cudaSafeCall(cudaMemcpy2DAsync(rgb_.data, rgb_.step, rgb.devicePtr(), rgb.pitch(), rgb_.cols * sizeof(uchar4), rgb_.rows, cudaMemcpyDeviceToHost, stream));
-		rgb2.download(depth_, stream);
-		//depth_.create(depth.height(), depth.width(), CV_32FC1);
-		//cudaSafeCall(cudaMemcpy2DAsync(depth_.data, depth_.step, depth.devicePtr(), depth.pitch(), depth_.cols * sizeof(float), depth_.rows, cudaMemcpyDeviceToHost, stream));
-		
-		stream_ = stream;
-		cudaSafeCall(cudaStreamSynchronize(stream_));
-		cv::cvtColor(rgb_,rgb_, cv::COLOR_BGRA2BGR);
-		cv::cvtColor(rgb_,rgb_, cv::COLOR_Lab2BGR);
-		cv::cvtColor(depth_,depth_, cv::COLOR_BGRA2BGR);
-		cv::cvtColor(depth_,depth_, cv::COLOR_Lab2BGR);
-	}
 }
 
 bool Source::thumbnail(cv::Mat &t) {
@@ -314,7 +281,9 @@ bool Source::thumbnail(cv::Mat &t) {
 		return true;
 	} else if (impl_) {
 		UNIQUE_LOCK(mutex_,lk);
-		impl_->grab(1, 9);
+		impl_->capture(0);
+		impl_->swap();
+		impl_->compute(1, 9);
 		impl_->rgb_.copyTo(rgb_);
 		impl_->depth_.copyTo(depth_);
 	}
@@ -327,12 +296,17 @@ bool Source::thumbnail(cv::Mat &t) {
 	return !thumb_.empty();
 }
 
-bool Source::setChannel(ftl::rgbd::channel_t c) {
+bool Source::setChannel(ftl::rgbd::Channel c) {
 	channel_ = c;
 	// FIXME:(Nick) Verify channel is supported by this source...
 	return true;
 }
 
-const ftl::rgbd::Camera Source::parameters(ftl::rgbd::channel_t chan) const {
+const ftl::rgbd::Camera Source::parameters(ftl::rgbd::Channel chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
+}
+
+void Source::setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb) {
+	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
+	callback_ = cb;
 }

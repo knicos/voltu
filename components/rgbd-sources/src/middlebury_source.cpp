@@ -3,6 +3,8 @@
 #include "disparity.hpp"
 #include "cuda_algorithms.hpp"
 
+#include "cuda_algorithms.hpp"
+
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::detail::Disparity;
 using std::string;
@@ -14,14 +16,13 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host)
 
 static bool loadMiddleburyCalib(const std::string &filename, ftl::rgbd::Camera &params, double scaling) {
 	FILE* fp = fopen(filename.c_str(), "r");
-	char buff[512];
 	
-	float cam0[3][3];
+	float cam0[3][3] = {};
 	float cam1[3][3];
-	float doffs;
-	float baseline;
-	int width;
-	int height;
+	float doffs = 0.0f;
+	float baseline = 0.0f;
+	int width = 0;
+	int height = 0;
 	int ndisp;
 	int isint;
 	int vmin;
@@ -29,8 +30,8 @@ static bool loadMiddleburyCalib(const std::string &filename, ftl::rgbd::Camera &
 	float dyavg;
 	float dymax;
 
-	if (fp != nullptr)
-	{
+	if (fp != nullptr) {
+		char buff[512];
 		if (fgets(buff, sizeof(buff), fp) != nullptr) sscanf(buff, "cam0 = [%f %f %f; %f %f %f; %f %f %f]\n", &cam0[0][0], &cam0[0][1], &cam0[0][2], &cam0[1][0], &cam0[1][1], &cam0[1][2], &cam0[2][0], &cam0[2][1], &cam0[2][2]);
 		if (fgets(buff, sizeof(buff), fp) != nullptr) sscanf(buff, "cam1 = [%f %f %f; %f %f %f; %f %f %f]\n", &cam1[0][0], &cam1[0][1], &cam1[0][2], &cam1[1][0], &cam1[1][1], &cam1[1][2], &cam1[2][0], &cam1[2][1], &cam1[2][2]);
 		if (fgets(buff, sizeof(buff), fp) != nullptr) sscanf(buff, "doffs = %f\n", &doffs);
@@ -120,7 +121,7 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 	mask_l_ = (mask_l == 0);
 
 	if (!host_->getConfig()["disparity"].is_object()) {
-		host_->getConfig()["disparity"] = {{"algorithm","libsgm"}};
+		host_->getConfig()["disparity"] = ftl::config::json_t{{"algorithm","libsgm"}};
 	}
 	
 	disp_ = Disparity::create(host_, "disparity");
@@ -142,43 +143,6 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 	ready_ = true;
 }
 
-static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
-							 const ftl::rgbd::Camera &c, cv::cuda::Stream &stream) {
-	double val = c.baseline * c.fx;
-	cv::cuda::add(disparity, c.doffs, depth, cv::noArray(), -1, stream);
-	cv::cuda::divide(val, depth, depth, 1.0f / 1000.0f, -1, stream);
-}
-
-/*static void disparityToDepthTRUE(const cv::Mat &disp, cv::Mat &depth, const ftl::rgbd::Camera &c) {
-	using namespace cv;
-
-	double doffs = 270.821 * 0.3;
-
-	Matx44d Q(
-		1.0,0.0,0.0,c.cx,
-		0.0,1.0,0.0,c.cy,
-		0.0,0.0,0.0,c.fx,
-		0.0,0.0,1.0/c.baseline,0.0);
-
-	for( int y = 0; y < disp.rows; y++ )
-    {
-        const float* sptr = disp.ptr<float>(y);
-        float* dptr = depth.ptr<float>(y);
-
-        for( int x = 0; x < disp.cols; x++)
-        {
-            double d = sptr[x] + doffs;
-            Vec4d homg_pt = Q*Vec4d(x, y, d, 1.0);
-            auto dvec = Vec3d(homg_pt.val);
-            dvec /= homg_pt[3];
-			dptr[x] = dvec[2] / 1000.0;
-
-            //if( fabs(d-minDisparity) <= FLT_EPSILON )
-            //    dptr[x][2] = bigZ;
-        }
-    }
-}*/
-
 void MiddleburySource::_performDisparity() {
 	if (depth_tmp_.empty()) depth_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
 	if (disp_tmp_.empty()) disp_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
@@ -195,7 +159,7 @@ void MiddleburySource::_performDisparity() {
 	//disparityToDepthTRUE(depth_, depth_, params_);
 }
 
-bool MiddleburySource::grab(int n, int b) {
+bool MiddleburySource::compute(int n, int b) {
 	//_performDisparity();
 	return true;
 }

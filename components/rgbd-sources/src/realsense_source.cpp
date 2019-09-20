@@ -41,7 +41,7 @@ RealsenseSource::~RealsenseSource() {
 
 }
 
-bool RealsenseSource::grab(int n, int b) {
+bool RealsenseSource::compute(int n, int b) {
     rs2::frameset frames;
 	if (!pipe_.poll_for_frames(&frames)) return false;  //wait_for_frames();
 

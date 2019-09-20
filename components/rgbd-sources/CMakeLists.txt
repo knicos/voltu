@@ -3,6 +3,8 @@ set(RGBDSRC
 	src/local.cpp
 	src/disparity.cpp
 	src/source.cpp
+	src/frame.cpp
+	src/frameset.cpp
 	src/stereovideo.cpp
 	src/middlebury_source.cpp
 	src/net.cpp
@@ -14,6 +16,9 @@ set(RGBDSRC
 #	src/algorithms/opencv_sgbm.cpp
 #	src/algorithms/opencv_bm.cpp
 	src/cb_segmentation.cpp
+	src/abr.cpp
+	src/offilter.cpp
+	src/virtual.cpp
 )
 
 if (HAVE_REALSENSE)
@@ -34,6 +39,7 @@ endif (LIBSGM_FOUND)
 if (CUDA_FOUND)
 	list(APPEND RGBDSRC
 		src/algorithms/disp2depth.cu
+		src/algorithms/offilter.cu
 #		"src/algorithms/opencv_cuda_bm.cpp"
 #		"src/algorithms/opencv_cuda_bp.cpp"
 #		"src/algorithms/rtcensus.cu"
@@ -61,7 +67,7 @@ set_property(TARGET ftlrgbd PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen ${REALSENSE_LIBRARY} ftlnet ${LibArchive_LIBRARIES})
+target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen ${REALSENSE_LIBRARY} ftlnet ${LibArchive_LIBRARIES} ftlcodecs)
 
 add_subdirectory(test)
 

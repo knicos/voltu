@@ -62,20 +62,24 @@ bool saveExtrinsics(const string &ofile, Mat &R, Mat &T, Mat &R1, Mat &R2, Mat &
 	return false;
 }
 
-bool saveIntrinsics(const string &ofile, const vector<Mat> &M, const vector<Mat>& D) {
+bool saveIntrinsics(const string &ofile, const vector<Mat> &M, const vector<Mat>& D, const Size &size)
+{
 	cv::FileStorage fs(ofile, cv::FileStorage::WRITE);
-	if (fs.isOpened()) {
+	if (fs.isOpened())
+	{
+		fs << "resolution" << size;
 		fs << "K" << M << "D" << D;
 		fs.release();
 		return true;
 	}
-	else {
+	else
+	{
 		LOG(ERROR) << "Error: can not save the intrinsic parameters to '" << ofile << "'";
 	}
 	return false;
 }
 
-bool loadIntrinsics(const string &ifile, vector<Mat> &K1, vector<Mat> &D1) {
+bool loadIntrinsics(const string &ifile, vector<Mat> &K1, vector<Mat> &D1, Size &size) {
 	using namespace cv;
 
 	FileStorage fs;
@@ -89,9 +93,10 @@ bool loadIntrinsics(const string &ifile, vector<Mat> &K1, vector<Mat> &D1) {
 	
 	LOG(INFO) << "Intrinsics from: " << ifile;
 
-	fs["M"] >> K1;
+	fs["resolution"] >> size;
+	fs["K"] >> K1;
 	fs["D"] >> D1;
-
+	
 	return true;
 }
 
@@ -209,6 +214,23 @@ void CalibrationChessboard::objectPoints(vector<Vec3f> &out) {
 
 bool CalibrationChessboard::findPoints(Mat &img, vector<Vec2f> &points) {
 	return cv::findChessboardCornersSB(img, pattern_size_, points, chessboard_flags_);
+}
+
+
+void CalibrationChessboard::drawCorners(Mat &img, const vector<Vec2f> &points) {
+	using cv::Point2i;
+	vector<Point2i> corners(4);
+	corners[1] = Point2i(points[0]);
+	corners[0] = Point2i(points[pattern_size_.width - 1]);
+	corners[2] = Point2i(points[pattern_size_.width * (pattern_size_.height - 1)]);
+	corners[3] = Point2i(points.back());
+	
+	cv::Scalar color = cv::Scalar(200, 200, 200);
+	
+	for (int i = 0; i <= 4; i++)
+	{
+		cv::line(img, corners[i % 4], corners[(i + 1) % 4], color, 2);
+	}
 }
 
 void CalibrationChessboard::drawPoints(Mat &img, const vector<Vec2f> &points) {

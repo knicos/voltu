@@ -141,6 +141,9 @@ class Universe : public ftl::Configurable {
 	template <typename... ARGS>
 	bool send(const UUID &pid, const std::string &name, ARGS... args);
 
+	template <typename... ARGS>
+	int try_send(const UUID &pid, const std::string &name, ARGS... args);
+
 	template <typename R, typename... ARGS>
 	std::optional<R> findOne(const std::string &name, ARGS... args);
 
@@ -185,6 +188,9 @@ class Universe : public ftl::Configurable {
 	ftl::net::callback_t onError(const std::function<void(ftl::net::Peer*, const ftl::net::Error &)>&);
 
 	void removeCallback(ftl::net::callback_t cbid);
+
+	size_t getSendBufferSize() const { return send_size_; }
+	size_t getRecvBufferSize() const { return recv_size_; }
 	
 	private:
 	void _run();
@@ -203,7 +209,7 @@ class Universe : public ftl::Configurable {
 	private:
 	bool active_;
 	ftl::UUID this_peer;
-	SHARED_MUTEX net_mutex_;
+	mutable SHARED_MUTEX net_mutex_;
 	RECURSIVE_MUTEX handler_mutex_;
 	fd_set sfderror_;
 	fd_set sfdread_;
@@ -214,10 +220,17 @@ class Universe : public ftl::Configurable {
 	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
 	ftl::UUID id_;
 	ftl::net::Dispatcher disp_;
-	std::thread thread_;
 	std::list<ReconnectInfo> reconnects_;
 	size_t phase_;
 	std::list<ftl::net::Peer*> garbage_;
+
+	size_t send_size_;
+	size_t recv_size_;
+	double periodic_time_;
+	int reconnect_attempts_;
+
+	// NOTE: Must always be last member
+	std::thread thread_;
 
 	struct ConnHandler {
 		callback_t id;
@@ -383,6 +396,17 @@ bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args)
 	return p->isConnected() && p->send(name, args...) > 0;
 #endif
 
+}
+
+template <typename... ARGS>
+int Universe::try_send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
+	Peer *p = getPeer(pid);
+	if (p == nullptr) {
+		DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
+		return false;
+	}
+
+	return (p->isConnected()) ? p->try_send(name, args...) : -1;
 }
 
 /*template <typename... ARGS>

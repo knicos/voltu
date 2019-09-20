@@ -15,11 +15,13 @@ class Disparity;
 
 class MiddleburySource : public detail::Source {
 	public:
-	MiddleburySource(ftl::rgbd::Source *);
+	explicit MiddleburySource(ftl::rgbd::Source *);
 	MiddleburySource(ftl::rgbd::Source *, const std::string &dir);
 	~MiddleburySource() {};
 
-	bool grab(int n, int b);
+	bool capture(int64_t ts) { timestamp_ = ts; return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b);
 	bool isReady() { return ready_; }
 
 	private:

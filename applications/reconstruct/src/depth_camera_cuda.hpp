@@ -10,8 +10,10 @@ namespace cuda {
 
 void clear_depth(const TextureObject<float> &depth, cudaStream_t stream);
 void clear_depth(const TextureObject<int> &depth, cudaStream_t stream);
+void clear_to_zero(const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
 void clear_points(const ftl::cuda::TextureObject<float4> &depth, cudaStream_t stream);
 void clear_colour(const ftl::cuda::TextureObject<uchar4> &depth, cudaStream_t stream);
+void clear_colour(const ftl::cuda::TextureObject<float4> &depth, cudaStream_t stream);
 
 void median_filter(const ftl::cuda::TextureObject<int> &in, ftl::cuda::TextureObject<float> &out, cudaStream_t stream);
 
@@ -21,7 +23,7 @@ void float_to_int(const ftl::cuda::TextureObject<float> &in, ftl::cuda::TextureO
 
 void mls_smooth(TextureObject<float4> &output, const ftl::voxhash::HashParams &hashParams, int numcams, int cam, cudaStream_t stream);
 
-void mls_resample(const TextureObject<int> &depthin, const TextureObject<uchar4> &colourin, TextureObject<float> &depthout, const ftl::voxhash::HashParams &hashParams, int numcams, const ftl::render::SplatParams &params, cudaStream_t stream);
+void mls_render_depth(const TextureObject<int> &input, TextureObject<int> &output, const ftl::render::SplatParams &params, int numcams, cudaStream_t stream);
 
 void hole_fill(const TextureObject<int> &depth_in, const TextureObject<float> &depth_out, const DepthCameraParams &params, cudaStream_t stream);
 

@@ -163,15 +163,7 @@
 		],
 		"display": { "$ref": "#displays/none" },
 		"virtual": { "$ref": "#virtual_cams/default" },
-		"voxelhash": { "$ref": "#hash_conf/default" },
-		"merge": {
-			"register": false,
-			"targetsource" : "ftl://utu.fi#vision_default/source",
-			"maxerror": 25,
-			"iterations" : 10,
-			"delay" : 500,
-			"patternsize" : [9, 6]
-		}
+		"voxelhash": { "$ref": "#hash_conf/default" }
 	},
 
 	"reconstruction_lab": {
@@ -185,15 +177,6 @@
 		"display": { "$ref": "#displays/none" },
 		"virtual": { "$ref": "#virtual_cams/default" },
 		"voxelhash": { "$ref": "#hash_conf/default" },
-		"merge": {
-			"targetsource" : "ftl://utu.fi/node4#vision_default/source",
-			"register": false,
-			"chain": false,
-			"maxerror": 25,
-			"iterations" : 10,
-			"delay" : 500,
-			"patternsize" : [9, 6]
-		},
 		"stream": {}
 	},
 
@@ -207,19 +190,8 @@
 		"display": { "$ref": "#displays/left" },
 		"virtual": { "$ref": "#virtual_cams/default" },
 		"voxelhash": { "$ref": "#hash_conf/default" },
-		"registration": {
-			"reference-source" : "ftl://utu.fi/node4#vision_default/source",
-			"calibration" : {
-				"max_error": 25,
-				"run": false,
-				"iterations" : 10,
-				"delay" : 500,
-				"patternsize" : [9, 6]
-				}
-		},
 		"stream": {}
 	},
-
 
 	"gui_node5": {
 		"net": {
@@ -246,5 +218,34 @@
 		"net": {
 			"peers": ["ws://localhost:8080/"]
 		}
+	},
+	
+	"registration_default" : {
+		"n_views" : 500,
+		"load_input": false,
+		"save_input": true,
+		"save_extrinsic" : false,
+		"save_intrinsic" : false,
+		"optimize_intrinsic" : true,
+		"calibration_data_dir" : "",
+		"output_directory" : "/smb/ftl-master.local/Shared/Config/",
+		"net": {
+			"peers": [
+				"tcp://10.0.0.3:9001",
+				"tcp://10.0.0.4:9001",
+				"tcp://10.0.0.5:9001",
+				"tcp://10.0.0.6:9001",
+				"tcp://10.0.0.7:9001",
+				"tcp://10.0.0.8:9001"
+			]
+		},
+		"sources": [
+			{"type": "net", "uri":"ftl://utu.fi/node1#vision_default/source"},
+			{"type": "net", "uri":"ftl://utu.fi/node2#vision_default/source"},
+			{"type": "net", "uri":"ftl://utu.fi/node3#vision_default/source"},
+			{"type": "net", "uri":"ftl://utu.fi/node4#vision_default/source"},
+			{"type": "net", "uri":"ftl://utu.fi/node5#vision_default/source"},
+			{"type": "net", "uri":"ftl://utu.fi/node6#vision_default/source"}
+		]
 	}
 }

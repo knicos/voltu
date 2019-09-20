@@ -13,6 +13,8 @@ using cv::imdecode;
 using std::string;
 using std::vector;
 
+using cv::FileStorage;
+
 // TODO: move to camera_params
 using ftl::rgbd::Camera;
 
@@ -39,6 +41,12 @@ void from_json(const nlohmann::json& j, Camera &p) {
 	j.at("minDepth").get_to(p.minDepth);
 	j.at("maxDepth").get_to(p.maxDepth);
 }
+/*
+Mat getCameraMatrix(const ftl::rgbd::Camera &parameters) {
+	Mat m = (cv::Mat_<double>(3,3) << parameters.fx, 0.0, -parameters.cx, 0.0, parameters.fy, -parameters.cy, 0.0, 0.0, 1.0);
+	return m;
+}
+*/
 //
 
 SnapshotWriter::SnapshotWriter(const string &filename) {
@@ -69,9 +77,7 @@ SnapshotWriter::SnapshotWriter(const string &filename) {
 }
 
 SnapshotWriter::~SnapshotWriter() {
-	archive_entry_free(entry_);
-	archive_write_close(archive_);
-	archive_write_free(archive_);
+	if (archive_) writeIndex();
 }
 
 bool SnapshotWriter::addFile(const string &name, const uchar *buf, const size_t len) {
@@ -104,44 +110,83 @@ bool SnapshotWriter::addFile(const string &name, const vector<uchar> &buf) {
 	return addFile(name, buf.data(), buf.size());
 }
 
-bool SnapshotWriter::addMat(const string &name, const Mat &mat, const std::string &format) {
+bool SnapshotWriter::addMat(const string &name, const Mat &mat, const std::string &format, const vector<int> &params) {
 	if (mat.rows == 0 || mat.cols == 0) {
 		LOG(ERROR) << "empty mat";
 		return false;
 	}
 
 	vector<uchar> buf;
-	vector<int> params;
 	bool retval = true;
 	retval &= imencode("." + format, mat, buf, params);
 	retval &= addFile(name + "." + format, buf);
 	return retval;
 }
 
-bool SnapshotWriter::addEigenMatrix4d(const string &name, const Matrix4d &m, const string &format) {
-	Mat tmp;
-	cv::eigen2cv(m, tmp);
-	return addMat(name, tmp, format);
+void SnapshotWriter::addSource(const std::string &id, const vector<double> &params, const cv::Mat &extrinsic) {
+	frame_idx_.push_back(0);
+	sources_.push_back(id);
+	params_.push_back(params);
+	extrinsic_.push_back(extrinsic);
+	fname_rgb_.emplace_back();
+	fname_depth_.emplace_back();
 }
 
-bool SnapshotWriter::addCameraParams(const string &name, const Matrix4d &pose, const Camera &params) {
-	bool retval = true;
-	retval &= addEigenMatrix4d(name + "-POSE", pose);
+void SnapshotWriter::addSource(const std::string &id, const ftl::rgbd::Camera &params, const Eigen::Matrix4d &extrinsic) {
+	vector<double> params_vec;
+	Mat extrinsic_cv;
+	cv::eigen2cv(extrinsic, extrinsic_cv);
+	params_vec.push_back(params.fx);
+	params_vec.push_back(params.fy);
+	params_vec.push_back(params.cx);
+	params_vec.push_back(params.cy);
+	params_vec.push_back(params.width);
+	params_vec.push_back(params.height);
+	params_vec.push_back(params.minDepth);
+	params_vec.push_back(params.maxDepth);
+	params_vec.push_back(params.baseline);
+	params_vec.push_back(params.doffs);
+	addSource(id, params_vec, extrinsic_cv);
+}
 
-	nlohmann::json j;
-	to_json(j, params);
-	string str_params = j.dump();
-	retval &= addFile(name + "-PARAMS.json", (uchar*) str_params.c_str(), str_params.size());
+
+bool SnapshotWriter::addRGBD(size_t source, const cv::Mat &rgb, const cv::Mat &depth, uint64_t time) {
+	// TODO: png option
+	if (time != 0) { LOG(WARNING) << "time parameter not used (not implemented)"; }
+
+	bool retval = true;
+	string fname = std::to_string(source) + "/" + std::to_string(frame_idx_[source]++);
+	
+	fname_rgb_[source].push_back("RGB" + fname + ".jpg");
+	retval &= addMat("RGB" + fname, rgb, "jpg", {});
+
+	fname_depth_[source].push_back("DEPTH" + fname + ".tiff");
+	retval &= addMat("DEPTH" + fname, depth, "tiff", {});
+
 	return retval;
 }
 
-bool SnapshotWriter::addCameraRGBD(const string &name, const Mat &rgb, const Mat &depth) {
-	bool retval = true;
-	cv::Mat tdepth;
-	depth.convertTo(tdepth, CV_16UC1, 1000.0f);
-	retval &= addMat(name + "-RGB", rgb, "jpg");
-	retval &= addMat(name + "-D", tdepth, "png");
-	return retval;
+void SnapshotWriter::writeIndex() {
+	FileStorage fs(".yml", FileStorage::WRITE + FileStorage::MEMORY);
+
+	vector<string> channels{"time", "rgb_left", "depth_left"};
+
+	fs << "sources" << sources_;
+	fs << "params" <<params_;
+	fs << "extrinsic" << extrinsic_;
+	fs << "channels" << channels;
+	
+	fs << "rgb_left" << fname_rgb_;
+	fs << "depth_left" << fname_depth_;
+
+	string buf = fs.releaseAndGetString();
+	addFile("index.yml", (uchar*) buf.c_str(), buf.length());
+
+	archive_entry_free(entry_);
+	archive_write_close(archive_);
+	archive_write_free(archive_);
+	archive_ = nullptr;
+	entry_ = nullptr;
 }
 
 SnapshotStreamWriter::SnapshotStreamWriter(const string &filename, int delay) : 
@@ -150,11 +195,11 @@ SnapshotStreamWriter::SnapshotStreamWriter(const string &filename, int delay) :
 	}
 
 SnapshotStreamWriter::~SnapshotStreamWriter() {
-
+	
 }
 
 void SnapshotStreamWriter::addSource(ftl::rgbd::Source *src) {
-	writer_.addCameraParams(std::to_string(sources_.size()), src->getPose(), src->parameters());
+	writer_.addSource(src->getURI(), src->parameters(), src->getPose());
 	sources_.push_back(src);
 }
 
@@ -169,12 +214,19 @@ void SnapshotStreamWriter::run() {
 		auto duration = t_now.time_since_epoch();
 		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
+		bool good = true;
 		for(size_t i = 0; i < sources_.size(); ++i) {
 			sources_[i]->getFrames(rgb[i], depth[i]);
+			good &= !rgb[i].empty() && !depth[i].empty();
+		}
+
+		if (!good) {
+			LOG(WARNING) << "Missing frames";
+			continue;
 		}
 
 		for(size_t i = 0; i < sources_.size(); ++i) {
-			writer_.addCameraRGBD(std::to_string(ms) + "-" + std::to_string(i), rgb[i], depth[i]);
+			writer_.addRGBD(i, rgb[i], depth[i]);
 		}
 
 		std::this_thread::sleep_until(t_wakeup);
@@ -197,10 +249,25 @@ void SnapshotStreamWriter::stop() {
 	if (wasrunning) thread_.join();
 }
 
-
+size_t Snapshot::getSourcesCount() { return sources.size(); }
+size_t Snapshot::getFramesCount() { return depth_left[0].size(); }
+	
+string Snapshot::getSourceURI(size_t camera) { return sources[camera]; }
+ftl::rgbd::Camera Snapshot::getParameters(size_t camera) { return parameters[camera]; }
+void Snapshot::getPose(size_t camera, cv::Mat &out) { out = extrinsic[camera]; }
+void Snapshot::getPose(size_t camera, Eigen::Matrix4d &out) {
+	Mat mat;
+	getPose(camera, mat);
+	cv::cv2eigen(mat, out);
+}
+void Snapshot::getLeftRGB(size_t camera, size_t frame, cv::Mat &data) { data = rgb_left[camera][frame]; }
+void Snapshot::getLeftDepth(size_t camera, size_t frame, cv::Mat &data) { data = depth_left[camera][frame]; }
 
 SnapshotReader::SnapshotReader(const string &filename) {
 	archive_ = archive_read_new();
+	int retval = ARCHIVE_OK;
+	string msg;
+
 	if (!archive_) goto error2;
 	archive_read_support_format_all(archive_);
 	archive_read_support_filter_all(archive_);
@@ -208,12 +275,22 @@ SnapshotReader::SnapshotReader(const string &filename) {
 	if (archive_read_open_filename(archive_, filename.c_str(), 4096) != ARCHIVE_OK)
 		goto error1;
 	
-	readArchive();
+	while((retval = archive_read_next_header(archive_, &entry_)) == ARCHIVE_OK) {
+		string path = string(archive_entry_pathname(entry_));
+		vector<uchar> data;
+		
+		if (readEntry(data)) { files_[path] = data; }
+	}
+
+	if (retval != ARCHIVE_EOF) { goto error1; }
+
 	return;
 	
 	error1:
-	LOG(ERROR) << archive_error_string(archive_);
+	msg = archive_error_string(archive_);
 	archive_read_free(archive_);
+	throw std::runtime_error(msg);
+
 	error2:
 	// throw exception; otherwise destructor might be called
 	throw std::runtime_error("SnapshotReader failed");
@@ -242,94 +319,200 @@ bool SnapshotReader::readEntry(vector<uchar> &data) {
 	}
 }
 
-SnapshotEntry& SnapshotReader::getEntry(const string &id) {
-	/*if (data_.find(id) == data_.end()) {
-		data_.emplace(id, SnapshotEntry{});
-	}*/
-	return data_[id];
-}
-
-/* read all entries to data_ */
-bool SnapshotReader::readArchive() {
-	int retval = ARCHIVE_OK;
-	vector<uchar> data;
-
-	while((retval = archive_read_next_header(archive_, &entry_)) == ARCHIVE_OK) {
-		string path = string(archive_entry_pathname(entry_));
-		if (path.rfind("-") == string::npos) {
-			LOG(WARNING) << "unrecognized file " << path;
-			continue;
-		}
-		string id = path.substr(0, path.find("-"));
-
-		SnapshotEntry &snapshot = getEntry(id);
-
-		// TODO: verify that input is valid
-		// TODO: check that earlier results are not overwritten (status)
-
-		if (path.rfind("-RGB.") != string::npos) {
-			if (!readEntry(data)) continue;
-			snapshot.rgb = cv::imdecode(data, cv::IMREAD_COLOR);
-			snapshot.status &= ~1;
-		}
-		else if (path.rfind("-D.") != string::npos) {
-			if (!readEntry(data)) continue;
-			snapshot.depth = cv::imdecode(data, cv::IMREAD_ANYDEPTH);
-			snapshot.depth.convertTo(snapshot.depth, CV_32FC1, 1.0f / 1000.0f);
-			snapshot.status &= ~(1 << 1);
-		}
-		else if (path.rfind("-POSE.pfm") != string::npos) {
-			if (!readEntry(data)) continue;
-			Mat m_ = cv::imdecode(Mat(data), cv::IMREAD_ANYDEPTH);
-			if ((m_.rows != 4) || (m_.cols != 4)) continue;
-			cv::Matx44d pose_(m_);
-			cv::cv2eigen(pose_, snapshot.pose);
-			snapshot.status &= ~(1 << 2);
-		}
-		else if (path.rfind("-PARAMS.json") != string::npos) {
-			if (!readEntry(data)) continue;
-			nlohmann::json j = nlohmann::json::parse(string((const char*) data.data(), data.size()));
-			from_json(j, snapshot.params);
-			snapshot.status &= ~(1 << 3);
-		}
-		else {
-			LOG(WARNING) << "unknown file " << path;
-		}
+bool SnapshotReader::getDepth(const std::string &name, cv::Mat &data) {
+	if (files_.find(name) == files_.end()) {
+		LOG(ERROR) << name << " not found in archive";
+		return false;
 	}
-	
-	if (retval != ARCHIVE_EOF) {
-		LOG(ERROR) << archive_error_string(archive_);
+
+	const vector<uchar> &data_raw = files_[name];
+	const string ext = name.substr(name.find_last_of(".") + 1);
+
+	if (ext == "tiff") {
+		data = cv::imdecode(data_raw, cv::IMREAD_ANYDEPTH);
+	}
+	else if (ext == "png") {
+		data = cv::imdecode(data_raw, cv::IMREAD_ANYDEPTH);
+		data.convertTo(data, CV_32FC1, 1.0f / 1000.0f);
+	}
+	else {
+		LOG(ERROR) << "Unsupported file extension for depth image: " << ext;
+		return false;
+	}
+
+	if (data.empty()) {
+		LOG(ERROR) << "Error decoding file: " << name;
 		return false;
 	}
 	
 	return true;
 }
 
-vector<string> SnapshotReader::getIds() {
-	vector<string> res;
-	res.reserve(data_.size());
-	for(auto itr = data_.begin(); itr != data_.end(); ++itr) {
-		res.push_back(itr->first);
-	}
-	return res;
-}
-
-bool SnapshotReader::getCameraRGBD(const string &id, Mat &rgb, Mat &depth,
-							 Matrix4d &pose, Camera &params) {
-	if (data_.find(id) == data_.end()) {
-		LOG(ERROR) << "entry not found: " << id;
+bool SnapshotReader::getRGB(const std::string &name, cv::Mat &data) {
+	if (files_.find(name) == files_.end()) {
+		LOG(ERROR) << name << " not found in archive";
 		return false;
 	}
 
-	SnapshotEntry item = getEntry(id);
-
-	if (item.status != 0) {
-		LOG(ERROR) << "entry incomplete: " << id;
+	const vector<uchar> &data_raw = files_[name];
+	const string ext = name.substr(name.find_last_of(".") + 1);
+	
+	if (!(ext == "png" || ext == "jpg")) { 
+		LOG(ERROR) << "Unsupported file extension for depth image: " << ext;
+		return false;
 	}
 
-	rgb = item.rgb;
-	depth = item.depth;
-	params = item.params;
-	pose = item.pose;
+	data = cv::imdecode(data_raw, cv::IMREAD_COLOR);
+
+	if (data.empty()) {
+		LOG(ERROR) << "Error decoding file: " << name;
+		return false;
+	}
+	
 	return true;
+}
+
+Snapshot SnapshotReader::readArchive() {
+	Snapshot result;
+	
+	if (files_.find("index.yml") != files_.end()) {
+		LOG(INFO) << "Using new format snapshot archive";
+		string input;
+		{
+			vector<uchar> data = files_["index.yml"]; 
+			input = string((char*) data.data(), data.size());
+		}
+		FileStorage fs(input, FileStorage::READ | FileStorage::MEMORY);
+		
+		vector<string> &sources = result.sources;
+		vector<ftl::rgbd::Camera> &params = result.parameters;
+		vector<Mat> &extrinsic = result.extrinsic;
+		
+		vector<vector<Mat>> &rgb_left = result.rgb_left;
+		vector<vector<Mat>> &depth_left = result.depth_left;
+
+		vector<string> channels;
+
+		fs["sources"] >> sources;
+		fs["extrinsic"] >> extrinsic;
+		fs["channels"] >> channels;
+
+		cv::FileNode fn;
+		fn = fs["params"];
+		for (cv::FileNodeIterator it = fn.begin(); it != fn.end(); it++) {
+			vector<double> p;
+			*it >> p;
+
+			ftl::rgbd::Camera camera;
+			camera.fx = p[0];
+			camera.fy = p[1];
+			camera.cx = p[2];
+			camera.cy = p[3];
+			camera.width = p[4];
+			camera.height = p[5];
+			camera.minDepth = p[6];
+			camera.maxDepth = p[7];
+			camera.baseline = p[8];
+			camera.doffs = p[9];
+			params.push_back(camera);
+		}
+
+		vector<string> files;
+		for (auto const &channel : channels) {
+			files.clear();
+
+			if (channel == "time") {
+				//fs["time"] >> times;
+			}
+			else if (channel == "rgb_left") {
+				fn = fs["rgb_left"];
+				files.clear();
+				for (cv::FileNodeIterator it = fn.begin(); it != fn.end(); it++) {
+					*it >> files;
+					auto &images = rgb_left.emplace_back();
+					for (const string& file : files) {
+						Mat &img = images.emplace_back();
+						getRGB(file, img);
+					}
+				}
+			}
+			else if (channel == "depth_left") {
+				fn = fs["depth_left"];
+				files.clear();
+				for (cv::FileNodeIterator it = fn.begin(); it != fn.end(); it++) {
+					*it >> files;
+					auto &images = depth_left.emplace_back();
+					for (const string& file : files) {
+						Mat &img = images.emplace_back();
+						getDepth(file, img);
+					}
+				}
+			}
+			else {
+				LOG(ERROR) << "Unsupported channel: " << channel;
+			}
+		}
+
+		fs.release();
+	}
+	else {
+		LOG(INFO) << "Using old format snapshot archive";
+
+		result.n_cameras = 0;
+		result.n_frames = 1;
+
+		std::map<string,int> cammap;
+
+		for (auto const& [path, data] : files_) {
+			if (path.rfind("-") == string::npos) {
+				LOG(WARNING) << "unrecognized file " << path;
+				continue;
+			}
+			string id = path.substr(0, path.find("-"));
+			int idx;
+
+			if (cammap.find(id) == cammap.end()) {
+				cammap[id] = result.n_cameras;
+				idx = result.n_cameras;
+				result.n_cameras++;
+
+				result.rgb_left.emplace_back().emplace_back();
+				result.depth_left.emplace_back().emplace_back();
+				result.extrinsic.emplace_back();
+				result.parameters.emplace_back();
+			} else {
+				idx = cammap[id];
+			}
+
+			Mat &rgb = result.rgb_left[idx][0];
+			Mat &depth = result.depth_left[idx][0];
+			Mat &pose = result.extrinsic[idx];
+			Camera &params = result.parameters[idx];
+
+			// TODO: verify that input is valid
+			// TODO: check that earlier results are not overwritten (status)
+			
+			if (path.rfind("-RGB.") != string::npos) {
+				getRGB(path, rgb);
+			}
+			else if (path.rfind("-D.") != string::npos) {
+				getDepth(path, depth);
+			}
+			else if (path.rfind("-POSE.pfm") != string::npos) {
+				Mat m_ = cv::imdecode(Mat(data), cv::IMREAD_ANYDEPTH);
+				if ((m_.rows != 4) || (m_.cols != 4)) continue;
+				cv::Matx44d pose_(m_);
+				pose = m_;
+			}
+			else if (path.rfind("-PARAMS.json") != string::npos) {
+				nlohmann::json j = nlohmann::json::parse(string((const char*) data.data(), data.size()));
+				from_json(j, params);
+			}
+			else {
+				LOG(WARNING) << "unknown file " << path;
+			}
+		}
+	}
+
+	return result;
 }

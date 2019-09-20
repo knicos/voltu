@@ -68,7 +68,7 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 
 	int stereocalibrate_flags =
 		cv::CALIB_FIX_INTRINSIC | cv::CALIB_FIX_PRINCIPAL_POINT | cv::CALIB_FIX_ASPECT_RATIO |
-		cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_SAME_FOCAL_LENGTH | cv::CALIB_RATIONAL_MODEL |
+		cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_SAME_FOCAL_LENGTH | 
 		cv::CALIB_FIX_K3 | cv::CALIB_FIX_K4 | cv::CALIB_FIX_K5;
 
 	vector<cv::VideoCapture> cameras { cv::VideoCapture(0), cv::VideoCapture(1) };
@@ -93,11 +93,17 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	
 	vector<Mat> dist_coeffs(2);
 	vector<Mat> camera_matrices(2);
-
-	if (!loadIntrinsics(filename_intrinsics, camera_matrices, dist_coeffs)) {
+	Size intrinsic_resolution;
+	if (!loadIntrinsics(filename_intrinsics, camera_matrices, dist_coeffs, intrinsic_resolution))
+	{
 		LOG(FATAL) << "Failed to load intrinsic camera parameters from file.";
 	}
 	
+	if (intrinsic_resolution != image_size)
+	{
+		LOG(FATAL) << "Intrinsic resolution is not same as input resolution (TODO)";
+	}
+
 	Mat R, T, E, F, per_view_errors;
 	
 	// capture calibration patterns
@@ -152,11 +158,11 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 		vector<Vec3f> points_ref;
 		calib.objectPoints(points_ref);
 		
+		/* doesn't seem to be very helpful (error almost always low enough)
 		// calculate reprojection error with single pair of images
 		// reject it if RMS reprojection error too high
 		int flags = stereocalibrate_flags;
-
-		// TODO move to "findPoints"-thread
+		
 		double rms_iter = stereoCalibrate(
 					vector<vector<Vec3f>> { points_ref }, 
 					vector<vector<Vec2f>> { new_points[0] },
@@ -170,7 +176,7 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 		if (rms_iter > max_error) {
 			LOG(WARNING) << "RMS reprojection error too high, maximum allowed error: " << max_error;
 			continue;
-		}
+		}*/
 		
 		if (use_grid) {
 			// store results in result grid
@@ -225,14 +231,11 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	Mat R1, R2, P1, P2, Q;
 	cv::Rect validRoi[2];
 
-	// calculate extrinsic parameters
-	// NOTE: 	Other code assumes CALIB_ZERO_DISPARITY is used (for Cy == Cx). 
-	//			Depth map map calculation disparityToDepth() could be incorrect otherwise.
 	stereoRectify(
 		camera_matrices[0], dist_coeffs[0],
 		camera_matrices[1], dist_coeffs[1],
 		image_size, R, T, R1, R2, P1, P2, Q,
-		cv::CALIB_ZERO_DISPARITY, alpha, image_size,
+		0, alpha, image_size,
 		&validRoi[0], &validRoi[1]
 	);
 
@@ -257,21 +260,33 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 			camera.grab();
 			camera.retrieve(in[i]);
 	
+			auto p = cv::Point2i(camera_matrices[i].at<double>(0, 2), camera_matrices[i].at<double>(1, 2));
+			cv::drawMarker(in[i], p, cv::Scalar(51, 204, 51), cv::MARKER_CROSS, 40, 1);
+			cv::drawMarker(in[i], p, cv::Scalar(51, 204, 51), cv::MARKER_SQUARE, 25);
+
 			cv::remap(in[i], out[i], map1[i], map2[i], cv::INTER_CUBIC);
-			// cv::cvtColor(out[i], out_gray[i], cv::COLOR_BGR2GRAY);
 
 			// draw lines
 			for (int r = 50; r < image_size.height; r = r+50) {
 				cv::line(out[i], cv::Point(0, r), cv::Point(image_size.width-1, r), cv::Scalar(0,0,255), 1);
 			}
 
+			if (i == 0) { // left camera
+				auto p_r = cv::Point2i(-Q.at<double>(0, 3), -Q.at<double>(1, 3));
+				cv::drawMarker(out[i], p_r, cv::Scalar(0, 0, 204), cv::MARKER_CROSS, 30);
+				cv::drawMarker(out[i], p_r, cv::Scalar(0, 0, 204), cv::MARKER_SQUARE);
+			}
+			
+			cv::imshow("Camera " + std::to_string(i) + " (unrectified)", in[i]);
 			cv::imshow("Camera " + std::to_string(i) + " (rectified)", out[i]);
 		}
-
+		
 		/* not useful
 		cv::absdiff(out_gray[0], out_gray[1], diff);
 		cv::applyColorMap(diff, diff_color, cv::COLORMAP_JET);
 		cv::imshow("Difference", diff_color);
 		*/
 	}
+
+	cv::destroyAllWindows();
 }

@@ -5,7 +5,9 @@
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/rgbd/source.hpp>
+#include <ftl/rgbd/group.hpp>
 #include <ftl/net/universe.hpp>
+#include <ftl/codecs/encoder.hpp>
 #include <ftl/threads.hpp>
 #include <string>
 #include <vector>
@@ -15,8 +17,8 @@
 namespace ftl {
 namespace rgbd {
 
-static const int kChunkDim = 4;
-static constexpr int kChunkCount = kChunkDim * kChunkDim;
+//static const int kChunkDim = 4;
+//static constexpr int kChunkCount = kChunkDim * kChunkDim;
 
 namespace detail {
 
@@ -25,23 +27,38 @@ struct StreamClient {
 	ftl::UUID peerid;
 	std::atomic<int> txcount;	// Frames sent since last request
 	int txmax;					// Frames to send in request
+	ftl::codecs::preset_t preset;
 };
 
 static const unsigned int kGrabbed = 0x1;
 static const unsigned int kRGB = 0x2;
-static const unsigned int kDepth = 0x4; 
+static const unsigned int kDepth = 0x4;
+
+static const unsigned int kFrameDropLimit = 5;
+static const unsigned int kMaxBitrateLevels = 10;
 
 struct StreamSource {
 	ftl::rgbd::Source *src;
-	std::atomic<unsigned int> jobs;				// Busy or ready to swap?
+	std::atomic<int> jobs;				// Busy or ready to swap?
 	std::atomic<unsigned int> clientCount;
+
+	int hq_count;	// Number of high quality requests
+	int lq_count;	// Number of low quality requests
+	ftl::codecs::preset_t hq_bitrate=ftl::codecs::kPresetBest;	// Max bitrate
+	ftl::codecs::preset_t lq_bitrate=ftl::codecs::kPresetWorst;	// Min bitrate
+
 	cv::Mat rgb;									// Tx buffer
 	cv::Mat depth;									// Tx buffer
 	cv::Mat prev_rgb;
 	cv::Mat prev_depth;
-	std::list<detail::StreamClient> clients[10];	// One list per bitrate
+	std::list<detail::StreamClient> clients;
 	SHARED_MUTEX mutex;
 	unsigned long long frame;
+
+	ftl::codecs::Encoder *hq_encoder_c1 = nullptr;
+	ftl::codecs::Encoder *hq_encoder_c2 = nullptr;
+	ftl::codecs::Encoder *lq_encoder_c1 = nullptr;
+	ftl::codecs::Encoder *lq_encoder_c2 = nullptr;
 };
 
 }
@@ -50,6 +67,11 @@ struct StreamSource {
  * The maximum number of frames a client can request in a single request.
  */
 static const int kMaxFrames = 100;
+
+enum encoder_t {
+	kEncodeVideo,
+	kEncodeImages
+};
 
 /**
  * Allows network streaming of a number of RGB-Depth sources. Remote machines
@@ -95,6 +117,8 @@ class Streamer : public ftl::Configurable {
 
 	void wait();
 
+	void setLatency(int l) { group_.setLatency(l); }
+
 	/**
 	 * Alternative to calling run(), it will operate a single frame capture,
 	 * compress and stream cycle.
@@ -104,27 +128,40 @@ class Streamer : public ftl::Configurable {
 	Source *get(const std::string &uri);
 
 	private:
+	ftl::rgbd::Group group_;
 	std::map<std::string, detail::StreamSource*> sources_;
 	//ctpl::thread_pool pool_;
 	SHARED_MUTEX mutex_;
 	bool active_;
 	ftl::net::Universe *net_;
 	bool late_;
-	std::mutex job_mtx_;
-	std::condition_variable job_cv_;
-	std::atomic<int> jobs_;
 	int compress_level_;
 	int64_t clock_adjust_;
 	ftl::UUID time_peer_;
 	int64_t last_frame_;
 	int64_t frame_no_;
 
-	void _schedule();
-	void _swap(detail::StreamSource *);
+	encoder_t encode_mode_;
+
+	int64_t mspf_;
+	float actual_fps_;
+	//int64_t last_dropped_;
+	//int drop_count_;
+
+	ftl::timer::TimerHandle timer_job_;
+
+	ftl::codecs::device_t hq_devices_;
+
+	void _process(ftl::rgbd::FrameSet &);
+	void _cleanUp();
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
-	void _encodeAndTransmit(detail::StreamSource *src, int chunk);
-	void _encodeChannel1(const cv::Mat &in, std::vector<unsigned char> &out, unsigned int b);
-	bool _encodeChannel2(const cv::Mat &in, std::vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b);
+	void _transmitPacket(detail::StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, bool hqonly);
+
+	//void _encodeHQAndTransmit(detail::StreamSource *src, const cv::Mat &, const cv::Mat &, int chunk);
+	//void _encodeLQAndTransmit(detail::StreamSource *src, const cv::Mat &, const cv::Mat &, int chunk);
+	//void _encodeAndTransmit(detail::StreamSource *src, ftl::codecs::Encoder *enc1, ftl::codecs::Encoder *enc2, const cv::Mat &, const cv::Mat &);
+	//void _encodeImageChannel1(const cv::Mat &in, std::vector<unsigned char> &out, unsigned int b);
+	//bool _encodeImageChannel2(const cv::Mat &in, std::vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b);
 };
 
 }

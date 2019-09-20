@@ -11,6 +11,9 @@
 namespace ftl {
 namespace cuda {
 
+	void disparity_to_depth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
+				const ftl::rgbd::Camera &c, cv::cuda::Stream &stream);
+
 	/**
 	 * Disparity consistency algorithm.
 	 */
@@ -38,6 +41,9 @@ namespace cuda {
 	void disparity_to_depth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
 				const ftl::rgbd::Camera &c, cv::cuda::Stream &stream);
 
+	void optflow_filter(cv::cuda::GpuMat &disp, const cv::cuda::GpuMat &optflow,
+						cv::cuda::GpuMat &history, int n_max, float threshold,
+						cv::cuda::Stream &stream);
 
 }
 }

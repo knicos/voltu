@@ -25,14 +25,14 @@ linux:
   script:
     - mkdir build
     - cd build
-    - cmake ..
+    - cmake .. -DWITH_OPTFLOW=TRUE -DBUILD_CALIBRATION=TRUE
     - make
     - ctest --output-on-failure
 
 windows:
   stage: all
   variables:
-    CMAKE_ARGS: '-DWITH_PCL=FALSE -DCMAKE_GENERATOR_PLATFORM=x64 -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/opencv-4.0.1/build/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1"'
+    CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE -DWITH_PCL=FALSE -DCMAKE_GENERATOR_PLATFORM=x64 -DNVPIPE_DIR="D:/Build/NvPipe" -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/Build/opencv-4.1.1" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1"'
     DEPLOY_DIR: 'D:/Shared/AutoDeploy'
   tags:
     - win

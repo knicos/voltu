@@ -14,10 +14,12 @@ namespace detail {
 
 class RealsenseSource : public ftl::rgbd::detail::Source {
 	public:
-	RealsenseSource(ftl::rgbd::Source *host);
+	explicit RealsenseSource(ftl::rgbd::Source *host);
 	~RealsenseSource();
 
-	bool grab(int n=-1, int b=-1);
+	bool capture(int64_t ts) { timestamp_ = ts; return true; }
+	bool retrieve() { return true; }
+	bool compute(int n=-1, int b=-1);
 	bool isReady();
 
 	private:

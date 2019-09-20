@@ -1,4 +1,5 @@
 #include <ftl/net/universe.hpp>
+#include <ftl/timer.hpp>
 #include <chrono>
 
 #ifdef WIN32
@@ -22,16 +23,55 @@ using std::optional;
 using ftl::config::json_t;
 using ftl::net::callback_t;
 
+#define TCP_SEND_BUFFER_SIZE	(512*1024)
+#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
+
 callback_t ftl::net::Universe::cbid__ = 0;
 
-Universe::Universe() : Configurable(), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this), phase_(0) {
+Universe::Universe() :
+		Configurable(),
+		active_(true),
+		this_peer(ftl::net::this_peer),
+		phase_(0),
+		send_size_(TCP_SEND_BUFFER_SIZE),
+		recv_size_(TCP_RECEIVE_BUFFER_SIZE),
+		periodic_time_(1.0),
+		reconnect_attempts_(50),
+		thread_(Universe::__start, this) {
 	_installBindings();
+
+	LOG(WARNING) << "Deprecated Universe constructor";
 }
 
 Universe::Universe(nlohmann::json &config) :
-		Configurable(config), active_(true), this_peer(ftl::net::this_peer), thread_(Universe::__start, this), phase_(0) {
+		Configurable(config),
+		active_(true),
+		this_peer(ftl::net::this_peer),
+		phase_(0),
+		send_size_(value("tcp_send_buffer",TCP_SEND_BUFFER_SIZE)),
+		recv_size_(value("tcp_recv_buffer",TCP_RECEIVE_BUFFER_SIZE)),
+		periodic_time_(value("periodics", 1.0)),
+		reconnect_attempts_(value("reconnect_attempts",50)),
+		thread_(Universe::__start, this) {
 
 	_installBindings();
+
+	// Add an idle timer job to garbage collect peer objects
+	// Note: Important to be a timer job to ensure no other timer jobs are
+	// using the object.
+	ftl::timer::add(ftl::timer::kTimerIdle10, [this](int64_t ts) {
+		if (garbage_.size() > 0) {
+			UNIQUE_LOCK(net_mutex_,lk);
+			if (ftl::pool.n_idle() == ftl::pool.size()) {
+				if (garbage_.size() > 0) LOG(INFO) << "Garbage collection";
+				while (garbage_.size() > 0) {
+					delete garbage_.front();
+					garbage_.pop_front();
+				}
+			}
+		}
+		return true;
+	});
 }
 
 Universe::~Universe() {
@@ -39,6 +79,11 @@ Universe::~Universe() {
 }
 
 void Universe::start() {
+	/*cpu_set_t cpus;
+    CPU_ZERO(&cpus);
+    CPU_SET(1, &cpus);
+    pthread_setaffinity_np(thread_.native_handle(), sizeof(cpus), &cpus);*/
+
 	auto l = get<json_t>("listen");
 
 	if (l && (*l).is_array()) {
@@ -138,9 +183,7 @@ int Universe::_setDescriptors() {
 				n = s->_socket();
 			}
 
-			//if (s->isWaiting()) {
-				FD_SET(s->_socket(), &sfdread_);
-			//}
+			FD_SET(s->_socket(), &sfdread_);
 			FD_SET(s->_socket(), &sfderror_);
 		}
 	}
@@ -154,30 +197,11 @@ void Universe::_installBindings(Peer *p) {
 }
 
 void Universe::_installBindings() {
-	/*bind("__subscribe__", [this](const UUID &id, const string &uri) -> bool {
-		LOG(INFO) << "Subscription to " << uri << " by " << id.to_string();
-		unique_lock<shared_mutex> lk(net_mutex_);
-		subscribers_[ftl::URI(uri).to_string()].push_back(id);
-		return true;
-	});
-	
-	bind("__owner__", [this](const std::string &res) -> optional<UUID> {
-		if (owned_.count(res) > 0) return this_peer;
-		else return {};
-	});*/
+
 }
 
 // Note: should be called inside a net lock
 void Universe::_cleanupPeers() {
-
-	if (ftl::pool.n_idle() == ftl::pool.size()) {
-		if (garbage_.size() > 0) LOG(INFO) << "Garbage collection";
-		while (garbage_.size() > 0) {
-			delete garbage_.front();
-			garbage_.pop_front();
-		}
-	}
-
 	auto i = peers_.begin();
 	while (i != peers_.end()) {
 		if (!(*i)->isValid()) {
@@ -191,7 +215,7 @@ void Universe::_cleanupPeers() {
 			i = peers_.erase(i);
 
 			if (p->status() == ftl::net::Peer::kReconnecting) {
-				reconnects_.push_back({50, 1.0f, p});
+				reconnects_.push_back({reconnect_attempts_, 1.0f, p});
 			} else {
 				//delete p;
 				garbage_.push_back(p);
@@ -203,6 +227,7 @@ void Universe::_cleanupPeers() {
 }
 
 Peer *Universe::getPeer(const UUID &id) const {
+	SHARED_LOCK(net_mutex_,lk);
 	auto ix = peer_ids_.find(id);
 	if (ix == peer_ids_.end()) return nullptr;
 	else return ix->second;
@@ -255,7 +280,7 @@ void Universe::_run() {
 		// Do periodics
 		auto now = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> elapsed = now - start;
-		if (elapsed.count() >= 1.0) {
+		if (elapsed.count() >= periodic_time_) {
 			start = now;
 			_periodic();
 		}
@@ -287,8 +312,8 @@ void Universe::_run() {
 			continue;
 		}
 
-		// CHECK Could this mutex be the problem!?
 		{
+			// TODO:(Nick) Shared lock unless connection is made
 			UNIQUE_LOCK(net_mutex_,lk);
 
 			//If connection request is waiting
@@ -304,7 +329,7 @@ void Universe::_run() {
 						if (csock != INVALID_SOCKET) {
 							auto p = new Peer(csock, this, &disp_);
 							peers_.push_back(p);
-							_installBindings(p);
+							//_installBindings(p);
 						}
 					}
 				}

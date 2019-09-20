@@ -51,14 +51,14 @@ namespace {
         })";
 }
 
-ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl::ctrl::Master *controller) : nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab Remote Presence") {
+ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl::ctrl::Master *controller) :
+		nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab Remote Presence"),
+		status_("FT-Lab Remote Presence System") {
 	using namespace nanogui;
 	net_ = pnet;
 	ctrl_ = controller;
 	root_ = proot;
 	camera_ = nullptr;
-
-	status_ = "FT-Lab Remote Presence System";
 
 	setSize(Vector2i(1280,720));
 

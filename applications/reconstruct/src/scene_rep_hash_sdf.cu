@@ -2,8 +2,8 @@
 
 //#include <cutil_inline.h>
 //#include <cutil_math.h>
-#include <vector_types.h>
-#include <cuda_runtime.h>
+//#include <vector_types.h>
+//#include <cuda_runtime.h>
 
 #include <ftl/cuda_matrix_util.hpp>
 

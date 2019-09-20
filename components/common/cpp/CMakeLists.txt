@@ -6,6 +6,8 @@ set(COMMONSRC
 	src/loguru.cpp
 	src/opencv_to_pcl.cpp
 	src/cuda_common.cpp
+	src/ctpl_stl.cpp
+	src/timer.cpp
 )
 
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
@@ -19,7 +21,7 @@ target_include_directories(ftlcommon PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlcommon Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${PCL_LIBRARIES} ${URIPARSER_LIBRARIES})
+target_link_libraries(ftlcommon Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${PCL_LIBRARIES} ${URIPARSER_LIBRARIES} ${CUDA_LIBRARIES})
 
 add_subdirectory(test)
 

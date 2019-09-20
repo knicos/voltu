@@ -18,6 +18,11 @@
 #pragma comment(lib, "Rpcrt4.lib")
 #endif
 
+#ifndef WIN32
+#include <sys/ioctl.h>
+#include <linux/sockios.h>
+#endif
+
 #include <ftl/uri.hpp>
 #include <ftl/net/peer.hpp>
 #include <ftl/net/ws_internal.hpp>
@@ -43,8 +48,6 @@ using ftl::net::Universe;
 using ftl::net::callback_t;
 using std::vector;
 
-#define TCP_BUFFER_SIZE	(1024*1024*10)
-
 /*static std::string hexStr(const std::string &s)
 {
 	const char *data = s.data();
@@ -64,7 +67,7 @@ ftl::UUID ftl::net::this_peer;
 //static ctpl::thread_pool pool(5);
 
 // TODO:(nick) Move to tcp_internal.cpp
-static SOCKET tcpConnect(URI &uri) {
+static SOCKET tcpConnect(URI &uri, int ssize, int rsize) {
 	int rc;
 	//sockaddr_in destAddr;
 
@@ -87,10 +90,11 @@ static SOCKET tcpConnect(URI &uri) {
 	int flags =1; 
     if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 
-	int a = TCP_BUFFER_SIZE;
+	int a = rsize;
 	if (setsockopt(csocket, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
+	a = ssize;
 	if (setsockopt(csocket, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -178,10 +182,11 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 
 	int flags =1; 
     if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
-	int a = TCP_BUFFER_SIZE;
+	int a = u->getRecvBufferSize();
 	if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
+	a = u->getSendBufferSize();
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -234,12 +239,12 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, u->getSendBufferSize(), u->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) status_ = kConnecting;
 		else status_ = kReconnecting;
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
 		LOG(INFO) << "Websocket connect " << uri.getPath();
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, u->getSendBufferSize(), u->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) {
 			if (!ws_connect(sock_, uri)) {
 				LOG(ERROR) << "Websocket connection failed";
@@ -302,7 +307,7 @@ bool Peer::reconnect() {
 	LOG(INFO) << "Reconnecting to " << uri_ << " ...";
 
 	if (scheme_ == URI::SCHEME_TCP) {
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, universe_->getSendBufferSize(), universe_->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) {
 			status_ = kConnecting;
 			is_waiting_ = true;
@@ -311,7 +316,7 @@ bool Peer::reconnect() {
 			return false;
 		}
 	} else if (scheme_ == URI::SCHEME_WS) {
-		sock_ = tcpConnect(uri);
+		sock_ = tcpConnect(uri, universe_->getSendBufferSize(), universe_->getRecvBufferSize());
 		if (sock_ != INVALID_SOCKET) {
 			if (!ws_connect(sock_, uri)) {
 				return false;
@@ -412,46 +417,65 @@ void Peer::error(int e) {
 
 void Peer::data() {
 	{
+		//auto start = std::chrono::high_resolution_clock::now();
+		//int64_t startts = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count();
 		UNIQUE_LOCK(recv_mtx_,lk);
 
+		//LOG(INFO) << "Pool size: " << ftl::pool.q_size();
+
 		int rc=0;
-		int c=0;
 
-		//do {
-			recv_buf_.reserve_buffer(kMaxMessage);
+		recv_buf_.reserve_buffer(kMaxMessage);
 
-			if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
-				LOG(WARNING) << "Net buffer at capacity";
-				return;
-			}
+		if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
+			LOG(WARNING) << "Net buffer at capacity";
+			return;
+		}
 
-			int cap = recv_buf_.buffer_capacity();
-			rc = ftl::net::internal::recv(sock_, recv_buf_.buffer(), cap, 0);
-			//if (c > 0 && rc > 0) LOG(INFO) << "RECV: " << rc;
+		int cap = recv_buf_.buffer_capacity();
+		auto buf = recv_buf_.buffer();
+		lk.unlock();
 
-			if (rc >= cap-1) {
-				LOG(WARNING) << "More than buffers worth of data received"; 
-			}
-			if (cap < (kMaxMessage / 10)) LOG(WARNING) << "NO BUFFER";
+		/*#ifndef WIN32
+		int n;
+		unsigned int m = sizeof(n);
+		getsockopt(sock_,SOL_SOCKET,SO_RCVBUF,(void *)&n, &m);
 
-			if (rc == 0) {
-				close();
-				return;
-			} else if (rc < 0 && c == 0) {
-				socketError();
-				return;
-			}
+		int pending;
+		ioctl(sock_, SIOCINQ, &pending);
+		if (pending > 100000) LOG(INFO) << "Buffer usage: " << float(pending) / float(n);
+		#endif*/
+		rc = ftl::net::internal::recv(sock_, buf, cap, 0);
 
-			//if (rc == -1) break;
-			++c;
-			
-			recv_buf_.buffer_consumed(rc);
-		//} while (rc > 0);
+		if (rc >= cap-1) {
+			LOG(WARNING) << "More than buffers worth of data received"; 
+		}
+		if (cap < (kMaxMessage / 10)) LOG(WARNING) << "NO BUFFER";
+
+		if (rc == 0) {
+			close();
+			return;
+		} else if (rc < 0) {
+			socketError();
+			return;
+		}
+		
+		lk.lock();
+		recv_buf_.buffer_consumed(rc);
+
+		//auto end = std::chrono::high_resolution_clock::now();
+		//int64_t endts = std::chrono::time_point_cast<std::chrono::milliseconds>(end).time_since_epoch().count();
+		//if (endts - startts > 50) LOG(ERROR) << "Excessive delay";
+
+		if (is_waiting_) {
+			is_waiting_ = false;
+			lk.unlock();
+
+			ftl::pool.push([this](int id) {
+				_data();
+			});
+		}
 	}
-
-	ftl::pool.push([this](int id) {
-		_data();
-	});
 }
 
 bool Peer::_data() {
@@ -460,26 +484,35 @@ bool Peer::_data() {
 	UNIQUE_LOCK(recv_mtx_,lk);
 
 	if (scheme_ == ftl::URI::SCHEME_WS && !ws_read_header_) {
+		//LOG(INFO) << "Reading WS Header";
 		wsheader_type ws;
+		ws.header_size = 0;
 		if (ws_parse(recv_buf_, ws) < 0) {
+			//LOG(ERROR) << "Bad WS header " << ws.header_size;
+			is_waiting_ = true;
 			return false;
 		}
 		ws_read_header_ = true;
 	}
 
-	if (!recv_buf_.next(msg)) return false;
-	msgpack::object obj = msg.get();
+	if (!recv_buf_.next(msg)) {
+		is_waiting_ = true;
+		return false;
+	}
+	ws_read_header_ = false;
+	
 	lk.unlock();
 
+	msgpack::object obj = msg.get();
 	ftl::pool.push([this](int id) {
 		_data();
 	});
 
-	if (status_ != kConnected) {
+	if (status_ == kConnecting) {
 		// If not connected, must lock to make sure no other thread performs this step
 		UNIQUE_LOCK(recv_mtx_,lk);
 		// Verify still not connected after lock
-		if (status_ != kConnected) {
+		if (status_ == kConnecting) {
 			// First message must be a handshake
 			try {
 				tuple<uint32_t, std::string, msgpack::object> hs;
@@ -515,7 +548,7 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 	// TODO: Handle error reporting...
 	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
-		DLOG(1) << "Received return RPC value";
+		//DLOG(1) << "Received return RPC value";
 		
 		// Allow for unlock before callback
 		auto cb = std::move(callbacks_[id]);

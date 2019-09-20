@@ -10,66 +10,79 @@ static std::string last_type = "";
 namespace ftl {
 namespace rgbd {
 
+class Snapshot {};
+
 class SnapshotReader {
 	public:
-	SnapshotReader(const std::string &) {}
+	explicit SnapshotReader(const std::string &) {}
+	Snapshot readArchive() { return Snapshot(); };
 };
 
 namespace detail {
 
 class ImageSource : public ftl::rgbd::detail::Source {
 	public:
-	ImageSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit ImageSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
 		last_type = "image";
 	}
 	ImageSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::detail::Source(host) {
 		last_type = "image";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
 class StereoVideoSource : public ftl::rgbd::detail::Source {
 	public:
-	StereoVideoSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit StereoVideoSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
 		last_type = "video";
 	}
 	StereoVideoSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::detail::Source(host) {
 		last_type = "video";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
 class NetSource : public ftl::rgbd::detail::Source {
 	public:
-	NetSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit NetSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
 		last_type = "net";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
 class SnapshotSource : public ftl::rgbd::detail::Source {
 	public:
-	SnapshotSource(ftl::rgbd::Source *host, ftl::rgbd::SnapshotReader &r, const std::string &) : ftl::rgbd::detail::Source(host) {
+	SnapshotSource(ftl::rgbd::Source *host, ftl::rgbd::Snapshot &r, const std::string &) : ftl::rgbd::detail::Source(host) {
 		last_type = "snapshot";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
 class RealsenseSource : public ftl::rgbd::detail::Source {
 	public:
-	RealsenseSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit RealsenseSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
 		last_type = "realsense";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -79,7 +92,9 @@ class MiddleburySource : public ftl::rgbd::detail::Source {
 		last_type = "middlebury";
 	}
 
-	bool grab(int n, int b) { return true; };
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -107,11 +122,11 @@ using ftl::rgbd::Source;
 using ftl::config::json_t;
 
 TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
-	json_t global = {{"$id","ftl://test"}};
+	json_t global = json_t{{"$id","ftl://test"}};
 	ftl::config::configure(global);
 
 	SECTION("with valid image file uri") {
-		json_t cfg = {
+		json_t cfg = json_t{
 			{"$id","ftl://test/1"},
 			{"uri","file://" FTL_SOURCE_DIRECTORY "/components/rgbd-sources/test/data/image.png"}
 		};
@@ -124,7 +139,7 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 	}
 
 	SECTION("with valid video file uri") {
-		json_t cfg = {
+		json_t cfg = json_t{
 			{"$id","ftl://test/2"},
 			{"uri","file://" FTL_SOURCE_DIRECTORY "/components/rgbd-sources/test/data/video.mp4"}
 		};
@@ -137,7 +152,7 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 	}
 
 	SECTION("with valid net uri") {
-		json_t cfg = {
+		json_t cfg = json_t{
 			{"$id","ftl://test/2"},
 			{"uri","ftl://utu.fi/dummy"}
 		};
@@ -150,7 +165,7 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 	}
 
 	SECTION("with an invalid uri") {
-		json_t cfg = {
+		json_t cfg = json_t{
 			{"$id","ftl://test/2"},
 			{"uri","not a uri"}
 		};
@@ -162,7 +177,7 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 	}
 
 	SECTION("with an invalid file uri") {
-		json_t cfg = {
+		json_t cfg = json_t{
 			{"$id","ftl://test/2"},
 			{"uri","file:///not/a/file"}
 		};
@@ -174,7 +189,7 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 	}
 
 	SECTION("with a missing file") {
-		json_t cfg = {
+		json_t cfg = json_t{
 			{"$id","ftl://test/2"},
 			{"uri","file:///data/image2.png"}
 		};
@@ -187,11 +202,11 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 }
 
 TEST_CASE("Source::set(uri)", "[rgbd]") {
-	json_t global = {{"$id","ftl://test"}};
+	json_t global = json_t{{"$id","ftl://test"}};
 	ftl::config::configure(global);
 
 	SECTION("change to different valid URI type") {
-		json_t cfg = {
+		json_t cfg = json_t{
 			{"$id","ftl://test/1"},
 			{"uri","file://" FTL_SOURCE_DIRECTORY "/components/rgbd-sources/test/data/image.png"}
 		};

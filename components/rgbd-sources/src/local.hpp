@@ -15,19 +15,20 @@ namespace ftl {
 namespace rgbd {
 namespace detail {
 
+class Calibrate;
+
 class LocalSource : public Configurable {
 	public:
 	explicit LocalSource(nlohmann::json &config);
 	LocalSource(nlohmann::json &config, const std::string &vid);
 	
-	bool left(cv::Mat &m);
-	bool right(cv::Mat &m);
-	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::Stream &stream);
+	//bool left(cv::Mat &m);
+	//bool right(cv::Mat &m);
+	bool grab();
+	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, Calibrate *c, cv::cuda::Stream &stream);
 
 	unsigned int width() const { return width_; }
 	unsigned int height() const { return height_; }
-
-	cv::Mat &cachedLeft() { return left_; }
 	
 	//void setFramerate(float fps);
 	//float getFramerate() const;
@@ -38,18 +39,20 @@ class LocalSource : public Configurable {
 	
 	private:
 	double timestamp_;
-	double tps_;
+	//double tps_;
 	bool stereo_;
 	//float fps_;
-	bool flip_;
-	bool flip_v_;
+	//bool flip_;
+	//bool flip_v_;
 	bool nostereo_;
-	float downsize_;
+	//float downsize_;
 	cv::VideoCapture *camera_a_;
 	cv::VideoCapture *camera_b_;
 	unsigned int width_;
 	unsigned int height_;
-	cv::Mat left_;
+
+	cv::cuda::HostMem left_hm_;
+	cv::cuda::HostMem right_hm_;
 };
 
 }

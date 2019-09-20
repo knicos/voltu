@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
 
 #include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/source.hpp>
@@ -10,6 +10,7 @@
 #include <ftl/matrix_conversion.hpp>
 #include <ftl/voxel_hash.hpp>
 #include <ftl/depth_camera.hpp>
+#include <ftl/rgbd/group.hpp>
 #include <unordered_set>
 
 namespace ftl {
@@ -33,6 +34,8 @@ class SceneRep : public ftl::Configurable {
 	 * Send all camera frames to GPU and allocate required voxels.
 	 */
 	int upload();
+
+	int upload(ftl::rgbd::FrameSet &);
 
 	/**
 	 * Merge all camera frames into the voxel hash datastructure.

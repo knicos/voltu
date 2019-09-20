@@ -4,8 +4,8 @@
 
 //#include <cutil_inline.h>
 //#include <cutil_math.h>
-#include <vector_types.h>
-#include <cuda_runtime.h>
+//#include <vector_types.h>
+//#include <cuda_runtime.h>
 
 #include <ftl/cuda_matrix_util.hpp>
 
@@ -28,8 +28,8 @@ struct __align__(16) HashParams {
 	unsigned int	m_integrationWeightSample;
 	unsigned int	m_integrationWeightMax;
 
-	int3 m_minBounds;
-	int3 m_maxBounds;
+	float3 m_minBounds;
+	float3 m_maxBounds;
 	float m_spatialSmoothing;
 	float m_colourSmoothing;
 	float m_confidenceThresh;

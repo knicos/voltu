@@ -19,6 +19,8 @@
 #include <ftl/configurable.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/threads.hpp>
+#include <ftl/timer.hpp>
+#include <ftl/cuda_common.hpp>
 
 #include <fstream>
 #include <string>
@@ -35,7 +37,7 @@ using ftl::is_file;
 using ftl::is_directory;
 using ftl::Configurable;
 
-ctpl::thread_pool ftl::pool(POOL_SIZE);
+ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
 
 // Store loaded configuration
 namespace ftl {
@@ -437,8 +439,13 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 	}
 }
 
+static bool sig_int_called = false;
+
 static void signalIntHandler( int signum ) {
    std::cout << "Closing...\n";
+
+   if (sig_int_called) quick_exit(-1);
+   sig_int_called = true;
 
    // cleanup and close up stuff here  
    // terminate program  
@@ -451,7 +458,7 @@ Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
 	loguru::g_preamble_uptime = false;
 	loguru::g_preamble_thread = false;
 	int argc = 1;
-	const char *argv[] = {"d",0};
+	const char *argv[]{"d",0};
 	loguru::init(argc, const_cast<char**>(argv), "--verbosity");
 
 	config_index.clear();
@@ -509,6 +516,16 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 			ftl::branch_name = *e.entity->get<std::string>("branch");
 		}
 	});
+
+	// Some global settings
+	ftl::timer::setInterval(1000 / rootcfg->value("fps",20));
+
+	// Check CUDA
+	ftl::cuda::initialise();
+
+	int pool_size = rootcfg->value("thread_pool_factor", 2.0f)*std::thread::hardware_concurrency();
+	if (pool_size != ftl::pool.size()) ftl::pool.resize(pool_size);
+
 
 	//LOG(INFO) << "CONFIG: " << config["vision_default"];
 	//CHECK_EQ( &config, config_index["ftl://utu.fi"] );

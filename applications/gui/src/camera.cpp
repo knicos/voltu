@@ -7,6 +7,8 @@
 using ftl::rgbd::isValidDepth;
 using ftl::gui::GLTexture;
 using ftl::gui::PoseWindow;
+using ftl::rgbd::Channel;
+using ftl::rgbd::Channels;
 
 // TODO(Nick) MOVE
 class StatisticsImage {
@@ -16,7 +18,7 @@ private:
 	float n_;		// total number of samples
 
 public:
-	StatisticsImage(cv::Size size);
+	explicit StatisticsImage(cv::Size size);
 	StatisticsImage(cv::Size size, float max_f);
 
 	/* @brief reset all statistics to 0
@@ -129,19 +131,29 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	rotmat_.setIdentity();
 	//up_ = Eigen::Vector3f(0,1.0f,0);
 	lerpSpeed_ = 0.999f;
-	depth_ = false;
+	sdepth_ = false;
 	ftime_ = (float)glfwGetTime();
 	pause_ = false;
 
-	channel_ = ftl::rgbd::kChanLeft;
+	channel_ = Channel::Left;
 
-	channels_.push_back(ftl::rgbd::kChanLeft);
-	channels_.push_back(ftl::rgbd::kChanDepth);
+	channels_ += Channel::Left;
+	channels_ += Channel::Depth;
 
 	// Create pose window...
 	posewin_ = new PoseWindow(screen, src_->getURI());
 	posewin_->setTheme(screen->windowtheme);
 	posewin_->setVisible(false);
+
+	src->setCallback([this](int64_t ts, cv::Mat &rgb, cv::Mat &depth) {
+		UNIQUE_LOCK(mutex_, lk);
+		rgb_.create(rgb.size(), rgb.type());
+		depth_.create(depth.size(), depth.type());
+		cv::swap(rgb_,rgb);
+		cv::swap(depth_, depth);
+		cv::flip(rgb_,rgb_,0);
+		cv::flip(depth_,depth_,0);
+	});
 }
 
 ftl::gui::Camera::~Camera() {
@@ -219,26 +231,27 @@ void ftl::gui::Camera::showSettings() {
 
 }
 
-void ftl::gui::Camera::setChannel(ftl::rgbd::channel_t c) {
+void ftl::gui::Camera::setChannel(Channel c) {
 	channel_ = c;
 	switch (c) {
-	case ftl::rgbd::kChanFlow:
-	case ftl::rgbd::kChanConfidence:
-	case ftl::rgbd::kChanNormals:
-	case ftl::rgbd::kChanRight:
+	case Channel::Energy:
+	case Channel::Flow:
+	case Channel::Confidence:
+	case Channel::Normals:
+	case Channel::Right:
 		src_->setChannel(c);
 		break;
 
-	case ftl::rgbd::kChanDeviation:
+	case Channel::Deviation:
 		if (stats_) { stats_->reset(); }
-		src_->setChannel(ftl::rgbd::kChanDepth);
+		src_->setChannel(Channel::Depth);
 		break;
 	
-	case ftl::rgbd::kChanDepth:
+	case Channel::Depth:
 		src_->setChannel(c);
 		break;
 	
-	default: src_->setChannel(ftl::rgbd::kChanNone);
+	default: src_->setChannel(Channel::None);
 	}
 }
 
@@ -253,17 +266,63 @@ static Eigen::Matrix4d ConvertSteamVRMatrixToMatrix4( const vr::HmdMatrix34_t &m
 	return matrixObj;
 }
 
+static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
+								const float max_depth)
+{
+	DCHECK(max_depth > 0.0);
+
+	depth.convertTo(out, CV_8U, 255.0f / max_depth);
+	out = 255 - out;
+	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
+	
+	applyColorMap(out, out, cv::COLORMAP_JET);
+	out.setTo(cv::Scalar(255, 255, 255), mask);
+}
+
+static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
+								const float max_depth)
+{
+	DCHECK(max_depth > 0.0);
+
+	depth.convertTo(out, CV_8U, 255.0f / max_depth);
+	//out = 255 - out;
+	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
+	
+	applyColorMap(out, out, cv::COLORMAP_JET);
+	out.setTo(cv::Scalar(255, 255, 255), mask);
+}
+
+static void drawEdges(	const cv::Mat &in, cv::Mat &out,
+						const int ksize = 3, double weight = -1.0, const int threshold = 32,
+						const int threshold_type = cv::THRESH_TOZERO)
+{
+	cv::Mat edges;
+	cv::Laplacian(in, edges, 8, ksize);
+	cv::threshold(edges, edges, threshold, 255, threshold_type);
+
+	cv::Mat edges_color(in.size(), CV_8UC3);
+	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC3);
+}
+
+bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
+	UNIQUE_LOCK(mutex_, lk);
+	src_->grab(1,9);
+	if (rgb_.empty()) return false;
+	cv::resize(rgb_, thumb, cv::Size(320,180));
+	return true;
+}
+
 const GLTexture &ftl::gui::Camera::captureFrame() {
 	float now = (float)glfwGetTime();
 	delta_ = now - ftime_;
 	ftime_ = now;
 
 	if (src_ && src_->isReady()) {
-		cv::Mat rgb, depth;
+		UNIQUE_LOCK(mutex_, lk);
 
 		if (screen_->hasVR()) {
 			#ifdef HAVE_OPENVR
-			src_->setChannel(ftl::rgbd::kChanRight);
+			src_->setChannel(Channel::Right);
 
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
@@ -300,37 +359,37 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		}
 
 		src_->grab();
-		src_->getFrames(rgb, depth);
-
-		cv::flip(rgb,rgb,0);
-		cv::flip(depth,depth,0);
+		//src_->getFrames(rgb, depth);
 
 		// When switching from right to depth, client may still receive
 		// right images from previous batch (depth.channels() == 1 check)
-		if (channel_ == ftl::rgbd::kChanDeviation &&
-			depth.rows > 0 && depth.channels() == 1)
+		if (channel_ == Channel::Deviation &&
+			depth_.rows > 0 && depth_.channels() == 1)
 		{
 			if (!stats_) {
-				stats_ = new StatisticsImage(depth.size());
+				stats_ = new StatisticsImage(depth_.size());
 			}
 			
-			stats_->update(depth);
+			stats_->update(depth_);
 		}
 
 		cv::Mat tmp;
 
 		switch(channel_) {
-			case ftl::rgbd::kChanDepth:
-				if (depth.rows == 0) { break; }
-				//imageSize = Vector2f(depth.cols,depth.rows);
-				depth.convertTo(tmp, CV_8U, 255.0f / 5.0f);
-				tmp = 255 - tmp;
-				applyColorMap(tmp, tmp, cv::COLORMAP_JET);
+			case Channel::Energy:
+				if (depth_.rows == 0) { break; }
+				visualizeEnergy(depth_, tmp, 10.0);
+				texture_.update(tmp);
+				break;
+			case Channel::Depth:
+				if (depth_.rows == 0) { break; }
+				visualizeDepthMap(depth_, tmp, 7.0);
+				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(rgb_, tmp);
 				texture_.update(tmp);
 				break;
 			
-			case ftl::rgbd::kChanDeviation:
-				if (depth.rows == 0) { break; }
+			case Channel::Deviation:
+				if (depth_.rows == 0) { break; }
 				//imageSize = Vector2f(depth.cols, depth.rows);
 				stats_->getStdDev(tmp);
 				tmp.convertTo(tmp, CV_8U, 1000.0);
@@ -338,23 +397,23 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				texture_.update(tmp);
 				break;
 
-		case ftl::rgbd::kChanFlow:
-		case ftl::rgbd::kChanConfidence:
-		case ftl::rgbd::kChanNormals:
-			case ftl::rgbd::kChanRight:
-				if (depth.rows == 0 || depth.type() != CV_8UC3) { break; }
-				texture_.update(depth);
+		case Channel::Flow:
+		case Channel::Confidence:
+		case Channel::Normals:
+		case Channel::Right:
+				if (depth_.rows == 0 || depth_.type() != CV_8UC3) { break; }
+				texture_.update(depth_);
 				break;
 
 			default:
-				if (rgb.rows == 0) { break; }
+				if (rgb_.rows == 0) { break; }
 				//imageSize = Vector2f(rgb.cols,rgb.rows);
-				texture_.update(rgb);
+				texture_.update(rgb_);
 
 				#ifdef HAVE_OPENVR
-				if (screen_->hasVR() && depth.channels() >= 3) {
+				if (screen_->hasVR() && depth_.channels() >= 3) {
 					LOG(INFO) << "DRAW RIGHT";
-					textureRight_.update(depth);
+					textureRight_.update(depth_);
 				}
 				#endif
 		}

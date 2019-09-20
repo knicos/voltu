@@ -2,32 +2,15 @@
 #define _FTL_RGBD_DETAIL_SOURCE_HPP_
 
 #include <Eigen/Eigen>
+#include <ftl/cuda_util.hpp>
 #include <opencv2/opencv.hpp>
 #include <ftl/rgbd/camera.hpp>
+#include <ftl/rgbd/frame.hpp>
 
 namespace ftl{
 namespace rgbd {
 
 class Source;
-
-typedef unsigned int channel_t;
-
-static const channel_t kChanNone = 0;
-static const channel_t kChanLeft = 0x0001;
-static const channel_t kChanDepth = 0x0002;
-static const channel_t kChanRight = 0x0004;
-static const channel_t kChanDisparity = 0x0008;
-static const channel_t kChanDeviation = 0x0010;
-static const channel_t kChanNormals = 0x0020;
-static const channel_t kChanConfidence = 0x0040;
-static const channel_t kChanFlow = 0x0080;
-
-static const channel_t kChanOverlay1 = 0x1000;
-
-inline bool isFloatChannel(ftl::rgbd::channel_t chan) {
-	return (chan == ftl::rgbd::kChanDepth);
-}
-
 
 typedef unsigned int capability_t;
 
@@ -49,14 +32,31 @@ class Source {
 	virtual ~Source() {}
 
 	/**
+	 * Perform hardware data capture.
+	 */
+	virtual bool capture(int64_t ts)=0;
+
+	/**
+	 * Perform IO operation to get the data.
+	 */
+	virtual bool retrieve()=0;
+
+	/**
+	 * Do any processing from previously captured frames...
 	 * @param n Number of frames to request in batch. Default -1 means automatic (10)
 	 * @param b Bit rate setting. -1 = automatic, 0 = best quality, 9 = lowest quality
 	 */
-	virtual bool grab(int n, int b)=0;
+	virtual bool compute(int n, int b)=0;
+
+	/**
+	 * Between frames, or before next frame, do any buffer swapping operations.
+	 */
+	virtual void swap() {}
+
 	virtual bool isReady() { return false; };
 	virtual void setPose(const Eigen::Matrix4d &pose) { };
 
-	virtual Camera parameters(channel_t) { return params_; };
+	virtual Camera parameters(ftl::rgbd::Channel) { return params_; };
 
 	protected:
 	capability_t capabilities_;

@@ -7,9 +7,12 @@
 #include "disparity.hpp"
 #include "cuda_algorithms.hpp"
 
+#include "cuda_algorithms.hpp"
+
 using ftl::rgbd::detail::Calibrate;
 using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::StereoVideoSource;
+using ftl::rgbd::Channel;
 using std::string;
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
@@ -29,7 +32,8 @@ StereoVideoSource::~StereoVideoSource() {
 	delete lsrc_;
 }
 
-void StereoVideoSource::init(const string &file) {
+void StereoVideoSource::init(const string &file)
+{
 	capabilities_ = kCapVideo | kCapStereo;
 
 	if (ftl::is_video(file)) {
@@ -55,19 +59,31 @@ void StereoVideoSource::init(const string &file) {
 	}
 
 	cv::Size size = cv::Size(lsrc_->width(), lsrc_->height());
+	frames_ = std::vector<Frame>(2);
+
+#ifdef HAVE_OPTFLOW
+	use_optflow_ =  host_->value("use_optflow", false);
+	LOG(INFO) << "Using optical flow: " << (use_optflow_ ? "true" : "false");
+
+	nvof_ = cv::cuda::NvidiaOpticalFlow_1_0::create(size.width, size.height,
+													cv::cuda::NvidiaOpticalFlow_1_0::NV_OF_PERF_LEVEL_SLOW,
+													true, false, false, 0);
+
+#endif
+
 	calib_ = ftl::create<Calibrate>(host_, "calibration", size, stream_);
 
 	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 
 	// Generate camera parameters from camera matrix
-	cv::Mat q = calib_->getCameraMatrix();
+	cv::Mat K = calib_->getCameraMatrix();
 	params_ = {
-		q.at<double>(0,0),	// Fx
-		q.at<double>(1,1),	// Fy
-		-q.at<double>(0,2),	// Cx
-		-q.at<double>(1,2),	// Cy
-		(unsigned int)lsrc_->width(),
-		(unsigned int)lsrc_->height(),
+		K.at<double>(0,0),	// Fx
+		K.at<double>(1,1),	// Fy
+		-K.at<double>(0,2),	// Cx
+		-K.at<double>(1,2),	// Cy
+		(unsigned int) lsrc_->width(),
+		(unsigned int) lsrc_->height(),
 		0.0f,	// 0m min
 		15.0f,	// 15m max
 		1.0 / calib_->getQ().at<double>(3,2), // Baseline
@@ -113,15 +129,15 @@ void StereoVideoSource::init(const string &file) {
 	mask_l_ = (mask_l == 0);
 	
 	disp_ = Disparity::create(host_, "disparity");
-    if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << *host_->get<ftl::config::json_t>("disparity");
+	if (!disp_) LOG(FATAL) << "Unknown disparity algorithm : " << *host_->get<ftl::config::json_t>("disparity");
 	disp_->setMask(mask_l_);
 
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
 }
 
-ftl::rgbd::Camera StereoVideoSource::parameters(ftl::rgbd::channel_t chan) {
-	if (chan == ftl::rgbd::kChanRight) {
+ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
+	if (chan == Channel::Right) {
 		cv::Mat q = calib_->getCameraMatrixRight();
 		ftl::rgbd::Camera params = {
 			q.at<double>(0,0),	// Fx
@@ -151,34 +167,85 @@ static void disparityToDepth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat
 	cv::cuda::divide(val, disparity, depth, 1.0f / 1000.0f, -1, stream);
 }
 
-bool StereoVideoSource::grab(int n, int b) {
-	const ftl::rgbd::channel_t chan = host_->getChannel();
+bool StereoVideoSource::capture(int64_t ts) {
+	timestamp_ = ts;
+	lsrc_->grab();
+	return true;
+}
 
-	if (chan == ftl::rgbd::kChanDepth) {
-		lsrc_->get(left_, right_, stream_);
-		if (depth_tmp_.empty()) depth_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
-		if (disp_tmp_.empty()) disp_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
-		calib_->rectifyStereo(left_, right_, stream_);
-		disp_->compute(left_, right_, disp_tmp_, stream_);
-		ftl::cuda::disparity_to_depth(disp_tmp_, depth_tmp_, params_, stream_);
-		left_.download(rgb_, stream_);
-		//rgb_ = lsrc_->cachedLeft();
-		depth_tmp_.download(depth_, stream_);
+bool StereoVideoSource::retrieve() {
+	auto &frame = frames_[0];
+	frame.reset();
+	auto &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
+	auto &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
+	lsrc_->get(left, right, calib_, stream2_);
 
+#ifdef HAVE_OPTFLOW
+	// see comments in https://gitlab.utu.fi/nicolas.pope/ftl/issues/155
+	
+	if (use_optflow_)
+	{
+		auto &left_gray = frame.create<cv::cuda::GpuMat>(Channel::LeftGray);
+		auto &right_gray = frame.create<cv::cuda::GpuMat>(Channel::RightGray);
+
+		cv::cuda::cvtColor(left, left_gray, cv::COLOR_BGR2GRAY, 0, stream2_);
+		cv::cuda::cvtColor(right, right_gray, cv::COLOR_BGR2GRAY, 0, stream2_);
+
+		if (frames_[1].hasChannel(Channel::LeftGray))
+		{
+			//frames_[1].download(Channel::LeftGray);
+			auto &left_gray_prev = frames_[1].get<cv::cuda::GpuMat>(Channel::LeftGray);
+			auto &optflow = frame.create<cv::cuda::GpuMat>(Channel::Flow);
+			nvof_->calc(left_gray, left_gray_prev, optflow, stream2_);
+			// nvof_->upSampler() isn't implemented with CUDA
+			// cv::cuda::resize() does not work wiht 2-channel input
+			// cv::cuda::resize(optflow_, optflow, left.size(), 0.0, 0.0, cv::INTER_NEAREST, stream2_);
+		}
+	}
+#endif
+
+	stream2_.waitForCompletion();
+	return true;
+}
+
+void StereoVideoSource::swap() {
+	auto tmp = std::move(frames_[0]);
+	frames_[0] = std::move(frames_[1]);
+	frames_[1] = std::move(tmp);
+}
+
+bool StereoVideoSource::compute(int n, int b) {
+	auto &frame = frames_[1];
+	auto &left = frame.get<cv::cuda::GpuMat>(Channel::Left);
+	auto &right = frame.get<cv::cuda::GpuMat>(Channel::Right);
+
+	const ftl::rgbd::Channel chan = host_->getChannel();
+	if (left.empty() || right.empty()) return false;
+
+	if (chan == Channel::Depth) {
+		disp_->compute(frame, stream_);
+		
+		auto &disp = frame.get<cv::cuda::GpuMat>(Channel::Disparity);
+		auto &depth = frame.create<cv::cuda::GpuMat>(Channel::Depth);
+		if (depth.empty()) depth = cv::cuda::GpuMat(left.size(), CV_32FC1);
+
+		ftl::cuda::disparity_to_depth(disp, depth, params_, stream_);
+		
+		left.download(rgb_, stream_);
+		depth.download(depth_, stream_);
+		//frame.download(Channel::Left + Channel::Depth);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
-	} else if (chan == ftl::rgbd::kChanRight) {
-		lsrc_->get(left_, right_, stream_);
-		calib_->rectifyStereo(left_, right_, stream_);
-		left_.download(rgb_, stream_);
-		right_.download(depth_, stream_);
+	} else if (chan == Channel::Right) {
+		left.download(rgb_, stream_);
+		right.download(depth_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	} else {
-		lsrc_->get(left_, right_, stream_);
-		calib_->rectifyStereo(left_, right_, stream_);
-		//rgb_ = lsrc_->cachedLeft();
-		left_.download(rgb_, stream_);
+		left.download(rgb_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
 	}
+
+	auto cb = host_->callback();
+	if (cb) cb(timestamp_, rgb_, depth_);
 	return true;
 }
 

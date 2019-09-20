@@ -13,19 +13,21 @@ using ftl::rgbd::detail::SnapshotSource;
 using std::string;
 using std::vector;
 
-SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, const string &id) : detail::Source(host) {
-    Eigen::Matrix4d pose;
-    reader.getCameraRGBD(id, rgb_, depth_, pose, params_);
+SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, Snapshot &snapshot, const string &id) : detail::Source(host) {
+	snapshot_ = snapshot;
+	camera_idx_ = std::atoi(id.c_str());
+	frame_idx_ = 0;
 
-	if (rgb_.empty()) LOG(ERROR) << "Did not load snapshot rgb - " << id;
-	if (depth_.empty()) LOG(ERROR) << "Did not load snapshot depth - " << id;
-	if (params_.width != rgb_.cols) LOG(ERROR) << "Camera parameters corrupt for " << id;
+	Eigen::Matrix4d pose;
+	snapshot.getPose(camera_idx_, pose);
+	params_ = snapshot.getParameters(camera_idx_);
 
+	/*
 	ftl::rgbd::colourCorrection(rgb_, host->value("gamma", 1.0f), host->value("temperature", 6500));
-
 	host->on("gamma", [this,host](const ftl::config::Event&) {
 		ftl::rgbd::colourCorrection(rgb_, host->value("gamma", 1.0f), host->value("temperature", 6500));
 	});
+	*/
 
 	// Add calibration to config object
 	host_->getConfig()["focal"] = params_.fx;
@@ -49,4 +51,21 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, SnapshotReader &reader, 
 	LOG(INFO) << "POSE = " << pose;
 
     host->setPose(pose);
+
+	mspf_ = 1000 / host_->value("fps", 20);
+}
+
+bool SnapshotSource::compute(int n, int b) {
+	snapshot_.getLeftRGB(camera_idx_, frame_idx_, snap_rgb_);
+	snapshot_.getLeftDepth(camera_idx_, frame_idx_, snap_depth_);
+
+	snap_rgb_.copyTo(rgb_);
+	snap_depth_.copyTo(depth_);
+
+	auto cb = host_->callback();
+	if (cb) cb(timestamp_, rgb_, depth_);
+
+	frame_idx_ = (frame_idx_ + 1) % snapshot_.getFramesCount();
+
+	return true;
 }

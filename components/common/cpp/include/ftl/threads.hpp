@@ -7,8 +7,8 @@
 
 #define POOL_SIZE 10
 
-#define DEBUG_MUTEX
-#define MUTEX_TIMEOUT 15
+//#define DEBUG_MUTEX
+#define MUTEX_TIMEOUT 5
 
 #if defined DEBUG_MUTEX
 #include <loguru.hpp>

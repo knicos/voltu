@@ -1,7 +1,4 @@
 #include <ftl/voxel_scene.hpp>
-#include "compactors.hpp"
-#include "garbage.hpp"
-#include "integrators.hpp"
 #include "depth_camera_cuda.hpp"
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
@@ -10,15 +7,16 @@
 
 using namespace ftl::voxhash;
 using ftl::rgbd::Source;
+using ftl::rgbd::Channel;
 using ftl::Configurable;
 using cv::Mat;
 using std::vector;
 
 #define 	SAFE_DELETE_ARRAY(a)   { delete [] (a); (a) = NULL; }
 
-extern "C" void resetCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
-extern "C" void resetHashBucketMutexCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t);
-extern "C" void allocCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, int camid, const DepthCameraParams &depthCameraParams, cudaStream_t);
+//extern "C" void resetCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
+//extern "C" void resetHashBucketMutexCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, cudaStream_t);
+//extern "C" void allocCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, int camid, const DepthCameraParams &depthCameraParams, cudaStream_t);
 //extern "C" void fillDecisionArrayCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams, const DepthCameraData& depthCameraData);
 //extern "C" void compactifyHashCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
 //extern "C" unsigned int compactifyHashAllInOneCUDA(ftl::voxhash::HashData& hashData, const ftl::voxhash::HashParams& hashParams);
@@ -98,6 +96,7 @@ void SceneRep::addSource(ftl::rgbd::Source *src) {
 	auto &cam = cameras_.emplace_back();
 	cam.source = src;
 	cam.params.m_imageWidth = 0;
+	src->setChannel(Channel::Depth);
 }
 
 extern "C" void updateCUDACameraConstant(ftl::voxhash::DepthCameraCUDA *data, int count);
@@ -183,7 +182,89 @@ int SceneRep::upload() {
 		//if (i > 0) cudaSafeCall(cudaStreamSynchronize(cv::cuda::StreamAccessor::getStream(cameras_[i-1].stream)));
 
 		//allocate all hash blocks which are corresponding to depth map entries
-		if (value("voxels", false)) _alloc(i, cv::cuda::StreamAccessor::getStream(cam.stream));
+		//if (value("voxels", false)) _alloc(i, cv::cuda::StreamAccessor::getStream(cam.stream));
+
+		// Calculate normals
+	}
+
+	// Must have finished all allocations and rendering before next integration
+	cudaSafeCall(cudaDeviceSynchronize());
+
+	return active;
+}
+
+int SceneRep::upload(ftl::rgbd::FrameSet &fs) {
+	int active = 0;
+
+	for (size_t i=0; i<cameras_.size(); ++i) {
+		auto &cam = cameras_[i];
+
+		if (!cam.source->isReady()) {
+			cam.params.m_imageWidth = 0;
+			// TODO(Nick) : Free gpu allocs if was ready before
+			LOG(INFO) << "Source not ready: " << cam.source->getURI();
+			continue;
+		} else {
+			auto in = cam.source;
+
+			cam.params.fx = in->parameters().fx;
+			cam.params.fy = in->parameters().fy;
+			cam.params.mx = -in->parameters().cx;
+			cam.params.my = -in->parameters().cy;
+
+			// Only now do we have camera parameters for allocations...
+			if (cam.params.m_imageWidth == 0) {
+				cam.params.m_imageWidth = in->parameters().width;
+				cam.params.m_imageHeight = in->parameters().height;
+				cam.params.m_sensorDepthWorldMax = in->parameters().maxDepth;
+				cam.params.m_sensorDepthWorldMin = in->parameters().minDepth;
+				cam.gpu.alloc(cam.params, true);
+				LOG(INFO) << "GPU Allocated camera " << i;
+			}
+		}
+
+		cam.params.flags = m_frameCount;
+	}
+
+	_updateCameraConstant();
+	//cudaSafeCall(cudaDeviceSynchronize());
+
+	for (size_t i=0; i<cameras_.size(); ++i) {
+		auto &cam = cameras_[i];
+		auto &chan1 = fs.frames[i].get<cv::Mat>(Channel::Colour);
+		auto &chan2 = fs.frames[i].get<cv::Mat>(fs.sources[i]->getChannel());
+
+		auto test = fs.frames[i].createTexture<uchar4>(Channel::Flow, ftl::rgbd::Format<uchar4>(100,100));
+
+		// Get the RGB-Depth frame from input
+		Source *input = cam.source;
+		//Mat rgb, depth;
+
+		// TODO(Nick) Direct GPU upload to save copy
+		//input->getFrames(rgb,depth);
+		
+		active += 1;
+
+		//if (depth.cols == 0) continue;
+
+		// Must be in RGBA for GPU
+		Mat rgbt, rgba;
+		cv::cvtColor(chan1,rgbt, cv::COLOR_BGR2Lab);
+		cv::cvtColor(rgbt,rgba, cv::COLOR_BGR2BGRA);
+
+		// Send to GPU and merge view into scene
+		//cam.gpu.updateParams(cam.params);
+		cam.gpu.updateData(chan2, rgba, cam.stream);
+
+		//setLastRigidTransform(input->getPose().cast<float>());
+
+		//make the rigid transform available on the GPU
+		//m_hashData.updateParams(m_hashParams, cv::cuda::StreamAccessor::getStream(cam.stream));
+
+		//if (i > 0) cudaSafeCall(cudaStreamSynchronize(cv::cuda::StreamAccessor::getStream(cameras_[i-1].stream)));
+
+		//allocate all hash blocks which are corresponding to depth map entries
+		//if (value("voxels", false)) _alloc(i, cv::cuda::StreamAccessor::getStream(cam.stream));
 
 		// Calculate normals
 	}
@@ -218,7 +299,7 @@ void SceneRep::integrate() {
 
 void SceneRep::garbage() {
 	//_compactifyAllocated();
-	if (value("voxels", false)) _garbageCollect();
+	//if (value("voxels", false)) _garbageCollect();
 
 	//cudaSafeCall(cudaStreamSynchronize(integ_stream_));
 }
@@ -294,14 +375,14 @@ HashParams SceneRep::_parametersFromConfig() {
 	params.m_flags = 0;
 	params.m_flags |= (value("clipping", false)) ? ftl::voxhash::kFlagClipping : 0;
 	params.m_flags |= (value("mls", false)) ? ftl::voxhash::kFlagMLS : 0;
-	params.m_maxBounds = make_int3(
-		value("bbox_x_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_y_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_z_max", 2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE));
-	params.m_minBounds = make_int3(
-		value("bbox_x_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_y_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE),
-		value("bbox_z_min", -2.0f) / (params.m_virtualVoxelSize*SDF_BLOCK_SIZE));
+	params.m_maxBounds = make_float3(
+		value("bbox_x_max", 2.0f),
+		value("bbox_y_max", 2.0f),
+		value("bbox_z_max", 2.0f));
+	params.m_minBounds = make_float3(
+		value("bbox_x_min", -2.0f),
+		value("bbox_y_min", -2.0f),
+		value("bbox_z_min", -2.0f));
 	return params;
 }
 
@@ -338,19 +419,19 @@ void SceneRep::_alloc(int camid, cudaStream_t stream) {
 	}
 	else {*/
 		//this version is faster, but it doesn't guarantee that all blocks are allocated (staggers alloc to the next frame)
-		resetHashBucketMutexCUDA(m_hashData, m_hashParams, stream);
-		allocCUDA(m_hashData, m_hashParams, camid, cameras_[camid].params, stream);
+		//resetHashBucketMutexCUDA(m_hashData, m_hashParams, stream);
+		//allocCUDA(m_hashData, m_hashParams, camid, cameras_[camid].params, stream);
 	//}
 }
 
 
 void SceneRep::_compactifyVisible(const DepthCameraParams &camera) { //const DepthCameraData& depthCameraData) {
-	ftl::cuda::compactifyOccupied(m_hashData, m_hashParams, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
+	//ftl::cuda::compactifyOccupied(m_hashData, m_hashParams, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
 	//m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }
 
 void SceneRep::_compactifyAllocated() {
-	ftl::cuda::compactifyAllocated(m_hashData, m_hashParams, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
+	//ftl::cuda::compactifyAllocated(m_hashData, m_hashParams, integ_stream_);		//this version uses atomics over prefix sums, which has a much better performance
 	//std::cout << "Occ blocks = " << m_hashParams.m_numOccupiedBlocks << std::endl;
 	//m_hashData.updateParams(m_hashParams);	//make sure numOccupiedBlocks is updated on the GPU
 }
@@ -360,7 +441,7 @@ void SceneRep::_compactifyAllocated() {
 	else ftl::cuda::integrateRegistration(m_hashData, m_hashParams, depthCameraData, depthCameraParams, integ_stream_);
 }*/
 
-extern "C" void bilateralFilterFloatMap(float* d_output, float* d_input, float sigmaD, float sigmaR, unsigned int width, unsigned int height);
+//extern "C" void bilateralFilterFloatMap(float* d_output, float* d_input, float sigmaD, float sigmaR, unsigned int width, unsigned int height);
 
 void SceneRep::_integrateDepthMaps() {
 	//cudaSafeCall(cudaDeviceSynchronize());
@@ -375,11 +456,11 @@ void SceneRep::_integrateDepthMaps() {
 		//ftl::cuda::hole_fill(*(cameras_[i].gpu.depth2_tex_), *(cameras_[i].gpu.depth_tex_), cameras_[i].params, integ_stream_);
 		//bilateralFilterFloatMap(cameras_[i].gpu.depth_tex_->devicePtr(), cameras_[i].gpu.depth3_tex_->devicePtr(), 3, 7, cameras_[i].gpu.depth_tex_->width(), cameras_[i].gpu.depth_tex_->height());
 	}
-	if (value("voxels", false)) ftl::cuda::integrateDepthMaps(m_hashData, m_hashParams, cameras_.size(), integ_stream_);
+	//if (value("voxels", false)) ftl::cuda::integrateDepthMaps(m_hashData, m_hashParams, cameras_.size(), integ_stream_);
 }
 
 void SceneRep::_garbageCollect() {
 	//ftl::cuda::garbageCollectIdentify(m_hashData, m_hashParams, integ_stream_);
-	resetHashBucketMutexCUDA(m_hashData, m_hashParams, integ_stream_);	//needed if linked lists are enabled -> for memeory deletion
-	ftl::cuda::garbageCollectFree(m_hashData, m_hashParams, integ_stream_);
+	//resetHashBucketMutexCUDA(m_hashData, m_hashParams, integ_stream_);	//needed if linked lists are enabled -> for memeory deletion
+	//ftl::cuda::garbageCollectFree(m_hashData, m_hashParams, integ_stream_);
 }
