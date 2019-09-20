@@ -146,7 +146,7 @@ static void run(ftl::Configurable *root) {
 
 			// Send all frames to GPU, block until done?
 			scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
-			align->process(scene_A);
+			//align->process(scene_A);
 
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.
