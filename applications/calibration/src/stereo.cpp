@@ -93,11 +93,17 @@ void ftl::calibration::stereo(map<string, string> &opt) {
 	
 	vector<Mat> dist_coeffs(2);
 	vector<Mat> camera_matrices(2);
-
-	if (!loadIntrinsics(filename_intrinsics, camera_matrices, dist_coeffs)) {
+	Size intrinsic_resolution;
+	if (!loadIntrinsics(filename_intrinsics, camera_matrices, dist_coeffs, intrinsic_resolution))
+	{
 		LOG(FATAL) << "Failed to load intrinsic camera parameters from file.";
 	}
 	
+	if (intrinsic_resolution != image_size)
+	{
+		LOG(FATAL) << "Intrinsic resolution is not same as input resolution (TODO)";
+	}
+
 	Mat R, T, E, F, per_view_errors;
 	
 	// capture calibration patterns
