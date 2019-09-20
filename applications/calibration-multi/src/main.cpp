@@ -98,7 +98,7 @@ bool loadRegistration(const string &ifile, map<string, Eigen::Matrix4d> &data) {
 
 //
 
-bool saveIntrinsics(const string &ofile, const vector<Mat> &M) {
+bool saveIntrinsics(const string &ofile, const vector<Mat> &M, const Size &size) {
 	vector<Mat> D;
 	{
 		cv::FileStorage fs(ofile, cv::FileStorage::READ);
@@ -108,6 +108,7 @@ bool saveIntrinsics(const string &ofile, const vector<Mat> &M) {
 	{
 		cv::FileStorage fs(ofile, cv::FileStorage::WRITE);
 		if (fs.isOpened()) {
+			fs << "resolution" << size;
 			fs << "K" << M << "D" << D;
 			fs.release();
 			return true;
@@ -196,6 +197,7 @@ struct CalibrationParams {
 	bool optimize_intrinsic = false;
 	int reference_camera = -1;
 	double alpha = 0.0;
+	Size size;
 };
 
 void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
@@ -233,8 +235,8 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 		Mat R_c1c2, T_c1c2;
 
 		calculateTransform(R[c], t[c], R[c + 1], t[c + 1], R_c1c2, T_c1c2);
-		cv::stereoRectify(K1, D1, K2, D2, Size(1280, 720), R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, params.alpha);
-		
+		cv::stereoRectify(K1, D1, K2, D2, params.size, R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, params.alpha);
+
 		Mat _t = Mat(Size(1, 3), CV_64FC1, Scalar(0.0));
 		Rt_out[c] = getMat4x4(R[c], t[c]) * getMat4x4(R1, _t).inv();
 		Rt_out[c + 1] = getMat4x4(R[c + 1], t[c + 1]) * getMat4x4(R2, _t).inv();
@@ -244,15 +246,20 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 			size_t pos1 = uri_cameras[c/2].find("node");
 			size_t pos2 = uri_cameras[c/2].find("#", pos1);
 			node_name = uri_cameras[c/2].substr(pos1, pos2 - pos1);
-			//LOG(INFO) << c << ":" << calib.getCameraMatNormalized(c, 1280, 720);
-			//LOG(INFO) << c + 1 << ":" << calib.getCameraMatNormalized(c + 1, 1280, 720);
+			
 			if (params.save_extrinsic) {
+				// TODO:	only R and T required, rectification performed on vision node,
+				//			consider saving global extrinsic calibration?
 				saveExtrinsics(params.output_path + node_name + "-extrinsic.yml", R_c1c2, T_c1c2, R1, R2, P1, P2, Q);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-extrinsic.yml";
 			}
 			if (params.save_intrinsic) {
-				saveIntrinsics(params.output_path + node_name + "-intrinsic.yml",
-					{calib.getCameraMatNormalized(c, 1280, 720), calib.getCameraMatNormalized(c + 1, 1280, 720)}
+				saveIntrinsics(
+					params.output_path + node_name + "-intrinsic.yml",
+					{calib.getCameraMat(c),
+					 calib.getCameraMat(c + 1)},
+					params.size
+
 				);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-intrinsic.yml";
 			}
@@ -260,9 +267,9 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 
 		// for visualization
 		Size new_size;
-		cv::stereoRectify(K1, D1, K2, D2, Size(1280, 720), R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, 1.0, new_size, &roi[c], &roi[c + 1]);
-		cv::initUndistortRectifyMap(K1, D1, R1, P1, Size(1280, 720), CV_16SC2, map1[c], map2[c]);
-		cv::initUndistortRectifyMap(K2, D2, R2, P2, Size(1280, 720), CV_16SC2, map1[c + 1], map2[c + 1]);
+		cv::stereoRectify(K1, D1, K2, D2, params.size, R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, 1.0, new_size, &roi[c], &roi[c + 1]);
+		cv::initUndistortRectifyMap(K1, D1, R1, P1, params.size, CV_16SC2, map1[c], map2[c]);
+		cv::initUndistortRectifyMap(K2, D2, R2, P2, params.size, CV_16SC2, map1[c + 1], map2[c + 1]);
 	}
 
 	{
@@ -298,6 +305,7 @@ void calibrateFromPath(	const string &path,
 	vector<string> uri_cameras;
 	cv::FileStorage fs(path + filename, cv::FileStorage::READ);
 	fs["uri"] >> uri_cameras;
+	fs["resolution"] >> params.size;
 
 	//params.idx_cameras = {2, 3};//{0, 1, 4, 5, 6, 7, 8, 9, 10, 11};
 	params.idx_cameras.resize(uri_cameras.size() * 2);
@@ -362,11 +370,11 @@ void runCameraCalibration(	ftl::Configurable* root,
 	const size_t n_sources = sources.size();
 	const size_t n_cameras = n_sources * 2;
 	size_t reference_camera = 0;
-	Size resolution;
+	
 	{
-		auto params = sources[0]->parameters();
-		resolution = Size(params.width, params.height);
-		LOG(INFO) << "Camera resolution: " << resolution;
+		auto camera = sources[0]->parameters();
+		params.size = Size(camera.width, camera.height);
+		LOG(INFO) << "Camera resolution: " << params.size;
 	}
 
 	params.idx_cameras.resize(n_cameras);
@@ -374,22 +382,22 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	// TODO: parameter for calibration target type
 	auto calib = MultiCameraCalibrationNew(	n_cameras, reference_camera,
-											resolution, CalibrationTarget(0.250)
+											params.size, CalibrationTarget(0.250)
 	);
 
 	for (size_t i = 0; i < n_sources; i++) {
-		auto params_r = sources[i]->parameters(Channel::Right);
-		auto params_l = sources[i]->parameters(Channel::Left);
+		auto camera_r = sources[i]->parameters(Channel::Right);
+		auto camera_l = sources[i]->parameters(Channel::Left);
 
-		CHECK(resolution == Size(params_r.width, params_r.height));
-		CHECK(resolution == Size(params_l.width, params_l.height));
+		CHECK(params.size == Size(camera_r.width, camera_r.height));
+		CHECK(params.size == Size(camera_l.width, camera_l.height));
 		
 		Mat K;
-		K = getCameraMatrix(params_r);
+		K = getCameraMatrix(camera_r);
 		LOG(INFO) << "K[" << 2 * i + 1 << "] = \n" << K;
 		calib.setCameraParameters(2 * i + 1, K);
 
-		K = getCameraMatrix(params_l);
+		K = getCameraMatrix(camera_l);
 		LOG(INFO) << "K[" << 2 * i << "] = \n" << K;
 		calib.setCameraParameters(2 * i, K);
 	}
@@ -551,7 +559,8 @@ int main(int argc, char **argv) {
 	params.optimize_intrinsic = optimize_intrinsic;
 	params.output_path = output_directory;
 	params.registration_file = registration_file;
-
+	params.reference_camera = ref_camera;
+	
 	LOG(INFO)	<< "\n"
 				<< "\nIMPORTANT: Remeber to set \"use_intrinsics\" to false for nodes!"
 				<< "\n"

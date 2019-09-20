@@ -49,6 +49,12 @@ int Visibility::getOptimalCamera() {
 	return best_i;
 }
 
+void Visibility::deleteEdge(int camera1, int camera2)
+{
+	visibility_.at<int>(camera1, camera2) = 0;
+	visibility_.at<int>(camera2, camera1) = 0;
+}
+
 int Visibility::getMinVisibility() {
 	int min_i;
 	int min_count = INT_MAX;

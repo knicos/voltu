@@ -15,8 +15,8 @@ int getOptionInt(const std::map<std::string, std::string> &options, const std::s
 double getOptionDouble(const std::map<std::string, std::string> &options, const std::string &opt, double default_value);
 std::string getOptionString(const std::map<std::string, std::string> &options, const std::string &opt, std::string default_value);
 
-bool loadIntrinsics(const std::string &ifile, std::vector<cv::Mat> &K, std::vector<cv::Mat> &D);
-bool saveIntrinsics(const std::string &ofile, const std::vector<cv::Mat> &K, const std::vector<cv::Mat> &D);
+bool loadIntrinsics(const std::string &ifile, std::vector<cv::Mat> &K, std::vector<cv::Mat> &D, cv::Size &size);
+bool saveIntrinsics(const std::string &ofile, const std::vector<cv::Mat> &K, const std::vector<cv::Mat> &D, const cv::Size &size);
 
 // TODO loadExtrinsics()
 bool saveExtrinsics(const std::string &ofile, cv::Mat &R, cv::Mat &T, cv::Mat &R1, cv::Mat &R2, cv::Mat &P1, cv::Mat &P2, cv::Mat &Q);
@@ -94,6 +94,7 @@ public:
 	void objectPoints(std::vector<cv::Vec3f> &out);
 	bool findPoints(cv::Mat &in, std::vector<cv::Vec2f> &out);
 	void drawPoints(cv::Mat &img, const std::vector<cv::Vec2f> &points);
+	void drawCorners(cv::Mat &img, const std::vector<cv::Vec2f> &points);
 
 private:
 	int chessboard_flags_ = 0;

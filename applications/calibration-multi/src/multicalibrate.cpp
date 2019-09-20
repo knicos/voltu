@@ -651,6 +651,7 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 		if (calibratePair(c1, c2, R, t) > 16.0) {
 			LOG(ERROR)	<< "Pairwise calibration failed, skipping cameras "
 						<< c1 << " and " << c2;
+			visibility_graph_.deleteEdge(c1, c2);
 			continue;
 		}
 

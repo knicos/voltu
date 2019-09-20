@@ -1,0 +1,129 @@
+{
+	//"$id": "ftl://utu.fi",
+	"$schema": "",
+	"calibrations": {
+		"default": {
+			"use_intrinsics": true,
+			"use_extrinsics": true,
+			"alpha": 0.0
+		}
+	},
+	
+	"disparity": {
+		"libsgm": {
+			"algorithm": "libsgm",
+			"width": 1280,
+			"height": 720,
+			"use_cuda": true,
+			"minimum": 0,
+			"maximum": 256,
+			"tau": 0.0,
+			"gamma": 0.0,
+			"window_size": 5,
+			"sigma": 1.5,
+			"lambda": 8000.0,
+			"uniqueness":  0.65,
+			"use_filter": true,
+			"P1": 8,
+			"P2": 130,
+			"filter_radius": 11,
+			"filter_iter": 2,
+			"use_off": true,
+			"off_size": 24,
+			"off_threshold": 0.75,
+			"T": 60,
+			"T_add": 0,
+			"T_del": 25,
+			"T_x" : 3.0,
+			"alpha" : 0.6,
+			"beta" : 1.7,
+			"epsilon" : 15.0
+		},
+		
+		"rtcensus": {
+			"algorithm": "rtcensus",
+			"use_cuda": true,
+			"minimum": 0,
+			"maximum": 256,
+			"tau": 0.0,
+			"gamma": 0.0,
+			"window_size": 5,
+			"sigma": 1.5,
+			"lambda": 8000.0,
+			"use_filter": true,
+			"filter_radius": 3,
+			"filter_iter": 4	
+		}
+	},
+	
+	"sources": {
+		"stereocam": {
+			"uri": "device:video",
+			"feed": {
+				"flip": false,
+				"nostereo": false,
+				"scale": 1.0,
+				"flip_vert": false,
+				"max_fps": 500,
+				"width": 1280,
+				"height": 720,
+				"crosshair": false
+			},
+			"use_optflow" : true,
+			"calibration": { "$ref": "#calibrations/default" },
+			"disparity": { "$ref": "#disparity/libsgm" }
+		},
+		"stereovid": {},
+		"localhost": {}
+		
+	},
+	
+	"vision_default": {
+		"fps": 20,
+		"source": { "$ref": "#sources/stereocam" },
+		"middlebury": { "$ref": "#middlebury/none" },
+		"display": { "$ref": "#displays/none" },
+		"net": { "$ref": "#net/default_vision" },
+		"stream": { }
+	},
+	
+	// Listen to localhost
+	"net": {
+		"default_vision": {
+			"listen": "tcp://*:9001",
+			"peers": [],
+			"tcp_send_buffer": 100000 //204800
+		},
+		"default_reconstruct": {
+			"listen": "tcp://*:9002",
+			"peers": []
+		}
+	},
+	
+	"displays": {
+		"none": {
+			"flip_vert": false,
+			"disparity": false,
+			"points": false,
+			"depth": false,
+			"left": false,
+			"right": false
+		},
+		"left": {
+			"flip_vert": false,
+			"disparity": false,
+			"points": false,
+			"depth": false,
+			"left": true,
+			"right": false
+		}
+	},
+	
+	"middlebury": {
+		"none": {
+			"dataset": "",
+			"threshold": 10.0,
+			"scale": 0.25
+		}
+	}
+}
