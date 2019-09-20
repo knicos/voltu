@@ -26,6 +26,7 @@ namespace rgbd {
 static inline bool isValidDepth(float d) { return (d > 0.01f) && (d < 39.99f); }
 
 class SnapshotReader;
+class VirtualSource;
 
 /**
  * RGBD Generic data source configurable entity. This class hides the
@@ -40,6 +41,7 @@ class Source : public ftl::Configurable {
 	public:
 	template <typename T, typename... ARGS>
 	friend T *ftl::config::create(ftl::config::json_t &, ARGS ...);
+	friend class VirtualSource;
 
 	//template <typename T, typename... ARGS>
 	//friend T *ftl::config::create(ftl::Configurable *, const std::string &, ARGS ...);
@@ -51,11 +53,11 @@ class Source : public ftl::Configurable {
 	Source(const Source&)=delete;
 	Source &operator=(const Source&) =delete;
 
-	private:
+	protected:
 	explicit Source(ftl::config::json_t &cfg);
 	Source(ftl::config::json_t &cfg, ftl::rgbd::SnapshotReader *);
 	Source(ftl::config::json_t &cfg, ftl::net::Universe *net);
-	~Source();
+	virtual ~Source();
 
 	public:
 	/**
@@ -120,17 +122,6 @@ class Source : public ftl::Configurable {
 	 * Get a copy of the depth frame only.
 	 */
 	void getDepth(cv::Mat &d);
-
-	/**
-	 * Write frames into source buffers from an external renderer. Virtual
-	 * sources do not have an internal generator of frames but instead have
-	 * their data provided from an external rendering class. This function only
-	 * works when there is no internal generator.
-	 */
-	void writeFrames(int64_t ts, const cv::Mat &rgb, const cv::Mat &depth);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream);
 
 	int64_t timestamp() const { return timestamp_; }
 
@@ -214,7 +205,7 @@ class Source : public ftl::Configurable {
 	void removeCallback() { callback_ = nullptr; }
 
 
-	private:
+	protected:
 	detail::Source *impl_;
 	cv::Mat rgb_;
 	cv::Mat depth_;

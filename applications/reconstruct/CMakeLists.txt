@@ -4,24 +4,19 @@
 
 set(REPSRC
 	src/main.cpp
-	src/voxel_scene.cpp
-	src/scene_rep_hash_sdf.cu
-	src/compactors.cu
-	src/garbage.cu
-	src/integrators.cu
+	#src/voxel_scene.cpp
 	#src/ray_cast_sdf.cu
-	src/voxel_render.cu
 	src/camera_util.cu
-	src/voxel_hash.cu
-	src/voxel_hash.cpp
 	#src/ray_cast_sdf.cpp
 	src/registration.cpp
 	#src/virtual_source.cpp
-	src/splat_render.cpp
-	src/dibr.cu
-	src/mls.cu
-	src/depth_camera.cu
-	src/depth_camera.cpp
+	#src/splat_render.cpp
+	#src/dibr.cu
+	#src/mls.cu
+	#src/depth_camera.cu
+	#src/depth_camera.cpp
+	src/ilw.cpp
+	src/ilw.cu
 )
 
 add_executable(ftl-reconstruct ${REPSRC})
@@ -38,6 +33,6 @@ set_property(TARGET ftl-reconstruct PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-reconstruct ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet)
+target_link_libraries(ftl-reconstruct ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet ftlrender)
 
 

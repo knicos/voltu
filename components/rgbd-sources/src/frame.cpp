@@ -13,15 +13,15 @@ void Frame::reset() {
 	gpu_.clear();
 }
 
-void Frame::download(Channel c, cv::cuda::Stream& stream) {
+void Frame::download(Channel c, cv::cuda::Stream stream) {
 	download(Channels(c), stream);
 }
 
-void Frame::upload(Channel c, cv::cuda::Stream& stream) {
+void Frame::upload(Channel c, cv::cuda::Stream stream) {
 	upload(Channels(c), stream);
 }
 
-void Frame::download(Channels c, cv::cuda::Stream& stream) {
+void Frame::download(Channels c, cv::cuda::Stream stream) {
 	for (size_t i=0u; i<Channels::kMax; ++i) {
 		if (c.has(i) && channels_.has(i) && gpu_.has(i)) {
 			data_[i].gpu.download(data_[i].host, stream);
@@ -30,11 +30,46 @@ void Frame::download(Channels c, cv::cuda::Stream& stream) {
 	}
 }
 
-void Frame::upload(Channels c, cv::cuda::Stream& stream) {
+void Frame::upload(Channels c, cv::cuda::Stream stream) {
 	for (size_t i=0u; i<Channels::kMax; ++i) {
 		if (c.has(i) && channels_.has(i) && !gpu_.has(i)) {
 			data_[i].gpu.upload(data_[i].host, stream);
 			gpu_ += i;
+		}
+	}
+}
+
+bool Frame::empty(ftl::rgbd::Channels channels) {
+	for (auto c : channels) {
+		if (empty(c)) return true;
+	}
+	return false;
+}
+
+void Frame::swapTo(ftl::rgbd::Channels channels, Frame &f) {
+	f.reset();
+
+	// For all channels in this frame object
+	for (auto c : channels_) {
+		// Should we swap this channel?
+		if (channels.has(c)) {
+			// Does 'f' have this channel?
+			//if (!f.hasChannel(c)) {
+				// No, so create it first
+				// FIXME: Allocate the memory as well?
+				if (isCPU(c)) f.create<cv::Mat>(c);
+				else f.create<cv::cuda::GpuMat>(c);
+			//}
+
+			auto &m1 = _get(c);
+			auto &m2 = f._get(c);
+
+			cv::swap(m1.host, m2.host);
+			cv::cuda::swap(m1.gpu, m2.gpu);
+
+			auto temptex = std::move(m2.tex);
+			m2.tex = std::move(m1.tex);
+			m1.tex = std::move(temptex);
 		}
 	}
 }

@@ -1,6 +1,7 @@
 #ifndef _FTL_RGBD_FRAMESET_HPP_
 #define _FTL_RGBD_FRAMESET_HPP_
 
+#include <ftl/threads.hpp>
 #include <ftl/rgbd/frame.hpp>
 
 #include <opencv2/opencv.hpp>
@@ -24,6 +25,10 @@ struct FrameSet {
 	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
 	bool stale;						// True if buffers have been invalidated
 	SHARED_MUTEX mtx;
+
+	void upload(ftl::rgbd::Channels, cudaStream_t stream=0);
+	void download(ftl::rgbd::Channels, cudaStream_t stream=0);
+	void swapTo(ftl::rgbd::FrameSet &);
 };
 
 }

@@ -47,7 +47,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	hq_devices_ = (value("disable_hardware_encode", false)) ? device_t::Software : device_t::Any;
 
 	//group_.setFPS(value("fps", 20));
-	group_.setLatency(10);
+	group_.setLatency(4);
 
 	compress_level_ = value("compression", 1);
 	
