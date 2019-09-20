@@ -496,7 +496,6 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	if (save_input) {
 		cv::FileStorage fs(path + filename, cv::FileStorage::WRITE);
-		fs << "resolution" << params.size;
 		fs << "uri" << uri;
 		calib.saveInput(fs);
 		fs.release();
@@ -560,7 +559,8 @@ int main(int argc, char **argv) {
 	params.optimize_intrinsic = optimize_intrinsic;
 	params.output_path = output_directory;
 	params.registration_file = registration_file;
-
+	params.reference_camera = ref_camera;
+	
 	LOG(INFO)	<< "\n"
 				<< "\nIMPORTANT: Remeber to set \"use_intrinsics\" to false for nodes!"
 				<< "\n"
