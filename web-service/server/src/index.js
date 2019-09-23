@@ -5,6 +5,7 @@ const Peer = require('./peer.js');
 const passport = require('passport');
 const passportSetup = require('./passport/passport');
 const jwt = require('jsonwebtoken');
+const keys = require('./passport/keys') 
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
@@ -165,7 +166,7 @@ app.get('/google', passport.authenticate('google', {
 */
 app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
 	console.log(req.user)
-	const token = jwt.sign(req.user.id, 'Somesecretkey14madlh£$');
+	const token = jwt.sign(req.user.id, keys.jwt.secret);
 	const htmlWithEmbeddedJWT = `
     <html>
         <body><h3> You will be automatically redirected to next page.<h3><body>
