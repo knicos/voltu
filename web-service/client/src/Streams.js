@@ -1,4 +1,5 @@
 import React from 'react'
+import Stream from './Stream'
 
 /* This file will contain list of streams.
 The user is able to select which stream he/she will WebAuthentication.
@@ -11,6 +12,7 @@ const Streams = ({clearCookies}) => {
             <h1>Streams component works!!</h1>
             <h2>Namibia here we come!</h2>
             <button onClick={clearCookies}>Logout</button>
+            <Stream />
         </div>
     )
 }

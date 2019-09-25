@@ -7,12 +7,18 @@
  const testData = {
      thumbnail: [
          {
-            name: 'source2',
-            frame: 'https://images.unsplash.com/photo-1564969982505-4c27fbfe7a1c?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=1350&q=80'
+            name: 'source1',
+            video: 'https://s3.amazonaws.com/codecademy-content/courses/React/react_video-eek.mp4'
          },
          {
             name: 'source2',
-            frame: ''
+            video: 'https://s3.amazonaws.com/codecademy-content/courses/React/react_video-fast.mp4'
          },
+         {
+            name: 'source3',
+            video: 'https://s3.amazonaws.com/codecademy-content/courses/React/react_video-slow.mp4'
+         },
+            name: 'source4',
+            video: 'https://s3.amazonaws.com/codecademy-content/courses/React/react_video-cute.mp4'
      ]
  }
