@@ -154,7 +154,7 @@ app.get('/stream/depth', (req, res) => {
 //app.get('/stream', (req, res))
 
 /** 
- * Route for Google authentication API
+ * Route for Google authentication API page
 */
 app.get('/google', passport.authenticate('google', {
 	scope: ['profile']
@@ -162,7 +162,7 @@ app.get('/google', passport.authenticate('google', {
 
 /** 
  * Google authentication API callback route. 
- * Sets the JWT to clients browser and redirects the user back to React app.
+ * Sets the JWT to clients browser and redirects the user back to front page (now has thumbnails).
 */
 app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
 	console.log(req.user)
@@ -201,6 +201,10 @@ function broadcastExcept(exc, name, ...args) {
 	}
 }
 
+/**
+ * Need to think about how to use these.
+ * Will it be in the '/' route or in the '/streams/<stream>' route
+ */
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
 
