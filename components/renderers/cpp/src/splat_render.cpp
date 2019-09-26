@@ -20,7 +20,7 @@ Splatter::~Splatter() {
 }
 
 void Splatter::renderChannel(
-					SplatParams &params, ftl::rgbd::Frame &out,
+					ftl::render::SplatParams &params, ftl::rgbd::Frame &out,
 					const Channel &channel, cudaStream_t stream)
 {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
