@@ -28,6 +28,8 @@ void Splatter::renderChannel(
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	temp_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
 	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
+
+	bool is_float = ftl::rgbd::isFloatChannel(channel);
 	
 	// Render each camera into virtual view
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
@@ -75,23 +77,53 @@ void Splatter::renderChannel(
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
 		}
 	
-		ftl::cuda::dibr_attribute(
-			f.createTexture<uchar4>(Channel::Colour),
-			f.createTexture<float4>(Channel::Points),
-			temp_.getTexture<int>(Channel::Depth),
-			temp_.getTexture<float4>(Channel::Colour),
-			temp_.getTexture<float>(Channel::Contribution),
-			params, stream
-		);
+		if (is_float) {
+			ftl::cuda::dibr_attribute(
+				f.createTexture<float>(channel),
+				f.createTexture<float4>(Channel::Points),
+				temp_.getTexture<int>(Channel::Depth),
+				temp_.getTexture<float4>(Channel::Colour),
+				temp_.getTexture<float>(Channel::Contribution),
+				params, stream
+			);
+		} else if (channel == Channel::Colour || channel == Channel::Right) {
+			ftl::cuda::dibr_attribute(
+				f.createTexture<uchar4>(Channel::Colour),
+				f.createTexture<float4>(Channel::Points),
+				temp_.getTexture<int>(Channel::Depth),
+				temp_.getTexture<float4>(Channel::Colour),
+				temp_.getTexture<float>(Channel::Contribution),
+				params, stream
+			);
+		} else {
+			ftl::cuda::dibr_attribute(
+				f.createTexture<uchar4>(channel),
+				f.createTexture<float4>(Channel::Points),
+				temp_.getTexture<int>(Channel::Depth),
+				temp_.getTexture<float4>(Channel::Colour),
+				temp_.getTexture<float>(Channel::Contribution),
+				params, stream
+			);
+		}
 	}
 
-	// Normalise attribute contributions
-	ftl::cuda::dibr_normalise(
-		temp_.createTexture<float4>(Channel::Colour),
-		out.createTexture<uchar4>(channel),
-		temp_.createTexture<float>(Channel::Contribution),
-		stream
-	);
+	if (is_float) {
+		// Normalise attribute contributions
+		ftl::cuda::dibr_normalise(
+			temp_.createTexture<float4>(Channel::Colour),
+			out.createTexture<float>(channel),
+			temp_.createTexture<float>(Channel::Contribution),
+			stream
+		);
+	} else {
+		// Normalise attribute contributions
+		ftl::cuda::dibr_normalise(
+			temp_.createTexture<float4>(Channel::Colour),
+			out.createTexture<uchar4>(channel),
+			temp_.createTexture<float>(Channel::Contribution),
+			stream
+		);
+	}
 }
 
 bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream) {
@@ -165,9 +197,9 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	{
 		temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 	}
-	else if (chan == Channel::Energy)
+	else if (chan == Channel::Contribution)
 	{
-		cv::cuda::swap(temp_.get<GpuMat>(Channel::Energy), out.create<GpuMat>(Channel::Energy));
+		cv::cuda::swap(temp_.get<GpuMat>(Channel::Contribution), out.create<GpuMat>(Channel::Contribution));
 	}
 	else if (chan == Channel::Right)
 	{
