@@ -36,13 +36,19 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 				LOG(ERROR) << "Unknown exception in render callback";
 			}
 
-			if (frame.hasChannel(Channel::Colour) && frame.hasChannel(Channel::Depth)) {
-				frame.download(Channel::Colour + Channel::Depth);
-				cv::swap(frame.get<cv::Mat>(Channel::Colour), rgb_);
-				cv::swap(frame.get<cv::Mat>(Channel::Depth), depth_);
-				LOG(INFO) << "Written: " << rgb_.cols;
+			if (frame.hasChannel(Channel::Colour)) {
+				frame.download(Channel::Colour);
+				cv::swap(frame.get<cv::Mat>(Channel::Colour), rgb_);	
 			} else {
-				LOG(ERROR) << "Missing colour or depth frame in rendering";
+				LOG(ERROR) << "Channel 1 frame in rendering";
+			}
+			
+			if ((host_->getChannel() != Channel::None) &&
+					frame.hasChannel(host_->getChannel())) {
+				frame.download(host_->getChannel());
+				cv::swap(frame.get<cv::Mat>(host_->getChannel()), depth_);
+			} else {
+				LOG(ERROR) << "Channel 2 frame in rendering";
 			}
 
 			auto cb = host_->callback();
