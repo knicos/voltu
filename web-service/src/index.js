@@ -94,12 +94,16 @@ RGBDStream.prototype.subscribe = function() {
 	this.rxcount = 0;
 	this.rxmax = 10;
 	//console.log("Subscribe to ", this.uri);
-	this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
+	// TODO: Don't hard code 9 here, instead use 9 for thumbnails and 0 for
+	// the video...
+	this.peer.send("get_stream", this.uri, 10, 9, [Peer.uuid], this.uri);
 }
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 	if (spacket[1] & 0x1) this.depth = packet[4];
 	else this.rgb = packet[4];
+
+	console.log("Frame = ", packet[0], packet[1]);
 
 	for (let i=0; i < this.clients.length; i++) {
 		this.clients[i].push(this.uri, latency, spacket, packet);
