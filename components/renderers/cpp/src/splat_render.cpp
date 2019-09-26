@@ -23,6 +23,12 @@ void Splatter::renderChannel(
 					SplatParams &params, ftl::rgbd::Frame &out,
 					const Channel &channel, cudaStream_t stream)
 {
+	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+	temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+	temp_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
+	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
+	
 	// Render each camera into virtual view
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
@@ -144,10 +150,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	params.camera = camera;
 
 	// Clear all channels to 0 or max depth
-	temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-	temp_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
-	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
+
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
 	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(76,76,76), cvstream);
 
@@ -156,19 +159,28 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	temp_.createTexture<int>(Channel::Depth);
 
 	renderChannel(params, out, Channel::Colour, stream);
-
+	
 	Channel chan = src->getChannel();
-	if (chan == Channel::Depth) {
+	if (chan == Channel::Depth)
+	{
 		temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
-	} else if (chan == Channel::Energy) {
+	}
+	else if (chan == Channel::Energy)
+	{
 		cv::cuda::swap(temp_.get<GpuMat>(Channel::Energy), out.create<GpuMat>(Channel::Energy));
-	} else if (chan == Channel::Right) {
+	}
+	else if (chan == Channel::Right)
+	{
 		Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
 		Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
 		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
 		
+		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
+		out.get<GpuMat>(Channel::Right).setTo(cv::Scalar(76,76,76), cvstream);
 		renderChannel(params, out, Channel::Right, stream);
+		cv::imshow("RIGHT", out.get<cv::Mat>(Channel::Right));
+		cv::waitKey(1);
 	}
 
 	return true;
