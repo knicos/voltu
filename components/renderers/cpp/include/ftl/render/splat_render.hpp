@@ -22,8 +22,10 @@ class Splatter : public ftl::render::Renderer {
 	~Splatter();
 
 	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream=0) override;
-
 	//void setOutputDevice(int);
+
+	protected:
+	void renderChannel(ftl::render::SplatParams &params, ftl::rgbd::Frame &out, const ftl::rgbd::Channel &channel, cudaStream_t stream);
 
 	private:
 	int device_;

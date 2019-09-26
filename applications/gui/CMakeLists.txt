@@ -27,6 +27,6 @@ target_include_directories(ftl-gui PUBLIC
 #endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-gui ftlcommon ftlctrl ftlrgbd Threads::Threads ${OpenCV_LIBS} glog::glog ftlnet nanogui GL)
+target_link_libraries(ftl-gui ftlcommon ftlctrl ftlrgbd Threads::Threads ${OpenCV_LIBS} ${OPENVR_LIBRARIES} glog::glog ftlnet nanogui GL)
 
 

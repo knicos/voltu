@@ -11,6 +11,10 @@
 #include "src_window.hpp"
 #include "gltexture.hpp"
 
+#ifdef HAVE_OPENVR
+#include <openvr/openvr.h>
+#endif
+
 class StatisticsImageNSamples;
 
 namespace ftl {
@@ -38,6 +42,12 @@ class Screen : public nanogui::Screen {
 
 	void setActiveCamera(ftl::gui::Camera*);
 	ftl::gui::Camera *activeCamera() { return camera_; }
+
+	#ifdef HAVE_OPENVR
+	bool hasVR() const { return HMD_ != nullptr; }
+	#else
+	bool hasVR() const { return false; }
+	#endif
 
 	nanogui::Theme *windowtheme;
 	nanogui::Theme *specialtheme;
@@ -68,6 +78,13 @@ class Screen : public nanogui::Screen {
 	ftl::Configurable *root_;
 	std::string status_;
 	ftl::gui::Camera *camera_;
+
+	GLuint leftEye_;
+	GLuint rightEye_;
+
+	#ifdef HAVE_OPENVR
+	vr::IVRSystem *HMD_;
+	#endif
 };
 
 }

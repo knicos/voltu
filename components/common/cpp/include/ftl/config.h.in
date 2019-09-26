@@ -23,6 +23,7 @@
 #cmakedefine HAVE_REALSENSE
 #cmakedefine HAVE_NANOGUI
 #cmakedefine HAVE_LIBARCHIVE
+#cmakedefine HAVE_OPENVR
 #cmakedefine HAVE_NVPIPE
 
 extern const char *FTL_BRANCH;

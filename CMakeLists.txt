@@ -40,6 +40,19 @@ if (LibArchive_FOUND)
 	set(HAVE_LIBARCHIVE true)
 endif()
 
+## OpenVR API path
+find_library(OPENVR_LIBRARIES
+  NAMES
+    openvr_api
+)
+set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
+
+if (OPENVR_LIBRARIES)
+	message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
+	set(HAVE_OPENVR true)
+endif()
+
+
 if (WITH_FIXSTARS)
 	find_package( LibSGM )
 	if (LibSGM_FOUND)
