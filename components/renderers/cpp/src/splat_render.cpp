@@ -179,8 +179,6 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
 		out.get<GpuMat>(Channel::Right).setTo(cv::Scalar(76,76,76), cvstream);
 		renderChannel(params, out, Channel::Right, stream);
-		cv::imshow("RIGHT", out.get<cv::Mat>(Channel::Right));
-		cv::waitKey(1);
 	}
 
 	return true;
