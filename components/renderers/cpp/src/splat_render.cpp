@@ -19,6 +19,75 @@ Splatter::~Splatter() {
 
 }
 
+void Splatter::renderChannel(
+					SplatParams &params, ftl::rgbd::Frame &out,
+					const Channel &channel, cudaStream_t stream)
+{
+	// Render each camera into virtual view
+	for (size_t i=0; i < scene_->frames.size(); ++i) {
+		auto &f = scene_->frames[i];
+		auto *s = scene_->sources[i];
+
+		if (f.empty(Channel::Depth + Channel::Colour)) {
+			LOG(ERROR) << "Missing required channel";
+			continue;
+		}
+
+		// Needs to create points channel first?
+		if (!f.hasChannel(Channel::Points)) {
+			//LOG(INFO) << "Creating points... " << s->parameters().width;
+			
+			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
+			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
+			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
+
+			//LOG(INFO) << "POINTS Added";
+		}
+
+		ftl::cuda::dibr_merge(
+			f.createTexture<float4>(Channel::Points),
+			temp_.getTexture<int>(Channel::Depth),
+			params, stream
+		);
+
+		//LOG(INFO) << "DIBR DONE";
+	}
+
+	// TODO: Add the depth splatting step..
+
+	temp_.createTexture<float4>(Channel::Colour);
+	temp_.createTexture<float>(Channel::Contribution);
+
+	// Accumulate attribute contributions for each pixel
+	for (auto &f : scene_->frames) {
+		// Convert colour from BGR to BGRA if needed
+		if (f.get<GpuMat>(Channel::Colour).type() == CV_8UC3) {
+			// Convert to 4 channel colour
+			auto &col = f.get<GpuMat>(Channel::Colour);
+			GpuMat tmp(col.size(), CV_8UC4);
+			cv::cuda::swap(col, tmp);
+			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
+		}
+	
+		ftl::cuda::dibr_attribute(
+			f.createTexture<uchar4>(Channel::Colour),
+			f.createTexture<float4>(Channel::Points),
+			temp_.getTexture<int>(Channel::Depth),
+			temp_.getTexture<float4>(Channel::Colour),
+			temp_.getTexture<float>(Channel::Contribution),
+			params, stream
+		);
+	}
+
+	// Normalise attribute contributions
+	ftl::cuda::dibr_normalise(
+		temp_.createTexture<float4>(Channel::Colour),
+		out.createTexture<uchar4>(channel),
+		temp_.createTexture<float>(Channel::Contribution),
+		stream
+	);
+}
+
 bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	SHARED_LOCK(scene_->mtx, lk);
 	if (!src->isReady()) return false;
@@ -86,69 +155,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 
 	temp_.createTexture<int>(Channel::Depth);
 
-	// Render each camera into virtual view
-	for (size_t i=0; i<scene_->frames.size(); ++i) {
-		auto &f = scene_->frames[i];
-		auto *s = scene_->sources[i];
-
-		if (f.empty(Channel::Depth + Channel::Colour)) {
-			LOG(ERROR) << "Missing required channel";
-			continue;
-		}
-
-		// Needs to create points channel first?
-		if (!f.hasChannel(Channel::Points)) {
-			//LOG(INFO) << "Creating points... " << s->parameters().width;
-			
-			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
-			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
-			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
-
-			//LOG(INFO) << "POINTS Added";
-		}
-
-		ftl::cuda::dibr_merge(
-			f.createTexture<float4>(Channel::Points),
-			temp_.getTexture<int>(Channel::Depth),
-			params, stream
-		);
-
-		//LOG(INFO) << "DIBR DONE";
-	}
-
-	// TODO: Add the depth splatting step..
-
-	temp_.createTexture<float4>(Channel::Colour);
-	temp_.createTexture<float>(Channel::Contribution);
-
-	// Accumulate attribute contributions for each pixel
-	for (auto &f : scene_->frames) {
-		// Convert colour from BGR to BGRA if needed
-		if (f.get<GpuMat>(Channel::Colour).type() == CV_8UC3) {
-			// Convert to 4 channel colour
-			auto &col = f.get<GpuMat>(Channel::Colour);
-			GpuMat tmp(col.size(), CV_8UC4);
-			cv::cuda::swap(col, tmp);
-			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
-		}
-	
-		ftl::cuda::dibr_attribute(
-			f.createTexture<uchar4>(Channel::Colour),
-			f.createTexture<float4>(Channel::Points),
-			temp_.getTexture<int>(Channel::Depth),
-			temp_.getTexture<float4>(Channel::Colour),
-			temp_.getTexture<float>(Channel::Contribution),
-			params, stream
-		);
-	}
-
-	// Normalise attribute contributions
-	ftl::cuda::dibr_normalise(
-		temp_.createTexture<float4>(Channel::Colour),
-		out.createTexture<uchar4>(Channel::Colour),
-		temp_.createTexture<float>(Channel::Contribution),
-		stream
-	);
+	renderChannel(params, out, Channel::Colour, stream);
 
 	Channel chan = src->getChannel();
 	if (chan == Channel::Depth) {
@@ -160,8 +167,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
 		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
-
-		// TODO: Repeat rendering process...
+		
+		renderChannel(params, out, Channel::Right, stream);
 	}
 
 	return true;
