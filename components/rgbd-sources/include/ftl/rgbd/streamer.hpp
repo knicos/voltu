@@ -117,6 +117,8 @@ class Streamer : public ftl::Configurable {
 
 	void wait();
 
+	void setLatency(int l) { group_.setLatency(l); }
+
 	/**
 	 * Alternative to calling run(), it will operate a single frame capture,
 	 * compress and stream cycle.

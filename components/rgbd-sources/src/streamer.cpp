@@ -17,6 +17,7 @@ using ftl::rgbd::detail::StreamClient;
 using ftl::rgbd::detail::ABRController;
 using ftl::codecs::definition_t;
 using ftl::codecs::device_t;
+using ftl::rgbd::Channel;
 using ftl::net::Universe;
 using std::string;
 using std::list;
@@ -46,11 +47,11 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	hq_devices_ = (value("disable_hardware_encode", false)) ? device_t::Software : device_t::Any;
 
 	//group_.setFPS(value("fps", 20));
-	group_.setLatency(10);
+	group_.setLatency(4);
 
 	compress_level_ = value("compression", 1);
 	
-	net->bind("find_stream", [this](const std::string &uri) -> optional<UUID> {
+	net->bind("find_stream", [this](const std::string &uri) -> optional<ftl::UUID> {
 		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
@@ -91,7 +92,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	});
 
 	// Allow remote users to access camera calibration matrix
-	net->bind("source_details", [this](const std::string &uri, ftl::rgbd::channel_t chan) -> tuple<unsigned int,vector<unsigned char>> {
+	net->bind("source_details", [this](const std::string &uri, ftl::rgbd::Channel chan) -> tuple<unsigned int,vector<unsigned char>> {
 		vector<unsigned char> buf;
 		SHARED_LOCK(mutex_,slk);
 
@@ -110,11 +111,11 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		_addClient(source, N, rate, peer, dest);
 	});
 
-	net->bind("set_channel", [this](const string &uri, unsigned int chan) {
+	net->bind("set_channel", [this](const string &uri, Channel chan) {
 		SHARED_LOCK(mutex_,slk);
 
 		if (sources_.find(uri) != sources_.end()) {
-			sources_[uri]->src->setChannel((ftl::rgbd::channel_t)chan);
+			sources_[uri]->src->setChannel(chan);
 		}
 	});
 
@@ -365,9 +366,10 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 		if (!src) continue;
 		if (!fs.sources[j]->isReady()) continue;
 		if (src->clientCount == 0) continue;
-		if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
+		//if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
+		if (!fs.frames[j].hasChannel(Channel::Colour) || !fs.frames[j].hasChannel(fs.sources[j]->getChannel())) continue;
 
-		bool hasChan2 = fs.sources[j]->getChannel() != ftl::rgbd::kChanNone;
+		bool hasChan2 = fs.sources[j]->getChannel() != Channel::None;
 
 		totalclients += src->clientCount;
 
@@ -387,14 +389,14 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Receiver only waits for channel 1 by default
 				// TODO: Each encode could be done in own thread
 				if (hasChan2) {
-					enc2->encode(fs.channel2[j], src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, 1, hasChan2, true);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
-				enc1->encode(fs.channel1[j], src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, 0, hasChan2, true);
 				});
 			}
@@ -415,14 +417,14 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Important to send channel 2 first if needed...
 				// Receiver only waits for channel 1 by default
 				if (hasChan2) {
-					enc2->encode(fs.channel2[j], src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, 1, hasChan2, false);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
-				enc1->encode(fs.channel1[j], src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, 0, hasChan2, false);
 				});
 			}
@@ -494,7 +496,7 @@ void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt
 		frame_no_,
 		static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
 	};
-
+	LOG(INFO) << "codec:" << (int) pkt.codec;
 	// Lock to prevent clients being added / removed
 	//SHARED_LOCK(src->mutex,lk);
 	auto c = src->clients.begin();

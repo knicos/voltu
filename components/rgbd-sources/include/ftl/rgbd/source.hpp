@@ -1,10 +1,11 @@
 #ifndef _FTL_RGBD_SOURCE_HPP_
 #define _FTL_RGBD_SOURCE_HPP_
 
+#include <ftl/cuda_util.hpp>
 #include <ftl/configuration.hpp>
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/threads.hpp>
-//#include <ftl/net/universe.hpp>
+#include <ftl/net/universe.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/rgbd/detail/source.hpp>
 #include <opencv2/opencv.hpp>
@@ -25,6 +26,7 @@ namespace rgbd {
 static inline bool isValidDepth(float d) { return (d > 0.01f) && (d < 39.99f); }
 
 class SnapshotReader;
+class VirtualSource;
 
 /**
  * RGBD Generic data source configurable entity. This class hides the
@@ -39,6 +41,7 @@ class Source : public ftl::Configurable {
 	public:
 	template <typename T, typename... ARGS>
 	friend T *ftl::config::create(ftl::config::json_t &, ARGS ...);
+	friend class VirtualSource;
 
 	//template <typename T, typename... ARGS>
 	//friend T *ftl::config::create(ftl::Configurable *, const std::string &, ARGS ...);
@@ -50,11 +53,11 @@ class Source : public ftl::Configurable {
 	Source(const Source&)=delete;
 	Source &operator=(const Source&) =delete;
 
-	private:
+	protected:
 	explicit Source(ftl::config::json_t &cfg);
 	Source(ftl::config::json_t &cfg, ftl::rgbd::SnapshotReader *);
 	Source(ftl::config::json_t &cfg, ftl::net::Universe *net);
-	~Source();
+	virtual ~Source();
 
 	public:
 	/**
@@ -65,9 +68,9 @@ class Source : public ftl::Configurable {
 	/**
 	 * Change the second channel source.
 	 */
-	bool setChannel(channel_t c);
+	bool setChannel(ftl::rgbd::Channel c);
 
-	channel_t getChannel() const { return channel_; }
+	ftl::rgbd::Channel getChannel() const { return channel_; }
 
 	/**
 	 * Perform the hardware or virtual frame grab operation. This should be
@@ -120,17 +123,6 @@ class Source : public ftl::Configurable {
 	 */
 	void getDepth(cv::Mat &d);
 
-	/**
-	 * Write frames into source buffers from an external renderer. Virtual
-	 * sources do not have an internal generator of frames but instead have
-	 * their data provided from an external rendering class. This function only
-	 * works when there is no internal generator.
-	 */
-	void writeFrames(int64_t ts, const cv::Mat &rgb, const cv::Mat &depth);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uint> &depth, cudaStream_t stream);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<float> &depth, cudaStream_t stream);
-	void writeFrames(int64_t ts, const ftl::cuda::TextureObject<uchar4> &rgb, const ftl::cuda::TextureObject<uchar4> &rgb2, cudaStream_t stream);
-
 	int64_t timestamp() const { return timestamp_; }
 
 	/**
@@ -151,7 +143,7 @@ class Source : public ftl::Configurable {
 		else return params_;
 	}
 
-	const Camera parameters(channel_t) const;
+	const Camera parameters(ftl::rgbd::Channel) const;
 
 	cv::Mat cameraMatrix() const;
 
@@ -213,7 +205,7 @@ class Source : public ftl::Configurable {
 	void removeCallback() { callback_ = nullptr; }
 
 
-	private:
+	protected:
 	detail::Source *impl_;
 	cv::Mat rgb_;
 	cv::Mat depth_;
@@ -224,7 +216,7 @@ class Source : public ftl::Configurable {
 	SHARED_MUTEX mutex_;
 	bool paused_;
 	bool bullet_;
-	channel_t channel_;
+	ftl::rgbd::Channel channel_;
 	cudaStream_t stream_;
 	int64_t timestamp_;
 	std::function<void(int64_t, cv::Mat &, cv::Mat &)> callback_;

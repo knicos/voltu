@@ -57,6 +57,9 @@ bool RealsenseSource::compute(int n, int b) {
     cv::Mat tmp(cv::Size((int)w, (int)h), CV_16UC1, (void*)depth.get_data(), depth.get_stride_in_bytes());
     tmp.convertTo(depth_, CV_32FC1, scale_);
     rgb_ = cv::Mat(cv::Size(w, h), CV_8UC4, (void*)rscolour_.get_data(), cv::Mat::AUTO_STEP);
+
+	auto cb = host_->callback();
+	if (cb) cb(timestamp_, rgb_, depth_);
     return true;
 }
 

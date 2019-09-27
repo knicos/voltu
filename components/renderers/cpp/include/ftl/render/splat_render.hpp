@@ -1,14 +1,9 @@
 #ifndef _FTL_RECONSTRUCTION_SPLAT_HPP_
 #define _FTL_RECONSTRUCTION_SPLAT_HPP_
 
-#include <ftl/configurable.hpp>
-#include <ftl/rgbd/source.hpp>
-#include <ftl/depth_camera.hpp>
-#include <ftl/voxel_scene.hpp>
-//#include <ftl/ray_cast_util.hpp>
-#include <ftl/cuda_common.hpp>
-
-#include "splat_params.hpp"
+#include <ftl/render/renderer.hpp>
+#include <ftl/rgbd/frameset.hpp>
+#include <ftl/render/splat_params.hpp>
 
 namespace ftl {
 namespace render {
@@ -21,26 +16,30 @@ namespace render {
  * on a separate machine or at a later time, the advantage being to save local
  * processing resources and that the first pass result may compress better.
  */
-class Splatter {
+class Splatter : public ftl::render::Renderer {
 	public:
-	explicit Splatter(ftl::voxhash::SceneRep *scene);
+	explicit Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs);
 	~Splatter();
 
-	void render(int64_t ts, ftl::rgbd::Source *src, cudaStream_t stream=0);
+	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream=0) override;
+	//void setOutputDevice(int);
 
-	void setOutputDevice(int);
+	protected:
+	void renderChannel(ftl::render::SplatParams &params, ftl::rgbd::Frame &out, const ftl::rgbd::Channel &channel, cudaStream_t stream);
 
 	private:
 	int device_;
-	ftl::cuda::TextureObject<int> depth1_;
+	/*ftl::cuda::TextureObject<int> depth1_;
 	ftl::cuda::TextureObject<int> depth3_;
 	ftl::cuda::TextureObject<uchar4> colour1_;
 	ftl::cuda::TextureObject<float4> colour_tmp_;
 	ftl::cuda::TextureObject<float> depth2_;
 	ftl::cuda::TextureObject<uchar4> colour2_;
-	ftl::cuda::TextureObject<float4> normal1_;
-	SplatParams params_;
-	ftl::voxhash::SceneRep *scene_;
+	ftl::cuda::TextureObject<float4> normal1_;*/
+	//SplatParams params_;
+
+	ftl::rgbd::Frame temp_;
+	ftl::rgbd::FrameSet *scene_;
 };
 
 }

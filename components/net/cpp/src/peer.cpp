@@ -424,50 +424,44 @@ void Peer::data() {
 		//LOG(INFO) << "Pool size: " << ftl::pool.q_size();
 
 		int rc=0;
-		int c=0;
 
-		//do {
-			recv_buf_.reserve_buffer(kMaxMessage);
+		recv_buf_.reserve_buffer(kMaxMessage);
 
-			if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
-				LOG(WARNING) << "Net buffer at capacity";
-				return;
-			}
+		if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
+			LOG(WARNING) << "Net buffer at capacity";
+			return;
+		}
 
-			int cap = recv_buf_.buffer_capacity();
-			auto buf = recv_buf_.buffer();
-			lk.unlock();
+		int cap = recv_buf_.buffer_capacity();
+		auto buf = recv_buf_.buffer();
+		lk.unlock();
 
-			/*#ifndef WIN32
-			int n;
-			unsigned int m = sizeof(n);
-			getsockopt(sock_,SOL_SOCKET,SO_RCVBUF,(void *)&n, &m);
+		/*#ifndef WIN32
+		int n;
+		unsigned int m = sizeof(n);
+		getsockopt(sock_,SOL_SOCKET,SO_RCVBUF,(void *)&n, &m);
 
-			int pending;
-			ioctl(sock_, SIOCINQ, &pending);
-			if (pending > 100000) LOG(INFO) << "Buffer usage: " << float(pending) / float(n);
-			#endif*/
-			rc = ftl::net::internal::recv(sock_, buf, cap, 0);
+		int pending;
+		ioctl(sock_, SIOCINQ, &pending);
+		if (pending > 100000) LOG(INFO) << "Buffer usage: " << float(pending) / float(n);
+		#endif*/
+		rc = ftl::net::internal::recv(sock_, buf, cap, 0);
 
-			if (rc >= cap-1) {
-				LOG(WARNING) << "More than buffers worth of data received"; 
-			}
-			if (cap < (kMaxMessage / 10)) LOG(WARNING) << "NO BUFFER";
+		if (rc >= cap-1) {
+			LOG(WARNING) << "More than buffers worth of data received"; 
+		}
+		if (cap < (kMaxMessage / 10)) LOG(WARNING) << "NO BUFFER";
 
-			if (rc == 0) {
-				close();
-				return;
-			} else if (rc < 0 && c == 0) {
-				socketError();
-				return;
-			}
-
-			//if (rc == -1) break;
-			++c;
-			
-			lk.lock();
-			recv_buf_.buffer_consumed(rc);
-		//} while (rc > 0);
+		if (rc == 0) {
+			close();
+			return;
+		} else if (rc < 0) {
+			socketError();
+			return;
+		}
+		
+		lk.lock();
+		recv_buf_.buffer_consumed(rc);
 
 		//auto end = std::chrono::high_resolution_clock::now();
 		//int64_t endts = std::chrono::time_point_cast<std::chrono::milliseconds>(end).time_since_epoch().count();

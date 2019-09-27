@@ -10,6 +10,7 @@ using ftl::rgbd::kFrameBufferSize;
 using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
+using ftl::rgbd::Channel;
 
 Group::Group() : framesets_(kFrameBufferSize), head_(0) {
 	framesets_[0].timestamp = -1;
@@ -52,6 +53,8 @@ void Group::addSource(ftl::rgbd::Source *src) {
 	src->setCallback([this,ix,src](int64_t timestamp, cv::Mat &rgb, cv::Mat &depth) {
 		if (timestamp == 0) return;
 
+		auto chan = src->getChannel();
+
 		//LOG(INFO) << "SRC CB: " << timestamp << " (" << framesets_[head_].timestamp << ")";
 
 		UNIQUE_LOCK(mutex_, lk);
@@ -73,11 +76,15 @@ void Group::addSource(ftl::rgbd::Source *src) {
 
 				//LOG(INFO) << "Adding frame: " << ix << " for " << timestamp;
 				// Ensure channels match source mat format
-				fs.channel1[ix].create(rgb.size(), rgb.type());
-				fs.channel2[ix].create(depth.size(), depth.type());
+				//fs.channel1[ix].create(rgb.size(), rgb.type());
+				//fs.channel2[ix].create(depth.size(), depth.type());
+				fs.frames[ix].create<cv::Mat>(Channel::Colour, Format<uchar3>(rgb.size())); //.create(rgb.size(), rgb.type());
+				if (chan != Channel::None) fs.frames[ix].create<cv::Mat>(chan, ftl::rgbd::FormatBase(depth.cols, depth.rows, depth.type())); //.create(depth.size(), depth.type());
 
-				cv::swap(rgb, fs.channel1[ix]);
-				cv::swap(depth, fs.channel2[ix]);
+				//cv::swap(rgb, fs.channel1[ix]);
+				//cv::swap(depth, fs.channel2[ix]);
+				cv::swap(rgb, fs.frames[ix].get<cv::Mat>(Channel::Colour));
+				if (chan != Channel::None) cv::swap(depth, fs.frames[ix].get<cv::Mat>(chan));
 
 				++fs.count;
 				fs.mask |= (1 << ix);
@@ -271,8 +278,9 @@ void Group::_addFrameset(int64_t timestamp) {
 		framesets_[head_].count = 0;
 		framesets_[head_].mask = 0;
 		framesets_[head_].stale = false;
-		framesets_[head_].channel1.resize(sources_.size());
-		framesets_[head_].channel2.resize(sources_.size());
+		//framesets_[head_].channel1.resize(sources_.size());
+		//framesets_[head_].channel2.resize(sources_.size());
+		framesets_[head_].frames.resize(sources_.size());
 
 		if (framesets_[head_].sources.size() != sources_.size()) {
 			framesets_[head_].sources.clear();
@@ -301,8 +309,9 @@ void Group::_addFrameset(int64_t timestamp) {
 		framesets_[head_].count = 0;
 		framesets_[head_].mask = 0;
 		framesets_[head_].stale = false;
-		framesets_[head_].channel1.resize(sources_.size());
-		framesets_[head_].channel2.resize(sources_.size());
+		//framesets_[head_].channel1.resize(sources_.size());
+		//framesets_[head_].channel2.resize(sources_.size());
+		framesets_[head_].frames.resize(sources_.size());
 
 		if (framesets_[head_].sources.size() != sources_.size()) {
 			framesets_[head_].sources.clear();

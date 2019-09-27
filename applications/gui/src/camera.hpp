@@ -6,6 +6,10 @@
 
 #include <string>
 
+#ifdef HAVE_OPENVR
+#include <openvr/openvr.h>
+#endif
+
 class StatisticsImage;
 
 namespace ftl {
@@ -18,6 +22,8 @@ class Camera {
 	public:
 	Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src);
 	~Camera();
+
+	Camera(const Camera &)=delete;
 
 	ftl::rgbd::Source *source();
 
@@ -32,13 +38,15 @@ class Camera {
 	void showPoseWindow();
 	void showSettings();
 
-	void setChannel(ftl::rgbd::channel_t c);
+	void setChannel(ftl::rgbd::Channel c);
 
 	void togglePause();
 	void isPaused();
-	const std::vector<ftl::rgbd::channel_t> &availableChannels();
+	const ftl::rgbd::Channels &availableChannels();
 
 	const GLTexture &captureFrame();
+	const GLTexture &getLeft() const { return texture_; }
+	const GLTexture &getRight() const { return textureRight_; }
 
 	bool thumbnail(cv::Mat &thumb);
 
@@ -51,6 +59,7 @@ class Camera {
 	ftl::rgbd::Source *src_;
 	GLTexture thumb_;
 	GLTexture texture_;
+	GLTexture textureRight_;
 	ftl::gui::PoseWindow *posewin_;
 	nlohmann::json meta_;
 	Eigen::Vector4d neye_;
@@ -62,11 +71,15 @@ class Camera {
 	float lerpSpeed_;
 	bool sdepth_;
 	bool pause_;
-	ftl::rgbd::channel_t channel_;
-	std::vector<ftl::rgbd::channel_t> channels_;
+	ftl::rgbd::Channel channel_;
+	ftl::rgbd::Channels channels_;
 	cv::Mat rgb_;
 	cv::Mat depth_;
 	MUTEX mutex_;
+
+	#ifdef HAVE_OPENVR
+	vr::TrackedDevicePose_t rTrackedDevicePose_[ vr::k_unMaxTrackedDeviceCount ];
+	#endif
 };
 
 }

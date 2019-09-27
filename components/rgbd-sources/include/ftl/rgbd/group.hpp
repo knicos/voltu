@@ -1,8 +1,11 @@
 #ifndef _FTL_RGBD_GROUP_HPP_
 #define _FTL_RGBD_GROUP_HPP_
 
+#include <ftl/cuda_util.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/timer.hpp>
+#include <ftl/rgbd/frame.hpp>
+#include <ftl/rgbd/frameset.hpp>
 
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -11,22 +14,6 @@ namespace ftl {
 namespace rgbd {
 
 class Source;
-
-/**
- * Represents a set of synchronised frames, each with two channels. This is
- * used to collect all frames from multiple computers that have the same
- * timestamp.
- */
-struct FrameSet {
-	int64_t timestamp;				// Millisecond timestamp of all frames
-	std::vector<Source*> sources;	// All source objects involved.
-	std::vector<cv::Mat> channel1;	// RGB
-	std::vector<cv::Mat> channel2;	// Depth (usually)
-	std::atomic<int> count;				// Number of valid frames
-	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
-	bool stale;						// True if buffers have been invalidated
-	SHARED_MUTEX mtx;
-};
 
 // Allows a latency of 20 frames maximum
 static const size_t kFrameBufferSize = 20;

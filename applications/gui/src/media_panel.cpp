@@ -12,6 +12,7 @@
 #endif
 
 using ftl::gui::MediaPanel;
+using ftl::rgbd::Channel;
 
 MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), screen_(screen) {
 	using namespace nanogui;
@@ -115,7 +116,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanLeft);
+            cam->setChannel(Channel::Left);
         }
     });
 
@@ -124,7 +125,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     right_button_->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanRight);
+            cam->setChannel(Channel::Right);
         }
     });
 
@@ -133,7 +134,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     depth_button_->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanDepth);
+            cam->setChannel(Channel::Depth);
         }
     });
 
@@ -150,7 +151,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanDeviation);
+            cam->setChannel(Channel::Deviation);
         }
     });
 
@@ -159,7 +160,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanNormals);
+            cam->setChannel(Channel::Normals);
         }
     });
 
@@ -168,7 +169,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanFlow);
+            cam->setChannel(Channel::Flow);
         }
     });
 
@@ -177,7 +178,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanConfidence);
+            cam->setChannel(Channel::Confidence);
         }
     });
 
@@ -186,7 +187,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
     button->setCallback([this]() {
         ftl::gui::Camera *cam = screen_->activeCamera();
         if (cam) {
-            cam->setChannel(ftl::rgbd::kChanEnergy);
+            cam->setChannel(Channel::Energy);
         }
     });
 

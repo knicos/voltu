@@ -46,8 +46,8 @@ function RGBDClient(peer, N, rate, dest) {
 /**
  * Actually send a frame over network to the client.
  */
-RGBDClient.prototype.push = function(uri, frame, ttime, chunk,  rgb, depth) {
-	this.peer.send(uri, frame, ttime, chunk, rgb, depth);
+RGBDClient.prototype.push = function(uri, latency, spacket, packet) {
+	this.peer.send(uri, latency, spacket, packet);
 	this.txcount++;
 }
 
@@ -72,14 +72,23 @@ function RGBDStream(uri, peer) {
 	this.rxmax = 10;
 
 	// Add RPC handler to receive frames from the source
-	peer.bind(uri, (frame, ttime, chunk, rgb, depth) => {
+	peer.bind(uri, (latency, spacket, packet) => {
+		// Forward frames to all clients
+		this.pushFrames(latency, spacket, packet);
+		this.rxcount++;
+		if (this.rxcount >= this.rxmax && this.clients.length > 0) {
+			this.subscribe();
+		}
+	});
+
+	/*peer.bind(uri, (frame, ttime, chunk, rgb, depth) => {
 		// Forward frames to all clients
 		this.pushFrames(frame, ttime, chunk, rgb, depth);
 		this.rxcount++;
 		if (this.rxcount >= this.rxmax && this.clients.length > 0) {
 			this.subscribe();
 		}
-	});
+	});*/
 }
 
 RGBDStream.prototype.addClient = function(peer, N, rate, dest) {
@@ -99,15 +108,19 @@ RGBDStream.prototype.subscribe = function() {
 	this.rxcount = 0;
 	this.rxmax = 10;
 	//console.log("Subscribe to ", this.uri);
-	this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
+	// TODO: Don't hard code 9 here, instead use 9 for thumbnails and 0 for
+	// the video...
+	this.peer.send("get_stream", this.uri, 10, 9, [Peer.uuid], this.uri);
 }
 
-RGBDStream.prototype.pushFrames = function(frame, ttime, chunk, rgb, depth) {
-	this.rgb = rgb;
-	this.depth = depth;
+RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
+	if (spacket[1] & 0x1) this.depth = packet[4];
+	else this.rgb = packet[4];
+
+	console.log("Frame = ", packet[0], packet[1]);
 
 	for (let i=0; i < this.clients.length; i++) {
-		this.clients[i].push(this.uri, frame, ttime, chunk, rgb, depth);
+		this.clients[i].push(this.uri, latency, spacket, packet);
 	}
 
 	let i=0;

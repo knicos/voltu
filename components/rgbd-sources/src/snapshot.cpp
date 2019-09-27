@@ -169,7 +169,7 @@ bool SnapshotWriter::addRGBD(size_t source, const cv::Mat &rgb, const cv::Mat &d
 void SnapshotWriter::writeIndex() {
 	FileStorage fs(".yml", FileStorage::WRITE + FileStorage::MEMORY);
 
-	vector<string> channels = {"time", "rgb_left", "depth_left"};
+	vector<string> channels{"time", "rgb_left", "depth_left"};
 
 	fs << "sources" << sources_;
 	fs << "params" <<params_;

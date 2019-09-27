@@ -19,7 +19,7 @@
 #include <opencv2/opencv.hpp>
 #include <ftl/rgbd.hpp>
 #include <ftl/middlebury.hpp>
-#include <ftl/display.hpp>
+//#include <ftl/display.hpp>
 #include <ftl/rgbd/streamer.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/slave.hpp>
@@ -36,7 +36,7 @@
 
 using ftl::rgbd::Source;
 using ftl::rgbd::Camera;
-using ftl::Display;
+//using ftl::Display;
 using ftl::rgbd::Streamer;
 using ftl::net::Universe;
 using std::string;
@@ -87,7 +87,7 @@ static void run(ftl::Configurable *root) {
 
 	if (file != "") source->set("uri", file);
 	
-	Display *display = ftl::create<Display>(root, "display", "local");
+	//Display *display = ftl::create<Display>(root, "display", "local");
 	
 	Streamer *stream = ftl::create<Streamer>(root, "stream", net);
 	stream->add(source);
@@ -95,7 +95,7 @@ static void run(ftl::Configurable *root) {
 	net->start();
 
 	LOG(INFO) << "Running...";
-	if (display->hasDisplays()) {
+	/*if (display->hasDisplays()) {
 		stream->run();
 		while (ftl::running && display->active()) {
 			cv::Mat rgb, depth;
@@ -103,9 +103,9 @@ static void run(ftl::Configurable *root) {
 			if (!rgb.empty()) display->render(rgb, depth, source->parameters());
 			display->wait(10);
 		}
-	} else {
+	} else {*/
 		stream->run(true);
-	}
+	//}
 
 	LOG(INFO) << "Stopping...";
 	slave.stop();
@@ -115,7 +115,7 @@ static void run(ftl::Configurable *root) {
 	ftl::pool.stop();
 
 	delete stream;
-	delete display;
+	//delete display;
 	//delete source;  // TODO(Nick) Add ftl::destroy
 	delete net;
 }

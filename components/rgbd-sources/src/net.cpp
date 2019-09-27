@@ -20,6 +20,7 @@ using std::vector;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using std::tuple;
+using ftl::rgbd::Channel;
 
 // ===== NetFrameQueue =========================================================
 
@@ -69,7 +70,7 @@ void NetFrameQueue::freeFrame(NetFrame &f) {
 
 // ===== NetSource =============================================================
 
-bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::rgbd::channel_t chan) {
+bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::rgbd::Channel chan) {
 	try {
 		while(true) {
 			auto [cap,buf] = net.call<tuple<unsigned int,vector<unsigned char>>>(peer_, "source_details", src, chan);
@@ -227,11 +228,11 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
 	if (!active_) return;
 
-	const ftl::rgbd::channel_t chan = host_->getChannel();
+	const ftl::rgbd::Channel chan = host_->getChannel();
 	int rchan = spkt.channel & 0x1;
 
 	// Ignore any unwanted second channel
-	if (chan == ftl::rgbd::kChanNone && rchan > 0) {
+	if (chan == ftl::rgbd::Channel::None && rchan > 0) {
 		LOG(INFO) << "Unwanted channel";
 		//return;
 		// TODO: Allow decode to be skipped
@@ -324,8 +325,8 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 	//Source::setPose(pose);
 }
 
-ftl::rgbd::Camera NetSource::parameters(ftl::rgbd::channel_t chan) {
-	if (chan == ftl::rgbd::kChanRight) {
+ftl::rgbd::Camera NetSource::parameters(ftl::rgbd::Channel chan) {
+	if (chan == ftl::rgbd::Channel::Right) {
 		auto uri = host_->get<string>("uri");
 		if (!uri) return params_;
 
@@ -340,7 +341,7 @@ ftl::rgbd::Camera NetSource::parameters(ftl::rgbd::channel_t chan) {
 void NetSource::_updateURI() {
 	UNIQUE_LOCK(mutex_,lk);
 	active_ = false;
-	prev_chan_ = ftl::rgbd::kChanNone;
+	prev_chan_ = ftl::rgbd::Channel::None;
 	auto uri = host_->get<string>("uri");
 
 	if (uri_.size() > 0) {
@@ -355,7 +356,7 @@ void NetSource::_updateURI() {
 		}
 		peer_ = *p;
 
-		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::rgbd::kChanLeft);
+		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::rgbd::Channel::Left);
 
 		host_->getNet()->bind(*uri, [this](short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			//if (chunk == -1) {
@@ -395,7 +396,7 @@ bool NetSource::compute(int n, int b) {
 	// Send k frames before end to prevent unwanted pause
 	// Unless only a single frame is requested
 	if ((N_ <= maxN_/2 && maxN_ > 1) || N_ == 0) {
-		const ftl::rgbd::channel_t chan = host_->getChannel();
+		const ftl::rgbd::Channel chan = host_->getChannel();
 
 		N_ = maxN_;
 

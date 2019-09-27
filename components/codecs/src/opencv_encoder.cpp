@@ -37,9 +37,8 @@ bool OpenCVEncoder::encode(const cv::Mat &in, definition_t definition, bitrate_t
 		tmp.convertTo(tmp, CV_16UC1, 1000);
 	}
 
-	// TODO: Choose these base upon resolution
-	chunk_count_ = 16;
-	chunk_dim_ = 4;
+	chunk_dim_ = (definition == definition_t::LD360) ? 1 : 4;
+	chunk_count_ = chunk_dim_ * chunk_dim_;
 	jobs_ = chunk_count_;
 
 	for (int i=0; i<chunk_count_; ++i) {

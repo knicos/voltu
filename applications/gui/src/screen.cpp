@@ -37,7 +37,7 @@ namespace {
             uv = vertex;
             vec2 scaledVertex = (vertex * scaleFactor) + position;
             gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
-                                1.0 - 2.0*scaledVertex.y,
+                                2.0*scaledVertex.y - 1.0,
                                 0.0, 1.0);
         })";
 
@@ -51,14 +51,14 @@ namespace {
         })";
 }
 
-ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl::ctrl::Master *controller) : nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab Remote Presence") {
+ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl::ctrl::Master *controller) :
+		nanogui::Screen(Eigen::Vector2i(1024, 768), "FT-Lab Remote Presence"),
+		status_("FT-Lab Remote Presence System") {
 	using namespace nanogui;
 	net_ = pnet;
 	ctrl_ = controller;
 	root_ = proot;
 	camera_ = nullptr;
-
-	status_ = "FT-Lab Remote Presence System";
 
 	setSize(Vector2i(1280,720));
 
@@ -244,10 +244,31 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 
 	setVisible(true);
 	performLayout();
+
+
+	#ifdef HAVE_OPENVR
+	if (vr::VR_IsHmdPresent()) {
+		// Loading the SteamVR Runtime
+		vr::EVRInitError eError = vr::VRInitError_None;
+		HMD_ = vr::VR_Init( &eError, vr::VRApplication_Scene );
+
+		if ( eError != vr::VRInitError_None )
+		{
+			HMD_ = nullptr;
+			LOG(ERROR) << "Unable to init VR runtime: " << vr::VR_GetVRInitErrorAsEnglishDescription( eError );
+		}
+	} else {
+		HMD_ = nullptr;
+	}
+	#endif
 }
 
 ftl::gui::Screen::~Screen() {
 	mShader.free();
+
+	#ifdef HAVE_OPENVR
+	vr::VR_Shutdown();
+	#endif
 }
 
 void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
@@ -337,6 +358,18 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		imageSize = {camera_->width(), camera_->height()};
 
 		mImageID = camera_->captureFrame().texture();
+		leftEye_ = mImageID;
+		rightEye_ = camera_->getRight().texture();
+
+		#ifdef HAVE_OPENVR
+		if (hasVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
+			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
+			glBindTexture(GL_TEXTURE_2D, rightEye_);
+			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
+		}
+		#endif
 
 		if (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) {
 			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());

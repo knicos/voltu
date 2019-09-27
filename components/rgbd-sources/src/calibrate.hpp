@@ -54,8 +54,9 @@ class Calibrate : public ftl::Configurable {
 	 * a 3D point cloud.
 	 */
 	const cv::Mat &getQ() const { return Q_; }
-	const cv::Mat &getCameraMatrixLeft() { return C_l_; }
-	const cv::Mat &getCameraMatrixRight() { return C_r_; }
+
+	const cv::Mat &getCameraMatrixLeft() { return Kl_; }
+	const cv::Mat &getCameraMatrixRight() { return Kr_; }
 	const cv::Mat &getCameraMatrix() { return getCameraMatrixLeft(); }
 
 private:
@@ -70,12 +71,17 @@ private:
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map1_gpu_;
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map2_gpu_;
 
-	cv::Mat Q_;
+	// parameters for rectification, see cv::stereoRectify() documentation
 	cv::Mat R_, T_, R1_, P1_, R2_, P2_;
-	cv::Mat M1_, D1_, M2_, D2_;
 
-	cv::Mat C_l_;
-	cv::Mat C_r_;
+	// disparity to depth matrix
+	cv::Mat Q_;
+	
+	// intrinsic paramters and distortion coefficients
+	cv::Mat K1_, D1_, K2_, D2_;
+
+	cv::Mat Kl_;
+	cv::Mat Kr_;
 
 	cv::Size img_size_;
 };

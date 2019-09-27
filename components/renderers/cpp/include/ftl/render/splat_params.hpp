@@ -3,7 +3,7 @@
 
 #include <ftl/cuda_util.hpp>
 #include <ftl/cuda_matrix_util.hpp>
-#include <ftl/depth_camera_params.hpp>
+#include <ftl/rgbd/camera.hpp>
 
 namespace ftl {
 namespace render {
@@ -18,10 +18,10 @@ struct __align__(16) SplatParams {
 	float4x4 m_viewMatrixInverse;
 
 	uint m_flags;
-	float voxelSize;
+	//float voxelSize;
 	float depthThreshold;
 
-	DepthCameraParams camera;
+	ftl::rgbd::Camera camera;
 };
 
 }

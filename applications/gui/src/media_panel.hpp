@@ -15,7 +15,7 @@ class Screen;
 
 class MediaPanel : public nanogui::Window {
     public:
-    MediaPanel(ftl::gui::Screen *);
+    explicit MediaPanel(ftl::gui::Screen *);
     ~MediaPanel();
 
     void cameraChanged();

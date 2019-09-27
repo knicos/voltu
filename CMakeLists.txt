@@ -40,6 +40,19 @@ if (LibArchive_FOUND)
 	set(HAVE_LIBARCHIVE true)
 endif()
 
+## OpenVR API path
+find_library(OPENVR_LIBRARIES
+  NAMES
+    openvr_api
+)
+set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
+
+if (OPENVR_LIBRARIES)
+	message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
+	set(HAVE_OPENVR true)
+endif()
+
+
 if (WITH_FIXSTARS)
 	find_package( LibSGM )
 	if (LibSGM_FOUND)
@@ -175,7 +188,7 @@ check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
 find_program(CPPCHECK_FOUND cppcheck)
 if (CPPCHECK_FOUND)
 	message(STATUS "Found cppcheck: will perform source checks")
-	set(CMAKE_CXX_CPPCHECK "cppcheck" "--enable=warning,performance,portability,style" "--inline-suppr" "--std=c++11" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*nanogui*" "--suppress=*:*json.hpp" "--quiet")
+	set(CMAKE_CXX_CPPCHECK "cppcheck" "-D__align__(A)" "-DCUDARTAPI" "--enable=warning,performance,style" "--inline-suppr" "--std=c++14" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*nanogui*" "--suppress=*:*json.hpp" "--quiet")
 endif()
 
 # include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)

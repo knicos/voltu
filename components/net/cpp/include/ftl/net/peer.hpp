@@ -6,6 +6,7 @@
 #endif
 
 #include <ftl/net/common.hpp>
+#include <ftl/exception.hpp>
 
 //#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <loguru.hpp>
@@ -343,7 +344,8 @@ R Peer::call(const std::string &name, ARGS... args) {
 	
 	if (!hasreturned) {
 		cancelCall(id);
-		throw 1;
+		LOG(ERROR) << "RPC Timeout: " << name;
+		throw ftl::exception("RPC failed with timeout");
 	}
 	
 	return result;

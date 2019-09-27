@@ -3,133 +3,253 @@
 #define _FTL_RGBD_FRAME_HPP_
 
 #include <ftl/configuration.hpp>
+#include <ftl/exception.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/core/cuda.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
+
+#include <ftl/rgbd/channels.hpp>
+#include <ftl/rgbd/format.hpp>
+#include <ftl/codecs/bitrates.hpp>
+
+#include <ftl/cuda_common.hpp>
+
+#include <type_traits>
+#include <array>
 
 namespace ftl {
 namespace rgbd {
-
-typedef unsigned int channel_t;
-
-static const channel_t kChanNone = 0;
-static const channel_t kChanLeft = 0x0001;		// CV_8UC3
-static const channel_t kChanDepth = 0x0002;		// CV_32FC1
-static const channel_t kChanRight = 0x0004;		// CV_8UC3
-static const channel_t kChanDisparity = 0x0008; // CV_32FC1
-static const channel_t kChanDeviation = 0x0010;
-static const channel_t kChanNormals = 0x0020;
-static const channel_t kChanConfidence = 0x0040;
-static const channel_t kChanFlow = 0x0080;		// CV_16SC2 (format 10.5) from NVOF
-static const channel_t kChanEnergy = 0x0100;
-
-// should l/r gray be removed (not that expensive to re-calculate if needed)?
-static const channel_t kChanLeftGray = 0x0200;	// CV_8UC1
-static const channel_t kChanRightGray = 0x0400;	// CV_8UC1
-
-static const channel_t kChanOverlay1 = 0x1000;
-
-// maximum number of available channels
-static const unsigned int n_channels = 13;
-
-inline bool isFloatChannel(ftl::rgbd::channel_t chan) {
-	return (chan == ftl::rgbd::kChanDepth || chan == ftl::rgbd::kChanEnergy);
-}
 
 // TODO:	interpolation for scaling depends on channel type;
 //			NN for depth/disparity/optflow, linear/cubic/etc. for RGB
 
 class Frame;
+class Source;
 
+/**
+ * Manage a set of image channels corresponding to a single camera frame.
+ */
 class Frame {
 public:
-	Frame() :	channels_host_(n_channels),
-				channels_gpu_(n_channels),
-				available_(n_channels, 0)
-	{}
+	Frame() : src_(nullptr) {}
+	explicit Frame(ftl::rgbd::Source *src) : src_(src) {}
 
-	/* @brief	Reset all channels without releasing memory.
+	inline ftl::rgbd::Source *source() const { return src_; }
+
+	// Prevent frame copy, instead use a move.
+	//Frame(const Frame &)=delete;
+	//Frame &operator=(const Frame &)=delete;
+
+	void download(ftl::rgbd::Channel c, cv::cuda::Stream stream);
+	void upload(ftl::rgbd::Channel c, cv::cuda::Stream stream);
+	void download(ftl::rgbd::Channels c, cv::cuda::Stream stream);
+	void upload(ftl::rgbd::Channels c, cv::cuda::Stream stream);
+
+	inline void download(ftl::rgbd::Channel c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void upload(ftl::rgbd::Channel c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void download(ftl::rgbd::Channels c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void upload(ftl::rgbd::Channels c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+
+	/**
+	 * Perform a buffer swap of the selected channels. This is intended to be
+	 * a copy from `this` to the passed frame object but by buffer swap
+	 * instead of memory copy, meaning `this` may become invalid afterwards.
 	 */
-	void reset()
-	{
-		std::fill(available_.begin(), available_.end(), 0);
+	void swapTo(ftl::rgbd::Channels, Frame &);
+
+	/**
+	 * Create a channel with a given format. This will discard any existing
+	 * data associated with the channel and ensure all data structures and
+	 * memory allocations match the new format.
+	 */
+	template <typename T> T &create(ftl::rgbd::Channel c, const ftl::rgbd::FormatBase &f);
+
+	/**
+	 * Create a channel but without any format.
+	 */
+	template <typename T> T &create(ftl::rgbd::Channel c);
+
+	/**
+	 * Create a CUDA texture object for a channel. This version takes a format
+	 * argument to also create (or recreate) the associated GpuMat.
+	 */
+	template <typename T>
+	ftl::cuda::TextureObject<T> &createTexture(ftl::rgbd::Channel c, const ftl::rgbd::Format<T> &f);
+
+	/**
+	 * Create a CUDA texture object for a channel. With this version the GpuMat
+	 * must already exist and be of the correct type.
+	 */
+	template <typename T>
+	ftl::cuda::TextureObject<T> &createTexture(ftl::rgbd::Channel c);
+
+	/**
+	 * Reset all channels without releasing memory.
+	 */
+	void reset();
+
+	bool empty(ftl::rgbd::Channels c);
+
+	inline bool empty(ftl::rgbd::Channel c) {
+		auto &m = _get(c);
+		return !hasChannel(c) || (m.host.empty() && m.gpu.empty());
 	}
 
-	/* @brief	Is there valid data in channel (either host or gpu).
+	/**
+	 * Is there valid data in channel (either host or gpu).
 	 */
-	bool hasChannel(const ftl::rgbd::channel_t& channel)
-	{
-		return available_[_channelIdx(channel)];
+	inline bool hasChannel(ftl::rgbd::Channel channel) const {
+		return channels_.has(channel);
 	}
 
-	/* @brief	Method to get reference to the channel content
+	inline ftl::rgbd::Channels getChannels() const { return channels_; }
+
+	/**
+	 * Is the channel data currently located on GPU. This also returns false if
+	 * the channel does not exist.
+	 */
+	inline bool isGPU(ftl::rgbd::Channel channel) const {
+		return channels_.has(channel) && gpu_.has(channel);
+	}
+
+	/**
+	 * Is the channel data currently located on CPU memory. This also returns
+	 * false if the channel does not exist.
+	 */
+	inline bool isCPU(ftl::rgbd::Channel channel) const {
+		return channels_.has(channel) && !gpu_.has(channel);
+	}
+
+	/**
+	 * Method to get reference to the channel content.
 	 * @param	Channel type
-	 * @param	CUDA stream
-	 * @returns	Const reference to channel data
+	 * @return	Const reference to channel data
 	 * 
 	 * Result is valid only if hasChannel() is true. Host/Gpu transfer is
-	 * performed, if necessary, but only once unless channel contents is
-	 * changed by calling setChannel(). Return value valid only if
-	 * hasChannel(channel) is true.
+	 * performed, if necessary, but with a warning since an explicit upload or
+	 * download should be used.
 	 */
-	template <typename T> const T& getChannel(const ftl::rgbd::channel_t& channel, cv::cuda::Stream& stream);
-	template <typename T> const T& getChannel(const ftl::rgbd::channel_t& channel);
+	template <typename T> const T& get(ftl::rgbd::Channel channel) const;
 
-	/* @brief	Method to set/modify channel content
+	/**
+	 * Method to get reference to the channel content.
 	 * @param	Channel type
-	 * @returns	Reference to channel data
+	 * @return	Reference to channel data
 	 * 
-	 * Returns non-const reference to channel memory. Invalidates other copies
-	 * of the data (host/gpu) for the specified channel, next time getChannel()
-	 * is called a memory transfer may occur.
-	 * 
-	 * NOTE:	If user of setChannel<T>() wants to modify contents instead of
-	 * 			replacing them, getChannel<T>() needs to be called first to
-	 * 			ensure there is valid contents in the returned reference!
-	 * 			(TODO: interface could be improved)
+	 * Result is valid only if hasChannel() is true. Host/Gpu transfer is
+	 * performed, if necessary, but with a warning since an explicit upload or
+	 * download should be used.
 	 */
-	template <typename T> T& setChannel(const ftl::rgbd::channel_t& channel);
+	template <typename T> T& get(ftl::rgbd::Channel channel);
+
+	template <typename T> const ftl::cuda::TextureObject<T> &getTexture(ftl::rgbd::Channel) const;
+	template <typename T> ftl::cuda::TextureObject<T> &getTexture(ftl::rgbd::Channel);
 
 private:
+	struct ChannelData {
+		cv::Mat host;
+		cv::cuda::GpuMat gpu;
+		ftl::cuda::TextureObjectBase tex;
+	};
 
-	static size_t _channelIdx(const ftl::rgbd::channel_t& channel)
-	{
-		switch(channel)
-		{
-			case kChanNone:				return 0;
-			case kChanLeft:				return 1;
-			case kChanDepth:			return 2;
-			case kChanRight:			return 3;
-			case kChanDisparity:		return 4;
-			case kChanDeviation:		return 5;
-			case kChanNormals:			return 6;
-			case kChanConfidence:		return 7;
-			case kChanFlow:				return 8;
-			case kChanEnergy:			return 9;
-			case kChanLeftGray:			return 11;
-			case kChanRightGray:		return 12;
-			// should not happen (error); returned index is kChanNone
-			default:					return 0;
-		}
-	}
+	std::array<ChannelData, Channels::kMax> data_;
 
-	std::vector<cv::Mat> channels_host_;
-	std::vector<cv::cuda::GpuMat> channels_gpu_;
+	ftl::rgbd::Channels channels_;	// Does it have a channel
+	ftl::rgbd::Channels gpu_;		// Is the channel on a GPU
 
-	// bitmasks for each channel stored in available_
-	static const uint mask_host = 1;
-	static const uint mask_gpu = 2;
+	ftl::rgbd::Source *src_;
 
-	std::vector<uint> available_;
+	inline ChannelData &_get(ftl::rgbd::Channel c) { return data_[static_cast<unsigned int>(c)]; }
+	inline const ChannelData &_get(ftl::rgbd::Channel c) const { return data_[static_cast<unsigned int>(c)]; }
 };
 
-template<> const cv::Mat& Frame::getChannel(const ftl::rgbd::channel_t& channel, cv::cuda::Stream& stream);
-template<> const cv::cuda::GpuMat& Frame::getChannel(const ftl::rgbd::channel_t& channel, cv::cuda::Stream& stream);
+// Specialisations
 
-template<> const cv::Mat& Frame::getChannel(const ftl::rgbd::channel_t& channel);
-template<> const cv::cuda::GpuMat& Frame::getChannel(const ftl::rgbd::channel_t& channel);
+template<> const cv::Mat& Frame::get(ftl::rgbd::Channel channel) const;
+template<> const cv::cuda::GpuMat& Frame::get(ftl::rgbd::Channel channel) const;
+template<> cv::Mat& Frame::get(ftl::rgbd::Channel channel);
+template<> cv::cuda::GpuMat& Frame::get(ftl::rgbd::Channel channel);
 
-template<> cv::Mat& Frame::setChannel(const ftl::rgbd::channel_t& channel);
-template<> cv::cuda::GpuMat& Frame::setChannel(const ftl::rgbd::channel_t& channel);
+template <> cv::Mat &Frame::create(ftl::rgbd::Channel c, const ftl::rgbd::FormatBase &);
+template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c, const ftl::rgbd::FormatBase &);
+template <> cv::Mat &Frame::create(ftl::rgbd::Channel c);
+template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c);
+
+template <typename T>
+ftl::cuda::TextureObject<T> &Frame::getTexture(ftl::rgbd::Channel c) {
+	if (!channels_.has(c)) throw ftl::exception("Texture channel does not exist");
+	if (!gpu_.has(c)) throw ftl::exception("Texture channel is not on GPU");
+
+	auto &m = _get(c);
+
+	if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.gpu.type() != m.tex.cvType()) {
+		throw ftl::exception("Texture has not been created properly for this channel");
+	}
+
+	return ftl::cuda::TextureObject<T>::cast(m.tex);
+}
+
+template <typename T>
+ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::rgbd::Channel c, const ftl::rgbd::Format<T> &f) {
+	if (!channels_.has(c)) channels_ += c;
+	if (!gpu_.has(c)) gpu_ += c;
+
+	auto &m = _get(c);
+
+	if (f.empty()) {
+		throw ftl::exception("createTexture needs a non-empty format");
+	} else {
+		m.gpu.create(f.size(), f.cvType);
+	}
+
+	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
+		throw ftl::exception("Texture type does not match underlying data type");
+	}
+
+	// TODO: Check tex cvType
+
+	if (m.tex.devicePtr() == nullptr) {
+		LOG(INFO) << "Creating texture object";
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows) {
+		LOG(INFO) << "Recreating texture object";
+		m.tex.free();
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+	}
+
+	return ftl::cuda::TextureObject<T>::cast(m.tex);
+}
+
+template <typename T>
+ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::rgbd::Channel c) {
+	if (!channels_.has(c)) throw ftl::exception("createTexture needs a format if the channel does not exist");
+
+	auto &m = _get(c);
+
+	if (isCPU(c) && !m.host.empty()) {
+		m.gpu.create(m.host.size(), m.host.type());
+		// TODO: Should this upload to GPU or not?
+		//gpu_ += c;
+	} else if (isCPU(c) || (isGPU(c) && m.gpu.empty())) {
+		throw ftl::exception("createTexture needs a format if no memory is allocated");
+	}
+
+	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
+		throw ftl::exception("Texture type does not match underlying data type");
+	}
+
+	// TODO: Check tex cvType
+
+	if (m.tex.devicePtr() == nullptr) {
+		LOG(INFO) << "Creating texture object";
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.tex.devicePtr() != m.gpu.data) {
+		m.tex.free();
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+	}
+
+	return ftl::cuda::TextureObject<T>::cast(m.tex);
+}
 
 }
 }

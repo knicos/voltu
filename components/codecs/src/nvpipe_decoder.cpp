@@ -2,7 +2,8 @@
 
 #include <loguru.hpp>
 
-#include <cuda_runtime.h>
+#include <ftl/cuda_util.hpp>
+//#include <cuda_runtime.h>
 
 using ftl::codecs::NvPipeDecoder;
 

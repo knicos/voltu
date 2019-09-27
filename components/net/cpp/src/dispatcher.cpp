@@ -2,6 +2,7 @@
 #include <loguru.hpp>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/net/peer.hpp>
+#include <ftl/exception.hpp>
 #include <iostream>
 
 using ftl::net::Peer;
@@ -88,13 +89,6 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 				std::stringstream buf;
 				msgpack::pack(buf, res_obj);			
 				s.send("__return__", buf.str());*/
-			} catch (int e) {
-				//throw;
-				LOG(ERROR) << "Exception when attempting to call RPC (" << e << ")";
-		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e),msgpack::object());
-				std::stringstream buf;
-				msgpack::pack(buf, res_obj);			
-				s.send("__return__", buf.str());*/
 			}
 		} else {
 			LOG(WARNING) << "No binding found for " << name;
@@ -150,7 +144,7 @@ void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_
                                    std::size_t expected) {
     if (found != expected) {
     	LOG(FATAL) << "RPC argument missmatch for '" << func << "' - " << found << " != " << expected;
-        throw -1;
+        throw ftl::exception("RPC argument missmatch");
     }
 }
 
@@ -158,7 +152,7 @@ void ftl::net::Dispatcher::enforce_unique_name(std::string const &func) {
     auto pos = funcs_.find(func);
     if (pos != end(funcs_)) {
     	LOG(FATAL) << "RPC non unique binding for '" << func << "'";
-        throw -1;
+        throw ftl::exception("RPC binding not unique");
     }
 }
 

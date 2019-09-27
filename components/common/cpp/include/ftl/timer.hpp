@@ -29,7 +29,9 @@ enum timerlevel_t {
  * a destructor, for example.
  */
 struct TimerHandle {
-	const int id = -1;
+	TimerHandle() : id_(-1) {}
+	explicit TimerHandle(int i) : id_(i) {}
+	TimerHandle(const TimerHandle &t) : id_(t.id()) {}
 
 	/**
 	 * Cancel the timer job. If currently executing it will block and wait for
@@ -52,7 +54,12 @@ struct TimerHandle {
 	/**
 	 * Allow copy assignment.
 	 */
-	TimerHandle &operator=(const TimerHandle &h) { const_cast<int&>(id) = h.id; return *this; }
+	TimerHandle &operator=(const TimerHandle &h) { id_ = h.id(); return *this; }
+
+	inline int id() const { return id_; }
+
+	private:
+	int id_;
 };
 
 int64_t get_time();

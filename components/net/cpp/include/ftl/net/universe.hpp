@@ -378,7 +378,7 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	if (p == nullptr || !p->isConnected()) {
 		if (p == nullptr) DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
 		else DLOG(WARNING) << "Attempting to call an disconnected peer : " << pid.to_string();
-		throw -1;
+		throw ftl::exception("Calling disconnected peer");
 	}
 	return p->call<R>(name, args...);
 }

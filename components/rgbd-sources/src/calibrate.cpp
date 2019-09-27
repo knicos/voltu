@@ -78,21 +78,24 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 		return false;
 	}
 
+
+	cv::Size calib_size;
 	{
 		vector<Mat> K, D;
 		fs["K"] >> K;
 		fs["D"] >> D;
+		fs["resolution"] >> calib_size;
 
-		K[0].copyTo(M1_);
-		K[1].copyTo(M2_);
+		K[0].copyTo(K1_);
+		K[1].copyTo(K2_);
 		D[0].copyTo(D1_);
 		D[1].copyTo(D2_);
 	}
 
 	fs.release();
 
-	CHECK(M1_.size() == Size(3, 3));
-	CHECK(M2_.size() == Size(3, 3));
+	CHECK(K1_.size() == Size(3, 3));
+	CHECK(K2_.size() == Size(3, 3));
 	CHECK(D1_.size() == Size(5, 1));
 	CHECK(D2_.size() == Size(5, 1));
 
@@ -113,45 +116,54 @@ bool Calibrate::_loadCalibration(cv::Size img_size, std::pair<Mat, Mat> &map1, s
 
 	fs["R"] >> R_;
 	fs["T"] >> T_;
+	
+	/* re-calculate rectification from camera parameters
 	fs["R1"] >> R1_;
 	fs["R2"] >> R2_;
 	fs["P1"] >> P1_;
 	fs["P2"] >> P2_;
 	fs["Q"] >> Q_;
-
+	*/
 	fs.release();
 
 	img_size_ = img_size;
 
-	// TODO: normalize calibration
-	double scale_x = ((double) img_size.width) / 1280.0;
-	double scale_y = ((double) img_size.height) / 720.0;
+	if (calib_size.empty())
+	{
+		LOG(WARNING) << "Calibration resolution missing!";
+	}
+	else
+	{
+		double scale_x = ((double) img_size.width) / ((double) calib_size.width);
+		double scale_y = ((double) img_size.height) / ((double) calib_size.height);
 	
-	Mat scale(cv::Size(3, 3), CV_64F, 0.0);
-	scale.at<double>(0, 0) = scale_x;
-	scale.at<double>(1, 1) = scale_y;
-	scale.at<double>(2, 2) = 1.0;
+		Mat scale(cv::Size(3, 3), CV_64F, 0.0);
+		scale.at<double>(0, 0) = scale_x;
+		scale.at<double>(1, 1) = scale_y;
+		scale.at<double>(2, 2) = 1.0;
 
-	M1_ = scale * M1_;
-	M2_ = scale * M2_;
-	P1_ = scale * P1_;
-	P2_ = scale * P2_;
+		K1_ = scale * K1_;
+		K2_ = scale * K2_;
+	}
 
+	double alpha = value("alpha", 0.0);
+	cv::stereoRectify(K1_, D1_, K2_, D2_, img_size_, R_, T_, R1_, R2_, P1_, P2_, Q_, 0, alpha);
+
+	/* scaling not required as rectification is performed from scaled values
 	Q_.at<double>(0, 3) = Q_.at<double>(0, 3) * scale_x;
 	Q_.at<double>(1, 3) = Q_.at<double>(1, 3) * scale_y;
 	Q_.at<double>(2, 3) = Q_.at<double>(2, 3) * scale_x; // TODO: scaling?
 	Q_.at<double>(3, 3) = Q_.at<double>(3, 3) * scale_x;
+	*/
 
 	// cv::cuda::remap() works only with CV_32FC1
-	initUndistortRectifyMap(M1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);
-	initUndistortRectifyMap(M2_, D2_, R2_, P2_, img_size_, CV_32FC1, map1.second, map2.second);
+	initUndistortRectifyMap(K1_, D1_, R1_, P1_, img_size_, CV_32FC1, map1.first, map2.first);
+	initUndistortRectifyMap(K2_, D2_, R2_, P2_, img_size_, CV_32FC1, map1.second, map2.second);
 
 	return true;
 }
 
 void Calibrate::updateCalibration(const ftl::rgbd::Camera &p) {
-	std::pair<Mat, Mat> map1, map2;
-
 	Q_.at<double>(3, 2) = 1.0 / p.baseline;
 	Q_.at<double>(2, 3) = p.fx;
 	Q_.at<double>(0, 3) = p.cx;
@@ -178,17 +190,19 @@ void Calibrate::_updateIntrinsics() {
 		// no rectification
 		R1 = Mat::eye(Size(3, 3), CV_64FC1);
 		R2 = R1;
-		P1 = M1_;
-		P2 = M2_;
+		P1 = Mat::zeros(Size(4, 3), CV_64FC1);
+		P2 = Mat::zeros(Size(4, 3), CV_64FC1);
+		K1_.copyTo(Mat(P1, cv::Rect(0, 0, 3, 3)));
+		K2_.copyTo(Mat(P2, cv::Rect(0, 0, 3, 3)));
 	}
 
 	// Set correct camera matrices for
 	// getCameraMatrix(), getCameraMatrixLeft(), getCameraMatrixRight()
-	C_l_ = P1;
-	C_r_ = P2;
+	Kl_ = Mat(P1, cv::Rect(0, 0, 3, 3));
+	Kr_ = Mat(P1, cv::Rect(0, 0, 3, 3));
 
-	initUndistortRectifyMap(M1_, D1_, R1, P1, img_size_, CV_32FC1, map1_.first, map2_.first);
-	initUndistortRectifyMap(M2_, D2_, R2, P2, img_size_, CV_32FC1, map1_.second, map2_.second);
+	initUndistortRectifyMap(K1_, D1_, R1, P1, img_size_, CV_32FC1, map1_.first, map2_.first);
+	initUndistortRectifyMap(K2_, D2_, R2, P2, img_size_, CV_32FC1, map1_.second, map2_.second);
 
 	// CHECK Is this thread safe!!!!
 	map1_gpu_.first.upload(map1_.first);

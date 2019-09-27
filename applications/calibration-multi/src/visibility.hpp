@@ -27,6 +27,7 @@ public:
 	vector<vector<pair<int, int>>> findShortestPaths(int reference);
 
 	vector<int> getClosestCameras(int c);
+	void deleteEdge(int camera1, int camera2);
 	int getOptimalCamera();
 	int getMinVisibility();
 	int getViewsCount(int camera);

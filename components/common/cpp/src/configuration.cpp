@@ -20,6 +20,7 @@
 #include <ftl/uri.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/timer.hpp>
+#include <ftl/cuda_common.hpp>
 
 #include <fstream>
 #include <string>
@@ -457,7 +458,7 @@ Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
 	loguru::g_preamble_uptime = false;
 	loguru::g_preamble_thread = false;
 	int argc = 1;
-	const char *argv[] = {"d",0};
+	const char *argv[]{"d",0};
 	loguru::init(argc, const_cast<char**>(argv), "--verbosity");
 
 	config_index.clear();
@@ -518,6 +519,9 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 
 	// Some global settings
 	ftl::timer::setInterval(1000 / rootcfg->value("fps",20));
+
+	// Check CUDA
+	ftl::cuda::initialise();
 
 	int pool_size = rootcfg->value("thread_pool_factor", 2.0f)*std::thread::hardware_concurrency();
 	if (pool_size != ftl::pool.size()) ftl::pool.resize(pool_size);

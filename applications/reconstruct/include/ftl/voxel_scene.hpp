@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
 
 #include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/source.hpp>

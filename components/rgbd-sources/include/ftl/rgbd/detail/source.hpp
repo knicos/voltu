@@ -2,6 +2,7 @@
 #define _FTL_RGBD_DETAIL_SOURCE_HPP_
 
 #include <Eigen/Eigen>
+#include <ftl/cuda_util.hpp>
 #include <opencv2/opencv.hpp>
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/rgbd/frame.hpp>
@@ -55,7 +56,7 @@ class Source {
 	virtual bool isReady() { return false; };
 	virtual void setPose(const Eigen::Matrix4d &pose) { };
 
-	virtual Camera parameters(channel_t) { return params_; };
+	virtual Camera parameters(ftl::rgbd::Channel) { return params_; };
 
 	protected:
 	capability_t capabilities_;

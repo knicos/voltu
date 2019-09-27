@@ -2,7 +2,7 @@
 #include <loguru.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/codecs/bitrates.hpp>
-#include <cuda_runtime.h>
+#include <ftl/cuda_util.hpp>
 
 using ftl::codecs::NvPipeEncoder;
 using ftl::codecs::bitrate_t;
@@ -30,8 +30,6 @@ void NvPipeEncoder::reset() {
 
 /* Check preset resolution is not better than actual resolution. */
 definition_t NvPipeEncoder::_verifiedDefinition(definition_t def, const cv::Mat &in) {
-	bool is_float = in.type() == CV_32F;
-
 	int height = ftl::codecs::getHeight(def);
 
 	// FIXME: Make sure this can't go forever
@@ -93,7 +91,7 @@ bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_
 
 bool NvPipeEncoder::_encoderMatch(const cv::Mat &in, definition_t def) {
     return ((in.type() == CV_32F && is_float_channel_) ||
-        (in.type() == CV_8UC3 && !is_float_channel_)) && current_definition_ == def;
+        ((in.type() == CV_8UC3 || in.type() == CV_8UC4) && !is_float_channel_)) && current_definition_ == def;
 }
 
 bool NvPipeEncoder::_createEncoder(const cv::Mat &in, definition_t def, bitrate_t rate) {
