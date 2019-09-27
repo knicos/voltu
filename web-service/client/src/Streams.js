@@ -18,7 +18,7 @@ const Streams = ({clearCookies}) => {
     }, [])
     
     const renderThumbnails = () => {
-        const photos = thumbnails.map(i => <div style={{'padding-top': '25px'}}><img alt='robots' src={i.video} width='150px'/><p style={{'margin': 'none'}}>viewers: {i.viewers}</p></div>)
+        const photos = thumbnails.map(i => <div style={{'paddingTop': '25px'}}><img alt='robots' src={i.video} width='150px'/><p style={{'margin': 'none'}}>viewers: {i.viewers}</p></div>)
         return photos;
     }
 

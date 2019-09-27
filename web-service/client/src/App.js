@@ -36,14 +36,14 @@ const App = () => {
         window.location.reload();
     }
 
-    // if(window.localStorage.getItem('token')){
+    if(window.localStorage.getItem('token')){
         return (
            <Streams clearCookies={clearCookies}/>
         )
-    // }
-    // return (
-    //     <Login handleLogin={handleLogin} />
-    // )
+    }
+    return (
+        <Login handleLogin={handleLogin} />
+    )
 }
 
 export default App;   
