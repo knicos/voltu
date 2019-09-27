@@ -13,17 +13,13 @@ const Streams = ({clearCookies}) => {
     const [thumbnails, setThumbnails] = useState([]);
 
     useEffect(() => {
-        const url = testData.thumbnail.map(i => i.video)
-        setThumbnails(url);
+        setThumbnails(testData.thumbnail);
         console.log('streams')
     }, [])
     
     const renderThumbnails = () => {
-        console.log("Piippiip")
-        thumbnails.map(index => {
-            console.log(index)
-            return <img height='150px' src={index} alt='piip'/>
-        })
+        const photos = thumbnails.map(i => <div style={{'padding-top': '25px'}}><img alt='robots' src={i.video} width='150px'/><p style={{'margin': 'none'}}>viewers: {i.viewers}</p></div>)
+        return photos;
     }
 
     return(
@@ -31,8 +27,8 @@ const Streams = ({clearCookies}) => {
             <h1>Streams component works!!</h1>
             <h2>Namibia here we come!</h2>
             <button onClick={clearCookies}>Logout</button>
-            <button onClick={renderThumbnails}>Show streams</button>
-            {/* <img height='150px' src={thumbnails[0]} alt='piip'/> */}
+            <br />
+            {renderThumbnails()}
         </div>
     )
 }
