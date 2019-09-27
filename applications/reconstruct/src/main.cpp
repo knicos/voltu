@@ -158,11 +158,12 @@ static void run(ftl::Configurable *root) {
 	});
 
 	ftl::timer::stop();
+	slave.stop();
 	net->shutdown();
 	delete align;
 	delete splat;
-	delete virt;
 	delete stream;
+	delete virt;
 	delete net;
 }
 
