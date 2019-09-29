@@ -11,8 +11,39 @@ using ftl::rgbd::Channels;
 using ftl::rgbd::Format;
 using cv::cuda::GpuMat;
 
-Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::render::Renderer(config), scene_(fs) {
+static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
+  Eigen::Affine3d rx =
+      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+  Eigen::Affine3d ry =
+      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+  Eigen::Affine3d rz =
+      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+  return rz * rx * ry;
+}
 
+Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::render::Renderer(config), scene_(fs) {
+	if (config["clipping"].is_object()) {
+		auto &c = config["clipping"];
+		float rx = c.value("pitch", 0.0f);
+		float ry = c.value("yaw", 0.0f);
+		float rz = c.value("roll", 0.0f);
+		float x = c.value("x", 0.0f);
+		float y = c.value("y", 0.0f);
+		float z = c.value("z", 0.0f);
+		float width = c.value("width", 1.0f);
+		float height = c.value("height", 1.0f);
+		float depth = c.value("depth", 1.0f);
+
+		Eigen::Affine3f r = create_rotation_matrix(rx, ry, rz).cast<float>();
+		Eigen::Translation3f trans(Eigen::Vector3f(x,y,z));
+		Eigen::Affine3f t(trans);
+
+		clip_.origin = MatrixConversion::toCUDA(r.matrix() * t.matrix());
+		clip_.size = make_float3(width, height, depth);
+		clipping_ = true;
+	} else {
+		clipping_ = false;
+	}
 }
 
 Splatter::~Splatter() {
@@ -50,6 +81,11 @@ void Splatter::renderChannel(
 			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
 
 			//LOG(INFO) << "POINTS Added";
+		}
+
+		// Clip first?
+		if (clipping_) {
+			ftl::cuda::clipping(f.createTexture<float4>(Channel::Points), clip_, stream);
 		}
 
 		ftl::cuda::dibr_merge(

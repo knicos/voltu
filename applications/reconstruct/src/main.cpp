@@ -51,6 +51,16 @@ using std::chrono::milliseconds;
 using ftl::registration::loadTransformations;
 using ftl::registration::saveTransformations;
 
+static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
+  Eigen::Affine3d rx =
+      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+  Eigen::Affine3d ry =
+      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+  Eigen::Affine3d rz =
+      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+  return rz * rx * ry;
+}
+
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Slave slave(net, root);
@@ -64,6 +74,24 @@ static void run(ftl::Configurable *root) {
 	if (sources.size() == 0) {
 		LOG(ERROR) << "No sources configured!";
 		return;
+	}
+
+	// Create scene transform, intended for axis aligning the walls and floor
+	Eigen::Matrix4d transform;
+	if (root->getConfig()["transform"].is_object()) {
+		auto &c = root->getConfig()["transform"];
+		float rx = c.value("pitch", 0.0f);
+		float ry = c.value("yaw", 0.0f);
+		float rz = c.value("roll", 0.0f);
+		float x = c.value("x", 0.0f);
+		float y = c.value("y", 0.0f);
+		float z = c.value("z", 0.0f);
+
+		Eigen::Affine3d r = create_rotation_matrix(rx, ry, rz);
+		Eigen::Translation3d trans(Eigen::Vector3d(x,y,z));
+		Eigen::Affine3d t(trans);
+		transform = t.matrix() * r.matrix();
+		LOG(INFO) << "Set transform: " << transform;
 	}
 
 	// Must find pose for each source...
@@ -87,9 +115,10 @@ static void run(ftl::Configurable *root) {
 				//sources = { sources[0] };
 				//sources[0]->setPose(Eigen::Matrix4d::Identity());
 				//break;
+				input->setPose(transform * input->getPose());
 				continue;
 			}
-			input->setPose(T->second);
+			input->setPose(transform * T->second);
 		}
 	}
 
