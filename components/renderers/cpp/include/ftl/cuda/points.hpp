@@ -8,7 +8,18 @@
 namespace ftl {
 namespace cuda {
 
-void point_cloud(ftl::cuda::TextureObject<float4> &output, ftl::cuda::TextureObject<float> &depth, const ftl::rgbd::Camera &params, const float4x4 &pose, cudaStream_t stream);
+struct ClipSpace {
+	float4x4 origin;
+	float3 size;
+};
+
+void point_cloud(ftl::cuda::TextureObject<float4> &output,
+		ftl::cuda::TextureObject<float> &depth,
+		const ftl::rgbd::Camera &params,
+		const float4x4 &pose, cudaStream_t stream);
+
+void clipping(ftl::cuda::TextureObject<float4> &points,
+		const ClipSpace &clip, cudaStream_t stream);
 
 }
 }

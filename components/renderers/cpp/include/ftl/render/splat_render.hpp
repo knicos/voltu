@@ -4,6 +4,7 @@
 #include <ftl/render/renderer.hpp>
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/render/splat_params.hpp>
+#include <ftl/cuda/points.hpp>
 
 namespace ftl {
 namespace render {
@@ -40,6 +41,8 @@ class Splatter : public ftl::render::Renderer {
 
 	ftl::rgbd::Frame temp_;
 	ftl::rgbd::FrameSet *scene_;
+	ftl::cuda::ClipSpace clip_;
+	bool clipping_;
 };
 
 }
