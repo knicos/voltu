@@ -521,15 +521,22 @@
 			"listen": "tcp://*:9002"
 		},
 		"sources": [
-			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#0", "index": "camera0"},
-			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#1", "index": "camera1"},
-			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#2", "index": "camera2"},
-			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#3", "index": "camera3"},
-			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#4", "index": "camera4"}
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#0", "index": "0"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#1", "index": "1"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#2", "index": "2"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#3", "index": "3"},
+			{"uri":"file:///home/nick/Pictures/FTL/snaptest10.tar.gz#4", "index": "4"}
 		],
 		"display": { "$ref": "#displays/left" },
 		"virtual": { "$ref": "#virtual_cams/default" },
-		"voxelhash": { "$ref": "#hash_conf/default" },
+		"renderer": {
+			"clipping": {
+				"width": 0.5,
+				"height": 2.0,
+				"depth": 0.8,
+				"z": -2.2
+			}
+		},
 		"merge": {
 			"$id": "ftl://blah/blah",
 			"targetsource" : "ftl://utu.fi/node3#vision_default/source",
@@ -540,7 +547,11 @@
 			"delay" : 500,
 			"patternsize" : [9, 6]
 		},
-		"stream": {}
+		"stream": {},
+		"transform": {
+			"pitch": -0.4,
+			"y": -0.5
+		}
 	},
 
 	"reconstruction_lab": {
