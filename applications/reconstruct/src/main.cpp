@@ -92,6 +92,8 @@ static void run(ftl::Configurable *root) {
 		Eigen::Affine3d t(trans);
 		transform = t.matrix() * r.matrix();
 		LOG(INFO) << "Set transform: " << transform;
+	} else {
+		transform.setIdentity();
 	}
 
 	// Must find pose for each source...
