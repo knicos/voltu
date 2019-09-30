@@ -114,8 +114,10 @@ RGBDStream.prototype.subscribe = function() {
 }
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
-	if (spacket[1] & 0x1) this.depth = packet[4];
-	else this.rgb = packet[4];
+	if (packet[0] === 0){
+		if (spacket[1] & 0x1) this.depth = packet[4];
+		else this.rgb = packet[4];
+	}
 
 	console.log("Frame = ", packet[0], packet[1]);
 
@@ -149,6 +151,7 @@ app.get('/streams', (req, res) => {
 app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
 	if (uri_data.hasOwnProperty(uri)) {
+		uri_data[uri].peer.send("get_stream", uri, 10, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
     	res.end(uri_data[uri].rgb);
 	}

@@ -11,16 +11,32 @@ The user will be redirected to Stream.js file
 
 const Streams = ({clearCookies}) => {
     const [thumbnails, setThumbnails] = useState([]);
-
-    useEffect(() => {
-        setThumbnails(testData.thumbnail);
-        console.log('streams')
-    }, [])
     
-    const renderThumbnails = () => {
-        const photos = thumbnails.map(i => <div style={{'paddingTop': '25px'}}><img alt='robots' src={i.video} width='150px'/><p style={{'margin': 'none'}}>viewers: {i.viewers}</p></div>)
-        return photos;
+    useEffect( async () => {
+        const jsonThumbnails = await fetch('/streams/');
+        const realThumbnails = await jsonThumbnails.json();
+        setThumbnails(realThumbnails);
+        console.log('THUMBNAILS', thumbnails)
+    }, [])
+    /**
+     * Fetch the thumbnails
+     * setInterval() fetch every 1 second
+     */
+
+    const fetchThumbnails = async () => {
+        const jsonThumbnails = await fetch('/streams/');
+        const realThumbnails = await jsonThumbnails.json();
+        return realThumbnails;
     }
+
+    const renderThumbnails = async () => {
+        const thumbs = await fetchThumbnails()
+        console.log('before', thumbnails)
+        setThumbnails((thumbs));
+        console.log('after', thumbnails)
+        return thumbnails
+    }
+
 
     return(
         <div style={{'margin': 'auto', 'textAlign': 'center'}}>
@@ -28,7 +44,7 @@ const Streams = ({clearCookies}) => {
             <h2>Namibia here we come!</h2>
             <button onClick={clearCookies}>Logout</button>
             <br />
-            {renderThumbnails()}
+            <button onClick={() => renderThumbnails()}></button>
         </div>
     )
 }
