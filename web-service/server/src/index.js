@@ -169,17 +169,17 @@ app.get('/stream/depth', (req, res) => {
 
 //app.get('/stream', (req, res))
 
-/** 
+/*
  * Route for Google authentication API page
-*/
+ */
 app.get('/google', passport.authenticate('google', {
 	scope: ['profile']
 }))
 
-/** 
+/* 
  * Google authentication API callback route. 
  * Sets the JWT to clients browser and redirects the user back to front page (now has thumbnails).
-*/
+ */
 app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
 	console.log(req.user)
 	const token = jwt.sign(req.user.id, keys.jwt.secret);

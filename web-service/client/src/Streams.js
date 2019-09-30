@@ -30,12 +30,29 @@ const Streams = ({clearCookies}) => {
     }
 
     const renderThumbnails = async () => {
+        //updates all available thumbnail URIs
         const thumbs = await fetchThumbnails()
-        console.log('before', thumbnails)
         setThumbnails((thumbs));
-        console.log('after', thumbnails)
-        return thumbnails
+        console.log(thumbnails[0]);
+        //Problem possibly here, it doesn't encode it correctly?
+        const encodedURL = encodeURI(thumbnails[0]);
+        console.log('ENCODED URL', encodedURL);
+        try{
+            const someData = await fetch(`/stream/rgb?uri=${encodedURL}`)
+            if(!someData){
+                throw new Error('Vitun vitun vittu');
+            }
+            const myBlob = await someData.blob
+            console.log('MYBLOB', myBlob)
+            const objectURL = URL.createObjectURL(myBlob);
+            console.log('URL ', objectURL);
+        } catch(err){
+            console.log('Kurwavaara:', err);
+        }
+        
+        return thumbnails;
     }
+
 
 
     return(
@@ -43,8 +60,8 @@ const Streams = ({clearCookies}) => {
             <h1>Streams component works!!</h1>
             <h2>Namibia here we come!</h2>
             <button onClick={clearCookies}>Logout</button>
-            <br />
-            <button onClick={() => renderThumbnails()}></button>
+            <br/>
+            <button onClick={renderThumbnails}></button>
         </div>
     )
 }
