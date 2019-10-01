@@ -6,6 +6,8 @@
 #include <ftl/configurable.hpp>
 #include <vector>
 
+#include "ilw_cuda.hpp"
+
 namespace ftl {
 
 namespace detail {
@@ -42,6 +44,8 @@ class ILW : public ftl::Configurable {
      */
     bool process(ftl::rgbd::FrameSet &fs, cudaStream_t stream=0);
 
+    inline bool isLabColour() const { return use_lab_; }
+
     private:
     /*
      * Initialise data.
@@ -51,14 +55,20 @@ class ILW : public ftl::Configurable {
     /*
      * Find possible correspondences and a confidence value.
      */
-    bool _phase1(ftl::rgbd::FrameSet &fs, cudaStream_t stream);
+    bool _phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream);
 
     /*
      * Calculate energies and move the points.
      */
-    bool _phase2(ftl::rgbd::FrameSet &fs);
+    bool _phase2(ftl::rgbd::FrameSet &fs, float rate, cudaStream_t stream);
 
     std::vector<detail::ILWData> data_;
+    bool enabled_;
+    ftl::cuda::ILWParams params_;
+    int iterations_;
+    float motion_rate_;
+    int motion_window_;
+    bool use_lab_;
 };
 
 }

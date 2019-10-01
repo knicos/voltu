@@ -16,7 +16,7 @@
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
 
-#include "ilw.hpp"
+#include "ilw/ilw.hpp"
 #include <ftl/render/splat_render.hpp>
 
 #include <string>
@@ -28,6 +28,8 @@
 #include <ftl/net/universe.hpp>
 
 #include <ftl/registration.hpp>
+
+#include <cuda_profiler_api.h>
 
 #ifdef WIN32
 #pragma comment(lib, "Rpcrt4.lib")
@@ -135,8 +137,15 @@ static void run(ftl::Configurable *root) {
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 
 	// Generate virtual camera render when requested by streamer
-	virt->onRender([splat,virt,&scene_B](ftl::rgbd::Frame &out) {
+	virt->onRender([splat,virt,&scene_B,align](ftl::rgbd::Frame &out) {
 		virt->setTimestamp(scene_B.timestamp);
+		// Do we need to convert Lab to BGR?
+		if (align->isLabColour()) {
+			for (auto &f : scene_B.frames) {
+				auto &col = f.get<cv::cuda::GpuMat>(Channel::Colour);
+				cv::cuda::cvtColor(col,col, cv::COLOR_Lab2BGR);
+			}
+		}
 		splat->render(virt, out);
 	});
 	stream->add(virt);
@@ -177,7 +186,7 @@ static void run(ftl::Configurable *root) {
 
 			// Send all frames to GPU, block until done?
 			scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
-			//align->process(scene_A);
+			align->process(scene_A);
 
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.
@@ -188,14 +197,22 @@ static void run(ftl::Configurable *root) {
 		return true;
 	});
 
+	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();
 	slave.stop();
 	net->shutdown();
+	ftl::pool.stop();
+
+	cudaProfilerStop();
+
+	LOG(INFO) << "Deleting...";
+
 	delete align;
 	delete splat;
 	delete stream;
 	delete virt;
 	delete net;
+	LOG(INFO) << "Done.";
 }
 
 int main(int argc, char **argv) {

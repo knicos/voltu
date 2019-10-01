@@ -63,6 +63,8 @@ __device__ inline float4 make_float4(const uchar4 &c) {
 #define SMOOTHING_MULTIPLIER_B 4.0f		// For z contribution
 #define SMOOTHING_MULTIPLIER_C 4.0f		// For colour contribution
 
+#define ACCUM_DIAMETER 8
+
 /*
  * Pass 2: Accumulate attribute contributions if the points pass a visibility test.
  */
@@ -92,7 +94,7 @@ __global__ void dibr_attribute_contrib_kernel(
 	if (camPos.z > params.camera.maxDepth) return;
 	const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
 
-    const int upsample = 8; //min(UPSAMPLE_MAX, int((5.0f*r) * params.camera.fx / camPos.z));
+    //const int upsample = 8; //min(UPSAMPLE_MAX, int((5.0f*r) * params.camera.fx / camPos.z));
 
 	// Not on screen so stop now...
 	if (screenPos.x >= depth_in.width() || screenPos.y >= depth_in.height()) return;
@@ -107,16 +109,16 @@ __global__ void dibr_attribute_contrib_kernel(
 
 	// Each thread in warp takes an upsample point and updates corresponding depth buffer.
 	const int lane = tid % WARP_SIZE;
-	for (int i=lane; i<upsample*upsample; i+=WARP_SIZE) {
-		const float u = (i % upsample) - (upsample / 2);
-		const float v = (i / upsample) - (upsample / 2);
+	for (int i=lane; i<ACCUM_DIAMETER*ACCUM_DIAMETER; i+=WARP_SIZE) {
+		const float u = (i % ACCUM_DIAMETER) - (ACCUM_DIAMETER / 2);
+		const float v = (i / ACCUM_DIAMETER) - (ACCUM_DIAMETER / 2);
 
         // Use the depth buffer to determine this pixels 3D position in camera space
         const float d = ((float)depth_in.tex2D(screenPos.x+u, screenPos.y+v)/1000.0f);
 		const float3 nearest = params.camera.screenToCam((int)(screenPos.x+u),(int)(screenPos.y+v),d);
 
         // What is contribution of our current point at this pixel?
-        const float weight = ftl::cuda::spatialWeighting(length(nearest - camPos), SMOOTHING_MULTIPLIER_C*(nearest.z/params.camera.fx));
+        const float weight = ftl::cuda::spatialWeighting(nearest, camPos, SMOOTHING_MULTIPLIER_C*(nearest.z/params.camera.fx));
         if (screenPos.x+u < colour_out.width() && screenPos.y+v < colour_out.height() && weight > 0.0f) {  // TODO: Use confidence threshold here
             const float4 wcolour = colour * weight;
 			//const float4 wnormal = normal * weight;
@@ -187,7 +189,7 @@ __global__ void dibr_attribute_contrib_kernel(
         const float3 nearest = params.camera.screenToCam((int)(screenPos.x+u),(int)(screenPos.y+v),d);
 
         // What is contribution of our current point at this pixel?
-        const float weight = ftl::cuda::spatialWeighting(length(nearest - camPos), SMOOTHING_MULTIPLIER_C*(nearest.z/params.camera.fx));
+        const float weight = ftl::cuda::spatialWeighting(nearest, camPos, SMOOTHING_MULTIPLIER_C*(nearest.z/params.camera.fx));
         if (screenPos.x+u < colour_out.width() && screenPos.y+v < colour_out.height() && weight > 0.0f) {  // TODO: Use confidence threshold here
             const float wcolour = colour * weight;
             //const float4 wnormal = normal * weight;

@@ -66,6 +66,11 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
         f.createTexture<float4>(Channel::EnergyVector, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<float>(Channel::Energy, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<uchar4>(Channel::Colour);
+
+		cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+		f.get<GpuMat>(Channel::EnergyVector).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
+		f.get<GpuMat>(Channel::Energy).setTo(cv::Scalar(0.0f), cvstream);
     }
 
     return true;

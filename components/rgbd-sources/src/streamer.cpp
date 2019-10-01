@@ -496,7 +496,7 @@ void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt
 		frame_no_,
 		static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
 	};
-	LOG(INFO) << "codec:" << (int) pkt.codec;
+
 	// Lock to prevent clients being added / removed
 	//SHARED_LOCK(src->mutex,lk);
 	auto c = src->clients.begin();
