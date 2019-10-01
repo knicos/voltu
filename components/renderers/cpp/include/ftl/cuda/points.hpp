@@ -21,6 +21,12 @@ void point_cloud(ftl::cuda::TextureObject<float4> &output,
 void clipping(ftl::cuda::TextureObject<float4> &points,
 		const ClipSpace &clip, cudaStream_t stream);
 
+void point_cloud(ftl::cuda::TextureObject<float> &output, ftl::cuda::TextureObject<float4> &points, const ftl::rgbd::Camera &params, const float4x4 &poseinv, cudaStream_t stream);
+
+void world_to_cam(ftl::cuda::TextureObject<float4> &points, const float4x4 &poseinv, cudaStream_t stream);
+
+void cam_to_world(ftl::cuda::TextureObject<float4> &points, const float4x4 &pose, cudaStream_t stream);
+
 }
 }
 

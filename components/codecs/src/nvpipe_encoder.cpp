@@ -47,6 +47,10 @@ bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_
 
 	//LOG(INFO) << "Definition: " << ftl::codecs::getWidth(definition) << "x" << ftl::codecs::getHeight(definition);
 
+    if (in.empty()) {
+        LOG(ERROR) << "Missing data for Nvidia encoder";
+        return false;
+    }
     if (!_createEncoder(in, definition, bitrate)) return false;
 
     //LOG(INFO) << "NvPipe Encode: " << int(definition) << " " << in.cols;

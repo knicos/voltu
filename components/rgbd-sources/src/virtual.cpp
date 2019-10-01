@@ -47,8 +47,6 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 					frame.hasChannel(host_->getChannel())) {
 				frame.download(host_->getChannel());
 				cv::swap(frame.get<cv::Mat>(host_->getChannel()), depth_);
-			} else {
-				LOG(ERROR) << "Channel 2 frame in rendering";
 			}
 
 			auto cb = host_->callback();

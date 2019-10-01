@@ -54,6 +54,7 @@ void Splatter::renderChannel(
 					ftl::render::SplatParams &params, ftl::rgbd::Frame &out,
 					const Channel &channel, cudaStream_t stream)
 {
+	if (channel == Channel::None) return;
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
@@ -105,7 +106,7 @@ void Splatter::renderChannel(
 	// Accumulate attribute contributions for each pixel
 	for (auto &f : scene_->frames) {
 		// Convert colour from BGR to BGRA if needed
-		if (f.get<GpuMat>(Channel::Colour).type() == CV_8UC3) {
+		if (f.get<GpuMat>(channel).type() == CV_8UC3) {
 			// Convert to 4 channel colour
 			auto &col = f.get<GpuMat>(Channel::Colour);
 			GpuMat tmp(col.size(), CV_8UC4);
@@ -247,6 +248,15 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
 		out.get<GpuMat>(Channel::Right).setTo(cv::Scalar(76,76,76), cvstream);
 		renderChannel(params, out, Channel::Right, stream);
+	} else if (chan != Channel::None) {
+		if (ftl::rgbd::isFloatChannel(chan)) {
+			out.create<GpuMat>(chan, Format<float>(camera.width, camera.height));
+			out.get<GpuMat>(chan).setTo(cv::Scalar(0.0f), cvstream);
+		} else {
+			out.create<GpuMat>(chan, Format<uchar4>(camera.width, camera.height));
+			out.get<GpuMat>(chan).setTo(cv::Scalar(76,76,76,255), cvstream);
+		}
+		renderChannel(params, out, chan, stream);
 	}
 
 	return true;

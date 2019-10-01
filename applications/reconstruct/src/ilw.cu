@@ -30,9 +30,14 @@ __global__ void correspondence_energy_vector_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
     
-    const float3 world1 = make_float3(p1.tex2D(x, y));
+	const float3 world1 = make_float3(p1.tex2D(x, y));
+	if (world1.x == MINF) {
+        vout(x,y) = make_float4(0.0f);
+        eout(x,y) = 0.0f;
+        return;
+    }
     const float3 camPos2 = pose2 * world1;
-    const uint2 screen2 = cam2.camToScreen<uint2>(camPos2);
+	const uint2 screen2 = cam2.camToScreen<uint2>(camPos2);
 
     const int upsample = 8;
 
@@ -43,12 +48,11 @@ __global__ void correspondence_energy_vector_kernel(
 		const float u = (i % upsample) - (upsample / 2);
         const float v = (i / upsample) - (upsample / 2);
         
-        const float3 world2 = make_float3(p2.tex2D(screen2.x+u, screen2.y+v));
+		const float3 world2 = make_float3(p2.tex2D(screen2.x+u, screen2.y+v));
+		if (world2.x == MINF) continue;
 
         // Determine degree of correspondence
         const float confidence = 1.0f / length(world1 - world2);
-
-        printf("conf %f\n", confidence);
         const float maxconf = warpMax(confidence);
 
         // This thread has best confidence value
