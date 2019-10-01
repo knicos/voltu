@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import Stream from './Stream'
-import testData from './seeds'
+import Thumbnail from './Thumbnail'
 
 /* This file will contain list of streams.
 The user is able to select which stream he/she will WebAuthentication.
@@ -12,46 +11,16 @@ The user will be redirected to Stream.js file
 const Streams = ({clearCookies}) => {
     const [thumbnails, setThumbnails] = useState([]);
     
-    useEffect( async () => {
-        const jsonThumbnails = await fetch('/streams/');
-        const realThumbnails = await jsonThumbnails.json();
-        setThumbnails(realThumbnails);
-        console.log('THUMBNAILS', thumbnails)
+    useEffect( async() => {
+            const jsonThumbnails = await fetch('http://localhost:8080/streams/');
+            const realThumbnails = await jsonThumbnails.json();
+            setThumbnails(realThumbnails);
+            console.log('THUMBNAILS', thumbnails)
     }, [])
     /**
      * Fetch the thumbnails
      * setInterval() fetch every 1 second
      */
-
-    const fetchThumbnails = async () => {
-        const jsonThumbnails = await fetch('/streams/');
-        const realThumbnails = await jsonThumbnails.json();
-        return realThumbnails;
-    }
-
-    const renderThumbnails = async () => {
-        //updates all available thumbnail URIs
-        const thumbs = await fetchThumbnails()
-        setThumbnails((thumbs));
-        console.log(thumbnails[0]);
-        //Problem possibly here, it doesn't encode it correctly?
-        const encodedURL = encodeURI(thumbnails[0]);
-        console.log('ENCODED URL', encodedURL);
-        try{
-            const someData = await fetch(`/stream/rgb?uri=${encodedURL}`)
-            if(!someData){
-                throw new Error('Vitun vitun vittu');
-            }
-            const myBlob = await someData.blob
-            console.log('MYBLOB', myBlob)
-            const objectURL = URL.createObjectURL(myBlob);
-            console.log('URL ', objectURL);
-        } catch(err){
-            console.log('Kurwavaara:', err);
-        }
-        
-        return thumbnails;
-    }
 
 
 
@@ -61,7 +30,7 @@ const Streams = ({clearCookies}) => {
             <h2>Namibia here we come!</h2>
             <button onClick={clearCookies}>Logout</button>
             <br/>
-            <button onClick={renderThumbnails}></button>
+            <Thumbnail thumbnail={thumbnails[0]}/>
         </div>
     )
 }

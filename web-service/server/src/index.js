@@ -5,11 +5,14 @@ const Peer = require('./peer.js');
 const passport = require('passport');
 const passportSetup = require('./passport/passport');
 const jwt = require('jsonwebtoken');
-const keys = require('./passport/keys') 
+const keys = require('./passport/keys')
+const cors = require('cors'); 
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
 app.use(express.static('build'))
+app.use(cors())
+
 
 passport.serializeUser((user, done) => {
     done(null, user);
