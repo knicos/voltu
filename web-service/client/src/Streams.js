@@ -22,6 +22,10 @@ const Streams = ({clearCookies}) => {
      * setInterval() fetch every 1 second
      */
 
+    const renderThumbnails = () => {
+        const returnVal = thumbnails.map(i => <Thumbnail thumbnail={i} />)
+        return returnVal
+    }
 
 
     return(
@@ -30,7 +34,8 @@ const Streams = ({clearCookies}) => {
             <h2>Namibia here we come!</h2>
             <button onClick={clearCookies}>Logout</button>
             <br/>
-            <Thumbnail thumbnail={thumbnails[0]}/>
+            {console.log("THUMBNAILIT ON", thumbnails)}
+            {renderThumbnails()}
         </div>
     )
 }

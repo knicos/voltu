@@ -10,19 +10,11 @@ class Thumbnail extends Component {
         this.renderThumbnails()
     }
 
-    fetchThumbnails = async () => {
-        const jsonThumbnails = await fetch('http://localhost:8080/streams/')
-        const realThumbnails = await jsonThumbnails.json();
-        console.log('REAL THUMBNAILS', realThumbnails)
-        return realThumbnails;
-    }
-
     renderThumbnails = async () => {
-        let returnVal = "err";
-        console.log(this.props)
-        const thumbs = await this.fetchThumbnails()
+        console.log('PROPS', this.props)
+        const thumbs = this.props.thumbnail
         console.log(thumbs);
-        const encodedURI = encodeURIComponent(thumbs[0])
+        const encodedURI = encodeURIComponent(thumbs)
         console.log('ENCODED', encodedURI)
         try{
             const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
@@ -37,6 +29,7 @@ class Thumbnail extends Component {
             this.setState({imgSrc: objectURL});
         } catch(err){
             console.log('Kurwavaara:', err);
+            this.setState({imgSrc: 'Error while loading the picture'})
         }
     }
     render(){
@@ -45,7 +38,7 @@ class Thumbnail extends Component {
             <div>
                 {console.log('SRC', this.state.imgSrc)}
                 <img src={val} width='500px'></img>
-                <button onClick={() => this.renderThumbnails()}></button>
+                <button onClick={() => {this.renderThumbnails()}}>Refresh</button>
             </div>
         )    
     }
