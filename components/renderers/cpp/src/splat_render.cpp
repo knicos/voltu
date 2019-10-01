@@ -40,10 +40,14 @@ Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::rende
 
 		clip_.origin = MatrixConversion::toCUDA(r.matrix() * t.matrix());
 		clip_.size = make_float3(width, height, depth);
-		clipping_ = true;
+		clipping_ = value("clipping_enabled", true);
 	} else {
 		clipping_ = false;
 	}
+
+	on("clipping_enabled", [this](const ftl::config::Event &e) {
+		clipping_ = value("clipping_enabled", true);
+	});
 }
 
 Splatter::~Splatter() {
