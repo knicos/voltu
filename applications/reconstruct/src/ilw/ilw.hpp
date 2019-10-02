@@ -69,6 +69,7 @@ class ILW : public ftl::Configurable {
     float motion_rate_;
     int motion_window_;
     bool use_lab_;
+	int discon_mask_;
 };
 
 }

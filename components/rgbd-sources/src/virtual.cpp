@@ -8,7 +8,8 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 	public:
 	explicit VirtualImpl(ftl::rgbd::Source *host, const ftl::rgbd::Camera &params) : ftl::rgbd::detail::Source(host) {
 		params_ = params;
-		capabilities_ = ftl::rgbd::kCapMovable | ftl::rgbd::kCapVideo | ftl::rgbd::kCapStereo;
+		capabilities_ = ftl::rgbd::kCapVideo | ftl::rgbd::kCapStereo;
+		if (!host->value("locked", false)) capabilities_ |= ftl::rgbd::kCapMovable;
 	}
 
 	~VirtualImpl() {

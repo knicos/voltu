@@ -16,7 +16,7 @@ struct ClipSpace {
 void point_cloud(ftl::cuda::TextureObject<float4> &output,
 		ftl::cuda::TextureObject<float> &depth,
 		const ftl::rgbd::Camera &params,
-		const float4x4 &pose, cudaStream_t stream);
+		const float4x4 &pose, uint discon, cudaStream_t stream);
 
 void clipping(ftl::cuda::TextureObject<float4> &points,
 		const ClipSpace &clip, cudaStream_t stream);
