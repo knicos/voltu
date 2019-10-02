@@ -44,6 +44,7 @@ class Splatter : public ftl::render::Renderer {
 	ftl::cuda::ClipSpace clip_;
 	bool clipping_;
 	float norm_filter_;
+	bool backcull_;
 };
 
 }
