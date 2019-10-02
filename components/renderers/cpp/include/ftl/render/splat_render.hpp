@@ -43,6 +43,7 @@ class Splatter : public ftl::render::Renderer {
 	ftl::rgbd::FrameSet *scene_;
 	ftl::cuda::ClipSpace clip_;
 	bool clipping_;
+	float norm_filter_;
 };
 
 }

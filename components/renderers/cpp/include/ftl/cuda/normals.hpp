@@ -17,6 +17,11 @@ void normal_visualise(ftl::cuda::TextureObject<float4> &norm,
         const ftl::rgbd::Camera &camera, const float4x4 &pose,
         cudaStream_t stream);
 
+void normal_filter(ftl::cuda::TextureObject<float4> &norm,
+        ftl::cuda::TextureObject<float4> &points,
+        const ftl::rgbd::Camera &camera, const float4x4 &pose,
+        float thresh, cudaStream_t stream);
+
 }
 }
 

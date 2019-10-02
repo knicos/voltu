@@ -22,6 +22,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     params_.colour_smooth = value("colour_smooth", 50.0f);
     params_.spatial_smooth = value("spatial_smooth", 0.04f);
     params_.cost_ratio = value("cost_ratio", 0.75f);
+	discon_mask_ = value("discontinuity_mask",2);
 
     on("ilw_align", [this](const ftl::config::Event &e) {
         enabled_ = value("ilw_align", true);
@@ -37,6 +38,10 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
 
     on("motion_window", [this](const ftl::config::Event &e) {
         motion_window_ = value("motion_window", 3);
+    });
+
+	on("discontinuity_mask", [this](const ftl::config::Event &e) {
+        discon_mask_ = value("discontinuity_mask", 2);
     });
 
     on("use_Lab", [this](const ftl::config::Event &e) {
@@ -116,7 +121,7 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 			
         auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
         auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
-        ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
+        ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, discon_mask_, stream);
 
         // TODO: Create energy vector texture and clear it
         // Create energy and clear it

@@ -24,11 +24,11 @@ using ftl::render::SplatParams;
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float3 worldPos = make_float3(points.tex2D(x, y));
-	if (worldPos.x == MINF) return;
+	const float4 worldPos = points.tex2D(x, y);
+	if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
 
     // Find the virtual screen position of current point
-	const float3 camPos = params.m_viewMatrix * worldPos;
+	const float3 camPos = params.m_viewMatrix * make_float3(worldPos);
 	if (camPos.z < params.camera.minDepth) return;
 	if (camPos.z > params.camera.maxDepth) return;
 
@@ -61,7 +61,7 @@ __device__ inline float4 make_float4(const uchar4 &c) {
 #define ENERGY_THRESHOLD 0.1f
 #define SMOOTHING_MULTIPLIER_A 10.0f	// For surface search
 #define SMOOTHING_MULTIPLIER_B 4.0f		// For z contribution
-#define SMOOTHING_MULTIPLIER_C 4.0f		// For colour contribution
+#define SMOOTHING_MULTIPLIER_C 1.0f		// For colour contribution
 
 #define ACCUM_DIAMETER 8
 
@@ -84,12 +84,12 @@ __global__ void dibr_attribute_contrib_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float3 worldPos = make_float3(points.tex2D(x, y));
+	const float4 worldPos = points.tex2D(x, y);
 	//const float3 normal = make_float3(tex2D<float4>(camera.normal, x, y));
 	if (worldPos.x == MINF) return;
     //const float r = (camera.poseInverse * worldPos).z / camera.params.fx;
 
-	const float3 camPos = params.m_viewMatrix * worldPos;
+	const float3 camPos = params.m_viewMatrix * make_float3(worldPos);
 	if (camPos.z < params.camera.minDepth) return;
 	if (camPos.z > params.camera.maxDepth) return;
 	const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
@@ -103,8 +103,9 @@ __global__ void dibr_attribute_contrib_kernel(
     const float d = ((float)depth_in.tex2D((int)screenPos.x, (int)screenPos.y)/1000.0f);
     //if (abs(d - camPos.z) > DEPTH_THRESHOLD) return;
 
-    // TODO:(Nick) Should just one thread load these to shared mem?
-    const float4 colour = make_float4(colour_in.tex2D(x, y));
+	const float4 colour = (params.m_flags & ftl::render::kShowDisconMask && worldPos.w < 0.0f) ?
+			make_float4(0.0f,0.0f,255.0f,255.0f) :  // Show discontinuity mask in red
+			make_float4(colour_in.tex2D(x, y));
     //const float4 normal = tex2D<float4>(camera.normal, x, y);
 
 	// Each thread in warp takes an upsample point and updates corresponding depth buffer.

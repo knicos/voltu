@@ -8,7 +8,7 @@
 namespace ftl {
 namespace render {
 
-static const uint kShowBlockBorders = 0x00000001;  // Deprecated: from voxels system
+static const uint kShowDisconMask = 0x00000001;
 static const uint kNoSplatting = 0x00000002;
 static const uint kNoUpsampling = 0x00000004;
 static const uint kNoTexturing = 0x00000008;

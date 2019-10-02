@@ -49,6 +49,11 @@ Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::rende
 	on("clipping_enabled", [this](const ftl::config::Event &e) {
 		clipping_ = value("clipping_enabled", true);
 	});
+
+	norm_filter_ = value("normal_filter", -1.0f);
+	on("normal_filter", [this](const ftl::config::Event &e) {
+		norm_filter_ = value("normal_filter", -1.0f);
+	});
 }
 
 Splatter::~Splatter() {
@@ -78,22 +83,6 @@ void Splatter::renderChannel(
 		if (f.empty(Channel::Depth + Channel::Colour)) {
 			LOG(ERROR) << "Missing required channel";
 			continue;
-		}
-
-		// Needs to create points channel first?
-		if (!f.hasChannel(Channel::Points)) {
-			//LOG(INFO) << "Creating points... " << s->parameters().width;
-			
-			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
-			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
-			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, stream);
-
-			//LOG(INFO) << "POINTS Added";
-		}
-
-		// Clip first?
-		if (clipping_) {
-			ftl::cuda::clipping(f.createTexture<float4>(Channel::Points), clip_, stream);
 		}
 
 		ftl::cuda::dibr_merge(
@@ -235,9 +224,10 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	// Parameters object to pass to CUDA describing the camera
 	SplatParams params;
 	params.m_flags = 0;
-	if (src->value("splatting", true) == false) params.m_flags |= ftl::render::kNoSplatting;
-	if (src->value("upsampling", true) == false) params.m_flags |= ftl::render::kNoUpsampling;
-	if (src->value("texturing", true) == false) params.m_flags |= ftl::render::kNoTexturing;
+	if (src->value("show_discontinuity_mask", false)) params.m_flags |= ftl::render::kShowDisconMask;
+	//if (src->value("splatting", true) == false) params.m_flags |= ftl::render::kNoSplatting;
+	//if (src->value("upsampling", true) == false) params.m_flags |= ftl::render::kNoUpsampling;
+	//if (src->value("texturing", true) == false) params.m_flags |= ftl::render::kNoTexturing;
 	params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
 	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.camera = camera;
@@ -251,6 +241,42 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 
 	temp_.createTexture<int>(Channel::Depth);
 
+	// First make sure each input has normals
+	temp_.createTexture<float4>(Channel::Normals);
+	for (int i=0; i<scene_->frames.size(); ++i) {
+		auto &f = scene_->frames[i];
+		auto s = scene_->sources[i];
+
+		// Needs to create points channel first?
+		if (!f.hasChannel(Channel::Points)) {
+			//LOG(INFO) << "Creating points... " << s->parameters().width;
+			
+			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
+			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
+			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, 0, stream);
+
+			//LOG(INFO) << "POINTS Added";
+		}
+
+		// Clip first?
+		if (clipping_) {
+			ftl::cuda::clipping(f.createTexture<float4>(Channel::Points), clip_, stream);
+		}
+
+		if (!f.hasChannel(Channel::Normals)) {
+			auto &g = f.get<GpuMat>(Channel::Colour);
+			ftl::cuda::normals(f.createTexture<float4>(Channel::Normals, Format<float4>(g.cols, g.rows)),
+				temp_.getTexture<float4>(Channel::Normals),  // FIXME: Uses assumption of vcam res same as input res
+				f.getTexture<float4>(Channel::Points), stream);
+
+			if (norm_filter_ > -0.1f) {
+				Eigen::Matrix4f matrix =  s->getPose().cast<float>();
+				auto pose = MatrixConversion::toCUDA(matrix);
+				ftl::cuda::normal_filter(f.getTexture<float4>(Channel::Normals), f.getTexture<float4>(Channel::Points), s->parameters(), pose, norm_filter_, stream);
+			}
+		}
+	}
+
 	renderChannel(params, out, Channel::Colour, stream);
 	
 	Channel chan = src->getChannel();
@@ -258,31 +284,13 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	{
 		temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 	} else if (chan == Channel::Normals) {
-		//temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
-		//ftl::cuda::point_cloud(temp_.createTexture<float4>(Channel::Points, Format<float4>(camera.width, camera.height)),
-		//	temp_.createTexture<float>(Channel::Depth), camera, params.m_viewMatrixInverse, stream);
-		//ftl::cuda::normals(temp_.getTexture<float4>(Channel::Normals), temp_.getTexture<float4>(Channel::Points), stream);
-		//ftl::cuda::normal_visualise(temp_.getTexture<float4>(Channel::Normals), temp_.getTexture<float>(Channel::Contribution), camera);
-
-		// First make sure each input has normals
-		temp_.createTexture<float4>(Channel::Normals);
-		for (auto &f : scene_->frames) {
-			if (!f.hasChannel(Channel::Normals)) {
-				auto &g = f.get<GpuMat>(Channel::Colour);
-				LOG(INFO) << "Make normals channel";
-				ftl::cuda::normals(f.createTexture<float4>(Channel::Normals, Format<float4>(g.cols, g.rows)),
-					temp_.getTexture<float4>(Channel::Normals),  // FIXME: Uses assumption of vcam res same as input res
-					f.getTexture<float4>(Channel::Points), stream);
-			}
-		}
-
 		out.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
 
 		// Render normal attribute
 		renderChannel(params, out, Channel::Normals, stream);
 
 		// Convert normal to single float value
-		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), temp_.getTexture<float>(Channel::Contribution), camera, params.m_viewMatrix, stream);
+		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), temp_.getTexture<float>(Channel::Contribution), camera, params.m_viewMatrixInverse, stream);
 
 		// Put in output as single float
 		cv::cuda::swap(temp_.get<GpuMat>(Channel::Contribution), out.create<GpuMat>(Channel::Normals));

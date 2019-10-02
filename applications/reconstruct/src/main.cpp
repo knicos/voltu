@@ -136,6 +136,9 @@ static void run(ftl::Configurable *root) {
 	ftl::rgbd::Group group;
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 
+	int o = root->value("origin_pose", 0) % sources.size();
+	virt->setPose(sources[o]->getPose());
+
 	// Generate virtual camera render when requested by streamer
 	virt->onRender([splat,virt,&scene_B,align](ftl::rgbd::Frame &out) {
 		virt->setTimestamp(scene_B.timestamp);
