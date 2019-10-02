@@ -83,6 +83,8 @@ public:
 	template <typename T>
 	ftl::cuda::TextureObject<T> &createTexture(ftl::rgbd::Channel c);
 
+	void resetTexture(ftl::rgbd::Channel c);
+
 	/**
 	 * Reset all channels without releasing memory.
 	 */
@@ -203,6 +205,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::rgbd::Channel c, const ft
 	}
 
 	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
+		LOG(ERROR) << "Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value;
 		throw ftl::exception("Texture type does not match underlying data type");
 	}
 
@@ -235,6 +238,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::rgbd::Channel c) {
 	}
 
 	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
+		LOG(ERROR) << "Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value;
 		throw ftl::exception("Texture type does not match underlying data type");
 	}
 

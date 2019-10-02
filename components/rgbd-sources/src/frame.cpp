@@ -199,3 +199,8 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c) {
 	return m;
 }
 
+void Frame::resetTexture(ftl::rgbd::Channel c) {
+	auto &m = _get(c);
+	m.tex.free();
+}
+
