@@ -54,6 +54,11 @@ Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::rende
 	on("normal_filter", [this](const ftl::config::Event &e) {
 		norm_filter_ = value("normal_filter", -1.0f);
 	});
+
+	backcull_ = value("back_cull", true);
+	on("back_cull", [this](const ftl::config::Event &e) {
+		backcull_ = value("back_cull", true);
+	});
 }
 
 Splatter::~Splatter() {
@@ -76,6 +81,7 @@ void Splatter::renderChannel(
 	bool is_4chan = scene_->frames[0].get<GpuMat>(channel).type() == CV_32FC4;
 	
 	// Render each camera into virtual view
+	// TODO: Move out of renderChannel, this is a common step to all channels
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
 		auto *s = scene_->sources[i];
@@ -87,8 +93,9 @@ void Splatter::renderChannel(
 
 		ftl::cuda::dibr_merge(
 			f.createTexture<float4>(Channel::Points),
+			f.createTexture<float4>(Channel::Normals),
 			temp_.getTexture<int>(Channel::Depth),
-			params, stream
+			params, backcull_, stream
 		);
 
 		//LOG(INFO) << "DIBR DONE";

@@ -20,12 +20,30 @@ using ftl::render::SplatParams;
  * Pass 1: Directly render each camera into virtual view but with no upsampling
  * for sparse points.
  */
- __global__ void dibr_merge_kernel(TextureObject<float4> points, TextureObject<int> depth, SplatParams params) {
+ template <bool CULLING>
+ __global__ void dibr_merge_kernel(TextureObject<float4> points,
+		TextureObject<float4> normals,
+		TextureObject<int> depth, SplatParams params) {
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	const float4 worldPos = points.tex2D(x, y);
 	if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
+
+	// Compile time enable/disable of culling back facing points
+	if (CULLING) {
+		float3 ray = params.m_viewMatrixInverse.getFloat3x3() * params.camera.screenToCam(x,y,1.0f);
+		ray = ray / length(ray);
+		float3 n = make_float3(normals.tex2D((int)x,(int)y));
+		float l = length(n);
+		if (l == 0) {
+			return;
+		}
+		n /= l;
+
+		const float facing = dot(ray, n);
+		if (facing <= 0.0f) return;
+	}
 
     // Find the virtual screen position of current point
 	const float3 camPos = params.m_viewMatrix * make_float3(worldPos);
@@ -43,11 +61,12 @@ using ftl::render::SplatParams;
 	}
 }
 
-void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<int> &depth, SplatParams params, cudaStream_t stream) {
+void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<float4> &normals, TextureObject<int> &depth, SplatParams params, bool culling, cudaStream_t stream) {
     const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-    dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>(points, depth, params);
+	if (culling) dibr_merge_kernel<true><<<gridSize, blockSize, 0, stream>>>(points, normals, depth, params);
+	else dibr_merge_kernel<false><<<gridSize, blockSize, 0, stream>>>(points, normals, depth, params);
     cudaSafeCall( cudaGetLastError() );
 }
 

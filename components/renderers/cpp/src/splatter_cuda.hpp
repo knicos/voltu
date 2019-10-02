@@ -8,8 +8,10 @@ namespace ftl {
 namespace cuda {
 	void dibr_merge(
 		ftl::cuda::TextureObject<float4> &points,
+		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<int> &depth,
 		ftl::render::SplatParams params,
+		bool culling,
 		cudaStream_t stream);
 
 	void dibr_attribute(
