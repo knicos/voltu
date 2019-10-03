@@ -6,11 +6,14 @@
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
+#include <string>
+
 using ftl::render::Splatter;
 using ftl::rgbd::Channel;
 using ftl::rgbd::Channels;
 using ftl::rgbd::Format;
 using cv::cuda::GpuMat;
+using std::stoul;
 
 static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
   Eigen::Affine3d rx =
@@ -20,6 +23,22 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
   Eigen::Affine3d rz =
       Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
   return rz * rx * ry;
+}
+
+static cv::Scalar parseColour(const std::string &colour) {
+	std::string c = colour;
+	if (c[0] == '#') {
+		c.erase(0, 1);
+		unsigned long value = stoul(c.c_str(), nullptr, 16);
+		return cv::Scalar(
+			(value >> 0) & 0xff,
+			(value >> 8) & 0xff,
+			(value >> 16) & 0xff,
+			(value >> 24) & 0xff
+		);
+	}
+
+	return cv::Scalar(0,0,0,0);
 }
 
 Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::render::Renderer(config), scene_(fs) {
@@ -59,6 +78,16 @@ Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::rende
 	on("back_cull", [this](const ftl::config::Event &e) {
 		backcull_ = value("back_cull", true);
 	});
+
+	splat_ = value("splatting", true);
+	on("splatting", [this](const ftl::config::Event &e) {
+		splat_ = value("splatting", true);
+	});
+
+	background_ = parseColour(value("background", std::string("#e0e0e0")));
+	on("background", [this](const ftl::config::Event &e) {
+		background_ = parseColour(value("background", std::string("#e0e0e0")));
+	});
 }
 
 Splatter::~Splatter() {
@@ -73,12 +102,12 @@ void Splatter::renderChannel(
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-	temp_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
-	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
+	//temp_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
+	//temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
 
 	if (scene_->frames.size() < 1) return;
-	bool is_float = scene_->frames[0].get<GpuMat>(channel).type() == CV_32F; //ftl::rgbd::isFloatChannel(channel);
-	bool is_4chan = scene_->frames[0].get<GpuMat>(channel).type() == CV_32FC4;
+	bool is_float = out.get<GpuMat>(channel).type() == CV_32F; //ftl::rgbd::isFloatChannel(channel);
+	bool is_4chan = out.get<GpuMat>(channel).type() == CV_32FC4;
 	
 	// Render each camera into virtual view
 	// TODO: Move out of renderChannel, this is a common step to all channels
@@ -94,19 +123,43 @@ void Splatter::renderChannel(
 		ftl::cuda::dibr_merge(
 			f.createTexture<float4>(Channel::Points),
 			f.createTexture<float4>(Channel::Normals),
-			temp_.getTexture<int>(Channel::Depth),
+			temp_.createTexture<int>(Channel::Depth2),
 			params, backcull_, stream
 		);
 
 		//LOG(INFO) << "DIBR DONE";
 	}
 
-	// TODO: Add the depth splatting step..
+	//temp_.createTexture<float4>(Channel::Colour);
+	//temp_.createTexture<float>(Channel::Contribution);
+	out.create<GpuMat>(Channel::Normals, Format<float4>(params.camera.width, params.camera.height));
 
-	temp_.createTexture<float4>(Channel::Colour);
-	temp_.createTexture<float>(Channel::Contribution);
+	// Create normals first
+	for (auto &f : scene_->frames) {
+		ftl::cuda::dibr_attribute(
+			f.createTexture<float4>(Channel::Normals),
+			f.createTexture<float4>(Channel::Points),
+			temp_.getTexture<int>(Channel::Depth2),
+			out.createTexture<float4>(Channel::Normals),
+			params, stream
+		);
+	}
 
-	// Accumulate attribute contributions for each pixel
+	//temp_.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
+	//temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
+
+	if (is_4chan) {
+		temp_.create<GpuMat>(Channel::Colour2, Format<float4>(params.camera.width, params.camera.height));
+		temp_.get<GpuMat>(Channel::Colour2).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
+	} else if (is_float) {
+		temp_.create<GpuMat>(Channel::Colour2, Format<float>(params.camera.width, params.camera.height));
+		temp_.get<GpuMat>(Channel::Colour2).setTo(cv::Scalar(0.0f), cvstream);
+	} else {
+		temp_.create<GpuMat>(Channel::Colour2, Format<uchar4>(params.camera.width, params.camera.height));
+		temp_.get<GpuMat>(Channel::Colour2).setTo(cv::Scalar(0,0,0,0), cvstream);
+	}
+
+	// Create attribute first
 	for (auto &f : scene_->frames) {
 		// Convert colour from BGR to BGRA if needed
 		if (f.get<GpuMat>(channel).type() == CV_8UC3) {
@@ -116,70 +169,66 @@ void Splatter::renderChannel(
 			cv::cuda::swap(col, tmp);
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
 		}
-	
-		if (is_float) {
-			ftl::cuda::dibr_attribute(
-				f.createTexture<float>(channel),
-				f.createTexture<float4>(Channel::Points),
-				temp_.getTexture<int>(Channel::Depth),
-				temp_.getTexture<float4>(Channel::Colour),
-				temp_.getTexture<float>(Channel::Contribution),
-				params, stream
-			);
-		} else if (is_4chan) {
+		
+		if (is_4chan) {
 			ftl::cuda::dibr_attribute(
 				f.createTexture<float4>(channel),
 				f.createTexture<float4>(Channel::Points),
-				temp_.getTexture<int>(Channel::Depth),
-				temp_.getTexture<float4>(Channel::Colour),
-				temp_.getTexture<float>(Channel::Contribution),
+				temp_.getTexture<int>(Channel::Depth2),
+				(splat_) ? temp_.createTexture<float4>(Channel::Colour2) : out.createTexture<float4>(channel),
 				params, stream
 			);
-		} else if (channel == Channel::Colour || channel == Channel::Right) {
+		} else if (is_float) {
 			ftl::cuda::dibr_attribute(
-				f.createTexture<uchar4>(Channel::Colour),
+				f.createTexture<float>(channel),
 				f.createTexture<float4>(Channel::Points),
-				temp_.getTexture<int>(Channel::Depth),
-				temp_.getTexture<float4>(Channel::Colour),
-				temp_.getTexture<float>(Channel::Contribution),
+				temp_.getTexture<int>(Channel::Depth2),
+				(splat_) ? temp_.createTexture<float>(Channel::Colour2) : out.createTexture<float>(channel),
 				params, stream
 			);
 		} else {
 			ftl::cuda::dibr_attribute(
 				f.createTexture<uchar4>(channel),
 				f.createTexture<float4>(Channel::Points),
-				temp_.getTexture<int>(Channel::Depth),
-				temp_.getTexture<float4>(Channel::Colour),
-				temp_.getTexture<float>(Channel::Contribution),
+				temp_.getTexture<int>(Channel::Depth2),
+				(splat_) ? temp_.createTexture<uchar4>(Channel::Colour2) : out.createTexture<uchar4>(channel),
 				params, stream
 			);
 		}
 	}
 
-	if (is_4chan) {
-		// Normalise attribute contributions
-		ftl::cuda::dibr_normalise(
-			temp_.createTexture<float4>(Channel::Colour),
-			out.createTexture<float4>(channel),
-			temp_.createTexture<float>(Channel::Contribution),
-			stream
-		);
-	} else if (is_float) {
-		// Normalise attribute contributions
-		ftl::cuda::dibr_normalise(
-			temp_.createTexture<float4>(Channel::Colour),
-			out.createTexture<float>(channel),
-			temp_.createTexture<float>(Channel::Contribution),
-			stream
-		);
-	} else {
-		// Normalise attribute contributions
-		ftl::cuda::dibr_normalise(
-			temp_.createTexture<float4>(Channel::Colour),
-			out.createTexture<uchar4>(channel),
-			temp_.createTexture<float>(Channel::Contribution),
-			stream
-		);
+	//out.get<GpuMat>(Channel::Left).setTo(cv::Scalar(0,0,0,0), cvstream);
+
+	// Now splat the points
+	if (splat_) {
+		if (is_4chan) {
+			ftl::cuda::splat(
+				out.getTexture<float4>(Channel::Normals),
+				temp_.getTexture<float4>(Channel::Colour2),
+				temp_.getTexture<int>(Channel::Depth2),
+				out.createTexture<float>(Channel::Depth),
+				out.createTexture<float4>(channel),
+				params, stream
+			);
+		} else if (is_float) {
+			ftl::cuda::splat(
+				out.getTexture<float4>(Channel::Normals),
+				temp_.getTexture<float>(Channel::Colour2),
+				temp_.getTexture<int>(Channel::Depth2),
+				out.createTexture<float>(Channel::Depth),
+				out.createTexture<float>(channel),
+				params, stream
+			);
+		} else {
+			ftl::cuda::splat(
+				out.getTexture<float4>(Channel::Normals),
+				temp_.getTexture<uchar4>(Channel::Colour2),
+				temp_.getTexture<int>(Channel::Depth2),
+				out.createTexture<float>(Channel::Depth),
+				out.createTexture<uchar4>(channel),
+				params, stream
+			);
+		}
 	}
 }
 
@@ -196,37 +245,13 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
 
 	// FIXME: Use source resolutions, not virtual resolution
-	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Colour2, Format<uchar4>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
+	//temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
+	//temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
 
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-
-	// Create buffers if they don't exist
-	/*if ((unsigned int)depth1_.width() != camera.width || (unsigned int)depth1_.height() != camera.height) {
-		depth1_ = ftl::cuda::TextureObject<int>(camera.width, camera.height);
-	}
-	if ((unsigned int)depth3_.width() != camera.width || (unsigned int)depth3_.height() != camera.height) {
-		depth3_ = ftl::cuda::TextureObject<int>(camera.width, camera.height);
-	}
-	if ((unsigned int)colour1_.width() != camera.width || (unsigned int)colour1_.height() != camera.height) {
-		colour1_ = ftl::cuda::TextureObject<uchar4>(camera.width, camera.height);
-	}
-	if ((unsigned int)colour_tmp_.width() != camera.width || (unsigned int)colour_tmp_.height() != camera.height) {
-		colour_tmp_ = ftl::cuda::TextureObject<float4>(camera.width, camera.height);
-	}
-	if ((unsigned int)normal1_.width() != camera.width || (unsigned int)normal1_.height() != camera.height) {
-		normal1_ = ftl::cuda::TextureObject<float4>(camera.width, camera.height);
-	}
-	if ((unsigned int)depth2_.width() != camera.width || (unsigned int)depth2_.height() != camera.height) {
-		depth2_ = ftl::cuda::TextureObject<float>(camera.width, camera.height);
-	}
-	if ((unsigned int)colour2_.width() != camera.width || (unsigned int)colour2_.height() != camera.height) {
-		colour2_ = ftl::cuda::TextureObject<uchar4>(camera.width, camera.height);
-	}*/
 
 	// Parameters object to pass to CUDA describing the camera
 	SplatParams params;
@@ -242,7 +267,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	// Clear all channels to 0 or max depth
 
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
-	out.get<GpuMat>(Channel::Colour).setTo(cv::Scalar(76,76,76), cvstream);
+	out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
 
 	//LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
@@ -289,7 +314,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	Channel chan = src->getChannel();
 	if (chan == Channel::Depth)
 	{
-		temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
+		//temp_.get<GpuMat>(Channel::Depth).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 1000.0f, cvstream);
 	} else if (chan == Channel::Normals) {
 		out.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
 
@@ -297,7 +322,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		renderChannel(params, out, Channel::Normals, stream);
 
 		// Convert normal to single float value
-		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), temp_.getTexture<float>(Channel::Contribution), camera, params.m_viewMatrixInverse, stream);
+		temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
+		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), temp_.createTexture<float>(Channel::Contribution), camera, params.m_viewMatrixInverse, stream);
 
 		// Put in output as single float
 		cv::cuda::swap(temp_.get<GpuMat>(Channel::Contribution), out.create<GpuMat>(Channel::Normals));
@@ -315,7 +341,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
 		
 		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
-		out.get<GpuMat>(Channel::Right).setTo(cv::Scalar(76,76,76), cvstream);
+		out.get<GpuMat>(Channel::Right).setTo(background_, cvstream);
 		renderChannel(params, out, Channel::Right, stream);
 	} else if (chan != Channel::None) {
 		if (ftl::rgbd::isFloatChannel(chan)) {
@@ -323,7 +349,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 			out.get<GpuMat>(chan).setTo(cv::Scalar(0.0f), cvstream);
 		} else {
 			out.create<GpuMat>(chan, Format<uchar4>(camera.width, camera.height));
-			out.get<GpuMat>(chan).setTo(cv::Scalar(76,76,76,255), cvstream);
+			out.get<GpuMat>(chan).setTo(background_, cvstream);
 		}
 		renderChannel(params, out, chan, stream);
 	}
