@@ -34,8 +34,7 @@ body {
     height: 37px;
     display: inline-block;
    }
-  
-  .div {
-    vertical-align: center;
-    text-align: center
+
+  img {
+    padding: 25px;  
   }

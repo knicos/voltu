@@ -116,6 +116,7 @@ RGBDStream.prototype.subscribe = function() {
 }
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
+	//Checks that the type is jpg
 	if (packet[0] === 0){
 		if (spacket[1] & 0x1) this.depth = packet[4];
 		else this.rgb = packet[4];
@@ -143,12 +144,10 @@ app.get('/', (req, res) => {
 });
 
 app.post('/auth/validation', (req, res) => {
-	const token = req.headers.authorization
-	const parts = token.split(" ")
+	const token = req.headers.authorization.split(" ")
+	const decoded = jwt.verify(token[1], keys.jwt.secret)
 
-	const decoded = jwt.verify(parts[1], keys.jwt.secret)
-	console.log(decoded)
-	return res.status(200).json("Piipppiip")
+	return res.status(200)
 })
 // app.get('/login/google', (req, res) => {
 // })
@@ -158,6 +157,12 @@ app.get('/streams', (req, res) => {
 	res.json(Object.keys(uri_data));
 });
 
+/**
+ * A list that has Object.keys(uri_data) values and also the image that is 
+ * binded to that 
+ * Joku lista missä on Object.keys(uri_datan) arvot ja niihin bindattu
+ * se
+ */
 app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
 	if (uri_data.hasOwnProperty(uri)) {
@@ -186,9 +191,9 @@ app.get('/google', passport.authenticate('google', {
 	scope: ['profile']
 }))
 
-/* 
+/**
  * Google authentication API callback route. 
- * Sets the JWT to clients browser and redirects the user back to front page (now has thumbnails).
+ * Sets the JWT to clients browser and redirects the user back to front page.
  */
 app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
 	console.log(req.user)
