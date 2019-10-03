@@ -25,7 +25,10 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
   return rz * rx * ry;
 }
 
-static cv::Scalar parseColour(const std::string &colour) {
+/*
+ * Parse a CSS style colour string into a scalar.
+ */
+static cv::Scalar parseCVColour(const std::string &colour) {
 	std::string c = colour;
 	if (c[0] == '#') {
 		c.erase(0, 1);
@@ -39,6 +42,25 @@ static cv::Scalar parseColour(const std::string &colour) {
 	}
 
 	return cv::Scalar(0,0,0,0);
+}
+
+/*
+ * Parse a CSS style colour string into a scalar.
+ */
+static uchar4 parseCUDAColour(const std::string &colour) {
+	std::string c = colour;
+	if (c[0] == '#') {
+		c.erase(0, 1);
+		unsigned long value = stoul(c.c_str(), nullptr, 16);
+		return make_uchar4(
+			(value >> 0) & 0xff,
+			(value >> 8) & 0xff,
+			(value >> 16) & 0xff,
+			(value >> 24) & 0xff
+		);
+	}
+
+	return make_uchar4(0,0,0,0);
 }
 
 Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::render::Renderer(config), scene_(fs) {
@@ -84,9 +106,19 @@ Splatter::Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::rende
 		splat_ = value("splatting", true);
 	});
 
-	background_ = parseColour(value("background", std::string("#e0e0e0")));
+	background_ = parseCVColour(value("background", std::string("#4c4c4c")));
 	on("background", [this](const ftl::config::Event &e) {
-		background_ = parseColour(value("background", std::string("#e0e0e0")));
+		background_ = parseCVColour(value("background", std::string("#4c4c4c")));
+	});
+
+	light_diffuse_ = parseCUDAColour(value("diffuse", std::string("#e0e0e0")));
+	on("diffuse", [this](const ftl::config::Event &e) {
+		light_diffuse_ = parseCUDAColour(value("diffuse", std::string("#e0e0e0")));
+	});
+
+	light_ambient_ = parseCUDAColour(value("ambient", std::string("#0e0e0e")));
+	on("ambient", [this](const ftl::config::Event &e) {
+		light_ambient_ = parseCUDAColour(value("ambient", std::string("#0e0e0e")));
 	});
 }
 
@@ -322,11 +354,14 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		renderChannel(params, out, Channel::Normals, stream);
 
 		// Convert normal to single float value
-		temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
-		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), temp_.createTexture<float>(Channel::Contribution), camera, params.m_viewMatrixInverse, stream);
+		temp_.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
+		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), temp_.createTexture<uchar4>(Channel::Colour),
+				make_float3(-0.3f, 0.2f, 1.0f),
+				light_diffuse_,
+				light_ambient_, stream);
 
 		// Put in output as single float
-		cv::cuda::swap(temp_.get<GpuMat>(Channel::Contribution), out.create<GpuMat>(Channel::Normals));
+		cv::cuda::swap(temp_.get<GpuMat>(Channel::Colour), out.create<GpuMat>(Channel::Normals));
 		out.resetTexture(Channel::Normals);
 	}
 	else if (chan == Channel::Contribution)
