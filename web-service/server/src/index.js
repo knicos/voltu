@@ -6,12 +6,11 @@ const passport = require('passport');
 const passportSetup = require('./passport/passport');
 const jwt = require('jsonwebtoken');
 const keys = require('./passport/keys')
-const cors = require('cors'); 
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
-app.use(express.static('build'))
-app.use(cors())
+app.use(express.static(__dirname + './../public'));
+console.log(__dirname)
 
 
 passport.serializeUser((user, done) => {
@@ -143,6 +142,14 @@ app.get('/', (req, res) => {
 	res.end();
 });
 
+app.post('/auth/validation', (req, res) => {
+	const token = req.headers.authorization
+	const parts = token.split(" ")
+
+	const decoded = jwt.verify(parts[1], keys.jwt.secret)
+	console.log(decoded)
+	return res.status(200).json("Piipppiip")
+})
 // app.get('/login/google', (req, res) => {
 // })
 

@@ -14,7 +14,6 @@
   "author": "Nicolas Pope",
   "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.16.4",
     "express-ws": "^4.0.0",
     "jsonwebtoken": "^8.5.1",
