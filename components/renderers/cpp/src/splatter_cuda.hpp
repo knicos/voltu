@@ -14,50 +14,22 @@ namespace cuda {
 		bool culling,
 		cudaStream_t stream);
 
+	template <typename T>
+	void splat(
+        ftl::cuda::TextureObject<float4> &normals,
+		ftl::cuda::TextureObject<T> &colour_in,
+        ftl::cuda::TextureObject<int> &depth_in,        // Virtual depth map
+        ftl::cuda::TextureObject<float> &depth_out,
+		ftl::cuda::TextureObject<T> &colour_out,
+        const ftl::render::SplatParams &params, cudaStream_t stream);
+
+	template <typename T>
 	void dibr_attribute(
-		ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
+		ftl::cuda::TextureObject<T> &in,	// Original colour image
 		ftl::cuda::TextureObject<float4> &points,		// Original 3D points
 		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
-		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-		//TextureObject<float4> normal_out,
-		ftl::cuda::TextureObject<float> &contrib_out,
+		ftl::cuda::TextureObject<T> &out,	// Accumulated output
 		ftl::render::SplatParams &params, cudaStream_t stream);
-
-	void dibr_attribute(
-		ftl::cuda::TextureObject<float> &in,	// Original colour image
-		ftl::cuda::TextureObject<float4> &points,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
-		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-		//TextureObject<float4> normal_out,
-		ftl::cuda::TextureObject<float> &contrib_out,
-		ftl::render::SplatParams &params, cudaStream_t stream);
-
-	void dibr_attribute(
-		ftl::cuda::TextureObject<float4> &in,	// Original colour image
-		ftl::cuda::TextureObject<float4> &points,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
-		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-		//TextureObject<float4> normal_out,
-		ftl::cuda::TextureObject<float> &contrib_out,
-		ftl::render::SplatParams &params, cudaStream_t stream);
-
-	void dibr_normalise(
-		ftl::cuda::TextureObject<float4> &in,
-		ftl::cuda::TextureObject<uchar4> &out,
-		ftl::cuda::TextureObject<float> &contribs,
-		cudaStream_t stream);
-
-	void dibr_normalise(
-		ftl::cuda::TextureObject<float4> &in,
-		ftl::cuda::TextureObject<float> &out,
-		ftl::cuda::TextureObject<float> &contribs,
-		cudaStream_t stream);
-
-	void dibr_normalise(
-		ftl::cuda::TextureObject<float4> &in,
-		ftl::cuda::TextureObject<float4> &out,
-		ftl::cuda::TextureObject<float> &contribs,
-		cudaStream_t stream);
 }
 }
 

@@ -45,6 +45,8 @@ class Splatter : public ftl::render::Renderer {
 	bool clipping_;
 	float norm_filter_;
 	bool backcull_;
+	cv::Scalar background_;
+	bool splat_;
 };
 
 }

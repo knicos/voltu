@@ -20,7 +20,7 @@ __global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
 		const float3 MC = make_float3(input.tex2D((int)x+0, (int)y-1)); //[(y-1)*width+(x+0)];
 		const float3 CM = make_float3(input.tex2D((int)x-1, (int)y+0)); //[(y+0)*width+(x-1)];
 
-		if(CC.x != MINF) { // && PC.x != MINF && CP.x != MINF && MC.x != MINF && CM.x != MINF) {
+		if(CC.x != MINF && PC.x != MINF && CP.x != MINF && MC.x != MINF && CM.x != MINF) {
 			const float3 n = cross(PC-MC, CP-CM);
 			const float  l = length(n);
 
