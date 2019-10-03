@@ -13,8 +13,8 @@ void normals(ftl::cuda::TextureObject<float4> &output,
         ftl::cuda::TextureObject<float4> &input, cudaStream_t stream);
 
 void normal_visualise(ftl::cuda::TextureObject<float4> &norm,
-        ftl::cuda::TextureObject<float> &output,
-        const ftl::rgbd::Camera &camera, const float4x4 &pose,
+        ftl::cuda::TextureObject<uchar4> &output,
+        const float3 &light, const uchar4 &diffuse, const uchar4 &ambient,
         cudaStream_t stream);
 
 void normal_filter(ftl::cuda::TextureObject<float4> &norm,

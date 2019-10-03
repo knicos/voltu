@@ -47,6 +47,9 @@ class Splatter : public ftl::render::Renderer {
 	bool backcull_;
 	cv::Scalar background_;
 	bool splat_;
+	float3 light_dir_;
+	uchar4 light_diffuse_;
+	uchar4 light_ambient_;
 };
 
 }

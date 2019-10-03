@@ -89,38 +89,37 @@ void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
 //==============================================================================
 
 __global__ void vis_normals_kernel(ftl::cuda::TextureObject<float4> norm,
-        ftl::cuda::TextureObject<float> output,
-        ftl::rgbd::Camera camera, float4x4 pose) {
+        ftl::cuda::TextureObject<uchar4> output,
+        float3 direction, uchar4 diffuse, uchar4 ambient) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if(x >= norm.width() || y >= norm.height()) return;
 
-    output(x,y) = 0.0f;
-    float3 ray = pose.getFloat3x3() * camera.screenToCam(x,y,1.0f);
+    output(x,y) = make_uchar4(0,0,0,0);
+    float3 ray = direction;
     ray = ray / length(ray);
     float3 n = make_float3(norm.tex2D((int)x,(int)y));
     float l = length(n);
     if (l == 0) return;
     n /= l;
 
-    const float d = dot(ray, n);
-    output(x,y) = (1.0f + d)*3.5f;  // FIXME: Do not hard code these value scalings
-    
-    //if (d > 0.2f) {
-    //    output(x,y) = d * 7.0f;
-    //}
+    const float d = max(dot(ray, n), 0.0f);
+    output(x,y) = make_uchar4(
+		min(255.0f, diffuse.x*d + ambient.x),
+		min(255.0f, diffuse.y*d + ambient.y),
+		min(255.0f, diffuse.z*d + ambient.z), 255);
 }
 
 void ftl::cuda::normal_visualise(ftl::cuda::TextureObject<float4> &norm,
-        ftl::cuda::TextureObject<float> &output,
-        const ftl::rgbd::Camera &camera, const float4x4 &pose,
+        ftl::cuda::TextureObject<uchar4> &output,
+        const float3 &light, const uchar4 &diffuse, const uchar4 &ambient,
         cudaStream_t stream) {
 
     const dim3 gridSize((norm.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (norm.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-    vis_normals_kernel<<<gridSize, blockSize, 0, stream>>>(norm, output, camera, pose);
+    vis_normals_kernel<<<gridSize, blockSize, 0, stream>>>(norm, output, light, diffuse, ambient);
 
     cudaSafeCall( cudaGetLastError() );
 #ifdef _DEBUG
