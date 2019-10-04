@@ -31,8 +31,8 @@ __device__ inline float warpSum(float e) {
 
 template<int COR_STEPS> 
 __global__ void correspondence_energy_vector_kernel(
-        TextureObject<float4> p1,
-        TextureObject<float4> p2,
+        TextureObject<float> d1,
+        TextureObject<float> d2,
         TextureObject<uchar4> c1,
         TextureObject<uchar4> c2,
         TextureObject<float4> vout,
@@ -48,9 +48,11 @@ __global__ void correspondence_energy_vector_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x); // / WARP_SIZE;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
     
-    const float3 world1 = make_float3(p1.tex2D(x, y));
-    const float depth1 = (pose1_inv * world1).z;  // Initial starting depth
-    if (depth1 < cam1.minDepth || depth1 > cam1.maxDepth) return;
+    //const float3 world1 = make_float3(p1.tex2D(x, y));
+    const float depth1 = d1.tex2D(x,y); //(pose1_inv * world1).z;  // Initial starting depth
+	if (depth1 < cam1.minDepth || depth1 > cam1.maxDepth) return;
+	
+	const float3 world1 = pose1 * cam1.screenToCam(x,y,depth1);
 
     const uchar4 colour1 = c1.tex2D(x, y);
 
@@ -86,14 +88,17 @@ __global__ void correspondence_energy_vector_kernel(
         const int v = 0;
 
             // Now do correspondence evaluation at "screen" location in camera 2
-            const float3 world2 = make_float3(p2.tex2D((int)screen.x+u, (int)screen.y+v));
-            if ((params.flags & ftl::cuda::kILWFlag_IgnoreBad) && world2.x == MINF) continue;
+            //const float3 world2 = make_float3(p2.tex2D((int)screen.x+u, (int)screen.y+v));
+			//if ((params.flags & ftl::cuda::kILWFlag_IgnoreBad) && world2.x == MINF) continue;
+			
+
+			const float depth2 = d2.tex2D((int)screen.x, (int)screen.y);
             const uchar4 colour2 = c2.tex2D((int)screen.x+u, (int)screen.y+v);
 
             // Determine degree of correspondence
-            float cost = 1.0f - ftl::cuda::spatialWeighting(worldPos, world2, params.spatial_smooth);
+            float cost = 1.0f - ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
             // Point is too far away to even count
-            if (world2.x != MINF && cost == 1.0f) continue;
+            if (cost == 1.0f) continue;
 
             // Mix ratio of colour and distance costs
             const float ccost = 1.0f - ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
@@ -107,7 +112,7 @@ __global__ void correspondence_energy_vector_kernel(
 
             ++count;
             avgcost += (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? ccost : cost;
-            if (world2.x != MINF && cost < bestcost) {
+            if (cost < bestcost) {
                 bestdepth = depth_adjust;
                 bestcost = cost;
             }
@@ -151,8 +156,8 @@ __global__ void correspondence_energy_vector_kernel(
 }
 
 void ftl::cuda::correspondence_energy_vector(
-        TextureObject<float4> &p1,
-        TextureObject<float4> &p2,
+        TextureObject<float> &d1,
+        TextureObject<float> &d2,
         TextureObject<uchar4> &c1,
         TextureObject<uchar4> &c2,
         TextureObject<float4> &vout,
@@ -164,12 +169,12 @@ void ftl::cuda::correspondence_energy_vector(
         const Camera &cam2, const ILWParams &params, int win,
         cudaStream_t stream) {
 
-	const dim3 gridSize((p1.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (p1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 gridSize((d1.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (d1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
-    correspondence_energy_vector_kernel<32><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
+    correspondence_energy_vector_kernel<32><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
 
     //switch (win) {
     //case 17     : correspondence_energy_vector_kernel<17><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;

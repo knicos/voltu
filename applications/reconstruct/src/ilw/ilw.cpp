@@ -186,8 +186,8 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
             try {
             //Calculate energy vector to best correspondence
             ftl::cuda::correspondence_energy_vector(
-                f1.getTexture<float4>(Channel::Points),
-                f2.getTexture<float4>(Channel::Points),
+                f1.getTexture<float>(Channel::Depth),
+                f2.getTexture<float>(Channel::Depth),
                 f1.getTexture<uchar4>(Channel::Colour),
                 f2.getTexture<uchar4>(Channel::Colour),
                 // TODO: Add normals and other things...

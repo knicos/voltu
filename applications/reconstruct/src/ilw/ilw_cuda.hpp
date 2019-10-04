@@ -22,8 +22,8 @@ static const uint kILWFlag_SkipBadColour = 0x0004;
 static const uint kILWFlag_ColourConfidenceOnly = 0x0008;
 
 void correspondence_energy_vector(
-    ftl::cuda::TextureObject<float4> &p1,
-    ftl::cuda::TextureObject<float4> &p2,
+    ftl::cuda::TextureObject<float> &d1,
+    ftl::cuda::TextureObject<float> &d2,
     ftl::cuda::TextureObject<uchar4> &c1,
     ftl::cuda::TextureObject<uchar4> &c2,
     ftl::cuda::TextureObject<float4> &vout,
