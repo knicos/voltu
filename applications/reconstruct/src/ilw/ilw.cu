@@ -59,17 +59,22 @@ __global__ void correspondence_energy_vector_kernel(
     float bestdepth;
     int count = 0;
     
-    const float step_interval = 0.05f / (COR_STEPS / 2);
+	const float step_interval = 0.05f / (COR_STEPS / 2);
+	
+	const float3 rayStep_world = pose1.getFloat3x3() * cam1.screenToCam(x,y,step_interval);
+	const float3 rayStart_2 = pose2 * world1;
+	const float3 rayStep_2 = pose2.getFloat3x3() * rayStep_world;
 
     // Project to p2 using cam2
     // Each thread takes a possible correspondence and calculates a weighting
     //const int lane = tid % WARP_SIZE;
 	for (int i=0; i<COR_STEPS; ++i) {
-        const float depth_adjust = (float)(i - (COR_STEPS / 2)) * step_interval + depth1;
+		const int j = i - (COR_STEPS/2);
+		const float depth_adjust = (float)j * step_interval + depth1;
 
         // Calculate adjusted depth 3D point in camera 2 space
-        const float3 worldPos = (pose1 * cam1.screenToCam(x, y, depth_adjust));
-        const float3 camPos = pose2 * worldPos;
+        const float3 worldPos = world1 + j * rayStep_world; //(pose1 * cam1.screenToCam(x, y, depth_adjust));
+        const float3 camPos = rayStart_2 + j * rayStep_2; //pose2 * worldPos;
         const uint2 screen = cam2.camToScreen<uint2>(camPos);
 
         if (screen.x >= cam2.width || screen.y >= cam2.height) continue;
