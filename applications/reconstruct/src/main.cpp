@@ -159,12 +159,12 @@ static void run(ftl::Configurable *root) {
 		group.addSource(in);
 	}
 
-	stream->setLatency(4);  // FIXME: This depends on source!?
+	stream->setLatency(5);  // FIXME: This depends on source!?
 	stream->run();
 
 	bool busy = false;
 
-	group.setLatency(4);
+	group.setLatency(5);
 	group.setName("ReconGroup");
 	group.sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());

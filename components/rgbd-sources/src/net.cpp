@@ -40,6 +40,8 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 		if (f.timestamp == ts) return f;
 	}
 
+	int64_t oldest = ts;
+
 	// No match so find an empty slot
 	for (auto &f : frames_) {
 		if (f.timestamp == -1) {
@@ -51,11 +53,23 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 			f.channel2.create(s, c2type);
 			return f;
 		}
+		oldest = (f.timestamp < oldest) ? f.timestamp : oldest;
 	}
 
 	// No empty slot, so give a fatal error
 	for (auto &f : frames_) {
 		LOG(ERROR) << "Stale frame: " << f.timestamp << " - " << f.chunk_count;
+
+		// Force release of frame!
+		if (f.timestamp == oldest) {
+			f.timestamp = ts;
+			f.chunk_count = 0;
+			f.chunk_total = 0;
+			f.tx_size = 0;
+			f.channel1.create(s, c1type);
+			f.channel2.create(s, c2type);
+			return f;
+		}
 	}
 	LOG(FATAL) << "Net Frame Queue not large enough: " << ts;
 	// FIXME: (Nick) Could auto resize the queue.
