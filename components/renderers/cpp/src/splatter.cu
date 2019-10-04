@@ -184,39 +184,34 @@ __device__ inline float make(const float4 &v) {
 
         const float3 camPos = params.camera.screenToCam((int)(x+u),(int)(y+v),d);
         const float3 camPos2 = params.camera.screenToCam((int)(x),(int)(y),d);
-        //if (length(camPos - camPos2) > 2.0f*(camPos.z/params.camera.fx)) continue;
         const float3 worldPos = params.m_viewMatrixInverse * camPos;
-        //const float3 camPos2 = pose_inv * worldPos;
-        //const uint2 screenPos = camera.camToScreen<uint2>(camPos2);
 
-        //if (screenPos.x < points.width() && screenPos.y < points.height()) {
-            // Can now read points, normals and colours from source cam
 
-            // What is contribution of our current point at this pixel?
-            //const float3 p = make_float3(points.tex2D((int)screenPos.x, (int)screenPos.y));
-            //const float weight = ftl::cuda::spatialWeighting(worldPos, p, (camPos.z/params.camera.fx)); //*(camPos2.z/camera.fx));
-            //if (weight <= 0.0f) continue;
+        // Assumed to be normalised
+        float4 n = normals.tex2D((int)(x+u), (int)(y+v));
 
-            float3 n = make_float3(normals.tex2D((int)(x+u), (int)(y+v)));
-            const float l = length(n);
-            if (l == 0.0f) continue;
-            n /= l;
+        // Does the ray intersect plane of splat?
+        float t = 1000.0f;
+        if (ftl::cuda::intersectPlane(make_float3(n), worldPos, origin, ray, t)) { //} && fabs(t-camPos.z) < 0.01f) {
+            // Adjust from normalised ray back to original meters units
+            t *= scale;
+            const float3 camPos3 = params.camera.screenToCam((int)(x),(int)(y),t);
+            float weight = ftl::cuda::spatialWeighting(camPos, camPos3, 2.0f*(camPos3.z/params.camera.fx));
 
-            // Does the ray intersect plane of splat?
-            float t = 1000.0f;
-            if (ftl::cuda::intersectPlane(n, worldPos, origin, ray, t)) { //} && fabs(t-camPos.z) < 0.01f) {
-                //t *= (params.m_viewMatrix.getFloat3x3() * ray).z;
-                t *= scale;
-                const float3 camPos3 = params.camera.screenToCam((int)(x),(int)(y),t);
-                const float weight = ftl::cuda::spatialWeighting(camPos, camPos3, 2.0f*(camPos3.z/params.camera.fx)); //*(camPos2.z/camera.fx));
-                if (weight == 0.0f) continue;
-                //depth += t * weight;
-                //contrib += weight;
-                depth = min(depth, t);
-                results[i/WARP_SIZE] = {weight, t, in.tex2D((int)x+u, (int)y+v)}; //make_float2(t, weight);
-                //atomicMin(&depth_out(x,y), (int)(depth * 1000.0f));
-            }
-        //}
+            /* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
+            /* Orts-Escolano S. et al. 2016. Holoportation: Virtual 3D teleportation in real-time. */
+            // This is the simple naive colour weighting. It might be good
+            // enough for our purposes if the alignment step prevents ghosting
+            // TODO: Use depth and perhaps the neighbourhood consistency in:
+            //     Kuster C. et al. 2011. FreeCam: A hybrid camera system for interactive free-viewpoint video
+            if (params.m_flags & ftl::render::kNormalWeightColours) weight *= n.w * n.w;
+            //if (params.m_flags & ftl::render::kDepthWeightColours) weight *= ???
+
+            if (weight <= 0.0f) continue;
+
+            depth = min(depth, t);
+            results[i/WARP_SIZE] = {weight, t, in.tex2D((int)x+u, (int)y+v)};
+        }
     }
 
     depth = warpMin(depth);

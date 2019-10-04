@@ -9,9 +9,7 @@ namespace ftl {
 namespace render {
 
 static const uint kShowDisconMask = 0x00000001;
-static const uint kNoSplatting = 0x00000002;
-static const uint kNoUpsampling = 0x00000004;
-static const uint kNoTexturing = 0x00000008;
+static const uint kNormalWeightColours = 0x00000002;
 
 struct __align__(16) SplatParams {
 	float4x4 m_viewMatrix;
