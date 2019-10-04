@@ -19,6 +19,7 @@ struct ILWParams {
 static const uint kILWFlag_IgnoreBad = 0x0001;
 static const uint kILWFlag_RestrictZ = 0x0002;
 static const uint kILWFlag_SkipBadColour = 0x0004;
+static const uint kILWFlag_ColourConfidenceOnly = 0x0008;
 
 void correspondence_energy_vector(
     ftl::cuda::TextureObject<float4> &p1,

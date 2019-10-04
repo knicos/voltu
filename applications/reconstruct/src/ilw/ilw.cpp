@@ -64,6 +64,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     if (value("ignore_bad", false)) params_.flags |= ftl::cuda::kILWFlag_IgnoreBad;
     if (value("ignore_bad_colour", false)) params_.flags |= ftl::cuda::kILWFlag_SkipBadColour;
     if (value("restrict_z", true)) params_.flags |= ftl::cuda::kILWFlag_RestrictZ;
+    if (value("colour_confidence_only", false)) params_.flags |= ftl::cuda::kILWFlag_ColourConfidenceOnly;
 
     on("ignore_bad", [this](const ftl::config::Event &e) {
         if (value("ignore_bad", false)) params_.flags |= ftl::cuda::kILWFlag_IgnoreBad;
@@ -78,6 +79,11 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     on("restrict_z", [this](const ftl::config::Event &e) {
         if (value("restrict_z", false)) params_.flags |= ftl::cuda::kILWFlag_RestrictZ;
         else params_.flags &= ~ftl::cuda::kILWFlag_RestrictZ;
+    });
+
+    on("colour_confidence_only", [this](const ftl::config::Event &e) {
+        if (value("colour_confidence_only", false)) params_.flags |= ftl::cuda::kILWFlag_ColourConfidenceOnly;
+        else params_.flags &= ~ftl::cuda::kILWFlag_ColourConfidenceOnly;
     });
 }
 

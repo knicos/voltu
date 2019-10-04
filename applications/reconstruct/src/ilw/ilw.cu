@@ -27,7 +27,7 @@ __device__ inline float warpSum(float e) {
 //#define COR_WIN_RADIUS 17
 //#define COR_WIN_SIZE (COR_WIN_RADIUS * COR_WIN_RADIUS)
 
-#define WINDOW_RADIUS 2
+#define WINDOW_RADIUS 1
 
 template<int COR_STEPS> 
 __global__ void correspondence_energy_vector_kernel(
@@ -97,7 +97,7 @@ __global__ void correspondence_energy_vector_kernel(
             //cost /= 2.0f;
 
             ++count;
-            avgcost += cost;
+            avgcost += (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? ccost : cost;
             if (world2.x != MINF && cost < bestcost) {
                 bestdepth = depth_adjust;
                 bestcost = cost;
@@ -111,7 +111,7 @@ __global__ void correspondence_energy_vector_kernel(
     const float mincost = warpMin(bestcost);
 	bool best = mincost == bestcost;
 	avgcost = warpSum(avgcost) / count;
-    const float confidence = (avgcost - mincost);
+    const float confidence = (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? avgcost : (avgcost - mincost);
 
     // FIXME: Multiple threads in warp could match this.
     if (best && mincost < 1.0f) {
@@ -130,12 +130,14 @@ __global__ void correspondence_energy_vector_kernel(
                 0.0f, // * (1.0f - mincost) * confidence,
                 bestdepth, // * (1.0f - mincost) * confidence,
                 (1.0f - mincost) * confidence);
+
+            eout(x,y) = max(eout(x, y), (1.0f - mincost) * confidence * 12.0f);
         }
 			
 		//eout(x,y) = max(eout(x,y), (length(bestpoint-world1) / 0.04f) * 7.0f);
 		//eout(x,y) = max(eout(x,y), (1.0f - mincost) * 7.0f);
 		//eout(x,y) = max(eout(x, y), (1.0f - mincost) * confidence * (length(bestpoint-world1) / 0.04f) * 12.0f);
-		eout(x,y) = max(eout(x, y), (1.0f - mincost) * confidence * 12.0f);
+		
 		//eout(x,y) = max(eout(x, y), confidence * 12.0f);
     } else if (mincost >= 1.0f && lane == 0) {
         //vout(x,y) = make_float4(0.0f);
@@ -162,7 +164,7 @@ void ftl::cuda::correspondence_energy_vector(
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
-    correspondence_energy_vector_kernel<64><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
+    correspondence_energy_vector_kernel<32><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
 
     //switch (win) {
     //case 17     : correspondence_energy_vector_kernel<17><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
