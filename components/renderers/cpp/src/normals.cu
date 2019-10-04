@@ -34,7 +34,8 @@ __global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
 template <int RADIUS>
 __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
         ftl::cuda::TextureObject<float4> output,
-        ftl::cuda::TextureObject<float4> points, float smoothing) {
+        ftl::cuda::TextureObject<float4> points,
+        ftl::rgbd::Camera camera, float3x3 pose, float smoothing) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
@@ -63,21 +64,28 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
         }
     }
 
-    // FIXME: USE A DIFFERENT OUTPUT BUFFER
-    //__syncthreads();
-    output(x,y) = (contrib > 0.0f) ? make_float4(nsum / contrib, 1.0f) : make_float4(0.0f);
+    // Compute dot product of normal with camera to obtain measure of how
+    // well this point faces the source camera, a measure of confidence
+    float3 ray = pose * camera.screenToCam(x, y, 1.0f);
+    ray = ray / length(ray);
+    nsum /= contrib;
+    nsum /= length(nsum);
+
+    output(x,y) = (contrib > 0.0f) ? make_float4(nsum, dot(nsum, ray)) : make_float4(0.0f);
 }
 
 void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
         ftl::cuda::TextureObject<float4> &temp,
-        ftl::cuda::TextureObject<float4> &input, cudaStream_t stream) {
+        ftl::cuda::TextureObject<float4> &input,
+        const ftl::rgbd::Camera &camera,
+        const float3x3 &pose,cudaStream_t stream) {
 	const dim3 gridSize((input.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (input.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	computeNormals_kernel<<<gridSize, blockSize, 0, stream>>>(temp, input);
     cudaSafeCall( cudaGetLastError() );
 
-    smooth_normals_kernel<3><<<gridSize, blockSize, 0, stream>>>(temp, output, input, 0.04f);
+    smooth_normals_kernel<3><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, 0.04f);
     cudaSafeCall( cudaGetLastError() );
 
 #ifdef _DEBUG

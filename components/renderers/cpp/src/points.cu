@@ -12,7 +12,9 @@ __global__ void point_cloud_kernel(ftl::cuda::TextureObject<float4> output, ftl:
 		output(x,y) = make_float4(MINF, MINF, MINF, MINF);
 
 		const float d = depth.tex2D((int)x, (int)y);
-		float p = d;
+
+		// Calculate depth between 0.0 and 1.0
+		float p = (d - params.minDepth) / (params.maxDepth - params.minDepth);
 
 		if (d >= params.minDepth && d <= params.maxDepth) {
 			/* Orts-Escolano S. et al. 2016. Holoportation: Virtual 3D teleportation in real-time. */

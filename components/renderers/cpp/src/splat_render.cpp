@@ -288,10 +288,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	// Parameters object to pass to CUDA describing the camera
 	SplatParams params;
 	params.m_flags = 0;
-	if (src->value("show_discontinuity_mask", false)) params.m_flags |= ftl::render::kShowDisconMask;
-	//if (src->value("splatting", true) == false) params.m_flags |= ftl::render::kNoSplatting;
-	//if (src->value("upsampling", true) == false) params.m_flags |= ftl::render::kNoUpsampling;
-	//if (src->value("texturing", true) == false) params.m_flags |= ftl::render::kNoTexturing;
+	if (value("show_discontinuity_mask", false)) params.m_flags |= ftl::render::kShowDisconMask;
+	if (value("normal_weight_colours", true)) params.m_flags |= ftl::render::kNormalWeightColours;
 	params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
 	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.camera = camera;
@@ -328,14 +326,15 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		}
 
 		if (!f.hasChannel(Channel::Normals)) {
+			Eigen::Matrix4f matrix =  s->getPose().cast<float>();
+			auto pose = MatrixConversion::toCUDA(matrix);
+
 			auto &g = f.get<GpuMat>(Channel::Colour);
 			ftl::cuda::normals(f.createTexture<float4>(Channel::Normals, Format<float4>(g.cols, g.rows)),
 				temp_.getTexture<float4>(Channel::Normals),  // FIXME: Uses assumption of vcam res same as input res
-				f.getTexture<float4>(Channel::Points), stream);
+				f.getTexture<float4>(Channel::Points), s->parameters(), pose.getFloat3x3(), stream);
 
 			if (norm_filter_ > -0.1f) {
-				Eigen::Matrix4f matrix =  s->getPose().cast<float>();
-				auto pose = MatrixConversion::toCUDA(matrix);
 				ftl::cuda::normal_filter(f.getTexture<float4>(Channel::Normals), f.getTexture<float4>(Channel::Points), s->parameters(), pose, norm_filter_, stream);
 			}
 		}
