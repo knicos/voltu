@@ -217,10 +217,13 @@ bool ILW::_phase2(ftl::rgbd::FrameSet &fs, float rate, cudaStream_t stream) {
     for (size_t i=0; i<fs.frames.size(); ++i) {
         auto &f = fs.frames[i];
 
+        auto pose = MatrixConversion::toCUDA(fs.sources[i]->getPose().cast<float>()); //.inverse());
+
         ftl::cuda::move_points(
              f.getTexture<float4>(Channel::Points),
              f.getTexture<float4>(Channel::EnergyVector),
              fs.sources[i]->parameters(),
+             pose,
              rate,
              motion_window_,
              stream

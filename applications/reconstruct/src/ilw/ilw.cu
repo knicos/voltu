@@ -27,6 +27,8 @@ __device__ inline float warpSum(float e) {
 //#define COR_WIN_RADIUS 17
 //#define COR_WIN_SIZE (COR_WIN_RADIUS * COR_WIN_RADIUS)
 
+#define WINDOW_RADIUS 2
+
 template<int COR_STEPS> 
 __global__ void correspondence_energy_vector_kernel(
         TextureObject<float4> p1,
@@ -57,7 +59,7 @@ __global__ void correspondence_energy_vector_kernel(
     float bestdepth;
     int count = 0;
     
-    const float step_interval = 0.05f / COR_STEPS;
+    const float step_interval = 0.05f / (COR_STEPS / 2);
 
     // Project to p2 using cam2
     // Each thread takes a possible correspondence and calculates a weighting
@@ -72,28 +74,37 @@ __global__ void correspondence_energy_vector_kernel(
 
         if (screen.x >= cam2.width || screen.y >= cam2.height) continue;
 
-        // Now do correspondence evaluation at "screen" location in camera 2
-        const float3 world2 = make_float3(p2.tex2D((int)screen.x, (int)screen.y));
-        if ((params.flags & ftl::cuda::kILWFlag_IgnoreBad) && world2.x == MINF) continue;
-        const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
+        // Small window around suggested point
+        //for (int u=-WINDOW_RADIUS; u<=WINDOW_RADIUS; ++u) {
+        //for (int v=-WINDOW_RADIUS; v<=WINDOW_RADIUS; ++v) {
+        const int u = 0;
+        const int v = 0;
 
-        // Determine degree of correspondence
-		float cost = 1.0f - ftl::cuda::spatialWeighting(world1, world2, params.spatial_smooth);
-		// Point is too far away to even count
-		if (world2.x != MINF && cost == 1.0f) continue;
+            // Now do correspondence evaluation at "screen" location in camera 2
+            const float3 world2 = make_float3(p2.tex2D((int)screen.x+u, (int)screen.y+v));
+            if ((params.flags & ftl::cuda::kILWFlag_IgnoreBad) && world2.x == MINF) continue;
+            const uchar4 colour2 = c2.tex2D((int)screen.x+u, (int)screen.y+v);
 
-        // Mix ratio of colour and distance costs
-        const float ccost = 1.0f - ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
-        if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
-        cost = params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost;
-        //cost /= 2.0f;
+            // Determine degree of correspondence
+            float cost = 1.0f - ftl::cuda::spatialWeighting(worldPos, world2, params.spatial_smooth);
+            // Point is too far away to even count
+            if (world2.x != MINF && cost == 1.0f) continue;
 
-		++count;
-		avgcost += cost;
-        if (world2.x != MINF && cost < bestcost) {
-            bestdepth = depth_adjust;
-            bestcost = cost;
-        }
+            // Mix ratio of colour and distance costs
+            const float ccost = 1.0f - ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
+            if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
+            cost = params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost;
+            //cost /= 2.0f;
+
+            ++count;
+            avgcost += cost;
+            if (world2.x != MINF && cost < bestcost) {
+                bestdepth = depth_adjust;
+                bestcost = cost;
+            }
+
+        //}
+        //}
     }
 
 	count = warpSum(count);
@@ -104,18 +115,22 @@ __global__ void correspondence_energy_vector_kernel(
 
     // FIXME: Multiple threads in warp could match this.
     if (best && mincost < 1.0f) {
-        float3 tvecA = pose1 * cam1.screenToCam(x, y, bestdepth);
+        //float3 tvecA = pose1 * cam1.screenToCam(x, y, bestdepth);
         //float3 tvecB = pose1 * world1;
         //if (params.flags & ftl::cuda::kILWFlag_RestrictZ) {
         //    tvecA.x = tvecB.x;
         //    tvecA.y = tvecB.y;
         //}
-        tvecA = tvecA - world1;
-        vout(x,y) =  make_float4(
-            tvecA.x, // * (1.0f - mincost) * confidence,
-            tvecA.y, // * (1.0f - mincost) * confidence,
-            tvecA.z, // * (1.0f - mincost) * confidence,
-            (1.0f - mincost) * confidence);
+        //tvecA = tvecA - world1;
+        float4 old = vout.tex2D(x,y);
+
+        if ((1.0f - mincost) * confidence > old.w) {
+            vout(x,y) =  make_float4(
+                depth1, // * (1.0f - mincost) * confidence,
+                0.0f, // * (1.0f - mincost) * confidence,
+                bestdepth-depth1, // * (1.0f - mincost) * confidence,
+                (1.0f - mincost) * confidence);
+        }
 			
 		//eout(x,y) = max(eout(x,y), (length(bestpoint-world1) / 0.04f) * 7.0f);
 		//eout(x,y) = max(eout(x,y), (1.0f - mincost) * 7.0f);
@@ -166,16 +181,19 @@ __global__ void move_points_kernel(
     ftl::cuda::TextureObject<float4> p,
     ftl::cuda::TextureObject<float4> ev,
     ftl::rgbd::Camera camera,
+    float4x4 pose,
     float rate) {
 
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    const float4 vec0 = ev.tex2D((int)x,(int)y);
     
     if (x < p.width() && y < p.height()) {
 		const float4 world = p(x,y);
 		if (world.x == MINF) return;
 
-		float4 vec = make_float4(0.0f, 0.0f, 0.0f, 0.0f); //ev.tex2D((int)x,(int)y);
+		float delta = 0.0f; //make_float4(0.0f, 0.0f, 0.0f, 0.0f); //ev.tex2D((int)x,(int)y);
 		float contrib = 0.0f;
 
 		// Calculate screen space distortion with neighbours
@@ -185,14 +203,15 @@ __global__ void move_points_kernel(
 				const float3 pn = make_float3(p.tex2D((int)x+u,(int)y+v));
 				if (pn.x == MINF) continue;
 
-				const float s = ftl::cuda::spatialWeighting(pn, make_float3(world), 0.01f);
+				const float s = ftl::cuda::spatialWeighting(pn, make_float3(world), 0.04f);
 				contrib += vecn.w * s;
-				vec += vecn.w * s * vecn;
+				delta += vecn.w * s * vecn.z;
 			}
 		}
 
-        if (vec.w > 0.0f) {
-            p(x,y) = world + rate * (vec / contrib);
+        if (contrib > 0.0f) {
+            const float3 newworld = pose * camera.screenToCam(x, y, vec0.x + rate * (delta / contrib));
+            p(x,y) = make_float4(newworld, world.w); //world + rate * (vec / contrib);
         }
     }
 }
@@ -202,6 +221,7 @@ void ftl::cuda::move_points(
         ftl::cuda::TextureObject<float4> &p,
         ftl::cuda::TextureObject<float4> &v,
         const ftl::rgbd::Camera &camera,
+        const float4x4 &pose,
         float rate,
         int radius,
         cudaStream_t stream) {
@@ -210,11 +230,11 @@ void ftl::cuda::move_points(
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
     switch (radius) {
-    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(p,v,camera,rate); break;
-    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(p,v,camera,rate); break;
-    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(p,v,camera,rate); break;
-    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(p,v,camera,rate); break;
-    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(p,v,camera,rate); break;
+    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
+    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
+    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
+    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
+    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
     }
 
     cudaSafeCall( cudaGetLastError() );

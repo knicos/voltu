@@ -40,6 +40,7 @@ void move_points(
     ftl::cuda::TextureObject<float4> &p,
     ftl::cuda::TextureObject<float4> &v,
     const ftl::rgbd::Camera &camera,
+    const float4x4 &pose,
     float rate,
     int radius,
     cudaStream_t stream
