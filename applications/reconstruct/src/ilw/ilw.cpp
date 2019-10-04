@@ -173,7 +173,8 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
 			// No, so skip this combination
 			if (d1.dot(d2) <= 0.0) continue;
 
-            auto pose1 = MatrixConversion::toCUDA(s1->getPose().cast<float>().inverse());
+            auto pose1 = MatrixConversion::toCUDA(s1->getPose().cast<float>());
+            auto pose1_inv = MatrixConversion::toCUDA(s1->getPose().cast<float>().inverse());
             auto pose2 = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse());
 
             try {
@@ -187,7 +188,9 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
                 f1.getTexture<float4>(Channel::EnergyVector),
                 f1.getTexture<float>(Channel::Energy),
                 pose1,
+                pose1_inv,
                 pose2,
+                s1->parameters(),
                 s2->parameters(),
                 params_,
                 win,

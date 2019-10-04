@@ -27,7 +27,7 @@ __device__ inline float warpSum(float e) {
 //#define COR_WIN_RADIUS 17
 //#define COR_WIN_SIZE (COR_WIN_RADIUS * COR_WIN_RADIUS)
 
-template<int COR_WIN_RADIUS> 
+template<int COR_STEPS> 
 __global__ void correspondence_energy_vector_kernel(
         TextureObject<float4> p1,
         TextureObject<float4> p2,
@@ -35,8 +35,10 @@ __global__ void correspondence_energy_vector_kernel(
         TextureObject<uchar4> c2,
         TextureObject<float4> vout,
         TextureObject<float> eout,
-        float4x4 pose1,  // Inverse
+        float4x4 pose1,
+        float4x4 pose1_inv,
         float4x4 pose2,  // Inverse
+        Camera cam1,
         Camera cam2, ftl::cuda::ILWParams params) {
 
     // Each warp picks point in p1
@@ -45,26 +47,35 @@ __global__ void correspondence_energy_vector_kernel(
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
     
     const float3 world1 = make_float3(p1.tex2D(x, y));
+    const float depth1 = (pose1_inv * world1).z;  // Initial starting depth
+    if (depth1 < cam1.minDepth || depth1 > cam1.maxDepth) return;
+
     const uchar4 colour1 = c1.tex2D(x, y);
-	if (world1.x == MINF) return;
-    const float3 camPos2 = pose2 * world1;
-    const uint2 screen2 = cam2.camToScreen<uint2>(camPos2);
-    
+
     float bestcost = 1.1f;
     float avgcost = 0.0f;
-	float3 bestpoint;
-	int count = 0;
+    float bestdepth;
+    int count = 0;
+    
+    const float step_interval = 0.05f / COR_STEPS;
 
     // Project to p2 using cam2
     // Each thread takes a possible correspondence and calculates a weighting
     const int lane = tid % WARP_SIZE;
-	for (int i=lane; i<COR_WIN_RADIUS*COR_WIN_RADIUS; i+=WARP_SIZE) {
-		const float u = (i % COR_WIN_RADIUS) - (COR_WIN_RADIUS / 2);
-        const float v = (i / COR_WIN_RADIUS) - (COR_WIN_RADIUS / 2);
-        
-        const float3 world2 = make_float3(p2.tex2D(screen2.x+u, screen2.y+v));
+	for (int i=lane; i<COR_STEPS; i+=WARP_SIZE) {
+        const float depth_adjust = (float)(i - (COR_STEPS / 2)) * step_interval + depth1;
+
+        // Calculate adjusted depth 3D point in camera 2 space
+        const float3 worldPos = (pose1 * cam1.screenToCam(x, y, depth_adjust));
+        const float3 camPos = pose2 * worldPos;
+        const uint2 screen = cam2.camToScreen<uint2>(camPos);
+
+        if (screen.x >= cam2.width || screen.y >= cam2.height) continue;
+
+        // Now do correspondence evaluation at "screen" location in camera 2
+        const float3 world2 = make_float3(p2.tex2D((int)screen.x, (int)screen.y));
         if ((params.flags & ftl::cuda::kILWFlag_IgnoreBad) && world2.x == MINF) continue;
-        const uchar4 colour2 = c2.tex2D(screen2.x+u, screen2.y+v);
+        const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
 
         // Determine degree of correspondence
 		float cost = 1.0f - ftl::cuda::spatialWeighting(world1, world2, params.spatial_smooth);
@@ -80,7 +91,7 @@ __global__ void correspondence_energy_vector_kernel(
 		++count;
 		avgcost += cost;
         if (world2.x != MINF && cost < bestcost) {
-            bestpoint = world2;
+            bestdepth = depth_adjust;
             bestcost = cost;
         }
     }
@@ -91,19 +102,20 @@ __global__ void correspondence_energy_vector_kernel(
 	avgcost = warpSum(avgcost) / count;
     const float confidence = (avgcost - mincost);
 
+    // FIXME: Multiple threads in warp could match this.
     if (best && mincost < 1.0f) {
-        float3 tvecA = pose1 * bestpoint;
-        float3 tvecB = pose1 * world1;
-        if (params.flags & ftl::cuda::kILWFlag_RestrictZ) {
-            tvecA.x = tvecB.x;
-            tvecA.y = tvecB.y;
-        }
-        tvecA = (pose1.getInverse() * tvecA) - world1;
-        vout(x,y) = vout.tex2D(x, y) + make_float4(
+        float3 tvecA = pose1 * cam1.screenToCam(x, y, bestdepth);
+        //float3 tvecB = pose1 * world1;
+        //if (params.flags & ftl::cuda::kILWFlag_RestrictZ) {
+        //    tvecA.x = tvecB.x;
+        //    tvecA.y = tvecB.y;
+        //}
+        tvecA = tvecA - world1;
+        vout(x,y) =  make_float4(
             tvecA.x, // * (1.0f - mincost) * confidence,
             tvecA.y, // * (1.0f - mincost) * confidence,
             tvecA.z, // * (1.0f - mincost) * confidence,
-			(1.0f - mincost) * confidence);
+            (1.0f - mincost) * confidence);
 			
 		//eout(x,y) = max(eout(x,y), (length(bestpoint-world1) / 0.04f) * 7.0f);
 		//eout(x,y) = max(eout(x,y), (1.0f - mincost) * 7.0f);
@@ -124,7 +136,9 @@ void ftl::cuda::correspondence_energy_vector(
         TextureObject<float4> &vout,
         TextureObject<float> &eout,
         float4x4 &pose1,
+        float4x4 &pose1_inv,
         float4x4 &pose2,
+        const Camera &cam1,
         const Camera &cam2, const ILWParams &params, int win,
         cudaStream_t stream) {
 
@@ -133,11 +147,13 @@ void ftl::cuda::correspondence_energy_vector(
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
-    switch (win) {
-    case 17     : correspondence_energy_vector_kernel<17><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose2, cam2, params); break;
-    case 9      : correspondence_energy_vector_kernel<9><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose2, cam2, params); break;
-    case 5      : correspondence_energy_vector_kernel<5><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose2, cam2, params); break;
-    }
+    correspondence_energy_vector_kernel<64><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
+
+    //switch (win) {
+    //case 17     : correspondence_energy_vector_kernel<17><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+    //case 9      : correspondence_energy_vector_kernel<9><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+    //case 5      : correspondence_energy_vector_kernel<5><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+    //}
     cudaSafeCall( cudaGetLastError() );
 }
 

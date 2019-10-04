@@ -28,7 +28,9 @@ void correspondence_energy_vector(
     ftl::cuda::TextureObject<float4> &vout,
     ftl::cuda::TextureObject<float> &eout,
     float4x4 &pose1,
+    float4x4 &pose1_inv,
     float4x4 &pose2,
+    const ftl::rgbd::Camera &cam1,
     const ftl::rgbd::Camera &cam2,
     const ILWParams &params, int win,
     cudaStream_t stream
