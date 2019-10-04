@@ -44,8 +44,8 @@ __global__ void correspondence_energy_vector_kernel(
         Camera cam2, ftl::cuda::ILWParams params) {
 
     // Each warp picks point in p1
-    const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
-	const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
+    //const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
+	const int x = (blockIdx.x*blockDim.x + threadIdx.x); // / WARP_SIZE;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
     
     const float3 world1 = make_float3(p1.tex2D(x, y));
@@ -63,8 +63,8 @@ __global__ void correspondence_energy_vector_kernel(
 
     // Project to p2 using cam2
     // Each thread takes a possible correspondence and calculates a weighting
-    const int lane = tid % WARP_SIZE;
-	for (int i=lane; i<COR_STEPS; i+=WARP_SIZE) {
+    //const int lane = tid % WARP_SIZE;
+	for (int i=0; i<COR_STEPS; ++i) {
         const float depth_adjust = (float)(i - (COR_STEPS / 2)) * step_interval + depth1;
 
         // Calculate adjusted depth 3D point in camera 2 space
@@ -111,14 +111,13 @@ __global__ void correspondence_energy_vector_kernel(
         //}
     }
 
-	count = warpSum(count);
-    const float mincost = warpMin(bestcost);
-	bool best = mincost == bestcost;
-	avgcost = warpSum(avgcost) / count;
+	//count = warpSum(count);
+    const float mincost = bestcost; //warpMin(bestcost);
+	//bool best = mincost == bestcost;
+	avgcost /= count;
     const float confidence = (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? avgcost : (avgcost - mincost);
 
-    // FIXME: Multiple threads in warp could match this.
-    if (best && mincost < 1.0f) {
+    if (mincost < 1.0f) {
         //float3 tvecA = pose1 * cam1.screenToCam(x, y, bestdepth);
         //float3 tvecB = pose1 * world1;
         //if (params.flags & ftl::cuda::kILWFlag_RestrictZ) {
@@ -143,9 +142,6 @@ __global__ void correspondence_energy_vector_kernel(
 		//eout(x,y) = max(eout(x, y), (1.0f - mincost) * confidence * (length(bestpoint-world1) / 0.04f) * 12.0f);
 		
 		//eout(x,y) = max(eout(x, y), confidence * 12.0f);
-    } else if (mincost >= 1.0f && lane == 0) {
-        //vout(x,y) = make_float4(0.0f);
-        //eout(x,y) = 0.0f;
     }
 }
 
@@ -163,8 +159,8 @@ void ftl::cuda::correspondence_energy_vector(
         const Camera &cam2, const ILWParams &params, int win,
         cudaStream_t stream) {
 
-    const dim3 gridSize((p1.width() + 2 - 1)/2, (p1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(2*WARP_SIZE, T_PER_BLOCK);
+	const dim3 gridSize((p1.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (p1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
