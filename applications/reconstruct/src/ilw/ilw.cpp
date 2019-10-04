@@ -111,6 +111,15 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 		// TODO: Break if no time left
     }
 
+	for (size_t i=0; i<fs.frames.size(); ++i) {
+		auto &f = fs.frames[i];
+		auto *s = fs.sources[i];
+			
+        auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
+        auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
+        ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, discon_mask_, stream);
+    }
+
     return true;
 }
 
@@ -125,9 +134,9 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 			continue;
 		}
 			
-        auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
+        //auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
         auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
-        ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, discon_mask_, stream);
+        //ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, discon_mask_, stream);
 
         // TODO: Create energy vector texture and clear it
         // Create energy and clear it
@@ -146,6 +155,7 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
         f.createTexture<float4>(Channel::EnergyVector, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<float>(Channel::Energy, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<uchar4>(Channel::Colour);
+		f.createTexture<float>(Channel::Depth);
     }
 
     return true;
@@ -226,7 +236,7 @@ bool ILW::_phase2(ftl::rgbd::FrameSet &fs, float rate, cudaStream_t stream) {
         auto pose = MatrixConversion::toCUDA(fs.sources[i]->getPose().cast<float>()); //.inverse());
 
         ftl::cuda::move_points(
-             f.getTexture<float4>(Channel::Points),
+             f.getTexture<float>(Channel::Depth),
              f.getTexture<float4>(Channel::EnergyVector),
              fs.sources[i]->parameters(),
              pose,

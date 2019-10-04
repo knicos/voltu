@@ -84,8 +84,8 @@ __global__ void correspondence_energy_vector_kernel(
         // Small window around suggested point
         //for (int u=-WINDOW_RADIUS; u<=WINDOW_RADIUS; ++u) {
         //for (int v=-WINDOW_RADIUS; v<=WINDOW_RADIUS; ++v) {
-        const int u = 0;
-        const int v = 0;
+        //const int u = 0;
+        //const int v = 0;
 
             // Now do correspondence evaluation at "screen" location in camera 2
             //const float3 world2 = make_float3(p2.tex2D((int)screen.x+u, (int)screen.y+v));
@@ -93,12 +93,13 @@ __global__ void correspondence_energy_vector_kernel(
 			
 
 			const float depth2 = d2.tex2D((int)screen.x, (int)screen.y);
-            const uchar4 colour2 = c2.tex2D((int)screen.x+u, (int)screen.y+v);
 
             // Determine degree of correspondence
             float cost = 1.0f - ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
             // Point is too far away to even count
-            if (cost == 1.0f) continue;
+			if (cost == 1.0f) continue;
+			
+			const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
 
             // Mix ratio of colour and distance costs
             const float ccost = 1.0f - ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
@@ -174,7 +175,7 @@ void ftl::cuda::correspondence_energy_vector(
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
-    correspondence_energy_vector_kernel<32><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
+    correspondence_energy_vector_kernel<16><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
 
     //switch (win) {
     //case 17     : correspondence_energy_vector_kernel<17><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
@@ -190,7 +191,7 @@ void ftl::cuda::correspondence_energy_vector(
 
 template <int MOTION_RADIUS>
 __global__ void move_points_kernel(
-    ftl::cuda::TextureObject<float4> p,
+    ftl::cuda::TextureObject<float> d,
     ftl::cuda::TextureObject<float4> ev,
     ftl::rgbd::Camera camera,
     float4x4 pose,
@@ -199,11 +200,12 @@ __global__ void move_points_kernel(
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    const float4 vec0 = ev.tex2D((int)x,(int)y);
+	const float4 vec0 = ev.tex2D((int)x,(int)y);
+	if (vec0.x == 0.0f) return;
     
-    if (x < p.width() && y < p.height()) {
-		const float4 world = p(x,y);
-		if (world.x == MINF) return;
+    if (x < d.width() && y < d.height()) {
+		//const float4 world = p(x,y);
+		//if (world.x == MINF) return;
 
 		float delta = 0.0f; //make_float4(0.0f, 0.0f, 0.0f, 0.0f); //ev.tex2D((int)x,(int)y);
 		float contrib = 0.0f;
@@ -212,8 +214,9 @@ __global__ void move_points_kernel(
 		for (int v=-MOTION_RADIUS; v<=MOTION_RADIUS; ++v) {
 			for (int u=-MOTION_RADIUS; u<=MOTION_RADIUS; ++u) {
 				const float4 vecn = ev.tex2D((int)x+u,(int)y+v);
-				const float3 pn = make_float3(p.tex2D((int)x+u,(int)y+v));
-				if (pn.x == MINF) continue;
+				//const float3 pn = make_float3(p.tex2D((int)x+u,(int)y+v));
+				//if (pn.x == MINF) continue;
+				if (vecn.x == 0.0f) continue;
 
 				const float s = ftl::cuda::weighting(fabs(vec0.x - vecn.x), 0.04f);
 				contrib += vecn.w * s;
@@ -222,15 +225,17 @@ __global__ void move_points_kernel(
 		}
 
         if (contrib > 0.0f) {
-            const float3 newworld = pose * camera.screenToCam(x, y, vec0.x + rate * ((delta / contrib) - vec0.x));
-            p(x,y) = make_float4(newworld, world.w); //world + rate * (vec / contrib);
+            //const float3 newworld = pose * camera.screenToCam(x, y, vec0.x + rate * ((delta / contrib) - vec0.x));
+			//p(x,y) = make_float4(newworld, world.w); //world + rate * (vec / contrib);
+			
+			d(x,y) = vec0.x + rate * ((delta / contrib) - vec0.x);
         }
     }
 }
 
 
 void ftl::cuda::move_points(
-        ftl::cuda::TextureObject<float4> &p,
+        ftl::cuda::TextureObject<float> &d,
         ftl::cuda::TextureObject<float4> &v,
         const ftl::rgbd::Camera &camera,
         const float4x4 &pose,
@@ -238,15 +243,15 @@ void ftl::cuda::move_points(
         int radius,
         cudaStream_t stream) {
 
-    const dim3 gridSize((p.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (p.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 gridSize((d.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (d.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
     switch (radius) {
-    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
-    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
-    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
-    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
-    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(p,v,camera, pose,rate); break;
+    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
+    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
+    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
+    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
+    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
     }
 
     cudaSafeCall( cudaGetLastError() );
