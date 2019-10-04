@@ -128,7 +128,7 @@ __global__ void correspondence_energy_vector_kernel(
             vout(x,y) =  make_float4(
                 depth1, // * (1.0f - mincost) * confidence,
                 0.0f, // * (1.0f - mincost) * confidence,
-                bestdepth-depth1, // * (1.0f - mincost) * confidence,
+                bestdepth, // * (1.0f - mincost) * confidence,
                 (1.0f - mincost) * confidence);
         }
 			
@@ -203,14 +203,14 @@ __global__ void move_points_kernel(
 				const float3 pn = make_float3(p.tex2D((int)x+u,(int)y+v));
 				if (pn.x == MINF) continue;
 
-				const float s = ftl::cuda::spatialWeighting(pn, make_float3(world), 0.04f);
+				const float s = ftl::cuda::weighting(fabs(vec0.x - vecn.x), 0.04f);
 				contrib += vecn.w * s;
 				delta += vecn.w * s * vecn.z;
 			}
 		}
 
         if (contrib > 0.0f) {
-            const float3 newworld = pose * camera.screenToCam(x, y, vec0.x + rate * (delta / contrib));
+            const float3 newworld = pose * camera.screenToCam(x, y, vec0.x + rate * ((delta / contrib) - vec0.x));
             p(x,y) = make_float4(newworld, world.w); //world + rate * (vec / contrib);
         }
     }
