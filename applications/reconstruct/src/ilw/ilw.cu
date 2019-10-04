@@ -92,9 +92,13 @@ __global__ void correspondence_energy_vector_kernel(
 
             // Mix ratio of colour and distance costs
             const float ccost = 1.0f - ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
-            if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
-            cost = params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost;
-            //cost /= 2.0f;
+			if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
+			
+			// Cost eq 1: summed contributions
+			//cost = params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost;
+			
+			// Cost eq 2: Multiplied
+			cost = ccost * cost * cost * cost;
 
             ++count;
             avgcost += (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? ccost : cost;
