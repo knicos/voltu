@@ -61,7 +61,7 @@ __global__ void correspondence_energy_vector_kernel(
     float bestdepth;
     int count = 0;
     
-	const float step_interval = 0.05f / (COR_STEPS / 2);
+	const float step_interval = params.range / (COR_STEPS / 2);
 	
 	const float3 rayStep_world = pose1.getFloat3x3() * cam1.screenToCam(x,y,step_interval);
 	const float3 rayStart_2 = pose2 * world1;

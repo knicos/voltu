@@ -96,6 +96,8 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 
     _phase0(fs, stream);
 
+	params_.range = 0.05f;
+
     for (int i=0; i<iterations_; ++i) {
         int win;
         switch (i) {
@@ -108,6 +110,7 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
             _phase2(fs, motion_rate_, stream);
         //}
 
+		params_.range *= 0.5f;
 		// TODO: Break if no time left
     }
 
