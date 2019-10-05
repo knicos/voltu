@@ -194,7 +194,8 @@ __global__ void move_points_kernel(
     ftl::cuda::TextureObject<float> d,
     ftl::cuda::TextureObject<float4> ev,
     ftl::rgbd::Camera camera,
-    float4x4 pose,
+	float4x4 pose,
+	ftl::cuda::ILWParams params,
     float rate) {
 
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -218,7 +219,7 @@ __global__ void move_points_kernel(
 				//if (pn.x == MINF) continue;
 				if (vecn.x == 0.0f) continue;
 
-				const float s = ftl::cuda::weighting(fabs(vec0.x - vecn.x), 0.04f);
+				const float s = ftl::cuda::weighting(fabs(vec0.x - vecn.x), params.range);
 				contrib += vecn.w * s;
 				delta += vecn.w * s * vecn.z;
 			}
@@ -238,7 +239,8 @@ void ftl::cuda::move_points(
         ftl::cuda::TextureObject<float> &d,
         ftl::cuda::TextureObject<float4> &v,
         const ftl::rgbd::Camera &camera,
-        const float4x4 &pose,
+		const float4x4 &pose,
+		const ftl::cuda::ILWParams &params,
         float rate,
         int radius,
         cudaStream_t stream) {
@@ -247,11 +249,11 @@ void ftl::cuda::move_points(
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
     switch (radius) {
-    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
-    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
-    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
-    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
-    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose,rate); break;
+    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
+    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
+    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
+    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
+    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
     }
 
     cudaSafeCall( cudaGetLastError() );

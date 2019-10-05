@@ -96,7 +96,7 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 
     _phase0(fs, stream);
 
-	params_.range = 0.05f;
+	params_.range = 0.1f;
 
     for (int i=0; i<iterations_; ++i) {
         int win;
@@ -243,6 +243,7 @@ bool ILW::_phase2(ftl::rgbd::FrameSet &fs, float rate, cudaStream_t stream) {
              f.getTexture<float4>(Channel::EnergyVector),
              fs.sources[i]->parameters(),
              pose,
+			 params_,
              rate,
              motion_window_,
              stream
