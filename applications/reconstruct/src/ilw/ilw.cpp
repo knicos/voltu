@@ -15,13 +15,13 @@ using cv::cuda::GpuMat;
 
 ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     enabled_ = value("ilw_align", true);
-    iterations_ = value("iterations", 1);
-    motion_rate_ = value("motion_rate", 0.4f);
+    iterations_ = value("iterations", 4);
+    motion_rate_ = value("motion_rate", 0.8f);
     motion_window_ = value("motion_window", 3);
     use_lab_ = value("use_Lab", false);
     params_.colour_smooth = value("colour_smooth", 50.0f);
     params_.spatial_smooth = value("spatial_smooth", 0.04f);
-    params_.cost_ratio = value("cost_ratio", 0.75f);
+    params_.cost_ratio = value("cost_ratio", 0.2f);
 	discon_mask_ = value("discontinuity_mask",2);
 
     on("ilw_align", [this](const ftl::config::Event &e) {
@@ -29,7 +29,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     });
 
     on("iterations", [this](const ftl::config::Event &e) {
-        iterations_ = value("iterations", 1);
+        iterations_ = value("iterations", 4);
     });
 
     on("motion_rate", [this](const ftl::config::Event &e) {
@@ -57,7 +57,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     });
 
     on("cost_ratio", [this](const ftl::config::Event &e) {
-        params_.cost_ratio = value("cost_ratio", 75.0f);
+        params_.cost_ratio = value("cost_ratio", 0.2f);
     });
 
     params_.flags = 0;

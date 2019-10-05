@@ -106,10 +106,10 @@ __global__ void correspondence_energy_vector_kernel(
 			if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
 			
 			// Cost eq 1: summed contributions
-			//cost = params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost;
+			cost = params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost;
 			
 			// Cost eq 2: Multiplied
-			cost = ccost * cost * cost * cost;
+			//cost = ccost * cost * cost * cost;
 
             ++count;
             avgcost += (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? ccost : cost;
