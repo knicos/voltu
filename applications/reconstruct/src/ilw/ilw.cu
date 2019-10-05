@@ -51,6 +51,10 @@ __global__ void correspondence_energy_vector_kernel(
     //const float3 world1 = make_float3(p1.tex2D(x, y));
     const float depth1 = d1.tex2D(x,y); //(pose1_inv * world1).z;  // Initial starting depth
 	if (depth1 < cam1.minDepth || depth1 > cam1.maxDepth) return;
+
+	// TODO: Temporary hack to ensure depth1 is present
+	const float4 temp = vout.tex2D(x,y);
+	vout(x,y) =  make_float4(depth1, 0.0f, temp.z, temp.w);
 	
 	const float3 world1 = pose1 * cam1.screenToCam(x,y,depth1);
 
@@ -219,9 +223,9 @@ __global__ void move_points_kernel(
 				//if (pn.x == MINF) continue;
 				if (vecn.x == 0.0f) continue;
 
-				const float s = ftl::cuda::weighting(fabs(vec0.x - vecn.x), params.range);
-				contrib += vecn.w * s;
-				delta += vecn.w * s * vecn.z;
+				const float s = ftl::cuda::weighting(fabs(vec0.z - vecn.z), params.range);
+				contrib += (vecn.w+0.01f) * s;
+				delta += (vecn.w+0.01f) * s * ((vecn.w == 0.0f) ? vecn.x : vecn.z);
 			}
 		}
 
