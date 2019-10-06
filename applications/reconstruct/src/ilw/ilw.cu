@@ -86,26 +86,26 @@ void ftl::cuda::preprocess_depth(
 //==============================================================================
 
 template<int FUNCTION>
-__device__ float costFunction(const ftl::cuda::ILWParams &params, float dweight, float cweight);
+__device__ float weightFunction(const ftl::cuda::ILWParams &params, float dweight, float cweight);
 
 template <>
-__device__ inline float costFunction<0>(const ftl::cuda::ILWParams &params, float dweight, float cweight) {
-	return 1.0f - (params.cost_ratio * (cweight) + (1.0f - params.cost_ratio) * dweight);
+__device__ inline float weightFunction<0>(const ftl::cuda::ILWParams &params, float dweight, float cweight) {
+	return (params.cost_ratio * (cweight) + (1.0f - params.cost_ratio) * dweight);
 }
 
 template <>
-__device__ inline float costFunction<1>(const ftl::cuda::ILWParams &param, float dweight, float cweight) {
-	return 1.0f - (cweight * cweight * dweight);
+__device__ inline float weightFunction<1>(const ftl::cuda::ILWParams &param, float dweight, float cweight) {
+	return (cweight * cweight * dweight);
 }
 
 template <>
-__device__ inline float costFunction<2>(const ftl::cuda::ILWParams &param, float dweight, float cweight) {
-	return 1.0f - (dweight * dweight * cweight);
+__device__ inline float weightFunction<2>(const ftl::cuda::ILWParams &param, float dweight, float cweight) {
+	return (dweight * dweight * cweight);
 }
 
 template <>
-__device__ inline float costFunction<3>(const ftl::cuda::ILWParams &params, float dweight, float cweight) {
-	return (dweight == 0.0f) ? 1.0f : 1.0f - (params.cost_ratio * (cweight) + (1.0f - params.cost_ratio) * dweight);
+__device__ inline float weightFunction<3>(const ftl::cuda::ILWParams &params, float dweight, float cweight) {
+	return (dweight == 0.0f) ? 0.0f : (params.cost_ratio * (cweight) + (1.0f - params.cost_ratio) * dweight);
 }
 
 template<int COR_STEPS, int FUNCTION> 
@@ -139,10 +139,10 @@ __global__ void correspondence_energy_vector_kernel(
 
     const uchar4 colour1 = c1.tex2D(x, y);
 
-    float bestcost = 1.1f;
-    float avgcost = 0.0f;
-    float bestdepth;
-    int count = 0;
+	float depth_accum = 0.0f;
+	float bestweight = 0.0f;
+	int count = 0;
+	float contrib = 0.0f;
     
 	const float step_interval = params.range / (COR_STEPS / 2);
 	
@@ -172,31 +172,25 @@ __global__ void correspondence_energy_vector_kernel(
 		const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
 		const float cweight = ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
 
-		const float cost = costFunction<FUNCTION>(params, dweight, cweight);
-
-		// Cost is so bad, don't even consider this a valid option
-		if (cost >= params.cost_threshold) continue;
+		const float weight = weightFunction<FUNCTION>(params, dweight, cweight);
 
 		++count;
-		avgcost += cost;
-		if (cost < bestcost) {
-			bestdepth = depth_adjust;
-			bestcost = cost;
+		contrib += weight;
+		depth_accum += depth_adjust * weight;
+		if (weight > bestweight) {
+			bestweight = weight;
 		}
     }
 
-	//count = warpSum(count);
-    const float mincost = bestcost; //warpMin(bestcost);
-	//bool best = mincost == bestcost;
-	avgcost /= count;
-    const float confidence = (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? avgcost : (avgcost - mincost);
+	const float avgweight = contrib/count;
+    const float confidence = bestweight - avgweight;
 
-    if (mincost < 1.0f) {
+    if (contrib > 0.0f) {
         float old = conf.tex2D(x,y);
 
-        if ((1.0f - mincost) * confidence > old) {
-			dout(x,y) = bestdepth;
-			conf(x,y) = (1.0f - mincost) * confidence;
+        if (bestweight * confidence > old) {
+			dout(x,y) = depth_accum / contrib;
+			conf(x,y) = bestweight * confidence;
 		}
     }
 }

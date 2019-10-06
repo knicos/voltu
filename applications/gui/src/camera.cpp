@@ -376,6 +376,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		cv::Mat tmp;
 
 		switch(channel_) {
+			case Channel::Confidence:
 			case Channel::Energy:
 				if (depth_.rows == 0) { break; }
 				visualizeEnergy(depth_, tmp, 10.0);
@@ -398,7 +399,6 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				break;
 
 		case Channel::Flow:
-		case Channel::Confidence:
 		case Channel::Normals:
 		case Channel::Right:
 				if (depth_.rows == 0 || depth_.type() != CV_8UC3) { break; }
