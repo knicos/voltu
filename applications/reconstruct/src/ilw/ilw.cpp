@@ -109,7 +109,7 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 	params_.range = 0.1f;
 
     for (int i=0; i<iterations_; ++i) {
-        _phase1(fs, value("cost_function",0), stream);
+        _phase1(fs, value("cost_function",3), stream);
         //for (int j=0; j<3; ++j) {
             _phase2(fs, motion_rate_, stream);
         //}
