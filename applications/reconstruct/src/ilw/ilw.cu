@@ -192,25 +192,12 @@ __global__ void correspondence_energy_vector_kernel(
     const float confidence = (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? avgcost : (avgcost - mincost);
 
     if (mincost < 1.0f) {
-        //float3 tvecA = pose1 * cam1.screenToCam(x, y, bestdepth);
-        //float3 tvecB = pose1 * world1;
-        //if (params.flags & ftl::cuda::kILWFlag_RestrictZ) {
-        //    tvecA.x = tvecB.x;
-        //    tvecA.y = tvecB.y;
-        //}
-        //tvecA = tvecA - world1;
         float old = conf.tex2D(x,y);
 
         if ((1.0f - mincost) * confidence > old) {
 			dout(x,y) = bestdepth;
 			conf(x,y) = (1.0f - mincost) * confidence;
 		}
-			
-		//eout(x,y) = max(eout(x,y), (length(bestpoint-world1) / 0.04f) * 7.0f);
-		//eout(x,y) = max(eout(x,y), (1.0f - mincost) * 7.0f);
-		//eout(x,y) = max(eout(x, y), (1.0f - mincost) * confidence * (length(bestpoint-world1) / 0.04f) * 12.0f);
-		
-		//eout(x,y) = max(eout(x, y), confidence * 12.0f);
     }
 }
 
