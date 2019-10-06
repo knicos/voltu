@@ -52,13 +52,13 @@ class ILWMask {
 	static const int kMask_Bad = 0x0008;
 };
 
-void correspondence_energy_vector(
+void correspondence(
     ftl::cuda::TextureObject<float> &d1,
     ftl::cuda::TextureObject<float> &d2,
     ftl::cuda::TextureObject<uchar4> &c1,
     ftl::cuda::TextureObject<uchar4> &c2,
-    ftl::cuda::TextureObject<float4> &vout,
-    ftl::cuda::TextureObject<float> &eout,
+    ftl::cuda::TextureObject<float> &dout,
+    ftl::cuda::TextureObject<float> &conf,
     float4x4 &pose1,
     float4x4 &pose1_inv,
     float4x4 &pose2,
@@ -69,8 +69,9 @@ void correspondence_energy_vector(
 );
 
 void move_points(
-    ftl::cuda::TextureObject<float> &d,
-    ftl::cuda::TextureObject<float4> &v,
+    ftl::cuda::TextureObject<float> &d_old,
+    ftl::cuda::TextureObject<float> &d_new,
+	ftl::cuda::TextureObject<float> &conf,
     const ftl::rgbd::Camera &camera,
     const float4x4 &pose,
 	const ILWParams &params,

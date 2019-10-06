@@ -35,8 +35,8 @@ __global__ void correspondence_energy_vector_kernel(
         TextureObject<float> d2,
         TextureObject<uchar4> c1,
         TextureObject<uchar4> c2,
-        TextureObject<float4> vout,
-        TextureObject<float> eout,
+        TextureObject<float> dout,
+        TextureObject<float> conf,
         float4x4 pose1,
         float4x4 pose1_inv,
         float4x4 pose2,  // Inverse
@@ -53,8 +53,8 @@ __global__ void correspondence_energy_vector_kernel(
 	if (depth1 < cam1.minDepth || depth1 > cam1.maxDepth) return;
 
 	// TODO: Temporary hack to ensure depth1 is present
-	const float4 temp = vout.tex2D(x,y);
-	vout(x,y) =  make_float4(depth1, 0.0f, temp.z, temp.w);
+	//const float4 temp = vout.tex2D(x,y);
+	//vout(x,y) =  make_float4(depth1, 0.0f, temp.z, temp.w);
 	
 	const float3 world1 = pose1 * cam1.screenToCam(x,y,depth1);
 
@@ -140,17 +140,12 @@ __global__ void correspondence_energy_vector_kernel(
         //    tvecA.y = tvecB.y;
         //}
         //tvecA = tvecA - world1;
-        float4 old = vout.tex2D(x,y);
+        float old = conf.tex2D(x,y);
 
-        if ((1.0f - mincost) * confidence > old.w) {
-            vout(x,y) =  make_float4(
-                depth1, // * (1.0f - mincost) * confidence,
-                0.0f, // * (1.0f - mincost) * confidence,
-                bestdepth, // * (1.0f - mincost) * confidence,
-                (1.0f - mincost) * confidence);
-
-            eout(x,y) = max(eout(x, y), (1.0f - mincost) * confidence * 12.0f);
-        }
+        if ((1.0f - mincost) * confidence > old) {
+			dout(x,y) = bestdepth;
+			conf(x,y) = (1.0f - mincost) * confidence;
+		}
 			
 		//eout(x,y) = max(eout(x,y), (length(bestpoint-world1) / 0.04f) * 7.0f);
 		//eout(x,y) = max(eout(x,y), (1.0f - mincost) * 7.0f);
@@ -160,13 +155,13 @@ __global__ void correspondence_energy_vector_kernel(
     }
 }
 
-void ftl::cuda::correspondence_energy_vector(
+void ftl::cuda::correspondence(
         TextureObject<float> &d1,
         TextureObject<float> &d2,
         TextureObject<uchar4> &c1,
         TextureObject<uchar4> &c2,
-        TextureObject<float4> &vout,
-        TextureObject<float> &eout,
+        TextureObject<float> &dout,
+        TextureObject<float> &conf,
         float4x4 &pose1,
         float4x4 &pose1_inv,
         float4x4 &pose2,
@@ -179,7 +174,7 @@ void ftl::cuda::correspondence_energy_vector(
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
-    correspondence_energy_vector_kernel<16><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params);
+    correspondence_energy_vector_kernel<16><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
 
     //switch (win) {
     //case 17     : correspondence_energy_vector_kernel<17><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
@@ -195,8 +190,9 @@ void ftl::cuda::correspondence_energy_vector(
 
 template <int MOTION_RADIUS>
 __global__ void move_points_kernel(
-    ftl::cuda::TextureObject<float> d,
-    ftl::cuda::TextureObject<float4> ev,
+    ftl::cuda::TextureObject<float> d_old,
+	ftl::cuda::TextureObject<float> d_new,
+	ftl::cuda::TextureObject<float> conf,
     ftl::rgbd::Camera camera,
 	float4x4 pose,
 	ftl::cuda::ILWParams params,
@@ -205,10 +201,11 @@ __global__ void move_points_kernel(
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float4 vec0 = ev.tex2D((int)x,(int)y);
-	if (vec0.x == 0.0f) return;
+	const float d0_new = d_new.tex2D((int)x,(int)y);
+	const float d0_old = d_old.tex2D((int)x,(int)y);
+	if (d0_new == 0.0f) return;  // No correspondence found
     
-    if (x < d.width() && y < d.height()) {
+    if (x < d_old.width() && y < d_old.height()) {
 		//const float4 world = p(x,y);
 		//if (world.x == MINF) return;
 
@@ -218,14 +215,16 @@ __global__ void move_points_kernel(
 		// Calculate screen space distortion with neighbours
 		for (int v=-MOTION_RADIUS; v<=MOTION_RADIUS; ++v) {
 			for (int u=-MOTION_RADIUS; u<=MOTION_RADIUS; ++u) {
-				const float4 vecn = ev.tex2D((int)x+u,(int)y+v);
+				const float dn_new = d_new.tex2D((int)x+u,(int)y+v);
+				const float dn_old = d_old.tex2D((int)x+u,(int)y+v);
+				const float confn = conf.tex2D((int)x+u,(int)y+v);
 				//const float3 pn = make_float3(p.tex2D((int)x+u,(int)y+v));
 				//if (pn.x == MINF) continue;
-				if (vecn.x == 0.0f) continue;
+				if (dn_new == 0.0f) continue;  // Neighbour has no new correspondence
 
-				const float s = ftl::cuda::weighting(fabs(vec0.z - vecn.z), params.range);
-				contrib += (vecn.w+0.01f) * s;
-				delta += (vecn.w+0.01f) * s * ((vecn.w == 0.0f) ? vecn.x : vecn.z);
+				const float s = ftl::cuda::weighting(fabs(d0_new - dn_new), params.range);
+				contrib += (confn+0.01f) * s;
+				delta += (confn+0.01f) * s * ((confn == 0.0f) ? dn_old : dn_new);
 			}
 		}
 
@@ -233,15 +232,16 @@ __global__ void move_points_kernel(
             //const float3 newworld = pose * camera.screenToCam(x, y, vec0.x + rate * ((delta / contrib) - vec0.x));
 			//p(x,y) = make_float4(newworld, world.w); //world + rate * (vec / contrib);
 			
-			d(x,y) = vec0.x + rate * ((delta / contrib) - vec0.x);
+			d_old(x,y) = d0_old + rate * ((delta / contrib) - d0_old);
         }
     }
 }
 
 
 void ftl::cuda::move_points(
-        ftl::cuda::TextureObject<float> &d,
-        ftl::cuda::TextureObject<float4> &v,
+        ftl::cuda::TextureObject<float> &d_old,
+		ftl::cuda::TextureObject<float> &d_new,
+		ftl::cuda::TextureObject<float> &conf,
         const ftl::rgbd::Camera &camera,
 		const float4x4 &pose,
 		const ftl::cuda::ILWParams &params,
@@ -249,15 +249,15 @@ void ftl::cuda::move_points(
         int radius,
         cudaStream_t stream) {
 
-    const dim3 gridSize((d.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (d.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 gridSize((d_old.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (d_old.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
     switch (radius) {
-    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
-    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
-    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
-    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
-    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(d,v,camera, pose, params, rate); break;
+    case 9 : move_points_kernel<9><<<gridSize, blockSize, 0, stream>>>(d_old,d_new,conf,camera, pose, params, rate); break;
+    case 5 : move_points_kernel<5><<<gridSize, blockSize, 0, stream>>>(d_old,d_new,conf,camera, pose, params, rate); break;
+    case 3 : move_points_kernel<3><<<gridSize, blockSize, 0, stream>>>(d_old,d_new,conf,camera, pose, params, rate); break;
+    case 1 : move_points_kernel<1><<<gridSize, blockSize, 0, stream>>>(d_old,d_new,conf,camera, pose, params, rate); break;
+    case 0 : move_points_kernel<0><<<gridSize, blockSize, 0, stream>>>(d_old,d_new,conf,camera, pose, params, rate); break;
     }
 
     cudaSafeCall( cudaGetLastError() );

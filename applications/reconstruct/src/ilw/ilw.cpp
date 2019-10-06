@@ -155,8 +155,8 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA, 0, cvstream);
 		}
 
-        f.createTexture<float4>(Channel::EnergyVector, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
-        f.createTexture<float>(Channel::Energy, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
+        f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
+        f.createTexture<float>(Channel::Confidence, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<uchar4>(Channel::Colour);
 		f.createTexture<float>(Channel::Depth);
     }
@@ -171,8 +171,8 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
 	// For each camera combination
     for (size_t i=0; i<fs.frames.size(); ++i) {
         auto &f1 = fs.frames[i];
-        f1.get<GpuMat>(Channel::EnergyVector).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
-		f1.get<GpuMat>(Channel::Energy).setTo(cv::Scalar(0.0f), cvstream);
+        f1.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0.0f), cvstream);
+		f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
 		Eigen::Vector4d d1(0.0, 0.0, 1.0, 0.0);
 		d1 = fs.sources[i]->getPose() * d1;
@@ -198,14 +198,14 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
 
             try {
             //Calculate energy vector to best correspondence
-            ftl::cuda::correspondence_energy_vector(
+            ftl::cuda::correspondence(
                 f1.getTexture<float>(Channel::Depth),
                 f2.getTexture<float>(Channel::Depth),
                 f1.getTexture<uchar4>(Channel::Colour),
                 f2.getTexture<uchar4>(Channel::Colour),
                 // TODO: Add normals and other things...
-                f1.getTexture<float4>(Channel::EnergyVector),
-                f1.getTexture<float>(Channel::Energy),
+                f1.getTexture<float>(Channel::Depth2),
+                f1.getTexture<float>(Channel::Confidence),
                 pose1,
                 pose1_inv,
                 pose2,
@@ -240,7 +240,8 @@ bool ILW::_phase2(ftl::rgbd::FrameSet &fs, float rate, cudaStream_t stream) {
 
         ftl::cuda::move_points(
              f.getTexture<float>(Channel::Depth),
-             f.getTexture<float4>(Channel::EnergyVector),
+             f.getTexture<float>(Channel::Depth2),
+			 f.getTexture<float>(Channel::Confidence),
              fs.sources[i]->parameters(),
              pose,
 			 params_,
