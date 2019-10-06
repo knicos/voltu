@@ -52,6 +52,16 @@ class ILWMask {
 	static const int kMask_Bad = 0x0008;
 };
 
+void preprocess_depth(
+	ftl::cuda::TextureObject<float> &depth_in,
+	ftl::cuda::TextureObject<float> &depth_out,
+	ftl::cuda::TextureObject<uchar4> &colour,
+	ftl::cuda::TextureObject<int> &mask,
+	const ftl::rgbd::Camera &camera,
+	const ILWParams &params,
+	cudaStream_t stream
+);
+
 void correspondence(
     ftl::cuda::TextureObject<float> &d1,
     ftl::cuda::TextureObject<float> &d2,

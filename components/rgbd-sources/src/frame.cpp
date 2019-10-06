@@ -74,6 +74,17 @@ void Frame::swapTo(ftl::rgbd::Channels channels, Frame &f) {
 	}
 }
 
+void Frame::swapChannels(ftl::rgbd::Channel a, ftl::rgbd::Channel b) {
+	auto &m1 = _get(a);
+	auto &m2 = _get(b);
+	cv::swap(m1.host, m2.host);
+	cv::cuda::swap(m1.gpu, m2.gpu);
+
+	auto temptex = std::move(m2.tex);
+	m2.tex = std::move(m1.tex);
+	m1.tex = std::move(temptex);
+}
+
 template<> cv::Mat& Frame::get(ftl::rgbd::Channel channel) {
 	if (channel == Channel::None) {
 		DLOG(WARNING) << "Cannot get the None channel from a Frame";

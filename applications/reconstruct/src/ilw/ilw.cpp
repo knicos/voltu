@@ -157,8 +157,22 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 
         f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<float>(Channel::Confidence, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
+		f.createTexture<int>(Channel::Mask, Format<int>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<uchar4>(Channel::Colour);
 		f.createTexture<float>(Channel::Depth);
+
+		ftl::cuda::preprocess_depth(
+			f.getTexture<float>(Channel::Depth),
+			f.getTexture<float>(Channel::Depth2),
+			f.getTexture<uchar4>(Channel::Colour),
+			f.getTexture<int>(Channel::Mask),
+			s->parameters(),
+			params_,
+			stream
+		);
+
+		//cv::cuda::swap(f.get<GpuMat>(Channel::Depth),f.get<GpuMat>(Channel::Depth2)); 
+		f.swapChannels(Channel::Depth, Channel::Depth2);
     }
 
     return true;

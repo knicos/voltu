@@ -57,6 +57,8 @@ public:
 	 */
 	void swapTo(ftl::rgbd::Channels, Frame &);
 
+	void swapChannels(ftl::rgbd::Channel, ftl::rgbd::Channel);
+
 	/**
 	 * Create a channel with a given format. This will discard any existing
 	 * data associated with the channel and ensure all data structures and
