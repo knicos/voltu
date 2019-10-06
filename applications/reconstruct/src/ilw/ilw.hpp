@@ -70,6 +70,7 @@ class ILW : public ftl::Configurable {
     int motion_window_;
     bool use_lab_;
 	int discon_mask_;
+	bool fill_depth_;
 };
 
 }

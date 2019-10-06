@@ -23,8 +23,13 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     params_.spatial_smooth = value("spatial_smooth", 0.04f);
     params_.cost_ratio = value("cost_ratio", 0.2f);
 	discon_mask_ = value("discontinuity_mask",2);
+	fill_depth_ = value("fill_depth", true);
 
-    on("ilw_align", [this](const ftl::config::Event &e) {
+    on("fill_depth", [this](const ftl::config::Event &e) {
+        fill_depth_ = value("fill_depth", true);
+    });
+
+	on("ilw_align", [this](const ftl::config::Event &e) {
         enabled_ = value("ilw_align", true);
     });
 
@@ -160,19 +165,6 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 		f.createTexture<int>(Channel::Mask, Format<int>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<uchar4>(Channel::Colour);
 		f.createTexture<float>(Channel::Depth);
-
-		ftl::cuda::preprocess_depth(
-			f.getTexture<float>(Channel::Depth),
-			f.getTexture<float>(Channel::Depth2),
-			f.getTexture<uchar4>(Channel::Colour),
-			f.getTexture<int>(Channel::Mask),
-			s->parameters(),
-			params_,
-			stream
-		);
-
-		//cv::cuda::swap(f.get<GpuMat>(Channel::Depth),f.get<GpuMat>(Channel::Depth2)); 
-		f.swapChannels(Channel::Depth, Channel::Depth2);
     }
 
     return true;
@@ -181,6 +173,27 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
     // Run correspondence kernel to create an energy vector
     cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+	// First do any preprocessing
+	if (fill_depth_) {
+		for (size_t i=0; i<fs.frames.size(); ++i) {
+			auto &f = fs.frames[i];
+            auto s = fs.sources[i];
+
+			ftl::cuda::preprocess_depth(
+				f.getTexture<float>(Channel::Depth),
+				f.getTexture<float>(Channel::Depth2),
+				f.getTexture<uchar4>(Channel::Colour),
+				f.getTexture<int>(Channel::Mask),
+				s->parameters(),
+				params_,
+				stream
+			);
+
+			//cv::cuda::swap(f.get<GpuMat>(Channel::Depth),f.get<GpuMat>(Channel::Depth2)); 
+			f.swapChannels(Channel::Depth, Channel::Depth2);
+		}
+	}
 
 	// For each camera combination
     for (size_t i=0; i<fs.frames.size(); ++i) {
