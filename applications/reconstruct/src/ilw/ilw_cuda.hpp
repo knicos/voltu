@@ -12,7 +12,7 @@ struct ILWParams {
     float spatial_smooth;
     float colour_smooth;
     float cost_ratio;
-    float threshold;
+    float cost_threshold;
 	float range;
     uint flags;
 };

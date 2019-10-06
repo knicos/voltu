@@ -22,6 +22,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     params_.colour_smooth = value("colour_smooth", 50.0f);
     params_.spatial_smooth = value("spatial_smooth", 0.04f);
     params_.cost_ratio = value("cost_ratio", 0.2f);
+	params_.cost_threshold = value("cost_threshold", 1.0f);
 	discon_mask_ = value("discontinuity_mask",2);
 	fill_depth_ = value("fill_depth", false);
 
@@ -65,6 +66,10 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
         params_.cost_ratio = value("cost_ratio", 0.2f);
     });
 
+	on("cost_threshold", [this](const ftl::config::Event &e) {
+        params_.cost_threshold = value("cost_threshold", 1.0f);
+    });
+
     params_.flags = 0;
     if (value("ignore_bad", false)) params_.flags |= ftl::cuda::kILWFlag_IgnoreBad;
     if (value("ignore_bad_colour", false)) params_.flags |= ftl::cuda::kILWFlag_SkipBadColour;
@@ -104,13 +109,7 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 	params_.range = 0.1f;
 
     for (int i=0; i<iterations_; ++i) {
-        int win;
-        switch (i) {
-        case 0: win = 17; break;
-        case 1: win = 9; break;
-        default: win = 5; break;
-        }
-        _phase1(fs, win, stream);
+        _phase1(fs, value("cost_function",0), stream);
         //for (int j=0; j<3; ++j) {
             _phase2(fs, motion_rate_, stream);
         //}

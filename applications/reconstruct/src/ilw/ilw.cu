@@ -85,12 +85,25 @@ void ftl::cuda::preprocess_depth(
 
 //==============================================================================
 
-//#define COR_WIN_RADIUS 17
-//#define COR_WIN_SIZE (COR_WIN_RADIUS * COR_WIN_RADIUS)
+template<int FUNCTION>
+__device__ float costFunction(const ftl::cuda::ILWParams &params, float dweight, float cweight);
 
-#define WINDOW_RADIUS 1
+template <>
+__device__ float costFunction<0>(const ftl::cuda::ILWParams &params, float dweight, float cweight) {
+	return 1.0f - (params.cost_ratio * (cweight) + (1.0f - params.cost_ratio) * dweight);
+}
 
-template<int COR_STEPS> 
+template <>
+__device__ float costFunction<1>(const ftl::cuda::ILWParams &param, float dweight, float cweight) {
+	return 1.0f - (cweight * cweight * dweight);
+}
+
+template <>
+__device__ float costFunction<2>(const ftl::cuda::ILWParams &param, float dweight, float cweight) {
+	return 1.0f - (dweight * dweight * cweight);
+}
+
+template<int COR_STEPS, int FUNCTION> 
 __global__ void correspondence_energy_vector_kernel(
         TextureObject<float> d1,
         TextureObject<float> d2,
@@ -157,27 +170,28 @@ __global__ void correspondence_energy_vector_kernel(
 			//if ((params.flags & ftl::cuda::kILWFlag_IgnoreBad) && world2.x == MINF) continue;
 			
 
+			// Generate a depth correspondence value
 			const float depth2 = d2.tex2D((int)screen.x, (int)screen.y);
-
-            // Determine degree of correspondence
-            float cost = ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
-            // Point is too far away to even count
-			//if (cost == 1.0f) continue;
+            const float dweight = ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
 			
+			// Generate a colour correspondence value
 			const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
+			const float cweight = ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
 
-            // Mix ratio of colour and distance costs
-            const float ccost = ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
-			//if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
-			
+
 			// Cost eq 1: summed contributions
-			cost = 1.0f - (params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost);
+			//cost = 1.0f - (params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost);
 			
 			// Cost eq 2: Multiplied
 			//cost = 1.0f - (ccost * ccost * cost);
 
+			const float cost = costFunction<FUNCTION>(params, dweight, cweight);
+
+			// Cost is so bad, don't even consider this a valid option
+			if (cost >= params.cost_threshold) continue;
+
             ++count;
-            avgcost += (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? ccost : cost;
+			avgcost += cost;
             if (cost < bestcost) {
                 bestdepth = depth_adjust;
                 bestcost = cost;
@@ -227,7 +241,7 @@ void ftl::cuda::correspondence(
         float4x4 &pose1_inv,
         float4x4 &pose2,
         const Camera &cam1,
-        const Camera &cam2, const ILWParams &params, int win,
+        const Camera &cam2, const ILWParams &params, int func,
         cudaStream_t stream) {
 
 	const dim3 gridSize((d1.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (d1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
@@ -235,13 +249,12 @@ void ftl::cuda::correspondence(
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
-    correspondence_energy_vector_kernel<16><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
+	switch (func) {
+    case 0: correspondence_energy_vector_kernel<16,0><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
+	case 1: correspondence_energy_vector_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
+	case 2: correspondence_energy_vector_kernel<16,2><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
+	}
 
-    //switch (win) {
-    //case 17     : correspondence_energy_vector_kernel<17><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-    //case 9      : correspondence_energy_vector_kernel<9><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-    //case 5      : correspondence_energy_vector_kernel<5><<<gridSize, blockSize, 0, stream>>>(p1, p2, c1, c2, vout, eout, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-    //}
     cudaSafeCall( cudaGetLastError() );
 }
 
