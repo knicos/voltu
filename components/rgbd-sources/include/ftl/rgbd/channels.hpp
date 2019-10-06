@@ -24,6 +24,7 @@ enum struct Channel : int {
     EnergyVector,       // 32FC4
     Flow,               // 32F
     Energy,             // 32F
+	Mask,				// 32U
     LeftGray,
     RightGray,
     Overlay1

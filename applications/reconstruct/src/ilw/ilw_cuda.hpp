@@ -22,6 +22,36 @@ static const uint kILWFlag_RestrictZ = 0x0002;
 static const uint kILWFlag_SkipBadColour = 0x0004;
 static const uint kILWFlag_ColourConfidenceOnly = 0x0008;
 
+/**
+ * Wrap an int mask value used to flag individual depth pixels.
+ */
+class ILWMask {
+	public:
+	__device__ explicit inline ILWMask(int v) : v_(v) {}
+	#ifdef __CUDACC__
+	__device__ inline ILWMask(const ftl::cuda::TextureObject<int> &m, int x, int y) : v_(m.tex2D(x,y)) {}
+	#endif
+	__device__ inline operator int() const { return v_; }
+
+	__device__ inline bool isFilled() const { return v_ & kMask_Filled; }
+	__device__ inline bool isDiscontinuity() const { return v_ & kMask_Discontinuity; }
+	__device__ inline bool hasCorrespondence() const { return v_ & kMask_Correspondence; }
+	__device__ inline bool isBad() const { return v_ & kMask_Bad; }
+
+	__device__ inline void isFilled(bool v) { v_ = (v) ? v_ | kMask_Filled : v_ & (~kMask_Filled); }
+	__device__ inline void isDiscontinuity(bool v) { v_ = (v) ? v_ | kMask_Discontinuity : v_ & (~kMask_Discontinuity); }
+	__device__ inline void hasCorrespondence(bool v) { v_ = (v) ? v_ | kMask_Correspondence : v_ & (~kMask_Correspondence); }
+	__device__ inline void isBad(bool v) { v_ = (v) ? v_ | kMask_Bad : v_ & (~kMask_Bad); }
+
+	private:
+	int v_;
+
+	static const int kMask_Filled = 0x0001;
+	static const int kMask_Discontinuity = 0x0002;
+	static const int kMask_Correspondence = 0x0004;
+	static const int kMask_Bad = 0x0008;
+};
+
 void correspondence_energy_vector(
     ftl::cuda::TextureObject<float> &d1,
     ftl::cuda::TextureObject<float> &d2,
