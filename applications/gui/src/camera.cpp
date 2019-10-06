@@ -377,6 +377,10 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 
 		switch(channel_) {
 			case Channel::Confidence:
+				if (depth_.rows == 0) { break; }
+				visualizeEnergy(depth_, tmp, 1.0);
+				texture_.update(tmp);
+				break;
 			case Channel::Energy:
 				if (depth_.rows == 0) { break; }
 				visualizeEnergy(depth_, tmp, 10.0);
