@@ -139,7 +139,7 @@ __global__ void correspondence_energy_vector_kernel(
 
     const uchar4 colour1 = c1.tex2D(x, y);
 
-	float depth_accum = 0.0f;
+	float bestdepth = 0.0f;
 	float bestweight = 0.0f;
 	int count = 0;
 	float contrib = 0.0f;
@@ -176,20 +176,20 @@ __global__ void correspondence_energy_vector_kernel(
 
 		++count;
 		contrib += weight;
-		depth_accum += depth_adjust * weight;
 		if (weight > bestweight) {
 			bestweight = weight;
+			bestdepth = depth_adjust;
 		}
     }
 
 	const float avgweight = contrib/(float)count;
     const float confidence = bestweight - avgweight;
 
-    if (contrib > 0.0f) {
+    if (bestweight > 0.0f) {
         float old = conf.tex2D(x,y);
 
         if (bestweight * confidence > old) {
-			dout(x,y) = depth_accum / contrib;
+			dout(x,y) = bestdepth;
 			conf(x,y) = bestweight * confidence;
 		}
     }
