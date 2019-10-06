@@ -182,7 +182,7 @@ __global__ void correspondence_energy_vector_kernel(
 		}
     }
 
-	const float avgweight = contrib/count;
+	const float avgweight = contrib/(float)count;
     const float confidence = bestweight - avgweight;
 
     if (contrib > 0.0f) {
