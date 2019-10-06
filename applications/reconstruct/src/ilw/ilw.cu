@@ -219,10 +219,10 @@ void ftl::cuda::correspondence(
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
 	switch (func) {
-    case 0: correspondence_energy_vector_kernel<16,0><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
-	case 1: correspondence_energy_vector_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
-	case 2: correspondence_energy_vector_kernel<16,2><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
-	case 3: correspondence_energy_vector_kernel<16,3><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params);
+    case 0: correspondence_energy_vector_kernel<16,0><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+	case 1: correspondence_energy_vector_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+	case 2: correspondence_energy_vector_kernel<16,2><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+	case 3: correspondence_energy_vector_kernel<16,3><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
 	}
 
     cudaSafeCall( cudaGetLastError() );
