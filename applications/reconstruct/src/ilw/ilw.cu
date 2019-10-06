@@ -160,21 +160,21 @@ __global__ void correspondence_energy_vector_kernel(
 			const float depth2 = d2.tex2D((int)screen.x, (int)screen.y);
 
             // Determine degree of correspondence
-            float cost = 1.0f - ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
+            float cost = ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
             // Point is too far away to even count
-			if (cost == 1.0f) continue;
+			//if (cost == 1.0f) continue;
 			
 			const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
 
             // Mix ratio of colour and distance costs
-            const float ccost = 1.0f - ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
-			if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
+            const float ccost = ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
+			//if ((params.flags & ftl::cuda::kILWFlag_SkipBadColour) && ccost == 1.0f) continue;
 			
 			// Cost eq 1: summed contributions
-			cost = params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost;
+			cost = 1.0f - (params.cost_ratio * (ccost) + (1.0f - params.cost_ratio) * cost);
 			
 			// Cost eq 2: Multiplied
-			//cost = ccost * cost * cost * cost;
+			//cost = 1.0f - (ccost * ccost * cost);
 
             ++count;
             avgcost += (params.flags & ftl::cuda::kILWFlag_ColourConfidenceOnly) ? ccost : cost;

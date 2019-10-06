@@ -23,7 +23,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     params_.spatial_smooth = value("spatial_smooth", 0.04f);
     params_.cost_ratio = value("cost_ratio", 0.2f);
 	discon_mask_ = value("discontinuity_mask",2);
-	fill_depth_ = value("fill_depth", true);
+	fill_depth_ = value("fill_depth", false);
 
     on("fill_depth", [this](const ftl::config::Event &e) {
         fill_depth_ = value("fill_depth", true);

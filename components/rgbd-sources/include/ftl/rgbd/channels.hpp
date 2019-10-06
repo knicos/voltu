@@ -105,6 +105,7 @@ inline bool isFloatChannel(ftl::rgbd::Channel chan) {
 	switch (chan) {
 	case Channel::Depth		:
     //case Channel::Normals   :
+	case Channel::Confidence:
 	case Channel::Energy	: return true;
 	default					: return false;
 	}

@@ -363,10 +363,10 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 		cv::cuda::swap(temp_.get<GpuMat>(Channel::Colour), out.create<GpuMat>(Channel::Normals));
 		out.resetTexture(Channel::Normals);
 	}
-	else if (chan == Channel::Contribution)
-	{
-		cv::cuda::swap(temp_.get<GpuMat>(Channel::Contribution), out.create<GpuMat>(Channel::Contribution));
-	}
+	//else if (chan == Channel::Contribution)
+	//{
+	//	cv::cuda::swap(temp_.get<GpuMat>(Channel::Contribution), out.create<GpuMat>(Channel::Contribution));
+	//}
 	else if (chan == Channel::Right)
 	{
 		Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
