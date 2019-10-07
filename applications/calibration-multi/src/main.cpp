@@ -203,7 +203,7 @@ struct CalibrationParams {
 void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 				const CalibrationParams &params, vector<Mat> &map1, vector<Mat> &map2, vector<cv::Rect> &roi)
 {
-	int reference_camera = -1;
+	int reference_camera = params.reference_camera;
 	if (params.reference_camera < 0) {
 		reference_camera = calib.getOptimalReferenceCamera();
 		reference_camera -= (reference_camera & 1);
