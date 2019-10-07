@@ -108,6 +108,11 @@ __device__ inline float weightFunction<3>(const ftl::cuda::ILWParams &params, fl
 	return (dweight == 0.0f) ? 0.0f : (params.cost_ratio * (cweight) + (1.0f - params.cost_ratio) * dweight);
 }
 
+template <>
+__device__ inline float weightFunction<4>(const ftl::cuda::ILWParams &params, float dweight, float cweight) {
+	return cweight;
+}
+
 template<int COR_STEPS, int FUNCTION> 
 __global__ void correspondence_energy_vector_kernel(
         TextureObject<float> d1,
@@ -169,6 +174,7 @@ __global__ void correspondence_energy_vector_kernel(
 		// Generate a depth correspondence value
 		const float depth2 = d2.tex2D((int)screen.x, (int)screen.y);
 		const float dweight = ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
+		//const float dweight = ftl::cuda::weighting(fabs(depth_adjust - depth1), 2.0f*params.range);
 		
 		// Generate a colour correspondence value
 		const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
@@ -223,6 +229,7 @@ void ftl::cuda::correspondence(
 	case 1: correspondence_energy_vector_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
 	case 2: correspondence_energy_vector_kernel<16,2><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
 	case 3: correspondence_energy_vector_kernel<16,3><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+	case 4: correspondence_energy_vector_kernel<16,4><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, dout, conf, pose1, pose1_inv, pose2, cam1, cam2, params); break;
 	}
 
     cudaSafeCall( cudaGetLastError() );
@@ -266,7 +273,7 @@ __global__ void move_points_kernel(
 				//if (pn.x == MINF) continue;
 				if (dn_new == 0.0f) continue;  // Neighbour has no new correspondence
 
-				const float s = ftl::cuda::weighting(fabs(d0_new - dn_new), params.range);
+				const float s = ftl::cuda::spatialWeighting(camera.screenToCam(x,y,d0_new), camera.screenToCam(x+u,y+v,dn_new), params.range); // ftl::cuda::weighting(fabs(d0_new - dn_new), params.range);
 				contrib += (confn+0.01f) * s;
 				delta += (confn+0.01f) * s * ((confn == 0.0f) ? dn_old : dn_new);
 			}
