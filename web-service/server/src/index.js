@@ -9,13 +9,13 @@ const keys = require('./passport/keys')
 const mongoose = require('mongoose')
 const config = require('./utils/config')
 const User = require('./models/users')
-const Configuration = require('./models/configs')
+const Config = require('./models/configs')
 const bodyParser = require('body-parser')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
 app.use(express.static(__dirname + './../public'));
-app.use(bodyParser.json( ))
+app.use(bodyParser.json())
 
 
 passport.serializeUser((user, done) => {
@@ -203,10 +203,18 @@ app.get('/stream/depth', (req, res) => {
 	res.end();
 });
 
-app.post('/stream/config', (req, res) => {
-	const configurations = req.body
+app.post('/stream/config', async (req, res) => {
+	const {board_size, square_size, frame_delay, num_frames} = req.body
 
-	console.log(configurations)
+	const savedConfigs = new Config({
+		board_size,
+		square_size,
+		frame_delay,
+		num_frames,
+	});
+	const resp = await savedConfigs.save();
+
+	console.log(resp);
 
 	return res.json(200)
 })
