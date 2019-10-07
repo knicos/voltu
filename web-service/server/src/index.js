@@ -3,14 +3,19 @@ const app = express();
 const expressWs = require('express-ws')(app);
 const Peer = require('./peer.js');
 const passport = require('passport');
-const passportSetup = require('./passport/passport');
+const passportSetup = require('./passport/passport'); //Without this, the app doesn't know passports google strategy
 const jwt = require('jsonwebtoken');
 const keys = require('./passport/keys')
+const mongoose = require('mongoose')
+const config = require('./utils/config')
+const User = require('./models/users')
+const Configuration = require('./models/configs')
+const bodyParser = require('body-parser')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
 app.use(express.static(__dirname + './../public'));
-console.log(__dirname)
+app.use(bodyParser.json( ))
 
 
 passport.serializeUser((user, done) => {
@@ -20,6 +25,14 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser((userDataFromCookie, done) => {
     done(null, userDataFromCookie);
 })
+
+mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+	.then(() => {
+		console.log('Connected to MongoDB');
+	})
+	.catch((err) => {
+		console.log(err);
+	})
 
 let peer_by_id = {};
 //let uri_to_peer = {};
@@ -143,11 +156,19 @@ app.get('/', (req, res) => {
 	res.end();
 });
 
-app.post('/auth/validation', (req, res) => {
+app.post('/auth/validation', async (req, res) => {
 	const token = req.headers.authorization.split(" ")
 	const decoded = jwt.verify(token[1], keys.jwt.secret)
-
-	return res.status(200)
+	try{
+		const data = await User.find({decoded})
+		if(data){
+			console.log(data)
+			return res.status(200).json("success")
+		}
+	}catch(err){
+		console.log('ERROR ERROR')
+		console.log(err)
+	}	
 })
 // app.get('/login/google', (req, res) => {
 // })
@@ -182,6 +203,14 @@ app.get('/stream/depth', (req, res) => {
 	res.end();
 });
 
+app.post('/stream/config', (req, res) => {
+	const configurations = req.body
+
+	console.log(configurations)
+
+	return res.json(200)
+})
+
 //app.get('/stream', (req, res))
 
 /*
@@ -195,19 +224,50 @@ app.get('/google', passport.authenticate('google', {
  * Google authentication API callback route. 
  * Sets the JWT to clients browser and redirects the user back to front page.
  */
-app.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
+app.get('/auth/google/redirect', passport.authenticate('google'), async (req, res) => {
 	console.log(req.user)
-	const token = jwt.sign(req.user.id, keys.jwt.secret);
-	const htmlWithEmbeddedJWT = `
-    <html>
-        <body><h3> You will be automatically redirected to next page.<h3><body>
-        <script>
-			window.localStorage.setItem('token', 'bearer ${token}');
-			window.location.href = '/';
-        </script>
-    <html>
-    `;
-    res.send(htmlWithEmbeddedJWT)
+	//Save the req.user.id into MongoDB
+
+	const user = new User({
+		googleID: req.user.id
+	})
+	try{
+		const listOfUsers = await User.find({});
+		console.log(listOfUsers);
+		
+		//Checks if the userID is already in db
+		for(let i=0; i<listOfUsers.length; i++){
+			if(listOfUsers[i].googleID == req.user.id){
+				const token = jwt.sign(req.user.id, keys.jwt.secret);
+				const htmlWithEmbeddedJWT = `
+				<html>
+					<body><h3> You will be automatically redirected to next page.<h3><body>
+					<script>
+						window.localStorage.setItem('token', 'bearer ${token}');
+						window.location.href = '/';
+					</script>
+				<html>
+				`;
+				return res.send(htmlWithEmbeddedJWT)		
+			}
+		}
+
+
+		await user.save()
+		const token = jwt.sign(req.user.id, keys.jwt.secret);
+		const htmlWithEmbeddedJWT = `
+		<html>
+			<body><h3> You will be automatically redirected to next page.<h3><body>
+			<script>
+				window.localStorage.setItem('token', 'bearer ${token}');
+				window.location.href = '/';
+			</script>
+		<html>
+		`;
+		return res.send(htmlWithEmbeddedJWT)
+	}catch(err){
+		console.log(err)
+	}
 })
 
 function checkStreams(peer) {

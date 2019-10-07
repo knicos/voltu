@@ -1,8 +1,10 @@
-
 const checkIfLoggedIn = async () => {
     const token = window.localStorage.getItem('token')
+    console.log(token)
     if(!token){
         console.log("You need to login")
+        const containerDiv = document.getElementById('container');
+        containerDiv = login;
     //User has a token saved in the browser
     }else{
         //validate that token
@@ -10,14 +12,14 @@ const checkIfLoggedIn = async () => {
             method: 'POST',
             headers: {'Authorization': token}
         })
-        console.log(response)
+        console.log('RESPONSE', response)
         //Token is valid
         if(response.status === 200){
             console.log("SUCCESS")
             /*
             Most likely it will render a new HTML file
             */
-            document.getElementById('container').innerHTML = "<p>Salainen sivu</p>"
+            renderThumbnails()
         }
     }
 }

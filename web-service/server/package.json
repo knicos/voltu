@@ -14,9 +14,11 @@
   "author": "Nicolas Pope",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.19.0",
     "express": "^4.16.4",
     "express-ws": "^4.0.0",
     "jsonwebtoken": "^8.5.1",
+    "mongoose": "^5.7.3",
     "msgpack5": "^4.2.1",
     "passport": "^0.4.0",
     "passport-google-oauth20": "^2.0.0"
