@@ -237,17 +237,9 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 		Mat P1, P2, Q;
 		Mat R1, R2;
 		Mat R_c1c2, T_c1c2;
-		LOG(INFO) << K1;
-		LOG(INFO) << K2;
 		
 		calculateTransform(R[c], t[c], R[c + 1], t[c + 1], R_c1c2, T_c1c2);
 		cv::stereoRectify(K1, D1, K2, D2, params.size, R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, params.alpha);
-
-		Mat rvec;
-		cv::Rodrigues(R_c1c2, rvec);
-		LOG(INFO) << "From camera " << c << " to " << c + 1;
-		LOG(INFO) << "rotation:    " << rvec.t();
-		LOG(INFO) << "translation: " << T_c1c2.t();
 
 		// calculate extrinsics from rectified parameters
 		Mat _t = Mat(Size(1, 3), CV_64FC1, Scalar(0.0));
@@ -270,6 +262,14 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 				);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-extrinsic.yml";
 			}
+			else
+			{
+				Mat rvec;
+				cv::Rodrigues(R_c1c2, rvec);
+				LOG(INFO) << "From camera " << c << " to " << c + 1;
+				LOG(INFO) << "rotation:    " << rvec.t();
+				LOG(INFO) << "translation: " << T_c1c2.t();
+			}
 
 			if (params.save_intrinsic)
 			{
@@ -279,6 +279,11 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 					params.size
 				);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-intrinsic.yml";
+			}
+			else if (params.optimize_intrinsic)
+			{
+				LOG(INFO) << "K1:\n" << K1;
+				LOG(INFO) << "K2:\n" << K2;
 			}
 		}
 

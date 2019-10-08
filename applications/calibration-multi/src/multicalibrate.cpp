@@ -90,8 +90,9 @@ MultiCameraCalibrationNew::MultiCameraCalibrationNew(
 	n_cameras_(n_cameras),
 	reference_camera_(reference_camera),
 	min_visible_points_(50),
-	fix_intrinsics_(fix_intrinsics == 1 ? 5 : 0),
 
+	 // NOTE: modified cvsba (intrinsics fixed in different order)
+	fix_intrinsics_(fix_intrinsics == 1 ? 2 : 5),
 	resolution_(resolution),
 	K_(n_cameras),
 	dist_coeffs_(n_cameras),
@@ -491,7 +492,7 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 	// Bundle Adjustment
 	// vector<Point3d> points3d_triangulated;
 	// points3d_triangulated.insert(points3d_triangulated.begin(), points3d.begin(), points3d.end());
-	LOG(INFO) << K1;
+	
 	double err;
 	cvsba::Sba sba;
 	{
