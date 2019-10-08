@@ -144,10 +144,12 @@ app.get('/', (req, res) => {
 });
 
 app.post('/auth/validation', (req, res) => {
-	const token = req.headers.authorization.split(" ")
-	const decoded = jwt.verify(token[1], keys.jwt.secret)
+	const token = req.headers.authorization
+	const splitted = token.split(" ");
+	const decoded = jwt.verify(splitted[1], keys.jwt.secret)
+	console.log(decoded)
 
-	return res.status(200)
+	return res.status(200).json("piippiip")
 })
 // app.get('/login/google', (req, res) => {
 // })
