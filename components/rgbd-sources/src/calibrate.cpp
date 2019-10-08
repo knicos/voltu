@@ -199,7 +199,7 @@ void Calibrate::_updateIntrinsics() {
 	// Set correct camera matrices for
 	// getCameraMatrix(), getCameraMatrixLeft(), getCameraMatrixRight()
 	Kl_ = Mat(P1, cv::Rect(0, 0, 3, 3));
-	Kr_ = Mat(P1, cv::Rect(0, 0, 3, 3));
+	Kr_ = Mat(P2, cv::Rect(0, 0, 3, 3));
 
 	initUndistortRectifyMap(K1_, D1_, R1, P1, img_size_, CV_32FC1, map1_.first, map2_.first);
 	initUndistortRectifyMap(K2_, D2_, R2, P2, img_size_, CV_32FC1, map1_.second, map2_.second);
