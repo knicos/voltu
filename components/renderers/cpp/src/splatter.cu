@@ -146,7 +146,7 @@ __device__ inline float make(float v) {
 /*
  * Pass 1b: Expand splats to full size and merge
  */
- template <int SEARCH_DIAMETER, typename T>
+ template <int SEARCH_RADIUS, typename T>
  __global__ void splat_kernel(
         //TextureObject<float4> points,       // Original 3D points
         TextureObject<float4> normals,
@@ -161,62 +161,63 @@ __device__ inline float make(float v) {
         
     //const ftl::voxhash::DepthCameraCUDA &camera = c_cameras[cam];
 
-    const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
+    //const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
     //const int warp = tid / WARP_SIZE;
-    const int x = (blockIdx.x*blockDim.x + threadIdx.x) / WARP_SIZE;
+    const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if (x < 0 || y < 0 || x >= depth_in.width() || y >= depth_in.height()) return;
 
-    const float3 origin = params.m_viewMatrixInverse * make_float3(0.0f);
+    //const float3 origin = params.m_viewMatrixInverse * make_float3(0.0f);
     float3 ray = params.camera.screenToCam(x,y,1.0f);
     ray = ray / length(ray);
     const float scale = ray.z;
-    ray = params.m_viewMatrixInverse.getFloat3x3() * ray;
+    //ray = params.m_viewMatrixInverse.getFloat3x3() * ray;
 
     //float depth = 0.0f;
     //float contrib = 0.0f;
     float depth = 1000.0f;
-    float pdepth = 1000.0f;
+    //float pdepth = 1000.0f;
 
     struct Result {
         float weight;
         float depth;
-        T attr;
     };
 
-    Result results[(SEARCH_DIAMETER*SEARCH_DIAMETER) / WARP_SIZE];
+    Result results[2*SEARCH_RADIUS+1][2*SEARCH_RADIUS+1];
 
     // Each thread in warp takes an upsample point and updates corresponding depth buffer.
-    const int lane = tid % WARP_SIZE;
-    for (int i=lane; i<SEARCH_DIAMETER*SEARCH_DIAMETER; i+=WARP_SIZE) {
-        const float u = (i % SEARCH_DIAMETER) - (SEARCH_DIAMETER / 2);
-        const float v = (i / SEARCH_DIAMETER) - (SEARCH_DIAMETER / 2);
+    //const int lane = tid % WARP_SIZE;
+    //for (int i=lane; i<SEARCH_DIAMETER*SEARCH_DIAMETER; i+=WARP_SIZE) {
+    //    const float u = (i % SEARCH_DIAMETER) - (SEARCH_DIAMETER / 2);
+    //    const float v = (i / SEARCH_DIAMETER) - (SEARCH_DIAMETER / 2);
+    for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
+    for (int u=-SEARCH_RADIUS; u<=SEARCH_RADIUS; ++u) {
 
-        results[i/WARP_SIZE] = {0.0f, 0.0f, make<T>()};
+        results[v+SEARCH_RADIUS][u+SEARCH_RADIUS] = {0.0f, 1000.0f};
 
         // Use the depth buffer to determine this pixels 3D position in camera space
         const float d = ((float)depth_in.tex2D(x+u, y+v)/1000.0f);
 
+        const float3 n = make_float3(normals.tex2D((int)(x)+u, (int)(y)+v));
+        const float dens = density.tex2D((int)(x)+u, (int)(y)+v);
+
         if (d < params.camera.minDepth || d > params.camera.maxDepth) continue;
 
         const float3 camPos = params.camera.screenToCam((int)(x)+u,(int)(y)+v,d);
-        const float3 camPos2 = params.camera.screenToCam((int)(x),(int)(y),d);
-        const float3 worldPos = params.m_viewMatrixInverse * camPos;
+        //const float3 camPos2 = params.camera.screenToCam((int)(x),(int)(y),d);
+        //const float3 worldPos = params.m_viewMatrixInverse * camPos;
 
 
-        // Assumed to be normalised
-        float4 n = normals.tex2D((int)(x)+u, (int)(y)+v);
-        n /= length(n);
+        
 		//if (length(make_float3(n)) == 0.0f) printf("BAD NORMAL\n");
 
         // Does the ray intersect plane of splat?
         float t = 1000.0f;
-        const float r = ftl::cuda::intersectDistance(make_float3(n), worldPos, origin, ray, t);
-        if (r != PINF) { //} && fabs(t-camPos.z) < 0.01f) {
+        const float r = ftl::cuda::intersectDistance(n, camPos, make_float3(0.0f), ray, t);
+        //if (r != PINF) { //} && fabs(t-camPos.z) < 0.01f) {
             // Adjust from normalised ray back to original meters units
             t *= scale;
-            const float dens = density.tex2D((int)(x)+u, (int)(y)+v);
             float weight = ftl::cuda::weighting(r, dens/params.camera.fx); // (1.0f/params.camera.fx) / (t/params.camera.fx)
 
             /* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
@@ -225,44 +226,45 @@ __device__ inline float make(float v) {
             // enough for our purposes if the alignment step prevents ghosting
             // TODO: Use depth and perhaps the neighbourhood consistency in:
             //     Kuster C. et al. 2011. FreeCam: A hybrid camera system for interactive free-viewpoint video
-            if (params.m_flags & ftl::render::kNormalWeightColours) weight *= n.w * n.w;
+            //if (params.m_flags & ftl::render::kNormalWeightColours) weight *= n.w * n.w;
             //if (params.m_flags & ftl::render::kDepthWeightColours) weight *= ???
 
             if (weight <= 0.0f) continue;
 
-            //depth = min(depth, t);
-            if (t < depth) {
-                pdepth = depth;
-                depth = t;
-            }
-            results[i/WARP_SIZE] = {weight, t, in.tex2D((int)x+u, (int)y+v)};
-        }
+            depth = min(depth, t);
+            results[v+SEARCH_RADIUS][u+SEARCH_RADIUS] = {weight, t};
+        //}
+    }
     }
 
-    depth = warpMin(depth);
-    pdepth = warpMin(pdepth);
+    //depth = warpMin(depth);
+    //pdepth = warpMin(pdepth);
 
     float adepth = 0.0f;
     float contrib = 0.0f;
     float4 attr = make_float4(0.0f);
 
     // Loop over results array
-    for (int i=0; i<(SEARCH_DIAMETER*SEARCH_DIAMETER) / WARP_SIZE; ++i) {
-        if (results[i].depth - depth < 0.04f) {
-            adepth += results[i].depth * results[i].weight;
-            attr += make_float4(results[i].attr) * results[i].weight;
-            contrib += results[i].weight;
-        }
+    for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
+    for (int u=-SEARCH_RADIUS; u<=SEARCH_RADIUS; ++u) {
+        auto &result = results[v+SEARCH_RADIUS][u+SEARCH_RADIUS];
+        float s = ftl::cuda::weighting(fabs(result.depth - depth), 0.04f);
+        //if (result.depth - depth < 0.04f) {
+            adepth += result.depth * result.weight * s;
+            attr += make_float4(in.tex2D((int)x+u, (int)y+v)) * result.weight * s;
+            contrib += result.weight * s;
+        //}
+    }
     }
 
     // Sum all attributes and contributions
-    adepth = warpSum(adepth);
-    attr.x = warpSum(attr.x);
-    attr.y = warpSum(attr.y);
-    attr.z = warpSum(attr.z);
-    contrib = warpSum(contrib);
+    //adepth = warpSum(adepth);
+    //attr.x = warpSum(attr.x);
+    //attr.y = warpSum(attr.y);
+    //attr.z = warpSum(attr.z);
+    //contrib = warpSum(contrib);
 
-    if (lane == 0 && contrib > 0.0f) {
+    if (contrib > 0.0f) {
         depth_out(x,y) = adepth / contrib;
         out(x,y) = make<T>(attr / contrib);
     }
@@ -277,10 +279,10 @@ void ftl::cuda::splat(
         TextureObject<float> &depth_out,
         TextureObject<T> &colour_out,
         const SplatParams &params, cudaStream_t stream) {
-    const dim3 gridSize((depth_in.width() + 2 - 1)/2, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(2*WARP_SIZE, T_PER_BLOCK);
+            const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+            const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-    splat_kernel<8,T><<<gridSize, blockSize, 0, stream>>>(
+    splat_kernel<4,T><<<gridSize, blockSize, 0, stream>>>(
         normals,
         density,
         colour_in,
