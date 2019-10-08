@@ -7,13 +7,15 @@ const checkIfLoggedIn = async () => {
         containerDiv = login;
     //User has a token saved in the browser
     }else{
-        //validate that token
+
+        //Check if the token is valid
         const response = await fetch('http://localhost:8080/auth/validation', {
             method: 'POST',
             headers: {'Authorization': token}
         })
         console.log('RESPONSE', response)
-        //Token is valid
+        
+        //Token is valid, show the streams
         if(response.status === 200){
             console.log("SUCCESS")
             /*

@@ -14,7 +14,7 @@ const cameraConfigSchema = mongoose.Schema({
     fix_k3: {type: Boolean, default: false},
     fix_k4: {type: Boolean, default: true},
     fix_k5: {type: Boolean, default: true},
-    //Mongoose doesn't let you use 'save' as an attribute
+    //Mongoose doesn't let you use the word 'save' as an attribute
     //save: {type: Boolean, default: true},
     use_intrinsics: {type: Boolean, default: true},
     use_extrinsics: {type: Boolean, default: true},
@@ -25,7 +25,6 @@ const cameraConfigSchema = mongoose.Schema({
 
   cameraConfigSchema.set('toJSON', {
     transform: (document, returnedObject) => {
-      returnedObject.id = returnedObject._id
       delete returnedObject._id
       delete returnedObject.__v
     }

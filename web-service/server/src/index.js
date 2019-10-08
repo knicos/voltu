@@ -170,8 +170,8 @@ app.post('/auth/validation', async (req, res) => {
 		console.log(err)
 	}	
 })
-// app.get('/login/google', (req, res) => {
-// })
+
+
 
 
 app.get('/streams', (req, res) => {
@@ -204,13 +204,14 @@ app.get('/stream/depth', (req, res) => {
 });
 
 app.post('/stream/config', async (req, res) => {
-	const {board_size, square_size, frame_delay, num_frames} = req.body
+	const {board_size, square_size, frame_delay, num_frames, name} = req.body
 
 	const savedConfigs = new Config({
 		board_size,
 		square_size,
 		frame_delay,
 		num_frames,
+		name
 	});
 	try{
 		await savedConfigs.save();
@@ -222,9 +223,13 @@ app.post('/stream/config', async (req, res) => {
 })
 
 app.get('/stream/config', async(req, res) => {
-	const listOfCongifs = await Config.find({});
-	console.log(listOfCongifs)
-	return res.status(200).json(listOfCongifs)
+	//example of uri /stream/config?uri=ftl.utu.fi/stream/calibrations/
+	//example of uri /stream/config?uri=ftl.utu.fi/stream/calibrations/board_size/value=1
+	const uri = req.query.uri
+	console.log(uri)
+
+	//const listOfCongifs = await Config.find({});
+	return res.status(200).json(uri)
 })
 
 //app.get('/stream', (req, res))
@@ -283,6 +288,7 @@ app.get('/auth/google/redirect', passport.authenticate('google'), async (req, re
 		return res.send(htmlWithEmbeddedJWT)
 	}catch(err){
 		console.log(err)
+		return res.status(500).json('Login failed')
 	}
 })
 
