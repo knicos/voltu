@@ -291,6 +291,7 @@ void Splatter::_renderChannel(
 		}
 	} else {
 		// Swap accum frames directly to output.
+		accum_.swapTo(Channels(channel_out), out);
 	}
 }
 
