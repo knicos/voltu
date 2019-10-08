@@ -223,13 +223,31 @@ app.post('/stream/config', async (req, res) => {
 })
 
 app.get('/stream/config', async(req, res) => {
-	//example of uri /stream/config?uri=ftl.utu.fi/stream/calibrations/
-	//example of uri /stream/config?uri=ftl.utu.fi/stream/calibrations/board_size/value=1
-	const uri = req.query.uri
+	//example of uri ftl.utu.fi/stream/config?uri=ftl://utu.fi/stream/calibrations/
+	//example of uri /stream/config?uri=ftl://utu.fi/stream/calibrations/board_size/value=1
+	const wholeURI = req.query.uri
+	const uri = wholeURI.substring(13)
+	const depth = uri.split("/");
+	console.log(wholeURI)
 	console.log(uri)
-
-	//const listOfCongifs = await Config.find({});
-	return res.status(200).json(uri)
+	console.log(depth)
+	switch(depth.length){
+		case 1:
+			console.log('DEPTH 1')
+			return res.status(200).json('DEPTH IS 1, RETURNING EVERYTHING');
+		case 2:
+			console.log('DEPTH 2')
+			return res.status(200).json('DEPTH IS 2, RETURNING ALMOST EVERYTHING');
+		case 3:
+			console.log('DEPTH 3') 
+			return res.status(200).json('DEPTH IS 3, RETURNING BIT LESS');
+		case 4:
+			console.log('DEPTH 4')
+			return res.status(200).json('DEPTH IS 4, RETURNING SINGLE VALUE');
+		default:
+			console.log('DEPTH ERROR')
+			return res.status(200).json('Error');
+	}
 })
 
 //app.get('/stream', (req, res))
