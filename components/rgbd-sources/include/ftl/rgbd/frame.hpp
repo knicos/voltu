@@ -181,12 +181,13 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c);
 
 template <typename T>
 ftl::cuda::TextureObject<T> &Frame::getTexture(ftl::rgbd::Channel c) {
-	if (!channels_.has(c)) throw ftl::exception("Texture channel does not exist");
+	if (!channels_.has(c)) throw ftl::exception(ftl::Formatter() << "Texture channel does not exist: " << (int)c);
 	if (!gpu_.has(c)) throw ftl::exception("Texture channel is not on GPU");
 
 	auto &m = _get(c);
 
 	if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.gpu.type() != m.tex.cvType()) {
+		LOG(ERROR) << "Texture has not been created for channel = " << (int)c;
 		throw ftl::exception("Texture has not been created properly for this channel");
 	}
 

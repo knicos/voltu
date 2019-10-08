@@ -26,7 +26,7 @@ class Splatter : public ftl::render::Renderer {
 	//void setOutputDevice(int);
 
 	protected:
-	void renderChannel(ftl::render::SplatParams &params, ftl::rgbd::Frame &out, const ftl::rgbd::Channel &channel, cudaStream_t stream);
+	void _renderChannel(ftl::rgbd::Frame &out, ftl::rgbd::Channel channel_in, ftl::rgbd::Channel channel_out, cudaStream_t stream);
 
 	private:
 	int device_;
@@ -40,6 +40,7 @@ class Splatter : public ftl::render::Renderer {
 	//SplatParams params_;
 
 	ftl::rgbd::Frame temp_;
+	ftl::rgbd::Frame accum_;
 	ftl::rgbd::FrameSet *scene_;
 	ftl::cuda::ClipSpace clip_;
 	bool clipping_;
@@ -50,6 +51,12 @@ class Splatter : public ftl::render::Renderer {
 	float3 light_dir_;
 	uchar4 light_diffuse_;
 	uchar4 light_ambient_;
+	ftl::render::SplatParams params_;
+
+	template <typename T>
+	void __blendChannel(ftl::rgbd::Frame &, ftl::rgbd::Channel in, ftl::rgbd::Channel out, cudaStream_t);
+	void _blendChannel(ftl::rgbd::Frame &, ftl::rgbd::Channel in, ftl::rgbd::Channel out, cudaStream_t);
+	void _dibr(cudaStream_t);
 };
 
 }

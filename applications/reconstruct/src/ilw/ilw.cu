@@ -195,14 +195,14 @@ __global__ void correspondence_energy_vector_kernel(
 	const float avgcolour = totalcolour/(float)count;
     const float confidence = bestcolour / totalcolour; //bestcolour - avgcolour;
 
-    if (bestweight > 0.0f) {
+    //if (bestweight > 0.0f) {
         float old = conf.tex2D(x,y);
 
-        if (bestweight * confidence > old) {
+        if (bestweight * confidence >= old) {
 			dout(x,y) = bestdepth;
 			conf(x,y) = bestweight * confidence;
 		}
-    }
+    //}
 }
 
 void ftl::cuda::correspondence(
