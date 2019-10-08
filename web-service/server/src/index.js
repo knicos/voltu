@@ -212,11 +212,19 @@ app.post('/stream/config', async (req, res) => {
 		frame_delay,
 		num_frames,
 	});
-	const resp = await savedConfigs.save();
+	try{
+		await savedConfigs.save();
+		return res.status(200).json('Your configurations were saved successfully')
+	}catch(err){
+		console.log(err)
+		return res.status(500).json('Somethings wrong I can feel it')
+	}
+})
 
-	console.log(resp);
-
-	return res.json(200)
+app.get('/stream/config', async(req, res) => {
+	const listOfCongifs = await Config.find({});
+	console.log(listOfCongifs)
+	return res.status(200).json(listOfCongifs)
 })
 
 //app.get('/stream', (req, res))

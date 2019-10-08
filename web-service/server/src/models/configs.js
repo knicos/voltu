@@ -19,6 +19,8 @@ const cameraConfigSchema = mongoose.Schema({
     use_intrinsics: {type: Boolean, default: true},
     use_extrinsics: {type: Boolean, default: true},
     flip_vertical: {type: Boolean, default: true},
+    //For Mongo
+    name: {type: String, default: null}
   })
 
   cameraConfigSchema.set('toJSON', {
