@@ -25,6 +25,7 @@ enum struct Channel : int {
     Flow,               // 32F
     Energy,             // 32F
 	Mask,				// 32U
+	Density,			// 32F
     LeftGray,
     RightGray,
     Overlay1
@@ -106,6 +107,7 @@ inline bool isFloatChannel(ftl::rgbd::Channel chan) {
 	case Channel::Depth		:
     //case Channel::Normals   :
 	case Channel::Confidence:
+	case Channel::Density:
 	case Channel::Energy	: return true;
 	default					: return false;
 	}

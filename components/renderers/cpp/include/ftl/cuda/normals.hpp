@@ -11,8 +11,18 @@ namespace cuda {
 void normals(ftl::cuda::TextureObject<float4> &output,
         ftl::cuda::TextureObject<float4> &temp,
         ftl::cuda::TextureObject<float4> &input,
+		int radius,
+		float smoothing,
         const ftl::rgbd::Camera &camera,
         const float3x3 &pose, cudaStream_t stream);
+
+void normals(ftl::cuda::TextureObject<float4> &output,
+        ftl::cuda::TextureObject<float4> &temp,
+        ftl::cuda::TextureObject<int> &input,  // Integer depth values
+		int radius,
+		float smoothing,
+        const ftl::rgbd::Camera &camera,
+        const float3x3 &pose_inv, const float3x3 &pose, cudaStream_t stream);
 
 void normal_visualise(ftl::cuda::TextureObject<float4> &norm,
         ftl::cuda::TextureObject<uchar4> &output,
@@ -23,6 +33,10 @@ void normal_filter(ftl::cuda::TextureObject<float4> &norm,
         ftl::cuda::TextureObject<float4> &points,
         const ftl::rgbd::Camera &camera, const float4x4 &pose,
         float thresh, cudaStream_t stream);
+
+void transform_normals(ftl::cuda::TextureObject<float4> &norm,
+        const float3x3 &pose,
+        cudaStream_t stream);
 
 }
 }

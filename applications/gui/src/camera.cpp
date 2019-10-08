@@ -235,6 +235,7 @@ void ftl::gui::Camera::setChannel(Channel c) {
 	channel_ = c;
 	switch (c) {
 	case Channel::Energy:
+	case Channel::Density:
 	case Channel::Flow:
 	case Channel::Confidence:
 	case Channel::Normals:
@@ -381,6 +382,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				visualizeEnergy(depth_, tmp, 1.0);
 				texture_.update(tmp);
 				break;
+			case Channel::Density:
 			case Channel::Energy:
 				if (depth_.rows == 0) { break; }
 				visualizeEnergy(depth_, tmp, 10.0);
