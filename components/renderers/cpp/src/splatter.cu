@@ -127,6 +127,22 @@ __device__ inline float make(const float4 &v) {
 	return v.x;
 }
 
+template <typename T>
+__device__ inline T make(const uchar4 &v);
+
+template <>
+__device__ inline float4 make(const uchar4 &v) {
+	return make_float4((float)v.x, (float)v.y, (float)v.z, (float)v.w);
+}
+
+template <typename T>
+__device__ inline T make(float v);
+
+template <>
+__device__ inline float make(float v) {
+	return v;
+}
+
 /*
  * Pass 1b: Expand splats to full size and merge
  */
@@ -134,6 +150,7 @@ __device__ inline float make(const float4 &v) {
  __global__ void splat_kernel(
         //TextureObject<float4> points,       // Original 3D points
         TextureObject<float4> normals,
+        TextureObject<float> density,
         TextureObject<T> in,
         TextureObject<int> depth_in,        // Virtual depth map
         TextureObject<float> depth_out,   // Accumulated output
@@ -160,6 +177,7 @@ __device__ inline float make(const float4 &v) {
     //float depth = 0.0f;
     //float contrib = 0.0f;
     float depth = 1000.0f;
+    float pdepth = 1000.0f;
 
     struct Result {
         float weight;
@@ -182,21 +200,24 @@ __device__ inline float make(const float4 &v) {
 
         if (d < params.camera.minDepth || d > params.camera.maxDepth) continue;
 
-        const float3 camPos = params.camera.screenToCam((int)(x+u),(int)(y+v),d);
+        const float3 camPos = params.camera.screenToCam((int)(x)+u,(int)(y)+v,d);
         const float3 camPos2 = params.camera.screenToCam((int)(x),(int)(y),d);
         const float3 worldPos = params.m_viewMatrixInverse * camPos;
 
 
         // Assumed to be normalised
-        float4 n = normals.tex2D((int)(x+u), (int)(y+v));
+        float4 n = normals.tex2D((int)(x)+u, (int)(y)+v);
+        n /= length(n);
+		//if (length(make_float3(n)) == 0.0f) printf("BAD NORMAL\n");
 
         // Does the ray intersect plane of splat?
         float t = 1000.0f;
-        if (ftl::cuda::intersectPlane(make_float3(n), worldPos, origin, ray, t)) { //} && fabs(t-camPos.z) < 0.01f) {
+        const float r = ftl::cuda::intersectDistance(make_float3(n), worldPos, origin, ray, t);
+        if (r != PINF) { //} && fabs(t-camPos.z) < 0.01f) {
             // Adjust from normalised ray back to original meters units
             t *= scale;
-            const float3 camPos3 = params.camera.screenToCam((int)(x),(int)(y),t);
-            float weight = ftl::cuda::spatialWeighting(camPos, camPos3, 2.0f*(camPos3.z/params.camera.fx));
+            const float dens = density.tex2D((int)(x)+u, (int)(y)+v);
+            float weight = ftl::cuda::weighting(r, dens/params.camera.fx); // (1.0f/params.camera.fx) / (t/params.camera.fx)
 
             /* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
             /* Orts-Escolano S. et al. 2016. Holoportation: Virtual 3D teleportation in real-time. */
@@ -209,12 +230,17 @@ __device__ inline float make(const float4 &v) {
 
             if (weight <= 0.0f) continue;
 
-            depth = min(depth, t);
+            //depth = min(depth, t);
+            if (t < depth) {
+                pdepth = depth;
+                depth = t;
+            }
             results[i/WARP_SIZE] = {weight, t, in.tex2D((int)x+u, (int)y+v)};
         }
     }
 
     depth = warpMin(depth);
+    pdepth = warpMin(pdepth);
 
     float adepth = 0.0f;
     float contrib = 0.0f;
@@ -245,6 +271,7 @@ __device__ inline float make(const float4 &v) {
 template <typename T>
 void ftl::cuda::splat(
         TextureObject<float4> &normals,
+        TextureObject<float> &density,
         TextureObject<T> &colour_in,
         TextureObject<int> &depth_in,        // Virtual depth map
         TextureObject<float> &depth_out,
@@ -255,6 +282,7 @@ void ftl::cuda::splat(
 
     splat_kernel<8,T><<<gridSize, blockSize, 0, stream>>>(
         normals,
+        density,
         colour_in,
         depth_in,
         depth_out,
@@ -266,6 +294,7 @@ void ftl::cuda::splat(
 
 template void ftl::cuda::splat<uchar4>(
         TextureObject<float4> &normals,
+        TextureObject<float> &density,
         TextureObject<uchar4> &colour_in,
         TextureObject<int> &depth_in,        // Virtual depth map
         TextureObject<float> &depth_out,
@@ -273,7 +302,8 @@ template void ftl::cuda::splat<uchar4>(
 		const SplatParams &params, cudaStream_t stream);
 		
 template void ftl::cuda::splat<float4>(
-	TextureObject<float4> &normals,
+    TextureObject<float4> &normals,
+    TextureObject<float> &density,
 	TextureObject<float4> &colour_in,
 	TextureObject<int> &depth_in,        // Virtual depth map
 	TextureObject<float> &depth_out,
@@ -281,7 +311,8 @@ template void ftl::cuda::splat<float4>(
 	const SplatParams &params, cudaStream_t stream);
 
 template void ftl::cuda::splat<float>(
-	TextureObject<float4> &normals,
+    TextureObject<float4> &normals,
+    TextureObject<float> &density,
 	TextureObject<float> &colour_in,
 	TextureObject<int> &depth_in,        // Virtual depth map
 	TextureObject<float> &depth_out,
@@ -302,15 +333,45 @@ __device__ inline uchar4 generateInput(const uchar4 &in, const SplatParams &para
 		in;
 }
 
+template <typename A, typename B>
+__device__ inline B weightInput(const A &in, float weight) {
+	return in * weight;
+}
+
+template <>
+__device__ inline float4 weightInput(const uchar4 &in, float weight) {
+	return make_float4(
+		(float)in.x * weight,
+		(float)in.y * weight,
+		(float)in.z * weight,
+		(float)in.w * weight);
+}
+
+template <typename T>
+__device__ inline void accumulateOutput(TextureObject<T> &out, TextureObject<float> &contrib, const uint2 &pos, const T &in, float w) {
+	atomicAdd(&out(pos.x, pos.y), in);
+	atomicAdd(&contrib(pos.x, pos.y), w);
+} 
+
+template <>
+__device__ inline void accumulateOutput(TextureObject<float4> &out, TextureObject<float> &contrib, const uint2 &pos, const float4 &in, float w) {
+	atomicAdd((float*)&out(pos.x, pos.y), in.x);
+	atomicAdd(((float*)&out(pos.x, pos.y))+1, in.y);
+	atomicAdd(((float*)&out(pos.x, pos.y))+2, in.z);
+	atomicAdd(((float*)&out(pos.x, pos.y))+3, in.w);
+	atomicAdd(&contrib(pos.x, pos.y), w);
+} 
+
 /*
  * Pass 2: Accumulate attribute contributions if the points pass a visibility test.
  */
- template <typename T>
+ template <typename A, typename B>
 __global__ void dibr_attribute_contrib_kernel(
-        TextureObject<T> in,				// Attribute input
+        TextureObject<A> in,				// Attribute input
         TextureObject<float4> points,       // Original 3D points
         TextureObject<int> depth_in,        // Virtual depth map
-        TextureObject<T> out,			// Accumulated output
+		TextureObject<B> out,			// Accumulated output
+		TextureObject<float> contrib,
         SplatParams params) {
         
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
@@ -328,25 +389,26 @@ __global__ void dibr_attribute_contrib_kernel(
 	if (screenPos.x >= depth_in.width() || screenPos.y >= depth_in.height()) return;
             
     // Is this point near the actual surface and therefore a contributor?
-    const int d = depth_in.tex2D((int)screenPos.x, (int)screenPos.y);
+    const float d = (float)depth_in.tex2D((int)screenPos.x, (int)screenPos.y) / 1000.0f;
 
-	const T input = generateInput(in.tex2D(x, y), params, worldPos);
+	const A input = generateInput(in.tex2D(x, y), params, worldPos);
+	const float weight = ftl::cuda::weighting(fabs(camPos.z - d), 0.02f);
+	const B weighted = make<B>(input) * weight; //weightInput(input, weight);
 
-	//const float3 nearest = params.camera.screenToCam((int)(screenPos.x),(int)(screenPos.y),d);
-
-	//const float l = length(nearest - camPos);
-	if (d == (int)(camPos.z*1000.0f)) {
-		out(screenPos.x, screenPos.y) = input;
+	if (weight > 0.0f) {
+		accumulateOutput(out, contrib, screenPos, weighted, weight);
+		//out(screenPos.x, screenPos.y) = input;
 	}
 }
 
 
-template <typename T>
+template <typename A, typename B>
 void ftl::cuda::dibr_attribute(
-        TextureObject<T> &in,
+        TextureObject<A> &in,
         TextureObject<float4> &points,       // Original 3D points
         TextureObject<int> &depth_in,        // Virtual depth map
-        TextureObject<T> &out,   // Accumulated output
+		TextureObject<B> &out,   // Accumulated output
+		TextureObject<float> &contrib,
         SplatParams &params, cudaStream_t stream) {
 	const dim3 gridSize((in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
@@ -355,115 +417,68 @@ void ftl::cuda::dibr_attribute(
         in,
         points,
         depth_in,
-        out,
+		out,
+		contrib,
         params
     );
     cudaSafeCall( cudaGetLastError() );
 }
 
-template void ftl::cuda::dibr_attribute<uchar4>(
+template void ftl::cuda::dibr_attribute(
 	ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
 	ftl::cuda::TextureObject<float4> &points,		// Original 3D points
 	ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
-	ftl::cuda::TextureObject<uchar4> &out,	// Accumulated output
+	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
+	ftl::cuda::TextureObject<float> &contrib,
 	ftl::render::SplatParams &params, cudaStream_t stream);
 
-template void ftl::cuda::dibr_attribute<float>(
+template void ftl::cuda::dibr_attribute(
 	ftl::cuda::TextureObject<float> &in,	// Original colour image
 	ftl::cuda::TextureObject<float4> &points,		// Original 3D points
 	ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
 	ftl::cuda::TextureObject<float> &out,	// Accumulated output
+	ftl::cuda::TextureObject<float> &contrib,
 	ftl::render::SplatParams &params, cudaStream_t stream);
 
-template void ftl::cuda::dibr_attribute<float4>(
+template void ftl::cuda::dibr_attribute(
 	ftl::cuda::TextureObject<float4> &in,	// Original colour image
 	ftl::cuda::TextureObject<float4> &points,		// Original 3D points
 	ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
+	ftl::cuda::TextureObject<float> &contrib,
 	ftl::render::SplatParams &params, cudaStream_t stream);
 
 //==============================================================================
 
-/*__global__ void dibr_normalise_kernel(
-        TextureObject<float4> colour_in,
-        TextureObject<uchar4> colour_out,
-        //TextureObject<float4> normals,
-        TextureObject<float> contribs) {
-    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-    if (x < colour_in.width() && y < colour_in.height()) {
-        const float4 colour = colour_in.tex2D((int)x,(int)y);
-        //const float4 normal = normals.tex2D((int)x,(int)y);
-        const float contrib = contribs.tex2D((int)x,(int)y);
-
-        if (contrib > 0.0f) {
-            colour_out(x,y) = make_uchar4(colour.x / contrib, colour.y / contrib, colour.z / contrib, 0);
-            //normals(x,y) = normal / contrib;
-        }
-    }
-}
-
+template <typename A, typename B>
 __global__ void dibr_normalise_kernel(
-        TextureObject<float4> colour_in,
-        TextureObject<float> colour_out,
-        //TextureObject<float4> normals,
+        TextureObject<A> in,
+        TextureObject<B> out,
         TextureObject<float> contribs) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if (x < colour_in.width() && y < colour_in.height()) {
-        const float4 colour = colour_in.tex2D((int)x,(int)y);
+    if (x < in.width() && y < in.height()) {
+        const A a = in.tex2D((int)x,(int)y);
         //const float4 normal = normals.tex2D((int)x,(int)y);
         const float contrib = contribs.tex2D((int)x,(int)y);
 
         if (contrib > 0.0f) {
-            colour_out(x,y) = colour.x / contrib;
+            out(x,y) = make<B>(a / contrib);
             //normals(x,y) = normal / contrib;
         }
     }
 }
 
-__global__ void dibr_normalise_kernel(
-        TextureObject<float4> colour_in,
-        TextureObject<float4> colour_out,
-        //TextureObject<float4> normals,
-        TextureObject<float> contribs) {
-    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-    if (x < colour_in.width() && y < colour_in.height()) {
-        const float4 colour = colour_in.tex2D((int)x,(int)y);
-        //const float4 normal = normals.tex2D((int)x,(int)y);
-        const float contrib = contribs.tex2D((int)x,(int)y);
-
-        if (contrib > 0.0f) {
-            colour_out(x,y) = make_float4(colour.x / contrib, colour.y / contrib, colour.z / contrib, 0);
-            //normals(x,y) = normal / contrib;
-        }
-    }
-}
-
-void ftl::cuda::dibr_normalise(TextureObject<float4> &colour_in, TextureObject<uchar4> &colour_out, TextureObject<float> &contribs, cudaStream_t stream) {
-    const dim3 gridSize((colour_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (colour_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+template <typename A, typename B>
+void ftl::cuda::dibr_normalise(TextureObject<A> &in, TextureObject<B> &out, TextureObject<float> &contribs, cudaStream_t stream) {
+    const dim3 gridSize((in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-    dibr_normalise_kernel<<<gridSize, blockSize, 0, stream>>>(colour_in, colour_out, contribs);
+    dibr_normalise_kernel<<<gridSize, blockSize, 0, stream>>>(in, out, contribs);
     cudaSafeCall( cudaGetLastError() );
 }
 
-void ftl::cuda::dibr_normalise(TextureObject<float4> &colour_in, TextureObject<float> &colour_out, TextureObject<float> &contribs, cudaStream_t stream) {
-    const dim3 gridSize((colour_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (colour_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
-
-    dibr_normalise_kernel<<<gridSize, blockSize, 0, stream>>>(colour_in, colour_out, contribs);
-    cudaSafeCall( cudaGetLastError() );
-}
-
-void ftl::cuda::dibr_normalise(TextureObject<float4> &colour_in, TextureObject<float4> &colour_out, TextureObject<float> &contribs, cudaStream_t stream) {
-    const dim3 gridSize((colour_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (colour_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
-
-    dibr_normalise_kernel<<<gridSize, blockSize, 0, stream>>>(colour_in, colour_out, contribs);
-    cudaSafeCall( cudaGetLastError() );
-}*/
+template void ftl::cuda::dibr_normalise<float4,uchar4>(TextureObject<float4> &in, TextureObject<uchar4> &out, TextureObject<float> &contribs, cudaStream_t stream);
+template void ftl::cuda::dibr_normalise<float,float>(TextureObject<float> &in, TextureObject<float> &out, TextureObject<float> &contribs, cudaStream_t stream);
+template void ftl::cuda::dibr_normalise<float4,float4>(TextureObject<float4> &in, TextureObject<float4> &out, TextureObject<float> &contribs, cudaStream_t stream);
