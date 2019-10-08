@@ -231,6 +231,8 @@ void Splatter::_renderChannel(
 	// Generate initial normals for the splats
 	accum_.create<GpuMat>(Channel::Normals, Format<float4>(params_.camera.width, params_.camera.height));
 	_blendChannel(accum_, Channel::Normals, Channel::Normals, stream);
+	// Put normals in camera space here...
+	ftl::cuda::transform_normals(accum_.getTexture<float4>(Channel::Normals), params_.m_viewMatrix.getFloat3x3(), stream);
 
 	// Estimate point density
 	accum_.create<GpuMat>(Channel::Density, Format<float>(params_.camera.width, params_.camera.height));

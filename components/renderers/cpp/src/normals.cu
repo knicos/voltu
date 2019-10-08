@@ -287,3 +287,33 @@ void ftl::cuda::normal_filter(ftl::cuda::TextureObject<float4> &norm,
     //cutilCheckMsg(__FUNCTION__);
     #endif
 }
+
+//==============================================================================
+
+__global__ void transform_normals_kernel(ftl::cuda::TextureObject<float4> norm,
+        float3x3 pose) {
+    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if(x >= norm.width() || y >= norm.height()) return;
+
+    float3 normal = pose * make_float3(norm.tex2D((int)x,(int)y));
+    normal /= length(normal);
+    norm(x,y) = make_float4(normal, 0.0f);
+}
+
+void ftl::cuda::transform_normals(ftl::cuda::TextureObject<float4> &norm,
+        const float3x3 &pose,
+        cudaStream_t stream) {
+
+    const dim3 gridSize((norm.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (norm.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    transform_normals_kernel<<<gridSize, blockSize, 0, stream>>>(norm, pose);
+
+    cudaSafeCall( cudaGetLastError() );
+    #ifdef _DEBUG
+    cudaSafeCall(cudaDeviceSynchronize());
+    //cutilCheckMsg(__FUNCTION__);
+    #endif
+}

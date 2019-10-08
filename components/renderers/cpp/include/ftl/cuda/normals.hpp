@@ -34,6 +34,10 @@ void normal_filter(ftl::cuda::TextureObject<float4> &norm,
         const ftl::rgbd::Camera &camera, const float4x4 &pose,
         float thresh, cudaStream_t stream);
 
+void transform_normals(ftl::cuda::TextureObject<float4> &norm,
+        const float3x3 &pose,
+        cudaStream_t stream);
+
 }
 }
 
