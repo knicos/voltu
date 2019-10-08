@@ -533,6 +533,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	// visualize
 	while(ftl::running) {
+		cv::waitKey(10);
 		while (!new_frames) {
 			for (auto src : sources) { src->grab(30); }
 			if (cv::waitKey(50) != -1) { ftl::running = false; }
