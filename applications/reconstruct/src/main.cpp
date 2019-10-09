@@ -160,6 +160,7 @@ static void run(ftl::Configurable *root) {
 	}
 
 	stream->setLatency(5);  // FIXME: This depends on source!?
+	stream->add(&group);
 	stream->run();
 
 	bool busy = false;

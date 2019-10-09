@@ -101,6 +101,11 @@ class Streamer : public ftl::Configurable {
 	 */
 	void add(Source *);
 
+	/**
+	 * Allow all sources in another group to be proxy streamed by this streamer.
+	 */
+	void add(ftl::rgbd::Group *grp);
+
 	void remove(Source *);
 	void remove(const std::string &);
 
@@ -130,6 +135,7 @@ class Streamer : public ftl::Configurable {
 	private:
 	ftl::rgbd::Group group_;
 	std::map<std::string, detail::StreamSource*> sources_;
+	std::list<ftl::rgbd::Group*> proxy_grps_;
 	//ctpl::thread_pool pool_;
 	SHARED_MUTEX mutex_;
 	bool active_;
@@ -152,10 +158,17 @@ class Streamer : public ftl::Configurable {
 
 	ftl::codecs::device_t hq_devices_;
 
+	enum class Quality {
+		High,
+		Low,
+		Any
+	};
+
 	void _process(ftl::rgbd::FrameSet &);
 	void _cleanUp();
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
-	void _transmitPacket(detail::StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, bool hqonly);
+	void _transmitPacket(detail::StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, Quality q);
+	void _transmitPacket(detail::StreamSource *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt, Quality q);
 
 	//void _encodeHQAndTransmit(detail::StreamSource *src, const cv::Mat &, const cv::Mat &, int chunk);
 	//void _encodeLQAndTransmit(detail::StreamSource *src, const cv::Mat &, const cv::Mat &, int chunk);
