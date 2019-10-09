@@ -10,6 +10,7 @@ const mongoose = require('mongoose')
 const config = require('./utils/config')
 const User = require('./models/users')
 const Config = require('./models/configs')
+const Disparity = require('./models/disparity')
 const bodyParser = require('body-parser')
 
 // ---- INDEXES ----------------------------------------------------------------
@@ -159,11 +160,14 @@ app.get('/', (req, res) => {
 app.post('/auth/validation', async (req, res) => {
 	const token = req.headers.authorization.split(" ")
 	const decoded = jwt.verify(token[1], keys.jwt.secret)
+	console.log('DECODED', decoded)
 	try{
-		const data = await User.find({decoded})
-		if(data){
-			console.log(data)
+		const data = await User.find({ googleID: decoded })
+		console.log('DATA', data)
+		if(data.length !== 0){
 			return res.status(200).json("success")
+		}else {
+			return res.status(403)
 		}
 	}catch(err){
 		console.log('ERROR ERROR')
@@ -205,7 +209,6 @@ app.get('/stream/depth', (req, res) => {
 
 app.post('/stream/config', async (req, res) => {
 	const {board_size, square_size, frame_delay, num_frames, name} = req.body
-
 	const savedConfigs = new Config({
 		board_size,
 		square_size,
@@ -213,6 +216,7 @@ app.post('/stream/config', async (req, res) => {
 		num_frames,
 		name
 	});
+
 	try{
 		await savedConfigs.save();
 		return res.status(200).json('Your configurations were saved successfully')
@@ -225,9 +229,24 @@ app.post('/stream/config', async (req, res) => {
 app.get('/stream/config', async(req, res) => {
 	//example of uri ftl.utu.fi/stream/config?uri=ftl://utu.fi/stream/calibrations/
 	//example of uri /stream/config?uri=ftl://utu.fi/stream/calibrations/board_size/value=1
-	const wholeURI = req.query.uri
-	const uri = wholeURI.substring(13)
+	const wholeURI = req.query.urinote
+	const uri = wholeURI.substring(20)
 	const depth = uri.split("/");
+	if(depth.length === 1){
+		let data
+		switch(depth[0]){
+			case 'calibrations':
+				data = await Config.find({});
+				return res.status(200).json(data);
+			case 'disparity':
+				data = await Disparity.find({});
+				return res.status(200).json(data);
+			default:
+				return res.status(500).json('Error');
+		}
+	}else if(depth.length === 2){
+	}
+
 	console.log(wholeURI)
 	console.log(uri)
 	console.log(depth)
@@ -436,6 +455,16 @@ app.ws('/', (ws, req) => {
 			//peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);
 		}
 	});
+
+	/**
+	 * Gets config values for 
+	 */
+	//p.bind("get_cfg", )
+
+	/**
+	 * gets list of configurations from the C++
+	 */
+	 //p.bind("update_cfg", )
 
 	// Register a new stream
 	p.bind("add_stream", (uri) => {
