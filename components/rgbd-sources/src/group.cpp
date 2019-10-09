@@ -222,7 +222,20 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 		return true;
 	});
 
+	LOG(INFO) << "Start timer";
 	ftl::timer::start(true);
+}
+
+void Group::addRawCallback(std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+	for (auto s : sources_) {
+		s->addRawCallback(f);
+	}
+}
+
+void Group::removeRawCallback(std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+	for (auto s : sources_) {
+		s->removeRawCallback(f);
+	}
 }
 
 //ftl::rgbd::FrameSet &Group::_getRelativeFrameset(int rel) {

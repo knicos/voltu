@@ -310,3 +310,25 @@ void Source::setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb) 
 	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
 	callback_ = cb;
 }
+
+void Source::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+	UNIQUE_LOCK(mutex_,lk);
+	rawcallbacks_.push_back(f);
+}
+
+void Source::removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+	UNIQUE_LOCK(mutex_,lk);
+	for (auto i=rawcallbacks_.begin(); i!=rawcallbacks_.end(); ++i) {
+		if (i->target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)>() == f.target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)>()) {
+			rawcallbacks_.erase(i);
+			return;
+		}
+	}
+}
+
+void Source::notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	SHARED_LOCK(mutex_,lk);
+	for (auto &i : rawcallbacks_) {
+		i(this, spkt, pkt);
+	}
+}

@@ -242,29 +242,30 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
 	if (!active_) return;
 
+	// Allow acccess to the raw data elsewhere...
+	host_->notifyRaw(spkt, pkt);
+
 	const ftl::rgbd::Channel chan = host_->getChannel();
 	int rchan = spkt.channel & 0x1;
-
-	// Ignore any unwanted second channel
-	if (chan == ftl::rgbd::Channel::None && rchan > 0) {
-		LOG(INFO) << "Unwanted channel";
-		//return;
-		// TODO: Allow decode to be skipped
-	}
 
 	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
 
 	// Update frame statistics
 	frame.tx_size += pkt.data.size();
 
-	_createDecoder(rchan, pkt);
-	auto *decoder = (rchan == 0) ? decoder_c1_ : decoder_c2_;
-	if (!decoder) {
-		LOG(ERROR) << "No frame decoder available";
-		return;
-	}
+	// Ignore any unwanted second channel
+	if (!(chan == ftl::rgbd::Channel::None && rchan > 0)) {
+		_createDecoder(rchan, pkt);
+		auto *decoder = (rchan == 0) ? decoder_c1_ : decoder_c2_;
+		if (!decoder) {
+			LOG(ERROR) << "No frame decoder available";
+			return;
+		}
 
-	decoder->decode(pkt, (rchan == 0) ? frame.channel1 : frame.channel2);
+		decoder->decode(pkt, (rchan == 0) ? frame.channel1 : frame.channel2);
+	} else {
+		//LOG(INFO) << "Unwanted frame";
+	}
 
 	// Apply colour correction to chunk
 	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
