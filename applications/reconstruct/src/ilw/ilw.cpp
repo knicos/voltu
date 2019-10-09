@@ -106,7 +106,7 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 
     _phase0(fs, stream);
 
-	params_.range = 0.05f;
+	params_.range = value("search_range", 0.05f);
 
     for (int i=0; i<iterations_; ++i) {
         _phase1(fs, value("cost_function",3), stream);
@@ -114,7 +114,7 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
             _phase2(fs, motion_rate_, stream);
         //}
 
-		params_.range *= 0.9f;
+		params_.range *= value("search_reduce", 0.9f);
 		// TODO: Break if no time left
     }
 
