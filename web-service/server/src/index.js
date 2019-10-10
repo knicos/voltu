@@ -9,7 +9,7 @@ const keys = require('./passport/keys')
 const mongoose = require('mongoose')
 const config = require('./utils/config')
 const User = require('./models/users')
-const Config = require('./models/configs')
+const Configs = require('./models/generic')
 const Disparity = require('./models/disparity')
 const bodyParser = require('body-parser')
 
@@ -227,24 +227,49 @@ app.post('/stream/config', async (req, res) => {
 })
 
 app.get('/stream/config', async(req, res) => {
-	//example of uri ftl.utu.fi/stream/config?uri=ftl://utu.fi/stream/calibrations/
-	//example of uri /stream/config?uri=ftl://utu.fi/stream/calibrations/board_size/value=1
-	const wholeURI = req.query.urinote
-	const uri = wholeURI.substring(20)
+	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/
+	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/board_size/value=1
+	
+	const wholeURI = encodeURIComponent(req.query.uri)
+
+	// await new Configs({
+	// 	URI: wholeURI,
+	// 	data: {
+	// 		default: {
+	// 			board_size: [9,6],
+	// 			square_size: 1
+	// 		},
+	// 		perfect: {
+	// 			board_size: [4,2],
+	// 			square_size: 42
+	// 		}
+	// 	}
+	// }).save()
+
+	const response = await Configs.find({ URI : wholeURI});
+	if(response.length){
+		return res.status(200).json(response[0].data);
+	}
+
+	const uri = wholeURI.substring(35)
 	const depth = uri.split("/");
+	console.log(depth)
+	if(depth[depth.length-1].length == 0){
+		depth.pop;
+	}
+	
+
+
 	if(depth.length === 1){
-		let data
-		switch(depth[0]){
-			case 'calibrations':
-				data = await Config.find({});
-				return res.status(200).json(data);
-			case 'disparity':
-				data = await Disparity.find({});
-				return res.status(200).json(data);
-			default:
-				return res.status(500).json('Error');
-		}
+		let data = await Configs.find({ URI : wholeURI});
+		return res.status(200).json(data);
 	}else if(depth.length === 2){
+		const data = await Configs.find({ URI: wholeURI })
+		return res.status(200).json(data)
+	}else if(depth.length === 3){
+		return res.status(200).json('DEPTH 3')
+	}else{
+		return res.status(500).json('ERROR');
 	}
 
 	console.log(wholeURI)
@@ -269,7 +294,10 @@ app.get('/stream/config', async(req, res) => {
 	}
 })
 
-//app.get('/stream', (req, res))
+app.get('/stream', (req, res) => {
+	let uri = req.query.uri;
+	console.log(uri)
+})
 
 /*
  * Route for Google authentication API page
