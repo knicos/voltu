@@ -457,14 +457,24 @@ app.ws('/', (ws, req) => {
 	});
 
 	/**
-	 * Gets config values for 
-	 */
-	//p.bind("get_cfg", )
+	 * Get configuration JSON values 
+	 */ 
+	p.bind("get_cfg", (cb, uri) => {
+		let peer = uri_data[uri].peer
+		if(peer){
+			peer.rpc("get_cfg", cb, uri)
+		}
+	})
 
 	/**
-	 * gets list of configurations from the C++
+	 * Update certain URIs values
 	 */
-	 //p.bind("update_cfg", )
+	 p.bind("update_cfg", (uri, json) => {
+		 let peer = uri_data[uri].peer
+		 if(peer){
+			 peer.send("update_cfg", uri, json)
+		 }
+	 })
 
 	// Register a new stream
 	p.bind("add_stream", (uri) => {
