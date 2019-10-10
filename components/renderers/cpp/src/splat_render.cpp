@@ -307,12 +307,14 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 	out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
 	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
 
-	// FIXME: Use source resolutions, not virtual resolution
+	if (scene_->frames.size() == 0) return false;
+	auto &g = scene_->frames[0].get<GpuMat>(Channel::Colour);
+
 	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Normals, Format<float4>(g.cols, g.rows));
 
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
@@ -363,7 +365,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cuda
 
 			auto &g = f.get<GpuMat>(Channel::Colour);
 			ftl::cuda::normals(f.createTexture<float4>(Channel::Normals, Format<float4>(g.cols, g.rows)),
-				temp_.getTexture<float4>(Channel::Normals),  // FIXME: Uses assumption of vcam res same as input res
+				temp_.getTexture<float4>(Channel::Normals),
 				f.getTexture<float4>(Channel::Points),
 				3, 0.04f,
 				s->parameters(), pose.getFloat3x3(), stream);
