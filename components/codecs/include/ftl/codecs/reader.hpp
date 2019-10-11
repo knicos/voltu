@@ -7,6 +7,7 @@
 #include <functional>
 
 #include <ftl/codecs/packet.hpp>
+#include <ftl/threads.hpp>
 
 namespace ftl {
 namespace codecs {
@@ -24,7 +25,7 @@ class Reader {
 	 * and the timestamps stored in the file are aligned to the time when open
 	 * was called.
 	 */
-	bool read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &);
+	bool read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &);
 
 	/**
 	 * An alternative version of read where packet events are generated for
@@ -34,7 +35,7 @@ class Reader {
 	 */
 	bool read(int64_t ts);
 
-	void onPacket(int streamID, const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &);
+	void onPacket(int streamID, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &);
 
 	bool begin();
 	bool end();
@@ -49,7 +50,9 @@ class Reader {
 	int64_t timestart_;
 	bool playing_;
 
-	std::vector<std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)>> handlers_;
+	MUTEX mtx_;
+
+	std::vector<std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)>> handlers_;
 };
 
 }

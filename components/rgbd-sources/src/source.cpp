@@ -121,6 +121,7 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 
 		if (ext == "ftl") {
 			ftl::codecs::Reader *reader = __createReader(path);
+			LOG(INFO) << "Playing track: " << uri.getFragment();
 			return new FileSource(this, reader, std::stoi(uri.getFragment()));
 		} else if (ext == "png" || ext == "jpg") {
 			return new ImageSource(this, path);
