@@ -220,6 +220,7 @@ add_subdirectory(components/rgbd-sources)
 add_subdirectory(components/control/cpp)
 add_subdirectory(applications/calibration)
 add_subdirectory(applications/groupview)
+add_subdirectory(applications/player)
 
 if (BUILD_RENDERER)
 	add_subdirectory(components/renderers)

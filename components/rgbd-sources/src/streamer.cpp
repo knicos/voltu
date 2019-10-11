@@ -176,7 +176,8 @@ void Streamer::add(Source *src) {
 
 void Streamer::add(ftl::rgbd::Group *grp) {
 	auto srcs = grp->sources();
-	for (auto src : srcs) {
+	for (int i=0; i<srcs.size(); ++i) {
+		auto &src = srcs[i];
 		{
 			UNIQUE_LOCK(mutex_,ulk);
 			if (sources_.find(src->getID()) != sources_.end()) return;
@@ -189,6 +190,7 @@ void Streamer::add(ftl::rgbd::Group *grp) {
 			s->clientCount = 0;
 			s->hq_count = 0;
 			s->lq_count = 0;
+			s->id = i;
 			sources_[src->getID()] = s;
 
 			//group_.addSource(src);
@@ -422,6 +424,8 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Receiver only waits for channel 1 by default
 				// TODO: Each encode could be done in own thread
 				if (hasChan2) {
+					// TODO: Stagger the reset between nodes... random phasing
+					if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc2->reset();
 					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, 1, hasChan2, Quality::High);
 					});
@@ -429,6 +433,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 					if (enc2) enc2->reset();
 				}
 
+				// TODO: Stagger the reset between nodes... random phasing
 				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
 				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, 0, hasChan2, Quality::High);
@@ -528,7 +533,10 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, Quality q) {
 	ftl::codecs::StreamPacket spkt = {
 		frame_no_,
-		static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
+		src->id,
+		(hasChan2) ? 2 : 1,
+		chan
+		//static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
 	};
 
 	_transmitPacket(src, spkt, pkt, q);

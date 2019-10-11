@@ -5,6 +5,8 @@ set(CODECSRC
 	src/opencv_encoder.cpp
 	src/opencv_decoder.cpp
 	src/generate.cpp
+	src/writer.cpp
+	src/reader.cpp
 )
 
 if (HAVE_NVPIPE)

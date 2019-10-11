@@ -14,7 +14,15 @@ enum struct codec_t : uint8_t {
 	JPG = 0,
 	PNG,
     H264,
-    HEVC  // H265
+    HEVC,  // H265
+
+	// TODO: Add audio codecs
+	WAV,
+
+	JSON = 100,		// A JSON string
+	CALIBRATION,	// Camera parameters object
+	POSE,			// 4x4 eigen matrix
+	RAW				// Some unknown binary format (msgpack?)
 };
 
 /**
@@ -29,6 +37,8 @@ enum struct definition_t : uint8_t {
 	SD480 = 5,
 	LD360 = 6,
 	Any = 7
+
+	// TODO: Add audio definitions
 };
 
 /**

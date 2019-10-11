@@ -15,6 +15,7 @@
 #include <ftl/slave.hpp>
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
+#include <ftl/codecs/writer.hpp>
 
 #include "ilw/ilw.hpp"
 #include <ftl/render/splat_render.hpp>
@@ -61,6 +62,33 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
   Eigen::Affine3d rz =
       Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
   return rz * rx * ry;
+}
+
+static void writeSourceProperties(ftl::codecs::Writer &writer, int id, ftl::rgbd::Source *src) {
+	ftl::codecs::StreamPacket spkt;
+	ftl::codecs::Packet pkt;
+
+	spkt.timestamp = 0;
+	spkt.streamID = id;
+	spkt.channel = 0;
+	spkt.channel_count = 1;
+	pkt.codec = ftl::codecs::codec_t::CALIBRATION;
+	pkt.definition = ftl::codecs::definition_t::Any;
+	pkt.block_number = 0;
+	pkt.block_total = 1;
+	pkt.flags = 0;
+	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)&src->parameters(), (uint8_t*)&src->parameters() + sizeof(ftl::rgbd::Camera)));
+
+	writer.write(spkt, pkt);
+
+	pkt.codec = ftl::codecs::codec_t::POSE;
+	pkt.definition = ftl::codecs::definition_t::Any;
+	pkt.block_number = 0;
+	pkt.block_total = 1;
+	pkt.flags = 0;
+	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)src->getPose().data(), (uint8_t*)src->getPose().data() + 4*4*sizeof(double)));
+
+	writer.write(spkt, pkt);
 }
 
 static void run(ftl::Configurable *root) {
@@ -158,6 +186,46 @@ static void run(ftl::Configurable *root) {
 		in->setChannel(Channel::Depth);
 		group.addSource(in);
 	}
+
+	// ---- Recording code -----------------------------------------------------
+
+	std::ofstream fileout;
+	ftl::codecs::Writer writer(fileout);
+	auto recorder = [&writer,&group](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		ftl::codecs::StreamPacket s = spkt;
+
+		// Patch stream ID to match order in group
+		s.streamID = group.streamID(src);
+		writer.write(s, pkt);
+	};
+
+	root->set("record", false);
+
+	// Allow stream recording
+	root->on("record", [&group,&fileout,&writer,&recorder](const ftl::config::Event &e) {
+		if (e.entity->value("record", false)) {
+			char timestamp[18];
+			std::time_t t=std::time(NULL);
+			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+			fileout.open(std::string(timestamp) + ".ftl");
+
+			writer.begin();
+
+			// TODO: Write pose+calibration+config packets
+			auto sources = group.sources();
+			for (int i=0; i<sources.size(); ++i) {
+				writeSourceProperties(writer, i, sources[i]);
+			}
+
+			group.addRawCallback(std::function(recorder));
+		} else {
+			group.removeRawCallback(recorder);
+			writer.end();
+			fileout.close();
+		}
+	});
+
+	// -------------------------------------------------------------------------
 
 	stream->setLatency(5);  // FIXME: This depends on source!?
 	stream->add(&group);

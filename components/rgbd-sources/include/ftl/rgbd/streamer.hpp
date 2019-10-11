@@ -54,6 +54,7 @@ struct StreamSource {
 	std::list<detail::StreamClient> clients;
 	SHARED_MUTEX mutex;
 	unsigned long long frame;
+	int id;
 
 	ftl::codecs::Encoder *hq_encoder_c1 = nullptr;
 	ftl::codecs::Encoder *hq_encoder_c2 = nullptr;
