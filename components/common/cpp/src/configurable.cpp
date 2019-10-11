@@ -21,6 +21,10 @@ Configurable::Configurable(nlohmann::json &config) : config_(&config) {
 	ftl::config::registerConfigurable(this);
 }
 
+Configurable::~Configurable() {
+	ftl::config::removeConfigurable(this);
+}
+
 void Configurable::required(const char *f, const std::vector<std::tuple<std::string, std::string, std::string>> &r) {
 	bool diderror = false;
 	for (auto i : r) {

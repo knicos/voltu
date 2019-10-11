@@ -470,6 +470,24 @@ Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
 	return rootcfg;
 }
 
+static bool doing_cleanup = false;
+void ftl::config::cleanup() {
+	doing_cleanup = true;
+	for (auto f : config_instance) {
+		delete f.second;
+	}
+	config_instance.clear();
+}
+
+void ftl::config::removeConfigurable(Configurable *cfg) {
+	if (doing_cleanup) return;
+
+	auto i = config_instance.find(cfg->getID());
+	if (i != config_instance.end()) {
+		config_instance.erase(i);
+	}
+}
+
 
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
 	loguru::g_preamble_date = false;

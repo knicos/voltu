@@ -151,9 +151,9 @@ public:
 
 private:
 	struct ChannelData {
+		ftl::cuda::TextureObjectBase tex;
 		cv::Mat host;
 		cv::cuda::GpuMat gpu;
-		ftl::cuda::TextureObjectBase tex;
 	};
 
 	std::array<ChannelData, Channels::kMax> data_;

@@ -59,7 +59,7 @@ Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable
 }
 
 Source::~Source() {
-
+	if (impl_) delete impl_;
 }
 
 cv::Mat Source::cameraMatrix() const {
@@ -338,6 +338,7 @@ void Source::setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb) 
 
 void Source::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
 	UNIQUE_LOCK(mutex_,lk);
+	LOG(INFO) << "ADD RAW";
 	rawcallbacks_.push_back(f);
 }
 

@@ -39,7 +39,7 @@ class Configurable {
 	public:
 	Configurable();
 	explicit Configurable(nlohmann::json &config);
-	virtual ~Configurable() {}
+	virtual ~Configurable();
 
 	/**
 	 * Force the JSON object to have specific properties with a specific type.

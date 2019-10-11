@@ -161,7 +161,7 @@ static void run(ftl::Configurable *root) {
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
 	ftl::render::Splatter *splat = ftl::create<ftl::render::Splatter>(root, "renderer", &scene_B);
-	ftl::rgbd::Group group;
+	ftl::rgbd::Group *group = new ftl::rgbd::Group;
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 
 	int o = root->value("origin_pose", 0) % sources.size();
@@ -184,7 +184,7 @@ static void run(ftl::Configurable *root) {
 	for (size_t i=0; i<sources.size(); i++) {
 		Source *in = sources[i];
 		in->setChannel(Channel::Depth);
-		group.addSource(in);
+		group->addSource(in);
 	}
 
 	// ---- Recording code -----------------------------------------------------
@@ -195,7 +195,7 @@ static void run(ftl::Configurable *root) {
 		ftl::codecs::StreamPacket s = spkt;
 
 		// Patch stream ID to match order in group
-		s.streamID = group.streamID(src);
+		s.streamID = group->streamID(src);
 		writer.write(s, pkt);
 	};
 
@@ -212,14 +212,14 @@ static void run(ftl::Configurable *root) {
 			writer.begin();
 
 			// TODO: Write pose+calibration+config packets
-			auto sources = group.sources();
+			auto sources = group->sources();
 			for (int i=0; i<sources.size(); ++i) {
 				writeSourceProperties(writer, i, sources[i]);
 			}
 
-			group.addRawCallback(std::function(recorder));
+			group->addRawCallback(std::function(recorder));
 		} else {
-			group.removeRawCallback(recorder);
+			group->removeRawCallback(recorder);
 			writer.end();
 			fileout.close();
 		}
@@ -228,14 +228,14 @@ static void run(ftl::Configurable *root) {
 	// -------------------------------------------------------------------------
 
 	stream->setLatency(5);  // FIXME: This depends on source!?
-	stream->add(&group);
+	stream->add(group);
 	stream->run();
 
 	bool busy = false;
 
-	group.setLatency(5);
-	group.setName("ReconGroup");
-	group.sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align](ftl::rgbd::FrameSet &fs) -> bool {
+	group->setLatency(5);
+	group->setName("ReconGroup");
+	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
 
 		if (slave.isPaused()) return true;
@@ -284,6 +284,9 @@ static void run(ftl::Configurable *root) {
 	delete stream;
 	delete virt;
 	delete net;
+	delete group;
+
+	ftl::config::cleanup();  // Remove any last configurable objects.
 	LOG(INFO) << "Done.";
 }
 
