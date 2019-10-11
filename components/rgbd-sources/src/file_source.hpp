@@ -6,6 +6,9 @@
 
 #include <ftl/rgbd/source.hpp>
 #include <ftl/codecs/reader.hpp>
+#include <ftl/codecs/decoder.hpp>
+
+#include <list>
 
 namespace ftl {
 namespace rgbd {
@@ -20,10 +23,25 @@ class FileSource : public detail::Source {
 	bool retrieve();
 	bool compute(int n, int b);
 	bool isReady();
+	void swap();
 
 	//void reset();
 	private:
 	ftl::codecs::Reader *reader_;
+	bool has_calibration_;
+
+	struct PacketPair {
+		ftl::codecs::StreamPacket spkt;
+		ftl::codecs::Packet pkt;
+	};
+	
+	std::list<PacketPair> cache_[2];
+	int cache_read_;
+	int cache_write_;
+
+	ftl::codecs::Decoder *decoders_[2];
+
+	void _createDecoder(int ix, const ftl::codecs::Packet &pkt);
 };
 
 }

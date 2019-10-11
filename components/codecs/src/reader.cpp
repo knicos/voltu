@@ -23,13 +23,17 @@ bool Reader::begin() {
 	if (h.magic[0] != 'F' || h.magic[1] != 'T' || h.magic[2] != 'L' || h.magic[3] != 'F') return false;
 
 	// Capture current time to adjust timestamps
-	timestart_ = ftl::timer::get_time();
+	timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
 	playing_ = true;
 
 	return true;
 }
 
-bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &f) {
+bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &f) {
+	//UNIQUE_LOCK(mtx_, lk);
+	std::unique_lock<std::mutex> lk(mtx_, std::defer_lock);
+	if (!lk.try_lock()) return true;
+
 	if (has_data_ && get<0>(data_).timestamp <= ts) {
 		f(get<0>(data_), get<1>(data_));
 		has_data_ = false;
@@ -85,14 +89,14 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 }
 
 bool Reader::read(int64_t ts) {
-	return read(ts, [this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	return read(ts, [this](const ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
 		if (handlers_.size() > spkt.streamID && (bool)handlers_[spkt.streamID]) {
 			handlers_[spkt.streamID](spkt, pkt);
 		}
 	});
 }
 
-void Reader::onPacket(int streamID, const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &f) {
+void Reader::onPacket(int streamID, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &f) {
 	if (streamID >= handlers_.size()) handlers_.resize(streamID+1);
 	handlers_[streamID] = f;
 }
