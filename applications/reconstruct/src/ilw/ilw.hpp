@@ -8,6 +8,8 @@
 
 #include "ilw_cuda.hpp"
 
+#include <ftl/cuda/points.hpp>
+
 namespace ftl {
 
 namespace detail {
@@ -71,6 +73,8 @@ class ILW : public ftl::Configurable {
     bool use_lab_;
 	int discon_mask_;
 	bool fill_depth_;
+	ftl::cuda::ClipSpace clip_;
+	bool clipping_;
 };
 
 }

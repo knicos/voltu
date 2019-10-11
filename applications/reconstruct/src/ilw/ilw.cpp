@@ -13,6 +13,17 @@ using ftl::rgbd::Channels;
 using ftl::rgbd::Format;
 using cv::cuda::GpuMat;
 
+// TODO: Put in common place
+static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
+  Eigen::Affine3d rx =
+      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+  Eigen::Affine3d ry =
+      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+  Eigen::Affine3d rz =
+      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+  return rz * rx * ry;
+}
+
 ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     enabled_ = value("ilw_align", true);
     iterations_ = value("iterations", 4);
@@ -95,6 +106,33 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
         if (value("colour_confidence_only", false)) params_.flags |= ftl::cuda::kILWFlag_ColourConfidenceOnly;
         else params_.flags &= ~ftl::cuda::kILWFlag_ColourConfidenceOnly;
     });
+
+	if (config["clipping"].is_object()) {
+		auto &c = config["clipping"];
+		float rx = c.value("pitch", 0.0f);
+		float ry = c.value("yaw", 0.0f);
+		float rz = c.value("roll", 0.0f);
+		float x = c.value("x", 0.0f);
+		float y = c.value("y", 0.0f);
+		float z = c.value("z", 0.0f);
+		float width = c.value("width", 1.0f);
+		float height = c.value("height", 1.0f);
+		float depth = c.value("depth", 1.0f);
+
+		Eigen::Affine3f r = create_rotation_matrix(rx, ry, rz).cast<float>();
+		Eigen::Translation3f trans(Eigen::Vector3f(x,y,z));
+		Eigen::Affine3f t(trans);
+
+		clip_.origin = MatrixConversion::toCUDA(r.matrix() * t.matrix());
+		clip_.size = make_float3(width, height, depth);
+		clipping_ = value("clipping_enabled", true);
+	} else {
+		clipping_ = false;
+	}
+
+	on("clipping_enabled", [this](const ftl::config::Event &e) {
+		clipping_ = value("clipping_enabled", true);
+	});
 }
 
 ILW::~ILW() {
@@ -157,6 +195,13 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 			cv::cuda::swap(col, tmp);
             if (use_lab_) cv::cuda::cvtColor(tmp,tmp, cv::COLOR_BGR2Lab, 0, cvstream);
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA, 0, cvstream);
+		}
+
+		// Clip first?
+		if (clipping_) {
+			auto clip = clip_;
+			clip.origin = clip.origin * pose;
+			ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), s->parameters(), clip, stream);
 		}
 
         f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
