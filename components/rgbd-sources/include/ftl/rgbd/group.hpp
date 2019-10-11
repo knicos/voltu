@@ -73,12 +73,12 @@ class Group {
 	 * There is no guarantee about order or timing and the callback itself will
 	 * need to ensure synchronisation of timestamps.
 	 */
-	void addRawCallback(std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+	void addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
 
 	/**
 	 * Removes a raw data callback from all sources in the group.
 	 */
-	void removeRawCallback(std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+	void removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
 
 	inline std::vector<Source*> sources() const { return sources_; }
 
@@ -98,6 +98,8 @@ class Group {
 	void setLatency(int frames) { latency_ = frames; }
 
 	void stop() {}
+
+	int streamID(const ftl::rgbd::Source *s) const;
 
 	private:
 	std::vector<FrameSet> framesets_;

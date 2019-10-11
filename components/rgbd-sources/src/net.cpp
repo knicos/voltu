@@ -246,7 +246,7 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	host_->notifyRaw(spkt, pkt);
 
 	const ftl::rgbd::Channel chan = host_->getChannel();
-	int rchan = spkt.channel & 0x1;
+	int rchan = spkt.channel; // & 0x1;
 
 	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
 
@@ -280,7 +280,8 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	// Calculate how many packets to expect for this frame
 	if (frame.chunk_total == 0) {
 		// Getting a second channel first means expect double packets
-		frame.chunk_total = pkt.block_total * ((spkt.channel >> 1) + 1);
+		// FIXME: Assumes each packet has same number of blocks!
+		frame.chunk_total = pkt.block_total * spkt.channel_count;
 	}		
 
 	++frame.chunk_count;

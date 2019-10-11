@@ -145,6 +145,13 @@ void Group::_computeJob(ftl::rgbd::Source *src) {
 	}
 }
 
+int Group::streamID(const ftl::rgbd::Source *s) const {
+	for (int i=0; i<sources_.size(); ++i) {
+		if (sources_[i] == s) return i;
+	}
+	return -1;
+}
+
 void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 	if (latency_ == 0) {
 		callback_ = cb;
@@ -226,13 +233,13 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 	ftl::timer::start(true);
 }
 
-void Group::addRawCallback(std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+void Group::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
 	for (auto s : sources_) {
 		s->addRawCallback(f);
 	}
 }
 
-void Group::removeRawCallback(std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+void Group::removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
 	for (auto s : sources_) {
 		s->removeRawCallback(f);
 	}

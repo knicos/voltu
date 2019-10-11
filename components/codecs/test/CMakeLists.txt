@@ -30,3 +30,17 @@ target_link_libraries(nvpipe_codec_unit
 
 
 add_test(NvPipeCodecUnitTest nvpipe_codec_unit)
+
+### Reader Writer Unit ################################################################
+add_executable(rw_unit
+	./tests.cpp
+	../src/writer.cpp
+	../src/reader.cpp
+	./readwrite_test.cpp
+)
+target_include_directories(rw_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(rw_unit
+	Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${CUDA_LIBRARIES} ftlcommon Eigen3::Eigen)
+
+
+add_test(RWUnitTest rw_unit)

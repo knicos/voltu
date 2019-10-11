@@ -12,6 +12,8 @@
 #include "snapshot_source.hpp"
 #endif
 
+#include "file_source.hpp"
+
 #ifdef HAVE_REALSENSE
 #include "realsense_source.hpp"
 using ftl::rgbd::detail::RealsenseSource;
@@ -26,6 +28,9 @@ using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
 using ftl::rgbd::Channel;
+using ftl::rgbd::detail::FileSource;
+
+std::map<std::string, ftl::codecs::Reader*> Source::readers__;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
@@ -114,7 +119,10 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	} else if (ftl::is_file(path)) {
 		string ext = path.substr(eix+1);
 
-		if (ext == "png" || ext == "jpg") {
+		if (ext == "ftl") {
+			ftl::codecs::Reader *reader = __createReader(path);
+			return new FileSource(this, reader, std::stoi(uri.getFragment()));
+		} else if (ext == "png" || ext == "jpg") {
 			return new ImageSource(this, path);
 		} else if (ext == "mp4") {
 			return new StereoVideoSource(this, path);
@@ -135,6 +143,22 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	}
 
 	return nullptr;
+}
+
+ftl::codecs::Reader *Source::__createReader(const std::string &path) {
+	if (readers__.find(path) != readers__.end()) {
+		return readers__[path];
+	}
+
+	std::ifstream *file = new std::ifstream;
+	file->open(path);
+
+	// FIXME: This is a memory leak, must delete ifstream somewhere.
+
+	auto *r = new ftl::codecs::Reader(*file);
+	readers__[path] = r;
+	r->begin();
+	return r;
 }
 
 ftl::rgbd::detail::Source *Source::_createNetImpl(const ftl::URI &uri) {

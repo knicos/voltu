@@ -19,6 +19,7 @@ set(RGBDSRC
 	src/abr.cpp
 	src/offilter.cpp
 	src/virtual.cpp
+	src/file_source.cpp
 )
 
 if (HAVE_REALSENSE)

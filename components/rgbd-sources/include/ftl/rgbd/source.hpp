@@ -9,9 +9,11 @@
 #include <ftl/uri.hpp>
 #include <ftl/rgbd/detail/source.hpp>
 #include <ftl/codecs/packet.hpp>
+#include <ftl/codecs/reader.hpp>
 #include <opencv2/opencv.hpp>
 #include <Eigen/Eigen>
 #include <string>
+#include <map>
 
 #include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/frame.hpp>
@@ -244,6 +246,10 @@ class Source : public ftl::Configurable {
 	detail::Source *_createFileImpl(const ftl::URI &uri);
 	detail::Source *_createNetImpl(const ftl::URI &uri);
 	detail::Source *_createDeviceImpl(const ftl::URI &uri);
+
+	static ftl::codecs::Reader *__createReader(const std::string &path);
+
+	static std::map<std::string, ftl::codecs::Reader*> readers__;
 };
 
 }
