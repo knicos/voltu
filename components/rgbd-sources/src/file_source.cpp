@@ -1,5 +1,7 @@
 #include "file_source.hpp"
 
+#include <ftl/timer.hpp>
+
 using ftl::rgbd::detail::FileSource;
 using ftl::codecs::codec_t;
 
@@ -23,6 +25,8 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::codecs::Reader *r, int sid) : 
 	decoders_[1] = nullptr;
 	cache_read_ = -1;
 	cache_write_ = 0;
+	realtime_ = host_->value("realtime", true);
+	timestamp_ = r->getStartTime();
 
     r->onPacket(sid, [this](const ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
 		if (pkt.codec == codec_t::POSE) {
@@ -34,6 +38,12 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::codecs::Reader *r, int sid) : 
 			params_ = *camera;
 			has_calibration_ = true;
 		} else {
+			if (pkt.codec == codec_t::HEVC) {
+				// Obtain NAL unit type
+				int nal_type = (pkt.data[4] >> 1) & 0x3F;
+				// A type of 32 = VPS unit, hence I-Frame in this case so skip past packets
+				if (nal_type == 32) _removeChannel(spkt.channel);
+			}
 			cache_[cache_write_].emplace_back();
 			auto &c = cache_[cache_write_].back();
 
@@ -48,8 +58,23 @@ FileSource::~FileSource() {
 
 }
 
+void FileSource::_removeChannel(int channel) {
+	int c = 0;
+	for (auto i=cache_[cache_write_].begin(); i != cache_[cache_write_].end(); ++i) {
+		if ((*i).spkt.channel == channel) {
+			++c;
+			i = cache_[cache_write_].erase(i);
+		}
+	}
+	DLOG(INFO) << "Skipped " << c << " packets";
+}
+
 bool FileSource::capture(int64_t ts) {
-    timestamp_ = ts;
+	if (realtime_) {
+    	timestamp_ = ts;
+	} else {
+		timestamp_ += ftl::timer::getInterval();
+	}
     return true;
 }
 
