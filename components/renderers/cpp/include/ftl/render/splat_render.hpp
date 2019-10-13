@@ -22,7 +22,7 @@ class Splatter : public ftl::render::Renderer {
 	explicit Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs);
 	~Splatter();
 
-	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream=0) override;
+	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) override;
 	//void setOutputDevice(int);
 
 	protected:
@@ -52,6 +52,7 @@ class Splatter : public ftl::render::Renderer {
 	uchar4 light_diffuse_;
 	uchar4 light_ambient_;
 	ftl::render::SplatParams params_;
+	cudaStream_t stream_;
 
 	template <typename T>
 	void __blendChannel(ftl::rgbd::Frame &, ftl::rgbd::Channel in, ftl::rgbd::Channel out, cudaStream_t);

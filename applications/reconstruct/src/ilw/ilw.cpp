@@ -133,27 +133,32 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
 	on("clipping_enabled", [this](const ftl::config::Event &e) {
 		clipping_ = value("clipping_enabled", true);
 	});
+
+	cudaSafeCall(cudaStreamCreate(&stream_));
 }
 
 ILW::~ILW() {
 
 }
 
-bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
+bool ILW::process(ftl::rgbd::FrameSet &fs) {
     if (!enabled_) return false;
 
-    _phase0(fs, stream);
+	fs.upload(Channel::Colour + Channel::Depth, stream_);
+    _phase0(fs, stream_);
 
 	params_.range = value("search_range", 0.05f);
 
     for (int i=0; i<iterations_; ++i) {
-        _phase1(fs, value("cost_function",3), stream);
+        _phase1(fs, value("cost_function",3), stream_);
         //for (int j=0; j<3; ++j) {
-            _phase2(fs, motion_rate_, stream);
+            _phase2(fs, motion_rate_, stream_);
         //}
 
 		params_.range *= value("search_reduce", 0.9f);
 		// TODO: Break if no time left
+
+		//cudaSafeCall(cudaStreamSynchronize(stream_));
     }
 
 	for (size_t i=0; i<fs.frames.size(); ++i) {
@@ -162,9 +167,10 @@ bool ILW::process(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 			
         auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
         auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
-        ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, discon_mask_, stream);
+        ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, discon_mask_, stream_);
     }
 
+	cudaSafeCall(cudaStreamSynchronize(stream_));
     return true;
 }
 
@@ -211,6 +217,8 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 		f.createTexture<float>(Channel::Depth);
     }
 
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
+
     return true;
 }
 
@@ -238,6 +246,8 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
 			f.swapChannels(Channel::Depth, Channel::Depth2);
 		}
 	}
+
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	// For each camera combination
     for (size_t i=0; i<fs.frames.size(); ++i) {
@@ -293,6 +303,8 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
             //LOG(INFO) << "Correspondences done... " << i;
         }
     }
+
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
 
     return true;
 }

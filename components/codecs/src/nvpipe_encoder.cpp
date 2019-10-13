@@ -4,6 +4,8 @@
 #include <ftl/codecs/bitrates.hpp>
 #include <ftl/cuda_util.hpp>
 
+#include <opencv2/core/cuda/common.hpp>
+
 using ftl::codecs::NvPipeEncoder;
 using ftl::codecs::bitrate_t;
 using ftl::codecs::codec_t;
