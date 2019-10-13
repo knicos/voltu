@@ -57,7 +57,6 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 
 		msgpack::object_handle msg;
 		if (!buffer_.next(msg)) {
-			LOG(INFO) << "NO Message: " << buffer_.nonparsed_size();
 			partial = true;
 			continue;
 		}

@@ -30,6 +30,8 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
 
+# find_package( ffmpeg )
+
 if (WITH_OPTFLOW)
 	# TODO check that cudaoptflow.hpp exists (OpenCV built with correct contrib modules)
 	set(HAVE_OPTFLOW true)
@@ -179,6 +181,9 @@ find_library(UUID_LIBRARIES NAMES uuid libuuid)
 else()
 endif()
 
+# For ftl2mkv
+check_include_file("libavformat/avformat.h" HAVE_AVFORMAT)
+
 # Check for optional opencv components
 set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
 check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
@@ -221,6 +226,10 @@ add_subdirectory(components/control/cpp)
 add_subdirectory(applications/calibration)
 add_subdirectory(applications/groupview)
 add_subdirectory(applications/player)
+
+if (HAVE_AVFORMAT)
+	add_subdirectory(applications/ftl2mkv)
+endif()
 
 if (BUILD_RENDERER)
 	add_subdirectory(components/renderers)
