@@ -9,17 +9,6 @@ target_link_libraries(source_unit
 
 add_test(SourceUnitTest source_unit)
 
-### Channel Unit ###############################################################
-add_executable(channel_unit
-	./tests.cpp
-	./channel_unit.cpp
-)
-target_include_directories(channel_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(channel_unit
-	ftlcommon)
-
-add_test(ChannelUnitTest channel_unit)
-
 ### Frame Unit #################################################################
 add_executable(frame_unit
 	./tests.cpp

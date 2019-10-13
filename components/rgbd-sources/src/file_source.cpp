@@ -4,6 +4,7 @@
 
 using ftl::rgbd::detail::FileSource;
 using ftl::codecs::codec_t;
+using ftl::codecs::Channel;
 
 void FileSource::_createDecoder(int ix, const ftl::codecs::Packet &pkt) {
 	if (decoders_[ix]) {
@@ -58,7 +59,7 @@ FileSource::~FileSource() {
 
 }
 
-void FileSource::_removeChannel(int channel) {
+void FileSource::_removeChannel(ftl::codecs::Channel channel) {
 	int c = 0;
 	for (auto i=cache_[cache_write_].begin(); i != cache_[cache_write_].end(); ++i) {
 		if ((*i).spkt.channel == channel) {
@@ -96,16 +97,16 @@ bool FileSource::compute(int n, int b) {
 	for (auto i=cache_[cache_read_].begin(); i!=cache_[cache_read_].end(); ++i) {
 		auto &c = *i;
 
-		if (c.spkt.channel == 0) {
-			rgb_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_8UC3);
+		if (c.spkt.channel == Channel::Colour) {
+			rgb_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_8UC4);
 		} else {
 			depth_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_32F);
 		}
 	
-		_createDecoder(c.spkt.channel, c.pkt);
+		_createDecoder((c.spkt.channel == Channel::Colour) ? 0 : 1, c.pkt);
 
 		try {
-			decoders_[c.spkt.channel]->decode(c.pkt, (c.spkt.channel == 0) ? rgb_ : depth_);
+			decoders_[(c.spkt.channel == Channel::Colour) ? 0 : 1]->decode(c.pkt, (c.spkt.channel == Channel::Colour) ? rgb_ : depth_);
 		} catch (std::exception &e) {
 			LOG(INFO) << "Decoder exception: " << e.what();
 		}

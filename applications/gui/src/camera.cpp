@@ -7,8 +7,8 @@
 using ftl::rgbd::isValidDepth;
 using ftl::gui::GLTexture;
 using ftl::gui::PoseWindow;
-using ftl::rgbd::Channel;
-using ftl::rgbd::Channels;
+using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 
 // TODO(Nick) MOVE
 class StatisticsImage {

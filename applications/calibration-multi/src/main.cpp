@@ -37,7 +37,7 @@ using cv::Vec4d;
 
 using ftl::net::Universe;
 using ftl::rgbd::Source;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
 Mat createCameraMatrix(const ftl::rgbd::Camera &parameters) {
 	Mat m = (cv::Mat_<double>(3,3) << parameters.fx, 0.0, -parameters.cx, 0.0, parameters.fy, -parameters.cy, 0.0, 0.0, 1.0);

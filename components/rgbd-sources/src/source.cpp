@@ -27,7 +27,7 @@ using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 using ftl::rgbd::detail::FileSource;
 
 std::map<std::string, ftl::codecs::Reader*> Source::readers__;
@@ -321,13 +321,13 @@ bool Source::thumbnail(cv::Mat &t) {
 	return !thumb_.empty();
 }
 
-bool Source::setChannel(ftl::rgbd::Channel c) {
+bool Source::setChannel(ftl::codecs::Channel c) {
 	channel_ = c;
 	// FIXME:(Nick) Verify channel is supported by this source...
 	return true;
 }
 
-const ftl::rgbd::Camera Source::parameters(ftl::rgbd::Channel chan) const {
+const ftl::rgbd::Camera Source::parameters(ftl::codecs::Channel chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
 

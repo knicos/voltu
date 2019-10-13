@@ -71,9 +71,9 @@ class Source : public ftl::Configurable {
 	/**
 	 * Change the second channel source.
 	 */
-	bool setChannel(ftl::rgbd::Channel c);
+	bool setChannel(ftl::codecs::Channel c);
 
-	ftl::rgbd::Channel getChannel() const { return channel_; }
+	ftl::codecs::Channel getChannel() const { return channel_; }
 
 	/**
 	 * Perform the hardware or virtual frame grab operation. This should be
@@ -146,7 +146,7 @@ class Source : public ftl::Configurable {
 		else return params_;
 	}
 
-	const Camera parameters(ftl::rgbd::Channel) const;
+	const Camera parameters(ftl::codecs::Channel) const;
 
 	cv::Mat cameraMatrix() const;
 
@@ -236,7 +236,7 @@ class Source : public ftl::Configurable {
 	SHARED_MUTEX mutex_;
 	bool paused_;
 	bool bullet_;
-	ftl::rgbd::Channel channel_;
+	ftl::codecs::Channel channel_;
 	cudaStream_t stream_;
 	int64_t timestamp_;
 	std::function<void(int64_t, cv::Mat &, cv::Mat &)> callback_;

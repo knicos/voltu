@@ -10,6 +10,7 @@
 #include <Eigen/Eigen>
 
 using ftl::codecs::codec_t;
+using ftl::codecs::Channel;
 
 static ftl::codecs::Decoder *decoder;
 
@@ -56,7 +57,7 @@ int main(int argc, char **argv) {
     int current_channel = 0;
 
     bool res = r.read(90000000000000, [&current_stream,&current_channel,&r](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-        if (spkt.channel != current_channel) return;
+        if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel)) return;
         if (spkt.streamID == current_stream) {
 
             if (pkt.codec == codec_t::POSE) {
@@ -73,7 +74,7 @@ int main(int argc, char **argv) {
 
             LOG(INFO) << "Reading packet: (" << (int)spkt.streamID << "," << (int)spkt.channel << ") " << (int)pkt.codec << ", " << (int)pkt.definition;
 
-            cv::Mat frame(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (spkt.channel == 1) ? CV_32F : CV_8UC3);
+            cv::Mat frame(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (spkt.channel == Channel::Depth) ? CV_32F : CV_8UC3);
             createDecoder(pkt);
 
             try {
@@ -83,7 +84,7 @@ int main(int argc, char **argv) {
             }
 
             if (!frame.empty()) {
-                if (spkt.channel == 1) {
+                if (spkt.channel == Channel::Depth) {
                     visualizeDepthMap(frame, frame, 8.0f);
                 }
                 double time = (double)(spkt.timestamp - r.getStartTime()) / 1000.0;

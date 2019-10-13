@@ -12,7 +12,7 @@
 #endif
 
 using ftl::gui::MediaPanel;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
 MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), screen_(screen) {
 	using namespace nanogui;

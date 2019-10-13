@@ -20,7 +20,7 @@ using std::vector;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using std::tuple;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
 // ===== NetFrameQueue =========================================================
 
@@ -84,7 +84,7 @@ void NetFrameQueue::freeFrame(NetFrame &f) {
 
 // ===== NetSource =============================================================
 
-bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::rgbd::Channel chan) {
+bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::codecs::Channel chan) {
 	try {
 		while(true) {
 			auto [cap,buf] = net.call<tuple<unsigned int,vector<unsigned char>>>(peer_, "source_details", src, chan);
@@ -245,26 +245,31 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	// Allow acccess to the raw data elsewhere...
 	host_->notifyRaw(spkt, pkt);
 
-	const ftl::rgbd::Channel chan = host_->getChannel();
-	int rchan = spkt.channel; // & 0x1;
+	const ftl::codecs::Channel chan = host_->getChannel();
+	const ftl::codecs::Channel rchan = spkt.channel; // & 0x1;
 
-	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
+	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC4, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC4));
 
 	// Update frame statistics
 	frame.tx_size += pkt.data.size();
 
-	// Ignore any unwanted second channel
-	if (!(chan == ftl::rgbd::Channel::None && rchan > 0)) {
-		_createDecoder(rchan, pkt);
-		auto *decoder = (rchan == 0) ? decoder_c1_ : decoder_c2_;
+	// Only decode if this channel is wanted.
+	if (rchan == Channel::Colour || rchan == chan) {
+		_createDecoder((rchan == Channel::Colour) ? 0 : 1, pkt);
+		auto *decoder = (rchan == Channel::Colour) ? decoder_c1_ : decoder_c2_;
 		if (!decoder) {
 			LOG(ERROR) << "No frame decoder available";
 			return;
 		}
 
-		decoder->decode(pkt, (rchan == 0) ? frame.channel1 : frame.channel2);
-	} else {
-		//LOG(INFO) << "Unwanted frame";
+		decoder->decode(pkt, (rchan == Channel::Colour) ? frame.channel1 : frame.channel2);
+	} else if (chan != Channel::None && rchan != Channel::Colour) {
+		// Didn't receive correct second channel so just clear the images
+		if (isFloatChannel(chan)) {
+			frame.channel2.setTo(cv::Scalar(0.0f));
+		} else {
+			frame.channel2.setTo(cv::Scalar(0,0,0));
+		}
 	}
 
 	// Apply colour correction to chunk
@@ -341,8 +346,8 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 	//Source::setPose(pose);
 }
 
-ftl::rgbd::Camera NetSource::parameters(ftl::rgbd::Channel chan) {
-	if (chan == ftl::rgbd::Channel::Right) {
+ftl::rgbd::Camera NetSource::parameters(ftl::codecs::Channel chan) {
+	if (chan == ftl::codecs::Channel::Right) {
 		auto uri = host_->get<string>("uri");
 		if (!uri) return params_;
 
@@ -357,7 +362,7 @@ ftl::rgbd::Camera NetSource::parameters(ftl::rgbd::Channel chan) {
 void NetSource::_updateURI() {
 	UNIQUE_LOCK(mutex_,lk);
 	active_ = false;
-	prev_chan_ = ftl::rgbd::Channel::None;
+	prev_chan_ = ftl::codecs::Channel::None;
 	auto uri = host_->get<string>("uri");
 
 	if (uri_.size() > 0) {
@@ -372,7 +377,7 @@ void NetSource::_updateURI() {
 		}
 		peer_ = *p;
 
-		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::rgbd::Channel::Left);
+		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::codecs::Channel::Left);
 
 		host_->getNet()->bind(*uri, [this](short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			//if (chunk == -1) {
@@ -412,7 +417,7 @@ bool NetSource::compute(int n, int b) {
 	// Send k frames before end to prevent unwanted pause
 	// Unless only a single frame is requested
 	if ((N_ <= maxN_/2 && maxN_ > 1) || N_ == 0) {
-		const ftl::rgbd::Channel chan = host_->getChannel();
+		const ftl::codecs::Channel chan = host_->getChannel();
 
 		N_ = maxN_;
 

@@ -26,7 +26,7 @@ class Splatter : public ftl::render::Renderer {
 	//void setOutputDevice(int);
 
 	protected:
-	void _renderChannel(ftl::rgbd::Frame &out, ftl::rgbd::Channel channel_in, ftl::rgbd::Channel channel_out, cudaStream_t stream);
+	void _renderChannel(ftl::rgbd::Frame &out, ftl::codecs::Channel channel_in, ftl::codecs::Channel channel_out, cudaStream_t stream);
 
 	private:
 	int device_;
@@ -55,8 +55,8 @@ class Splatter : public ftl::render::Renderer {
 	cudaStream_t stream_;
 
 	template <typename T>
-	void __blendChannel(ftl::rgbd::Frame &, ftl::rgbd::Channel in, ftl::rgbd::Channel out, cudaStream_t);
-	void _blendChannel(ftl::rgbd::Frame &, ftl::rgbd::Channel in, ftl::rgbd::Channel out, cudaStream_t);
+	void __blendChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
+	void _blendChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
 	void _dibr(cudaStream_t);
 };
 

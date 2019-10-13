@@ -7,7 +7,7 @@
 using ftl::algorithms::FixstarsSGM;
 using cv::Mat;
 using cv::cuda::GpuMat;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 using ftl::rgbd::Format;
 
 //static ftl::Disparity::Register fixstarssgm("libsgm", FixstarsSGM::create);
