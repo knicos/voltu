@@ -227,10 +227,11 @@ app.post('/stream/config', async (req, res) => {
 })
 
 app.get('/stream/config', async(req, res) => {
-	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/
+	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/board_size/value=1
 	
 	const wholeURI = encodeURIComponent(req.query.uri)
+	console.log(wholeURI)
 
 	// await new Configs({
 	// 	URI: wholeURI,
@@ -246,52 +247,50 @@ app.get('/stream/config', async(req, res) => {
 	// 	}
 	// }).save()
 
-	const response = await Configs.find({ URI : wholeURI});
+	let response = await Configs.find({ URI : wholeURI});
 	if(response.length){
+		console.log(response[0])
 		return res.status(200).json(response[0].data);
 	}
-
-	const uri = wholeURI.substring(35)
-	const depth = uri.split("/");
-	console.log(depth)
-	if(depth[depth.length-1].length == 0){
-		depth.pop;
+	const uri = wholeURI.substring(47)
+	let depth = uri.split("%2F");
+	console.log(depth[1])
+	if(depth.length == 2){
+		const splitted = wholeURI.split(depth[1])
+		const uri = splitted[0].substring(0, splitted[0].length-3)
+		console.log('VAL', uri)
+		const responseData = await Configs.find({URI : uri})
+		const realData = responseData[0].data
+		const obj = Object.entries(realData);
+		const helpObj = {}
+		for(const [key, data] of obj){
+			console.log('PIIPPIIP', depth[1] in data)
+			if(depth[1] in data) {
+				helpObj[`${key}`] = data
+			}
+		}
+		console.log("HELPOBJECT", helpObj)
+		const actualData = Object.entries(helpObj)
+		for(const [key, data] of actualData){
+			console.log("KEY2", key)
+			console.log("DATA2", data)
+		}
+		return res.status(200).json(realData)
 	}
+
+
+	// if(depth.length ==3){
+	// 	get the value
+	// 	save the get the first depth
+	// 	save the value with default values into the first depth
+	// }
 	
-
-
-	if(depth.length === 1){
-		let data = await Configs.find({ URI : wholeURI});
-		return res.status(200).json(data);
-	}else if(depth.length === 2){
-		const data = await Configs.find({ URI: wholeURI })
-		return res.status(200).json(data)
-	}else if(depth.length === 3){
-		return res.status(200).json('DEPTH 3')
-	}else{
-		return res.status(500).json('ERROR');
-	}
-
+	console.log(depth)
 	console.log(wholeURI)
 	console.log(uri)
 	console.log(depth)
-	switch(depth.length){
-		case 1:
-			console.log('DEPTH 1')
-			return res.status(200).json('DEPTH IS 1, RETURNING EVERYTHING');
-		case 2:
-			console.log('DEPTH 2')
-			return res.status(200).json('DEPTH IS 2, RETURNING ALMOST EVERYTHING');
-		case 3:
-			console.log('DEPTH 3') 
-			return res.status(200).json('DEPTH IS 3, RETURNING BIT LESS');
-		case 4:
-			console.log('DEPTH 4')
-			return res.status(200).json('DEPTH IS 4, RETURNING SINGLE VALUE');
-		default:
-			console.log('DEPTH ERROR')
-			return res.status(200).json('Error');
-	}
+
+	return res.send(200)
 })
 
 app.get('/stream', (req, res) => {
