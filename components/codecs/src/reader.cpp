@@ -92,6 +92,11 @@ bool Reader::read(int64_t ts) {
 	return read(ts, [this](const ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
 		if (handlers_.size() > spkt.streamID && (bool)handlers_[spkt.streamID]) {
 			handlers_[spkt.streamID](spkt, pkt);
+		} else if (spkt.streamID == 255) {
+			// Broadcast stream, send packets to every source handler.
+			for (auto &h : handlers_) {
+				h(spkt, pkt);
+			}
 		}
 	});
 }

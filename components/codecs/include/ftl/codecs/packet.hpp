@@ -43,7 +43,7 @@ struct Packet {
  */
 struct StreamPacket {
 	int64_t timestamp;
-	uint8_t streamID;  		// Source number...
+	uint8_t streamID;  		// Source number... 255 = broadcast stream
 	uint8_t channel_count;	// Number of channels to expect for this frame to complete (usually 1 or 2)
 	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
 

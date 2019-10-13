@@ -12,7 +12,7 @@ namespace codecs {
 
 class Writer {
 	public:
-	Writer(std::ostream &);
+	explicit Writer(std::ostream &);
 	~Writer();
 
 	bool begin();

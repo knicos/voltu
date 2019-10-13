@@ -14,7 +14,7 @@ namespace codecs {
 
 class Reader {
 	public:
-	Reader(std::istream &);
+	explicit Reader(std::istream &);
 	~Reader();
 
 	/**
