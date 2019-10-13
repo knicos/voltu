@@ -5,6 +5,8 @@
 #include <ftl/cuda_util.hpp>
 //#include <cuda_runtime.h>
 
+#include <opencv2/core/cuda/common.hpp>
+
 using ftl::codecs::NvPipeDecoder;
 
 NvPipeDecoder::NvPipeDecoder() {

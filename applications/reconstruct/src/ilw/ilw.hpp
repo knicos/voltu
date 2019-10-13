@@ -44,7 +44,7 @@ class ILW : public ftl::Configurable {
     /**
      * Take a frameset and perform the iterative lattice warping.
      */
-    bool process(ftl::rgbd::FrameSet &fs, cudaStream_t stream=0);
+    bool process(ftl::rgbd::FrameSet &fs);
 
     inline bool isLabColour() const { return use_lab_; }
 
@@ -75,6 +75,8 @@ class ILW : public ftl::Configurable {
 	bool fill_depth_;
 	ftl::cuda::ClipSpace clip_;
 	bool clipping_;
+
+	cudaStream_t stream_;
 };
 
 }

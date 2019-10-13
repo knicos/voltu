@@ -174,7 +174,7 @@ static void run(ftl::Configurable *root) {
 		if (align->isLabColour()) {
 			for (auto &f : scene_B.frames) {
 				auto &col = f.get<cv::cuda::GpuMat>(Channel::Colour);
-				cv::cuda::cvtColor(col,col, cv::COLOR_Lab2BGR);
+				cv::cuda::cvtColor(col,col, cv::COLOR_Lab2BGR); // TODO: Add stream
 			}
 		}
 		splat->render(virt, out);
@@ -257,7 +257,7 @@ static void run(ftl::Configurable *root) {
 			UNIQUE_LOCK(scene_A.mtx, lk);
 
 			// Send all frames to GPU, block until done?
-			scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
+			//scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
 			align->process(scene_A);
 
 			// TODO: To use second GPU, could do a download, swap, device change,
