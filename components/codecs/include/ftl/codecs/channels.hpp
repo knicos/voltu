@@ -5,31 +5,43 @@
 #include <msgpack.hpp>
 
 namespace ftl {
-namespace rgbd {
+namespace codecs {
 
 enum struct Channel : int {
-    None = -1,
-    Colour = 0,         // 8UC3 or 8UC4
-    Left = 0,
-    Depth = 1,          // 32S or 32F
-    Right = 2,          // 8UC3 or 8UC4
-    Colour2 = 2,
-    Disparity = 3,
-    Depth2 = 3,
-    Deviation = 4,
-    Normals = 5,        // 32FC4
-    Points = 6,         // 32FC4
-    Confidence = 7,     // 32F
-    Contribution = 7,   // 32F
-    EnergyVector,       // 32FC4
-    Flow,               // 32F
-    Energy,             // 32F
-	Mask,				// 32U
-	Density,			// 32F
-    LeftGray,
-    RightGray,
-    Overlay1
+    None			= -1,
+    Colour			= 0,	// 8UC3 or 8UC4
+    Left			= 0,
+    Depth			= 1,	// 32S or 32F
+    Right			= 2,	// 8UC3 or 8UC4
+    Colour2			= 2,
+    Disparity		= 3,
+    Depth2			= 3,
+    Deviation		= 4,
+    Normals			= 5,	// 32FC4
+    Points			= 6,	// 32FC4
+    Confidence		= 7,	// 32F
+    Contribution	= 7,	// 32F
+    EnergyVector	= 8,	// 32FC4
+    Flow			= 9,	// 32F
+    Energy			= 10,	// 32F
+	Mask			= 11,	// 32U
+	Density			= 12,	// 32F
+    LeftGray		= 13,	// Deprecated
+    RightGray		= 14,	// Deprecated
+    Overlay1		= 15,	// Unused
+
+	AudioLeft		= 32,
+	AudioRight		= 33,
+
+	Configuration	= 64,	// JSON Data
+	Calibration		= 65,	// Camera Parameters Object
+	Pose			= 66,	// Eigen::Matrix4d
+	Data			= 67	// Custom data, any codec.
 };
+
+inline bool isVideo(Channel c) { return (int)c < 32; };
+inline bool isAudio(Channel c) { return (int)c >= 32 && (int)c < 64; };
+inline bool isData(Channel c) { return (int)c >= 64; };
 
 class Channels {
     public:
@@ -39,8 +51,8 @@ class Channels {
 		iterator(const Channels &c, unsigned int ix) : channels_(c), ix_(ix) { }
 		iterator operator++();
 		iterator operator++(int junk);
-		inline ftl::rgbd::Channel operator*() { return static_cast<Channel>(static_cast<int>(ix_)); }
-		//ftl::rgbd::Channel operator->() { return ptr_; }
+		inline ftl::codecs::Channel operator*() { return static_cast<Channel>(static_cast<int>(ix_)); }
+		//ftl::codecs::Channel operator->() { return ptr_; }
 		inline bool operator==(const iterator& rhs) { return ix_ == rhs.ix_; }
 		inline bool operator!=(const iterator& rhs) { return ix_ != rhs.ix_; }
 		private:
@@ -102,7 +114,7 @@ inline Channels Channels::All() {
 static const Channels kNoChannels;
 static const Channels kAllChannels(0xFFFFFFFFu);
 
-inline bool isFloatChannel(ftl::rgbd::Channel chan) {
+inline bool isFloatChannel(ftl::codecs::Channel chan) {
 	switch (chan) {
 	case Channel::Depth		:
     //case Channel::Normals   :
@@ -116,14 +128,14 @@ inline bool isFloatChannel(ftl::rgbd::Channel chan) {
 }
 }
 
-MSGPACK_ADD_ENUM(ftl::rgbd::Channel);
+MSGPACK_ADD_ENUM(ftl::codecs::Channel);
 
-inline ftl::rgbd::Channels operator|(ftl::rgbd::Channel a, ftl::rgbd::Channel b) {
-    return ftl::rgbd::Channels(a) | b;
+inline ftl::codecs::Channels operator|(ftl::codecs::Channel a, ftl::codecs::Channel b) {
+    return ftl::codecs::Channels(a) | b;
 }
 
-inline ftl::rgbd::Channels operator+(ftl::rgbd::Channel a, ftl::rgbd::Channel b) {
-    return ftl::rgbd::Channels(a) | b;
+inline ftl::codecs::Channels operator+(ftl::codecs::Channel a, ftl::codecs::Channel b) {
+    return ftl::codecs::Channels(a) | b;
 }
 
 #endif  // _FTL_RGBD_CHANNELS_HPP_

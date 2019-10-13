@@ -10,7 +10,7 @@ using ftl::rgbd::kFrameBufferSize;
 using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
 Group::Group() : framesets_(kFrameBufferSize), head_(0) {
 	framesets_[0].timestamp = -1;

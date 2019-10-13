@@ -12,6 +12,7 @@ using ftl::codecs::StreamPacket;
 using ftl::codecs::Packet;
 using ftl::codecs::codec_t;
 using ftl::codecs::definition_t;
+using ftl::codecs::Channel;
 
 TEST_CASE( "Write and read - Single frame" ) {
 	std::stringstream s;
@@ -20,7 +21,7 @@ TEST_CASE( "Write and read - Single frame" ) {
 	StreamPacket spkt;
 	Packet pkt;
 
-	spkt.channel = 0;
+	spkt.channel = Channel::Colour;
 	spkt.timestamp = ftl::timer::get_time();
 	spkt.streamID = 0;
 
@@ -46,7 +47,7 @@ TEST_CASE( "Write and read - Single frame" ) {
 		REQUIRE(rpkt.codec == codec_t::JSON);
 		REQUIRE(rpkt.data.size() == 3);
 		REQUIRE(rpkt.data[0] == 44);
-		REQUIRE(rspkt.channel == 0);
+		REQUIRE(rspkt.channel == Channel::Colour);
 	});
 	r.end();
 
@@ -61,7 +62,7 @@ TEST_CASE( "Write and read - Multiple frames" ) {
 	StreamPacket spkt;
 	Packet pkt;
 
-	spkt.channel = 0;
+	spkt.channel = Channel::Colour;
 	spkt.timestamp = ftl::timer::get_time();
 	spkt.streamID = 0;
 
@@ -93,7 +94,7 @@ TEST_CASE( "Write and read - Multiple frames" ) {
 		REQUIRE(rpkt.codec == codec_t::JSON);
 		REQUIRE(rpkt.data.size() == 3);
 		REQUIRE(rpkt.data[0] == ((n == 1) ? 44 : (n == 2) ? 55 : 66));
-		REQUIRE(rspkt.channel == 0);
+		REQUIRE(rspkt.channel == Channel::Colour);
 	});
 	r.end();
 
@@ -108,7 +109,7 @@ TEST_CASE( "Write and read - Multiple streams" ) {
 	StreamPacket spkt;
 	Packet pkt;
 
-	spkt.channel = 0;
+	spkt.channel = Channel::Colour;
 	spkt.timestamp = ftl::timer::get_time();
 	spkt.streamID = 0;
 
@@ -163,7 +164,7 @@ TEST_CASE( "Write and read - Multiple frames with limit" ) {
 	StreamPacket spkt;
 	Packet pkt;
 
-	spkt.channel = 0;
+	spkt.channel = Channel::Colour;
 	spkt.timestamp = ftl::timer::get_time();
 	spkt.streamID = 0;
 
@@ -195,7 +196,7 @@ TEST_CASE( "Write and read - Multiple frames with limit" ) {
 		REQUIRE(rpkt.codec == codec_t::JSON);
 		REQUIRE(rpkt.data.size() == 3);
 		REQUIRE(rpkt.data[0] == ((n == 1) ? 44 : (n == 2) ? 55 : 66));
-		REQUIRE(rspkt.channel == 0);
+		REQUIRE(rspkt.channel == Channel::Colour);
 	});
 	r.end();
 
@@ -210,7 +211,7 @@ TEST_CASE( "Write and read - Multiple reads" ) {
 	StreamPacket spkt;
 	Packet pkt;
 
-	spkt.channel = 0;
+	spkt.channel = Channel::Colour;
 	spkt.timestamp = ftl::timer::get_time();
 	spkt.streamID = 0;
 
@@ -242,7 +243,7 @@ TEST_CASE( "Write and read - Multiple reads" ) {
 		REQUIRE(rpkt.codec == codec_t::JSON);
 		REQUIRE(rpkt.data.size() == 3);
 		REQUIRE(rpkt.data[0] == ((n == 1) ? 44 : (n == 2) ? 55 : 66));
-		REQUIRE(rspkt.channel == 0);
+		REQUIRE(rspkt.channel == Channel::Colour);
 	});
 
 	REQUIRE( n == 2 );
@@ -254,7 +255,7 @@ TEST_CASE( "Write and read - Multiple reads" ) {
 		REQUIRE(rpkt.codec == codec_t::JSON);
 		REQUIRE(rpkt.data.size() == 3);
 		REQUIRE(rpkt.data[0] == 66 );
-		REQUIRE(rspkt.channel == 0);
+		REQUIRE(rspkt.channel == Channel::Colour);
 	});
 	r.end();
 

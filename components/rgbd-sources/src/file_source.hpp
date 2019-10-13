@@ -43,7 +43,7 @@ class FileSource : public detail::Source {
 
 	bool realtime_;
 
-	void _removeChannel(int channel);
+	void _removeChannel(ftl::codecs::Channel channel);
 	void _createDecoder(int ix, const ftl::codecs::Packet &pkt);
 };
 

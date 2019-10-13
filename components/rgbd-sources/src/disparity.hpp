@@ -50,9 +50,9 @@ class Disparity : public ftl::Configurable {
 	{
 		// FIXME: What were these for?
 		//ftl::rgbd::Frame frame;
-		//frame.create<cv::cuda::GpuMat>(ftl::rgbd::Channel::Left) = l;
-		//frame.create<cv::cuda::GpuMat>(ftl::rgbd::Channel::Right) = r;
-		//frame.create<cv::cuda::GpuMat>(ftl::rgbd::Channel::Disparity) = disp;
+		//frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Left) = l;
+		//frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Right) = r;
+		//frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Disparity) = disp;
 	}
 
 	/**

@@ -17,7 +17,7 @@ using ftl::rgbd::detail::StreamClient;
 using ftl::rgbd::detail::ABRController;
 using ftl::codecs::definition_t;
 using ftl::codecs::device_t;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 using ftl::net::Universe;
 using std::string;
 using std::list;
@@ -92,7 +92,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	});
 
 	// Allow remote users to access camera calibration matrix
-	net->bind("source_details", [this](const std::string &uri, ftl::rgbd::Channel chan) -> tuple<unsigned int,vector<unsigned char>> {
+	net->bind("source_details", [this](const std::string &uri, ftl::codecs::Channel chan) -> tuple<unsigned int,vector<unsigned char>> {
 		vector<unsigned char> buf;
 		SHARED_LOCK(mutex_,slk);
 
@@ -426,8 +426,11 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				if (hasChan2) {
 					// TODO: Stagger the reset between nodes... random phasing
 					if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc2->reset();
-					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-						_transmitPacket(src, blk, 1, hasChan2, Quality::High);
+
+					auto chan = fs.sources[j]->getChannel();
+
+					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->hq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+						_transmitPacket(src, blk, chan, hasChan2, Quality::High);
 					});
 				} else {
 					if (enc2) enc2->reset();
@@ -436,7 +439,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// TODO: Stagger the reset between nodes... random phasing
 				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
 				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-					_transmitPacket(src, blk, 0, hasChan2, Quality::High);
+					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 				});
 			}
 		}
@@ -456,15 +459,17 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Important to send channel 2 first if needed...
 				// Receiver only waits for channel 1 by default
 				if (hasChan2) {
-					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-						_transmitPacket(src, blk, 1, hasChan2, Quality::Low);
+					auto chan = fs.sources[j]->getChannel();
+
+					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->lq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+						_transmitPacket(src, blk, chan, hasChan2, Quality::Low);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
 				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-					_transmitPacket(src, blk, 0, hasChan2, Quality::Low);
+					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::Low);
 				});
 			}
 		}
@@ -530,7 +535,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 	} else _cleanUp();
 }
 
-void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, Quality q) {
+void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt, Channel chan, bool hasChan2, Quality q) {
 	ftl::codecs::StreamPacket spkt = {
 		frame_no_,
 		src->id,
@@ -567,7 +572,7 @@ void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::StreamPacke
 				(*c).txcount = (*c).txmax;
 			} else {
 				// Count frame as completed only if last block and channel is 0
-				if (pkt.block_number == pkt.block_total - 1 && spkt.channel & 0x1 == 0) ++(*c).txcount;
+				if (pkt.block_number == pkt.block_total - 1 && spkt.channel == Channel::Colour) ++(*c).txcount;
 			}
 		} catch(...) {
 			(*c).txcount = (*c).txmax;
@@ -765,7 +770,7 @@ void Streamer::_encodeImageChannel1(const cv::Mat &in, vector<unsigned char> &ou
 	cv::imencode(".jpg", in, out, jpgparams);
 }
 
-bool Streamer::_encodeImageChannel2(const cv::Mat &in, vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b) {
+bool Streamer::_encodeImageChannel2(const cv::Mat &in, vector<unsigned char> &out, ftl::codecs::Channel_t c, unsigned int b) {
 	if (c == ftl::rgbd::kChanNone) return false;  // NOTE: Should not happen
 
 	if (isFloatChannel(c) && in.type() == CV_16U && in.channels() == 1) {

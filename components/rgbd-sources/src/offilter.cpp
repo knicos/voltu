@@ -6,6 +6,7 @@
 #include <loguru.hpp>
 
 using namespace ftl::rgbd;
+using namespace ftl::codecs;
 
 using cv::Mat;
 using cv::Size;

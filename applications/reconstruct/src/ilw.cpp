@@ -8,8 +8,8 @@
 
 using ftl::ILW;
 using ftl::detail::ILWData;
-using ftl::rgbd::Channel;
-using ftl::rgbd::Channels;
+using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 using ftl::rgbd::Format;
 using cv::cuda::GpuMat;
 

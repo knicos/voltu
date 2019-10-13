@@ -12,7 +12,7 @@
 using ftl::rgbd::detail::Calibrate;
 using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::StereoVideoSource;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 using std::string;
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
@@ -219,7 +219,7 @@ bool StereoVideoSource::compute(int n, int b) {
 	auto &left = frame.get<cv::cuda::GpuMat>(Channel::Left);
 	auto &right = frame.get<cv::cuda::GpuMat>(Channel::Right);
 
-	const ftl::rgbd::Channel chan = host_->getChannel();
+	const ftl::codecs::Channel chan = host_->getChannel();
 	if (left.empty() || right.empty()) return false;
 
 	if (chan == Channel::Depth) {

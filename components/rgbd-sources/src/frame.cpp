@@ -2,8 +2,8 @@
 #include <ftl/rgbd/frame.hpp>
 
 using ftl::rgbd::Frame;
-using ftl::rgbd::Channels;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channels;
+using ftl::codecs::Channel;
 
 static cv::Mat none;
 static cv::cuda::GpuMat noneGPU;
@@ -39,14 +39,14 @@ void Frame::upload(Channels c, cv::cuda::Stream stream) {
 	}
 }
 
-bool Frame::empty(ftl::rgbd::Channels channels) {
+bool Frame::empty(ftl::codecs::Channels channels) {
 	for (auto c : channels) {
 		if (empty(c)) return true;
 	}
 	return false;
 }
 
-void Frame::swapTo(ftl::rgbd::Channels channels, Frame &f) {
+void Frame::swapTo(ftl::codecs::Channels channels, Frame &f) {
 	f.reset();
 
 	// For all channels in this frame object
@@ -74,7 +74,7 @@ void Frame::swapTo(ftl::rgbd::Channels channels, Frame &f) {
 	}
 }
 
-void Frame::swapChannels(ftl::rgbd::Channel a, ftl::rgbd::Channel b) {
+void Frame::swapChannels(ftl::codecs::Channel a, ftl::codecs::Channel b) {
 	auto &m1 = _get(a);
 	auto &m2 = _get(b);
 	cv::swap(m1.host, m2.host);
@@ -85,7 +85,7 @@ void Frame::swapChannels(ftl::rgbd::Channel a, ftl::rgbd::Channel b) {
 	m1.tex = std::move(temptex);
 }
 
-template<> cv::Mat& Frame::get(ftl::rgbd::Channel channel) {
+template<> cv::Mat& Frame::get(ftl::codecs::Channel channel) {
 	if (channel == Channel::None) {
 		DLOG(WARNING) << "Cannot get the None channel from a Frame";
 		none.release();
@@ -105,7 +105,7 @@ template<> cv::Mat& Frame::get(ftl::rgbd::Channel channel) {
 	return _get(channel).host;
 }
 
-template<> cv::cuda::GpuMat& Frame::get(ftl::rgbd::Channel channel) {
+template<> cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) {
 	if (channel == Channel::None) {
 		DLOG(WARNING) << "Cannot get the None channel from a Frame";
 		noneGPU.release();
@@ -125,7 +125,7 @@ template<> cv::cuda::GpuMat& Frame::get(ftl::rgbd::Channel channel) {
 	return _get(channel).gpu;
 }
 
-template<> const cv::Mat& Frame::get(ftl::rgbd::Channel channel) const {
+template<> const cv::Mat& Frame::get(ftl::codecs::Channel channel) const {
 	if (channel == Channel::None) {
 		LOG(FATAL) << "Cannot get the None channel from a Frame";
 	}
@@ -139,7 +139,7 @@ template<> const cv::Mat& Frame::get(ftl::rgbd::Channel channel) const {
 	return _get(channel).host;
 }
 
-template<> const cv::cuda::GpuMat& Frame::get(ftl::rgbd::Channel channel) const {
+template<> const cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) const {
 	if (channel == Channel::None) {
 		LOG(FATAL) << "Cannot get the None channel from a Frame";
 	}
@@ -156,7 +156,7 @@ template<> const cv::cuda::GpuMat& Frame::get(ftl::rgbd::Channel channel) const 
 	return _get(channel).gpu;
 }
 
-template <> cv::Mat &Frame::create(ftl::rgbd::Channel c, const ftl::rgbd::FormatBase &f) {
+template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
 	if (c == Channel::None) {
 		throw ftl::exception("Cannot create a None channel");
 	}
@@ -172,7 +172,7 @@ template <> cv::Mat &Frame::create(ftl::rgbd::Channel c, const ftl::rgbd::Format
 	return m;
 }
 
-template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c, const ftl::rgbd::FormatBase &f) {
+template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
 	if (c == Channel::None) {
 		throw ftl::exception("Cannot create a None channel");
 	}
@@ -188,7 +188,7 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c, const ftl::rgb
 	return m;
 }
 
-template <> cv::Mat &Frame::create(ftl::rgbd::Channel c) {
+template <> cv::Mat &Frame::create(ftl::codecs::Channel c) {
 	if (c == Channel::None) {
 		throw ftl::exception("Cannot create a None channel");
 	}
@@ -199,7 +199,7 @@ template <> cv::Mat &Frame::create(ftl::rgbd::Channel c) {
 	return m;
 }
 
-template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c) {
+template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c) {
 	if (c == Channel::None) {
 		throw ftl::exception("Cannot create a None channel");
 	}
@@ -210,7 +210,7 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::rgbd::Channel c) {
 	return m;
 }
 
-void Frame::resetTexture(ftl::rgbd::Channel c) {
+void Frame::resetTexture(ftl::codecs::Channel c) {
 	auto &m = _get(c);
 	m.tex.free();
 }

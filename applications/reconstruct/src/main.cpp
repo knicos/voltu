@@ -41,7 +41,7 @@ using std::string;
 using std::vector;
 using ftl::rgbd::Source;
 using ftl::config::json_t;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
 using json = nlohmann::json;
 using std::this_thread::sleep_for;
@@ -70,7 +70,7 @@ static void writeSourceProperties(ftl::codecs::Writer &writer, int id, ftl::rgbd
 
 	spkt.timestamp = 0;
 	spkt.streamID = id;
-	spkt.channel = 0;
+	spkt.channel = Channel::Calibration;
 	spkt.channel_count = 1;
 	pkt.codec = ftl::codecs::codec_t::CALIBRATION;
 	pkt.definition = ftl::codecs::definition_t::Any;
@@ -81,6 +81,7 @@ static void writeSourceProperties(ftl::codecs::Writer &writer, int id, ftl::rgbd
 
 	writer.write(spkt, pkt);
 
+	spkt.channel = Channel::Pose;
 	pkt.codec = ftl::codecs::codec_t::POSE;
 	pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.block_number = 0;

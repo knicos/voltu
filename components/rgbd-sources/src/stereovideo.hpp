@@ -31,7 +31,7 @@ class StereoVideoSource : public detail::Source {
 	bool retrieve();
 	bool compute(int n, int b);
 	bool isReady();
-	Camera parameters(ftl::rgbd::Channel chan);
+	Camera parameters(ftl::codecs::Channel chan);
 
 	//const cv::Mat &getRight() const { return right_; }
 

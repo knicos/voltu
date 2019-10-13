@@ -168,14 +168,14 @@ class Streamer : public ftl::Configurable {
 	void _process(ftl::rgbd::FrameSet &);
 	void _cleanUp();
 	void _addClient(const std::string &source, int N, int rate, const ftl::UUID &peer, const std::string &dest);
-	void _transmitPacket(detail::StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, Quality q);
+	void _transmitPacket(detail::StreamSource *src, const ftl::codecs::Packet &pkt, ftl::codecs::Channel chan, bool hasChan2, Quality q);
 	void _transmitPacket(detail::StreamSource *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt, Quality q);
 
 	//void _encodeHQAndTransmit(detail::StreamSource *src, const cv::Mat &, const cv::Mat &, int chunk);
 	//void _encodeLQAndTransmit(detail::StreamSource *src, const cv::Mat &, const cv::Mat &, int chunk);
 	//void _encodeAndTransmit(detail::StreamSource *src, ftl::codecs::Encoder *enc1, ftl::codecs::Encoder *enc2, const cv::Mat &, const cv::Mat &);
 	//void _encodeImageChannel1(const cv::Mat &in, std::vector<unsigned char> &out, unsigned int b);
-	//bool _encodeImageChannel2(const cv::Mat &in, std::vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b);
+	//bool _encodeImageChannel2(const cv::Mat &in, std::vector<unsigned char> &out, ftl::codecs::Channel_t c, unsigned int b);
 };
 
 }

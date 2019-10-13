@@ -2,7 +2,7 @@
 
 using ftl::rgbd::VirtualSource;
 using ftl::rgbd::Source;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
 class VirtualImpl : public ftl::rgbd::detail::Source {
 	public:

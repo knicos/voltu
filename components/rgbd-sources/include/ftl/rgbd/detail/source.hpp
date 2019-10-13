@@ -56,7 +56,7 @@ class Source {
 	virtual bool isReady() { return false; };
 	virtual void setPose(const Eigen::Matrix4d &pose) { };
 
-	virtual Camera parameters(ftl::rgbd::Channel) { return params_; };
+	virtual Camera parameters(ftl::codecs::Channel) { return params_; };
 
 	protected:
 	capability_t capabilities_;

@@ -9,8 +9,8 @@
 #include <string>
 
 using ftl::render::Splatter;
-using ftl::rgbd::Channel;
-using ftl::rgbd::Channels;
+using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 using ftl::rgbd::Format;
 using cv::cuda::GpuMat;
 using std::stoul;
@@ -143,7 +143,7 @@ struct AccumSelector<float> {
 };
 
 template <typename T>
-void Splatter::__blendChannel(ftl::rgbd::Frame &output, ftl::rgbd::Channel in, ftl::rgbd::Channel out, cudaStream_t stream) {
+void Splatter::__blendChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	temp_.create<GpuMat>(
 		AccumSelector<T>::channel,
@@ -180,7 +180,7 @@ void Splatter::__blendChannel(ftl::rgbd::Frame &output, ftl::rgbd::Channel in, f
 	);
 }
 
-void Splatter::_blendChannel(ftl::rgbd::Frame &output, ftl::rgbd::Channel in, ftl::rgbd::Channel out, cudaStream_t stream) {
+void Splatter::_blendChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t stream) {
 	int type = output.get<GpuMat>(out).type(); // == CV_32F; //ftl::rgbd::isFloatChannel(channel);
 	
 	switch (type) {
@@ -424,7 +424,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 		_dibr(stream_); // Need to re-dibr due to pose change
 		_renderChannel(out, Channel::Right, Channel::Right, stream_);
 	} else if (chan != Channel::None) {
-		if (ftl::rgbd::isFloatChannel(chan)) {
+		if (ftl::codecs::isFloatChannel(chan)) {
 			out.create<GpuMat>(chan, Format<float>(camera.width, camera.height));
 			out.get<GpuMat>(chan).setTo(cv::Scalar(0.0f), cvstream);
 		} else {

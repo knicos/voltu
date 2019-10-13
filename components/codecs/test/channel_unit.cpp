@@ -1,8 +1,8 @@
 #include "catch.hpp"
-#include <ftl/rgbd/channels.hpp>
+#include <ftl/codecs/channels.hpp>
 
-using ftl::rgbd::Channel;
-using ftl::rgbd::Channels;
+using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 
 TEST_CASE("channel casting", "") {
 	SECTION("cast channel to channels") {

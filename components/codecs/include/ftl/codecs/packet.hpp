@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/channels.hpp>
 
 #include <msgpack.hpp>
 
@@ -43,8 +44,8 @@ struct Packet {
 struct StreamPacket {
 	int64_t timestamp;
 	uint8_t streamID;  		// Source number...
-	uint8_t channel_count;	// Number of channels to expect (usually 1 or 2)
-	uint8_t channel;		// Actual channel of this current set of packets
+	uint8_t channel_count;	// Number of channels to expect for this frame to complete (usually 1 or 2)
+	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
 
 	MSGPACK_DEFINE(timestamp, streamID, channel_count, channel);
 };
