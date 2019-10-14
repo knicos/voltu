@@ -227,56 +227,79 @@ app.post('/stream/config', async (req, res) => {
 })
 
 app.get('/stream/config', async(req, res) => {
-	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations
-	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/board_size/value=1
+	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/default/board_size
 	
 	const wholeURI = encodeURIComponent(req.query.uri)
-	console.log(wholeURI)
-
-	// await new Configs({
-	// 	URI: wholeURI,
-	// 	data: {
-	// 		default: {
-	// 			board_size: [9,6],
-	// 			square_size: 1
-	// 		},
-	// 		perfect: {
-	// 			board_size: [4,2],
-	// 			square_size: 42
-	// 		}
-	// 	}
-	// }).save()
-
-	let response = await Configs.find({ URI : wholeURI});
-	if(response.length){
-		console.log(response[0])
-		return res.status(200).json(response[0].data);
-	}
-	const uri = wholeURI.substring(47)
+	const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
+	const uri = wholeURI.substring(47);
 	let depth = uri.split("%2F");
-	console.log(depth[1])
-	if(depth.length == 2){
-		const splitted = wholeURI.split(depth[1])
-		const uri = splitted[0].substring(0, splitted[0].length-3)
-		console.log('VAL', uri)
-		const responseData = await Configs.find({URI : uri})
-		const realData = responseData[0].data
-		const obj = Object.entries(realData);
+	console.log("DEPTH", depth)
+	let queryURI = baseURI + '%2F' + depth[0]
+	console.log("QUERYURI", queryURI)
+	let response = await Configs.find({ URI : queryURI});
+	
+	const objects = response[0].data
+	console.log(objects)
+	//Check that DB has atleast some data
+	if(response.length){
+		const firstLayerObj = Object.entries(objects)
 		const helpObj = {}
-		for(const [key, data] of obj){
-			console.log('PIIPPIIP', depth[1] in data)
-			if(depth[1] in data) {
-				helpObj[`${key}`] = data
+		for(const [key, value] of firstLayerObj){
+			//Save the right named object into helpObj
+			if(key == depth[1]){
+				helpObj[`${key}`] = value
 			}
 		}
-		console.log("HELPOBJECT", helpObj)
-		const actualData = Object.entries(helpObj)
-		for(const [key, data] of actualData){
-			console.log("KEY2", key)
-			console.log("DATA2", data)
-		}
-		return res.status(200).json(realData)
+		//If the URI ends into the second objects name e.g. default
+		if(depth.length==2){
+			return res.status(200).json(helpObj)
+			
+		//Else send the value of the attribute
+		}else if(depth.length==3){
+			const secondLayerObj = Object.values(helpObj);
+			const finalLayer = Object.entries(secondLayerObj[0]);
+			for(const [key, value] of finalLayer){
+				console.log("PIIPPIIP")
+				if(key == depth[2]){
+					const data = { data : value }
+					return res.status(200).json(data)
+				}
+			}
+		}	
 	}
+		return res.status(200).json("kääkkääk");
+
+
+
+	//FOR LATER
+	// const uri = wholeURI.substring(47)
+	// let depth = uri.split("%2F");
+	// console.log(depth[1])
+
+	// if(depth.length == 2){
+	// 	const splitted = wholeURI.split(depth[1])
+	// 	const uri = splitted[0].substring(0, splitted[0].length-3)
+	// 	console.log('VAL', uri)
+	// 	const responseData = await Configs.find({URI : uri})
+	// 	const realData = responseData[0].data
+	// 	const obj = Object.entries(realData);
+	// 	const helpObj = {}
+	// 	for(const [key, data] of obj){
+	// 		//Check if the data is an object
+	// 		if(data ==)
+	// 		console.log('PIIPPIIP', depth[1] in data)
+	// 		if(depth[1] in data) {
+	// 			helpObj[`${key}`] = data
+	// 		}
+	// 	}
+	// 	console.log("HELPOBJECT", helpObj)
+	// 	const actualData = Object.entries(helpObj)
+	// 	for(const [key, data] of actualData){
+	// 		console.log("KEY2", key)
+	// 		console.log("DATA2", data)
+	// 	}
+	// 	return res.status(200).json(realData)
+	// }
 
 
 	// if(depth.length ==3){
@@ -292,6 +315,10 @@ app.get('/stream/config', async(req, res) => {
 
 	return res.send(200)
 })
+
+const uriParser = (uri) => {
+
+}
 
 app.get('/stream', (req, res) => {
 	let uri = req.query.uri;
