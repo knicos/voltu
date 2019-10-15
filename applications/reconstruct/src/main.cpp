@@ -95,6 +95,9 @@ static void writeSourceProperties(ftl::codecs::Writer &writer, int id, ftl::rgbd
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Slave slave(net, root);
+
+	// Controls
+	auto *controls = ftl::create<ftl::Configurable>(root, "controls");
 	
 	net->start();
 	net->waitConnections();
@@ -236,10 +239,11 @@ static void run(ftl::Configurable *root) {
 
 	group->setLatency(4);
 	group->setName("ReconGroup");
-	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align](ftl::rgbd::FrameSet &fs) -> bool {
+	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
 
-		if (slave.isPaused()) return true;
+		//if (slave.isPaused()) return true;
+		if (controls->value("paused", false)) return true;
 		
 		if (busy) {
 			LOG(INFO) << "Group frameset dropped: " << fs.timestamp;

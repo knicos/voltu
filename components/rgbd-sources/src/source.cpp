@@ -2,20 +2,20 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/threads.hpp>
 
-#include "net.hpp"
-#include "stereovideo.hpp"
-#include "image.hpp"
-#include "middlebury_source.hpp"
+#include "sources/net/net.hpp"
+#include "sources/stereovideo/stereovideo.hpp"
+#include "sources/image/image.hpp"
+#include "sources/middlebury/middlebury_source.hpp"
 
 #ifdef HAVE_LIBARCHIVE
 #include <ftl/rgbd/snapshot.hpp>
-#include "snapshot_source.hpp"
+#include "sources/snapshot/snapshot_source.hpp"
 #endif
 
-#include "file_source.hpp"
+#include "sources/ftlfile/file_source.hpp"
 
 #ifdef HAVE_REALSENSE
-#include "realsense_source.hpp"
+#include "sources/realsense/realsense_source.hpp"
 using ftl::rgbd::detail::RealsenseSource;
 #endif
 
@@ -30,7 +30,7 @@ using ftl::rgbd::capability_t;
 using ftl::codecs::Channel;
 using ftl::rgbd::detail::FileSource;
 
-std::map<std::string, ftl::codecs::Reader*> Source::readers__;
+std::map<std::string, ftl::rgbd::Player*> Source::readers__;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
@@ -120,7 +120,7 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 		string ext = path.substr(eix+1);
 
 		if (ext == "ftl") {
-			ftl::codecs::Reader *reader = __createReader(path);
+			ftl::rgbd::Player *reader = __createReader(path);
 			LOG(INFO) << "Playing track: " << uri.getFragment();
 			return new FileSource(this, reader, std::stoi(uri.getFragment()));
 		} else if (ext == "png" || ext == "jpg") {
@@ -146,7 +146,7 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	return nullptr;
 }
 
-ftl::codecs::Reader *Source::__createReader(const std::string &path) {
+ftl::rgbd::Player *Source::__createReader(const std::string &path) {
 	if (readers__.find(path) != readers__.end()) {
 		return readers__[path];
 	}
@@ -156,7 +156,7 @@ ftl::codecs::Reader *Source::__createReader(const std::string &path) {
 
 	// FIXME: This is a memory leak, must delete ifstream somewhere.
 
-	auto *r = new ftl::codecs::Reader(*file);
+	auto *r = new ftl::rgbd::Player(*file);
 	readers__[path] = r;
 	r->begin();
 	return r;
