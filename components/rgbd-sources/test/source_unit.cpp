@@ -18,6 +18,14 @@ class SnapshotReader {
 	Snapshot readArchive() { return Snapshot(); };
 };
 
+class Player {
+	public:
+	explicit Player(std::istream &) {}
+
+	bool begin() { return true; }
+	bool end() { return true; }
+};
+
 namespace detail {
 
 class ImageSource : public ftl::rgbd::detail::Source {
@@ -76,7 +84,7 @@ class SnapshotSource : public ftl::rgbd::detail::Source {
 
 class FileSource : public ftl::rgbd::detail::Source {
 	public:
-	FileSource(ftl::rgbd::Source *host, ftl::codecs::Reader *r, int) : ftl::rgbd::detail::Source(host) {
+	FileSource(ftl::rgbd::Source *host, ftl::rgbd::Player *r, int) : ftl::rgbd::detail::Source(host) {
 		last_type = "filesource";
 	}
 

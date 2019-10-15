@@ -5,7 +5,7 @@
 #include <loguru.hpp>
 
 #include <ftl/rgbd/source.hpp>
-#include <ftl/codecs/reader.hpp>
+#include "player.hpp"
 #include <ftl/codecs/decoder.hpp>
 
 #include <list>
@@ -16,7 +16,7 @@ namespace detail {
 
 class FileSource : public detail::Source {
 	public:
-	FileSource(ftl::rgbd::Source *, ftl::codecs::Reader *, int sid);
+	FileSource(ftl::rgbd::Source *, ftl::rgbd::Player *, int sid);
 	~FileSource();
 
 	bool capture(int64_t ts);
@@ -27,7 +27,7 @@ class FileSource : public detail::Source {
 
 	//void reset();
 	private:
-	ftl::codecs::Reader *reader_;
+	ftl::rgbd::Player *reader_;
 	bool has_calibration_;
 
 	struct PacketPair {

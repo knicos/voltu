@@ -20,7 +20,7 @@ void FileSource::_createDecoder(int ix, const ftl::codecs::Packet &pkt) {
 	decoders_[ix] = ftl::codecs::allocateDecoder(pkt);
 }
 
-FileSource::FileSource(ftl::rgbd::Source *s, ftl::codecs::Reader *r, int sid) : ftl::rgbd::detail::Source(s) {
+FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ftl::rgbd::detail::Source(s) {
     reader_ = r;
 	has_calibration_ = false;
 	decoders_[0] = nullptr;
