@@ -311,7 +311,16 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
 	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
 
+
 	if (scene_->frames.size() == 0) return false;
+
+	int aligned_source = value("aligned_source",-1);
+	if (aligned_source >= 0 && aligned_source < scene_->frames.size()) {
+		// FIXME: Output may not be same resolution as source!
+		scene_->frames[aligned_source].swapTo(Channel::Depth + Channel::Colour, out);
+		return true;
+	}
+
 	auto &g = scene_->frames[0].get<GpuMat>(Channel::Colour);
 
 	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
