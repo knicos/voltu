@@ -46,8 +46,11 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 	for (auto &f : frames_) {
 		if (f.timestamp == -1) {
 			f.timestamp = ts;
-			f.chunk_count = 0;
-			f.chunk_total = 0;
+			f.chunk_count[0] = 0;
+			f.chunk_count[1] = 0;
+			f.chunk_total[0] = 0;
+			f.chunk_total[1] = 0;
+			f.channel_count = 0;
 			f.tx_size = 0;
 			f.channel1.create(s, c1type);
 			f.channel2.create(s, c2type);
@@ -63,8 +66,11 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 		// Force release of frame!
 		if (f.timestamp == oldest) {
 			f.timestamp = ts;
-			f.chunk_count = 0;
-			f.chunk_total = 0;
+			f.chunk_count[0] = 0;
+			f.chunk_count[1] = 0;
+			f.chunk_total[0] = 0;
+			f.chunk_total[1] = 0;
+			f.channel_count = 0;
 			f.tx_size = 0;
 			f.channel1.create(s, c1type);
 			f.channel2.create(s, c2type);
@@ -246,16 +252,17 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	host_->notifyRaw(spkt, pkt);
 
 	const ftl::codecs::Channel chan = host_->getChannel();
-	const ftl::codecs::Channel rchan = spkt.channel; // & 0x1;
+	const ftl::codecs::Channel rchan = spkt.channel;
+	const int channum = (rchan == Channel::Colour) ? 0 : 1;
 
-	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC4, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC4));
+	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
 
 	// Update frame statistics
 	frame.tx_size += pkt.data.size();
 
 	// Only decode if this channel is wanted.
 	if (rchan == Channel::Colour || rchan == chan) {
-		_createDecoder((rchan == Channel::Colour) ? 0 : 1, pkt);
+		_createDecoder(channum, pkt);
 		auto *decoder = (rchan == Channel::Colour) ? decoder_c1_ : decoder_c2_;
 		if (!decoder) {
 			LOG(ERROR) << "No frame decoder available";
@@ -282,30 +289,31 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 		return;
 	}
 
-	// Calculate how many packets to expect for this frame
-	if (frame.chunk_total == 0) {
-		// Getting a second channel first means expect double packets
-		// FIXME: Assumes each packet has same number of blocks!
-		frame.chunk_total = pkt.block_total * spkt.channel_count;
+	// Calculate how many packets to expect for this channel
+	if (frame.chunk_total[channum] == 0) {
+		frame.chunk_total[channum] = pkt.block_total;
 	}		
 
-	++frame.chunk_count;
+	++frame.chunk_count[channum];
+	++frame.channel_count;
 
-	if (frame.chunk_count > frame.chunk_total) LOG(FATAL) << "TOO MANY CHUNKS";
+	if (frame.chunk_count[channum] > frame.chunk_total[channum]) LOG(FATAL) << "TOO MANY CHUNKS";
 
 	// Capture tx time of first received chunk
-	if (frame.chunk_count == 1) {
+	if (frame.channel_count == 1 && frame.chunk_count[channum] == 1) {
 		UNIQUE_LOCK(frame.mtx, flk);
-		if (frame.chunk_count == 1) {
+		if (frame.chunk_count[channum] == 1) {
 			frame.tx_latency = int64_t(ttimeoff);
 		}
 	}
 
-	// Last chunk now received
-	if (frame.chunk_count == frame.chunk_total) {
+	// Last chunk of both channels now received
+	if (frame.channel_count == spkt.channel_count &&
+			frame.chunk_count[0] == frame.chunk_total[0] &&
+			frame.chunk_count[1] == frame.chunk_total[1]) {
 		UNIQUE_LOCK(frame.mtx, flk);
 
-		if (frame.timestamp >= 0 && frame.chunk_count == frame.chunk_total) {
+		if (frame.timestamp >= 0 && frame.chunk_count[0] == frame.chunk_total[0] && frame.chunk_count[1] == frame.chunk_total[1]) {
 			timestamp_ = frame.timestamp;
 			frame.tx_latency = now-(spkt.timestamp+frame.tx_latency);
 

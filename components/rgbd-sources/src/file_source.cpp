@@ -1,5 +1,6 @@
 #include "file_source.hpp"
 
+#include <ftl/codecs/hevc.hpp>
 #include <ftl/timer.hpp>
 
 using ftl::rgbd::detail::FileSource;
@@ -15,7 +16,7 @@ void FileSource::_createDecoder(int ix, const ftl::codecs::Packet &pkt) {
 		}
 	}
 
-	LOG(INFO) << "Create a decoder: " << ix;
+	DLOG(INFO) << "Create a decoder: " << ix;
 	decoders_[ix] = ftl::codecs::allocateDecoder(pkt);
 }
 
@@ -28,8 +29,10 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::codecs::Reader *r, int sid) : 
 	cache_write_ = 0;
 	realtime_ = host_->value("realtime", true);
 	timestamp_ = r->getStartTime();
+	sourceid_ = sid;
 
     r->onPacket(sid, [this](const ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
+		host_->notifyRaw(spkt, pkt);
 		if (pkt.codec == codec_t::POSE) {
 			Eigen::Matrix4d p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
 			host_->setPose(p);
@@ -40,10 +43,7 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::codecs::Reader *r, int sid) : 
 			has_calibration_ = true;
 		} else {
 			if (pkt.codec == codec_t::HEVC) {
-				// Obtain NAL unit type
-				int nal_type = (pkt.data[4] >> 1) & 0x3F;
-				// A type of 32 = VPS unit, hence I-Frame in this case so skip past packets
-				if (nal_type == 32) _removeChannel(spkt.channel);
+				if (ftl::codecs::hevc::isIFrame(pkt.data)) _removeChannel(spkt.channel);
 			}
 			cache_[cache_write_].emplace_back();
 			auto &c = cache_[cache_write_].back();
@@ -93,12 +93,23 @@ void FileSource::swap() {
 
 bool FileSource::compute(int n, int b) {
 	if (cache_read_ < 0) return false;
+	if (cache_[cache_read_].size() == 0) return false;
+
+	int64_t lastts = 0;
+	int lastc = 0;
 
 	for (auto i=cache_[cache_read_].begin(); i!=cache_[cache_read_].end(); ++i) {
 		auto &c = *i;
 
+		if (c.spkt.timestamp > lastts) {
+			lastts = c.spkt.timestamp;
+			lastc = 1;
+		} else if (c.spkt.timestamp == lastts) {
+			lastc++;
+		}
+
 		if (c.spkt.channel == Channel::Colour) {
-			rgb_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_8UC4);
+			rgb_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_8UC3);
 		} else {
 			depth_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_32F);
 		}
@@ -110,6 +121,11 @@ bool FileSource::compute(int n, int b) {
 		} catch (std::exception &e) {
 			LOG(INFO) << "Decoder exception: " << e.what();
 		}
+	}
+
+	if (lastc != 2) {
+		LOG(ERROR) << "Channels not in sync (" << sourceid_ << "): " << lastts;
+		return false;
 	}
 
 	cache_[cache_read_].clear();

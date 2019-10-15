@@ -257,8 +257,9 @@ ftl::rgbd::FrameSet *Group::_getFrameset(int f) {
 		int idx = (head_+kFrameBufferSize-i)%kFrameBufferSize;
 
 		if (framesets_[idx].timestamp == lookfor && framesets_[idx].count != sources_.size()) {
-			LOG(INFO) << "Required frame not complete (timestamp="  << (framesets_[idx].timestamp) << " buffer=" << i << ")";
+			LOG(WARNING) << "Required frame not complete in '" << name_ << "' (timestamp="  << (framesets_[idx].timestamp) << " buffer=" << i << ")";
 			//framesets_[idx].stale = true;
+			//return &framesets_[idx];
 			continue;
 		}
 
@@ -302,6 +303,8 @@ void Group::_addFrameset(int64_t timestamp) {
 		//framesets_[head_].channel2.resize(sources_.size());
 		framesets_[head_].frames.resize(sources_.size());
 
+		for (auto &f : framesets_[head_].frames) f.reset();
+
 		if (framesets_[head_].sources.size() != sources_.size()) {
 			framesets_[head_].sources.clear();
 			for (auto s : sources_) framesets_[head_].sources.push_back(s);
@@ -332,6 +335,8 @@ void Group::_addFrameset(int64_t timestamp) {
 		//framesets_[head_].channel1.resize(sources_.size());
 		//framesets_[head_].channel2.resize(sources_.size());
 		framesets_[head_].frames.resize(sources_.size());
+
+		for (auto &f : framesets_[head_].frames) f.reset();
 
 		if (framesets_[head_].sources.size() != sources_.size()) {
 			framesets_[head_].sources.clear();

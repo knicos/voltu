@@ -34,14 +34,18 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 	std::unique_lock<std::mutex> lk(mtx_, std::defer_lock);
 	if (!lk.try_lock()) return true;
 
-	if (has_data_ && get<0>(data_).timestamp <= ts) {
-		f(get<0>(data_), get<1>(data_));
-		has_data_ = false;
-	} else if (has_data_) {
-		return false;
+	// Check buffer first for frames already read
+	for (auto i = data_.begin(); i != data_.end();) {
+		if (get<0>(*i).timestamp <= ts) {
+			f(get<0>(*i), get<1>(*i));
+			i = data_.erase(i);
+		} else {
+			++i;
+		}
 	}
 
 	bool partial = false;
+	int64_t extended_ts = ts + 200;  // Buffer 200ms ahead
 
 	while (playing_ && stream_->good() || buffer_.nonparsed_size() > 0) {
 		if (buffer_.nonparsed_size() == 0 || (partial && buffer_.nonparsed_size() < 10000000)) {
@@ -50,7 +54,7 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 			//if (stream_->bad()) return false;
 
 			int bytes = stream_->gcount();
-			if (bytes == 0) return false;
+			if (bytes == 0) break;
 			buffer_.buffer_consumed(bytes);
 			partial = false;
 		}
@@ -61,10 +65,10 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 			continue;
 		}
 
-		std::tuple<StreamPacket,Packet> data;
+		//std::tuple<StreamPacket,Packet> data;
 		msgpack::object obj = msg.get();
 		try {
-			obj.convert(data);
+			obj.convert(data_.emplace_back());
 		} catch (std::exception &e) {
 			LOG(INFO) << "Corrupt message: " << buffer_.nonparsed_size();
 			//partial = true;
@@ -72,19 +76,25 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 			return false;
 		}
 
+		auto &data = data_.back();
+
 		// Adjust timestamp
 		get<0>(data).timestamp += timestart_;
 
+		// TODO: Need to read ahead a few frames because there may be a
+		// smaller timestamp after this one... requires a buffer. Ideally this
+		// should be resolved during the write process.
 		if (get<0>(data).timestamp <= ts) {
 			f(get<0>(data),get<1>(data));
-		} else {
-			data_ = data;
-			has_data_ = true;
+			data_.pop_back();
+		} else if (get<0>(data).timestamp > extended_ts) {
+			//data_ = data;
+			//has_data_ = true;
 			return true;
 		}
 	}
 
-	return false;
+	return data_.size() > 0;
 }
 
 bool Reader::read(int64_t ts) {
