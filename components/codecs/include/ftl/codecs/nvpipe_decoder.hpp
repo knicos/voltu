@@ -23,6 +23,7 @@ class NvPipeDecoder : public ftl::codecs::Decoder {
 	bool is_float_channel_;
 	ftl::codecs::definition_t last_definition_;
 	MUTEX mutex_;
+	bool seen_iframe_;
 };
 
 }

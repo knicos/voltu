@@ -215,10 +215,10 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const 
 	// TODO: Check tex cvType
 
 	if (m.tex.devicePtr() == nullptr) {
-		LOG(INFO) << "Creating texture object";
+		//LOG(INFO) << "Creating texture object";
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
 	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows) {
-		LOG(INFO) << "Recreating texture object";
+		LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'";
 		m.tex.free();
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
 	}
@@ -248,9 +248,10 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c) {
 	// TODO: Check tex cvType
 
 	if (m.tex.devicePtr() == nullptr) {
-		LOG(INFO) << "Creating texture object";
+		//LOG(INFO) << "Creating texture object";
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
 	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.tex.devicePtr() != m.gpu.data) {
+		LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'";
 		m.tex.free();
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
 	}

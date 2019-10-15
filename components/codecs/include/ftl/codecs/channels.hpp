@@ -43,6 +43,9 @@ inline bool isVideo(Channel c) { return (int)c < 32; };
 inline bool isAudio(Channel c) { return (int)c >= 32 && (int)c < 64; };
 inline bool isData(Channel c) { return (int)c >= 64; };
 
+std::string name(Channel c);
+int type(Channel c);
+
 class Channels {
     public:
 

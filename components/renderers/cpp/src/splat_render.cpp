@@ -301,6 +301,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	SHARED_LOCK(scene_->mtx, lk);
 	if (!src->isReady()) return false;
 
+	scene_->upload(Channel::Colour + Channel::Depth, stream_);
+
 	const auto &camera = src->parameters();
 
 	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));

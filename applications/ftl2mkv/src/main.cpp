@@ -3,6 +3,7 @@
 #include <ftl/codecs/reader.hpp>
 #include <ftl/codecs/packet.hpp>
 #include <ftl/rgbd/camera.hpp>
+#include <ftl/codecs/hevc.hpp>
 
 #include <fstream>
 
@@ -188,10 +189,7 @@ int main(int argc, char **argv) {
 
 			bool keyframe = false;
 			if (pkt.codec == codec_t::HEVC) {
-				// Obtain NAL unit type
-				int nal_type = (pkt.data[4] >> 1) & 0x3F;
-				// A type of 32 = VPS unit (so in this case a key frame)
-				if (nal_type == 32) {
+				if (ftl::codecs::hevc::isIFrame(pkt.data)) {
 					seen_key[spkt.streamID] = true;
 					keyframe = true;
 				}

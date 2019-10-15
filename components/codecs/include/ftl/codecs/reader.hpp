@@ -45,7 +45,7 @@ class Reader {
 	private:
 	std::istream *stream_;
 	msgpack::unpacker buffer_;
-	std::tuple<StreamPacket,Packet> data_;
+	std::list<std::tuple<StreamPacket,Packet>> data_;
 	bool has_data_;
 	int64_t timestart_;
 	bool playing_;

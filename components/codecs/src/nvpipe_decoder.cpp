@@ -3,6 +3,7 @@
 #include <loguru.hpp>
 
 #include <ftl/cuda_util.hpp>
+#include <ftl/codecs/hevc.hpp>
 //#include <cuda_runtime.h>
 
 #include <opencv2/core/cuda/common.hpp>
@@ -11,6 +12,7 @@ using ftl::codecs::NvPipeDecoder;
 
 NvPipeDecoder::NvPipeDecoder() {
 	nv_decoder_ = nullptr;
+	seen_iframe_ = false;
 }
 
 NvPipeDecoder::~NvPipeDecoder() {
@@ -46,12 +48,21 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 			//LOG(INFO) << "Bitrate=" << (int)bitrate << " width=" << ABRController::getColourWidth(bitrate);
 			LOG(FATAL) << "Could not create decoder: " << NvPipe_GetError(NULL);
 		} else {
-			LOG(INFO) << "Decoder created";
+			DLOG(INFO) << "Decoder created";
 		}
+
+		seen_iframe_ = false;
 	}
 
 	// TODO: (Nick) Move to member variable to prevent re-creation
 	cv::Mat tmp(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (is_float_frame) ? CV_16U : CV_8UC4);
+
+	if (pkt.codec == ftl::codecs::codec_t::HEVC) {
+		// Obtain NAL unit type
+		if (ftl::codecs::hevc::isIFrame(pkt.data)) seen_iframe_ = true;
+	}
+
+	if (!seen_iframe_) return false;
 
 	int rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), tmp.data, tmp.cols, tmp.rows);
 	if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);

@@ -4,6 +4,7 @@
 #include <ftl/codecs/decoder.hpp>
 #include <ftl/codecs/packet.hpp>
 #include <ftl/rgbd/camera.hpp>
+#include <ftl/timer.hpp>
 
 #include <fstream>
 
@@ -56,53 +57,57 @@ int main(int argc, char **argv) {
     int current_stream = 0;
     int current_channel = 0;
 
-    bool res = r.read(90000000000000, [&current_stream,&current_channel,&r](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-        if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel)) return;
-        if (spkt.streamID == current_stream) {
+	ftl::timer::add(ftl::timer::kTimerMain, [&current_stream,&current_channel,&r](int64_t ts) {
+		bool res = r.read(ts, [&current_stream,&current_channel,&r](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel)) return;
+			if (spkt.streamID == current_stream) {
 
-            if (pkt.codec == codec_t::POSE) {
-                Eigen::Matrix4d p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
-                LOG(INFO) << "Have pose: " << p;
-                return;
-            }
+				if (pkt.codec == codec_t::POSE) {
+					Eigen::Matrix4d p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
+					LOG(INFO) << "Have pose: " << p;
+					return;
+				}
 
-            if (pkt.codec == codec_t::CALIBRATION) {
-                ftl::rgbd::Camera *camera = (ftl::rgbd::Camera*)pkt.data.data();
-                LOG(INFO) << "Have calibration: " << camera->fx;
-                return;
-            }
+				if (pkt.codec == codec_t::CALIBRATION) {
+					ftl::rgbd::Camera *camera = (ftl::rgbd::Camera*)pkt.data.data();
+					LOG(INFO) << "Have calibration: " << camera->fx;
+					return;
+				}
 
-            LOG(INFO) << "Reading packet: (" << (int)spkt.streamID << "," << (int)spkt.channel << ") " << (int)pkt.codec << ", " << (int)pkt.definition;
+				//LOG(INFO) << "Reading packet: (" << (int)spkt.streamID << "," << (int)spkt.channel << ") " << (int)pkt.codec << ", " << (int)pkt.definition;
 
-            cv::Mat frame(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (spkt.channel == Channel::Depth) ? CV_32F : CV_8UC3);
-            createDecoder(pkt);
+				cv::Mat frame(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (spkt.channel == Channel::Depth) ? CV_32F : CV_8UC3);
+				createDecoder(pkt);
 
-            try {
-                decoder->decode(pkt, frame);
-            } catch (std::exception &e) {
-                LOG(INFO) << "Decoder exception: " << e.what();
-            }
+				try {
+					decoder->decode(pkt, frame);
+				} catch (std::exception &e) {
+					LOG(INFO) << "Decoder exception: " << e.what();
+				}
 
-            if (!frame.empty()) {
-                if (spkt.channel == Channel::Depth) {
-                    visualizeDepthMap(frame, frame, 8.0f);
-                }
-                double time = (double)(spkt.timestamp - r.getStartTime()) / 1000.0;
-                cv::putText(frame, std::string("Time: ") + std::to_string(time) + std::string("s"), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,255));
-                cv::imshow("Player", frame);
-            }
-            int key = cv::waitKey(20);
-            if (key >= 48 && key <= 57) {
-                current_stream = key - 48;
-            } else if (key == 'd') {
-                current_channel = (current_channel == 0) ? 1 : 0;
-            } else if (key == 27) {
-                r.end();
-            }
-        }
-    });
+				if (!frame.empty()) {
+					if (spkt.channel == Channel::Depth) {
+						visualizeDepthMap(frame, frame, 8.0f);
+					}
+					double time = (double)(spkt.timestamp - r.getStartTime()) / 1000.0;
+					cv::putText(frame, std::string("Time: ") + std::to_string(time) + std::string("s"), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,255));
+					cv::imshow("Player", frame);
+				}
+				int key = cv::waitKey(1);
+				if (key >= 48 && key <= 57) {
+					current_stream = key - 48;
+				} else if (key == 'd') {
+					current_channel = (current_channel == 0) ? 1 : 0;
+				} else if (key == 27) {
+					ftl::timer::stop(false);
+				}
+			}
+		});
+		if (!res) ftl::timer::stop(false);
+		return res;
+	});
 
-    if (!res) LOG(ERROR) << "No frames left";
+	ftl::timer::start(true);
 
     r.end();
 

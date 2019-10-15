@@ -38,6 +38,7 @@ class FileSource : public detail::Source {
 	std::list<PacketPair> cache_[2];
 	int cache_read_;
 	int cache_write_;
+	int sourceid_;
 
 	ftl::codecs::Decoder *decoders_[2];
 

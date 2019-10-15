@@ -7,6 +7,7 @@ set(CODECSRC
 	src/generate.cpp
 	src/writer.cpp
 	src/reader.cpp
+	src/channels.cpp
 )
 
 if (HAVE_NVPIPE)

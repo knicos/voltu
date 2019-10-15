@@ -48,6 +48,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	//group_.setFPS(value("fps", 20));
 	group_.setLatency(4);
+	group_.setName("StreamGroup");
 
 	compress_level_ = value("compression", 1);
 	
