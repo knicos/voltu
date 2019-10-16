@@ -44,8 +44,10 @@ using ftl::cuda::warpSum;
 	// Compile time enable/disable of culling back facing points
 	if (CULLING) {
 		float3 ray = params.m_viewMatrixInverse.getFloat3x3() * params.camera.screenToCam(x,y,1.0f);
-		ray = ray / length(ray);
-		float3 n = make_float3(normals.tex2D((int)x,(int)y));
+        ray = ray / length(ray);
+        float4 n4 = normals.tex2D((int)x,(int)y);
+        if (n4.w == 0.0f) return;
+		float3 n = make_float3(n4);
 		float l = length(n);
 		if (l == 0) {
 			return;

@@ -97,7 +97,7 @@ __global__ void clipping_kernel(ftl::cuda::TextureObject<float> depth, ftl::rgbd
 		float4 p = make_float4(camera.screenToCam(x,y,d), 0.0f);
 
 		if (isClipped(p, clip)) {
-			depth(x,y) = 0.0f;
+			depth(x,y) = MINF;
 		}
 	}
 }

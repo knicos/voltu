@@ -60,6 +60,11 @@ public:
 	void swapChannels(ftl::codecs::Channel, ftl::codecs::Channel);
 
 	/**
+	 * Does a host or device memory copy into the given frame.
+	 */
+	void copyTo(ftl::codecs::Channels, Frame &);
+
+	/**
 	 * Create a channel with a given format. This will discard any existing
 	 * data associated with the channel and ensure all data structures and
 	 * memory allocations match the new format.

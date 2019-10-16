@@ -85,6 +85,19 @@ void Frame::swapChannels(ftl::codecs::Channel a, ftl::codecs::Channel b) {
 	m1.tex = std::move(temptex);
 }
 
+void Frame::copyTo(ftl::codecs::Channels channels, Frame &f) {
+	f.reset();
+
+	// For all channels in this frame object
+	for (auto c : channels_) {
+		// Should we copy this channel?
+		if (channels.has(c)) {
+			if (isCPU(c)) get<cv::Mat>(c).copyTo(f.create<cv::Mat>(c));
+			else get<cv::cuda::GpuMat>(c).copyTo(f.create<cv::cuda::GpuMat>(c));
+		}
+	}
+}
+
 template<> cv::Mat& Frame::get(ftl::codecs::Channel channel) {
 	if (channel == Channel::None) {
 		DLOG(WARNING) << "Cannot get the None channel from a Frame";
