@@ -53,6 +53,7 @@ class Splatter : public ftl::render::Renderer {
 	uchar4 light_ambient_;
 	ftl::render::SplatParams params_;
 	cudaStream_t stream_;
+	float3 light_pos_;
 
 	template <typename T>
 	void __blendChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);

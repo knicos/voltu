@@ -3,6 +3,7 @@ add_library(ftlrender
 	src/splatter.cu
 	src/points.cu
 	src/normals.cu
+	src/mask.cu
 )
 
 # These cause errors in CI build and are being removed from PCL in newer versions

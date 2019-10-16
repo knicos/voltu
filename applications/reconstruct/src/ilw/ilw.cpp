@@ -38,7 +38,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
 	fill_depth_ = value("fill_depth", false);
 
     on("fill_depth", [this](const ftl::config::Event &e) {
-        fill_depth_ = value("fill_depth", true);
+        fill_depth_ = value("fill_depth", false);
     });
 
 	on("ilw_align", [this](const ftl::config::Event &e) {
@@ -148,6 +148,9 @@ bool ILW::process(ftl::rgbd::FrameSet &fs) {
     _phase0(fs, stream_);
 
 	params_.range = value("search_range", 0.05f);
+    params_.fill_match = value("fill_match", 50.0f);
+    params_.fill_threshold = value("fill_threshold", 0.0f);
+	params_.match_threshold = value("match_threshold", 0.3f);
 
     for (int i=0; i<iterations_; ++i) {
         _phase1(fs, value("cost_function",3), stream_);
@@ -215,6 +218,8 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 		f.createTexture<int>(Channel::Mask, Format<int>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<uchar4>(Channel::Colour);
 		f.createTexture<float>(Channel::Depth);
+
+		f.get<GpuMat>(Channel::Mask).setTo(cv::Scalar(0));
     }
 
 	//cudaSafeCall(cudaStreamSynchronize(stream_));
@@ -225,6 +230,20 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
     // Run correspondence kernel to create an energy vector
     cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+    // Find discontinuity mask
+    for (size_t i=0; i<fs.frames.size(); ++i) {
+        auto &f = fs.frames[i];
+        auto s = fs.sources[i];
+
+        ftl::cuda::discontinuity(
+            f.getTexture<int>(Channel::Mask),
+            f.getTexture<float>(Channel::Depth),
+            s->parameters(),
+            discon_mask_,
+            stream
+        );
+    }
 
 	// First do any preprocessing
 	if (fill_depth_) {
@@ -287,6 +306,7 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
                 // TODO: Add normals and other things...
                 f1.getTexture<float>(Channel::Depth2),
                 f1.getTexture<float>(Channel::Confidence),
+				f1.getTexture<int>(Channel::Mask),
                 pose1,
                 pose1_inv,
                 pose2,
@@ -332,6 +352,11 @@ bool ILW::_phase2(ftl::rgbd::FrameSet &fs, float rate, cudaStream_t stream) {
              motion_window_,
              stream
         );
+
+        if (f.hasChannel(Channel::Mask)) {
+			ftl::cuda::mask_filter(f.getTexture<float>(Channel::Depth),
+				f.getTexture<int>(Channel::Mask), stream_);
+		}
     }
 
     return true;

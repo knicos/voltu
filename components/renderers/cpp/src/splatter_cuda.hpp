@@ -39,6 +39,11 @@ namespace cuda {
 		ftl::cuda::TextureObject<B> &out,
 		ftl::cuda::TextureObject<float> &contribs,
 		cudaStream_t stream);
+
+	void show_mask(
+        ftl::cuda::TextureObject<uchar4> &colour,
+		ftl::cuda::TextureObject<int> &mask,
+        int id, uchar4 style, cudaStream_t stream);
 }
 }
 
