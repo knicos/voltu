@@ -19,6 +19,8 @@
 using ftl::rgbd::detail::RealsenseSource;
 #endif
 
+#include <fstream>
+
 using ftl::rgbd::Source;
 using ftl::Configurable;
 using std::string;

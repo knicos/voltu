@@ -20,6 +20,7 @@
 #include "ilw/ilw.hpp"
 #include <ftl/render/splat_render.hpp>
 
+#include <fstream>
 #include <string>
 #include <vector>
 #include <thread>
