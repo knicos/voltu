@@ -467,7 +467,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 		out.get<GpuMat>(Channel::Right).setTo(background_, cvstream);
 
 		_dibr(stream_); // Need to re-dibr due to pose change
-		_renderChannel(out, Channel::Right, Channel::Right, stream_);
+		_renderChannel(out, Channel::Left, Channel::Right, stream_);
 	} else if (chan != Channel::None) {
 		if (ftl::codecs::isFloatChannel(chan)) {
 			out.create<GpuMat>(chan, Format<float>(camera.width, camera.height));
