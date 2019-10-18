@@ -228,6 +228,7 @@ add_subdirectory(components/control/cpp)
 add_subdirectory(applications/calibration)
 add_subdirectory(applications/groupview)
 add_subdirectory(applications/player)
+add_subdirectory(applications/recorder)
 
 if (HAVE_AVFORMAT)
 	add_subdirectory(applications/ftl2mkv)
