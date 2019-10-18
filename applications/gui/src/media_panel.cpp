@@ -19,6 +19,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 
 	paused_ = false;
 	writer_ = nullptr;
+	disable_switch_channels_ = false;
 
 	setLayout(new BoxLayout(Orientation::Horizontal,
 									Alignment::Middle, 5, 10));
@@ -77,6 +78,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 
 	//button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
 
+	/* Doesn't work at the moment
  #ifdef HAVE_LIBARCHIVE
 	auto button_snapshot = new Button(this, "", ENTYPO_ICON_IMAGES);
 	button_snapshot->setTooltip("Screen capture");
@@ -102,103 +104,133 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	});
 #endif
 
-    auto popbutton = new PopupButton(this, "", ENTYPO_ICON_LAYERS);
-    popbutton->setSide(Popup::Side::Right);
-	popbutton->setChevronIcon(ENTYPO_ICON_CHEVRON_SMALL_RIGHT);
-    Popup *popup = popbutton->popup();
-    popup->setLayout(new GroupLayout());
-	popup->setTheme(screen->toolbuttheme);
-    popup->setAnchorHeight(150);
+	
+	// not very useful (l/r)
 
-    button = new Button(popup, "Left");
-    button->setFlags(Button::RadioButton);
-    button->setPushed(true);
-    button->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Left);
-        }
-    });
+	auto button_dual = new Button(this, "", ENTYPO_ICON_MAP);
+	button_dual->setCallback([this]() {
+		screen_->setDualView(!screen_->getDualView());
+	});
+	*/
+
+#ifdef HAVE_OPENVR
+	if (this->screen_->hasVR()) {
+		auto button_vr = new Button(this, "VR");
+		button_vr->setFlags(Button::ToggleButton);
+		button_vr->setChangeCallback([this, button_vr](bool state) {
+			if (!screen_->useVR()) {
+				if (screen_->switchVR(true) == true) {
+					button_vr->setTextColor(nanogui::Color(0.5f,0.5f,1.0f,1.0f));
+					this->button_channels_->setEnabled(false);
+				}
+			}
+			else {
+				if (screen_->switchVR(false) == false) {
+					button_vr->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+					this->button_channels_->setEnabled(true);
+				}
+			}
+		});
+	}
+#endif
+
+	button_channels_ = new PopupButton(this, "", ENTYPO_ICON_LAYERS);
+	button_channels_->setSide(Popup::Side::Right);
+	button_channels_->setChevronIcon(ENTYPO_ICON_CHEVRON_SMALL_RIGHT);
+	Popup *popup = button_channels_->popup();
+	popup->setLayout(new GroupLayout());
+	popup->setTheme(screen->toolbuttheme);
+	popup->setAnchorHeight(150);
+
+	button = new Button(popup, "Left");
+	button->setFlags(Button::RadioButton);
+	button->setPushed(true);
+	button->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Left);
+		}
+	});
 
 	right_button_ = new Button(popup, "Right");
-    right_button_->setFlags(Button::RadioButton);
-    right_button_->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Right);
-        }
-    });
+	right_button_->setFlags(Button::RadioButton);
+	right_button_->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Right);
+		}
+	});
 
-    depth_button_ = new Button(popup, "Depth");
-    depth_button_->setFlags(Button::RadioButton);
-    depth_button_->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Depth);
-        }
-    });
+	depth_button_ = new Button(popup, "Depth");
+	depth_button_->setFlags(Button::RadioButton);
+	depth_button_->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Depth);
+		}
+	});
 
-	popbutton = new PopupButton(popup, "More");
-    popbutton->setSide(Popup::Side::Right);
+	auto *popbutton = new PopupButton(popup, "More");
+	popbutton->setSide(Popup::Side::Right);
 	popbutton->setChevronIcon(ENTYPO_ICON_CHEVRON_SMALL_RIGHT);
-    popup = popbutton->popup();
-    popup->setLayout(new GroupLayout());
+	popup = popbutton->popup();
+	popup->setLayout(new GroupLayout());
 	popup->setTheme(screen->toolbuttheme);
-    popup->setAnchorHeight(150);
+	popup->setAnchorHeight(150);
 
-    button = new Button(popup, "Deviation");
-    button->setFlags(Button::RadioButton);
-    button->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Deviation);
-        }
-    });
+	button = new Button(popup, "Deviation");
+	button->setFlags(Button::RadioButton);
+	button->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Deviation);
+		}
+	});
 
 	button = new Button(popup, "Normals");
-    button->setFlags(Button::RadioButton);
-    button->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Normals);
-        }
-    });
+	button->setFlags(Button::RadioButton);
+	button->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Normals);
+		}
+	});
 
 	button = new Button(popup, "Flow");
-    button->setFlags(Button::RadioButton);
-    button->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Flow);
-        }
-    });
+	button->setFlags(Button::RadioButton);
+	button->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Flow);
+		}
+	});
 
 	button = new Button(popup, "Confidence");
-    button->setFlags(Button::RadioButton);
-    button->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Confidence);
-        }
-    });
+	button->setFlags(Button::RadioButton);
+	button->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Confidence);
+		}
+	});
 
-    button = new Button(popup, "Energy");
-    button->setFlags(Button::RadioButton);
-    button->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Energy);
-        }
-    });
+	button = new Button(popup, "Energy");
+	button->setFlags(Button::RadioButton);
+	button->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Energy);
+		}
+	});
 
 	button = new Button(popup, "Density");
-    button->setFlags(Button::RadioButton);
-    button->setCallback([this]() {
-        ftl::gui::Camera *cam = screen_->activeCamera();
-        if (cam) {
-            cam->setChannel(Channel::Density);
-        }
-    });
+	button->setFlags(Button::RadioButton);
+	button->setCallback([this]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setChannel(Channel::Density);
+		}
+	});
 
 }
 
@@ -208,12 +240,12 @@ MediaPanel::~MediaPanel() {
 
 // Update button enabled status
 void MediaPanel::cameraChanged() {
-    ftl::gui::Camera *cam = screen_->activeCamera();
-    if (cam) {
-        if (cam->source()->hasCapabilities(ftl::rgbd::kCapStereo)) {
-            right_button_->setEnabled(true);
-        } else {
-            right_button_->setEnabled(false);
-        }
-    }
+	ftl::gui::Camera *cam = screen_->activeCamera();
+	if (cam) {
+		if (cam->source()->hasCapabilities(ftl::rgbd::kCapStereo)) {
+			right_button_->setEnabled(true);
+		} else {
+			right_button_->setEnabled(false);
+		}
+	}
 }

@@ -26,8 +26,8 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	_updateDetails();
 
 	auto tools = new Widget(this);
-    tools->setLayout(new BoxLayout(Orientation::Horizontal,
-                                       Alignment::Middle, 0, 6));
+	tools->setLayout(new BoxLayout(	Orientation::Horizontal,
+									Alignment::Middle, 0, 6));
 
 	auto button = new Button(tools, "", ENTYPO_ICON_PLUS);
 	button->setCallback([this] {
@@ -35,6 +35,9 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		_addNode();
 	});
 	button->setTooltip("Add new node");
+	
+	// commented-out buttons not working/useful
+	/*
 	button = new Button(tools, "", ENTYPO_ICON_CYCLE);
 	button->setCallback([this] {
 		ctrl_->restart();
@@ -43,7 +46,7 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	button->setCallback([this] {
 		ctrl_->pause();
 	});
-	button->setTooltip("Pause all nodes");
+	button->setTooltip("Pause all nodes");*/
 
 	new Label(this, "Select Node","sans-bold");
 	auto select = new ComboBox(this, node_titles_);
@@ -55,14 +58,14 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	new Label(this, "Node Options","sans-bold");
 
 	tools = new Widget(this);
-    tools->setLayout(new BoxLayout(Orientation::Horizontal,
-                                       Alignment::Middle, 0, 6));
+	tools->setLayout(new BoxLayout(	Orientation::Horizontal,
+									Alignment::Middle, 0, 6));
 
-	button = new Button(tools, "", ENTYPO_ICON_INFO);
+	/*button = new Button(tools, "", ENTYPO_ICON_INFO);
 	button->setCallback([this] {
 		
 	});
-	button->setTooltip("Node status information");
+	button->setTooltip("Node status information");*/
 
 	button = new Button(tools, "", ENTYPO_ICON_COG);
 	button->setCallback([this,parent] {
@@ -71,17 +74,17 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	});
 	button->setTooltip("Edit node configuration");
 
-	button = new Button(tools, "", ENTYPO_ICON_CYCLE);
+	/*button = new Button(tools, "", ENTYPO_ICON_CYCLE);
 	button->setCallback([this] {
 		ctrl_->restart(_getActiveID());
 	});
-	button->setTooltip("Restart this node");
+	button->setTooltip("Restart this node");*/
 
-	button = new Button(tools, "", ENTYPO_ICON_CONTROLLER_PAUS);
+	/*button = new Button(tools, "", ENTYPO_ICON_CONTROLLER_PAUS);
 	button->setCallback([this] {
 		ctrl_->pause(_getActiveID());
 	});
-	button->setTooltip("Pause node processing");
+	button->setTooltip("Pause node processing");*/
 
 	ctrl->getNet()->onConnect([this,select](ftl::net::Peer *p) {
 		_updateDetails();

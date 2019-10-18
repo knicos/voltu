@@ -14,18 +14,22 @@ namespace gui {
 class Screen;
 
 class MediaPanel : public nanogui::Window {
-    public:
-    explicit MediaPanel(ftl::gui::Screen *);
-    ~MediaPanel();
+	public:
+	explicit MediaPanel(ftl::gui::Screen *);
+	~MediaPanel();
 
-    void cameraChanged();
+	void cameraChanged();
 
-    private:
-    ftl::gui::Screen *screen_;
-    bool paused_;
-    ftl::rgbd::SnapshotStreamWriter *writer_;
-    nanogui::Button *right_button_;
-    nanogui::Button *depth_button_;
+	private:
+	ftl::gui::Screen *screen_;
+
+	bool paused_;
+	bool disable_switch_channels_;
+
+	ftl::rgbd::SnapshotStreamWriter *writer_;
+	nanogui::PopupButton *button_channels_;
+	nanogui::Button *right_button_;
+	nanogui::Button *depth_button_;
 };
 
 }

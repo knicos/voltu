@@ -20,6 +20,10 @@
 #include "camera.hpp"
 #include "media_panel.hpp"
 
+#ifdef HAVE_OPENVR
+#include "vr.hpp"
+#endif
+
 using ftl::gui::Screen;
 using ftl::gui::Camera;
 using std::string;
@@ -27,28 +31,28 @@ using ftl::rgbd::Source;
 using ftl::rgbd::isValidDepth;
 
 namespace {
-    constexpr char const *const defaultImageViewVertexShader =
-        R"(#version 330
-        uniform vec2 scaleFactor;
-        uniform vec2 position;
-        in vec2 vertex;
-        out vec2 uv;
-        void main() {
-            uv = vertex;
-            vec2 scaledVertex = (vertex * scaleFactor) + position;
-            gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
-                                2.0*scaledVertex.y - 1.0,
-                                0.0, 1.0);
-        })";
+	constexpr char const *const defaultImageViewVertexShader =
+		R"(#version 330
+		uniform vec2 scaleFactor;
+		uniform vec2 position;
+		in vec2 vertex;
+		out vec2 uv;
+		void main() {
+			uv = vertex;
+			vec2 scaledVertex = (vertex * scaleFactor) + position;
+			gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
+								2.0*scaledVertex.y - 1.0,
+								0.0, 1.0);
+		})";
 
-    constexpr char const *const defaultImageViewFragmentShader =
-        R"(#version 330
-        uniform sampler2D image;
-        out vec4 color;
-        in vec2 uv;
-        void main() {
-            color = texture(image, uv);
-        })";
+	constexpr char const *const defaultImageViewFragmentShader =
+		R"(#version 330
+		uniform sampler2D image;
+		out vec4 color;
+		in vec2 uv;
+		void main() {
+			color = texture(image, uv);
+		})";
 }
 
 ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl::ctrl::Master *controller) :
@@ -59,6 +63,11 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	ctrl_ = controller;
 	root_ = proot;
 	camera_ = nullptr;
+
+	#ifdef HAVE_OPENVR
+	HMD_ = nullptr;
+	has_vr_ = vr::VR_IsHmdPresent();
+	#endif
 
 	setSize(Vector2i(1280,720));
 
@@ -83,7 +92,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	mediatheme->mButtonGradientTopFocused = nanogui::Color(80,230);
 	mediatheme->mButtonGradientBotFocused = nanogui::Color(80,230);
 	mediatheme->mIconColor = nanogui::Color(255,255);
-    mediatheme->mTextColor = nanogui::Color(1.0f,1.0f,1.0f,1.0f);
+	mediatheme->mTextColor = nanogui::Color(1.0f,1.0f,1.0f,1.0f);
 	mediatheme->mBorderDark = nanogui::Color(0,0);
 	mediatheme->mBorderMedium = nanogui::Color(0,0);
 	mediatheme->mBorderLight = nanogui::Color(0,0);
@@ -161,9 +170,9 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	popbutton->setSide(Popup::Side::Right);
 	popbutton->setChevronIcon(0);
 	Popup *popup = popbutton->popup();
-    popup->setLayout(new GroupLayout());
+	popup->setLayout(new GroupLayout());
 	popup->setTheme(toolbuttheme);
-    //popup->setAnchorHeight(100);
+	//popup->setAnchorHeight(100);
 
 	auto itembutton = new Button(popup, "Add Camera", ENTYPO_ICON_CAMERA);
 	itembutton->setCallback([this,popup]() {
@@ -185,7 +194,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	popbutton->setSide(Popup::Side::Right);
 	popbutton->setChevronIcon(0);
 	popup = popbutton->popup();
-    popup->setLayout(new GroupLayout());
+	popup->setLayout(new GroupLayout());
 	popup->setTheme(toolbuttheme);
 	//popbutton->setCallback([this]() {
 	//	cwindow_->setVisible(true);
@@ -244,30 +253,60 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 
 	setVisible(true);
 	performLayout();
-
-
-	#ifdef HAVE_OPENVR
-	if (vr::VR_IsHmdPresent()) {
-		// Loading the SteamVR Runtime
-		vr::EVRInitError eError = vr::VRInitError_None;
-		HMD_ = vr::VR_Init( &eError, vr::VRApplication_Scene );
-
-		if ( eError != vr::VRInitError_None )
-		{
-			HMD_ = nullptr;
-			LOG(ERROR) << "Unable to init VR runtime: " << vr::VR_GetVRInitErrorAsEnglishDescription( eError );
-		}
-	} else {
-		HMD_ = nullptr;
-	}
-	#endif
 }
+
+#ifdef HAVE_OPENVR
+bool ftl::gui::Screen::initVR() {
+	if (!vr::VR_IsHmdPresent()) {
+		return false;
+	}
+
+	vr::EVRInitError eError = vr::VRInitError_None;
+	HMD_ = vr::VR_Init( &eError, vr::VRApplication_Scene );
+	
+	if (eError != vr::VRInitError_None)
+	{
+		HMD_ = nullptr;
+		LOG(ERROR) << "Unable to init VR runtime: " << vr::VR_GetVRInitErrorAsEnglishDescription(eError);
+	}
+
+	uint32_t size_x, size_y;
+	HMD_->GetRecommendedRenderTargetSize(&size_x, &size_y);
+	LOG(INFO) << size_x << ", " << size_y;
+	LOG(INFO) << "\n" << getCameraMatrix(HMD_, vr::Eye_Left);
+	return true;
+}
+
+bool ftl::gui::Screen::useVR() {
+	auto *cam = activeCamera();
+	if (HMD_ == nullptr || cam == nullptr) { return false; }
+	return cam->isVR();
+}
+
+bool ftl::gui::Screen::switchVR(bool on) {
+	if (useVR() == on) { return on; }
+
+	if (on && (HMD_ == nullptr) && !initVR()) {
+		return false;
+	}
+
+	if (on) {
+		activeCamera()->setVR(true);
+	} else {
+		activeCamera()->setVR(false);
+	}
+	
+	return useVR();
+}
+#endif
 
 ftl::gui::Screen::~Screen() {
 	mShader.free();
 
 	#ifdef HAVE_OPENVR
-	vr::VR_Shutdown();
+	if (HMD_ != nullptr) {
+		vr::VR_Shutdown();
+	}
 	#endif
 }
 
@@ -361,13 +400,19 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		leftEye_ = mImageID;
 		rightEye_ = camera_->getRight().texture();
 
+		if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
+
 		#ifdef HAVE_OPENVR
-		if (hasVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
+		if (useVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
+			
 			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
+
 			glBindTexture(GL_TEXTURE_2D, rightEye_);
 			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
+			
+			mImageID = leftEye_;
 		}
 		#endif
 

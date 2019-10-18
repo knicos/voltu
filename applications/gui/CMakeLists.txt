@@ -15,6 +15,10 @@ set(GUISRC
 	src/thumbview.cpp
 )
 
+if (HAVE_OPENVR)
+	list(APPEND GUISRC "src/vr.cpp")
+endif()
+
 add_executable(ftl-gui ${GUISRC})
 
 target_include_directories(ftl-gui PUBLIC

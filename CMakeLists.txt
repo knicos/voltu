@@ -13,6 +13,7 @@ enable_testing()
 option(WITH_PCL "Use PCL if available" OFF)
 option(WITH_NVPIPE "Use NvPipe for compression if available" ON)
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
+option(WITH_OPENVR "Build with OpenVR support" OFF)
 option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
@@ -42,18 +43,19 @@ if (LibArchive_FOUND)
 	set(HAVE_LIBARCHIVE true)
 endif()
 
-## OpenVR API path
-find_library(OPENVR_LIBRARIES
-  NAMES
-    openvr_api
-)
-set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
+if (WITH_OPENVR)
+	## OpenVR API path
+	find_library(OPENVR_LIBRARIES
+		NAMES
+			openvr_api
+	)
+	set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
 
-if (OPENVR_LIBRARIES)
-	message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
-	set(HAVE_OPENVR true)
+	if (OPENVR_LIBRARIES)
+		message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
+		set(HAVE_OPENVR true)
+	endif()
 endif()
-
 
 if (WITH_FIXSTARS)
 	find_package( LibSGM )

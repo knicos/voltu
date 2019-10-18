@@ -10,6 +10,15 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 		params_ = params;
 		capabilities_ = ftl::rgbd::kCapVideo | ftl::rgbd::kCapStereo;
 		if (!host->value("locked", false)) capabilities_ |= ftl::rgbd::kCapMovable;
+		host->on("baseline", [this](const ftl::config::Event&) {
+			params_.baseline = host_->value("baseline", 0.0f);
+		});
+		
+		host->on("focal", [this](const ftl::config::Event&) {
+			params_.fx = host_->value("focal", 700.0f);
+			params_.fy = params_.fx;
+		});
+
 	}
 
 	~VirtualImpl() {
