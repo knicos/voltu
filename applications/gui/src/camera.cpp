@@ -246,11 +246,29 @@ bool ftl::gui::Camera::setVR(bool on) {
 
 	if (on) {
 		setChannel(Channel::Right);
+		src_->set("baseline", baseline_);
+
+		Eigen::Matrix3d intrinsic;
+		
+		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Left);
+		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
+		src_->set("focal", intrinsic(0, 0));
+		src_->set("centre_x", intrinsic(0, 2));
+		src_->set("centre_y", intrinsic(1, 2));
+		LOG(INFO) << intrinsic;
+		
+		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Right);
+		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
+		src_->set("focal_right", intrinsic(0, 0));
+		src_->set("centre_x_right", intrinsic(0, 2));
+		src_->set("centre_y_right", intrinsic(1, 2));
+
 		vr_mode_ = true;
 	}
 	else {
 		vr_mode_ = false;
 		setChannel(Channel::Left); // reset to left channel
+		// todo restore camera params
 	}
 	
 	return vr_mode_;
@@ -335,7 +353,7 @@ bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
 	cv::flip(thumb, thumb, 0);
 	return true;
 }
-#include <math.h>
+
 const GLTexture &ftl::gui::Camera::captureFrame() {
 	float now = (float)glfwGetTime();
 	delta_ = now - ftime_;
@@ -343,7 +361,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 
 	if (src_ && src_->isReady()) {
 		UNIQUE_LOCK(mutex_, lk);
-		
+
 		if (isVR()) {
 			#ifdef HAVE_OPENVR
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
@@ -353,54 +371,46 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				Eigen::Matrix4d eye_l = ConvertSteamVRMatrixToMatrix4(
 					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
 				
-				// assumes eye_l(3, 0) = -eye_r(3, 0)
-				// => baseline = abs(2*eye_l(3, 0))
-				float baseline_in = 2.0 * -eye_l(0, 3);
+				Eigen::Matrix4d eye_r = ConvertSteamVRMatrixToMatrix4(
+					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
+
+				float baseline_in = 2.0 * eye_l(0, 3);
+				
 				if (baseline_in != baseline_) {
 					baseline_ = baseline_in;
-					// TODO: update baseline on ftl-reconstruct
+					src_->set("baseline", baseline_);
 				}
-				
 				Eigen::Matrix4d pose = ConvertSteamVRMatrixToMatrix4(rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
+				Eigen::Vector3d ea = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
 				
-				// translate to L eye
-				Eigen::Translation3d trans(eye_);
-				Eigen::Affine3d t(trans);
-				Eigen::Matrix4d viewPose = t.matrix() * pose;
-
-				// flip rotation (different coordinate axis on OpenGL/ftl)
-				// NOTE: image also flipped!
-
-				Eigen::Vector3d ea = viewPose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
-				//double rd = 180.0 / M_PI;
-				//LOG(INFO) << "Camera X: " << ea[0] *rd << ", Y: " << ea[1] * rd << ", Z: " << ea[2] * rd;
-
 				// NOTE: If modified, should be verified with VR headset!
 				Eigen::Matrix3d R;
-				R =		Eigen::AngleAxisd(-ea[0], Eigen::Vector3d::UnitX()) *
-						Eigen::AngleAxisd(ea[1], Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(ea[2], Eigen::Vector3d::UnitZ()); 
-				viewPose.block<3, 3>(0, 0) = R;
-
-				if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
+				R =		Eigen::AngleAxisd(ea[0], Eigen::Vector3d::UnitX()) *
+						Eigen::AngleAxisd(-ea[1], Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(-ea[2], Eigen::Vector3d::UnitZ()); 
 				
+				//double rd = 180.0 / 3.141592;
+				//LOG(INFO) << "rotation x: " << ea[0] *rd << ", y: " << ea[1] * rd << ", z: " << ea[2] * rd;
+				// pose.block<3, 3>(0, 0) = R;
+				
+				rotmat_.block(0, 0, 3, 3) = R;
+			
 			} else {
 				//LOG(ERROR) << "No VR Pose";
 			}
 			#endif
-		} else {
-			// Lerp the Eye
-			eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
-			eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
-			eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
-
-			Eigen::Translation3d trans(eye_);
-			Eigen::Affine3d t(trans);
-			Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
-
-			if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
 		}
 
+		eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+		eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+		eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+
+		Eigen::Translation3d trans(eye_);
+		Eigen::Affine3d t(trans);
+		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
+
+		if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
+	
 		src_->grab();
 
 		// When switching from right to depth, client may still receive

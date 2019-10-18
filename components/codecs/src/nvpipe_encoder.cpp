@@ -72,7 +72,22 @@ void scaleDownAndPad(cv::Mat &in, cv::Mat &out) {
 
 bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
 	cudaSetDevice(0);
-	auto definition = _verifiedDefinition(odefinition, in);
+	auto definition = odefinition; //_verifiedDefinition(odefinition, in);
+
+	auto width = ftl::codecs::getWidth(definition);
+	auto height = ftl::codecs::getHeight(definition);
+
+	cv::Mat tmp;
+	if (width != in.cols || height != in.rows) {
+		LOG(WARNING) << "Mismatch resolution with encoding resolution";
+		if (in.type() == CV_32F) {
+			cv::resize(in, tmp, cv::Size(width,height), 0.0, 0.0, cv::INTER_NEAREST);
+		} else {
+			cv::resize(in, tmp, cv::Size(width,height));
+		}
+	} else {
+		tmp = in;
+	}
 
 	//LOG(INFO) << "Definition: " << ftl::codecs::getWidth(definition) << "x" << ftl::codecs::getHeight(definition);
 
@@ -80,17 +95,17 @@ bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_
 		LOG(ERROR) << "Missing data for Nvidia encoder";
 		return false;
 	}
-	if (!_createEncoder(in, definition, bitrate)) return false;
+	if (!_createEncoder(tmp, definition, bitrate)) return false;
 
 	//LOG(INFO) << "NvPipe Encode: " << int(definition) << " " << in.cols;
 
-	cv::Mat tmp;
-	if (in.type() == CV_32F) {
-		in.convertTo(tmp, CV_16UC1, 1000);
-	} else if (in.type() == CV_8UC3) {
-		cv::cvtColor(in, tmp, cv::COLOR_BGR2BGRA);
+	//cv::Mat tmp;
+	if (tmp.type() == CV_32F) {
+		tmp.convertTo(tmp, CV_16UC1, 1000);
+	} else if (tmp.type() == CV_8UC3) {
+		cv::cvtColor(tmp, tmp, cv::COLOR_BGR2BGRA);
 	} else {
-		in.copyTo(tmp);
+		//in.copyTo(tmp);
 	}
 
 	// scale/pad to fit output format

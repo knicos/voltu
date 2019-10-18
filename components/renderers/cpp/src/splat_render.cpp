@@ -459,32 +459,25 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	{
 		float baseline = camera.baseline;
 		
-		Eigen::Translation3f translation(baseline, 0.0f, 0.0f);
-		LOG(INFO) << translation.vector();
-		Eigen::Affine3f transform(translation);
-		LOG(INFO) << "\n" << transform.matrix();
-		LOG(INFO) << "baseline " << baseline;
-		Eigen::Matrix4f matrix = transform.matrix() * src->getPose().cast<float>();
+		//Eigen::Translation3f translation(baseline, 0.0f, 0.0f);
+		//Eigen::Affine3f transform(translation);
+		//Eigen::Matrix4f matrix = transform.matrix() * src->getPose().cast<float>();
+
+		Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+		transform(0, 3) = baseline;
+		Eigen::Matrix4f matrix = transform.inverse() * src->getPose().cast<float>();
+		
 		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
+
+		params.camera = src->parameters(Channel::Right);
 		
 		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
 		out.get<GpuMat>(Channel::Right).setTo(background_, cvstream);
 
 		_dibr(stream_); // Need to re-dibr due to pose change
 		_renderChannel(out, Channel::Left, Channel::Right, stream_);
-		
-		// renderFrame() expects to render right frame from left as well; Should
-		// possibly add channel_in and channel_out parameters to renderFrame()?
-		// (l/r swap as temporary fix)
-		/*
-		auto &tmp = out.get<GpuMat>(Channel::Left);
-		swap(out.get<GpuMat>(Channel::Right), tmp);
-		_renderChannel(params, out, Channel::Left, stream_);
-		swap(tmp, out.get<GpuMat>(Channel::Right));
-		*/
 
-		_renderChannel(out, Channel::Left, Channel::Right, stream_);
 	} else if (chan != Channel::None) {
 		if (ftl::codecs::isFloatChannel(chan)) {
 			out.create<GpuMat>(chan, Format<float>(camera.width, camera.height));

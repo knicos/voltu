@@ -3,12 +3,26 @@
 using ftl::rgbd::VirtualSource;
 using ftl::rgbd::Source;
 using ftl::codecs::Channel;
+using ftl::rgbd::Camera;
 
 class VirtualImpl : public ftl::rgbd::detail::Source {
 	public:
 	explicit VirtualImpl(ftl::rgbd::Source *host, const ftl::rgbd::Camera &params) : ftl::rgbd::detail::Source(host) {
 		params_ = params;
+
+		params_right_.width = host->value("width", 1280);
+		params_right_.height = host->value("height", 720);
+		params_right_.fx = host->value("focal_right", 700.0f);
+		params_right_.fy = params_right_.fx;
+		params_right_.cx = host->value("centre_x_right", -(double)params_.width / 2.0);
+		params_right_.cy = host->value("centre_y_right", -(double)params_.height / 2.0);
+		params_right_.minDepth = host->value("minDepth", 0.1f);
+		params_right_.maxDepth = host->value("maxDepth", 20.0f);
+		params_right_.doffs = 0;
+		params_right_.baseline = host->value("baseline", 0.0f);
+
 		capabilities_ = ftl::rgbd::kCapVideo | ftl::rgbd::kCapStereo;
+
 		if (!host->value("locked", false)) capabilities_ |= ftl::rgbd::kCapMovable;
 		host->on("baseline", [this](const ftl::config::Event&) {
 			params_.baseline = host_->value("baseline", 0.0f);
@@ -17,6 +31,27 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 		host->on("focal", [this](const ftl::config::Event&) {
 			params_.fx = host_->value("focal", 700.0f);
 			params_.fy = params_.fx;
+		});
+
+		host->on("centre_x", [this](const ftl::config::Event&) {
+			params_.cx = host_->value("centre_x", 0.0f);
+		});
+
+		host->on("centre_y", [this](const ftl::config::Event&) {
+			params_.cy = host_->value("centre_y", 0.0f);
+		});
+
+		host->on("focal_right", [this](const ftl::config::Event&) {
+			params_right_.fx = host_->value("focal_right", 700.0f);
+			params_right_.fy = params_right_.fx;
+		});
+
+		host->on("centre_x_right", [this](const ftl::config::Event&) {
+			params_right_.cx = host_->value("centre_x_right", 0.0f);
+		});
+
+		host->on("centre_y_right", [this](const ftl::config::Event&) {
+			params_right_.cy = host_->value("centre_y_right", 0.0f);
 		});
 
 	}
@@ -65,14 +100,32 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 		return true;
 	}
 
+	Camera parameters(ftl::codecs::Channel c) {
+		return (c == Channel::Left) ? params_ : params_right_;
+	}
+
 	bool isReady() override { return true; }
 
 	std::function<void(ftl::rgbd::Frame &)> callback;
 	ftl::rgbd::Frame frame;
+
+	ftl::rgbd::Camera params_right_;
 };
 
 VirtualSource::VirtualSource(ftl::config::json_t &cfg) : Source(cfg) {
 	auto params = params_;
+
+	params_.width = value("width", 1280);
+	params_.height = value("height", 720);
+	params_.fx = value("focal", 700.0f);
+	params_.fy = params_.fx;
+	params_.cx = value("centre_x", -(double)params_.width / 2.0);
+	params_.cy = value("centre_y", -(double)params_.height / 2.0);
+	params_.minDepth = value("minDepth", 0.1f);
+	params_.maxDepth = value("maxDepth", 20.0f);
+	params_.doffs = 0;
+	params_.baseline = value("baseline", 0.0f);
+
 	impl_ = new VirtualImpl(this, params);
 }
 

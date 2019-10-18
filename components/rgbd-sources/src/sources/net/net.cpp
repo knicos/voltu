@@ -107,12 +107,20 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 
 				LOG(INFO) << "Calibration received: " << p.cx << ", " << p.cy << ", " << p.fx << ", " << p.fy;
 
-				// Put calibration into config manually
-				host_->getConfig()["focal"] = p.fx;
-				host_->getConfig()["centre_x"] = p.cx;
-				host_->getConfig()["centre_y"] = p.cy;
-				host_->getConfig()["baseline"] = p.baseline;
-				host_->getConfig()["doffs"] = p.doffs;
+				if (chan == Channel::Left) {
+					// Put calibration into config manually
+					host_->getConfig()["focal"] = p.fx;
+					host_->getConfig()["centre_x"] = p.cx;
+					host_->getConfig()["centre_y"] = p.cy;
+					host_->getConfig()["baseline"] = p.baseline;
+					host_->getConfig()["doffs"] = p.doffs;
+				} else {
+					host_->getConfig()["focal_right"] = p.fx;
+					host_->getConfig()["centre_x_right"] = p.cx;
+					host_->getConfig()["centre_y_right"] = p.cy;
+					host_->getConfig()["baseline_right"] = p.baseline;
+					host_->getConfig()["doffs_right"] = p.doffs;
+				}
 				
 				return true;
 			} else {
@@ -138,6 +146,7 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 	temperature_ = host->value("temperature", 6500);
 	default_quality_ = host->value("quality", 0);
 	last_bitrate_ = 0;
+	params_right_.width = 0;
 
 	decoder_c1_ = nullptr;
 	decoder_c2_ = nullptr;
@@ -156,6 +165,16 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/focal", host_->getConfig()["focal"].dump());
 	});
 
+	host->on("centre_x", [this,host](const ftl::config::Event&) {
+		params_.cx = host_->value("centre_x", 0.0);
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/centre_x", host_->getConfig()["centre_x"].dump());
+	});
+
+	host->on("centre_y", [this,host](const ftl::config::Event&) {
+		params_.cy = host_->value("centre_y", 0.0);
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/centre_y", host_->getConfig()["centre_y"].dump());
+	});
+
 	host->on("doffs", [this,host](const ftl::config::Event&) {
 		params_.doffs = host_->value("doffs", params_.doffs);
 		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/doffs", host_->getConfig()["doffs"].dump());
@@ -166,10 +185,24 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/baseline", host_->getConfig()["baseline"].dump());
 	});
 
-	host->on("doffs", [this,host](const ftl::config::Event&) {
-		params_.doffs = host_->value("doffs", params_.doffs);
-		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/doffs", host_->getConfig()["doffs"].dump());
+	// Right parameters
+
+	host->on("focal_right", [this,host](const ftl::config::Event&) {
+		params_right_.fx = host_->value("focal_right", 0.0);
+		params_right_.fy = params_right_.fx;
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/focal_right", host_->getConfig()["focal_right"].dump());
 	});
+
+	host->on("centre_x_right", [this,host](const ftl::config::Event&) {
+		params_right_.cx = host_->value("centre_x_right", 0.0);
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/centre_x_right", host_->getConfig()["centre_x_right"].dump());
+	});
+
+	host->on("centre_y_right", [this,host](const ftl::config::Event&) {
+		params_right_.cy = host_->value("centre_y_right", 0.0);
+		host_->getNet()->send(peer_, "update_cfg", host_->getURI() + "/centre_y_right", host_->getConfig()["centre_y_right"].dump());
+	});
+
 
 	host->on("quality", [this,host](const ftl::config::Event&) {
 		default_quality_ = host->value("quality", 0);
@@ -356,12 +389,13 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 
 ftl::rgbd::Camera NetSource::parameters(ftl::codecs::Channel chan) {
 	if (chan == ftl::codecs::Channel::Right) {
-		auto uri = host_->get<string>("uri");
-		if (!uri) return params_;
+		if (params_right_.width == 0) {
+			auto uri = host_->get<string>("uri");
+			if (!uri) return params_;
 
-		ftl::rgbd::Camera params;
-		_getCalibration(*host_->getNet(), peer_, *uri, params, chan);
-		return params;
+			_getCalibration(*host_->getNet(), peer_, *uri, params_right_, chan);
+		}
+		return params_right_;
 	} else {
 		return params_;
 	}
@@ -386,6 +420,7 @@ void NetSource::_updateURI() {
 		peer_ = *p;
 
 		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::codecs::Channel::Left);
+		_getCalibration(*host_->getNet(), peer_, *uri, params_right_, ftl::codecs::Channel::Right);
 
 		host_->getNet()->bind(*uri, [this](short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			//if (chunk == -1) {

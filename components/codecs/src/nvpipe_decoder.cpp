@@ -62,6 +62,8 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	is_float_channel_ = is_float_frame;
 	last_definition_ = pkt.definition;
 
+	//LOG(INFO) << "DECODE RESOLUTION: (" << (int)pkt.definition << ") " << ftl::codecs::getWidth(pkt.definition) << "x" << ftl::codecs::getHeight(pkt.definition);
+
 	// Build a decoder instance of the correct kind
 	if (nv_decoder_ == nullptr) {
 		nv_decoder_ = NvPipe_CreateDecoder(
