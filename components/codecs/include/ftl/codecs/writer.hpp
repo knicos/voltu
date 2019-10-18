@@ -23,6 +23,7 @@ class Writer {
 	std::ostream *stream_;
 	msgpack::sbuffer buffer_;
 	int64_t timestart_;
+	bool active_;
 };
 
 }

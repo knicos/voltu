@@ -347,8 +347,10 @@ void Source::addRawCallback(const std::function<void(ftl::rgbd::Source*, const f
 void Source::removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
 	UNIQUE_LOCK(mutex_,lk);
 	for (auto i=rawcallbacks_.begin(); i!=rawcallbacks_.end(); ++i) {
-		if (i->target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)>() == f.target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)>()) {
+		const auto targ = (*i).target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)>();
+		if (targ && targ == f.target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)>()) {
 			rawcallbacks_.erase(i);
+			LOG(INFO) << "Removing RAW callback";
 			return;
 		}
 	}

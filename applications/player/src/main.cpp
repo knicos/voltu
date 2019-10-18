@@ -59,7 +59,6 @@ int main(int argc, char **argv) {
 
 	ftl::timer::add(ftl::timer::kTimerMain, [&current_stream,&current_channel,&r](int64_t ts) {
 		bool res = r.read(ts, [&current_stream,&current_channel,&r](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-			if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel)) return;
 			if (spkt.streamID == current_stream) {
 
 				if (pkt.codec == codec_t::POSE) {
@@ -73,6 +72,8 @@ int main(int argc, char **argv) {
 					LOG(INFO) << "Have calibration: " << camera->fx;
 					return;
 				}
+				
+				if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel)) return;
 
 				//LOG(INFO) << "Reading packet: (" << (int)spkt.streamID << "," << (int)spkt.channel << ") " << (int)pkt.codec << ", " << (int)pkt.definition;
 
@@ -92,12 +93,17 @@ int main(int argc, char **argv) {
 					double time = (double)(spkt.timestamp - r.getStartTime()) / 1000.0;
 					cv::putText(frame, std::string("Time: ") + std::to_string(time) + std::string("s"), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,255));
 					cv::imshow("Player", frame);
+				} else {
+					frame.create(cv::Size(600,600), CV_8UC3);
+					cv::imshow("Player", frame);
 				}
 				int key = cv::waitKey(1);
 				if (key >= 48 && key <= 57) {
 					current_stream = key - 48;
 				} else if (key == 'd') {
 					current_channel = (current_channel == 0) ? 1 : 0;
+				} else if (key == 'r') {
+					current_channel = (current_channel == 0) ? 2 : 0;
 				} else if (key == 27) {
 					ftl::timer::stop(false);
 				}
