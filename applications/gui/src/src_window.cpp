@@ -61,10 +61,9 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	screen->net()->onConnect([this](ftl::net::Peer *p) {
 		UNIQUE_LOCK(mutex_, lk);
-		//select->setItems(available_);
 		_updateCameras(screen_->net()->findAll<string>("list_streams"));
 	});
-
+	
 	UNIQUE_LOCK(mutex_, lk);
 
 	std::vector<ftl::rgbd::Source*> srcs = ftl::createArray<ftl::rgbd::Source>(screen_->root(), "sources", screen_->net());

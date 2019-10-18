@@ -311,10 +311,10 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	scene_->upload(Channel::Colour + Channel::Depth, stream_);
 
 	const auto &camera = src->parameters();
-
 	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 
 	// Create all the required channels
+	
 	out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
 	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
 
@@ -338,7 +338,6 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
 	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.camera = camera;
-
 	// Clear all channels to 0 or max depth
 
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
@@ -384,7 +383,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 		}
 
 		if (!f.hasChannel(Channel::Normals)) {
-			Eigen::Matrix4f matrix =  s->getPose().cast<float>();
+			Eigen::Matrix4f matrix =  s->getPose().cast<float>().transpose();
 			auto pose = MatrixConversion::toCUDA(matrix);
 
 			auto &g = f.get<GpuMat>(Channel::Colour);
@@ -458,8 +457,14 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	}
 	else if (chan == Channel::Right)
 	{
-		Eigen::Affine3f transform(Eigen::Translation3f(camera.baseline,0.0f,0.0f));
-		Eigen::Matrix4f matrix =  src->getPose().cast<float>() * transform.matrix();
+		float baseline = camera.baseline;
+		
+		Eigen::Translation3f translation(baseline, 0.0f, 0.0f);
+		LOG(INFO) << translation.vector();
+		Eigen::Affine3f transform(translation);
+		LOG(INFO) << "\n" << transform.matrix();
+		LOG(INFO) << "baseline " << baseline;
+		Eigen::Matrix4f matrix = transform.matrix() * src->getPose().cast<float>();
 		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
 		
@@ -467,6 +472,18 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 		out.get<GpuMat>(Channel::Right).setTo(background_, cvstream);
 
 		_dibr(stream_); // Need to re-dibr due to pose change
+		_renderChannel(out, Channel::Left, Channel::Right, stream_);
+		
+		// renderFrame() expects to render right frame from left as well; Should
+		// possibly add channel_in and channel_out parameters to renderFrame()?
+		// (l/r swap as temporary fix)
+		/*
+		auto &tmp = out.get<GpuMat>(Channel::Left);
+		swap(out.get<GpuMat>(Channel::Right), tmp);
+		_renderChannel(params, out, Channel::Left, stream_);
+		swap(tmp, out.get<GpuMat>(Channel::Right));
+		*/
+
 		_renderChannel(out, Channel::Left, Channel::Right, stream_);
 	} else if (chan != Channel::None) {
 		if (ftl::codecs::isFloatChannel(chan)) {
