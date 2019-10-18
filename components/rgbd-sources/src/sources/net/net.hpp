@@ -58,6 +58,7 @@ class NetSource : public detail::Source {
 	int maxN_;
 	int default_quality_;
 	ftl::codecs::Channel prev_chan_;
+	ftl::rgbd::Camera params_right_;
 
 	ftl::rgbd::detail::ABRController abr_;
 	int last_bitrate_;

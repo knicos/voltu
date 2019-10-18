@@ -127,6 +127,20 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	//net->bind("ping_streamer", [this](unsigned long long time) -> unsigned long long {
 	//	return time;
 	//});
+
+	on("hq_bitrate", [this](const ftl::config::Event &e) {
+		UNIQUE_LOCK(mutex_,ulk);
+		for (auto &s : sources_) {
+			s.second->hq_bitrate = value("hq_bitrate", ftl::codecs::kPresetBest);
+		}
+	});
+
+	on("lq_bitrate", [this](const ftl::config::Event &e) {
+		UNIQUE_LOCK(mutex_,ulk);
+		for (auto &s : sources_) {
+			s.second->lq_bitrate = value("lq_bitrate", ftl::codecs::kPresetWorst);
+		}
+	});
 }
 
 Streamer::~Streamer() {
@@ -166,6 +180,10 @@ void Streamer::add(Source *src) {
 		s->clientCount = 0;
 		s->hq_count = 0;
 		s->lq_count = 0;
+
+		s->hq_bitrate = value("hq_bitrate", ftl::codecs::kPresetBest);
+		s->lq_bitrate = value("lq_bitrate", ftl::codecs::kPresetWorst);
+
 		sources_[src->getID()] = s;
 
 		group_.addSource(src);
