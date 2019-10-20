@@ -9,7 +9,8 @@ const keys = require('./passport/keys')
 const mongoose = require('mongoose')
 const config = require('./utils/config')
 const User = require('./models/users')
-const Config = require('./models/configs')
+const Configs = require('./models/generic')
+const Disparity = require('./models/disparity')
 const bodyParser = require('body-parser')
 
 // ---- INDEXES ----------------------------------------------------------------
@@ -159,11 +160,14 @@ app.get('/', (req, res) => {
 app.post('/auth/validation', async (req, res) => {
 	const token = req.headers.authorization.split(" ")
 	const decoded = jwt.verify(token[1], keys.jwt.secret)
+	console.log('DECODED', decoded)
 	try{
-		const data = await User.find({decoded})
-		if(data){
-			console.log(data)
+		const data = await User.find({ googleID: decoded })
+		console.log('DATA', data)
+		if(data.length !== 0){
 			return res.status(200).json("success")
+		}else {
+			return res.status(403)
 		}
 	}catch(err){
 		console.log('ERROR ERROR')
@@ -205,7 +209,6 @@ app.get('/stream/depth', (req, res) => {
 
 app.post('/stream/config', async (req, res) => {
 	const {board_size, square_size, frame_delay, num_frames, name} = req.body
-
 	const savedConfigs = new Config({
 		board_size,
 		square_size,
@@ -213,6 +216,7 @@ app.post('/stream/config', async (req, res) => {
 		num_frames,
 		name
 	});
+
 	try{
 		await savedConfigs.save();
 		return res.status(200).json('Your configurations were saved successfully')
@@ -223,16 +227,103 @@ app.post('/stream/config', async (req, res) => {
 })
 
 app.get('/stream/config', async(req, res) => {
-	//example of uri /stream/config?uri=ftl.utu.fi/stream/calibrations/
-	//example of uri /stream/config?uri=ftl.utu.fi/stream/calibrations/board_size/value=1
-	const uri = req.query.uri
-	console.log(uri)
+	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/default/board_size
+	
+	const wholeURI = encodeURIComponent(req.query.uri)
+	const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
+	const uri = wholeURI.substring(47);
+	let depth = uri.split("%2F");
+	console.log("DEPTH", depth)
+	let queryURI = baseURI + '%2F' + depth[0]
+	console.log("QUERYURI", queryURI)
+	let response = await Configs.find({ URI : queryURI});
+	
+	const objects = response[0].data
+	console.log(objects)
+	//Check that DB has atleast some data
+	if(response.length){
+		const firstLayerObj = Object.entries(objects)
+		const helpObj = {}
+		for(const [key, value] of firstLayerObj){
+			//Save the right named object into helpObj
+			if(key == depth[1]){
+				helpObj[`${key}`] = value
+			}
+		}
+		//If the URI ends into the second objects name e.g. default
+		if(depth.length==2){
+			return res.status(200).json(helpObj)
+			
+		//Else send the value of the attribute
+		}else if(depth.length==3){
+			const secondLayerObj = Object.values(helpObj);
+			const finalLayer = Object.entries(secondLayerObj[0]);
+			for(const [key, value] of finalLayer){
+				console.log("PIIPPIIP")
+				if(key == depth[2]){
+					const data = { data : value }
+					return res.status(200).json(data)
+				}
+			}
+		}	
+	}
+		return res.status(200).json("kääkkääk");
 
-	//const listOfCongifs = await Config.find({});
-	return res.status(200).json(uri)
+
+
+	//FOR LATER
+	// const uri = wholeURI.substring(47)
+	// let depth = uri.split("%2F");
+	// console.log(depth[1])
+
+	// if(depth.length == 2){
+	// 	const splitted = wholeURI.split(depth[1])
+	// 	const uri = splitted[0].substring(0, splitted[0].length-3)
+	// 	console.log('VAL', uri)
+	// 	const responseData = await Configs.find({URI : uri})
+	// 	const realData = responseData[0].data
+	// 	const obj = Object.entries(realData);
+	// 	const helpObj = {}
+	// 	for(const [key, data] of obj){
+	// 		//Check if the data is an object
+	// 		if(data ==)
+	// 		console.log('PIIPPIIP', depth[1] in data)
+	// 		if(depth[1] in data) {
+	// 			helpObj[`${key}`] = data
+	// 		}
+	// 	}
+	// 	console.log("HELPOBJECT", helpObj)
+	// 	const actualData = Object.entries(helpObj)
+	// 	for(const [key, data] of actualData){
+	// 		console.log("KEY2", key)
+	// 		console.log("DATA2", data)
+	// 	}
+	// 	return res.status(200).json(realData)
+	// }
+
+
+	// if(depth.length ==3){
+	// 	get the value
+	// 	save the get the first depth
+	// 	save the value with default values into the first depth
+	// }
+	
+	console.log(depth)
+	console.log(wholeURI)
+	console.log(uri)
+	console.log(depth)
+
+	return res.send(200)
 })
 
-//app.get('/stream', (req, res))
+const uriParser = (uri) => {
+
+}
+
+app.get('/stream', (req, res) => {
+	let uri = req.query.uri;
+	console.log(uri)
+})
 
 /*
  * Route for Google authentication API page
@@ -418,6 +509,26 @@ app.ws('/', (ws, req) => {
 			//peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);
 		}
 	});
+
+	/**
+	 * Get configuration JSON values 
+	 */ 
+	p.bind("get_cfg", (cb, uri) => {
+		let peer = uri_data[uri].peer
+		if(peer){
+			peer.rpc("get_cfg", cb, uri)
+		}
+	})
+
+	/**
+	 * Update certain URIs values
+	 */
+	 p.bind("update_cfg", (uri, json) => {
+		 let peer = uri_data[uri].peer
+		 if(peer){
+			 peer.send("update_cfg", uri, json)
+		 }
+	 })
 
 	// Register a new stream
 	p.bind("add_stream", (uri) => {
