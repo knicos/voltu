@@ -6,6 +6,7 @@
 #include <ftl/timer.hpp>
 #include <ftl/rgbd/frame.hpp>
 #include <ftl/rgbd/frameset.hpp>
+#include <ftl/codecs/packet.hpp>
 
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -65,6 +66,22 @@ class Group {
 	 */
 	void sync(std::function<bool(FrameSet &)>);
 
+	/**
+	 * Whenever any source within the group receives raw data, this callback
+	 * will be called with that raw data. This is used to allow direct data
+	 * capture (to disk) or proxy over a network without needing to re-encode.
+	 * There is no guarantee about order or timing and the callback itself will
+	 * need to ensure synchronisation of timestamps.
+	 */
+	void addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+
+	/**
+	 * Removes a raw data callback from all sources in the group.
+	 */
+	void removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+
+	inline std::vector<Source*> sources() const { return sources_; }
+
 	/** @deprecated */
 	//bool getFrames(FrameSet &, bool complete=false);
 
@@ -81,6 +98,8 @@ class Group {
 	void setLatency(int frames) { latency_ = frames; }
 
 	void stop() {}
+
+	int streamID(const ftl::rgbd::Source *s) const;
 
 	private:
 	std::vector<FrameSet> framesets_;

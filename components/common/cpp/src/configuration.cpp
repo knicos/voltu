@@ -185,7 +185,15 @@ static void _indexConfig(json_t &cfg) {
 }
 
 ftl::Configurable *ftl::config::find(const std::string &uri) {
-	auto ix = config_instance.find(uri);
+	std::string actual_uri = uri;
+	if (uri[0] == '/') {
+		if (uri.size() == 1) {
+			return rootCFG;
+		} else {
+			actual_uri = rootCFG->getID() + uri;
+		}
+	}
+	auto ix = config_instance.find(actual_uri);
 	if (ix == config_instance.end()) return nullptr;
 	else return (*ix).second;
 }
@@ -468,6 +476,24 @@ Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
 	_indexConfig(config);
 	Configurable *rootcfg = create<Configurable>(config);
 	return rootcfg;
+}
+
+static bool doing_cleanup = false;
+void ftl::config::cleanup() {
+	doing_cleanup = true;
+	for (auto f : config_instance) {
+		delete f.second;
+	}
+	config_instance.clear();
+}
+
+void ftl::config::removeConfigurable(Configurable *cfg) {
+	if (doing_cleanup) return;
+
+	auto i = config_instance.find(cfg->getID());
+	if (i != config_instance.end()) {
+		config_instance.erase(i);
+	}
 }
 
 

@@ -26,7 +26,7 @@ class Renderer : public ftl::Configurable {
      * the virtual camera object passed, and writes the result into the
      * virtual camera.
      */
-    virtual bool render(ftl::rgbd::VirtualSource *, ftl::rgbd::Frame &, cudaStream_t)=0;
+    virtual bool render(ftl::rgbd::VirtualSource *, ftl::rgbd::Frame &)=0;
 };
 
 }

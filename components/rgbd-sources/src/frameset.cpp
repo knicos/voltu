@@ -1,16 +1,16 @@
 #include <ftl/rgbd/frameset.hpp>
 
 using ftl::rgbd::FrameSet;
-using ftl::rgbd::Channels;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channels;
+using ftl::codecs::Channel;
 
-void FrameSet::upload(ftl::rgbd::Channels c, cudaStream_t stream) {
+void FrameSet::upload(ftl::codecs::Channels c, cudaStream_t stream) {
 	for (auto &f : frames) {
 		f.upload(c, stream);
 	}
 }
 
-void FrameSet::download(ftl::rgbd::Channels c, cudaStream_t stream) {
+void FrameSet::download(ftl::codecs::Channels c, cudaStream_t stream) {
 	for (auto &f : frames) {
 		f.download(c, stream);
 	}

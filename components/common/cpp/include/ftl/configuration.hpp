@@ -37,6 +37,10 @@ Configurable *configure(int argc, char **argv, const std::string &root);
 
 Configurable *configure(json_t &);
 
+void cleanup();
+
+void removeConfigurable(Configurable *cfg);
+
 /**
  * Change a configuration value based upon a URI. Return true if changed,
  * false if it was not able to change.

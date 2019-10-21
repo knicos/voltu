@@ -14,7 +14,15 @@ enum struct codec_t : uint8_t {
 	JPG = 0,
 	PNG,
     H264,
-    HEVC  // H265
+    HEVC,  // H265
+
+	// TODO: Add audio codecs
+	WAV,
+
+	JSON = 100,		// A JSON string
+	CALIBRATION,	// Camera parameters object
+	POSE,			// 4x4 eigen matrix
+	RAW				// Some unknown binary format (msgpack?)
 };
 
 /**
@@ -28,7 +36,11 @@ enum struct definition_t : uint8_t {
 	SD576 = 4,
 	SD480 = 5,
 	LD360 = 6,
-	Any = 7
+	Any = 7,
+
+	HTC_VIVE = 8
+
+	// TODO: Add audio definitions
 };
 
 /**
@@ -56,7 +68,7 @@ enum struct bitrate_t {
  * the best quality and kPreset9 is the worst. The use of presets is useful for
  * adaptive bitrate scenarios where the numbers are increased or decreased.
  */
-typedef uint8_t preset_t;
+typedef int8_t preset_t;
 static const preset_t kPreset0 = 0;
 static const preset_t kPreset1 = 1;
 static const preset_t kPreset2 = 2;
@@ -70,6 +82,8 @@ static const preset_t kPreset9 = 9;
 static const preset_t kPresetBest = 0;
 static const preset_t kPresetWorst = 9;
 static const preset_t kPresetLQThreshold = 4;
+
+static const preset_t kPresetHTCVive = -1;
 
 /**
  * Represents the details of each preset codec configuration.

@@ -2,20 +2,24 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/threads.hpp>
 
-#include "net.hpp"
-#include "stereovideo.hpp"
-#include "image.hpp"
-#include "middlebury_source.hpp"
+#include "sources/net/net.hpp"
+#include "sources/stereovideo/stereovideo.hpp"
+#include "sources/image/image.hpp"
+#include "sources/middlebury/middlebury_source.hpp"
 
 #ifdef HAVE_LIBARCHIVE
 #include <ftl/rgbd/snapshot.hpp>
-#include "snapshot_source.hpp"
+#include "sources/snapshot/snapshot_source.hpp"
 #endif
 
+#include "sources/ftlfile/file_source.hpp"
+
 #ifdef HAVE_REALSENSE
-#include "realsense_source.hpp"
+#include "sources/realsense/realsense_source.hpp"
 using ftl::rgbd::detail::RealsenseSource;
 #endif
+
+#include <fstream>
 
 using ftl::rgbd::Source;
 using ftl::Configurable;
@@ -25,7 +29,10 @@ using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
+using ftl::rgbd::detail::FileSource;
+
+std::map<std::string, ftl::rgbd::Player*> Source::readers__;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
@@ -54,7 +61,7 @@ Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable
 }
 
 Source::~Source() {
-
+	if (impl_) delete impl_;
 }
 
 cv::Mat Source::cameraMatrix() const {
@@ -114,7 +121,11 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	} else if (ftl::is_file(path)) {
 		string ext = path.substr(eix+1);
 
-		if (ext == "png" || ext == "jpg") {
+		if (ext == "ftl") {
+			ftl::rgbd::Player *reader = __createReader(path);
+			LOG(INFO) << "Playing track: " << uri.getFragment();
+			return new FileSource(this, reader, std::stoi(uri.getFragment()));
+		} else if (ext == "png" || ext == "jpg") {
 			return new ImageSource(this, path);
 		} else if (ext == "mp4") {
 			return new StereoVideoSource(this, path);
@@ -135,6 +146,22 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	}
 
 	return nullptr;
+}
+
+ftl::rgbd::Player *Source::__createReader(const std::string &path) {
+	if (readers__.find(path) != readers__.end()) {
+		return readers__[path];
+	}
+
+	std::ifstream *file = new std::ifstream;
+	file->open(path);
+
+	// FIXME: This is a memory leak, must delete ifstream somewhere.
+
+	auto *r = new ftl::rgbd::Player(*file);
+	readers__[path] = r;
+	r->begin();
+	return r;
 }
 
 ftl::rgbd::detail::Source *Source::_createNetImpl(const ftl::URI &uri) {
@@ -296,17 +323,42 @@ bool Source::thumbnail(cv::Mat &t) {
 	return !thumb_.empty();
 }
 
-bool Source::setChannel(ftl::rgbd::Channel c) {
+bool Source::setChannel(ftl::codecs::Channel c) {
 	channel_ = c;
 	// FIXME:(Nick) Verify channel is supported by this source...
 	return true;
 }
 
-const ftl::rgbd::Camera Source::parameters(ftl::rgbd::Channel chan) const {
+const ftl::rgbd::Camera Source::parameters(ftl::codecs::Channel chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
 
 void Source::setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb) {
 	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
 	callback_ = cb;
+}
+
+void Source::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+	UNIQUE_LOCK(mutex_,lk);
+	LOG(INFO) << "ADD RAW";
+	rawcallbacks_.push_back(f);
+}
+
+void Source::removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+	UNIQUE_LOCK(mutex_,lk);
+	for (auto i=rawcallbacks_.begin(); i!=rawcallbacks_.end(); ++i) {
+		const auto targ = (*i).target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)>();
+		if (targ && targ == f.target<void(*)(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)>()) {
+			rawcallbacks_.erase(i);
+			LOG(INFO) << "Removing RAW callback";
+			return;
+		}
+	}
+}
+
+void Source::notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	SHARED_LOCK(mutex_,lk);
+	for (auto &i : rawcallbacks_) {
+		i(this, spkt, pkt);
+	}
 }

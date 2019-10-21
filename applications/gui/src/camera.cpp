@@ -1,14 +1,17 @@
 #include "camera.hpp"
 #include "pose_window.hpp"
 #include "screen.hpp"
-
 #include <nanogui/glutil.h>
+
+#ifdef HAVE_OPENVR
+#include "vr.hpp"
+#endif
 
 using ftl::rgbd::isValidDepth;
 using ftl::gui::GLTexture;
 using ftl::gui::PoseWindow;
-using ftl::rgbd::Channel;
-using ftl::rgbd::Channels;
+using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 
 // TODO(Nick) MOVE
 class StatisticsImage {
@@ -116,13 +119,13 @@ void StatisticsImage::getValidRatio(cv::Mat &out) {
 }
 
 static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
-  Eigen::Affine3d rx =
-      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
-  Eigen::Affine3d ry =
-      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
-  Eigen::Affine3d rz =
-      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
-  return rz * rx * ry;
+	Eigen::Affine3d rx =
+		Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+	Eigen::Affine3d ry =
+		Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+	Eigen::Affine3d rz =
+		Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+	return rz * rx * ry;
 }
 
 ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : screen_(screen), src_(src) {
@@ -145,14 +148,17 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	posewin_->setTheme(screen->windowtheme);
 	posewin_->setVisible(false);
 
-	src->setCallback([this](int64_t ts, cv::Mat &rgb, cv::Mat &depth) {
+	src->setCallback([this](int64_t ts, cv::Mat &channel1, cv::Mat &channel2) {
 		UNIQUE_LOCK(mutex_, lk);
-		rgb_.create(rgb.size(), rgb.type());
-		depth_.create(depth.size(), depth.type());
-		cv::swap(rgb_,rgb);
-		cv::swap(depth_, depth);
-		cv::flip(rgb_,rgb_,0);
-		cv::flip(depth_,depth_,0);
+		im1_.create(channel1.size(), channel1.type());
+		im2_.create(channel2.size(), channel2.type());
+
+		//cv::swap(channel1, im1_);
+		//cv::swap(channel2, im2_);
+		
+		// OpenGL (0,0) bottom left
+		cv::flip(channel1, im1_, 0);
+		cv::flip(channel2, im2_, 0);
 	});
 }
 
@@ -231,10 +237,56 @@ void ftl::gui::Camera::showSettings() {
 
 }
 
+#ifdef HAVE_OPENVR
+bool ftl::gui::Camera::setVR(bool on) {
+	if (on == vr_mode_) {
+		LOG(WARNING) << "VR mode already enabled";
+		return on;
+	}
+
+	if (on) {
+		setChannel(Channel::Right);
+		src_->set("baseline", baseline_);
+
+		Eigen::Matrix3d intrinsic;
+		
+		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Left);
+		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
+		src_->set("focal", intrinsic(0, 0));
+		src_->set("centre_x", intrinsic(0, 2));
+		src_->set("centre_y", intrinsic(1, 2));
+		LOG(INFO) << intrinsic;
+		
+		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Right);
+		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
+		src_->set("focal_right", intrinsic(0, 0));
+		src_->set("centre_x_right", intrinsic(0, 2));
+		src_->set("centre_y_right", intrinsic(1, 2));
+
+		vr_mode_ = true;
+	}
+	else {
+		vr_mode_ = false;
+		setChannel(Channel::Left); // reset to left channel
+		// todo restore camera params
+	}
+	
+	return vr_mode_;
+}
+#endif
+
 void ftl::gui::Camera::setChannel(Channel c) {
+#ifdef HAVE_OPENVR
+	if (isVR()) {
+		LOG(ERROR) << "Changing channel in VR mode is not possible.";
+		return;
+	}
+#endif
+
 	channel_ = c;
 	switch (c) {
 	case Channel::Energy:
+	case Channel::Density:
 	case Channel::Flow:
 	case Channel::Confidence:
 	case Channel::Normals:
@@ -253,17 +305,6 @@ void ftl::gui::Camera::setChannel(Channel c) {
 	
 	default: src_->setChannel(Channel::None);
 	}
-}
-
-static Eigen::Matrix4d ConvertSteamVRMatrixToMatrix4( const vr::HmdMatrix34_t &matPose )
-{
-	Eigen::Matrix4d matrixObj;
-	matrixObj <<
-		matPose.m[0][0], matPose.m[1][0], matPose.m[2][0], 0.0,
-		matPose.m[0][1], matPose.m[1][1], matPose.m[2][1], 0.0,
-		matPose.m[0][2], matPose.m[1][2], matPose.m[2][2], 0.0,
-		matPose.m[0][3], matPose.m[1][3], matPose.m[2][3], 1.0f;
-	return matrixObj;
 }
 
 static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
@@ -307,8 +348,9 @@ static void drawEdges(	const cv::Mat &in, cv::Mat &out,
 bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
 	UNIQUE_LOCK(mutex_, lk);
 	src_->grab(1,9);
-	if (rgb_.empty()) return false;
-	cv::resize(rgb_, thumb, cv::Size(320,180));
+	if (im1_.empty()) return false;
+	cv::resize(im1_, thumb, cv::Size(320,180));
+	cv::flip(thumb, thumb, 0);
 	return true;
 }
 
@@ -320,49 +362,61 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 	if (src_ && src_->isReady()) {
 		UNIQUE_LOCK(mutex_, lk);
 
-		if (screen_->hasVR()) {
+		if (isVR()) {
 			#ifdef HAVE_OPENVR
-			src_->setChannel(Channel::Right);
-
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
-			if ( rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
+			if ((channel_ == Channel::Right) && rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
 			{
-				auto pose = ConvertSteamVRMatrixToMatrix4( rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking );
-				pose.inverse();
+				Eigen::Matrix4d eye_l = ConvertSteamVRMatrixToMatrix4(
+					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
+				
+				Eigen::Matrix4d eye_r = ConvertSteamVRMatrixToMatrix4(
+					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
 
-				// Lerp the Eye
-				eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
-				eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
-				eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
-
-				Eigen::Translation3d trans(eye_);
-				Eigen::Affine3d t(trans);
-				Eigen::Matrix4d viewPose = t.matrix() * pose;
-
-				if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
+				float baseline_in = 2.0 * eye_l(0, 3);
+				
+				if (baseline_in != baseline_) {
+					baseline_ = baseline_in;
+					src_->set("baseline", baseline_);
+				}
+				Eigen::Matrix4d pose = ConvertSteamVRMatrixToMatrix4(rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
+				Eigen::Vector3d ea = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
+				
+				// NOTE: If modified, should be verified with VR headset!
+				Eigen::Matrix3d R;
+				R =		Eigen::AngleAxisd(ea[0], Eigen::Vector3d::UnitX()) *
+						Eigen::AngleAxisd(-ea[1], Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(-ea[2], Eigen::Vector3d::UnitZ()); 
+				
+				//double rd = 180.0 / 3.141592;
+				//LOG(INFO) << "rotation x: " << ea[0] *rd << ", y: " << ea[1] * rd << ", z: " << ea[2] * rd;
+				// pose.block<3, 3>(0, 0) = R;
+				
+				rotmat_.block(0, 0, 3, 3) = R;
+			
 			} else {
-				LOG(ERROR) << "No VR Pose";
+				//LOG(ERROR) << "No VR Pose";
 			}
 			#endif
-		} else {
-			// Lerp the Eye
-			eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
-			eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
-			eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
-
-			Eigen::Translation3d trans(eye_);
-			Eigen::Affine3d t(trans);
-			Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
-
-			if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
 		}
 
+		eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+		eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+		eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+
+		Eigen::Translation3d trans(eye_);
+		Eigen::Affine3d t(trans);
+		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
+
+		if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
+	
 		src_->grab();
-		//src_->getFrames(rgb, depth);
 
 		// When switching from right to depth, client may still receive
 		// right images from previous batch (depth.channels() == 1 check)
+
+		/* todo: does not work
 		if (channel_ == Channel::Deviation &&
 			depth_.rows > 0 && depth_.channels() == 1)
 		{
@@ -371,55 +425,68 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			}
 			
 			stats_->update(depth_);
-		}
+		}*/
 
 		cv::Mat tmp;
 
 		switch(channel_) {
-			case Channel::Energy:
-				if (depth_.rows == 0) { break; }
-				visualizeEnergy(depth_, tmp, 10.0);
-				texture_.update(tmp);
+			case Channel::Confidence:
+				if (im2_.rows == 0) { break; }
+				visualizeEnergy(im2_, tmp, 1.0);
+				texture2_.update(tmp);
 				break;
+			
+			case Channel::Density:
+			case Channel::Energy:
+				if (im2_.rows == 0) { break; }
+				visualizeEnergy(im2_, tmp, 10.0);
+				texture2_.update(tmp);
+				break;
+			
 			case Channel::Depth:
-				if (depth_.rows == 0) { break; }
-				visualizeDepthMap(depth_, tmp, 7.0);
-				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(rgb_, tmp);
-				texture_.update(tmp);
+				if (im2_.rows == 0) { break; }
+				visualizeDepthMap(im2_, tmp, 7.0);
+				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(im1_, tmp);
+				texture2_.update(tmp);
 				break;
 			
 			case Channel::Deviation:
-				if (depth_.rows == 0) { break; }
+				if (im2_.rows == 0) { break; }/*
 				//imageSize = Vector2f(depth.cols, depth.rows);
 				stats_->getStdDev(tmp);
 				tmp.convertTo(tmp, CV_8U, 1000.0);
 				applyColorMap(tmp, tmp, cv::COLORMAP_HOT);
-				texture_.update(tmp);
+				texture2_.update(tmp);*/
 				break;
 
 		case Channel::Flow:
-		case Channel::Confidence:
 		case Channel::Normals:
 		case Channel::Right:
-				if (depth_.rows == 0 || depth_.type() != CV_8UC3) { break; }
-				texture_.update(depth_);
+				if (im2_.rows == 0 || im2_.type() != CV_8UC3) { break; }
+				texture2_.update(im2_);
 				break;
 
 			default:
-				if (rgb_.rows == 0) { break; }
+				break;
+				/*if (rgb_.rows == 0) { break; }
 				//imageSize = Vector2f(rgb.cols,rgb.rows);
 				texture_.update(rgb_);
-
 				#ifdef HAVE_OPENVR
 				if (screen_->hasVR() && depth_.channels() >= 3) {
 					LOG(INFO) << "DRAW RIGHT";
 					textureRight_.update(depth_);
 				}
 				#endif
+				*/
+		}
+
+		if (im1_.rows != 0) {
+			//imageSize = Vector2f(rgb.cols,rgb.rows);
+			texture1_.update(im1_);
 		}
 	}
 
-	return texture_;
+	return texture1_;
 }
 
 nlohmann::json ftl::gui::Camera::getMetaData() {

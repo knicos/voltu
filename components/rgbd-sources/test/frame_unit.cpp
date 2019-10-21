@@ -2,8 +2,8 @@
 #include <ftl/rgbd/frame.hpp>
 
 using ftl::rgbd::Frame;
-using ftl::rgbd::Channel;
-using ftl::rgbd::Channels;
+using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 using ftl::rgbd::Format;
 
 TEST_CASE("Frame::create() cpu mat", "") {

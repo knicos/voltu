@@ -37,9 +37,9 @@ using cv::Vec4d;
 
 using ftl::net::Universe;
 using ftl::rgbd::Source;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
-Mat getCameraMatrix(const ftl::rgbd::Camera &parameters) {
+Mat createCameraMatrix(const ftl::rgbd::Camera &parameters) {
 	Mat m = (cv::Mat_<double>(3,3) << parameters.fx, 0.0, -parameters.cx, 0.0, parameters.fy, -parameters.cy, 0.0, 0.0, 1.0);
 	return m;
 }
@@ -173,7 +173,7 @@ void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
 		Scalar(64, 255, 64),
 		Scalar(64, 255, 64),
 	};
-
+	
 	vector<int> markers = {cv::MARKER_SQUARE, cv::MARKER_DIAMOND};
 
 	for (size_t c = 0; c < rgb.size(); c++) {
@@ -183,8 +183,12 @@ void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
 		for (int r = 50; r < rgb[c].rows; r = r+50) {
 			cv::line(rgb[c], cv::Point(0, r), cv::Point(rgb[c].cols-1, r), cv::Scalar(0,0,255), 1);
 		}
-	}
 
+		cv::putText(rgb[c],
+			"Camera " + std::to_string(c),
+			Point2i(roi[c].x + 10, roi[c].y + 30),
+			cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, Scalar(64, 64, 255), 1);
+	}
 	stack(rgb, out);
 }
 
@@ -203,7 +207,7 @@ struct CalibrationParams {
 void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 				const CalibrationParams &params, vector<Mat> &map1, vector<Mat> &map2, vector<cv::Rect> &roi)
 {
-	int reference_camera = -1;
+	int reference_camera = params.reference_camera;
 	if (params.reference_camera < 0) {
 		reference_camera = calib.getOptimalReferenceCamera();
 		reference_camera -= (reference_camera & 1);
@@ -233,10 +237,11 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 		Mat P1, P2, Q;
 		Mat R1, R2;
 		Mat R_c1c2, T_c1c2;
-
+		
 		calculateTransform(R[c], t[c], R[c + 1], t[c + 1], R_c1c2, T_c1c2);
 		cv::stereoRectify(K1, D1, K2, D2, params.size, R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, params.alpha);
 
+		// calculate extrinsics from rectified parameters
 		Mat _t = Mat(Size(1, 3), CV_64FC1, Scalar(0.0));
 		Rt_out[c] = getMat4x4(R[c], t[c]) * getMat4x4(R1, _t).inv();
 		Rt_out[c + 1] = getMat4x4(R[c + 1], t[c + 1]) * getMat4x4(R2, _t).inv();
@@ -247,27 +252,46 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 			size_t pos2 = uri_cameras[c/2].find("#", pos1);
 			node_name = uri_cameras[c/2].substr(pos1, pos2 - pos1);
 			
-			if (params.save_extrinsic) {
-				// TODO:	only R and T required, rectification performed on vision node,
-				//			consider saving global extrinsic calibration?
-				saveExtrinsics(params.output_path + node_name + "-extrinsic.yml", R_c1c2, T_c1c2, R1, R2, P1, P2, Q);
+			if (params.save_extrinsic)
+			{
+				// TODO:	only R and T required when rectification performed
+				//			on vision node. Consider saving extrinsic global
+				//			for node as well?
+				saveExtrinsics(	params.output_path + node_name + "-extrinsic.yml",
+								R_c1c2, T_c1c2, R1, R2, P1, P2, Q
+				);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-extrinsic.yml";
 			}
-			if (params.save_intrinsic) {
+			else
+			{
+				Mat rvec;
+				cv::Rodrigues(R_c1c2, rvec);
+				LOG(INFO) << "From camera " << c << " to " << c + 1;
+				LOG(INFO) << "rotation:    " << rvec.t();
+				LOG(INFO) << "translation: " << T_c1c2.t();
+			}
+
+			if (params.save_intrinsic)
+			{
 				saveIntrinsics(
 					params.output_path + node_name + "-intrinsic.yml",
-					{calib.getCameraMat(c),
-					 calib.getCameraMat(c + 1)},
+					{ calib.getCameraMat(c), calib.getCameraMat(c + 1) },
 					params.size
-
 				);
 				LOG(INFO) << "Saved: " << params.output_path + node_name + "-intrinsic.yml";
+			}
+			else if (params.optimize_intrinsic)
+			{
+				LOG(INFO) << "K1:\n" << K1;
+				LOG(INFO) << "K2:\n" << K2;
 			}
 		}
 
 		// for visualization
 		Size new_size;
 		cv::stereoRectify(K1, D1, K2, D2, params.size, R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, 1.0, new_size, &roi[c], &roi[c + 1]);
+		//roi[c] = cv::Rect(0, 0, params.size.width, params.size.height);
+		//roi[c+1] = cv::Rect(0, 0, params.size.width, params.size.height);
 		cv::initUndistortRectifyMap(K1, D1, R1, P1, params.size, CV_16SC2, map1[c], map2[c]);
 		cv::initUndistortRectifyMap(K2, D2, R2, P2, params.size, CV_16SC2, map1[c + 1], map2[c + 1]);
 	}
@@ -393,11 +417,11 @@ void runCameraCalibration(	ftl::Configurable* root,
 		CHECK(params.size == Size(camera_l.width, camera_l.height));
 		
 		Mat K;
-		K = getCameraMatrix(camera_r);
+		K = createCameraMatrix(camera_r);
 		LOG(INFO) << "K[" << 2 * i + 1 << "] = \n" << K;
 		calib.setCameraParameters(2 * i + 1, K);
 
-		K = getCameraMatrix(camera_l);
+		K = createCameraMatrix(camera_l);
 		LOG(INFO) << "K[" << 2 * i << "] = \n" << K;
 		calib.setCameraParameters(2 * i, K);
 	}
@@ -509,6 +533,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	// visualize
 	while(ftl::running) {
+		cv::waitKey(10);
 		while (!new_frames) {
 			for (auto src : sources) { src->grab(30); }
 			if (cv::waitKey(50) != -1) { ftl::running = false; }

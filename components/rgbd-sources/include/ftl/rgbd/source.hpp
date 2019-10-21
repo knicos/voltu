@@ -8,9 +8,11 @@
 #include <ftl/net/universe.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/rgbd/detail/source.hpp>
+#include <ftl/codecs/packet.hpp>
 #include <opencv2/opencv.hpp>
 #include <Eigen/Eigen>
 #include <string>
+#include <map>
 
 #include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/frame.hpp>
@@ -27,6 +29,7 @@ static inline bool isValidDepth(float d) { return (d > 0.01f) && (d < 39.99f); }
 
 class SnapshotReader;
 class VirtualSource;
+class Player;
 
 /**
  * RGBD Generic data source configurable entity. This class hides the
@@ -68,9 +71,9 @@ class Source : public ftl::Configurable {
 	/**
 	 * Change the second channel source.
 	 */
-	bool setChannel(ftl::rgbd::Channel c);
+	bool setChannel(ftl::codecs::Channel c);
 
-	ftl::rgbd::Channel getChannel() const { return channel_; }
+	ftl::codecs::Channel getChannel() const { return channel_; }
 
 	/**
 	 * Perform the hardware or virtual frame grab operation. This should be
@@ -143,7 +146,7 @@ class Source : public ftl::Configurable {
 		else return params_;
 	}
 
-	const Camera parameters(ftl::rgbd::Channel) const;
+	const Camera parameters(ftl::codecs::Channel) const;
 
 	cv::Mat cameraMatrix() const;
 
@@ -201,9 +204,26 @@ class Source : public ftl::Configurable {
 	SHARED_MUTEX &mutex() { return mutex_; }
 
 	std::function<void(int64_t, cv::Mat &, cv::Mat &)> &callback() { return callback_; }
+
+	/**
+	 * Set the callback that receives decoded frames as they are generated.
+	 */
 	void setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb);
 	void removeCallback() { callback_ = nullptr; }
 
+	/**
+	 * Add a callback to immediately receive any raw data from this source.
+	 * Currently this only works for a net source since other sources don't
+	 * produce raw encoded data.
+	 */
+	void addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+
+	void removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+
+	/**
+	 * INTERNAL. Used to send raw data to callbacks.
+	 */
+	void notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 
 	protected:
 	detail::Source *impl_;
@@ -216,15 +236,20 @@ class Source : public ftl::Configurable {
 	SHARED_MUTEX mutex_;
 	bool paused_;
 	bool bullet_;
-	ftl::rgbd::Channel channel_;
+	ftl::codecs::Channel channel_;
 	cudaStream_t stream_;
 	int64_t timestamp_;
 	std::function<void(int64_t, cv::Mat &, cv::Mat &)> callback_;
+	std::list<std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)>> rawcallbacks_;
 
 	detail::Source *_createImplementation();
 	detail::Source *_createFileImpl(const ftl::URI &uri);
 	detail::Source *_createNetImpl(const ftl::URI &uri);
 	detail::Source *_createDeviceImpl(const ftl::URI &uri);
+
+	static ftl::rgbd::Player *__createReader(const std::string &path);
+
+	static std::map<std::string, ftl::rgbd::Player*> readers__;
 };
 
 }

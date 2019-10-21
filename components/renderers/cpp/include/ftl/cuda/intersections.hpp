@@ -49,8 +49,7 @@ __device__ inline bool intersectDisk(const float3 &n, const float3 &p0, float ra
  * @param l Normalised ray direction in camera space
  * @return Radius from centre of disk where intersection occurred.
  */
-__device__ inline float intersectDistance(const float3 &n, const float3 &p0, const float3 &l0, const float3 &l) { 
-    float t = 0; 
+__device__ inline float intersectDistance(const float3 &n, const float3 &p0, const float3 &l0, const float3 &l, float &t) { 
     if (intersectPlane(n, p0, l0, l, t)) { 
         const float3 p = l0 + l * t; 
         const float3 v = p - p0; 

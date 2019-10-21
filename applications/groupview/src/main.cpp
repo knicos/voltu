@@ -16,7 +16,7 @@ using std::string;
 using std::vector;
 using cv::Size;
 using cv::Mat;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 
 // TODO: remove code duplication (function from reconstruction)
 static void from_json(nlohmann::json &json, map<string, Matrix4d> &transformations) {

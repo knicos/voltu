@@ -13,6 +13,7 @@ enable_testing()
 option(WITH_PCL "Use PCL if available" OFF)
 option(WITH_NVPIPE "Use NvPipe for compression if available" ON)
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
+option(WITH_OPENVR "Build with OpenVR support" OFF)
 option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
@@ -30,6 +31,8 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
 
+# find_package( ffmpeg )
+
 if (WITH_OPTFLOW)
 	# TODO check that cudaoptflow.hpp exists (OpenCV built with correct contrib modules)
 	set(HAVE_OPTFLOW true)
@@ -40,18 +43,19 @@ if (LibArchive_FOUND)
 	set(HAVE_LIBARCHIVE true)
 endif()
 
-## OpenVR API path
-find_library(OPENVR_LIBRARIES
-  NAMES
-    openvr_api
-)
-set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
+if (WITH_OPENVR)
+	## OpenVR API path
+	find_library(OPENVR_LIBRARIES
+		NAMES
+			openvr_api
+	)
+	set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
 
-if (OPENVR_LIBRARIES)
-	message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
-	set(HAVE_OPENVR true)
+	if (OPENVR_LIBRARIES)
+		message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
+		set(HAVE_OPENVR true)
+	endif()
 endif()
-
 
 if (WITH_FIXSTARS)
 	find_package( LibSGM )
@@ -179,6 +183,9 @@ find_library(UUID_LIBRARIES NAMES uuid libuuid)
 else()
 endif()
 
+# For ftl2mkv
+check_include_file("libavformat/avformat.h" HAVE_AVFORMAT)
+
 # Check for optional opencv components
 set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
 check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
@@ -220,6 +227,12 @@ add_subdirectory(components/rgbd-sources)
 add_subdirectory(components/control/cpp)
 add_subdirectory(applications/calibration)
 add_subdirectory(applications/groupview)
+add_subdirectory(applications/player)
+add_subdirectory(applications/recorder)
+
+if (HAVE_AVFORMAT)
+	add_subdirectory(applications/ftl2mkv)
+endif()
 
 if (BUILD_RENDERER)
 	add_subdirectory(components/renderers)

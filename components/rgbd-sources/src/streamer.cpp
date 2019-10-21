@@ -17,7 +17,7 @@ using ftl::rgbd::detail::StreamClient;
 using ftl::rgbd::detail::ABRController;
 using ftl::codecs::definition_t;
 using ftl::codecs::device_t;
-using ftl::rgbd::Channel;
+using ftl::codecs::Channel;
 using ftl::net::Universe;
 using std::string;
 using std::list;
@@ -48,6 +48,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	//group_.setFPS(value("fps", 20));
 	group_.setLatency(4);
+	group_.setName("StreamGroup");
 
 	compress_level_ = value("compression", 1);
 	
@@ -92,7 +93,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	});
 
 	// Allow remote users to access camera calibration matrix
-	net->bind("source_details", [this](const std::string &uri, ftl::rgbd::Channel chan) -> tuple<unsigned int,vector<unsigned char>> {
+	net->bind("source_details", [this](const std::string &uri, ftl::codecs::Channel chan) -> tuple<unsigned int,vector<unsigned char>> {
 		vector<unsigned char> buf;
 		SHARED_LOCK(mutex_,slk);
 
@@ -126,6 +127,20 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	//net->bind("ping_streamer", [this](unsigned long long time) -> unsigned long long {
 	//	return time;
 	//});
+
+	on("hq_bitrate", [this](const ftl::config::Event &e) {
+		UNIQUE_LOCK(mutex_,ulk);
+		for (auto &s : sources_) {
+			s.second->hq_bitrate = value("hq_bitrate", ftl::codecs::kPresetBest);
+		}
+	});
+
+	on("lq_bitrate", [this](const ftl::config::Event &e) {
+		UNIQUE_LOCK(mutex_,ulk);
+		for (auto &s : sources_) {
+			s.second->lq_bitrate = value("lq_bitrate", ftl::codecs::kPresetWorst);
+		}
+	});
 }
 
 Streamer::~Streamer() {
@@ -165,6 +180,10 @@ void Streamer::add(Source *src) {
 		s->clientCount = 0;
 		s->hq_count = 0;
 		s->lq_count = 0;
+
+		s->hq_bitrate = value("hq_bitrate", ftl::codecs::kPresetBest);
+		s->lq_bitrate = value("lq_bitrate", ftl::codecs::kPresetWorst);
+
 		sources_[src->getID()] = s;
 
 		group_.addSource(src);
@@ -172,6 +191,40 @@ void Streamer::add(Source *src) {
 
 	LOG(INFO) << "Streaming: " << src->getID();
 	net_->broadcast("add_stream", src->getID());
+}
+
+void Streamer::add(ftl::rgbd::Group *grp) {
+	auto srcs = grp->sources();
+	for (int i=0; i<srcs.size(); ++i) {
+		auto &src = srcs[i];
+		{
+			UNIQUE_LOCK(mutex_,ulk);
+			if (sources_.find(src->getID()) != sources_.end()) return;
+
+			StreamSource *s = new StreamSource;
+			s->src = src;
+			//s->prev_depth = cv::Mat(cv::Size(src->parameters().width, src->parameters().height), CV_16SC1, 0);
+			s->jobs = 0;
+			s->frame = 0;
+			s->clientCount = 0;
+			s->hq_count = 0;
+			s->lq_count = 0;
+			s->id = i;
+			sources_[src->getID()] = s;
+
+			//group_.addSource(src);
+
+			src->addRawCallback([this,s](Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+				//LOG(INFO) << "RAW CALLBACK";
+				_transmitPacket(s, spkt, pkt, Quality::Any);
+			});
+		}
+
+		LOG(INFO) << "Proxy Streaming: " << src->getID();
+		net_->broadcast("add_stream", src->getID());
+	}
+
+	LOG(INFO) << "All proxy streams added";
 }
 
 void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID &peer, const string &dest) {
@@ -349,10 +402,11 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 	// Prevent new clients during processing.
 	SHARED_LOCK(mutex_,slk);
 
-	if (fs.sources.size() != sources_.size()) {
-		LOG(ERROR) << "Incorrect number of sources in frameset: " << fs.sources.size() << " vs " << sources_.size();
-		return;
-	}
+	// This check is not valid, always assume fs.sources is correct
+	//if (fs.sources.size() != sources_.size()) {
+	//	LOG(ERROR) << "Incorrect number of sources in frameset: " << fs.sources.size() << " vs " << sources_.size();
+		//return;
+	//}
 
 	int totalclients = 0;
 
@@ -389,15 +443,22 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Receiver only waits for channel 1 by default
 				// TODO: Each encode could be done in own thread
 				if (hasChan2) {
-					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-						_transmitPacket(src, blk, 1, hasChan2, true);
+					// TODO: Stagger the reset between nodes... random phasing
+					if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc2->reset();
+
+					auto chan = fs.sources[j]->getChannel();
+
+					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->hq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+						_transmitPacket(src, blk, chan, hasChan2, Quality::High);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
+				// TODO: Stagger the reset between nodes... random phasing
+				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
 				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-					_transmitPacket(src, blk, 0, hasChan2, true);
+					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 				});
 			}
 		}
@@ -417,15 +478,17 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Important to send channel 2 first if needed...
 				// Receiver only waits for channel 1 by default
 				if (hasChan2) {
-					enc2->encode(fs.frames[j].get<cv::Mat>(fs.sources[j]->getChannel()), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-						_transmitPacket(src, blk, 1, hasChan2, false);
+					auto chan = fs.sources[j]->getChannel();
+
+					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->lq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+						_transmitPacket(src, blk, chan, hasChan2, Quality::Low);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
 				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-					_transmitPacket(src, blk, 0, hasChan2, false);
+					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::Low);
 				});
 			}
 		}
@@ -491,19 +554,27 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 	} else _cleanUp();
 }
 
-void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt, int chan, bool hasChan2, bool hqonly) {
+void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt, Channel chan, bool hasChan2, Quality q) {
 	ftl::codecs::StreamPacket spkt = {
 		frame_no_,
-		static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
+		src->id,
+		(hasChan2) ? 2 : 1,
+		chan
+		//static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
 	};
-	LOG(INFO) << "codec:" << (int) pkt.codec;
+
+	_transmitPacket(src, spkt, pkt, q);
+}
+
+void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt, Quality q) {
 	// Lock to prevent clients being added / removed
 	//SHARED_LOCK(src->mutex,lk);
 	auto c = src->clients.begin();
 	while (c != src->clients.end()) {
 		const ftl::codecs::preset_t b = (*c).preset;
-		if ((hqonly && b >= kQualityThreshold) || (!hqonly && b < kQualityThreshold)) {
+		if ((q == Quality::High && b >= kQualityThreshold) || (q == Quality::Low && b < kQualityThreshold)) {
 			++c;
+			LOG(INFO) << "INCORRECT QUALITY";
 			continue;
 		}
 
@@ -520,7 +591,7 @@ void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt
 				(*c).txcount = (*c).txmax;
 			} else {
 				// Count frame as completed only if last block and channel is 0
-				if (pkt.block_number == pkt.block_total - 1 && chan == 0) ++(*c).txcount;
+				if (pkt.block_number == pkt.block_total - 1 && spkt.channel == Channel::Colour) ++(*c).txcount;
 			}
 		} catch(...) {
 			(*c).txcount = (*c).txmax;
@@ -718,7 +789,7 @@ void Streamer::_encodeImageChannel1(const cv::Mat &in, vector<unsigned char> &ou
 	cv::imencode(".jpg", in, out, jpgparams);
 }
 
-bool Streamer::_encodeImageChannel2(const cv::Mat &in, vector<unsigned char> &out, ftl::rgbd::channel_t c, unsigned int b) {
+bool Streamer::_encodeImageChannel2(const cv::Mat &in, vector<unsigned char> &out, ftl::codecs::Channel_t c, unsigned int b) {
 	if (c == ftl::rgbd::kChanNone) return false;  // NOTE: Should not happen
 
 	if (isFloatChannel(c) && in.type() == CV_16U && in.channels() == 1) {

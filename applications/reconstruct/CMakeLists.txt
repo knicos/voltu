@@ -15,8 +15,11 @@ set(REPSRC
 	#src/mls.cu
 	#src/depth_camera.cu
 	#src/depth_camera.cpp
-	src/ilw.cpp
-	src/ilw.cu
+	src/ilw/ilw.cpp
+	src/ilw/ilw.cu
+	src/ilw/fill.cu
+	src/ilw/discontinuity.cu
+	src/ilw/correspondence.cu
 )
 
 add_executable(ftl-reconstruct ${REPSRC})

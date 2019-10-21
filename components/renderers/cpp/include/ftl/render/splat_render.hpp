@@ -4,6 +4,7 @@
 #include <ftl/render/renderer.hpp>
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/render/splat_params.hpp>
+#include <ftl/cuda/points.hpp>
 
 namespace ftl {
 namespace render {
@@ -21,11 +22,11 @@ class Splatter : public ftl::render::Renderer {
 	explicit Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs);
 	~Splatter();
 
-	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cudaStream_t stream=0) override;
+	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) override;
 	//void setOutputDevice(int);
 
 	protected:
-	void renderChannel(ftl::render::SplatParams &params, ftl::rgbd::Frame &out, const ftl::rgbd::Channel &channel, cudaStream_t stream);
+	void _renderChannel(ftl::rgbd::Frame &out, ftl::codecs::Channel channel_in, ftl::codecs::Channel channel_out, cudaStream_t stream);
 
 	private:
 	int device_;
@@ -39,7 +40,25 @@ class Splatter : public ftl::render::Renderer {
 	//SplatParams params_;
 
 	ftl::rgbd::Frame temp_;
+	ftl::rgbd::Frame accum_;
 	ftl::rgbd::FrameSet *scene_;
+	ftl::cuda::ClipSpace clip_;
+	bool clipping_;
+	float norm_filter_;
+	bool backcull_;
+	cv::Scalar background_;
+	bool splat_;
+	float3 light_dir_;
+	uchar4 light_diffuse_;
+	uchar4 light_ambient_;
+	ftl::render::SplatParams params_;
+	cudaStream_t stream_;
+	float3 light_pos_;
+
+	template <typename T>
+	void __blendChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
+	void _blendChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
+	void _dibr(cudaStream_t);
 };
 
 }

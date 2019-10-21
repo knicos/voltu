@@ -26,8 +26,8 @@ struct FrameSet {
 	bool stale;						// True if buffers have been invalidated
 	SHARED_MUTEX mtx;
 
-	void upload(ftl::rgbd::Channels, cudaStream_t stream=0);
-	void download(ftl::rgbd::Channels, cudaStream_t stream=0);
+	void upload(ftl::codecs::Channels, cudaStream_t stream=0);
+	void download(ftl::codecs::Channels, cudaStream_t stream=0);
 	void swapTo(ftl::rgbd::FrameSet &);
 };
 

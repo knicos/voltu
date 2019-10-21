@@ -38,15 +38,16 @@ class Camera {
 	void showPoseWindow();
 	void showSettings();
 
-	void setChannel(ftl::rgbd::Channel c);
-
+	void setChannel(ftl::codecs::Channel c);
+	const ftl::codecs::Channel getChannel() { return channel_; }
+	
 	void togglePause();
 	void isPaused();
-	const ftl::rgbd::Channels &availableChannels();
+	const ftl::codecs::Channels &availableChannels();
 
 	const GLTexture &captureFrame();
-	const GLTexture &getLeft() const { return texture_; }
-	const GLTexture &getRight() const { return textureRight_; }
+	const GLTexture &getLeft() const { return texture1_; }
+	const GLTexture &getRight() const { return texture2_; }
 
 	bool thumbnail(cv::Mat &thumb);
 
@@ -54,12 +55,21 @@ class Camera {
 
 	StatisticsImage *stats_ = nullptr;
 
+
+#ifdef HAVE_OPENVR
+	bool isVR() { return vr_mode_; }
+	bool setVR(bool on);
+#else
+	bool isVR() { return false; }
+#endif
+
 	private:
 	Screen *screen_;
 	ftl::rgbd::Source *src_;
 	GLTexture thumb_;
-	GLTexture texture_;
-	GLTexture textureRight_;
+	GLTexture texture1_; // first channel (always left at the moment)
+	GLTexture texture2_; // second channel ("right")
+
 	ftl::gui::PoseWindow *posewin_;
 	nlohmann::json meta_;
 	Eigen::Vector4d neye_;
@@ -71,14 +81,17 @@ class Camera {
 	float lerpSpeed_;
 	bool sdepth_;
 	bool pause_;
-	ftl::rgbd::Channel channel_;
-	ftl::rgbd::Channels channels_;
-	cv::Mat rgb_;
-	cv::Mat depth_;
+	ftl::codecs::Channel channel_;
+	ftl::codecs::Channels channels_;
+	cv::Mat im1_; // first channel (left)
+	cv::Mat im2_; // second channel ("right")
+
 	MUTEX mutex_;
 
 	#ifdef HAVE_OPENVR
 	vr::TrackedDevicePose_t rTrackedDevicePose_[ vr::k_unMaxTrackedDeviceCount ];
+	bool vr_mode_;
+	float baseline_;
 	#endif
 };
 

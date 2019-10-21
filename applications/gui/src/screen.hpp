@@ -43,11 +43,27 @@ class Screen : public nanogui::Screen {
 	void setActiveCamera(ftl::gui::Camera*);
 	ftl::gui::Camera *activeCamera() { return camera_; }
 
-	#ifdef HAVE_OPENVR
-	bool hasVR() const { return HMD_ != nullptr; }
-	#else
+#ifdef HAVE_OPENVR
+	// initialize OpenVR
+	bool initVR();
+
+	// is VR available (HMD was found at initialization)
+	bool hasVR() const { return has_vr_; }
+
+	// is VR mode on/off
+	bool useVR();
+
+	// toggle VR on/off
+	bool switchVR(bool mode);
+
+	vr::IVRSystem* getVR() { return HMD_; }
+
+#else
 	bool hasVR() const { return false; }
-	#endif
+#endif
+
+	void setDualView(bool v) { show_two_images_ = v; LOG(INFO) << "CLICK"; }
+	bool getDualView() { return show_two_images_; }
 
 	nanogui::Theme *windowtheme;
 	nanogui::Theme *specialtheme;
@@ -58,10 +74,11 @@ class Screen : public nanogui::Screen {
 	ftl::gui::SourceWindow *swindow_;
 	ftl::gui::ControlWindow *cwindow_;
 	ftl::gui::MediaPanel *mwindow_;
+
 	//std::vector<SourceViews> sources_;
 	ftl::net::Universe *net_;
 	nanogui::GLShader mShader;
-    GLuint mImageID;
+	GLuint mImageID;
 	//Source *src_;
 	GLTexture texture_;
 	Eigen::Vector3f eye_;
@@ -82,7 +99,10 @@ class Screen : public nanogui::Screen {
 	GLuint leftEye_;
 	GLuint rightEye_;
 
+	bool show_two_images_ = false;
+
 	#ifdef HAVE_OPENVR
+	bool has_vr_;
 	vr::IVRSystem *HMD_;
 	#endif
 };

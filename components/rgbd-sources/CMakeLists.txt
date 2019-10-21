@@ -1,13 +1,13 @@
 set(RGBDSRC
-	src/calibrate.cpp
-	src/local.cpp
+	src/sources/stereovideo/calibrate.cpp
+	src/sources/stereovideo/local.cpp
 	src/disparity.cpp
 	src/source.cpp
 	src/frame.cpp
 	src/frameset.cpp
-	src/stereovideo.cpp
-	src/middlebury_source.cpp
-	src/net.cpp
+	src/sources/stereovideo/stereovideo.cpp
+	src/sources/middlebury/middlebury_source.cpp
+	src/sources/net/net.cpp
 	src/streamer.cpp
 	src/colour.cpp
 	src/group.cpp
@@ -18,17 +18,19 @@ set(RGBDSRC
 	src/cb_segmentation.cpp
 	src/abr.cpp
 	src/offilter.cpp
-	src/virtual.cpp
+	src/sources/virtual/virtual.cpp
+	src/sources/ftlfile/file_source.cpp
+	src/sources/ftlfile/player.cpp
 )
 
 if (HAVE_REALSENSE)
-	list(APPEND RGBDSRC "src/realsense_source.cpp")
+	list(APPEND RGBDSRC "src/sources/realsense/realsense_source.cpp")
 endif()
 
 if (LibArchive_FOUND)
 	list(APPEND RGBDSRC
-		src/snapshot.cpp
-		src/snapshot_source.cpp
+		src/sources/snapshot/snapshot.cpp
+		src/sources/snapshot/snapshot_source.cpp
 	)
 endif (LibArchive_FOUND)
 

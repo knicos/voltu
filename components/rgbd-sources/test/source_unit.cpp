@@ -18,6 +18,14 @@ class SnapshotReader {
 	Snapshot readArchive() { return Snapshot(); };
 };
 
+class Player {
+	public:
+	explicit Player(std::istream &) {}
+
+	bool begin() { return true; }
+	bool end() { return true; }
+};
+
 namespace detail {
 
 class ImageSource : public ftl::rgbd::detail::Source {
@@ -74,6 +82,18 @@ class SnapshotSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
+class FileSource : public ftl::rgbd::detail::Source {
+	public:
+	FileSource(ftl::rgbd::Source *host, ftl::rgbd::Player *r, int) : ftl::rgbd::detail::Source(host) {
+		last_type = "filesource";
+	}
+
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
+	bool isReady() { return true; };
+};
+
 class RealsenseSource : public ftl::rgbd::detail::Source {
 	public:
 	explicit RealsenseSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
@@ -112,6 +132,7 @@ class MiddleburySource : public ftl::rgbd::detail::Source {
 #define _FTL_RGBD_IMAGE_HPP_
 #define _FTL_RGBD_REALSENSE_HPP_
 #define _FTL_RGBD_MIDDLEBURY_SOURCE_HPP_
+#define _FTL_RGBD_FILE_SOURCE_HPP_
 
 #include "../src/source.cpp"
 

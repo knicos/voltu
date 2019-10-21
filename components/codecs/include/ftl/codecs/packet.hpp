@@ -4,11 +4,20 @@
 #include <cstdint>
 #include <vector>
 #include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/channels.hpp>
 
 #include <msgpack.hpp>
 
 namespace ftl {
 namespace codecs {
+
+/**
+ * First bytes of our file format.
+ */
+struct Header {
+	const char magic[4] = {'F','T','L','F'};
+	uint8_t version = 1;
+};
 
 /**
  * A single network packet for the compressed video stream. It includes the raw
@@ -21,9 +30,10 @@ struct Packet {
 	ftl::codecs::definition_t definition;
 	uint8_t block_total;	// Packets expected per frame
 	uint8_t block_number; 	// This packets number within a frame
+	uint8_t flags;			// Codec dependent flags (eg. I-Frame or P-Frame)
 	std::vector<uint8_t> data;
 
-	MSGPACK_DEFINE(codec, definition, block_total, block_number, data);
+	MSGPACK_DEFINE(codec, definition, block_total, block_number, flags, data);
 };
 
 /**
@@ -33,9 +43,11 @@ struct Packet {
  */
 struct StreamPacket {
 	int64_t timestamp;
-	uint8_t channel;  // first bit = channel, second bit indicates second channel being sent
+	uint8_t streamID;  		// Source number... 255 = broadcast stream
+	uint8_t channel_count;	// Number of channels to expect for this frame to complete (usually 1 or 2)
+	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
 
-	MSGPACK_DEFINE(timestamp, channel);
+	MSGPACK_DEFINE(timestamp, streamID, channel_count, channel);
 };
 
 }
