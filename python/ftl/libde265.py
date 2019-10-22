@@ -10,15 +10,12 @@ Requirements:
 
 try:
     import cv2 as cv
-    
-    # TODO: test
-    def resize(img, size):
-        return cv.resize(img, dsize=reversed(size), interpolation=cv.INTER_CUBIC)
+    def _resize(img, size):
+        return cv.resize(img, dsize=tuple(reversed(size)), interpolation=cv.INTER_CUBIC)
     
 except ImportError:
     from skimage.transform import resize as resize_skimage
-    
-    def resize(img, size):
+    def _resize(img, size):
         # skimage resize() return dtype float64, convert back to uint8
         # order: 0 nn, 1 bilinear, 3 bicubic
         return (resize_skimage(img, size, order=3, mode="constant", cval=0) * 255).astype(np.uint8)
@@ -123,16 +120,16 @@ libde265.de265_get_image_plane.restype = ctypes.POINTER(ctypes.c_char)
 
 class Decoder:
     def __init__(self, size, threads=1):
-        self.size_ = size
-        self.more_ = ctypes.c_int()
-        self.out_stride_ = ctypes.c_int()
-        self.ctx_ = libde265.de265_new_decoder()
-        err = libde265.de265_start_worker_threads(self.ctx_, threads)
+        self._size = size
+        self._more = ctypes.c_int()
+        self._out_stride = ctypes.c_int()
+        self._ctx = libde265.de265_new_decoder()
+        err = libde265.de265_start_worker_threads(self._ctx, threads)
         if err:
             raise Exception(self.get_error_str(err))
         
     def __del__(self):
-        libde265.de265_free_decoder(self.ctx_)
+        libde265.de265_free_decoder(self._ctx)
     
     def get_error_str(self, code):
         return libde265.de265_get_error_text(code).decode("ascii")
@@ -141,13 +138,13 @@ class Decoder:
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
         
-        err = libde265.de265_push_data(self.ctx_, data, len(data), None, None)
+        err = libde265.de265_push_data(self._ctx, data, len(data), None, None)
         
         if err:
             raise Exception(self.get_error_str(err))
             
     def push_end_of_frame(self):
-        err = libde265.de265_push_end_of_frame(self.ctx_)
+        err = libde265.de265_push_end_of_frame(self._ctx)
         
         if err:
             raise Exception(self.get_error_str(err))
@@ -156,21 +153,21 @@ class Decoder:
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
         
-        err = libde265.de265_push_NAL(self.ctx_, data, len(data), None, None)
+        err = libde265.de265_push_NAL(self._ctx, data, len(data), None, None)
         
         if err:
             raise Exception(self.get_error_str(err))
             
     def decode(self):
-        err = libde265.de265_decode(self.ctx_, self.more_)
+        err = libde265.de265_decode(self._ctx, self._more)
         
         if err and err != libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
             raise Exception(self.get_error_str(err))
         
-        return self.more_.value != 0
+        return self._more.value != 0
     
     def flush_data(self):
-        err = libde265.de265_flush_data(self.ctx_)
+        err = libde265.de265_flush_data(self._ctx)
         
         if err:
             raise Exception(self.get_error_str(err))
@@ -180,12 +177,12 @@ class Decoder:
         Returns next decoded frame. Image in YCbCr format. If no frame available
         returns None.
         '''
-        img = libde265.de265_get_next_picture(self.ctx_)
+        img = libde265.de265_get_next_picture(self._ctx)
         
         if not img:
             return None
         
-        res = np.zeros((self.size_[0], self.size_[1], 3), dtype=np.uint8)
+        res = np.zeros((self._size[0], self._size[1], 3), dtype=np.uint8)
         
         for c in range(0, 3):
             size = (libde265.de265_get_image_height(img, c),
@@ -196,11 +193,11 @@ class Decoder:
             if bpp != 8:
                 raise NotImplementedError("unsupported bits per pixel %i" % bpp)
             
-            img_ptr = libde265.de265_get_image_plane(img, c, self.out_stride_)
+            img_ptr = libde265.de265_get_image_plane(img, c, self._out_stride)
             
             ch = np.frombuffer(img_ptr[:size[0] * size[1]], dtype=np.uint8)
             ch.shape = size
             
-            res[:,:,c] = resize(ch, self.size_)
+            res[:,:,c] = _resize(ch, self._size)
 
         return res
