@@ -8,20 +8,29 @@ from . libde265 import Decoder
 
 try:
     import cv2 as cv
-    def ycbcr2rgb(img):
-        raise NotImplementedError("TODO")
+    
+    def _ycrcb2rgb(img):
+        return cv.cvtColor(img, cv.COLOR_YCrCb2RGB)
     
 except ImportError:
-    import skimage.color
-    def ycbcr2rgb(img):
-        res = skimage.color.ycbcr2rgb(img.astype(np.float))
+    def _ycrcb2rgb(img):
+        ''' YCrCb to RGB, based on OpenCV documentation definition.
+        
+        Note: It seems this implementation is not perfectly equivalent to OpenCV's
+        '''
+        
+        rgb = np.zeros(img.shape, np.float)
 
-        # clip
-        res[res > 1.0] = 1.0
-        res[res < 0.0] = 0.0
+        Y = img[:,:,0].astype(np.float)
+        Cr = img[:,:,1].astype(np.float)
+        Cb = img[:,:,2].astype(np.float)
+        delta = 128.0
 
-        # skimage ycbcr2rgb() returns dtype float64, convert to uint8
-        return (res * 255).astype(np.uint8)
+        rgb[:,:,0] = Y + 1.403 * (Cr - delta)
+        rgb[:,:,1] = Y - 0.714 * (Cr - delta) - 0.344 * (Cb - delta)
+        rgb[:,:,2] = Y + 1.773 * (Cb - delta)
+
+        return rgb.round().astype(np.uint8)
 
 # FTL definitions
 
@@ -172,7 +181,7 @@ class FTLStream:
         img = decoder.get_next_picture()
         
         if img is not None:
-            self._frames[k] = ycbcr2rgb(img[:,:,(0,2,1)]) # note: channels BGR
+            self._frames[k] = _ycrcb2rgb(img)
     
     def _flush_decoders(self):
         for decoder in self._decoders.values():
