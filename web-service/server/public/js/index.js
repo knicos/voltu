@@ -1,24 +1,24 @@
 const checkIfLoggedIn = async () => {
-    const token = window.localStorage.getItem('token')
-    console.log(token)
-    if(!token){
-        console.log("You need to login")
-        renderLogin()
-    }else{
+//     const token = window.localStorage.getItem('token')
+//     console.log(token)
+//     if(!token){
+//         console.log("You need to login")
+//         renderLogin()
+//     }else{
 
-        //Check if the token is valid
-        const response = await fetch('http://localhost:8080/auth/validation', {
-            method: 'POST',
-            headers: {'Authorization': token}
-        })
-        console.log('RESPONSE', response)
+//         //Check if the token is valid
+//         const response = await fetch('http://localhost:8080/auth/validation', {
+//             method: 'POST',
+//             headers: {'Authorization': token}
+//         })
+//         console.log('RESPONSE', response)
         
-        //Token is valid, show available streams
-        if(response.status === 200){
-            console.log("SUCCESS")
+//         //Token is valid, show available streams
+//         if(response.status === 200){
+//             console.log("SUCCESS")
             renderThumbnails()
-        }
-    }
+    //     }
+    // }
 }
 
 //Redirects the user to google authentication
@@ -55,6 +55,7 @@ const renderThumbnails = async () => {
     console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
         const encodedURI = encodeURIComponent(thumbnails[i])
+        console.log("THUMBNAIL[i]", thumbnails[i])
         try{
             const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
             console.log('SOME DATA', someData)
@@ -64,10 +65,10 @@ const renderThumbnails = async () => {
             const myBlob = await someData.blob();
             console.log('BLOB', myBlob)
             const objectURL = URL.createObjectURL(myBlob);
-            containerDiv.innerHTML += `<img src='${objectURL}' alt="Hups" width='500px'></img>`
+            containerDiv.innerHTML += createCard(objectURL, i+4, encodedURI)
         }catch(err){
             console.log("Couldn't create thumbnail");
-            return 
+            console.log(err) 
         }
     }
 }
@@ -97,4 +98,17 @@ const renderLogin = () => {
                 </div>
             </a>
         </div>`
+}
+
+const createCard = (url, viewers, uri) => {
+    return `<div class='ftlab-card-component' >
+                <img src='${url}' class="thumbnail-img" alt="Hups" width='500px'></img>
+                <p>Viewers: ${viewers}</p>
+                <button onclick="window.location.href='/stream/${uri}'">button</button>
+            </div>`
+}
+
+const cardLogic = () => {
+    const cards = document.getElementsByClassName('ftlab-card-component');
+    console.log("CARDS", cards)
 }

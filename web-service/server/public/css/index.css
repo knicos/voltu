@@ -35,6 +35,18 @@ body {
     display: inline-block;
    }
 
-  img {
-    padding: 25px;  
+  .ftlab-card-component {
+    width: 150px;
+    height: auto;
+    margin: auto;
+    text-align: center;
+    border: 1px solid black;
+  }
+
+  .thumbnail-img {
+    width: 150px;
+  }
+
+  #container {
+    display: flex;
   }

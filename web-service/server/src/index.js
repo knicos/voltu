@@ -12,11 +12,13 @@ const User = require('./models/users')
 const Configs = require('./models/generic')
 const Disparity = require('./models/disparity')
 const bodyParser = require('body-parser')
+const cors = require('cors')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
 app.use(express.static(__dirname + './../public'));
 app.use(bodyParser.json())
+//app.use(cors())
 
 
 passport.serializeUser((user, done) => {
@@ -27,13 +29,13 @@ passport.deserializeUser((userDataFromCookie, done) => {
     done(null, userDataFromCookie);
 })
 
-mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-	.then(() => {
-		console.log('Connected to MongoDB');
-	})
-	.catch((err) => {
-		console.log(err);
-	})
+// mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+// 	.then(() => {
+// 		console.log('Connected to MongoDB');
+// 	})
+// 	.catch((err) => {
+// 		console.log(err);
+// 	})
 
 let peer_by_id = {};
 //let uri_to_peer = {};
@@ -132,8 +134,8 @@ RGBDStream.prototype.subscribe = function() {
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 	//Checks that the type is jpg
 	if (packet[0] === 0){
-		if (spacket[1] & 0x1) this.depth = packet[4];
-		else this.rgb = packet[4];
+		if (spacket[3] > 0) this.depth = packet[5];
+		else this.rgb = packet[5];
 	}
 
 	console.log("Frame = ", packet[0], packet[1]);
@@ -185,15 +187,15 @@ app.get('/streams', (req, res) => {
 /**
  * A list that has Object.keys(uri_data) values and also the image that is 
  * binded to that 
- * Joku lista missä on Object.keys(uri_datan) arvot ja niihin bindattu
- * se
  */
 app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
+	console.log("URI", uri)
 	if (uri_data.hasOwnProperty(uri)) {
 		uri_data[uri].peer.send("get_stream", uri, 10, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
-    	res.end(uri_data[uri].rgb);
+		console.log("URIDATA", uri_data[uri].rgb);
+		res.end(uri_data[uri].rgb);
 	}
 	res.end();
 });
@@ -307,18 +309,8 @@ app.get('/stream/config', async(req, res) => {
 	// 	save the get the first depth
 	// 	save the value with default values into the first depth
 	// }
-	
-	console.log(depth)
-	console.log(wholeURI)
-	console.log(uri)
-	console.log(depth)
-
-	return res.send(200)
 })
 
-const uriParser = (uri) => {
-
-}
 
 app.get('/stream', (req, res) => {
 	let uri = req.query.uri;
