@@ -12,7 +12,7 @@ const User = require('./models/users')
 const Configs = require('./models/generic')
 const Disparity = require('./models/disparity')
 const bodyParser = require('body-parser')
-const cors = require('cors')
+//const cors = require('cors')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
@@ -29,13 +29,13 @@ passport.deserializeUser((userDataFromCookie, done) => {
     done(null, userDataFromCookie);
 })
 
-// mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-// 	.then(() => {
-// 		console.log('Connected to MongoDB');
-// 	})
-// 	.catch((err) => {
-// 		console.log(err);
-// 	})
+mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+	.then(() => {
+		console.log('Connected to MongoDB');
+	})
+	.catch((err) => {
+		console.log(err);
+	})
 
 let peer_by_id = {};
 //let uri_to_peer = {};
@@ -314,6 +314,12 @@ app.get('/stream/config', async(req, res) => {
 
 app.get('/stream', (req, res) => {
 	let uri = req.query.uri;
+
+
+	/**
+	 * It should render a new html page that has it's own dedicated js-file
+	 * The js-file should do everything related to the decoding of bitstream.
+	 */
 	console.log(uri)
 })
 

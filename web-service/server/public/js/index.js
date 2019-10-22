@@ -1,24 +1,24 @@
 const checkIfLoggedIn = async () => {
-//     const token = window.localStorage.getItem('token')
-//     console.log(token)
-//     if(!token){
-//         console.log("You need to login")
-//         renderLogin()
-//     }else{
+    const token = window.localStorage.getItem('token')
+    console.log(token)
+    if(!token){
+        console.log("You need to login")
+        renderLogin()
+    }else{
 
-//         //Check if the token is valid
-//         const response = await fetch('http://localhost:8080/auth/validation', {
-//             method: 'POST',
-//             headers: {'Authorization': token}
-//         })
-//         console.log('RESPONSE', response)
+        //Check if the token is valid
+        const response = await fetch('http://localhost:8080/auth/validation', {
+            method: 'POST',
+            headers: {'Authorization': token}
+        })
+        console.log('RESPONSE', response)
         
-//         //Token is valid, show available streams
-//         if(response.status === 200){
-//             console.log("SUCCESS")
-            renderThumbnails()
-    //     }
-    // }
+        //Token is valid, show available streams
+        if(response.status === 200){
+            console.log("SUCCESS")
+           renderThumbnails()
+        }
+    }
 }
 
 //Redirects the user to google authentication
@@ -48,28 +48,29 @@ const videoPlayer = () => {
  * Creates thumbnail (image) for all available streams and adds them to div class='container'
  */
 const renderThumbnails = async () => {
-    const thumbnails = await getAvailableStreams();
-    console.log('THUMBNAILS', thumbnails)
+    // const thumbnails = await getAvailableStreams();
+    //console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
     console.log(containerDiv)
-    for(var i=0; i<thumbnails.length; i++){
-        const encodedURI = encodeURIComponent(thumbnails[i])
-        console.log("THUMBNAIL[i]", thumbnails[i])
-        try{
-            const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
-            console.log('SOME DATA', someData)
-            if(!someData.ok){
-                throw new Error('Image not found')
-            }
-            const myBlob = await someData.blob();
-            console.log('BLOB', myBlob)
-            const objectURL = URL.createObjectURL(myBlob);
-            containerDiv.innerHTML += createCard(objectURL, i+4, encodedURI)
-        }catch(err){
-            console.log("Couldn't create thumbnail");
-            console.log(err) 
-        }
+    for(var i=0; i<2; i++){
+        // const encodedURI = encodeURIComponent(thumbnails[i])
+        // console.log("THUMBNAIL[i]", thumbnails[i])
+        // try{
+        //     const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
+        //     console.log('SOME DATA', someData)
+        //     if(!someData.ok){
+        //         throw new Error('Image not found')
+        //     }
+        //     const myBlob = await someData.blob();
+        //     console.log('BLOB', myBlob)
+        //     const objectURL = URL.createObjectURL(myBlob);
+            containerDiv.innerHTML += createCard()
+            // containerDiv.innerHTML += createCard(objectURL, i+4, encodedURI)
+        // }catch(err){
+        //     console.log("Couldn't create thumbnail");
+        //     console.log(err) 
+        // }
     }
 }
 
@@ -100,11 +101,19 @@ const renderLogin = () => {
         </div>`
 }
 
-const createCard = (url, viewers, uri) => {
-    return `<div class='ftlab-card-component' >
-                <img src='${url}' class="thumbnail-img" alt="Hups" width='500px'></img>
-                <p>Viewers: ${viewers}</p>
-                <button onclick="window.location.href='/stream/${uri}'">button</button>
+// const createCard = (url, viewers, uri) => {
+//     return `<div class='ftlab-card-component' >
+//                 <img src='${url}' class="thumbnail-img" alt="Hups"></img>
+//                 <p>Viewers: ${viewers}</p>
+//                 <button onclick="window.location.href='/stream/${uri}'">button</button>
+//             </div>`
+// }
+
+const createCard = () => {
+    return `<div class='ftlab-card-component'>
+                <img src='https://via.placeholder.com/250x150' class="thumbnail-img" width="250px" alt="Hups"></img>
+                <p>Viewers: yes</p>
+                <button onclick="window.location.href='/stream/URI'">button</button>
             </div>`
 }
 

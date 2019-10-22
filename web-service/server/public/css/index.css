@@ -36,17 +36,22 @@ body {
    }
 
   .ftlab-card-component {
-    width: 150px;
+    width: 250px;
     height: auto;
     margin: auto;
     text-align: center;
     border: 1px solid black;
   }
 
-  .thumbnail-img {
-    width: 150px;
-  }
-
   #container {
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    display: -webkit-box;
+    display: -moz-box;
+    display: -ms-flexbox;
+    display: -webkit-flex;
     display: flex;
+    align-items: center;
+    justify-content: center;
   }
