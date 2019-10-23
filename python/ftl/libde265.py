@@ -115,6 +115,9 @@ libde265.de265_decode.restype = ctypes.c_int
 libde265.de265_get_next_picture.argtypes = [ctypes.c_void_p]
 libde265.de265_get_next_picture.restype = ctypes.c_void_p
 
+libde265.de265_peek_next_picture.argtypes = [ctypes.c_void_p]
+libde265.de265_peek_next_picture.restype = ctypes.c_void_p
+
 libde265.de265_release_next_picture.argtypes = [ctypes.c_void_p]
 libde265.de265_release_next_picture.restype = None
 
@@ -135,6 +138,14 @@ libde265.de265_get_number_of_input_bytes_pending.restype = ctypes.c_int
 
 import time
 
+class libde265Error(Exception):
+    def __init__(self, code):
+        super(libde265Error, self).__init__(
+            libde265.de265_get_error_text(code).decode("ascii"))
+
+class WaitingForInput(libde265Error):
+    pass
+
 class Decoder:
     def __init__(self, size, threads=_threads):
         self._size = size
@@ -143,14 +154,50 @@ class Decoder:
         self._ctx = libde265.de265_new_decoder()
         err = libde265.de265_start_worker_threads(self._ctx, threads)
         if err:
-            raise Exception(self.get_error_str(err))
+            raise libde265Error(err)
         
     def __del__(self):
         libde265.de265_free_decoder(self._ctx)
+
+    def _copy_image(self, de265_image):
+        res = np.zeros((self._size[0], self._size[1], 3), dtype=np.uint8)
+        
+        for c in range(0, 3):
+            size = (libde265.de265_get_image_height(de265_image, c),
+                    libde265.de265_get_image_width(de265_image, c))
+            
+            bpp = libde265.de265_get_bits_per_pixel(de265_image, c)
+
+            if bpp != 8:
+                raise NotImplementedError("unsupported bits per pixel %i" % bpp)
+            
+            img_ptr = libde265.de265_get_image_plane(de265_image, c, self._out_stride)
+            
+            ch = np.frombuffer(img_ptr[:size[0] * size[1]], dtype=np.uint8)
+            ch.shape = size
+            
+            res[:,:,c] = _resize(ch, self._size)
+        
+        return res
+
+    def decode(self):
+        err = libde265.de265_decode(self._ctx, self._more)
+        
+        # should use custom
+        if err:
+            if err == libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
+                raise WaitingForInput(err)
+
+            raise libde265Error(err)
+        
+        return self._more.value != 0
     
-    def get_error_str(self, code):
-        return libde265.de265_get_error_text(code).decode("ascii")
-    
+    def flush_data(self):
+        err = libde265.de265_flush_data(self._ctx)
+        
+        if err:
+            raise libde265Error(err)
+
     def push_data(self, data):
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
@@ -158,13 +205,13 @@ class Decoder:
         err = libde265.de265_push_data(self._ctx, data, len(data), None, None)
         
         if err:
-            raise Exception(self.get_error_str(err))
+            raise libde265Error(err)
             
     def push_end_of_frame(self):
         err = libde265.de265_push_end_of_frame(self._ctx)
         
         if err:
-            raise Exception(self.get_error_str(err))
+            raise libde265Error(err)
             
     def push_NAL(self, data):
         if not isinstance(data, bytes):
@@ -173,54 +220,34 @@ class Decoder:
         err = libde265.de265_push_NAL(self._ctx, data, len(data), None, None)
         
         if err:
-            raise Exception(self.get_error_str(err))
-            
-    def decode(self):
-        err = libde265.de265_decode(self._ctx, self._more)
-        
-        # if err and err != libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
-        # Does this happen? Should use custom exception.
+            raise libde265Error(err)
 
-        if err:
-            raise Exception(self.get_error_str(err))
-        
-        return self._more.value != 0
-    
-    def flush_data(self):
-        err = libde265.de265_flush_data(self._ctx)
-        
-        if err:
-            raise Exception(self.get_error_str(err))
-        
     def get_next_picture(self):
         '''
         Returns next decoded frame. Image in YCbCr format. If no frame available
         returns None.
         '''
 
-        img = libde265.de265_get_next_picture(self._ctx)
+        de265_image = libde265.de265_get_next_picture(self._ctx)
         
-        if not img:
+        if not de265_image:
             return None
         
-        res = np.zeros((self._size[0], self._size[1], 3), dtype=np.uint8)
+        res = self._copy_image(de265_image)
+        libde265.de265_release_next_picture(self._ctx)
+
+        return res
+
+    def get_number_of_input_bytes_pending(self):
+        return libde265.de265_get_number_of_input_bytes_pending(self._ctx)
+
+    def peek_next_picture(self):
+        de265_image = libde265.de265_peek_next_picture(self._ctx)
         
-        for c in range(0, 3):
-            size = (libde265.de265_get_image_height(img, c),
-                    libde265.de265_get_image_width(img, c))
-            
-            bpp = libde265.de265_get_bits_per_pixel(img, c)
-
-            if bpp != 8:
-                raise NotImplementedError("unsupported bits per pixel %i" % bpp)
-            
-            img_ptr = libde265.de265_get_image_plane(img, c, self._out_stride)
-            
-            ch = np.frombuffer(img_ptr[:size[0] * size[1]], dtype=np.uint8)
-            ch.shape = size
-            
-            res[:,:,c] = _resize(ch, self._size)
-
+        if not de265_image:
+            return None
+        
+        res = self._copy_image(de265_image)
         libde265.de265_release_next_picture(self._ctx)
 
         return res
