@@ -2,6 +2,8 @@ import msgpack
 
 import numpy as np
 
+import struct
+
 from enum import IntEnum
 from collections import namedtuple
 from . libde265 import Decoder
@@ -16,7 +18,8 @@ except ImportError:
     def _ycrcb2rgb(img):
         ''' YCrCb to RGB, based on OpenCV documentation definition.
         
-        Note: It seems this implementation is not perfectly equivalent to OpenCV's
+        Note: It seems this implementation is not perfectly equivalent to
+        OpenCV's
         '''
         
         rgb = np.zeros(img.shape, np.float)
@@ -34,22 +37,43 @@ except ImportError:
 
 # FTL definitions
 
-_packet = namedtuple("Packet", ["codec", "definition", "block_total", "block_number", "flags", "data"])
-_stream_packet = namedtuple("StreamPacket", ["timestamp", "streamID", "chanel_count", "channel"])
+# components/rgbd-sources/include/ftl/rgbd/camera.hpp
+_Camera = namedtuple("Camera", ["fx", "fy", "cx", "cy", "width", "height",
+                                "min_depth", "max_depth", "baseline", "doffs"])
+
+# components/codecs/include/ftl/codecs/packet.hpp
+_packet = namedtuple("Packet", ["codec", "definition", "block_total",
+                                "block_number", "flags", "data"])
+
+_stream_packet = namedtuple("StreamPacket", ["timestamp", "streamID",
+                                             "chanel_count", "channel"])
+
+# components/codecs/include/ftl/codecs/bitrates.hpp
+class _codec_t(IntEnum):
+    JPG = 0
+    PNG = 1
+    H264 = 2
+    HEVC = 3
+    WAV = 4
+    JSON = 100
+    CALIBRATION = 101
+    POSE = 102
+    RAW = 103
 
 _definition_t = {
-    0 : (),
-    1 : (),
+    0 : (7680, 4320),
+    1 : (2160, 3840),
     2 : (1080, 1920),
     3 : (720, 1280),
-    4 : (),
-    5 : (),
-    6 : (),
-    7 : (),
-    8 : ()
+    4 : (576, 1024),
+    5 : (480, 854),
+    6 : (360, 640),
+    7 : (0, 0),
+    8 : (2056, 1852)
 }
 
-class NALType(IntEnum):
+# components/codecs/include/ftl/codecs/hevc.hpp
+class _NALType(IntEnum):
     CODED_SLICE_TRAIL_N = 0
     CODED_SLICE_TRAIL_R = 1
 
@@ -129,14 +153,19 @@ def get_NAL_type(data):
     if not isinstance(data, bytes):
         raise ValueError("expected bytes")
     
-    return NALType((data[4] >> 1) & 0x3f)
+    return _NALType((data[4] >> 1) & 0x3f)
 
 class FTLStream:
+    ''' FTL file reader '''
+    
     def __init__(self, file):
         self._file = open(file, "br")
         self._decoders = {}
         self._frames = {}
-        
+        self._calibration = {}
+        self._pose = {}
+        self._ts = -1
+
         try:
             magic = self._file.read(5)
             if magic[:4] != bytearray(ord(c) for c in "FTLF"):
@@ -158,14 +187,30 @@ class FTLStream:
         return _stream_packet._make(v1), _packet._make(v2)
     
     def _update_calib(self, sp, p):
-        ''' Update calibration '''
-        pass
-    
+        ''' Update calibration.
+        
+        todo: fix endianess
+        '''
+
+        calibration = struct.unpack("@ddddIIdddd", p.data[:(4*8+2*4+4*8)])
+        self._calibration[sp.streamID] = _Camera._make(calibration)
+
     def _update_pose(self, sp, p):
-        ''' Update pose '''
-        pass
+        ''' Update pose
+        
+        todo: fix endianess
+        '''
+
+        pose = np.asarray(struct.unpack("@16d", p.data[:(16*8)]),
+                          dtype=np.float64)
+        pose = pose.reshape((4, 4), order='F') # Eigen
+
+        self._pose[sp.streamID] = pose
     
-    def _decode_frame_hevc(self, sp, p):
+    def _process_json(self, sp, p):
+        raise NotImplementedError("json decoding not implemented")
+
+    def _push_data_hevc(self, sp, p):
         ''' Decode HEVC frame '''
         
         k = (sp.streamID, sp.channel)
@@ -174,19 +219,29 @@ class FTLStream:
             self._decoders[k] = Decoder(_definition_t[p.definition])
         
         decoder = self._decoders[k]
-        
         decoder.push_data(p.data)
-        decoder.decode()
-        
-        img = decoder.get_next_picture()
-        
-        if img is not None:
-            self._frames[k] = _ycrcb2rgb(img)
     
+    def _decode_hevc(self):
+        for stream, decoder in self._decoders.items():
+            decoder.decode()
+            img = decoder.get_next_picture()
+            
+            if img is not None:
+                self._frames[stream] = _ycrcb2rgb(img)
+
     def _flush_decoders(self):
         for decoder in self._decoders.values():
             decoder.flush_data()
-    
+
+    def seek(self, ts):
+        ''' Read until timestamp reached '''
+        if self._ts >= ts:
+            raise Exception("trying to seek to earlier timestamp")
+        
+        while self.read():
+            if self._ts >= ts:
+                break
+
     def read(self):
         '''
         Reads data for until the next timestamp. Returns False if there is no
@@ -198,29 +253,30 @@ class FTLStream:
             
         self._frames = {}
         
-        ts = self._sp.timestamp
-        ex = None
+        self._ts = self._sp.timestamp
+        ex = []
         
-        while self._sp.timestamp == ts:
+        while self._sp.timestamp == self._ts:
+            # TODO: Can source be removed?
+            
             try:
-                if self._p.codec == 100: # JSON
-                    NotImplementedError("json decoding not implemented")
+                if self._p.codec == _codec_t.JSON:
+                    self._process_json(self._sp, self._p)
 
-                elif self._p.codec == 101: # CALIBRATION
+                elif self._p.codec == _codec_t.CALIBRATION:
                     self._update_calib(self._sp, self._p)
 
-                elif self._p.codec == 102: # POSE
+                elif self._p.codec == _codec_t.POSE:
                     self._update_pose(self._sp, self._p)
 
-                elif self._p.codec == 3: # HEVC
-                    self._decode_frame_hevc(self._sp, self._p)
+                elif self._p.codec == _codec_t.HEVC:
+                    self._push_data_hevc(self._sp, self._p)
 
                 else:
-                    raise ValueError("unkowno codec %i" % p.codec)
+                    raise ValueError("unkowno codec %i" % self._p.codec)
             
             except Exception as e:
-                # TODO: Multiple exceptions possible. Re-design read()?
-                ex = e
+                ex.append(e)
             
             try:
                 self._sp, self._p = self._read_next()
@@ -229,11 +285,37 @@ class FTLStream:
             except msgpack.OutOfData:
                 return False
             
-        if ex is not None:
-            raise ex
-            
+        if len(ex) > 0:
+            raise Exception(ex)
+        
+        self._decode_hevc()
+
         return True
     
+    def get_timestamp(self):
+        return self._ts
+
+    def get_pose(self, source):
+        try:
+            return self._pose[source]
+        except KeyError:
+            raise ValueError("source id %i not found" % source)
+
+    def get_camera_matrix(self, source):
+        calib = self.get_calibration(source)
+        K = np.identity(3, dtype=np.float64)
+        K[0,0] = calib.fx
+        K[1,1] = calib.fy
+        K[0,2] = calib.cx
+        K[1,2] = calib.cy
+        return K
+
+    def get_calibration(self, source):
+        try:
+            return self._calibration[source]
+        except KeyError:
+            raise ValueError("source id %i not found" % source)
+
     def get_frames(self):
         ''' Returns all frames '''
         return self._frames
@@ -243,4 +325,12 @@ class FTLStream:
         if k in self._frames:
             return self._frames[k]
         else:
+            # raise an exception instead?
             return None
+
+    def get_sources(self):
+        ''' Get list of sources
+        
+        todo: Is there a better way?
+        '''
+        return list(self._calibration.keys())
