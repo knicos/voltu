@@ -25,6 +25,14 @@ from enum import IntEnum
 
 import numpy as np
 
+import os 
+
+# default number of worker threads for decoder: half of os.cpu_count()
+
+_threads = os.cpu_count() // 2
+if _threads is None:
+    _threads = 1
+
 # error codes copied from header (de265.h)
 
 class libde265error(IntEnum):
@@ -119,7 +127,7 @@ libde265.de265_get_image_plane.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes
 libde265.de265_get_image_plane.restype = ctypes.POINTER(ctypes.c_char)
 
 class Decoder:
-    def __init__(self, size, threads=1):
+    def __init__(self, size, threads=_threads):
         self._size = size
         self._more = ctypes.c_int()
         self._out_stride = ctypes.c_int()
