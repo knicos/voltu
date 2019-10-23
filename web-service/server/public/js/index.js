@@ -1,30 +1,33 @@
 const checkIfLoggedIn = async () => {
-    const token = window.localStorage.getItem('token')
-    console.log(token)
-    if(!token){
-        console.log("You need to login")
-        renderLogin()
-    }else{
+//     const token = window.localStorage.getItem('token')
+//     console.log(token)
+//     if(!token){
+//         console.log("You need to login")
+//         renderLogin()
+//     }else{
 
-        //Check if the token is valid
-        const response = await fetch('http://localhost:8080/auth/validation', {
-            method: 'POST',
-            headers: {'Authorization': token}
-        })
-        console.log('RESPONSE', response)
+//         //Check if the token is valid
+//         const response = await fetch('http://localhost:8080/auth/validation', {
+//             method: 'POST',
+//             headers: {'Authorization': token}
+//         })
+//         console.log('RESPONSE', response)
         
-        //Token is valid, show available streams
-        if(response.status === 200){
-            console.log("SUCCESS")
+//         //Token is valid, show available streams
+//         if(response.status === 200){
+//             console.log("SUCCESS")
            renderThumbnails()
-        }
-    }
-}
+//         }
+//     }
+ }
 
 //Redirects the user to google authentication
 const handleLogin = () => {
     window.location.href="/google";
 }
+
+let current_uri = '';
+
 
 /**
  * Returns a list of available streams
@@ -38,41 +41,50 @@ const getAvailableStreams = async () => {
 
 const videoPlayer = () => {
     const containerDiv = document.getElementById('container');
-    const asd = 'yeahboiii'
     window.open(`http://localhost:8080/stream?uri=${asd}`)   
 }
 
+let webSocket = new WebSocket('ws://localhost:8080/')
 
 
 /**
  * Creates thumbnail (image) for all available streams and adds them to div class='container'
  */
 const renderThumbnails = async () => {
-    // const thumbnails = await getAvailableStreams();
-    //console.log('THUMBNAILS', thumbnails)
+    const thumbnails = await getAvailableStreams();
+    console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
     console.log(containerDiv)
-    for(var i=0; i<2; i++){
-        // const encodedURI = encodeURIComponent(thumbnails[i])
-        // console.log("THUMBNAIL[i]", thumbnails[i])
-        // try{
-        //     const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
-        //     console.log('SOME DATA', someData)
-        //     if(!someData.ok){
-        //         throw new Error('Image not found')
-        //     }
-        //     const myBlob = await someData.blob();
-        //     console.log('BLOB', myBlob)
-        //     const objectURL = URL.createObjectURL(myBlob);
-            containerDiv.innerHTML += createCard()
-            // containerDiv.innerHTML += createCard(objectURL, i+4, encodedURI)
-        // }catch(err){
-        //     console.log("Couldn't create thumbnail");
-        //     console.log(err) 
-        // }
+    for(var i=0; i<thumbnails.length; i++){
+        const encodedURI = encodeURIComponent(thumbnails[i])
+        console.log("THUMBNAIL[i]", thumbnails[i])
+        try{
+            const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
+            console.log('SOME DATA', someData)
+            if(!someData.ok){
+                throw new Error('Image not found')
+            }
+            const myBlob = await someData.blob();
+            console.log('BLOB', myBlob)
+            const objectURL = URL.createObjectURL(myBlob);
+            // containerDiv.innerHTML += createCard()
+            containerDiv.innerHTML += createCard(objectURL, i+4, encodedURI)
+        }catch(err){
+            console.log("Couldn't create thumbnail");
+            console.log(err) 
+        }
     }
 }
+
+// //FOR LAPTOP
+// const renderThumbnails = async () => {
+//     const containerDiv = document.getElementById('container')
+//     containerDiv.innerHTML = '';
+//     for(var i=0; i<2; i++){
+//             containerDiv.innerHTML += createCard()
+//     }
+// }
 
 /**
  * Renders button that will redirect to google login
@@ -101,23 +113,30 @@ const renderLogin = () => {
         </div>`
 }
 
-// const createCard = (url, viewers, uri) => {
-//     return `<div class='ftlab-card-component' >
-//                 <img src='${url}' class="thumbnail-img" alt="Hups"></img>
-//                 <p>Viewers: ${viewers}</p>
-//                 <button onclick="window.location.href='/stream/${uri}'">button</button>
-//             </div>`
-// }
-
-const createCard = () => {
-    return `<div class='ftlab-card-component'>
-                <img src='https://via.placeholder.com/250x150' class="thumbnail-img" width="250px" alt="Hups"></img>
-                <p>Viewers: yes</p>
-                <button onclick="window.location.href='/stream/URI'">button</button>
+//FOR DESKTOP
+const createCard = (url, viewers, uri) => {
+    return `<div class='ftlab-card-component' >
+                <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
+                <p>Viewers: ${viewers}</p>
+                <button onclick="current_uri=${uri}; window.location.href='/stream?uri=${uri}';">button</button>
             </div>`
 }
 
+const connectToStream = () => {
+    let ws = new WebSocket('ws://localhost:8080/');
+    ws.onopen = (e) => {
+    }
+}
+
+//FOR LAPTOP
+// const createCard = () => {
+//     return `<div class='ftlab-card-component'>
+//                 <img src='https://via.placeholder.com/250x150' class="thumbnail-img" width="250px" alt="Hups"></img>
+//                 <p>Viewers: yes</p>
+//                 <button onclick="window.location.href='/stream?uri'">button</button>
+//             </div>`
+// }
+
 const cardLogic = () => {
     const cards = document.getElementsByClassName('ftlab-card-component');
-    console.log("CARDS", cards)
 }

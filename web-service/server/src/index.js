@@ -10,7 +10,6 @@ const mongoose = require('mongoose')
 const config = require('./utils/config')
 const User = require('./models/users')
 const Configs = require('./models/generic')
-const Disparity = require('./models/disparity')
 const bodyParser = require('body-parser')
 //const cors = require('cors')
 
@@ -29,13 +28,13 @@ passport.deserializeUser((userDataFromCookie, done) => {
     done(null, userDataFromCookie);
 })
 
-mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-	.then(() => {
-		console.log('Connected to MongoDB');
-	})
-	.catch((err) => {
-		console.log(err);
-	})
+// mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+// 	.then(() => {
+// 		console.log('Connected to MongoDB');
+// 	})
+// 	.catch((err) => {
+// 		console.log(err);
+// 	})
 
 let peer_by_id = {};
 //let uri_to_peer = {};
@@ -242,7 +241,7 @@ app.get('/stream/config', async(req, res) => {
 	
 	const objects = response[0].data
 	console.log(objects)
-	//Check that DB has atleast some data
+	//Check that DB has at least some data
 	if(response.length){
 		const firstLayerObj = Object.entries(objects)
 		const helpObj = {}
@@ -269,57 +268,15 @@ app.get('/stream/config', async(req, res) => {
 			}
 		}	
 	}
-		return res.status(200).json("kääkkääk");
+		return res.status(200).json("Nothing found");
 
-
-
-	//FOR LATER
-	// const uri = wholeURI.substring(47)
-	// let depth = uri.split("%2F");
-	// console.log(depth[1])
-
-	// if(depth.length == 2){
-	// 	const splitted = wholeURI.split(depth[1])
-	// 	const uri = splitted[0].substring(0, splitted[0].length-3)
-	// 	console.log('VAL', uri)
-	// 	const responseData = await Configs.find({URI : uri})
-	// 	const realData = responseData[0].data
-	// 	const obj = Object.entries(realData);
-	// 	const helpObj = {}
-	// 	for(const [key, data] of obj){
-	// 		//Check if the data is an object
-	// 		if(data ==)
-	// 		console.log('PIIPPIIP', depth[1] in data)
-	// 		if(depth[1] in data) {
-	// 			helpObj[`${key}`] = data
-	// 		}
-	// 	}
-	// 	console.log("HELPOBJECT", helpObj)
-	// 	const actualData = Object.entries(helpObj)
-	// 	for(const [key, data] of actualData){
-	// 		console.log("KEY2", key)
-	// 		console.log("DATA2", data)
-	// 	}
-	// 	return res.status(200).json(realData)
-	// }
-
-
-	// if(depth.length ==3){
-	// 	get the value
-	// 	save the get the first depth
-	// 	save the value with default values into the first depth
-	// }
 })
 
 
 app.get('/stream', (req, res) => {
 	let uri = req.query.uri;
+	uri_data[uri]
 
-
-	/**
-	 * It should render a new html page that has it's own dedicated js-file
-	 * The js-file should do everything related to the decoding of bitstream.
-	 */
 	console.log(uri)
 })
 
@@ -403,10 +360,7 @@ function broadcastExcept(exc, name, ...args) {
 	}
 }
 
-/**
- * Need to think about how to use these.
- * Will it be in the '/' route or in the '/streams/<stream>' route
- */
+
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
 
