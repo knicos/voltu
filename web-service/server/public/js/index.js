@@ -123,8 +123,9 @@ const createCard = (url, viewers, uri) => {
 }
 
 const connectToStream = () => {
-    let ws = new WebSocket('ws://localhost:8080/');
+    let ws = new WebSocket('ws://localhost:8080/', 'get_stream');
     ws.onopen = (e) => {
+        ws.send("get_stream", current_uri, 0, )
     }
 }
 
