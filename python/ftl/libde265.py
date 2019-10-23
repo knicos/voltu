@@ -104,6 +104,7 @@ libde265.de265_push_NAL.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_i
 libde265.de265_push_data.restype = ctypes.c_int
 
 libde265.de265_push_end_of_frame.argtypes = [ctypes.c_void_p]
+libde265.de265_push_end_of_frame.restype = None
 
 libde265.de265_flush_data.argtypes = [ctypes.c_void_p]
 libde265.de265_flush_data.restype = ctypes.c_int
@@ -113,6 +114,9 @@ libde265.de265_decode.restype = ctypes.c_int
 
 libde265.de265_get_next_picture.argtypes = [ctypes.c_void_p]
 libde265.de265_get_next_picture.restype = ctypes.c_void_p
+
+libde265.de265_release_next_picture.argtypes = [ctypes.c_void_p]
+libde265.de265_release_next_picture.restype = None
 
 libde265.de265_get_image_width.argtypes = [ctypes.c_void_p, ctypes.c_int]
 libde265.de265_get_image_width.restype = ctypes.c_int
@@ -125,6 +129,11 @@ libde265.de265_get_bits_per_pixel.restype = ctypes.c_int
 
 libde265.de265_get_image_plane.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
 libde265.de265_get_image_plane.restype = ctypes.POINTER(ctypes.c_char)
+
+libde265.de265_get_number_of_input_bytes_pending.argtypes = [ctypes.c_void_p]
+libde265.de265_get_number_of_input_bytes_pending.restype = ctypes.c_int
+
+import time
 
 class Decoder:
     def __init__(self, size, threads=_threads):
@@ -169,7 +178,10 @@ class Decoder:
     def decode(self):
         err = libde265.de265_decode(self._ctx, self._more)
         
-        if err and err != libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
+        # if err and err != libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
+        # Does this happen? Should use custom exception.
+
+        if err:
             raise Exception(self.get_error_str(err))
         
         return self._more.value != 0
@@ -185,6 +197,7 @@ class Decoder:
         Returns next decoded frame. Image in YCbCr format. If no frame available
         returns None.
         '''
+
         img = libde265.de265_get_next_picture(self._ctx)
         
         if not img:
@@ -207,5 +220,7 @@ class Decoder:
             ch.shape = size
             
             res[:,:,c] = _resize(ch, self._size)
+
+        libde265.de265_release_next_picture(self._ctx)
 
         return res
