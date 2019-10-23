@@ -20,6 +20,8 @@ except ImportError:
         # order: 0 nn, 1 bilinear, 3 bicubic
         return (resize_skimage(img, size, order=3, mode="constant", cval=0) * 255).astype(np.uint8)
 
+from warnings import warn
+
 import ctypes
 from enum import IntEnum
 
@@ -35,7 +37,7 @@ if _threads is None:
 
 # error codes copied from header (de265.h)
 
-class libde265error(IntEnum):
+class _libde265error(IntEnum):
     DE265_OK = 0
     DE265_ERROR_NO_SUCH_FILE=1
     DE265_ERROR_COEFFICIENT_OUT_OF_IMAGE_BOUNDS=4
@@ -86,6 +88,10 @@ libde265 = ctypes.cdll.LoadLibrary("libde265.so.0")
 
 libde265.de265_get_error_text.argtypes = [ctypes.c_void_p]
 libde265.de265_get_error_text.restype = ctypes.c_char_p
+
+libde265.de265_get_warning.argtypes = [ctypes.c_void_p]
+libde265.de265_get_warning.restype = ctypes.c_int
+
 libde265.de265_get_version_number_major.restype = ctypes.c_uint32
 libde265.de265_get_version_number_minor.restype = ctypes.c_uint32
 
@@ -136,8 +142,6 @@ libde265.de265_get_image_plane.restype = ctypes.POINTER(ctypes.c_char)
 libde265.de265_get_number_of_input_bytes_pending.argtypes = [ctypes.c_void_p]
 libde265.de265_get_number_of_input_bytes_pending.restype = ctypes.c_int
 
-import time
-
 class libde265Error(Exception):
     def __init__(self, code):
         super(libde265Error, self).__init__(
@@ -152,7 +156,10 @@ class Decoder:
         self._more = ctypes.c_int()
         self._out_stride = ctypes.c_int()
         self._ctx = libde265.de265_new_decoder()
+        self._supress_warnings = False
+
         err = libde265.de265_start_worker_threads(self._ctx, threads)
+
         if err:
             raise libde265Error(err)
         
@@ -180,16 +187,27 @@ class Decoder:
         
         return res
 
+    def _warning(self):
+        if self._supress_warnings:
+            return
+        
+        code = libde265.de265_get_warning(self._ctx)
+        
+        if code != _libde265error.DE265_OK:
+            msg = libde265.de265_get_error_text(code).decode("ascii")
+            warn(msg)
+
     def decode(self):
         err = libde265.de265_decode(self._ctx, self._more)
         
-        # should use custom
         if err:
-            if err == libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
+            if err == _libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
                 raise WaitingForInput(err)
 
             raise libde265Error(err)
         
+        self._warning()
+
         return self._more.value != 0
     
     def flush_data(self):
@@ -197,7 +215,7 @@ class Decoder:
         
         if err:
             raise libde265Error(err)
-
+    
     def push_data(self, data):
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
@@ -206,7 +224,7 @@ class Decoder:
         
         if err:
             raise libde265Error(err)
-            
+    
     def push_end_of_frame(self):
         err = libde265.de265_push_end_of_frame(self._ctx)
         
@@ -229,11 +247,12 @@ class Decoder:
         '''
 
         de265_image = libde265.de265_get_next_picture(self._ctx)
-        
+
         if not de265_image:
             return None
         
         res = self._copy_image(de265_image)
+
         libde265.de265_release_next_picture(self._ctx)
 
         return res
@@ -243,11 +262,12 @@ class Decoder:
 
     def peek_next_picture(self):
         de265_image = libde265.de265_peek_next_picture(self._ctx)
-        
+
         if not de265_image:
             return None
         
         res = self._copy_image(de265_image)
+
         libde265.de265_release_next_picture(self._ctx)
 
         return res

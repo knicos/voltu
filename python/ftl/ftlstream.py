@@ -6,7 +6,7 @@ import struct
 
 from enum import IntEnum
 from collections import namedtuple
-from . libde265 import Decoder
+from . import libde265
 
 try:
     import cv2 as cv
@@ -191,7 +191,6 @@ class FTLStream:
         
         todo: fix endianess
         '''
-
         calibration = struct.unpack("@ddddIIdddd", p.data[:(4*8+2*4+4*8)])
         self._calibration[sp.streamID] = _Camera._make(calibration)
 
@@ -216,16 +215,25 @@ class FTLStream:
         k = (sp.streamID, sp.channel)
         
         if k not in self._decoders:
-            self._decoders[k] = Decoder(_definition_t[p.definition])
+            self._decoders[k] = libde265.Decoder(_definition_t[p.definition])
         
         decoder = self._decoders[k]
         decoder.push_data(p.data)
+        try:
+            decoder.decode()
+
+        except libde265.WaitingForInput:
+            pass
     
     def _decode_hevc(self):
         for stream, decoder in self._decoders.items():
-            decoder.decode()
+            try:
+                decoder.decode()
+
+            except libde265.WaitingForInput:
+                pass
+
             img = decoder.get_next_picture()
-            
             if img is not None:
                 self._frames[stream] = _ycrcb2rgb(img)
 
