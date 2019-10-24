@@ -274,11 +274,8 @@ app.get('/stream/config', async(req, res) => {
 
 
 app.get('/stream', (req, res) => {
+	//If wanted, this could render new html file dedicated to the actual livestream function
 	let uri = req.query.uri;
-	console.log(uri_data[uri]);
-	
-
-	console.log(uri)
 	res.end();
 })
 
@@ -456,7 +453,7 @@ app.ws('/', (ws, req) => {
 	});
 
 	// Request from frames from a source
-	p.bind("get_stream", (uri, N, rate, pid, dest) => {
+	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
 		let peer = uri_data[uri].peer;
 		if (peer) {
 			uri_data[uri].addClient(p, N, rate, dest);

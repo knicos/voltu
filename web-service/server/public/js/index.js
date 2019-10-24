@@ -26,7 +26,7 @@ const handleLogin = () => {
     window.location.href="/google";
 }
 
-let current_uri = '';
+let current_data = {}; 
 
 
 /**
@@ -61,7 +61,7 @@ const renderThumbnails = async () => {
     console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
         const encodedURI = encodeURIComponent(thumbnails[i])
-        current_uri = encodedURI
+        current_data.uri = encodedURI
         console.log("THUMBNAIL[i]", thumbnails[i])
         try{
             const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
@@ -129,9 +129,12 @@ const createCard = (url, viewers, uri) => {
 
 const connectToStream = () => {
     let ws = new WebSocket('ws://localhost:8080/', 'get_stream');
+    current_data.frames = 24;
+    console.log()
     ws.onopen = (e) => {
-        ws.send("get_stream", current_uri, 0, )
+        ws.send("get_stream", current_data.uri, current_data.frames, 9, current_data.uri);
     }
+    //setTimeout 1s, ask for the amount of frames user has selected
 }
 
 //FOR LAPTOP
