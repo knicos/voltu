@@ -29,11 +29,15 @@ import numpy as np
 
 import os 
 
+'''
 # default number of worker threads for decoder: half of os.cpu_count()
 
 _threads = os.cpu_count() // 2
 if _threads is None:
     _threads = 1
+'''
+
+_threads = 1
 
 # error codes copied from header (de265.h)
 
