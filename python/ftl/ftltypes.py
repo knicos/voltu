@@ -68,3 +68,11 @@ definition_t = {
     7 : (0, 0),
     8 : (2056, 1852)
 }
+
+def get_definition(shape):
+	for k, v in definition_t.items():
+		if shape[:2] == v:
+			return k
+	
+	return 7 # (None)
+

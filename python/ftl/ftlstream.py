@@ -2,8 +2,9 @@ import msgpack
 
 import numpy as np
 
+import sys
 import struct
-
+from warnings import warn
 from enum import IntEnum
 from collections import namedtuple
 
@@ -75,16 +76,18 @@ class FTLStreamReader:
         self._decoders = {}
         self._seen_iframe = set()
 
-        self._frames = {}
+        self._frameset = {}
+        self._frameset_new = {}
+        self._frame = None
+        
         self._calibration = {}
         self._pose = {}
-        self._ts = -1
+        self._ts = -sys.maxsize - 1
 
         try:
             magic = self._file.read(5)
             if magic[:4] != bytes(ord(c) for c in "FTLF"):
                 raise Exception("wrong magic")
-            print(magic[4])
             
             self._unpacker = msgpack.Unpacker(self._file, raw=True, use_list=False)
             
@@ -137,6 +140,7 @@ class FTLStreamReader:
         if k not in self._seen_iframe:
             if not is_iframe(p.data):
                 # can't decode before first I-frame has been received
+                warn("received P-frame before I-frame")
                 return
             
             self._seen_iframe.add(k)
@@ -147,11 +151,13 @@ class FTLStreamReader:
         while decoder.get_number_of_input_bytes_pending() > 0:
             decoder.decode()
         
-        img = None
-        while img is None:
-            img = decoder.get_next_picture()
+        img = decoder.get_next_picture()
+        if img is None:
+            # if this happens, does get_next_picture() in loop help?
+            warn("frame expected, no image from decoded")
         
-        self._frames[k] = _ycrcb2rgb(img)
+        self._frame = _ycrcb2rgb(img)
+        self._frameset_new[k] = self._frame
 
     def _flush_decoders(self):
         for decoder in self._decoders.values():
@@ -171,15 +177,25 @@ class FTLStreamReader:
         Reads data for until the next timestamp. Returns False if there is no
         more data to read, otherwise returns True.
         '''
+        self._frame = None
 
         try:
             self._sp, self._p = self._read_next()
             self._packets_read += 1
         
         except msgpack.OutOfData:
+            self._frameset = self._frameset_new
+            self._frameset_new = {}
             return False
         
-        self._ts = max(self._sp.timestamp, self._ts)
+        if self._sp.timestamp < self._ts:
+            # old data, do not update
+            return True
+
+        if self._sp.timestamp > self._ts:
+            self._ts = self._sp.timestamp
+            self._frameset = self._frameset_new
+            self._frameset_new = {}
         
         if self._p.block_total != 1 or self._p.block_number != 0:
             raise Exception("Unsupported block format (todo)")
@@ -233,17 +249,24 @@ class FTLStreamReader:
         except KeyError:
             raise ValueError("source id %i not found" % source)
 
-    def get_frames(self):
-        ''' All frames '''
-        return self._frames
+    def get_frame(self):
+        ''' Return decoded frame from previous packet. Returns None if previous
+        packet did not contain a (valid) frame. '''
+        return self._frame
+
+    def get_frameset(self):
+        return self._frameset
     
-    def get_frame(self, source, channel):
+    def get_frameset_frame(self, source, channel):
         k = (source, channel)
-        if k in self._frames:
-            return self._frames[k]
+        if k in self._frameset:
+            return self._frameset[k]
         else:
             # raise an exception instead?
             return None
+    
+    def get_frameset_sources(self):
+        return list(set(src for src, _ in self._frameset.keys()))
 
     def get_Q(self, source):
         ''' Disparity to depth matrix in OpenCV format '''
@@ -261,3 +284,4 @@ class FTLStreamReader:
     def get_sources(self):
         ''' Get list of sources '''
         return list(self._calibration.keys())
+

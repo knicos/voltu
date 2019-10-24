@@ -184,6 +184,7 @@ class Decoder:
             
             img_ptr = libde265.de265_get_image_plane(de265_image, c, self._out_stride)
             
+			# for frombuffer() no copy assumed
             ch = np.frombuffer(img_ptr[:size[0] * size[1]], dtype=np.uint8)
             ch.shape = size
             

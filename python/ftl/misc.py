@@ -1,7 +1,12 @@
 
-def disparity_to_depth(disparity, camera):
-    ''' Calculate depth map from disparity map '''
-    return (camera.fx * camera.baseline) / (disparity - camera.doff)
+def disparity_to_depth(disparity, camera, max_depth=10.0, invalid_value=0.0):
+    ''' Calculate depth map from disparity map. Depth values smaller than 0.0 
+	    and larger than max_depth are set to invalid_value.
+    '''
+    depth = (camera.fx * camera.baseline) / (disparity - camera.doff)
+    depth[depth < 0] = invalid_value
+    depth[depth > max_depth] = invalid_value
+    return depth
 
 from enum import IntEnum
 
