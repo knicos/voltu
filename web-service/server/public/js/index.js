@@ -41,7 +41,7 @@ const getAvailableStreams = async () => {
 
 const videoPlayer = () => {
     const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream ${current_uri} is live right here!</h1><br><button onclick="renderThumbnails()">Go back</button><br>
+    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails()">Go back</button><br>
     <canvas id="ftlab-stream-video" width="0" height="0"></canvas>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
@@ -73,7 +73,7 @@ const renderThumbnails = async () => {
             console.log('BLOB', myBlob)
             const objectURL = URL.createObjectURL(myBlob);
             // containerDiv.innerHTML += createCard()
-            containerDiv.innerHTML += createCard(objectURL, i+4, encodedURI)
+            containerDiv.innerHTML += createCard(objectURL, i+4)
         }catch(err){
             console.log("Couldn't create thumbnail");
             console.log(err) 
@@ -119,7 +119,7 @@ const renderLogin = () => {
 }
 
 //FOR DESKTOP
-const createCard = (url, viewers, uri) => {
+const createCard = (url, viewers) => {
     return `<div class='ftlab-card-component' >
                 <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
                 <p>Viewers: ${viewers}</p>
@@ -129,10 +129,10 @@ const createCard = (url, viewers, uri) => {
 
 const connectToStream = () => {
     let ws = new WebSocket('ws://localhost:8080/', 'get_stream');
-    current_data.frames = 24;
+    current_data.frames = 10;
     console.log()
     ws.onopen = (e) => {
-        ws.send("get_stream", current_data.uri, current_data.frames, 9, current_data.uri);
+        ws.send(['get_stream', "__handshake__", current_data.uri, current_data.frames, 9, current_data.uri]);
     }
     //setTimeout 1s, ask for the amount of frames user has selected
 }

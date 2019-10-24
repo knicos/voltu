@@ -191,7 +191,7 @@ app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
 	console.log("URI", uri)
 	if (uri_data.hasOwnProperty(uri)) {
-		uri_data[uri].peer.send("get_stream", uri, 10, 9, [Peer.uuid], uri);
+		uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
 		console.log("URIDATA", uri_data[uri].rgb);
 		res.end(uri_data[uri].rgb);
@@ -223,7 +223,7 @@ app.post('/stream/config', async (req, res) => {
 		return res.status(200).json('Your configurations were saved successfully')
 	}catch(err){
 		console.log(err)
-		return res.status(500).json('Somethings wrong I can feel it')
+		return res.status(500).json("Something's wrong I can feel it")
 	}
 })
 
@@ -362,7 +362,7 @@ function broadcastExcept(exc, name, ...args) {
 
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
-
+	console.log('WEBSOCKET',ws)
 	let p = new Peer(ws);
 
 	p.on("connect", (peer) => {
@@ -453,8 +453,9 @@ app.ws('/', (ws, req) => {
 	});
 
 	// Request from frames from a source
-	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
+	p.bind("get_stream", (uri, N, rate, pid, dest) => {
 		let peer = uri_data[uri].peer;
+		console.log('PEER', peer);
 		if (peer) {
 			uri_data[uri].addClient(p, N, rate, dest);
 			//peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);

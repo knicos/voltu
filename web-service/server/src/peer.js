@@ -34,7 +34,10 @@ function Peer(ws) {
 	this.master = false;
 
 	this.sock.on("message", (raw) => {
+		console.log(raw)
 		let msg = decode(raw);
+		console.log('MSG[0]', msg[0])
+		console.log("MSG[1]", msg[1])
 		if (this.status == kConnecting) {
 			if (msg[1] != "__handshake__") {
 				console.log("Bad handshake");
