@@ -179,8 +179,8 @@ class FTLStreamReader:
         except msgpack.OutOfData:
             return False
         
-        self._ts = self._sp.timestamp
-            
+        self._ts = max(self._sp.timestamp, self._ts)
+        
         if self._p.block_total != 1 or self._p.block_number != 0:
             raise Exception("Unsupported block format (todo)")
 
@@ -199,7 +199,6 @@ class FTLStreamReader:
         else:
             raise Exception("unkowno codec %i" % self._p.codec)
 
-        print("read() took: %.4f" % (t_end - t_start))
         return True
 
     def get_packet_count(self):
