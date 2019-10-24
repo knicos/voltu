@@ -275,9 +275,11 @@ app.get('/stream/config', async(req, res) => {
 
 app.get('/stream', (req, res) => {
 	let uri = req.query.uri;
-	uri_data[uri]
+	console.log(uri_data[uri]);
+	
 
 	console.log(uri)
+	res.end();
 })
 
 /*

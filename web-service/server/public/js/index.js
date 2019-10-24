@@ -40,11 +40,14 @@ const getAvailableStreams = async () => {
 }
 
 const videoPlayer = () => {
-    const containerDiv = document.getElementById('container');
-    window.open(`http://localhost:8080/stream?uri=${asd}`)   
+    const containerDiv = document.getElementById('container')
+    containerDiv.innerHTML = `<h1>Stream ${current_uri} is live right here!</h1><br><button onclick="renderThumbnails()">Go back</button><br>
+    <canvas id="ftlab-stream-video" width="0" height="0"></canvas>`;
+    containerDiv.innerHTML += '<br>'
+    containerDiv.innerHTML += ''
+    let decoder = new libde265.Decoder();
+    console.log(decoder)
 }
-
-let webSocket = new WebSocket('ws://localhost:8080/')
 
 
 /**
@@ -58,6 +61,7 @@ const renderThumbnails = async () => {
     console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
         const encodedURI = encodeURIComponent(thumbnails[i])
+        current_uri = encodedURI
         console.log("THUMBNAIL[i]", thumbnails[i])
         try{
             const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
@@ -76,6 +80,7 @@ const renderThumbnails = async () => {
         }
     }
 }
+
 
 // //FOR LAPTOP
 // const renderThumbnails = async () => {
@@ -118,7 +123,7 @@ const createCard = (url, viewers, uri) => {
     return `<div class='ftlab-card-component' >
                 <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
                 <p>Viewers: ${viewers}</p>
-                <button onclick="current_uri=${uri}; window.location.href='/stream?uri=${uri}';">button</button>
+                <button onclick="videoPlayer()">button</button>
             </div>`
 }
 
