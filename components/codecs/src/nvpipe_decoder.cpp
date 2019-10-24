@@ -99,22 +99,18 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
 			tmp.convertTo(out, CV_32FC1, 1.0f/1000.0f);
 		} else {
-			cv::cvtColor(tmp, tmp, cv::COLOR_BGRA2BGR);
-			cv::resize(tmp, out, out.size());
-			//cv::Mat tmp2;
-			//tmp.convertTo(tmp2, CV_32FC1, 1.0f/1000.0f);
-			//cropAndScaleUp(tmp2, out);
+			LOG(WARNING) << "Resizing decoded frame from " << tmp.size() << " to " << out.size();
+			tmp.convertTo(tmp, CV_32FC1, 1.0f/1000.0f);
+			cv::resize(tmp, out, out.size(), 0, 0, cv::INTER_NEAREST);
 		}
 	} else {
 		// Is the received frame the same size as requested output?
 		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
 			cv::cvtColor(tmp, out, cv::COLOR_BGRA2BGR);
 		} else {
+			LOG(WARNING) << "Resizing decoded frame from " << tmp.size() << " to " << out.size();
 			cv::cvtColor(tmp, tmp, cv::COLOR_BGRA2BGR);
 			cv::resize(tmp, out, out.size());
-			//cv::Mat tmp2;
-			//cv::cvtColor(tmp, tmp2, cv::COLOR_BGRA2BGR);
-			//cropAndScaleUp(tmp2, out);
 		}
 	}
 
