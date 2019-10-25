@@ -1,3 +1,5 @@
+
+
 const checkIfLoggedIn = async () => {
 //     const token = window.localStorage.getItem('token')
 //     console.log(token)
@@ -128,12 +130,11 @@ const createCard = (url, viewers) => {
 }
 
 const connectToStream = () => {
-    let ws = new WebSocket('ws://localhost:8080/', 'get_stream');
+    const ws = new WebSocket('ws://localhost:8080/');
+    let p = new Peer(ws);
+    p.send('connect', [0,'__handshake__'])
+
     current_data.frames = 10;
-    console.log()
-    ws.onopen = (e) => {
-        ws.send(['get_stream', "__handshake__", current_data.uri, current_data.frames, 9, current_data.uri]);
-    }
     //setTimeout 1s, ask for the amount of frames user has selected
 }
 

@@ -11,13 +11,14 @@ const config = require('./utils/config')
 const User = require('./models/users')
 const Configs = require('./models/generic')
 const bodyParser = require('body-parser')
-//const cors = require('cors')
+const cors = require('cors')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
-app.use(express.static(__dirname + './../public'));
+app.use(express.static(__dirname + '/public'));
+
 app.use(bodyParser.json())
-//app.use(cors())
+app.use(cors())
 
 
 passport.serializeUser((user, done) => {
@@ -189,7 +190,6 @@ app.get('/streams', (req, res) => {
  */
 app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
-	console.log("URI", uri)
 	if (uri_data.hasOwnProperty(uri)) {
 		uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
@@ -362,7 +362,7 @@ function broadcastExcept(exc, name, ...args) {
 
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
-	console.log('WEBSOCKET',ws)
+	//console.log('WEBSOCKET',ws)
 	let p = new Peer(ws);
 
 	p.on("connect", (peer) => {

@@ -1,4 +1,4 @@
-const msgpack = require('msgpack5')()
+const msgpack = msgpack5()
   , encode  = msgpack.encode
   , decode  = msgpack.decode;
 
@@ -6,16 +6,12 @@ const kConnecting = 1;
 const kConnected = 2;
 const kDisconnected = 3;
 
-// Generate a unique id for this webservice
-let my_uuid = new Uint8Array(16);
-my_uuid[0] = 44;
-my_uuid = Buffer.from(my_uuid);
 
 const kMagic = 0x0009340053640912;
 const kVersion = 0;
 
 /**
- * Wrap a web socket with a MsgPack RCP protocol that works with our C++ version.
+ * Wrap a web socket with a MsgPack RCP protocol.
  * @param {websocket} ws Websocket object
  */
 function Peer(ws) {
@@ -81,10 +77,9 @@ function Peer(ws) {
 		}
 	});
 
-	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
+	this.send("__handshake__", kMagic, kVersion);
 }
 
-Peer.uuid = my_uuid;
 
 /**
  * @private
@@ -239,5 +234,3 @@ Peer.prototype.on = function(evt, f) {
 	}
 	this.events[evt].push(f);
 }
-
-module.exports = Peer;
