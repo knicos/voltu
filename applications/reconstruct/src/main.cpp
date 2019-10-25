@@ -174,7 +174,7 @@ static void run(ftl::Configurable *root) {
 
 	// Generate virtual camera render when requested by streamer
 	virt->onRender([splat,virt,&scene_B,align](ftl::rgbd::Frame &out) {
-		virt->setTimestamp(scene_B.timestamp);
+		//virt->setTimestamp(scene_B.timestamp);
 		// Do we need to convert Lab to BGR?
 		if (align->isLabColour()) {
 			for (auto &f : scene_B.frames) {

@@ -349,18 +349,18 @@ bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, 
 			float sx = ((float)p[0] - positionAfterOffset[0]) / mScale;
 			float sy = ((float)p[1] - positionAfterOffset[1]) / mScale;
 
-			Eigen::Vector4f camPos;
+			//Eigen::Vector4f camPos;
 
-			try {
-				camPos = camera_->source()->point(sx,sy).cast<float>();
-			} catch(...) {
-				return true;
-			}
+			//try {
+				//camPos = camera_->source()->point(sx,sy).cast<float>();
+			//} catch(...) {
+			//	return true;
+			//}
 			
-			camPos *= -1.0f;
+			//camPos *= -1.0f;
 			//Eigen::Vector4f worldPos =  camera_->source()->getPose().cast<float>() * camPos;
 			//lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
-			LOG(INFO) << "Depth at click = " << -camPos[2];
+			//LOG(INFO) << "Depth at click = " << -camPos[2];
 			return true;
 		}
 	return false;

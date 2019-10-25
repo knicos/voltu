@@ -22,7 +22,9 @@ enum struct codec_t : uint8_t {
 	JSON = 100,		// A JSON string
 	CALIBRATION,	// Camera parameters object
 	POSE,			// 4x4 eigen matrix
-	RAW				// Some unknown binary format (msgpack?)
+	MSGPACK,
+	STRING,			// Null terminated string
+	RAW				// Some unknown binary format
 };
 
 /**
