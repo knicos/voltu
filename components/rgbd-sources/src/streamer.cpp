@@ -189,6 +189,12 @@ void Streamer::add(Source *src) {
 		group_.addSource(src);
 
 		src->addRawCallback([this,s](Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			if (spkt.channel == Channel::Calibration) {
+				// Calibration changed, so lets re-check the bitrate presets
+				const auto &params = src->parameters();
+				s->hq_bitrate = ftl::codecs::findPreset(params.width, params.height);
+			}
+
 			//LOG(INFO) << "RAW CALLBACK";
 			_transmitPacket(s, spkt, pkt, Quality::Any);
 		});
