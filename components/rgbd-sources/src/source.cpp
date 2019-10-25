@@ -36,9 +36,8 @@ std::map<std::string, ftl::rgbd::Player*> Source::readers__;
 
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
 	impl_ = nullptr;
-	params_ = {};
+	//params_ = {};
 	stream_ = 0;
-	timestamp_ = 0;
 	reset();
 
 	on("uri", [this](const ftl::config::Event &e) {
@@ -49,9 +48,8 @@ Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matri
 
 Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(net) {
 	impl_ = nullptr;
-	params_ = {};
+	//params_ = {};
 	stream_ = 0;
-	timestamp_ = 0;
 	reset();
 
 	on("uri", [this](const ftl::config::Event &e) {
@@ -68,11 +66,6 @@ cv::Mat Source::cameraMatrix() const {
 	cv::Mat m = (cv::Mat_<float>(3,3) << parameters().fx, 0.0, -parameters().cx, 0.0, parameters().fy, -parameters().cy, 0.0, 0.0, 1.0);
 	return m;
 }
-
-/*void Source::customImplementation(ftl::rgbd::detail::Source *impl) {
-	if (impl_) delete impl_;
-	impl_ = impl;
-}*/
 
 ftl::rgbd::detail::Source *Source::_createImplementation() {
 	auto uristr = get<string>("uri");
@@ -178,7 +171,7 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 		LOG(ERROR) << "You do not have 'librealsense2' installed";
 #endif
 	} else {
-		params_.width = value("width", 1280);
+		/*params_.width = value("width", 1280);
 		params_.height = value("height", 720);
 		params_.fx = value("focal", 700.0f);
 		params_.fy = params_.fx;
@@ -187,7 +180,7 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 		params_.minDepth = value("minDepth", 0.1f);
 		params_.maxDepth = value("maxDepth", 20.0f);
 		params_.doffs = 0;
-		params_.baseline = value("baseline", 0.0f);
+		params_.baseline = value("baseline", 0.0f);*/
 	}
 	return nullptr;
 }
@@ -195,45 +188,12 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 void Source::getFrames(cv::Mat &rgb, cv::Mat &depth) {
 	if (bool(callback_)) LOG(WARNING) << "Cannot use getFrames and callback in source";
 	SHARED_LOCK(mutex_,lk);
-	rgb_.copyTo(rgb);
-	depth_.copyTo(depth);
+	//rgb_.copyTo(rgb);
+	//depth_.copyTo(depth);
 	//rgb = rgb_;
 	//depth = depth_;
-
-	/*cv::Mat tmp;
-	tmp = rgb;
-	rgb = rgb_;
-	rgb_ = tmp;
-	tmp = depth;
-	depth = depth_;
-	depth_ = tmp;*/
 }
 
-Eigen::Vector4d Source::point(uint ux, uint uy) {
-	const auto &params = parameters();
-	const double x = ((double)ux+params.cx) / params.fx;
-	const double y = ((double)uy+params.cy) / params.fy;
-
-	SHARED_LOCK(mutex_,lk);
-	const double depth = depth_.at<float>(uy,ux);
-	return Eigen::Vector4d(x*depth,y*depth,depth,1.0);
-}
-
-Eigen::Vector4d Source::point(uint ux, uint uy, double d) {
-	const auto &params = parameters();
-	const double x = ((double)ux+params.cx) / params.fx;
-	const double y = ((double)uy+params.cy) / params.fy;
-	return Eigen::Vector4d(x*d,y*d,d,1.0);
-}
-
-Eigen::Vector2i Source::point(const Eigen::Vector4d &p) {
-	const auto &params = parameters();
-	double x = p[0] / p[2];
-	double y = p[1] / p[2];
-	x *= params.fx;
-	y *= params.fy;
-	return Eigen::Vector2i((int)(x - params.cx), (int)(y - params.cy));
-}
 
 void Source::setPose(const Eigen::Matrix4d &pose) {
 	pose_ = pose;
@@ -273,54 +233,7 @@ bool Source::retrieve() {
 
 bool Source::compute(int N, int B) {
 	UNIQUE_LOCK(mutex_,lk);
-	if (!impl_ && stream_ != 0) {
-		cudaSafeCall(cudaStreamSynchronize(stream_));
-		if (depth_.type() == CV_32SC1) depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
-		stream_ = 0;
-		return true;
-	} else if (impl_ && impl_->compute(N,B)) {
-		timestamp_ = impl_->timestamp_;
-		/*cv::Mat tmp;
-		rgb_.create(impl_->rgb_.size(), impl_->rgb_.type());
-		depth_.create(impl_->depth_.size(), impl_->depth_.type());
-		tmp = rgb_;
-		rgb_ = impl_->rgb_;
-		impl_->rgb_ = tmp;
-		tmp = depth_;
-		depth_ = impl_->depth_;
-		impl_->depth_ = tmp;*/
-
-		// TODO:(Nick) Reduce buffer copies
-		impl_->rgb_.copyTo(rgb_);
-		impl_->depth_.copyTo(depth_);
-		//rgb_ = impl_->rgb_;
-		//depth_ = impl_->depth_;
-		return true;
-	}
-	return false;
-}
-
-bool Source::thumbnail(cv::Mat &t) {
-	if (!impl_ && stream_ != 0) {
-		cudaSafeCall(cudaStreamSynchronize(stream_));
-		if (depth_.type() == CV_32SC1) depth_.convertTo(depth_, CV_32F, 1.0f / 1000.0f);
-		stream_ = 0;
-		return true;
-	} else if (impl_) {
-		UNIQUE_LOCK(mutex_,lk);
-		impl_->capture(0);
-		impl_->swap();
-		impl_->compute(1, 9);
-		impl_->rgb_.copyTo(rgb_);
-		impl_->depth_.copyTo(depth_);
-	}
-	if (!rgb_.empty()) {
-		SHARED_LOCK(mutex_,lk);
-		// Downsize and square the rgb_ image
-		cv::resize(rgb_, thumb_, cv::Size(320,180));
-	}
-	t = thumb_;
-	return !thumb_.empty();
+	return impl_ && impl_->compute(N,B);
 }
 
 bool Source::setChannel(ftl::codecs::Channel c) {
@@ -340,7 +253,6 @@ void Source::setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb) 
 
 void Source::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
 	UNIQUE_LOCK(mutex_,lk);
-	LOG(INFO) << "ADD RAW";
 	rawcallbacks_.push_back(f);
 }
 

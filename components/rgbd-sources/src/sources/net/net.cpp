@@ -90,7 +90,7 @@ void NetFrameQueue::freeFrame(NetFrame &f) {
 
 // ===== NetSource =============================================================
 
-bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::codecs::Channel chan) {
+/*bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::codecs::Channel chan) {
 	try {
 		while(true) {
 			auto [cap,buf] = net.call<tuple<unsigned int,vector<unsigned char>>>(peer_, "source_details", src, chan);
@@ -137,7 +137,7 @@ bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &s
 		LOG(ERROR) << "Unknown exception";
 		return false;
 	}
-}
+}*/
 
 NetSource::NetSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1), adaptive_(0), queue_(3) {
@@ -147,6 +147,7 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 	default_quality_ = host->value("quality", 0);
 	last_bitrate_ = 0;
 	params_right_.width = 0;
+	has_calibration_ = false;
 
 	decoder_c1_ = nullptr;
 	decoder_c2_ = nullptr;
@@ -288,6 +289,35 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	const ftl::codecs::Channel rchan = spkt.channel;
 	const int channum = (rchan == Channel::Colour) ? 0 : 1;
 
+	if (rchan == Channel::Calibration) {
+		std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, ftl::rgbd::capability_t> params;
+		auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+		unpacked.get().convert(params);
+
+		if (std::get<1>(params) == Channel::Left) {
+			params_ = std::get<0>(params);
+			capabilities_ = std::get<2>(params);
+			has_calibration_ = true;
+
+			//rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
+			//depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
+
+			LOG(INFO) << "Got Calibration channel: " << params_.width << "x" << params_.height;
+		} else {
+			params_right_ = std::get<0>(params);
+		}
+
+		return;
+	} else if (rchan == Channel::Pose) {
+		LOG(INFO) << "Got POSE channel";
+		return;
+	}
+
+	if (!has_calibration_) {
+		LOG(WARNING) << "Missing calibration, skipping frame";
+		return;
+	}
+
 	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
 
 	// Update frame statistics
@@ -389,12 +419,12 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 
 ftl::rgbd::Camera NetSource::parameters(ftl::codecs::Channel chan) {
 	if (chan == ftl::codecs::Channel::Right) {
-		if (params_right_.width == 0) {
+		/*if (params_right_.width == 0) {
 			auto uri = host_->get<string>("uri");
 			if (!uri) return params_;
 
 			_getCalibration(*host_->getNet(), peer_, *uri, params_right_, chan);
-		}
+		}*/
 		return params_right_;
 	} else {
 		return params_;
@@ -419,8 +449,8 @@ void NetSource::_updateURI() {
 		}
 		peer_ = *p;
 
-		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::codecs::Channel::Left);
-		_getCalibration(*host_->getNet(), peer_, *uri, params_right_, ftl::codecs::Channel::Right);
+		//has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::codecs::Channel::Left);
+		//_getCalibration(*host_->getNet(), peer_, *uri, params_right_, ftl::codecs::Channel::Right);
 
 		host_->getNet()->bind(*uri, [this](short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			//if (chunk == -1) {
@@ -437,8 +467,6 @@ void NetSource::_updateURI() {
 
 		N_ = 0;
 
-		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
-		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
 		//d_rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
 		//d_depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
 
@@ -491,5 +519,5 @@ bool NetSource::compute(int n, int b) {
 }
 
 bool NetSource::isReady() {
-	return has_calibration_ && !rgb_.empty();
+	return has_calibration_;
 }

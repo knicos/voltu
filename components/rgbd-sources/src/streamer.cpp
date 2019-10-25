@@ -187,6 +187,11 @@ void Streamer::add(Source *src) {
 		sources_[src->getID()] = s;
 
 		group_.addSource(src);
+
+		src->addRawCallback([this,s](Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			//LOG(INFO) << "RAW CALLBACK";
+			_transmitPacket(s, spkt, pkt, Quality::Any);
+		});
 	}
 
 	LOG(INFO) << "Streaming: " << src->getID();
@@ -322,6 +327,11 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	}
 
 	++s->clientCount;
+
+	// Finally, inject calibration and config data
+	s->src->inject(Channel::Calibration, s->src->parameters(Channel::Left), Channel::Left, s->src->getCapabilities());
+	s->src->inject(Channel::Calibration, s->src->parameters(Channel::Right), Channel::Right, s->src->getCapabilities());
+	//s->src->inject(Channel::Pose, s->src->getPose());
 }
 
 void Streamer::remove(Source *) {

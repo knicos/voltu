@@ -7,8 +7,17 @@ using ftl::rgbd::Camera;
 
 class VirtualImpl : public ftl::rgbd::detail::Source {
 	public:
-	explicit VirtualImpl(ftl::rgbd::Source *host, const ftl::rgbd::Camera &params) : ftl::rgbd::detail::Source(host) {
-		params_ = params;
+	explicit VirtualImpl(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+		params_.width = host->value("width", 1280);
+		params_.height = host->value("height", 720);
+		params_.fx = host->value("focal", 700.0f);
+		params_.fy = params_.fx;
+		params_.cx = -(double)params_.width / 2.0;
+		params_.cy = -(double)params_.height / 2.0;
+		params_.minDepth = host->value("minDepth", 0.1f);
+		params_.maxDepth = host->value("maxDepth", 20.0f);
+		params_.doffs = 0;
+		params_.baseline = host->value("baseline", 0.0f);
 
 		params_right_.width = host->value("width", 1280);
 		params_right_.height = host->value("height", 720);
@@ -113,20 +122,7 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 };
 
 VirtualSource::VirtualSource(ftl::config::json_t &cfg) : Source(cfg) {
-	auto params = params_;
-
-	params_.width = value("width", 1280);
-	params_.height = value("height", 720);
-	params_.fx = value("focal", 700.0f);
-	params_.fy = params_.fx;
-	params_.cx = value("centre_x", -(double)params_.width / 2.0);
-	params_.cy = value("centre_y", -(double)params_.height / 2.0);
-	params_.minDepth = value("minDepth", 0.1f);
-	params_.maxDepth = value("maxDepth", 20.0f);
-	params_.doffs = 0;
-	params_.baseline = value("baseline", 0.0f);
-
-	impl_ = new VirtualImpl(this, params);
+	impl_ = new VirtualImpl(this);
 }
 
 VirtualSource::~VirtualSource() {
