@@ -201,6 +201,12 @@ class Source : public ftl::Configurable {
 	 */
 	void notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 
+	/**
+	 * Notify of a decoded or available pair of frames. This calls the source
+	 * callback after having verified the correct resolution of the frames.
+	 */
+	void notify(int64_t ts, cv::Mat &c1, cv::Mat &c2);
+
 	// ==== Inject Data into stream ============================================
 
 	/**

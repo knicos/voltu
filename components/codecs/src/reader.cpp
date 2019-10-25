@@ -22,6 +22,11 @@ bool Reader::begin() {
 	(*stream_).read((char*)&h, sizeof(h));
 	if (h.magic[0] != 'F' || h.magic[1] != 'T' || h.magic[2] != 'L' || h.magic[3] != 'F') return false;
 
+	if (h.version >= 2) {
+		ftl::codecs::IndexHeader ih;
+		(*stream_).read((char*)&ih, sizeof(ih));
+	}
+
 	// Capture current time to adjust timestamps
 	timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
 	playing_ = true;

@@ -31,6 +31,7 @@ using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
 using ftl::codecs::Channel;
 using ftl::rgbd::detail::FileSource;
+using ftl::rgbd::Camera;
 
 std::map<std::string, ftl::rgbd::Player*> Source::readers__;
 
@@ -273,4 +274,51 @@ void Source::notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs:
 	for (auto &i : rawcallbacks_) {
 		i(this, spkt, pkt);
 	}
+}
+
+/*
+ * Scale camera parameters to match resolution.
+ */
+static Camera scaled(Camera &cam, int width, int height) {
+	float scaleX = (float)width / (float)cam.width;
+	float scaleY = (float)height / (float)cam.height;
+
+	CHECK( abs(scaleX - scaleY) < 0.000001f );
+
+	Camera newcam = cam;
+	newcam.width = width;
+	newcam.height = height;
+	newcam.fx *= scaleX;
+	newcam.fy *= scaleY;
+	newcam.cx *= scaleX;
+	newcam.cy *= scaleY;
+
+	return newcam;
+}
+
+void Source::notify(int64_t ts, cv::Mat &c1, cv::Mat &c2) {
+	// Ensure correct scaling of images and parameters.
+	int max_width = max(impl_->params_.width, max(c1.cols, c2.cols));
+	int max_height = max(impl_->params_.height, max(c1.rows, c2.rows));
+
+	// Do we need to scale camera parameters
+	if (impl_->params_.width < max_width || impl_->params_.height < max_height) {
+		impl_->params_ = scaled(impl_->params_, max_width, max_height);
+	}
+
+	// Should channel 1 be scaled?
+	if (c1.cols < max_width || c1.rows < max_height) {
+		cv::resize(c1, c1, cv::Size(max_width, max_height));
+	}
+
+	// Should channel 2 be scaled?
+	if (c2.cols < max_width || c2.rows < max_height) {
+		if (c2.type() == CV_32F) {
+			cv::resize(c2, c2, cv::Size(max_width, max_height), 0.0, 0.0, cv::INTER_NEAREST);
+		} else {
+			cv::resize(c2, c2, cv::Size(max_width, max_height));
+		}
+	}
+
+	if (callback_) callback_(ts, c1, c2);
 }
