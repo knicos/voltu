@@ -16,6 +16,7 @@
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/codecs/writer.hpp>
+#include <ftl/codecs/reader.hpp>
 
 #include "ilw/ilw.hpp"
 #include <ftl/render/splat_render.hpp>
@@ -102,6 +103,36 @@ static void run(ftl::Configurable *root) {
 	
 	net->start();
 	net->waitConnections();
+
+	// Check paths for an FTL file to load...
+	auto paths = (*root->get<nlohmann::json>("paths"));
+	for (auto &x : paths.items()) {
+		std::string path = x.value().get<std::string>();
+		auto eix = path.find_last_of('.');
+		auto ext = path.substr(eix+1);
+
+		// Command line path is ftl file
+		if (ext == "ftl") {
+			// Create temp reader to count number of sources found in file
+			std::ifstream file;
+			file.open(path);
+			ftl::codecs::Reader reader(file);
+			reader.begin();
+
+			int max_stream = 0;
+			reader.read(reader.getStartTime()+100, [&max_stream](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+				max_stream = max(max_stream, spkt.streamID);
+			});
+			reader.end();
+
+			LOG(INFO) << "Found " << (max_stream+1) << " sources in " << path;
+
+			// For each stream found, add a source object
+			for (int i=0; i<max_stream; ++i) {
+				root->getConfig()["sources"].push_back(nlohmann::json{{"uri",std::string("file://") + path + std::string("#") + std::to_string(i)}});
+			}
+		}
+	}
 	
 	// Create a vector of all input RGB-Depth sources
 	auto sources = ftl::createArray<Source>(root, "sources", net);
