@@ -73,6 +73,6 @@ bool Encoder::encode(const cv::Mat &in, preset_t preset,
 	const auto &settings = ftl::codecs::getPreset(preset);
 	const definition_t definition = (in.type() == CV_32F) ? settings.depth_res : settings.colour_res;
 	const bitrate_t bitrate = (in.type() == CV_32F) ? settings.depth_qual : settings.colour_qual;
-	LOG(INFO) << "Encode definition: " << (int)definition;
+
 	return encode(in, definition, bitrate, cb);
 }
