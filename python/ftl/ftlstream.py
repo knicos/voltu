@@ -43,8 +43,8 @@ class FTLStreamWriter:
     def __init__(self, file):
         self._file = open(file, "wb")
         self._file.write(bytes(ord(c) for c in "FTLF"))
-        self._file.write(bytes([0]))
-
+        self._file.write(bytes([2]))
+        self._file.write(bytes([0]*64))
         self._packer = msgpack.Packer(strict_types=False, use_bin_type=True)
 
     def __del__(self):
@@ -65,8 +65,79 @@ class FTLStreamWriter:
     def add_frame(self, timestamp, src, channel, codec, data, encode=True):
         pass
 
-    def add_depth(self, timestamp, src, data):
-        pass
+class FTLStreamBufferedWriter(FTLStreamWriter):
+    def __init__(self, file, fps=25.0):
+        super(FTLStreamWriter, file)
+        self._ts = 0
+        self._frame_t = int(1.0/fps)
+        self._n_sources = 0
+        self._frames = []
+    
+    def add_source(self, count=1):
+        self._n_sources += count
+        return self._n_sources
+
+    def add_calibration(self, source):
+        if not 0 < source < self._n_sources:
+            raise ValueError("invalid source id")
+
+    def add_frame(self, source, channel, data, codec, definition=None, flags=0, encode=True):
+        if not 0 < source < self._n_sources:
+            raise ValueError("invalid source id")
+
+        if channel not in ftl.Channel:
+            raise ValueError("invalid channel")
+        
+        if codec not in ftl.codec_t:
+            raise ValueError("invalid codec")
+
+        if encode:
+            if definition is not None:
+                definition = ftl.get_definition(data.shape)
+
+            if definition is None:
+                raise ValueError("unsupported resolution")
+            
+            if definition != ftl.get_definition(data.shape):
+                # todo: could replace definition or scale
+                raise ValueError("definition does not match frame resolution")
+
+            if codec == ftl.codec_t.PNG:
+                if ftl.is_float_channel(channel):
+                    # scaling always same (???)
+                    data = data.astype(np.float) / 1000.0
+                
+                params = [cv.IMWRITE_PNG_COMPRESSION, 9]
+                retval, data = cv.imencode(".png", data, params)
+                
+                if not retval:
+                    raise Exception("encoding error (PNG)")
+            
+            elif codec == ftl.codec_t.JPG:
+                params = []
+                retval, data = cv.imencode(".jpg", data, params)
+
+                if not retval:
+                    raise Exception("encoding error (JPG)")
+            
+            else:
+                raise ValueError("unsupported codec")
+
+            data = data.tobytes()
+        
+        if definition is None:
+            raise ValueError("definition required")
+
+        if not isinstance(data, bytes):
+            raise ValueError("expected bytes")
+
+        ftl.Packet(int(codec), int(definition), 1, 0, int(flags), data)
+
+    def push_frames(self):
+        for frame in self._frames:
+            self.add_raw(sp, p)
+        
+        self._ts += self._frame_t
 
 class FTLStreamReader:
     ''' FTL file reader '''
@@ -86,9 +157,13 @@ class FTLStreamReader:
 
         try:
             magic = self._file.read(5)
+            version = int(magic[4])
             if magic[:4] != bytes(ord(c) for c in "FTLF"):
                 raise Exception("wrong magic")
             
+            if  == 2:
+
+
             self._unpacker = msgpack.Unpacker(self._file, raw=True, use_list=False)
             
         except Exception as ex:
@@ -159,6 +234,17 @@ class FTLStreamReader:
         self._frame = _ycrcb2rgb(img)
         self._frameset_new[k] = self._frame
 
+    def _decode_png(self, sp, p):
+        try:
+            cv
+        except NameError:
+            raise Exception("OpenCV required for PNG decoding")
+
+        self._frame = cv.imdecode(np.frombuffer(p.data, dtype=np.uint8),
+                                  cv.IMREAD_ANYDEPTH)
+        self._frame = self._frame.astype(np.float) / 1000.0
+        self._frameset_new[(sp.streamID, sp.channel)] = self._frame
+
     def _flush_decoders(self):
         for decoder in self._decoders.values():
             decoder.flush_data()
@@ -211,6 +297,9 @@ class FTLStreamReader:
 
         elif self._p.codec == ftl.codec_t.HEVC:
             self._decode_hevc(self._sp, self._p)
+
+        elif self._p.codec == ftl.codec_t.PNG:
+            self._decode_png(self._sp, self._p)
 
         else:
             raise Exception("unkowno codec %i" % self._p.codec)

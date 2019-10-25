@@ -45,6 +45,16 @@ class Channel(IntEnum):
     Pose            = 66
     Data            = 67
 
+_float_channels = [
+    Channel.Depth,
+    Channel.Confidence,
+    Channel.Density,
+    Channel.Energy
+]
+
+def is_float_channel(channel):
+    return channel in _float_channels
+
 # components/codecs/include/ftl/codecs/bitrates.hpp
 class codec_t(IntEnum):
     JPG = 0
