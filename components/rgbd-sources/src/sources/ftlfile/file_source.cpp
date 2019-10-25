@@ -132,8 +132,9 @@ bool FileSource::compute(int n, int b) {
 
 	if (rgb_.empty() || depth_.empty()) return false;
 
-	auto cb = host_->callback();
-	if (cb) cb(timestamp_, rgb_, depth_);
+	//auto cb = host_->callback();
+	//if (cb) cb(timestamp_, rgb_, depth_);
+	host_->notify(timestamp_, rgb_, depth_);
     return true;
 }
 

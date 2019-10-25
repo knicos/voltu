@@ -14,8 +14,12 @@ Writer::~Writer() {
 
 bool Writer::begin() {
 	ftl::codecs::Header h;
-	h.version = 0;
+	//h.version = 2;
 	(*stream_).write((const char*)&h, sizeof(h));
+
+	ftl::codecs::IndexHeader ih;
+	ih.reserved[0] = -1;
+	(*stream_).write((const char*)&ih, sizeof(ih));
 
 	// Capture current time to adjust timestamps
 	timestart_ = ftl::timer::get_time();

@@ -382,7 +382,8 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 
 			adaptive_ = abr_.selectBitrate(frame);
 			//LOG(INFO) << "Frame finished: " << frame.timestamp;
-			auto cb = host_->callback();
+			host_->notify(frame.timestamp, frame.channel1, frame.channel2);
+			/*auto cb = host_->callback();
 			if (cb) {
 				try {
 					cb(frame.timestamp, frame.channel1, frame.channel2);
@@ -391,7 +392,7 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 				}
 			} else {
 				LOG(ERROR) << "NO FRAME CALLBACK";
-			}
+			}*/
 
 			queue_.freeFrame(frame);
 

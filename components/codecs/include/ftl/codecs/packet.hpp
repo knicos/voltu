@@ -16,7 +16,14 @@ namespace codecs {
  */
 struct Header {
 	const char magic[4] = {'F','T','L','F'};
-	uint8_t version = 1;
+	uint8_t version = 2;
+};
+
+/**
+ * Version 2 header padding for potential indexing use.
+ */
+struct IndexHeader {
+	int64_t reserved[8];
 };
 
 /**
