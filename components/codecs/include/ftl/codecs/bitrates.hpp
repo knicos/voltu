@@ -40,9 +40,11 @@ enum struct definition_t : uint8_t {
 	LD360 = 6,
 	Any = 7,
 
-	HTC_VIVE = 8
+	HTC_VIVE = 8,
 
 	// TODO: Add audio definitions
+
+	Invalid
 };
 
 /**
@@ -87,6 +89,8 @@ static const preset_t kPresetLQThreshold = 4;
 
 static const preset_t kPresetHTCVive = -1;
 
+static const preset_t kPresetMinimum = -1;
+
 /**
  * Represents the details of each preset codec configuration.
  */
@@ -124,6 +128,8 @@ preset_t findPreset(definition_t, definition_t);
  * match then return highest quality.
  */
 preset_t findPreset(definition_t);
+
+preset_t findPreset(size_t width, size_t height);
 
 }
 }
