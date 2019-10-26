@@ -28,6 +28,8 @@ class OpenCVEncoder : public ftl::codecs::Encoder {
     bool encode(const cv::Mat &in, ftl::codecs::definition_t definition, ftl::codecs::bitrate_t bitrate,
 			const std::function<void(const ftl::codecs::Packet&)>&) override;
 
+	bool supports(ftl::codecs::codec_t codec) override;
+
     //bool encode(const cv::cuda::GpuMat &in, std::vector<uint8_t> &out, bitrate_t bix, bool);
 
 	private:

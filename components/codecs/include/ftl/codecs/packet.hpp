@@ -16,7 +16,7 @@ namespace codecs {
  */
 struct Header {
 	const char magic[4] = {'F','T','L','F'};
-	uint8_t version = 2;
+	uint8_t version = 3;
 };
 
 /**

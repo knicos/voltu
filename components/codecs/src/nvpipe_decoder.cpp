@@ -50,7 +50,7 @@ void cropAndScaleUp(cv::Mat &in, cv::Mat &out) {
 bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	cudaSetDevice(0);
 	UNIQUE_LOCK(mutex_,lk);
-	if (pkt.codec != codec_t::HEVC) return false;
+	if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) return false;
 	bool is_float_frame = out.type() == CV_32F;
 
 	// Is the previous decoder still valid for current resolution and type?
@@ -68,7 +68,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	if (nv_decoder_ == nullptr) {
 		nv_decoder_ = NvPipe_CreateDecoder(
 				(is_float_frame) ? NVPIPE_UINT16 : NVPIPE_RGBA32,
-				NVPIPE_HEVC,
+				(pkt.codec == codec_t::HEVC) ? NVPIPE_HEVC : NVPIPE_H264,
 				ftl::codecs::getWidth(pkt.definition),
 				ftl::codecs::getHeight(pkt.definition));
 		if (!nv_decoder_) {
@@ -88,6 +88,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 		// Obtain NAL unit type
 		if (ftl::codecs::hevc::isIFrame(pkt.data)) seen_iframe_ = true;
 	}
+	// TODO: Parse H264 for i-frame check
 
 	if (!seen_iframe_) return false;
 
@@ -106,10 +107,18 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	} else {
 		// Is the received frame the same size as requested output?
 		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
-			cv::cvtColor(tmp, out, cv::COLOR_BGRA2BGR);
+			if (pkt.flags & 0x1) {
+				cv::cvtColor(tmp, out, cv::COLOR_RGBA2BGR);
+			} else {
+				cv::cvtColor(tmp, out, cv::COLOR_BGRA2BGR);
+			}
 		} else {
 			LOG(WARNING) << "Resizing decoded frame from " << tmp.size() << " to " << out.size();
-			cv::cvtColor(tmp, tmp, cv::COLOR_BGRA2BGR);
+			if (pkt.flags & 0x1) {
+				cv::cvtColor(tmp, tmp, cv::COLOR_RGBA2BGR);
+			} else {
+				cv::cvtColor(tmp, tmp, cv::COLOR_BGRA2BGR);
+			}
 			cv::resize(tmp, out, out.size());
 		}
 	}
