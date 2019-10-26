@@ -25,11 +25,16 @@ class NvPipeEncoder : public ftl::codecs::Encoder {
 
 	void reset();
 
+	bool supports(ftl::codecs::codec_t codec) override;
+
+	static constexpr int kFlagRGB = 0x00000001;
+
     private:
     NvPipe *nvenc_;
     definition_t current_definition_;
     bool is_float_channel_;
 	bool was_reset_;
+	ftl::codecs::codec_t preference_;
 
     bool _encoderMatch(const cv::Mat &in, definition_t def);
     bool _createEncoder(const cv::Mat &in, definition_t def, bitrate_t rate);

@@ -33,7 +33,8 @@ enum class device_t {
  */
 Encoder *allocateEncoder(
 		ftl::codecs::definition_t maxdef=ftl::codecs::definition_t::HD1080,
-		ftl::codecs::device_t dev=ftl::codecs::device_t::Any);
+		ftl::codecs::device_t dev=ftl::codecs::device_t::Any,
+		ftl::codecs::codec_t codec=ftl::codecs::codec_t::Any);
 
 /**
  * Release an encoder to be reused by some other stream.
@@ -47,7 +48,7 @@ void free(Encoder *&e);
 class Encoder {
     public:
     friend Encoder *allocateEncoder(ftl::codecs::definition_t,
-			ftl::codecs::device_t);
+			ftl::codecs::device_t, ftl::codecs::codec_t);
     friend void free(Encoder *&);
 
     public:
@@ -85,6 +86,8 @@ class Encoder {
     //virtual bool encode(const cv::cuda::GpuMat &in, std::vector<uint8_t> &out, bitrate_t bix, bool)=0;
 
 	virtual void reset() {}
+
+	virtual bool supports(ftl::codecs::codec_t codec)=0;
 
     protected:
     bool available;

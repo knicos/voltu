@@ -158,6 +158,7 @@ class Streamer : public ftl::Configurable {
 	ftl::timer::TimerHandle timer_job_;
 
 	ftl::codecs::device_t hq_devices_;
+	ftl::codecs::codec_t hq_codec_;
 
 	enum class Quality {
 		High,

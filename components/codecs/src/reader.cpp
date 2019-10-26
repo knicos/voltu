@@ -27,6 +27,8 @@ bool Reader::begin() {
 		(*stream_).read((char*)&ih, sizeof(ih));
 	}
 
+	version_ = h.version;
+
 	// Capture current time to adjust timestamps
 	timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
 	playing_ = true;
@@ -85,6 +87,11 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 
 		// Adjust timestamp
 		get<0>(data).timestamp += timestart_;
+
+		// Fix to clear flags for version 2.
+		if (version_ == 2) {
+			get<1>(data).flags = 0;
+		}
 
 		// TODO: Need to read ahead a few frames because there may be a
 		// smaller timestamp after this one... requires a buffer. Ideally this

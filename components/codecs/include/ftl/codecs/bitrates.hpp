@@ -24,7 +24,9 @@ enum struct codec_t : uint8_t {
 	POSE,			// 4x4 eigen matrix
 	MSGPACK,
 	STRING,			// Null terminated string
-	RAW				// Some unknown binary format
+	RAW,				// Some unknown binary format
+
+	Any = 255
 };
 
 /**

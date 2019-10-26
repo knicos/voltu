@@ -49,6 +49,7 @@ class Reader {
 	bool has_data_;
 	int64_t timestart_;
 	bool playing_;
+	int version_;
 
 	MUTEX mtx_;
 

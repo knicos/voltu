@@ -45,6 +45,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	encode_mode_ = ftl::rgbd::kEncodeVideo;
 	hq_devices_ = (value("disable_hardware_encode", false)) ? device_t::Software : device_t::Any;
+	hq_codec_ = value("video_codec", ftl::codecs::codec_t::Any);
 
 	//group_.setFPS(value("fps", 20));
 	group_.setLatency(4);
@@ -446,9 +447,9 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 		// Do we need to do high quality encoding?
 		if (src->hq_count > 0) {
 			if (!src->hq_encoder_c1) src->hq_encoder_c1 = ftl::codecs::allocateEncoder(
-					definition_t::HD1080, hq_devices_);
+					definition_t::HD1080, hq_devices_, hq_codec_);
 			if (!src->hq_encoder_c2 && hasChan2) src->hq_encoder_c2 = ftl::codecs::allocateEncoder(
-					definition_t::HD1080, hq_devices_);
+					definition_t::HD1080, hq_devices_, hq_codec_);
 
 			// Do we have the resources to do a HQ encoding?
 			if (src->hq_encoder_c1 && (!hasChan2 || src->hq_encoder_c2)) {

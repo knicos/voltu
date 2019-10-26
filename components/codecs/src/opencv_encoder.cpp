@@ -20,6 +20,14 @@ OpenCVEncoder::~OpenCVEncoder() {
     
 }
 
+bool OpenCVEncoder::supports(ftl::codecs::codec_t codec) {
+	switch (codec) {
+	case codec_t::JPG:
+	case codec_t::PNG: return true;
+	default: return false;
+	}
+}
+
 bool OpenCVEncoder::encode(const cv::Mat &in, definition_t definition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
 	cv::Mat tmp;
 	bool is_colour = in.type() != CV_32F;
