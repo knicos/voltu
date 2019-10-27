@@ -11,7 +11,7 @@ Packet = namedtuple("Packet", ["codec", "definition", "block_total",
                                "block_number", "flags", "data"])
 
 StreamPacket = namedtuple("StreamPacket", ["timestamp", "streamID",
-                                           "chanel_count", "channel"])
+                                           "channel_count", "channel"])
 
 # components/codecs/include/ftl/codecs/channels.hpp
 class Channel(IntEnum):

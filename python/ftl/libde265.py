@@ -88,6 +88,12 @@ class _libde265error(IntEnum):
     DE265_WARNING_SPS_MISSING_CANNOT_DECODE_SEI=1025
     DE265_WARNING_COLLOCATED_MOTION_VECTOR_OUTSIDE_IMAGE_AREA=1026
 
+class de265_chroma(IntEnum):
+    de265_chroma_mono = 0
+    de265_chroma_420 = 1
+    de265_chroma_422 = 2
+    de265_chroma_444 = 3
+
 libde265 = ctypes.cdll.LoadLibrary("libde265.so.0")
 
 libde265.de265_get_error_text.argtypes = [ctypes.c_void_p]
@@ -131,6 +137,9 @@ libde265.de265_peek_next_picture.restype = ctypes.c_void_p
 libde265.de265_release_next_picture.argtypes = [ctypes.c_void_p]
 libde265.de265_release_next_picture.restype = None
 
+libde265.de265_get_chroma_format.argtypes = [ctypes.c_void_p]
+libde265.de265_get_chroma_format.restype = ctypes.c_int
+
 libde265.de265_get_image_width.argtypes = [ctypes.c_void_p, ctypes.c_int]
 libde265.de265_get_image_width.restype = ctypes.c_int
 
@@ -172,16 +181,18 @@ class Decoder:
 
     def _copy_image(self, de265_image):
         res = np.zeros((self._size[0], self._size[1], 3), dtype=np.uint8)
-        
+
+        # libde265: always 420 (???)
+        # chroma_format = libde265.de265_get_chroma_format(de265_image)
+
         for c in range(0, 3):
             size = (libde265.de265_get_image_height(de265_image, c),
                     libde265.de265_get_image_width(de265_image, c))
             
             bpp = libde265.de265_get_bits_per_pixel(de265_image, c)
-
             if bpp != 8:
                 raise NotImplementedError("unsupported bits per pixel %i" % bpp)
-            
+
             img_ptr = libde265.de265_get_image_plane(de265_image, c, self._out_stride)
             
 			# for frombuffer() no copy assumed

@@ -12,6 +12,8 @@ from . misc import is_iframe
 from . import ftltypes as ftl
 from . import libde265
 
+_calib_fmt = "@ddddIIdddd"
+
 try:
     import cv2 as cv
     
@@ -19,6 +21,8 @@ try:
         return cv.cvtColor(img, cv.COLOR_YCrCb2RGB)
     
 except ImportError:
+    warn("OpenCV not available. OpenCV required for full functionality.")
+
     def _ycrcb2rgb(img):
         ''' YCrCb to RGB, based on OpenCV documentation definition.
         
@@ -42,9 +46,10 @@ except ImportError:
 class FTLStreamWriter:
     def __init__(self, file):
         self._file = open(file, "wb")
-        self._file.write(bytes(ord(c) for c in "FTLF"))
-        self._file.write(bytes([2]))
-        self._file.write(bytes([0]*64))
+        self._file.write(bytes(ord(c) for c in "FTLF")) # magic
+        self._file.write(bytes([2]))                    # version
+        self._file.write(bytes([0]*64))                 # reserved
+
         self._packer = msgpack.Packer(strict_types=False, use_bin_type=True)
 
     def __del__(self):
@@ -53,36 +58,20 @@ class FTLStreamWriter:
     def close(self):
         self._file.close()
 
-    def add_source(self, parameters, pose):
-        pass
-
     def add_raw(self, sp, p):
         if len(sp) != len(ftl.StreamPacket._fields) or len(p) != len(ftl.Packet._fields):
            raise ValueError("invalid input")
         
         self._file.write(self._packer.pack((sp, p)))
+        self._file.flush()
 
-    def add_frame(self, timestamp, src, channel, codec, data, encode=True):
-        pass
-
-class FTLStreamBufferedWriter(FTLStreamWriter):
-    def __init__(self, file, fps=25.0):
-        super(FTLStreamWriter, file)
-        self._ts = 0
-        self._frame_t = int(1.0/fps)
-        self._n_sources = 0
-        self._frames = []
-    
-    def add_source(self, count=1):
-        self._n_sources += count
-        return self._n_sources
-
-    def add_calibration(self, source):
-        if not 0 < source < self._n_sources:
-            raise ValueError("invalid source id")
-
-    def add_frame(self, source, channel, data, codec, definition=None, flags=0, encode=True):
-        if not 0 < source < self._n_sources:
+    def add_frame(self, timestamp, source, channel, channel_count, codec,  data,
+                  definition=None, flags=0, encode=True):
+        ''' Write frame to file. If encode is False (data already encoded),
+        definition needs to be specified.
+        '''
+        
+        if source < 0:
             raise ValueError("invalid source id")
 
         if channel not in ftl.Channel:
@@ -92,7 +81,7 @@ class FTLStreamBufferedWriter(FTLStreamWriter):
             raise ValueError("invalid codec")
 
         if encode:
-            if definition is not None:
+            if definition is None:
                 definition = ftl.get_definition(data.shape)
 
             if definition is None:
@@ -131,38 +120,48 @@ class FTLStreamBufferedWriter(FTLStreamWriter):
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
 
-        ftl.Packet(int(codec), int(definition), 1, 0, int(flags), data)
+        sp = ftl.StreamPacket(int(timestamp), int(source),
+                              int(channel_count), int(channel))
+        p = ftl.Packet(int(codec), int(definition), 1, 0, int(flags), data)
 
-    def push_frames(self):
-        for frame in self._frames:
-            self.add_raw(sp, p)
-        
-        self._ts += self._frame_t
+        self.add_raw(sp, p)
+
+    def add_pose(self, timestamp, source, data):
+        if data.shape != (4, 4):
+            raise ValueError("invalid pose")
+
+        data.astype(np.float64).tobytes(order='F')
+        raise NotImplementedError("todo")
+
+    def add_calibration(self, timestamp, source, data):
+        struct.pack(_calib_fmt, *data)
+        raise NotImplementedError("todo")
 
 class FTLStreamReader:
-    ''' FTL file reader '''
+    ''' FTL file reader. '''
     
     def __init__(self, file):
         self._file = open(file, "br")
-        self._decoders = {}
+        self._version = 0
+
+        self._decoders_hevc = {}
         self._seen_iframe = set()
 
-        self._frameset = {}
-        self._frameset_new = {}
         self._frame = None
         
+        # calibration and pose are cached
         self._calibration = {}
         self._pose = {}
-        self._ts = -sys.maxsize - 1
 
         try:
             magic = self._file.read(5)
-            version = int(magic[4])
+            self._version = int(magic[4])
             if magic[:4] != bytes(ord(c) for c in "FTLF"):
                 raise Exception("wrong magic")
             
-            if  == 2:
-
+            if self._version >= 2:
+                # first 64 bytes reserved
+                self._file.read(8*8)
 
             self._unpacker = msgpack.Unpacker(self._file, raw=True, use_list=False)
             
@@ -180,23 +179,15 @@ class FTLStreamReader:
         return ftl.StreamPacket._make(v1), ftl.Packet._make(v2)
     
     def _update_calib(self, sp, p):
-        ''' Update calibration.
-        
-        todo: fix endianess
-        '''
-        calibration = struct.unpack("@ddddIIdddd", p.data[:(4*8+2*4+4*8)])
+        ''' Update calibration. '''
+        calibration = struct.unpack(_calib_fmt, p.data[:(4*8+2*4+4*8)])
         self._calibration[sp.streamID] = ftl.Camera._make(calibration)
 
     def _update_pose(self, sp, p):
-        ''' Update pose
-        
-        todo: fix endianess
-        '''
-
+        ''' Update pose '''
         pose = np.asarray(struct.unpack("@16d", p.data[:(16*8)]),
                           dtype=np.float64)
         pose = pose.reshape((4, 4), order='F') # Eigen
-
         self._pose[sp.streamID] = pose
     
     def _process_json(self, sp, p):
@@ -207,10 +198,10 @@ class FTLStreamReader:
         
         k = (sp.streamID, sp.channel)
         
-        if k not in self._decoders:
-            self._decoders[k] = libde265.Decoder(ftl.definition_t[p.definition])
+        if k not in self._decoders_hevc:
+            self._decoders_hevc[k] = libde265.Decoder(ftl.definition_t[p.definition])
         
-        decoder = self._decoders[k]
+        decoder = self._decoders_hevc[k]
 
         if k not in self._seen_iframe:
             if not is_iframe(p.data):
@@ -231,37 +222,39 @@ class FTLStreamReader:
             # if this happens, does get_next_picture() in loop help?
             warn("frame expected, no image from decoded")
         
-        self._frame = _ycrcb2rgb(img)
-        self._frameset_new[k] = self._frame
+        if ftl.is_float_channel(self._sp.channel):
+            raise NotImplementedError("non-color channel decoding not available")
+        
+        else:
+            self._frame = _ycrcb2rgb(img)
 
-    def _decode_png(self, sp, p):
+    def _decode_opencv(self, sp, p):
         try:
             cv
         except NameError:
-            raise Exception("OpenCV required for PNG decoding")
+            raise Exception("OpenCV required for OpenCV (png/jpeg) decoding")
 
         self._frame = cv.imdecode(np.frombuffer(p.data, dtype=np.uint8),
-                                  cv.IMREAD_ANYDEPTH)
-        self._frame = self._frame.astype(np.float) / 1000.0
-        self._frameset_new[(sp.streamID, sp.channel)] = self._frame
+                                  cv.IMREAD_UNCHANGED)
 
-    def _flush_decoders(self):
-        for decoder in self._decoders.values():
-            decoder.flush_data()
+        if ftl.is_float_channel(self._sp.channel):
+            self._frame = self._frame.astype(np.float) / 1000.0
 
     def seek(self, ts):
         ''' Read until timestamp reached '''
-        if self._ts >= ts:
+        if self.get_timestamp() >= ts:
             raise Exception("trying to seek to earlier timestamp")
         
         while self.read():
-            if self._ts >= ts:
+            if self.get_timestamp() >= ts:
                 break
 
     def read(self):
         '''
         Reads data for until the next timestamp. Returns False if there is no
         more data to read, otherwise returns True.
+
+        todo: make decoding optional
         '''
         self._frame = None
 
@@ -270,19 +263,8 @@ class FTLStreamReader:
             self._packets_read += 1
         
         except msgpack.OutOfData:
-            self._frameset = self._frameset_new
-            self._frameset_new = {}
             return False
-        
-        if self._sp.timestamp < self._ts:
-            # old data, do not update
-            return True
 
-        if self._sp.timestamp > self._ts:
-            self._ts = self._sp.timestamp
-            self._frameset = self._frameset_new
-            self._frameset_new = {}
-        
         if self._p.block_total != 1 or self._p.block_number != 0:
             raise Exception("Unsupported block format (todo)")
 
@@ -299,7 +281,10 @@ class FTLStreamReader:
             self._decode_hevc(self._sp, self._p)
 
         elif self._p.codec == ftl.codec_t.PNG:
-            self._decode_png(self._sp, self._p)
+            self._decode_opencv(self._sp, self._p)
+
+        elif self._p.codec == ftl.codec_t.JPG:
+            self._decode_opencv(self._sp, self._p)
 
         else:
             raise Exception("unkowno codec %i" % self._p.codec)
@@ -310,10 +295,22 @@ class FTLStreamReader:
         return self._packets_read
 
     def get_raw(self):
+        ''' Returns previously received StreamPacket and Packet '''
         return self._sp, self._p
 
+    def get_channel_type(self):
+        return ftl.Channel(self._sp.channel)
+
+    def get_source_id(self):
+        return self._sp.streamID
+
     def get_timestamp(self):
-        return self._ts
+        return self._sp.timestamp
+
+    def get_frame(self):
+        ''' Return decoded frame from previous packet. Returns None if previous
+        packet did not contain a (valid) frame. '''
+        return self._frame
 
     def get_pose(self, source):
         try:
@@ -337,26 +334,7 @@ class FTLStreamReader:
             return self._calibration[source]
         except KeyError:
             raise ValueError("source id %i not found" % source)
-
-    def get_frame(self):
-        ''' Return decoded frame from previous packet. Returns None if previous
-        packet did not contain a (valid) frame. '''
-        return self._frame
-
-    def get_frameset(self):
-        return self._frameset
     
-    def get_frameset_frame(self, source, channel):
-        k = (source, channel)
-        if k in self._frameset:
-            return self._frameset[k]
-        else:
-            # raise an exception instead?
-            return None
-    
-    def get_frameset_sources(self):
-        return list(set(src for src, _ in self._frameset.keys()))
-
     def get_Q(self, source):
         ''' Disparity to depth matrix in OpenCV format '''
 
@@ -374,3 +352,5 @@ class FTLStreamReader:
         ''' Get list of sources '''
         return list(self._calibration.keys())
 
+    def get_version(self):
+        return self._version
