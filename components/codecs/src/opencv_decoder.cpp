@@ -30,6 +30,8 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
 	cv::Mat chunkHead = out(roi);
 
+	//LOG(INFO) << "DECODE JPEG " << (int)pkt.block_number << "/" << chunk_dim;
+
 	// Decode in temporary buffers to prevent long locks
 	cv::imdecode(pkt.data, cv::IMREAD_UNCHANGED, &tmp);
 

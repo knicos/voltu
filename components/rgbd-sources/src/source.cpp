@@ -271,6 +271,7 @@ void Source::removeRawCallback(const std::function<void(ftl::rgbd::Source*, cons
 
 void Source::notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	SHARED_LOCK(mutex_,lk);
+
 	for (auto &i : rawcallbacks_) {
 		i(this, spkt, pkt);
 	}
