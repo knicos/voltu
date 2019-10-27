@@ -4,6 +4,7 @@
 
 #include <ftl/cuda_util.hpp>
 #include <ftl/codecs/hevc.hpp>
+#include <ftl/codecs/h264.hpp>
 //#include <cuda_runtime.h>
 
 #include <opencv2/core/cuda/common.hpp>
@@ -18,32 +19,6 @@ NvPipeDecoder::NvPipeDecoder() {
 NvPipeDecoder::~NvPipeDecoder() {
 	if (nv_decoder_ != nullptr) {
 		NvPipe_Destroy(nv_decoder_);
-	}
-}
-
-void cropAndScaleUp(cv::Mat &in, cv::Mat &out) {
-	CHECK(in.type() == out.type());
-
-	auto isize = in.size();
-	auto osize = out.size();
-	cv::Mat tmp;
-	
-	if (isize != osize) {
-		double x_scale = ((double) isize.width) / osize.width;
-		double y_scale = ((double) isize.height) / osize.height;
-		double x_scalei = 1.0 / x_scale;
-		double y_scalei = 1.0 / y_scale;
-		cv::Size sz_crop;
-
-		// assume downscaled image
-		if (x_scalei > y_scalei) {
-			sz_crop = cv::Size(isize.width, isize.height * x_scale);
-		} else {
-			sz_crop = cv::Size(isize.width * y_scale, isize.height);
-		}
-
-		tmp = in(cv::Rect(cv::Point2i(0, 0), sz_crop));
-		cv::resize(tmp, out, osize);
 	}
 }
 
@@ -84,12 +59,14 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	// TODO: (Nick) Move to member variable to prevent re-creation
 	cv::Mat tmp(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (is_float_frame) ? CV_16U : CV_8UC4);
 
+	// Check for an I-Frame
 	if (pkt.codec == ftl::codecs::codec_t::HEVC) {
-		// Obtain NAL unit type
 		if (ftl::codecs::hevc::isIFrame(pkt.data)) seen_iframe_ = true;
+	} else if (pkt.codec == ftl::codecs::codec_t::H264) {
+		if (ftl::codecs::h264::isIFrame(pkt.data)) seen_iframe_ = true;
 	}
-	// TODO: Parse H264 for i-frame check
 
+	// No I-Frame yet so don't attempt to decode P-Frames.
 	if (!seen_iframe_) return false;
 
 	int rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), tmp.data, tmp.cols, tmp.rows);
@@ -107,6 +84,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	} else {
 		// Is the received frame the same size as requested output?
 		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
+			// Flag 0x1 means frame is in RGB so needs conversion to BGR
 			if (pkt.flags & 0x1) {
 				cv::cvtColor(tmp, out, cv::COLOR_RGBA2BGR);
 			} else {
@@ -114,6 +92,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 			}
 		} else {
 			LOG(WARNING) << "Resizing decoded frame from " << tmp.size() << " to " << out.size();
+			// Flag 0x1 means frame is in RGB so needs conversion to BGR
 			if (pkt.flags & 0x1) {
 				cv::cvtColor(tmp, tmp, cv::COLOR_RGBA2BGR);
 			} else {
@@ -127,5 +106,5 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 }
 
 bool NvPipeDecoder::accepts(const ftl::codecs::Packet &pkt) {
-	return pkt.codec == codec_t::HEVC;
+	return pkt.codec == codec_t::HEVC || pkt.codec == codec_t::H264;
 }

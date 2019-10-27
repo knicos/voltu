@@ -41,6 +41,7 @@ class Reader {
 	bool end();
 
 	inline int64_t getStartTime() const { return timestart_; };
+	inline int version() const { return version_; }
 
 	private:
 	std::istream *stream_;
