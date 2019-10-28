@@ -216,6 +216,8 @@ class Source : public ftl::Configurable {
 	template <typename... ARGS>
 	void inject(ftl::codecs::Channel c, ARGS... args);
 
+	void inject(const Eigen::Matrix4d &pose);
+
 	protected:
 	detail::Source *impl_;
 	Eigen::Matrix4d pose_;

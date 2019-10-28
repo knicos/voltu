@@ -323,3 +323,21 @@ void Source::notify(int64_t ts, cv::Mat &c1, cv::Mat &c2) {
 
 	if (callback_) callback_(ts, c1, c2);
 }
+
+void Source::inject(const Eigen::Matrix4d &pose) {
+	ftl::codecs::StreamPacket spkt;
+	ftl::codecs::Packet pkt;
+
+	spkt.timestamp = impl_->timestamp_;
+	spkt.channel_count = 0;
+	spkt.channel = Channel::Pose;
+	spkt.streamID = 0;
+	pkt.codec = ftl::codecs::codec_t::POSE;
+	pkt.definition = ftl::codecs::definition_t::Any;
+	pkt.block_number = 0;
+	pkt.block_total = 1;
+	pkt.flags = 0;
+	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)pose.data(), (uint8_t*)pose.data() + 4*4*sizeof(double)));
+
+	notifyRaw(spkt, pkt);
+}

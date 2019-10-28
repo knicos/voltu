@@ -37,6 +37,22 @@ bool Reader::begin() {
 	return true;
 }
 
+/*static void printMsgpack(msgpack::object &obj) {
+	switch (obj.type) {
+	case msgpack::type::NIL: return;
+	case msgpack::type::BOOLEAN: LOG(INFO) << "BOOL " << obj.as<bool>(); return;
+	case msgpack::type::POSITIVE_INTEGER:
+	case msgpack::type::NEGATIVE_INTEGER: LOG(INFO) << "INT " << obj.as<int>(); return;
+	case msgpack::type::FLOAT32: LOG(INFO) << "FLOAT " << obj.as<float>(); return;
+	case msgpack::type::FLOAT64: LOG(INFO) << "DOUBLE " << obj.as<double>(); return;
+	case msgpack::type::STR: LOG(INFO) << "STRING " << obj.as<std::string>(); return;
+	case msgpack::type::BIN: return;
+	case msgpack::type::EXT: return;
+	case msgpack::type::ARRAY: LOG(INFO) << "ARRAY: "; return;
+	case msgpack::type::MAP: LOG(INFO) << "MAP: "; return;
+	}
+}*/
+
 bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &f) {
 	//UNIQUE_LOCK(mtx_, lk);
 	std::unique_lock<std::mutex> lk(mtx_, std::defer_lock);
@@ -75,10 +91,13 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 
 		//std::tuple<StreamPacket,Packet> data;
 		msgpack::object obj = msg.get();
+
+		//printMsgpack(obj);
+
 		try {
 			obj.convert(data_.emplace_back());
 		} catch (std::exception &e) {
-			LOG(INFO) << "Corrupt message: " << buffer_.nonparsed_size();
+			LOG(INFO) << "Corrupt message: " << buffer_.nonparsed_size() << " - " << e.what();
 			//partial = true;
 			//continue;
 			return false;

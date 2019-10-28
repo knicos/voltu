@@ -41,7 +41,8 @@ bool Writer::write(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet
 	auto data = std::make_tuple(s2,p);
 	msgpack::sbuffer buffer;
 	msgpack::pack(buffer, data);
+
+	UNIQUE_LOCK(mutex_, lk);
 	(*stream_).write(buffer.data(), buffer.size());
-	//buffer_.clear();
 	return true;
 }
