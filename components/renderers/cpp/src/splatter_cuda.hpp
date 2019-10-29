@@ -6,12 +6,34 @@
 
 namespace ftl {
 namespace cuda {
+	void screen_coord(
+		ftl::cuda::TextureObject<float> &depth,
+		ftl::cuda::TextureObject<float> &depth_out,
+		ftl::cuda::TextureObject<short2> &screen_out,
+		const ftl::render::SplatParams &params,
+		const float4x4 &pose,
+		const ftl::rgbd::Camera &camera,
+		cudaStream_t stream);
+
+	void triangle_render1(
+		ftl::cuda::TextureObject<float> &depth_in,
+		ftl::cuda::TextureObject<int> &depth_out,
+		ftl::cuda::TextureObject<short2> &screen,
+		const ftl::render::SplatParams &params,
+		cudaStream_t stream);
+	
 	void dibr_merge(
 		ftl::cuda::TextureObject<float4> &points,
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<int> &depth,
 		ftl::render::SplatParams params,
 		bool culling,
+		cudaStream_t stream);
+
+	void dibr_merge(
+		ftl::cuda::TextureObject<float4> &points,
+		ftl::cuda::TextureObject<int> &depth,
+		ftl::render::SplatParams params,
 		cudaStream_t stream);
 
 	template <typename T>
@@ -32,6 +54,29 @@ namespace cuda {
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
 		ftl::render::SplatParams &params, cudaStream_t stream);
+
+	template <typename A, typename B>
+	void reproject(
+		ftl::cuda::TextureObject<A> &in,	// Original colour image
+		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
+		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float4> &normals,
+		ftl::cuda::TextureObject<B> &out,	// Accumulated output
+		ftl::cuda::TextureObject<float> &contrib,
+		const ftl::render::SplatParams &params,
+		const ftl::rgbd::Camera &camera,
+		const float4x4 &poseInv, cudaStream_t stream);
+
+	template <typename A, typename B>
+	void reproject(
+		ftl::cuda::TextureObject<A> &in,	// Original colour image
+		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
+		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<B> &out,	// Accumulated output
+		ftl::cuda::TextureObject<float> &contrib,
+		const ftl::render::SplatParams &params,
+		const ftl::rgbd::Camera &camera,
+		const float4x4 &poseInv, cudaStream_t stream);
 
 	template <typename A, typename B>
 	void dibr_normalise(

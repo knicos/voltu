@@ -225,17 +225,23 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	popup->setLayout(new GroupLayout());
 	popup->setTheme(toolbuttheme);
 
-	auto node_details = ctrl_->getSlaves();
-	std::vector<std::string> node_titles;
+	//net_->onConnect([this,popup](ftl::net::Peer *p) {
+	{
+		LOG(INFO) << "NET CONNECT";
+		auto node_details = ctrl_->getSlaves();
+		std::vector<std::string> node_titles;
 
-	for (auto &d : node_details) {
-		auto peer = ftl::UUID(d["id"].get<std::string>());
-		itembutton = new Button(popup, d["title"].get<std::string>());
-		itembutton->setCallback([this,popup,peer]() {
-			auto config_window = new ConfigWindow(this, ctrl_, peer);
-			config_window->setTheme(windowtheme);
-		});
+		for (auto &d : node_details) {
+			LOG(INFO) << "ADDING TITLE: " << d.dump();
+			auto peer = ftl::UUID(d["id"].get<std::string>());
+			auto itembutton = new Button(popup, d["title"].get<std::string>());
+			itembutton->setCallback([this,popup,peer]() {
+				auto config_window = new ConfigWindow(this, ctrl_, peer);
+				config_window->setTheme(windowtheme);
+			});
+		}
 	}
+	//});
 
 	itembutton = new Button(popup, "Local");
 	itembutton->setCallback([this,popup]() {

@@ -86,6 +86,7 @@ vector<string> Master::getConfigurables() {
 
 vector<string> Master::getConfigurables(const ftl::UUID &peer) {
 	try {
+		LOG(INFO) << "LISTING CONFIGS";
 		return net_->call<vector<string>>(peer, "list_configurables");
 	} catch (...) {
 		return {};

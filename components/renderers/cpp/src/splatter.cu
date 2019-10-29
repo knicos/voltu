@@ -6,6 +6,7 @@
 #include <ftl/cuda/weighting.hpp>
 #include <ftl/cuda/intersections.hpp>
 #include <ftl/cuda/warp.hpp>
+#include <ftl/cuda/makers.hpp>
 
 #define T_PER_BLOCK 8
 #define UPSAMPLE_FACTOR 1.8f
@@ -74,6 +75,34 @@ using ftl::cuda::warpSum;
 	}
 }
 
+/*
+ * Pass 1: Directly render each camera into virtual view but with no upsampling
+ * for sparse points.
+ */
+ __global__ void dibr_merge_kernel(TextureObject<float4> points,
+		TextureObject<int> depth, SplatParams params) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const float4 worldPos = points.tex2D(x, y);
+	if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
+
+    // Find the virtual screen position of current point
+	const float3 camPos = params.m_viewMatrix * make_float3(worldPos);
+	if (camPos.z < params.camera.minDepth) return;
+	if (camPos.z > params.camera.maxDepth) return;
+
+	const float d = camPos.z;
+
+	const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
+	const unsigned int cx = screenPos.x;
+	const unsigned int cy = screenPos.y;
+	if (d > params.camera.minDepth && d < params.camera.maxDepth && cx < depth.width() && cy < depth.height()) {
+		// Transform estimated point to virtual cam space and output z
+		atomicMin(&depth(cx,cy), d * 1000.0f);
+	}
+}
+
 void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<float4> &normals, TextureObject<int> &depth, SplatParams params, bool culling, cudaStream_t stream) {
     const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
@@ -83,67 +112,16 @@ void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<float4> 
     cudaSafeCall( cudaGetLastError() );
 }
 
+void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<int> &depth, SplatParams params, cudaStream_t stream) {
+    const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>(points, depth, params);
+    cudaSafeCall( cudaGetLastError() );
+}
+
 //==============================================================================
 
-__device__ inline float4 make_float4(const uchar4 &c) {
-    return make_float4(c.x,c.y,c.z,c.w);
-}
-
-__device__ inline float4 make_float4(const float4 &v) {
-	return v;
-}
-
-template <typename T>
-__device__ inline T make();
-
-template <>
-__device__ inline uchar4 make() {
-	return make_uchar4(0,0,0,0);
-}
-
-template <>
-__device__ inline float4 make() {
-	return make_float4(0.0f,0.0f,0.0f,0.0f);
-}
-
-template <>
-__device__ inline float make() {
-	return 0.0f;
-}
-
-template <typename T>
-__device__ inline T make(const float4 &);
-
-template <>
-__device__ inline uchar4 make(const float4 &v) {
-	return make_uchar4((int)v.x, (int)v.y, (int)v.z, (int)v.w);
-}
-
-template <>
-__device__ inline float4 make(const float4 &v) {
-	return v;
-}
-
-template <>
-__device__ inline float make(const float4 &v) {
-	return v.x;
-}
-
-template <typename T>
-__device__ inline T make(const uchar4 &v);
-
-template <>
-__device__ inline float4 make(const uchar4 &v) {
-	return make_float4((float)v.x, (float)v.y, (float)v.z, (float)v.w);
-}
-
-template <typename T>
-__device__ inline T make(float v);
-
-template <>
-__device__ inline float make(float v) {
-	return v;
-}
 
 /*
  * Pass 1b: Expand splats to full size and merge
