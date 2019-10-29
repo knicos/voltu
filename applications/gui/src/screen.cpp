@@ -17,6 +17,7 @@
 
 #include "ctrl_window.hpp"
 #include "src_window.hpp"
+#include "config_window.hpp"
 #include "camera.hpp"
 #include "media_panel.hpp"
 
@@ -212,12 +213,35 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		popup->setVisible(false);
 	});
 
-	button = new ToolButton(toolbar, ENTYPO_ICON_COG);
-	button->setIconExtraScale(1.5f);
-	button->setTheme(toolbuttheme);
-	button->setTooltip("Settings");
-	button->setFixedSize(Vector2i(40,40));
-	button->setPosition(Vector2i(5,height()-50));
+	popbutton = new PopupButton(innertool, "", ENTYPO_ICON_COG);
+	popbutton->setIconExtraScale(1.5f);
+	popbutton->setTheme(toolbuttheme);
+	popbutton->setTooltip("Settings");
+	popbutton->setFixedSize(Vector2i(40,40));
+	popbutton->setSide(Popup::Side::Right);
+	popbutton->setChevronIcon(0);
+	// popbutton->setPosition(Vector2i(5,height()-50));
+	popup = popbutton->popup();
+	popup->setLayout(new GroupLayout());
+	popup->setTheme(toolbuttheme);
+
+	auto node_details = ctrl_->getSlaves();
+	std::vector<std::string> node_titles;
+
+	for (auto &d : node_details) {
+		auto peer = ftl::UUID(d["id"].get<std::string>());
+		itembutton = new Button(popup, d["title"].get<std::string>());
+		itembutton->setCallback([this,popup,peer]() {
+			auto config_window = new ConfigWindow(this, ctrl_, peer);
+			config_window->setTheme(windowtheme);
+		});
+	}
+
+	itembutton = new Button(popup, "Local");
+	itembutton->setCallback([this,popup]() {
+		auto config_window = new ConfigWindow(this, ctrl_);
+		config_window->setTheme(windowtheme);
+	});
 
 	//configwindow_ = new ConfigWindow(parent, ctrl_);
 	cwindow_ = new ftl::gui::ControlWindow(this, controller);
