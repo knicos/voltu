@@ -132,7 +132,7 @@ const createCard = (url, viewers) => {
 const connectToStream = () => {
     const ws = new WebSocket('ws://localhost:8080/');
     let p = new Peer(ws);
-    p.send('connect', [0,'__handshake__'])
+    p.send('message', ([0,'__handshake__']));
 
     current_data.frames = 10;
     //setTimeout 1s, ask for the amount of frames user has selected

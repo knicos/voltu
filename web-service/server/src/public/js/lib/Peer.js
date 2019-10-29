@@ -6,6 +6,10 @@ const kConnecting = 1;
 const kConnected = 2;
 const kDisconnected = 3;
 
+// Generate a unique id for this webservice
+// let my_uuid = new Uint8Array(16);
+// my_uuid[0] = 44;
+// my_uuid = Buffer.from(my_uuid);
 
 const kMagic = 0x0009340053640912;
 const kVersion = 0;
@@ -29,7 +33,9 @@ function Peer(ws) {
 	this.name = "unknown";
 	this.master = false;
 
-	this.sock.on("message", (raw) => {
+	console.log(this.sock.send("message"));
+	
+	this.sock.send("message", (raw) => {
 		// console.log(raw)
 		let msg = decode(raw);
 		console.log("MSG", msg)
@@ -77,9 +83,10 @@ function Peer(ws) {
 		}
 	});
 
-	this.send("__handshake__", kMagic, kVersion);
+	this.send("__handshake__", kMagic, kVersion, /*[my_uuid]*/);
 }
 
+// Peer.uuid = my_uuid;
 
 /**
  * @private
