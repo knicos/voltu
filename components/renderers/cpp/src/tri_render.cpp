@@ -529,7 +529,12 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
 		out.get<GpuMat>(Channel::Right).setTo(background_, cvstream);
 
-		_dibr(stream_); // Need to re-dibr due to pose change
+		// Need to re-dibr due to pose change
+		if (mesh_) {
+			_mesh(stream_);
+		} else {
+			_dibr(stream_);
+		}
 		_renderChannel(out, Channel::Left, Channel::Right, stream_);
 
 	} else if (chan != Channel::None) {
