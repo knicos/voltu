@@ -71,7 +71,7 @@ __global__ void reprojection_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float d = (float)depth_in.tex2D((int)x, (int)y) / 1000.0f;
+	const float d = (float)depth_in.tex2D((int)x, (int)y) / 10000.0f;
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
 	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
@@ -192,7 +192,7 @@ __global__ void reprojection_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float d = (float)depth_in.tex2D((int)x, (int)y) / 1000.0f;
+	const float d = (float)depth_in.tex2D((int)x, (int)y) / 10000.0f;
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
 	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
