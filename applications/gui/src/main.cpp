@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
 	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
 
 	net->start();
-	//net->waitConnections();
+	net->waitConnections();
 
 	ftl::ctrl::Master *controller = new ftl::ctrl::Master(root, net);
 	controller->onLog([](const ftl::ctrl::LogEvent &e){

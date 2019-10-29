@@ -229,7 +229,7 @@ void NetSource::_processConfig(const ftl::codecs::Packet &pkt) {
 	auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
 	unpacked.get().convert(cfg);
 
-	LOG(INFO) << "Config Received: " << std::get<1>(cfg);
+	//LOG(INFO) << "Config Received: " << std::get<1>(cfg);
 	// TODO: This needs to be put in safer / better location
 	host_->set(std::get<0>(cfg), nlohmann::json::parse(std::get<1>(cfg)));
 }

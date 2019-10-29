@@ -1,9 +1,13 @@
 add_library(ftlrender
-	src/splat_render.cpp
+	src/splatter.cpp
 	src/splatter.cu
 	src/points.cu
 	src/normals.cu
 	src/mask.cu
+	src/screen.cu
+	src/triangle_render.cu
+	src/reprojection.cu
+	src/tri_render.cpp
 )
 
 # These cause errors in CI build and are being removed from PCL in newer versions

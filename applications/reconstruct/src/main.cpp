@@ -19,7 +19,7 @@
 #include <ftl/codecs/reader.hpp>
 
 #include "ilw/ilw.hpp"
-#include <ftl/render/splat_render.hpp>
+#include <ftl/render/tri_render.hpp>
 
 #include <fstream>
 #include <string>
@@ -99,8 +99,10 @@ static void run(ftl::Configurable *root) {
 
 			LOG(INFO) << "Found " << (max_stream+1) << " sources in " << path;
 
+			int N = root->value("N", 100);
+
 			// For each stream found, add a source object
-			for (int i=0; i<=max_stream; ++i) {
+			for (int i=0; i<=min(max_stream,N-1); ++i) {
 				root->getConfig()["sources"].push_back(nlohmann::json{{"uri",std::string("file://") + path + std::string("#") + std::to_string(i)}});
 			}
 		}
@@ -168,7 +170,7 @@ static void run(ftl::Configurable *root) {
 	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
-	ftl::render::Splatter *splat = ftl::create<ftl::render::Splatter>(root, "renderer", &scene_B);
+	ftl::render::Triangular *splat = ftl::create<ftl::render::Triangular>(root, "renderer", &scene_B);
 	ftl::rgbd::Group *group = new ftl::rgbd::Group;
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 

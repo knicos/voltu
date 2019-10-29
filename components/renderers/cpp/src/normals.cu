@@ -226,7 +226,9 @@ void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
 	switch (radius) {
 	case 7: smooth_normals_kernel<7><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
 	case 5: smooth_normals_kernel<5><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
-	case 3: smooth_normals_kernel<3><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+    case 3: smooth_normals_kernel<3><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+    case 2: smooth_normals_kernel<2><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+    case 1: smooth_normals_kernel<1><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
 	}
 	cudaSafeCall( cudaGetLastError() );
 
