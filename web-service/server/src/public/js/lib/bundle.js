@@ -383,7 +383,7 @@ BufferList.prototype._match = function(offset, search) {
 
 module.exports = BufferList
 
-},{"readable-stream":18,"safe-buffer":19,"util":38}],2:[function(require,module,exports){
+},{"readable-stream":18,"safe-buffer":19,"util":39}],2:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -494,7 +494,7 @@ function objectToString(o) {
 }
 
 }).call(this,{"isBuffer":require("../../../../../../../../../../../usr/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
-},{"../../../../../../../../../../../usr/lib/node_modules/browserify/node_modules/is-buffer/index.js":32}],3:[function(require,module,exports){
+},{"../../../../../../../../../../../usr/lib/node_modules/browserify/node_modules/is-buffer/index.js":33}],3:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -613,7 +613,7 @@ function msgpack (options) {
 
 module.exports = msgpack
 
-},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":23,"bl":1,"safe-buffer":19}],6:[function(require,module,exports){
+},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":24,"bl":1,"safe-buffer":19}],6:[function(require,module,exports){
 'use strict'
 
 var bl = require('bl')
@@ -1051,7 +1051,7 @@ module.exports = function buildDecode (decodingTypes) {
 
 module.exports.IncompleteBufferError = IncompleteBufferError
 
-},{"bl":1,"util":38}],7:[function(require,module,exports){
+},{"bl":1,"util":39}],7:[function(require,module,exports){
 'use strict'
 
 var Buffer = require('safe-buffer').Buffer
@@ -1537,7 +1537,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 
 
 }).call(this,require('_process'))
-},{"_process":34}],10:[function(require,module,exports){
+},{"_process":35}],10:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -2739,7 +2739,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":34,"core-util-is":2,"events":30,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":19,"string_decoder/":20,"util":28}],13:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":35,"core-util-is":2,"events":31,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":19,"string_decoder/":20,"util":29}],13:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3644,7 +3644,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":34,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":19,"timers":35,"util-deprecate":21}],15:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":35,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":19,"timers":36,"util-deprecate":21}],15:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -3724,7 +3724,7 @@ if (util && util.inspect && util.inspect.custom) {
     return this.constructor.name + ' ' + obj;
   };
 }
-},{"safe-buffer":19,"util":28}],16:[function(require,module,exports){
+},{"safe-buffer":19,"util":29}],16:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -3802,7 +3802,7 @@ module.exports = {
 },{"process-nextick-args":9}],17:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":30}],18:[function(require,module,exports){
+},{"events":31}],18:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = exports;
 exports.Readable = exports;
@@ -3875,7 +3875,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":29}],20:[function(require,module,exports){
+},{"buffer":30}],20:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4280,8 +4280,17 @@ function Peer(ws) {
 	this.name = "unknown";
 	this.master = false;
 
+	if(this.sock.on == undefined){
+		console.log(this.sock);
+		this.sock.onopen = () => {
+			this.sock.send(encode([1, "__handshake__"]))
+			console.log("piip")
+			this.sock.send('get_stream')
+			console.log("piippiip")
+		}
+	}
 	this.sock.on("message", (raw) => {
-		// console.log(raw)
+		console.log(raw)
 		let msg = decode(raw);
 		console.log("MSG", msg)
 		if (this.status == kConnecting) {
@@ -4329,7 +4338,8 @@ function Peer(ws) {
 	});
 
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
-}
+}		
+
 
 Peer.uuid = my_uuid;
 
@@ -4490,7 +4500,162 @@ Peer.prototype.on = function(evt, f) {
 module.exports = Peer;
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":29,"msgpack5":5}],23:[function(require,module,exports){
+},{"buffer":30,"msgpack5":5}],23:[function(require,module,exports){
+const Peer = require('../../peer')
+
+checkIfLoggedIn = async () => {
+//     const token = window.localStorage.getItem('token')
+//     console.log(token)
+//     if(!token){
+//         console.log("You need to login")
+//         renderLogin()
+//     }else{
+
+//         //Check if the token is valid
+//         const response = await fetch('http://localhost:8080/auth/validation', {
+//             method: 'POST',
+//             headers: {'Authorization': token}
+//         })
+//         console.log('RESPONSE', response)
+        
+//         //Token is valid, show available streams
+//         if(response.status === 200){
+//             console.log("SUCCESS")
+           renderThumbnails()
+//         }
+//     }
+ }
+
+//Redirects the user to google authentication
+handleLogin = () => {
+    window.location.href="/google";
+}
+
+let current_data = {}; 
+
+
+/**
+ * Returns a list of available streams
+ */
+getAvailableStreams = async () => {
+    const streamsInJson = await fetch('http://localhost:8080/streams');
+    const streams = await streamsInJson.json();
+    console.log('AVAILABLE', streams)
+    return streams;
+}
+
+videoPlayer = () => {
+    const containerDiv = document.getElementById('container')
+    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails()">Go back</button><br>
+    <canvas id="ftlab-stream-video" width="0" height="0"></canvas>`;
+    containerDiv.innerHTML += '<br>'
+    containerDiv.innerHTML += ''
+    let decoder = new libde265.Decoder();
+    console.log(decoder)
+}
+
+
+/**
+ * Creates thumbnail (image) for all available streams and adds them to div class='container'
+ */
+renderThumbnails = async () => {
+    const thumbnails = await getAvailableStreams();
+    console.log('THUMBNAILS', thumbnails)
+    const containerDiv = document.getElementById('container')
+    containerDiv.innerHTML = '';
+    console.log(containerDiv)
+    for(var i=0; i<thumbnails.length; i++){
+        const encodedURI = encodeURIComponent(thumbnails[i])
+        current_data.uri = encodedURI
+        console.log("THUMBNAIL[i]", thumbnails[i])
+        try{
+            const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
+            console.log('SOME DATA', someData)
+            if(!someData.ok){
+                throw new Error('Image not found')
+            }
+            const myBlob = await someData.blob();
+            console.log('BLOB', myBlob)
+            const objectURL = URL.createObjectURL(myBlob);
+            // containerDiv.innerHTML += createCard()
+            containerDiv.innerHTML += createCard(objectURL, i+4)
+        }catch(err){
+            console.log("Couldn't create thumbnail");
+            console.log(err) 
+        }
+    }
+}
+
+
+// //FOR LAPTOP
+// const renderThumbnails = async () => {
+//     const containerDiv = document.getElementById('container')
+//     containerDiv.innerHTML = '';
+//     for(var i=0; i<2; i++){
+//             containerDiv.innerHTML += createCard()
+//     }
+// }
+
+/**
+ * Renders button that will redirect to google login
+ */
+renderLogin = () => {
+    const containerDiv = document.getElementById('container');
+        containerDiv.innerHTML = 
+        `<div id='Login'>
+            <h2>Welcome to Future Technology Lab</h2>
+            <h3>Please login!</h3>
+            <a className="button" onClick="handleLogin()">
+                <div>
+                    <span class="svgIcon t-popup-svg">
+                        <svg class="svgIcon-use" width="25" height="37" viewBox="0 0 25 25">
+                            <g fill="none" fill-rule="evenodd">
+                            <path d="M20.66 12.693c0-.603-.054-1.182-.155-1.738H12.5v3.287h4.575a3.91 3.91 0 0 1-1.697 2.566v2.133h2.747c1.608-1.48 2.535-3.65 2.535-6.24z" fill="#4285F4"/>
+                            <path d="M12.5 21c2.295 0 4.22-.76 5.625-2.06l-2.747-2.132c-.76.51-1.734.81-2.878.81-2.214 0-4.088-1.494-4.756-3.503h-2.84v2.202A8.498 8.498 0 0 0 12.5 21z" fill="#34A853"/>
+                            <path d="M7.744 14.115c-.17-.51-.267-1.055-.267-1.615s.097-1.105.267-1.615V8.683h-2.84A8.488 8.488 0 0 0 4 12.5c0 1.372.328 2.67.904 3.817l2.84-2.202z" fill="#FBBC05"/>
+                            <path d="M12.5 7.38c1.248 0 2.368.43 3.25 1.272l2.437-2.438C16.715 4.842 14.79 4 12.5 4a8.497 8.497 0 0 0-7.596 4.683l2.84 2.202c.668-2.01 2.542-3.504 4.756-3.504z" fill="#EA4335"/>
+                            </g>
+                        </svg>
+                    </span>
+                    <span class="button-label">Sign in with Google</span>
+                </div>
+            </a>
+        </div>`
+}
+
+//FOR DESKTOP
+createCard = (url, viewers) => {
+    return `<div class='ftlab-card-component' >
+                <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
+                <p>Viewers: ${viewers}</p>
+                <button onclick="videoPlayer()">button</button>
+            </div>`
+}
+
+connectToStream = () => {
+    const ws = new WebSocket('ws://localhost:8080/');
+    current_data.frames = 10;
+    let p = new Peer(ws);
+    console.log("still working")
+    p.send("get_stream", (current_data.uri, current_data.frames, 0, current_data.uri));
+    console.log("still working")
+
+    //setTimeout 1s, ask for the amount of frames user has selected
+}
+
+//FOR LAPTOP
+// const createCard = () => {
+//     return `<div class='ftlab-card-component'>
+//                 <img src='https://via.placeholder.com/250x150' class="thumbnail-img" width="250px" alt="Hups"></img>
+//                 <p>Viewers: yes</p>
+//                 <button onclick="window.location.href='/stream?uri'">button</button>
+//             </div>`
+// }
+
+const cardLogic = () => {
+    const cards = document.getElementsByClassName('ftlab-card-component');
+}
+},{"../../peer":22}],24:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -5000,16 +5165,16 @@ var objectKeys = Object.keys || function (obj) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"object-assign":33,"util/":26}],24:[function(require,module,exports){
+},{"object-assign":34,"util/":27}],25:[function(require,module,exports){
 arguments[4][3][0].apply(exports,arguments)
-},{"dup":3}],25:[function(require,module,exports){
+},{"dup":3}],26:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -5599,7 +5764,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":25,"_process":34,"inherits":24}],27:[function(require,module,exports){
+},{"./support/isBuffer":26,"_process":35,"inherits":25}],28:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -5753,9 +5918,9 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],28:[function(require,module,exports){
-
 },{}],29:[function(require,module,exports){
+
+},{}],30:[function(require,module,exports){
 (function (Buffer){
 /*!
  * The buffer module from node.js, for the browser.
@@ -7558,7 +7723,7 @@ var hexSliceLookupTable = (function () {
 })()
 
 }).call(this,require("buffer").Buffer)
-},{"base64-js":27,"buffer":29,"ieee754":31}],30:[function(require,module,exports){
+},{"base64-js":28,"buffer":30,"ieee754":32}],31:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8083,7 +8248,7 @@ function functionBindPolyfill(context) {
   };
 }
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -8169,7 +8334,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -8192,7 +8357,7 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -8284,7 +8449,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -8470,7 +8635,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],35:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 (function (setImmediate,clearImmediate){
 var nextTick = require('process/browser.js').nextTick;
 var apply = Function.prototype.apply;
@@ -8549,10 +8714,10 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":34,"timers":35}],36:[function(require,module,exports){
+},{"process/browser.js":35,"timers":36}],37:[function(require,module,exports){
 arguments[4][3][0].apply(exports,arguments)
-},{"dup":3}],37:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],38:[function(require,module,exports){
+},{"dup":3}],38:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
-},{"./support/isBuffer":37,"_process":34,"dup":26,"inherits":36}]},{},[22]);
+},{"dup":26}],39:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"./support/isBuffer":38,"_process":35,"dup":27,"inherits":37}]},{},[23]);

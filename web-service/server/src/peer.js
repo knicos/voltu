@@ -33,8 +33,17 @@ function Peer(ws) {
 	this.name = "unknown";
 	this.master = false;
 
+	if(this.sock.on == undefined){
+		console.log(this.sock);
+		this.sock.onopen = () => {
+			this.sock.send(encode([1, "__handshake__"]))
+			console.log("piip")
+			this.sock.send('get_stream')
+			console.log("piippiip")
+		}
+	}
 	this.sock.on("message", (raw) => {
-		// console.log(raw)
+		console.log(raw)
 		let msg = decode(raw);
 		console.log("MSG", msg)
 		if (this.status == kConnecting) {
@@ -82,7 +91,8 @@ function Peer(ws) {
 	});
 
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
-}
+}		
+
 
 Peer.uuid = my_uuid;
 
