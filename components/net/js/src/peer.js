@@ -1,280 +1,243 @@
-const net = require('net');
-const ws = require('ws');
-const urijs = require('uri-js');
-const binary = require('bops');
-const browser = require('detect-browser').detect();
-const isbrowser = !browser || browser.name != "node";
+const msgpack = require('msgpack5')()
+  , encode  = msgpack.encode
+  , decode  = msgpack.decode;
 
-class Peer {
-	constructor(uri) {
-		let t = typeof uri;
-		this.handlers_ = {
-			'open': [],
-			'data': [],
-			'error': [],
-			'close': []
-		};
-		this.handshake_ = false;
-		this.lasterr_ = null;
-		this.connected_ = false;
-		this.valid_ = false;
-		this.uuid_ = binary.create(16);
-		if (!isbrowser) {
-			this.buffer_ = new Buffer(0); // Only in nodejs
-		}
-		if (t == "string") {
-			this._fromURI(uri);
-		}
-		else if (t == "object") {
-			this._fromObject(uri);
-		}
-	}
-	error(errno) {
-		this.lasterr_ = errno;
-		this.dispatch('error', [errno]);
-	}
-	isValid() {
-		return this.valid_;
-	}
-    /**
-     * Construct the correct kind of socket connection from a URI.
-     */
-	_fromURI(uri) {
-		let uriobj = urijs.parse(uri);
-		this.uri_ = uri;
-		this.scheme_ = uriobj.scheme;
-		// Could not parse uri so report error
-		if (uriobj.scheme === undefined || uriobj.host === undefined) {
-			this.error(Socket.ERROR_MALFORMEDURI);
-			return;
-		}
-		// Websocket protocol
-		if (this.scheme_ == "ws") {
-			// Detect if in browser or not, choose correct websocket object
-			if (typeof WebSocket == "undefined") {
-				// Nodejs
-				this.socket_ = new ws(uri);
-			}
-			else {
-				// Browser
-				this.socket_ = new WebSocket(uri);
-			}
-			this._initWebsocket();
-			// TCP
-		}
-		else if (this.scheme_ == "tcp") {
-			if (!isbrowser) {
-				this.socket_ = net.connect(uriobj.port, uriobj.host);
-				this._initTCPSocket();
-			}
-			else {
-				this.error(Socket.ERROR_TCPINBROWSER);
-			}
-			// Unrecognised protocol
-		}
-		else {
-			this.error(Socket.ERROR_BADPROTOCOL);
-		}
-	}
-	_fromObject(sock) {
-		this.socket_ = sock;
-		if (typeof WebSocket == "undefined") {
-			if (sock instanceof ws)
-				this.scheme_ = "ws";
-			else if (sock instanceof net.Socket)
-				this.scheme_ = "tcp";
-			else
-				this.scheme_ = null;
-		}
-		else {
-			if (sock instanceof WebSocket)
-				this.scheme_ = "ws";
-			else
-				this.scheme_ = null;
-		}
-		if (this.scheme_ == "ws")
-			this._initWebsocket();
-		else if (this.scheme_ == "tcp")
-			this._initTCPSocket();
-	}
-    /**
-     * Setup correct handlers for a websocket connection.
-     */
-	_initWebsocket() {
-		this.valid_ = true;
-		let dataHandler = (data) => {
-			this.processMessage(data);
-		};
-		if (this.socket_.addEventHandler) {
-			this.socket_.addEventHandler('message', event => {
-				dataHandler(event.data);
-			});
-		}
-		else {
-			this.socket_.on('message', dataHandler);
-		}
-		this.socket_.on('open', () => {
-			//this.connected_ = true;
-			//this.dispatch('open', []);
-		});
-		this.socket_.on('error', (err) => {
-			this.connected_ = false;
-			this.valid_ = false;
-			switch (err.errno) {
-				case 'ENOTFOUND':
-					this.lasterr_ = Socket.ERROR_BADHOST;
-					break;
-				default: this.lasterr_ = err.errno;
-			}
-			this.dispatch('error', [this.lasterr_]);
-		});
-		this.socket_.on('close', () => {
-			this.dispatch('close', []);
-		});
-	}
-	processMessage(buffer) {
-		if (!this.handshake_) {
-			// Check handshake
-			if (!checkMagic(buffer)) {
+const kConnecting = 1;
+const kConnected = 2;
+const kDisconnected = 3;
+
+// Generate a unique id for this webservice
+let my_uuid = new Uint8Array(16);
+my_uuid[0] = 44;
+my_uuid = Buffer.from(my_uuid);
+
+const kMagic = 0x0009340053640912;
+const kVersion = 0;
+
+/**
+ * Wrap a web socket with a MsgPack RCP protocol that works with our C++ version.
+ * @param {websocket} ws Websocket object
+ */
+function Peer(ws) {
+	this.sock = ws;
+	this.status = kConnecting;
+	this.id = null;
+	this.string_id = "";
+	this.bindings = {};
+	this.proxies = {};
+	this.events = {};
+	this.callbacks = {};
+	this.cbid = 0;
+
+	this.uri = "unknown";
+	this.name = "unknown";
+	this.master = false;
+
+	this.sock.on("message", (raw) => {
+		// console.log(raw)
+		let msg = decode(raw);
+		console.log("MSG", msg)
+		if (this.status == kConnecting) {
+			if (msg[1] != "__handshake__") {
+				console.log("Bad handshake");
 				this.close();
-				this.error(Socket.ERROR_BADHANDSHAKE);
-				return 0;
-			}
-			binary.copy(buffer, this.uuid_, 0, 8, 16);
-			let proto_size = binary.readUInt32LE(buffer, 24);
-			this.handshake_ = true;
-			this.connected_ = true;
-			this.dispatch('open', []);
-			return 28 + proto_size;
-		}
-		else {
-			let size = binary.readUInt32LE(buffer, 0);
-			let service = binary.readUInt32LE(buffer, 4);
-			console.log("Message: " + service + "(size=" + size + ")");
-			// Do we have a complete message yet?
-			if (size > 1024 * 1024 * 100) {
-				this.error(Socket.ERROR_LARGEMESSAGE);
-				this.close();
-				return 0;
-			}
-			else if (buffer.length - 4 >= size) {
-				// Yes, so dispatch
-				this.dispatch(service, [size, binary.subarray(buffer, 8)]);
-				return size + 4;
-			}
-			else {
-				return 0;
 			}
 		}
-	}
-    /**
-     * Setup TCP socket handlers and message buffering mechanism.
-     */
-	_initTCPSocket() {
-		this.valid_ = true;
-		let dataHandler = (data) => {
-			this.buffer_ = Buffer.concat([this.buffer_, data]);
-			while (this.buffer_.length >= 8) {
-				let s = this.processMessage(this.buffer_);
-				if (s == 0)
-					break;
-				this.buffer_ = binary.subarray(this.buffer_, s);
+		//console.log("MSG", msg);
+		if (msg[0] == 0) {
+			// Notification
+			if (msg.length == 3) {
+				this._dispatchNotification(msg[1], msg[2]);
+			// Call
+			} else {
+				this._dispatchCall(msg[2], msg[1], msg[3]);
 			}
-		};
-		this.socket_.on('data', dataHandler);
-		this.socket_.on('connect', () => {
-			//this.connected_ = true;
-			//this.dispatch('open', []);
-		});
-		this.socket_.on('error', (err) => {
-			this.connected_ = false;
-			this.valid_ = false;
-			switch (err.errno) {
-				case 'ENOTFOUND':
-					this.error(Socket.ERROR_BADHOST);
-					break;
-				default: this.error(err.errno);
-			}
-		});
-		this.socket_.on('close', () => {
-			this.dispatch('close', []);
-		});
-	}
-	isConnected() {
-		return this.connected_;
-	}
-    /**
-     * Register event handlers.
-     */
-	on(name, f) {
-		if (typeof name == "string") {
-			if (this.handlers_.hasOwnProperty(name)) {
-				this.handlers_[name].push(f);
-			}
-			else {
-				console.error("Unrecognised handler: ", name);
-			}
-			if (name == "error" && this.lasterr_ != null) {
-				f(this.lasterr_);
-			}
+		} else if (msg[0] == 1) {
+			this._dispatchResponse(msg[1], msg[3]);
 		}
-		else if (typeof name == "number") {
-			if (this.handlers_[name] === undefined)
-				this.handlers_[name] = [];
-			this.handlers_[name].push(f);
+	});
+
+	this.sock.on("close", () => {
+		this.status = kDisconnected;
+		this._notify("disconnect", this);
+	});
+
+	this.sock.on("error", () => {
+		console.error("Socket error");
+		this.sock.close();
+		this.status = kDisconnected;
+	});
+
+	this.bind("__handshake__", (magic, version, id) => {
+		if (magic == kMagic) {
+			console.log("Handshake received");
+			this.status = kConnected;
+			this.id = id.buffer;
+			this.string_id  = id.toString('hex');
+			this._notify("connect", this);
+		} else {
+			console.log("Magic does not match");
+			this.close();
 		}
-		else {
-			console.error("Invalid handler: ", name);
-		}
-	}
-	dispatch(h, args) {
-		if (this.handlers_.hasOwnProperty(h)) {
-			let hs = this.handlers_[h];
-			for (var i = 0; i < hs.length; i++) {
-				hs[i].apply(this, args);
-			}
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
-	close() {
-		if (this.socket_ == null)
-			return;
-		if (this.scheme_ == "ws") {
-			this.socket_.close();
-		}
-		else {
-			this.socket_.destroy();
-		}
-		this.socket_ = null;
-	}
-	_socket() {
-		return this.socket_;
-	}
-	getURI() {
-		return this.uri_;
-	}
-	asyncCall(name, cb /*, ...*/) {
-	}
-	send(id /*, ...*/) {
-		//this.socket_.write(
+	});
+
+	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
+}
+
+Peer.uuid = my_uuid;
+
+/**
+ * @private
+ */
+Peer.prototype._dispatchNotification = function(name, args) {
+	if (this.bindings.hasOwnProperty(name)) {
+		//console.log("Notification for: ", name);
+		this.bindings[name].apply(this, args);
+	} else {
+		console.log("Missing handler for: ", name);
 	}
 }
 
-Peer.ERROR_BADPROTOCOL = "Bad Protocol";
-Peer.ERROR_BADHOST = "Unknown host";
-Peer.ERROR_BADHANDSHAKE = "Invalid Handshake";
-Peer.ERROR_MALFORMEDURI = "Malformed URI";
-Peer.ERROR_TCPINBROWSER = "TCP invalid in browser";
-Peer.ERROR_LARGEMESSAGE = "Network message too large";
+/**
+ * @private
+ */
+Peer.prototype._dispatchCall = function(name, id, args) {
+	if (this.bindings.hasOwnProperty(name)) {
+		//console.log("Call for:", name, id);
 
-function checkMagic(buffer) {
-	if (buffer.length < 8) return false;
-	let lo_magic = binary.readUInt32LE(buffer,0);
-	let hi_magic = binary.readUInt32LE(buffer,4);
-	return (lo_magic == 0x53640912 && hi_magic == 0x10993400)
+		try {
+			let res = this.bindings[name].apply(this, args);
+			this.sock.send(encode([1,id,name,res]));
+		} catch(e) {
+			console.error("Could to dispatch or return call");
+			this.close();
+		}
+	} else if (this.proxies.hasOwnProperty(name)) {
+		//console.log("Proxy for:", name, id);
+		args.unshift((res) => {
+			try {
+				this.sock.send(encode([1,id,name,res]));
+			} catch(e) {
+				this.close();
+			}
+		});
+		this.proxies[name].apply(this, args);
+	} else {
+		console.log("Missing handler for: ", name);
+	}
+}
+
+/**
+ * @private
+ */
+Peer.prototype._dispatchResponse = function(id, res) {
+	if (this.callbacks.hasOwnProperty(id)) {
+		this.callbacks[id].call(this, res);
+		delete this.callbacks[id];
+	} else {
+		console.log("Missing callback");
+	}
+}
+
+/**
+ * Register an RPC handler that will be called from a remote machine. Remotely
+ * passed arguments are provided to the given function as normal arguments, and
+ * if the function returns a value, it will be returned over the network also.
+ * 
+ * @param {string} name The name of the function
+ * @param {function} f A function or lambda to be callable remotely
+ */
+Peer.prototype.bind = function(name, f) {
+	if (this.bindings.hasOwnProperty(name)) {
+		//console.error("Duplicate bind to same procedure");
+		this.bindings[name] = f;
+	} else {
+		this.bindings[name] = f;
+	}
+}
+
+/**
+ * Allow an RPC call to pass through to another machine with minimal local
+ * processing.
+ */
+Peer.prototype.proxy = function(name, f) {
+	if (this.proxies.hasOwnProperty(name)) {
+		//console.error("Duplicate proxy to same procedure");
+		this.proxies[name] = f;
+	} else {
+		this.proxies[name] = f;
+	}
+}
+
+/**
+ * Call a procedure on a remote machine.
+ * 
+ * @param {string} name Name of the procedure
+ * @param {function} cb Callback to receive return value as argument
+ * @param {...} args Any number of arguments to also pass to remote procedure
+ */
+Peer.prototype.rpc = function(name, cb, ...args) {
+	let id = this.cbid++;
+	this.callbacks[id] = cb;
+
+	try {
+		this.sock.send(encode([0, id, name, args]));
+	} catch(e) {
+		this.close();
+	}
+}
+
+Peer.prototype.sendB = function(name, args) {
+	try {
+		this.sock.send(encode([0, name, args]));
+	} catch(e) {
+		this.close();
+	}
+}
+
+/**
+ * Call a remote procedure but with no return value expected.
+ * 
+ * @param {string} name Name of the procedure
+ * @param {...} args Any number of arguments to also pass to remote procedure
+ */
+Peer.prototype.send = function(name, ...args) {
+	try {
+		this.sock.send(encode([0, name, args]));
+	} catch(e) {
+		this.close();
+	}
+}
+
+Peer.prototype.close = function() {
+	this.sock.close();
+	this.status = kDisconnected;
+}
+
+/**
+ * @private
+ */
+Peer.prototype._notify = function(evt, ...args) {
+	if (this.events.hasOwnProperty(evt)) {
+		for (let i=0; i<this.events[evt].length; i++) {
+			let f = this.events[evt][i];
+			f.apply(this, args);
+		}
+	}
+}
+
+/**
+ * Register a callback for socket events. Events include: 'connect',
+ * 'disconnect' and 'error'.
+ * 
+ * @param {string} evt Event name
+ * @param {function} f Callback on event
+ */
+Peer.prototype.on = function(evt, f) {
+	if (!this.events.hasOwnProperty(evt)) {
+		this.events[evt] = [];
+	}
+	this.events[evt].push(f);
 }
 
 module.exports = Peer;

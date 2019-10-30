@@ -43,6 +43,7 @@ let peer_uris = {};
 
 let uri_data = {};
 
+let peer_data = [];
 /**
  * A client stream request object. Each source maintains a list of clients who
  * are wanting frames from that source. Clients can only request N frames at a
@@ -363,7 +364,10 @@ function broadcastExcept(exc, name, ...args) {
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
 	//console.log('WEBSOCKET',ws)
+	
 	let p = new Peer(ws);
+	peer_data.push(p);
+	//console.log(peer_data)
 
 	p.on("connect", (peer) => {
 		console.log("Node connected...", peer.string_id);

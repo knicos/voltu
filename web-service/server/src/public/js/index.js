@@ -1,35 +1,35 @@
 const Peer = require('../../peer')
 
-checkIfLoggedIn = async () => {
-//     const token = window.localStorage.getItem('token')
-//     console.log(token)
-//     if(!token){
-//         console.log("You need to login")
-//         renderLogin()
-//     }else{
+let current_data = {};
+let peer_data = "";
 
-//         //Check if the token is valid
-//         const response = await fetch('http://localhost:8080/auth/validation', {
-//             method: 'POST',
-//             headers: {'Authorization': token}
-//         })
-//         console.log('RESPONSE', response)
-        
-//         //Token is valid, show available streams
-//         if(response.status === 200){
-//             console.log("SUCCESS")
-           renderThumbnails()
-//         }
-//     }
- }
+checkIfLoggedIn = async () => {
+    //     const token = window.localStorage.getItem('token')
+    //     console.log(token)
+    //     if(!token){
+    //         console.log("You need to login")
+    //         renderLogin()
+    //     }else{
+
+    //         //Check if the token is valid
+    //         const response = await fetch('http://localhost:8080/auth/validation', {
+    //             method: 'POST',
+    //             headers: {'Authorization': token}
+    //         })
+    //         console.log('RESPONSE', response)
+            
+    //         //Token is valid, show available streams
+    //         if(response.status === 200){
+    //             console.log("SUCCESS")
+    renderThumbnails()
+    //         }
+    //     }
+}
 
 //Redirects the user to google authentication
 handleLogin = () => {
     window.location.href="/google";
 }
-
-let current_data = {}; 
-
 
 /**
  * Returns a list of available streams
@@ -130,12 +130,13 @@ createCard = (url, viewers) => {
 }
 
 connectToStream = () => {
-    const ws = new WebSocket('ws://localhost:8080/');
+    const ws = new WebSocket('ws://localhost:8080');
     current_data.frames = 10;
-    let p = new Peer(ws);
+    peer_data = new Peer(ws);
+    console.log(peer_data)
+    peer_data.send('get_stream', (current_data.uri, current_data.frames, 0, /*pid,*/ current_data.uri));
     console.log("still working")
-    p.send("get_stream", (current_data.uri, current_data.frames, 0, current_data.uri));
-    console.log("still working")
+
 
     //setTimeout 1s, ask for the amount of frames user has selected
 }
