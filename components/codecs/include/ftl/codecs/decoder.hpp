@@ -35,7 +35,7 @@ class Decoder {
 	Decoder() {};
 	virtual ~Decoder() {};
 
-	virtual bool decode(const ftl::codecs::Packet &pkt, cv::Mat &out)=0;
+	virtual bool decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out)=0;
 
 	virtual bool accepts(const ftl::codecs::Packet &)=0;
 };

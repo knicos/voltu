@@ -129,30 +129,30 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 	disp_->setMask(mask_l_);
 
 	// Load image files...
-	cv::Mat right_tmp;
-	rgb_ = cv::imread(dir+"/im0.png", cv::IMREAD_COLOR);
+	cv::Mat left_tmp, right_tmp;
+	left_tmp = cv::imread(dir+"/im0.png", cv::IMREAD_COLOR);
 	right_tmp = cv::imread(dir+"/im1.png", cv::IMREAD_COLOR);
 
-	cv::resize(rgb_, rgb_, cv::Size(params_.width, params_.height));
+	cv::resize(left_tmp, left_tmp, cv::Size(params_.width, params_.height));
 	cv::resize(right_tmp, right_tmp, cv::Size(params_.width, params_.height));
 
-	left_.upload(rgb_);
-	right_.upload(right_tmp);
+	rgb_.upload(left_tmp, stream_);
+	right_.upload(right_tmp, stream_);
 
 	_performDisparity();
 	ready_ = true;
 }
 
 void MiddleburySource::_performDisparity() {
-	if (depth_tmp_.empty()) depth_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
-	if (disp_tmp_.empty()) disp_tmp_ = cv::cuda::GpuMat(left_.size(), CV_32FC1);
+	depth_.create(left_.size(), CV_32FC1);
+	disp_tmp_.create(left_.size(), CV_32FC1);
 	//calib_->rectifyStereo(left_, right_, stream_);
-	disp_->compute(left_, right_, disp_tmp_, stream_);
+	disp_->compute(rgb_, right_, disp_tmp_, stream_);
 	//disparityToDepth(disp_tmp_, depth_tmp_, params_, stream_);
-	ftl::cuda::disparity_to_depth(disp_tmp_, depth_tmp_, params_, stream_);
+	ftl::cuda::disparity_to_depth(disp_tmp_, depth_, params_, stream_);
 	//left_.download(rgb_, stream_);
 	//rgb_ = lsrc_->cachedLeft();
-	depth_tmp_.download(depth_, stream_);
+	//depth_tmp_.download(depth_, stream_);
 
 	stream_.waitForCompletion();
 

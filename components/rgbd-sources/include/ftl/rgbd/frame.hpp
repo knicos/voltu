@@ -256,7 +256,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c) {
 		//LOG(INFO) << "Creating texture object";
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
 	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.tex.devicePtr() != m.gpu.data) {
-		LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'";
+		LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'.";
 		m.tex.free();
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
 	}

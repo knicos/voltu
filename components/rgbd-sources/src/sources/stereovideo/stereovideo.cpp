@@ -231,21 +231,24 @@ bool StereoVideoSource::compute(int n, int b) {
 
 		ftl::cuda::disparity_to_depth(disp, depth, params_, stream_);
 		
-		left.download(rgb_, stream_);
-		depth.download(depth_, stream_);
+		//left.download(rgb_, stream_);
+		//depth.download(depth_, stream_);
 		//frame.download(Channel::Left + Channel::Depth);
-		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
+		stream_.waitForCompletion();
+		host_->notify(timestamp_, left, depth);
 	} else if (chan == Channel::Right) {
-		left.download(rgb_, stream_);
-		right.download(depth_, stream_);
+		//left.download(rgb_, stream_);
+		//right.download(depth_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
+		host_->notify(timestamp_, left, right);
 	} else {
-		left.download(rgb_, stream_);
+		//left.download(rgb_, stream_);
 		stream_.waitForCompletion();  // TODO:(Nick) Move to getFrames
+		//LOG(INFO) << "NO SECOND CHANNEL: " << (bool)depth_.empty();
+		depth_.create(left.size(), left.type());
+		host_->notify(timestamp_, left, depth_);
 	}
 
-	auto cb = host_->callback();
-	if (cb) cb(timestamp_, rgb_, depth_);
 	return true;
 }
 

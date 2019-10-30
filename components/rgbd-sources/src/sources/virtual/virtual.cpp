@@ -91,20 +91,19 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 			}
 
 			if (frame.hasChannel(Channel::Colour)) {
-				frame.download(Channel::Colour);
-				cv::swap(frame.get<cv::Mat>(Channel::Colour), rgb_);	
+				//frame.download(Channel::Colour);
+				cv::cuda::swap(frame.get<cv::cuda::GpuMat>(Channel::Colour), rgb_);	
 			} else {
 				LOG(ERROR) << "Channel 1 frame in rendering";
 			}
 			
 			if ((host_->getChannel() != Channel::None) &&
 					frame.hasChannel(host_->getChannel())) {
-				frame.download(host_->getChannel());
-				cv::swap(frame.get<cv::Mat>(host_->getChannel()), depth_);
+				//frame.download(host_->getChannel());
+				cv::cuda::swap(frame.get<cv::cuda::GpuMat>(host_->getChannel()), depth_);
 			}
 
-			auto cb = host_->callback();
-			if (cb) cb(timestamp_, rgb_, depth_);
+			host_->notify(timestamp_, rgb_, depth_);
 		}
 		return true;
 	}

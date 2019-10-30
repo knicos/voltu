@@ -50,7 +50,7 @@ void Group::addSource(ftl::rgbd::Source *src) {
 	size_t ix = sources_.size();
 	sources_.push_back(src);
 
-	src->setCallback([this,ix,src](int64_t timestamp, cv::Mat &rgb, cv::Mat &depth) {
+	src->setCallback([this,ix,src](int64_t timestamp, cv::cuda::GpuMat &rgb, cv::cuda::GpuMat &depth) {
 		if (timestamp == 0) return;
 
 		auto chan = src->getChannel();
@@ -78,13 +78,13 @@ void Group::addSource(ftl::rgbd::Source *src) {
 				// Ensure channels match source mat format
 				//fs.channel1[ix].create(rgb.size(), rgb.type());
 				//fs.channel2[ix].create(depth.size(), depth.type());
-				fs.frames[ix].create<cv::Mat>(Channel::Colour, Format<uchar3>(rgb.size())); //.create(rgb.size(), rgb.type());
-				if (chan != Channel::None) fs.frames[ix].create<cv::Mat>(chan, ftl::rgbd::FormatBase(depth.cols, depth.rows, depth.type())); //.create(depth.size(), depth.type());
+				fs.frames[ix].create<cv::cuda::GpuMat>(Channel::Colour, Format<uchar3>(rgb.size())); //.create(rgb.size(), rgb.type());
+				if (chan != Channel::None) fs.frames[ix].create<cv::cuda::GpuMat>(chan, ftl::rgbd::FormatBase(depth.cols, depth.rows, depth.type())); //.create(depth.size(), depth.type());
 
 				//cv::swap(rgb, fs.channel1[ix]);
 				//cv::swap(depth, fs.channel2[ix]);
-				cv::swap(rgb, fs.frames[ix].get<cv::Mat>(Channel::Colour));
-				if (chan != Channel::None) cv::swap(depth, fs.frames[ix].get<cv::Mat>(chan));
+				cv::cuda::swap(rgb, fs.frames[ix].get<cv::cuda::GpuMat>(Channel::Colour));
+				if (chan != Channel::None) cv::cuda::swap(depth, fs.frames[ix].get<cv::cuda::GpuMat>(chan));
 
 				++fs.count;
 				fs.mask |= (1 << ix);
