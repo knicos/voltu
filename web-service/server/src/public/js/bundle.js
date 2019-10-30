@@ -383,7 +383,7 @@ BufferList.prototype._match = function(offset, search) {
 
 module.exports = BufferList
 
-},{"readable-stream":19,"safe-buffer":20,"util":39}],2:[function(require,module,exports){
+},{"readable-stream":18,"safe-buffer":19,"util":39}],2:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -493,8 +493,8 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 
-}).call(this,{"isBuffer":require("../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
-},{"../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js":33}],3:[function(require,module,exports){
+}).call(this,{"isBuffer":require("../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js")})
+},{"../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js":33}],3:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -613,7 +613,7 @@ function msgpack (options) {
 
 module.exports = msgpack
 
-},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":24,"bl":1,"safe-buffer":20}],6:[function(require,module,exports){
+},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":24,"bl":1,"safe-buffer":19}],6:[function(require,module,exports){
 'use strict'
 
 var bl = require('bl')
@@ -1396,7 +1396,7 @@ function encodeFloat (obj, forceFloat64) {
   return buf
 }
 
-},{"bl":1,"safe-buffer":20}],8:[function(require,module,exports){
+},{"bl":1,"safe-buffer":19}],8:[function(require,module,exports){
 'use strict'
 
 var Transform = require('readable-stream').Transform
@@ -1488,7 +1488,7 @@ Decoder.prototype._transform = function (buf, enc, done) {
 module.exports.decoder = Decoder
 module.exports.encoder = Encoder
 
-},{"bl":1,"inherits":3,"readable-stream":19}],9:[function(require,module,exports){
+},{"bl":1,"inherits":3,"readable-stream":18}],9:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -2739,7 +2739,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":35,"core-util-is":2,"events":31,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":20,"string_decoder/":18,"util":29}],13:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":35,"core-util-is":2,"events":31,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":19,"string_decoder/":20,"util":29}],13:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3644,7 +3644,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":35,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":20,"timers":36,"util-deprecate":21}],15:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":35,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":19,"timers":36,"util-deprecate":21}],15:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -3724,7 +3724,7 @@ if (util && util.inspect && util.inspect.custom) {
     return this.constructor.name + ' ' + obj;
   };
 }
-},{"safe-buffer":20,"util":29}],16:[function(require,module,exports){
+},{"safe-buffer":19,"util":29}],16:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -3803,6 +3803,79 @@ module.exports = {
 module.exports = require('events').EventEmitter;
 
 },{"events":31}],18:[function(require,module,exports){
+exports = module.exports = require('./lib/_stream_readable.js');
+exports.Stream = exports;
+exports.Readable = exports;
+exports.Writable = require('./lib/_stream_writable.js');
+exports.Duplex = require('./lib/_stream_duplex.js');
+exports.Transform = require('./lib/_stream_transform.js');
+exports.PassThrough = require('./lib/_stream_passthrough.js');
+
+},{"./lib/_stream_duplex.js":10,"./lib/_stream_passthrough.js":11,"./lib/_stream_readable.js":12,"./lib/_stream_transform.js":13,"./lib/_stream_writable.js":14}],19:[function(require,module,exports){
+/* eslint-disable node/no-deprecated-api */
+var buffer = require('buffer')
+var Buffer = buffer.Buffer
+
+// alternative to using Object.keys for old browsers
+function copyProps (src, dst) {
+  for (var key in src) {
+    dst[key] = src[key]
+  }
+}
+if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
+  module.exports = buffer
+} else {
+  // Copy properties from require('buffer')
+  copyProps(buffer, exports)
+  exports.Buffer = SafeBuffer
+}
+
+function SafeBuffer (arg, encodingOrOffset, length) {
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+// Copy static methods from Buffer
+copyProps(Buffer, SafeBuffer)
+
+SafeBuffer.from = function (arg, encodingOrOffset, length) {
+  if (typeof arg === 'number') {
+    throw new TypeError('Argument must not be a number')
+  }
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+SafeBuffer.alloc = function (size, fill, encoding) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  var buf = Buffer(size)
+  if (fill !== undefined) {
+    if (typeof encoding === 'string') {
+      buf.fill(fill, encoding)
+    } else {
+      buf.fill(fill)
+    }
+  } else {
+    buf.fill(0)
+  }
+  return buf
+}
+
+SafeBuffer.allocUnsafe = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return Buffer(size)
+}
+
+SafeBuffer.allocUnsafeSlow = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return buffer.SlowBuffer(size)
+}
+
+},{"buffer":30}],20:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4099,80 +4172,7 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":20}],19:[function(require,module,exports){
-exports = module.exports = require('./lib/_stream_readable.js');
-exports.Stream = exports;
-exports.Readable = exports;
-exports.Writable = require('./lib/_stream_writable.js');
-exports.Duplex = require('./lib/_stream_duplex.js');
-exports.Transform = require('./lib/_stream_transform.js');
-exports.PassThrough = require('./lib/_stream_passthrough.js');
-
-},{"./lib/_stream_duplex.js":10,"./lib/_stream_passthrough.js":11,"./lib/_stream_readable.js":12,"./lib/_stream_transform.js":13,"./lib/_stream_writable.js":14}],20:[function(require,module,exports){
-/* eslint-disable node/no-deprecated-api */
-var buffer = require('buffer')
-var Buffer = buffer.Buffer
-
-// alternative to using Object.keys for old browsers
-function copyProps (src, dst) {
-  for (var key in src) {
-    dst[key] = src[key]
-  }
-}
-if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
-  module.exports = buffer
-} else {
-  // Copy properties from require('buffer')
-  copyProps(buffer, exports)
-  exports.Buffer = SafeBuffer
-}
-
-function SafeBuffer (arg, encodingOrOffset, length) {
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-// Copy static methods from Buffer
-copyProps(Buffer, SafeBuffer)
-
-SafeBuffer.from = function (arg, encodingOrOffset, length) {
-  if (typeof arg === 'number') {
-    throw new TypeError('Argument must not be a number')
-  }
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-SafeBuffer.alloc = function (size, fill, encoding) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  var buf = Buffer(size)
-  if (fill !== undefined) {
-    if (typeof encoding === 'string') {
-      buf.fill(fill, encoding)
-    } else {
-      buf.fill(fill)
-    }
-  } else {
-    buf.fill(0)
-  }
-  return buf
-}
-
-SafeBuffer.allocUnsafe = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return Buffer(size)
-}
-
-SafeBuffer.allocUnsafeSlow = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return buffer.SlowBuffer(size)
-}
-
-},{"buffer":30}],21:[function(require,module,exports){
+},{"safe-buffer":19}],21:[function(require,module,exports){
 (function (global){
 
 /**
@@ -4306,7 +4306,6 @@ function Peer(ws) {
 	}
 
 	let close = (event) => {
-		console.log(event)
 		this.status = kDisconnected;
 		this._notify("disconnect", this);
 	}
@@ -4319,15 +4318,10 @@ function Peer(ws) {
 
 	//if undefined, client is using peer
 	if(this.sock.on === undefined){
-		this.sock.onmessage = message;
-		console.log("THIS", this)
 		console.log("THIS.SOCK", this.sock);
 		this.sock.onopen = (event) => {
-			console.log("Inside onopen")
-			const obj = [1, '__handshake__']
-			this.sock.send(encode(obj))
+			this.sock.send(encode([1, '__handshake__']))
 		}
-		console.log("through")
 	//Server is using peer
 	}else{
 		this.sock.on("message", message);
@@ -4349,7 +4343,8 @@ function Peer(ws) {
 	});
 
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
-}
+}		
+
 
 Peer.uuid = my_uuid;
 
@@ -4514,7 +4509,6 @@ module.exports = Peer;
 const Peer = require('../../peer')
 
 let current_data = {};
-let peer_data = "";
 
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
@@ -4634,7 +4628,7 @@ renderLogin = () => {
 }
 
 //FOR DESKTOP
-const createCard = (url, viewers) => {
+createCard = (url, viewers) => {
     return `<div class='ftlab-card-component' >
                 <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
                 <p>Viewers: ${viewers}</p>
@@ -4643,14 +4637,13 @@ const createCard = (url, viewers) => {
 }
 
 connectToStream = () => {
-    const ws = new WebSocket('ws://localhost:8080');
-    current_data.frames = 10;
-    peer_data = new Peer(ws);
-    console.log(peer_data)
-    peer_data.send('get_stream', (current_data.uri, current_data.frames, 0, /*pid,*/ current_data.uri));
+    const ws = new WebSocket('ws://localhost:8080/');
+    current_data.peer = new Peer(ws);
+    console.log("websocket", current_data.peer.sock)
     console.log("still working")
-
-
+    current_data.peer.onopen = (event) => {
+        current_data.peer.send()
+    }
     //setTimeout 1s, ask for the amount of frames user has selected
 }
 

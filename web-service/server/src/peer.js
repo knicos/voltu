@@ -59,7 +59,6 @@ function Peer(ws) {
 	}
 
 	let close = (event) => {
-		console.log(event)
 		this.status = kDisconnected;
 		this._notify("disconnect", this);
 	}
@@ -72,15 +71,10 @@ function Peer(ws) {
 
 	//if undefined, client is using peer
 	if(this.sock.on === undefined){
-		this.sock.onmessage = message;
-		console.log("THIS", this)
 		console.log("THIS.SOCK", this.sock);
 		this.sock.onopen = (event) => {
-			console.log("Inside onopen")
-			const obj = [1, '__handshake__']
-			this.sock.send(encode(obj))
+			this.sock.send(encode([1, '__handshake__']))
 		}
-		console.log("through")
 	//Server is using peer
 	}else{
 		this.sock.on("message", message);
