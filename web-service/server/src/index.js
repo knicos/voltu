@@ -453,7 +453,7 @@ app.ws('/', (ws, req) => {
 	});
 
 	// Request from frames from a source
-	p.bind("get_stream", (uri, N, rate, pid, dest) => {
+	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
 		let peer = uri_data[uri].peer;
 		console.log('PEER', peer);
 		if (peer) {

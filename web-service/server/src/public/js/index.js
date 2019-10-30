@@ -1,47 +1,47 @@
+const Peer = require('../../peer')
+
+let current_data = {};
 
 
-const checkIfLoggedIn = async () => {
-//     const token = window.localStorage.getItem('token')
-//     console.log(token)
-//     if(!token){
-//         console.log("You need to login")
-//         renderLogin()
-//     }else{
+checkIfLoggedIn = async () => {
+    //     const token = window.localStorage.getItem('token')
+    //     console.log(token)
+    //     if(!token){
+    //         console.log("You need to login")
+    //         renderLogin()
+    //     }else{
 
-//         //Check if the token is valid
-//         const response = await fetch('http://localhost:8080/auth/validation', {
-//             method: 'POST',
-//             headers: {'Authorization': token}
-//         })
-//         console.log('RESPONSE', response)
-        
-//         //Token is valid, show available streams
-//         if(response.status === 200){
-//             console.log("SUCCESS")
-           renderThumbnails()
-//         }
-//     }
- }
-
-//Redirects the user to google authentication
-const handleLogin = () => {
-    window.location.href="/google";
+    //         //Check if the token is valid
+    //         const response = await fetch('http://localhost:8080/auth/validation', {
+    //             method: 'POST',
+    //             headers: {'Authorization': token}
+    //         })
+    //         console.log('RESPONSE', response)
+            
+    //         //Token is valid, show available streams
+    //         if(response.status === 200){
+    //             console.log("SUCCESS")
+    renderThumbnails()
+    //         }
+    //     }
 }
 
-let current_data = {}; 
-
+//Redirects the user to google authentication
+handleLogin = () => {
+    window.location.href="/google";
+}
 
 /**
  * Returns a list of available streams
  */
-const getAvailableStreams = async () => {
+getAvailableStreams = async () => {
     const streamsInJson = await fetch('http://localhost:8080/streams');
     const streams = await streamsInJson.json();
     console.log('AVAILABLE', streams)
     return streams;
 }
 
-const videoPlayer = () => {
+videoPlayer = () => {
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails()">Go back</button><br>
     <canvas id="ftlab-stream-video" width="0" height="0"></canvas>`;
@@ -55,7 +55,7 @@ const videoPlayer = () => {
 /**
  * Creates thumbnail (image) for all available streams and adds them to div class='container'
  */
-const renderThumbnails = async () => {
+renderThumbnails = async () => {
     const thumbnails = await getAvailableStreams();
     console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
@@ -96,7 +96,7 @@ const renderThumbnails = async () => {
 /**
  * Renders button that will redirect to google login
  */
-const renderLogin = () => {
+renderLogin = () => {
     const containerDiv = document.getElementById('container');
         containerDiv.innerHTML = 
         `<div id='Login'>
@@ -129,12 +129,14 @@ const createCard = (url, viewers) => {
             </div>`
 }
 
-const connectToStream = () => {
+connectToStream = () => {
     const ws = new WebSocket('ws://localhost:8080/');
-    let p = new Peer(ws);
-    p.send('message', ([0,'__handshake__']));
-
     current_data.frames = 10;
+    let p = new Peer(ws);
+    p.send('get_stream', (current_data.uri, current_data.frames, 0, /*pid,*/ current_data.uri));
+    console.log("still working")
+
+
     //setTimeout 1s, ask for the amount of frames user has selected
 }
 

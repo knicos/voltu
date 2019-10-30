@@ -32,9 +32,17 @@ function Peer(ws) {
 	this.uri = "unknown";
 	this.name = "unknown";
 	this.master = false;
-
+	if(this.sock.on == undefined){
+		console.log(this.sock);
+		console.log("piip")
+		this.sock.onopen = (event) => {
+			const obj = [0, '__handshake__']
+			this.sock.send(encode(obj))
+			this.sock.
+		}
+	}
 	this.sock.on("message", (raw) => {
-		// console.log(raw)
+		console.log(raw)
 		let msg = decode(raw);
 		console.log("MSG", msg)
 		if (this.status == kConnecting) {
