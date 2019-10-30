@@ -422,9 +422,9 @@ bool NetSource::compute(int n, int b) {
 
 		// Verify depth destination is of required type
 		if (isFloatChannel(chan) && depth_.type() != CV_32F) {
-			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
+			depth_.create(cv::Size(params_.width, params_.height), CV_32FC1);  // 0.0f
 		} else if (!isFloatChannel(chan) && depth_.type() != CV_8UC3) {
-			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
+			depth_.create(cv::Size(params_.width, params_.height), CV_8UC3);  // cv::Scalar(0,0,0)
 		}
 
 		if (prev_chan_ != chan) {

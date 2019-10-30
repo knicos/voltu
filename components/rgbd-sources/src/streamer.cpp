@@ -468,7 +468,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 
 					auto chan = fs.sources[j]->getChannel();
 
-					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->hq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->hq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, chan, hasChan2, Quality::High);
 					});
 				} else {
@@ -477,7 +477,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 
 				// TODO: Stagger the reset between nodes... random phasing
 				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
-				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 				});
 			}
@@ -500,14 +500,14 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				if (hasChan2) {
 					auto chan = fs.sources[j]->getChannel();
 
-					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->lq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->lq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, chan, hasChan2, Quality::Low);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
-				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::Low);
 				});
 			}

@@ -24,7 +24,7 @@ namespace ftl {
 
 TEST_CASE( "OpenCVEncoder::encode() - A colour test image at preset 0" ) {
 	ftl::codecs::OpenCVEncoder encoder(definition_t::HD1080, definition_t::SD480);
-	cv::Mat m(cv::Size(1024,576), CV_8UC3, cv::Scalar(0,0,0));
+	cv::cuda::GpuMat m(cv::Size(1024,576), CV_8UC3, cv::Scalar(0,0,0));
 
 	int block_total = 0;
 	std::atomic<int> block_count = 0;
@@ -53,7 +53,7 @@ TEST_CASE( "OpenCVEncoder::encode() - A colour test image at preset 0" ) {
 
 TEST_CASE( "OpenCVEncoder::encode() - A depth test image at preset 0" ) {
 	ftl::codecs::OpenCVEncoder encoder(definition_t::HD1080, definition_t::SD480);
-	cv::Mat m(cv::Size(1024,576), CV_32F, cv::Scalar(0.0f));
+	cv::cuda::GpuMat m(cv::Size(1024,576), CV_32F, cv::Scalar(0.0f));
 
 	int block_total = 0;
 	std::atomic<int> block_count = 0;
@@ -82,8 +82,8 @@ TEST_CASE( "OpenCVEncoder::encode() - A depth test image at preset 0" ) {
 TEST_CASE( "OpenCVDecoder::decode() - A colour test image no resolution change" ) {
 	ftl::codecs::OpenCVEncoder encoder(definition_t::HD1080, definition_t::SD480);
 	ftl::codecs::OpenCVDecoder decoder;
-	cv::Mat in(cv::Size(1024,576), CV_8UC3, cv::Scalar(255,0,0));
-	cv::Mat out(cv::Size(1024,576), CV_8UC3, cv::Scalar(0,0,0));
+	cv::cuda::GpuMat in(cv::Size(1024,576), CV_8UC3, cv::Scalar(255,0,0));
+	cv::cuda::GpuMat out(cv::Size(1024,576), CV_8UC3, cv::Scalar(0,0,0));
 
 	std::mutex mtx;
 
@@ -92,5 +92,5 @@ TEST_CASE( "OpenCVDecoder::decode() - A colour test image no resolution change" 
 		REQUIRE( decoder.decode(pkt, out) );
 	});
 
-	REQUIRE( (cv::sum(out) != cv::Scalar(0,0,0)) );
+	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0,0,0)) );
 }

@@ -40,7 +40,7 @@ bool NvPipeEncoder::supports(ftl::codecs::codec_t codec) {
 }
 
 /* Check preset resolution is not better than actual resolution. */
-definition_t NvPipeEncoder::_verifiedDefinition(definition_t def, const cv::Mat &in) {
+definition_t NvPipeEncoder::_verifiedDefinition(definition_t def, const cv::cuda::GpuMat &in) {
 	int height = ftl::codecs::getHeight(def);
 
 	// FIXME: Make sure this can't go forever
@@ -52,48 +52,22 @@ definition_t NvPipeEncoder::_verifiedDefinition(definition_t def, const cv::Mat 
 	return def;
 }
 
-void scaleDownAndPad(cv::Mat &in, cv::Mat &out) {
-	const auto isize = in.size();
-	const auto osize = out.size();
-	cv::Mat tmp;
-	
-	if (isize != osize) {
-		double x_scale = ((double) isize.width) / osize.width;
-		double y_scale = ((double) isize.height) / osize.height;
-		double x_scalei = 1.0 / x_scale;
-		double y_scalei = 1.0 / y_scale;
-
-		if (x_scale > 1.0 || y_scale > 1.0) {
-			if (x_scale > y_scale) {
-				cv::resize(in, tmp, cv::Size(osize.width, osize.height * x_scalei));
-			} else {
-				cv::resize(in, tmp, cv::Size(osize.width * y_scalei, osize.height));
-			}
-		}
-		else { tmp = in; }
-		
-		if (tmp.size().width < osize.width || tmp.size().height < osize.height) {
-			tmp.copyTo(out(cv::Rect(cv::Point2i(0, 0), tmp.size())));
-		}
-		else { out = tmp; }
-	}
-}
-
-bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
+bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
 	cudaSetDevice(0);
 	auto definition = odefinition; //_verifiedDefinition(odefinition, in);
 
 	auto width = ftl::codecs::getWidth(definition);
 	auto height = ftl::codecs::getHeight(definition);
 
-	cv::Mat tmp;
+	cv::cuda::GpuMat tmp;
 	if (width != in.cols || height != in.rows) {
 		LOG(WARNING) << "Mismatch resolution with encoding resolution";
 		if (in.type() == CV_32F) {
-			cv::resize(in, tmp, cv::Size(width,height), 0.0, 0.0, cv::INTER_NEAREST);
+			cv::cuda::resize(in, tmp_, cv::Size(width,height), 0.0, 0.0, cv::INTER_NEAREST, stream_);
 		} else {
-			cv::resize(in, tmp, cv::Size(width,height));
+			cv::cuda::resize(in, tmp_, cv::Size(width,height), 0.0, 0.0, cv::INTER_LINEAR, stream_);
 		}
+		tmp = tmp_;
 	} else {
 		tmp = in;
 	}
@@ -110,20 +84,18 @@ bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_
 
 	//cv::Mat tmp;
 	if (tmp.type() == CV_32F) {
-		tmp.convertTo(tmp, CV_16UC1, 1000);
+		tmp.convertTo(tmp2_, CV_16UC1, 1000, stream_);
 	} else if (tmp.type() == CV_8UC3) {
-		cv::cvtColor(tmp, tmp, cv::COLOR_BGR2RGBA);
+		cv::cuda::cvtColor(tmp, tmp2_, cv::COLOR_BGR2RGBA, 0, stream_);
 	} else if (tmp.type() == CV_8UC4) {
-		cv::cvtColor(tmp, tmp, cv::COLOR_BGRA2RGBA);
+		cv::cuda::cvtColor(tmp, tmp2_, cv::COLOR_BGRA2RGBA, 0, stream_);
 	} else {
 		LOG(ERROR) << "Unsupported cv::Mat type in Nvidia encoder";
 		return false;
 	}
 
-	// scale/pad to fit output format
-	//cv::Mat tmp2 = cv::Mat::zeros(getHeight(odefinition), getWidth(odefinition), tmp.type());
-	//scaleDownAndPad(tmp, tmp2);
-	//std::swap(tmp, tmp2);
+	// Make sure conversions complete...
+	stream_.waitForCompletion();
 
 	Packet pkt;
 	pkt.codec = (preference_ == codec_t::Any) ? codec_t::HEVC : preference_;
@@ -135,12 +107,12 @@ bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_
 	pkt.data.resize(ftl::codecs::kVideoBufferSize);
 	uint64_t cs = NvPipe_Encode(
 		nvenc_,
-		tmp.data,
-		tmp.step,
+		tmp2_.data,
+		tmp2_.step,
 		pkt.data.data(),
 		ftl::codecs::kVideoBufferSize,
-		tmp.cols,
-		tmp.rows,
+		tmp2_.cols,
+		tmp2_.rows,
 		was_reset_		// Force IFrame!
 	);
 	pkt.data.resize(cs);
@@ -155,7 +127,7 @@ bool NvPipeEncoder::encode(const cv::Mat &in, definition_t odefinition, bitrate_
 	}
 }
 
-bool NvPipeEncoder::_encoderMatch(const cv::Mat &in, definition_t def) {
+bool NvPipeEncoder::_encoderMatch(const cv::cuda::GpuMat &in, definition_t def) {
 	return ((in.type() == CV_32F && is_float_channel_) ||
 		((in.type() == CV_8UC3 || in.type() == CV_8UC4) && !is_float_channel_)) && current_definition_ == def;
 }
@@ -183,7 +155,7 @@ static uint64_t calculateBitrate(definition_t def, bitrate_t rate) {
 	return uint64_t(bitrate * 1000.0f * 1000.0f * scale);
 }
 
-bool NvPipeEncoder::_createEncoder(const cv::Mat &in, definition_t def, bitrate_t rate) {
+bool NvPipeEncoder::_createEncoder(const cv::cuda::GpuMat &in, definition_t def, bitrate_t rate) {
 	if (_encoderMatch(in, def) && nvenc_) return true;
 
 	uint64_t bitrate = calculateBitrate(def, rate);

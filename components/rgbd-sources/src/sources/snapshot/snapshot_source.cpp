@@ -59,8 +59,10 @@ bool SnapshotSource::compute(int n, int b) {
 	snapshot_.getLeftRGB(camera_idx_, frame_idx_, snap_rgb_);
 	snapshot_.getLeftDepth(camera_idx_, frame_idx_, snap_depth_);
 
-	snap_rgb_.copyTo(rgb_);
-	snap_depth_.copyTo(depth_);
+	//snap_rgb_.copyTo(rgb_);
+	//snap_depth_.copyTo(depth_);
+	rgb_.upload(snap_rgb_);
+	depth_.upload(snap_depth_);
 
 	auto cb = host_->callback();
 	if (cb) cb(timestamp_, rgb_, depth_);

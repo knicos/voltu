@@ -77,11 +77,13 @@ int main(int argc, char **argv) {
 
 				//LOG(INFO) << "Reading packet: (" << (int)spkt.streamID << "," << (int)spkt.channel << ") " << (int)pkt.codec << ", " << (int)pkt.definition;
 
-				cv::Mat frame(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (spkt.channel == Channel::Depth) ? CV_32F : CV_8UC3);
+				cv::cuda::GpuMat gframe(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (spkt.channel == Channel::Depth) ? CV_32F : CV_8UC3);
+				cv::Mat frame;
 				createDecoder(pkt);
 
 				try {
-					decoder->decode(pkt, frame);
+					decoder->decode(pkt, gframe);
+					gframe.download(frame);
 				} catch (std::exception &e) {
 					LOG(INFO) << "Decoder exception: " << e.what();
 				}

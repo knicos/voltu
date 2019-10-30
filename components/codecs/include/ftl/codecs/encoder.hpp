@@ -60,7 +60,7 @@ class Encoder {
 	/**
 	 * Wrapper encode to allow use of presets.
 	 */
-	virtual bool encode(const cv::Mat &in, ftl::codecs::preset_t preset,
+	virtual bool encode(const cv::cuda::GpuMat &in, ftl::codecs::preset_t preset,
 			const std::function<void(const ftl::codecs::Packet&)> &cb);
 
 	/**
@@ -77,7 +77,7 @@ class Encoder {
 	 * @return True if succeeded with encoding.
 	 */
     virtual bool encode(
-			const cv::Mat &in,
+			const cv::cuda::GpuMat &in,
 			ftl::codecs::definition_t definition,
 			ftl::codecs::bitrate_t bitrate,
 			const std::function<void(const ftl::codecs::Packet&)> &cb)=0;

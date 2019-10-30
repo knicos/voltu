@@ -247,7 +247,7 @@ const ftl::rgbd::Camera Source::parameters(ftl::codecs::Channel chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
 
-void Source::setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb) {
+void Source::setCallback(std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> cb) {
 	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
 	callback_ = cb;
 }
@@ -297,7 +297,7 @@ static Camera scaled(Camera &cam, int width, int height) {
 	return newcam;
 }
 
-void Source::notify(int64_t ts, cv::Mat &c1, cv::Mat &c2) {
+void Source::notify(int64_t ts, cv::cuda::GpuMat &c1, cv::cuda::GpuMat &c2) {
 	// Ensure correct scaling of images and parameters.
 	int max_width = max(impl_->params_.width, max(c1.cols, c2.cols));
 	int max_height = max(impl_->params_.height, max(c1.rows, c2.rows));
@@ -309,15 +309,17 @@ void Source::notify(int64_t ts, cv::Mat &c1, cv::Mat &c2) {
 
 	// Should channel 1 be scaled?
 	if (c1.cols < max_width || c1.rows < max_height) {
-		cv::resize(c1, c1, cv::Size(max_width, max_height));
+		LOG(WARNING) << "Resizing on GPU";
+		cv::cuda::resize(c1, c1, cv::Size(max_width, max_height));
 	}
 
 	// Should channel 2 be scaled?
-	if (c2.cols < max_width || c2.rows < max_height) {
+	if (!c2.empty() && (c2.cols < max_width || c2.rows < max_height)) {
+		LOG(WARNING) << "Resizing on GPU";
 		if (c2.type() == CV_32F) {
-			cv::resize(c2, c2, cv::Size(max_width, max_height), 0.0, 0.0, cv::INTER_NEAREST);
+			cv::cuda::resize(c2, c2, cv::Size(max_width, max_height), 0.0, 0.0, cv::INTER_NEAREST);
 		} else {
-			cv::resize(c2, c2, cv::Size(max_width, max_height));
+			cv::cuda::resize(c2, c2, cv::Size(max_width, max_height));
 		}
 	}
 

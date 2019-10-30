@@ -70,7 +70,7 @@ Encoder::~Encoder() {
 
 }
 
-bool Encoder::encode(const cv::Mat &in, preset_t preset,
+bool Encoder::encode(const cv::cuda::GpuMat &in, preset_t preset,
 			const std::function<void(const ftl::codecs::Packet&)> &cb) {
 	const auto &settings = ftl::codecs::getPreset(preset);
 	const definition_t definition = (in.type() == CV_32F) ? settings.depth_res : settings.colour_res;

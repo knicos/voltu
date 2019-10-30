@@ -14,7 +14,7 @@ class NvPipeDecoder : public ftl::codecs::Decoder {
 	NvPipeDecoder();
 	~NvPipeDecoder();
 
-	bool decode(const ftl::codecs::Packet &pkt, cv::Mat &out);
+	bool decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) override;
 
 	bool accepts(const ftl::codecs::Packet &pkt);
 
@@ -24,6 +24,8 @@ class NvPipeDecoder : public ftl::codecs::Decoder {
 	ftl::codecs::definition_t last_definition_;
 	MUTEX mutex_;
 	bool seen_iframe_;
+	cv::cuda::GpuMat tmp_;
+	cv::cuda::Stream stream_;
 };
 
 }

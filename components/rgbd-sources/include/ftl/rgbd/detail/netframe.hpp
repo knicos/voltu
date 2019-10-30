@@ -14,7 +14,7 @@ namespace detail {
  * Also maintains statistics about the frame transmission for later analysis.
  */
 struct NetFrame {
-	cv::Mat channel[2];
+	cv::cuda::GpuMat channel[2];
 	volatile int64_t timestamp;
 	std::atomic<int> chunk_count[2];
 	std::atomic<int> channel_count;
