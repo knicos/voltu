@@ -1,7 +1,7 @@
 const Peer = require('../../peer')
 
 let current_data = {};
-
+let peer_data = "";
 
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
@@ -132,8 +132,9 @@ const createCard = (url, viewers) => {
 connectToStream = () => {
     const ws = new WebSocket('ws://localhost:8080/');
     current_data.frames = 10;
-    let p = new Peer(ws);
-    p.send('get_stream', (current_data.uri, current_data.frames, 0, /*pid,*/ current_data.uri));
+    peer_data = new Peer(ws);
+    console.log(peer_data)
+    peer_data.send('get_stream', (current_data.uri, current_data.frames, 0, /*pid,*/ current_data.uri));
     console.log("still working")
 
 

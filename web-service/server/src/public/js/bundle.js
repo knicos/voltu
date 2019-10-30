@@ -4261,6 +4261,7 @@ my_uuid = Buffer.from(my_uuid);
 const kMagic = 0x0009340053640912;
 const kVersion = 0;
 
+
 /**
  * Wrap a web socket with a MsgPack RCP protocol that works with our C++ version.
  * @param {websocket} ws Websocket object
@@ -4279,16 +4280,8 @@ function Peer(ws) {
 	this.uri = "unknown";
 	this.name = "unknown";
 	this.master = false;
-	if(this.sock.on == undefined){
-		console.log(this.sock);
-		console.log("piip")
-		this.sock.onopen = (event) => {
-			const obj = [0, '__handshake__']
-			this.sock.send(encode(obj))
-			this.close();
-		}
-	}
-	this.sock.on("message", (raw) => {
+
+	let message = (raw) => {
 		console.log(raw)
 		let msg = decode(raw);
 		console.log("MSG", msg)
@@ -4310,18 +4303,36 @@ function Peer(ws) {
 		} else if (msg[0] == 1) {
 			this._dispatchResponse(msg[1], msg[3]);
 		}
-	});
+	}
 
-	this.sock.on("close", () => {
+	let close = () => {
 		this.status = kDisconnected;
 		this._notify("disconnect", this);
-	});
+	}
 
-	this.sock.on("error", () => {
+	let error = () => {
 		console.error("Socket error");
 		this.sock.close();
 		this.status = kDisconnected;
-	});
+	}
+
+	//if undefined, client is using peer
+	if(this.sock.on === undefined){
+		this.sock.onmessage = message;
+		console.log("THIS", this)
+		console.log("THIS.SOCK", this.sock);
+		this.sock.onopen = (event) => {
+			console.log("Inside onopen")
+			const obj = [1, '__handshake__']
+			this.sock.send(encode(obj))
+		}
+		console.log("through")
+	//Server is using peer
+	}else{
+		this.sock.on("message", message);
+		this.sock.on("close", close);
+		this.sock.on("error", error);
+	}
 
 	this.bind("__handshake__", (magic, version, id) => {
 		if (magic == kMagic) {
@@ -4502,7 +4513,7 @@ module.exports = Peer;
 const Peer = require('../../peer')
 
 let current_data = {};
-
+let peer_data = "";
 
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
@@ -4633,8 +4644,9 @@ const createCard = (url, viewers) => {
 connectToStream = () => {
     const ws = new WebSocket('ws://localhost:8080/');
     current_data.frames = 10;
-    let p = new Peer(ws);
-    p.send('get_stream', (current_data.uri, current_data.frames, 0, /*pid,*/ current_data.uri));
+    peer_data = new Peer(ws);
+    console.log(peer_data)
+    peer_data.send('get_stream', (current_data.uri, current_data.frames, 0, /*pid,*/ current_data.uri));
     console.log("still working")
 
 
