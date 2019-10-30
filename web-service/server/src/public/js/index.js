@@ -130,7 +130,7 @@ const createCard = (url, viewers) => {
 }
 
 connectToStream = () => {
-    const ws = new WebSocket('ws://localhost:8080/');
+    const ws = new WebSocket('ws://localhost:8080');
     current_data.frames = 10;
     peer_data = new Peer(ws);
     console.log(peer_data)

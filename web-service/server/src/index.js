@@ -364,9 +364,11 @@ function broadcastExcept(exc, name, ...args) {
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
 	//console.log('WEBSOCKET',ws)
+	
 	let p = new Peer(ws);
 	peer_data.push(p);
-	console.log(peer_data)
+	//console.log(peer_data)
+
 	p.on("connect", (peer) => {
 		console.log("Node connected...", peer.string_id);
 		peer_uris[peer.string_id] = [];

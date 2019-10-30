@@ -4305,12 +4305,13 @@ function Peer(ws) {
 		}
 	}
 
-	let close = () => {
+	let close = (event) => {
+		console.log(event)
 		this.status = kDisconnected;
 		this._notify("disconnect", this);
 	}
 
-	let error = () => {
+	let error = (event) => {
 		console.error("Socket error");
 		this.sock.close();
 		this.status = kDisconnected;
@@ -4642,7 +4643,7 @@ const createCard = (url, viewers) => {
 }
 
 connectToStream = () => {
-    const ws = new WebSocket('ws://localhost:8080/');
+    const ws = new WebSocket('ws://localhost:8080');
     current_data.frames = 10;
     peer_data = new Peer(ws);
     console.log(peer_data)

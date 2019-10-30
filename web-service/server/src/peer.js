@@ -58,12 +58,13 @@ function Peer(ws) {
 		}
 	}
 
-	let close = () => {
+	let close = (event) => {
+		console.log(event)
 		this.status = kDisconnected;
 		this._notify("disconnect", this);
 	}
 
-	let error = () => {
+	let error = (event) => {
 		console.error("Socket error");
 		this.sock.close();
 		this.status = kDisconnected;
