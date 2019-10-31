@@ -4306,7 +4306,6 @@ function Peer(ws) {
 	}
 
 	let close = () => {
-		console.log("connection closed")
 		this.status = kDisconnected;
 		this._notify("disconnect", this);
 	}
@@ -4319,10 +4318,14 @@ function Peer(ws) {
 
 	//if undefined, client is using peer
 	if(this.sock.on === undefined){
+		console.log("THIS.SOCK", this.sock);
 		this.sock.onopen = (event) => {
+			console.log("socket opened")
 			this.sock.send(encode([0, '__handshake__']));
-			console.log("socket was opened")
+			this.sock.send('get_stream');
 		}
+		this.sock.onerror = error;
+		console.log("Ready state", this.sock)
 	//Server is using peer
 	}else{
 		this.sock.on("message", message);
@@ -4471,8 +4474,12 @@ Peer.prototype.send = function(name, ...args) {
 	}
 }
 
+//This was a problem and needed to change it so that
+//this.sock.close() can only be called by server (!=undefined)
 Peer.prototype.close = function() {
-	this.sock.close = close;
+	if(this.sock.on !== undefined){
+		this.sock.close();
+	}
 	this.status = kDisconnected;
 }
 
@@ -4652,8 +4659,7 @@ createCard = (url, viewers) => {
 connectToStream = () => {
     const ws = new WebSocket('ws://localhost:8080/')
     current_data.peer = new Peer(ws);
-    
-    return console.log('successfully connected to stream')
+    console.log("currentData", current_data.peer)
     //setTimeout 1s, ask for the amount of frames user has selected
 }
 

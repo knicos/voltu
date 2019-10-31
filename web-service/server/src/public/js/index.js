@@ -143,8 +143,7 @@ createCard = (url, viewers) => {
 connectToStream = () => {
     const ws = new WebSocket('ws://localhost:8080/')
     current_data.peer = new Peer(ws);
-    
-    return console.log('successfully connected to stream')
+    console.log("currentData", current_data.peer)
     //setTimeout 1s, ask for the amount of frames user has selected
 }
 
