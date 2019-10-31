@@ -11,9 +11,12 @@ class OpenCVDecoder : public ftl::codecs::Decoder {
 	OpenCVDecoder();
 	~OpenCVDecoder();
 
-	bool decode(const ftl::codecs::Packet &pkt, cv::Mat &out);
+	bool decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) override;
 
 	bool accepts(const ftl::codecs::Packet &pkt);
+
+	private:
+	cv::Mat tmp_;
 };
 
 }

@@ -33,30 +33,83 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ft
 
     r->onPacket(sid, [this](const ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
 		host_->notifyRaw(spkt, pkt);
-		if (pkt.codec == codec_t::POSE) {
-			Eigen::Matrix4d p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
-			host_->setPose(p);
-		} else if (pkt.codec == codec_t::CALIBRATION) {
-			ftl::rgbd::Camera *camera = (ftl::rgbd::Camera*)pkt.data.data();
-            LOG(INFO) << "Have calibration: " << camera->fx;
-			params_ = *camera;
-			has_calibration_ = true;
-		} else {
-			if (pkt.codec == codec_t::HEVC) {
-				if (ftl::codecs::hevc::isIFrame(pkt.data)) _removeChannel(spkt.channel);
-			}
-			cache_[cache_write_].emplace_back();
-			auto &c = cache_[cache_write_].back();
 
-			// TODO: Attempt to avoid this copy operation
-			c.spkt = spkt;
-			c.pkt = pkt;
+		// Some channels are to be directly handled by the source object and
+		// do not proceed to any subsequent step.
+		// FIXME: Potential problem, these get processed at wrong time
+		if (spkt.channel == Channel::Configuration) {
+			std::tuple<std::string, std::string> cfg;
+			auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+			unpacked.get().convert(cfg);
+
+			LOG(INFO) << "Config Received: " << std::get<1>(cfg);
+			return;
 		}
+		else if (spkt.channel == Channel::Calibration) {
+			_processCalibration(pkt);
+			return;
+		} else if (spkt.channel == Channel::Pose) {
+			_processPose(pkt);
+			return;
+		}
+
+		// FIXME: For bad and old FTL files where wrong channel is used
+		if (pkt.codec == codec_t::POSE) {
+			_processPose(pkt);
+			return;
+		} else if (pkt.codec == codec_t::CALIBRATION) {
+			_processCalibration(pkt);
+			return;
+		}
+
+
+		// TODO: Check I-Frames for H264
+		if (pkt.codec == codec_t::HEVC) {
+			if (ftl::codecs::hevc::isIFrame(pkt.data)) _removeChannel(spkt.channel);
+		}
+		cache_[cache_write_].emplace_back();
+		auto &c = cache_[cache_write_].back();
+
+		// TODO: Attempt to avoid this copy operation
+		c.spkt = spkt;
+		c.pkt = pkt;
     });
 }
 
 FileSource::~FileSource() {
 
+}
+
+void FileSource::_processPose(ftl::codecs::Packet &pkt) {
+	LOG(INFO) << "Got POSE channel";
+	if (pkt.codec == codec_t::POSE) {
+		Eigen::Matrix4d p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
+		host_->setPose(p);
+	} else if (pkt.codec == codec_t::MSGPACK) {
+
+	}
+}
+
+void FileSource::_processCalibration(ftl::codecs::Packet &pkt) {
+	if (pkt.codec == codec_t::CALIBRATION) {
+		ftl::rgbd::Camera *camera = (ftl::rgbd::Camera*)pkt.data.data();
+		params_ = *camera;
+		has_calibration_ = true;
+	} else if (pkt.codec == codec_t::MSGPACK) {
+		std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, ftl::rgbd::capability_t> params;
+		auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+		unpacked.get().convert(params);
+
+		if (std::get<1>(params) == Channel::Left) {
+			params_ = std::get<0>(params);
+			capabilities_ = std::get<2>(params);
+			has_calibration_ = true;
+
+			LOG(INFO) << "Got Calibration channel: " << params_.width << "x" << params_.height;
+		} else {
+			//params_right_ = std::get<0>(params);
+		}
+	}
 }
 
 void FileSource::_removeChannel(ftl::codecs::Channel channel) {
@@ -98,9 +151,13 @@ bool FileSource::compute(int n, int b) {
 	int64_t lastts = 0;
 	int lastc = 0;
 
+	// Go through previously read and cached frames in sequence
+	// needs to be done due to P-Frames
 	for (auto i=cache_[cache_read_].begin(); i!=cache_[cache_read_].end(); ++i) {
 		auto &c = *i;
 
+		// Check for verifying that both channels are received, ie. two frames
+		// with the same timestamp.
 		if (c.spkt.timestamp > lastts) {
 			lastts = c.spkt.timestamp;
 			lastc = 1;
@@ -123,6 +180,7 @@ bool FileSource::compute(int n, int b) {
 		}
 	}
 
+	// FIXME: Consider case of Channel::None
 	if (lastc != 2) {
 		LOG(ERROR) << "Channels not in sync (" << sourceid_ << "): " << lastts;
 		return false;
@@ -132,8 +190,8 @@ bool FileSource::compute(int n, int b) {
 
 	if (rgb_.empty() || depth_.empty()) return false;
 
-	auto cb = host_->callback();
-	if (cb) cb(timestamp_, rgb_, depth_);
+	// Inform about a decoded frame pair
+	host_->notify(timestamp_, rgb_, depth_);
     return true;
 }
 

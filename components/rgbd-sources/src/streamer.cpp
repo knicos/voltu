@@ -45,6 +45,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	encode_mode_ = ftl::rgbd::kEncodeVideo;
 	hq_devices_ = (value("disable_hardware_encode", false)) ? device_t::Software : device_t::Any;
+	hq_codec_ = value("video_codec", ftl::codecs::codec_t::Any);
 
 	//group_.setFPS(value("fps", 20));
 	group_.setLatency(4);
@@ -187,6 +188,17 @@ void Streamer::add(Source *src) {
 		sources_[src->getID()] = s;
 
 		group_.addSource(src);
+
+		src->addRawCallback([this,s](Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			if (spkt.channel == Channel::Calibration) {
+				// Calibration changed, so lets re-check the bitrate presets
+				const auto &params = src->parameters();
+				s->hq_bitrate = ftl::codecs::findPreset(params.width, params.height);
+			}
+
+			//LOG(INFO) << "RAW CALLBACK";
+			_transmitPacket(s, spkt, pkt, Quality::Any);
+		});
 	}
 
 	LOG(INFO) << "Streaming: " << src->getID();
@@ -322,6 +334,14 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	}
 
 	++s->clientCount;
+
+	// Finally, inject calibration and config data
+	s->src->inject(Channel::Calibration, s->src->parameters(Channel::Left), Channel::Left, s->src->getCapabilities());
+	s->src->inject(Channel::Calibration, s->src->parameters(Channel::Right), Channel::Right, s->src->getCapabilities());
+	//s->src->inject(s->src->getPose());
+	//if (!(*s->src->get<nlohmann::json>("meta")).is_null()) {
+		s->src->inject(Channel::Configuration, "/original", s->src->getConfig().dump());
+	//}
 }
 
 void Streamer::remove(Source *) {
@@ -430,9 +450,9 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 		// Do we need to do high quality encoding?
 		if (src->hq_count > 0) {
 			if (!src->hq_encoder_c1) src->hq_encoder_c1 = ftl::codecs::allocateEncoder(
-					definition_t::HD1080, hq_devices_);
+					definition_t::HD1080, hq_devices_, hq_codec_);
 			if (!src->hq_encoder_c2 && hasChan2) src->hq_encoder_c2 = ftl::codecs::allocateEncoder(
-					definition_t::HD1080, hq_devices_);
+					definition_t::HD1080, hq_devices_, hq_codec_);
 
 			// Do we have the resources to do a HQ encoding?
 			if (src->hq_encoder_c1 && (!hasChan2 || src->hq_encoder_c2)) {
@@ -448,7 +468,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 
 					auto chan = fs.sources[j]->getChannel();
 
-					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->hq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->hq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, chan, hasChan2, Quality::High);
 					});
 				} else {
@@ -457,7 +477,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 
 				// TODO: Stagger the reset between nodes... random phasing
 				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
-				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 				});
 			}
@@ -480,14 +500,14 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				if (hasChan2) {
 					auto chan = fs.sources[j]->getChannel();
 
-					enc2->encode(fs.frames[j].get<cv::Mat>(chan), src->lq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
+					enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->lq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, chan, hasChan2, Quality::Low);
 					});
 				} else {
 					if (enc2) enc2->reset();
 				}
 
-				enc1->encode(fs.frames[j].get<cv::Mat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->lq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::Low);
 				});
 			}

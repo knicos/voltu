@@ -17,6 +17,7 @@ enum struct Channel : int {
     Disparity		= 3,
     Depth2			= 3,
     Deviation		= 4,
+    Screen          = 4,
     Normals			= 5,	// 32FC4
     Points			= 6,	// 32FC4
     Confidence		= 7,	// 32F
@@ -36,7 +37,8 @@ enum struct Channel : int {
 	Configuration	= 64,	// JSON Data
 	Calibration		= 65,	// Camera Parameters Object
 	Pose			= 66,	// Eigen::Matrix4d
-	Data			= 67	// Custom data, any codec.
+    Index           = 67,
+	Data			= 2048	// Custom data, any codec.
 };
 
 inline bool isVideo(Channel c) { return (int)c < 32; };

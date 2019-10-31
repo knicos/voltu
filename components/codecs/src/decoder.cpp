@@ -10,6 +10,7 @@ Decoder *ftl::codecs::allocateDecoder(const ftl::codecs::Packet &pkt) {
 	switch(pkt.codec) {
 	case codec_t::JPG		:
 	case codec_t::PNG		: return new ftl::codecs::OpenCVDecoder;
+	case codec_t::H264		:
 	case codec_t::HEVC		: return new ftl::codecs::NvPipeDecoder;
 	}
 

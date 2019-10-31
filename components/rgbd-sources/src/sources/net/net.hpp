@@ -68,8 +68,7 @@ class NetSource : public detail::Source {
 	//NvPipe *nv_channel2_decoder_;
 	//#endif
 
-	ftl::codecs::Decoder *decoder_c1_;
-	ftl::codecs::Decoder *decoder_c2_;
+	ftl::codecs::Decoder *decoder_[2];
 
 	// Adaptive bitrate functionality
 	ftl::rgbd::detail::bitrate_t adaptive_;	 // Current adapted bitrate
@@ -86,6 +85,10 @@ class NetSource : public detail::Source {
 	void _updateURI();
 	//void _checkAdaptive(int64_t);
 	void _createDecoder(int chan, const ftl::codecs::Packet &);
+	void _completeFrame(NetFrame &frame, int64_t now);
+	void _processCalibration(const ftl::codecs::Packet &pkt);
+	void _processConfig(const ftl::codecs::Packet &pkt);
+	void _processPose(const ftl::codecs::Packet &pkt);
 };
 
 }
