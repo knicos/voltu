@@ -146,7 +146,7 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
 
 			if (isBarycentricCoordInBounds(baryCentricCoordinate)) {
 				float new_depth = getZAtCoordinate(baryCentricCoordinate, d);
-				atomicMin(&depth_out(sx,sy), int(new_depth*10000.0f));
+				atomicMin(&depth_out(sx,sy), int(new_depth*100000.0f));
 			}
 		}
 	}
