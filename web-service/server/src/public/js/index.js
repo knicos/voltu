@@ -1,6 +1,7 @@
 const Peer = require('../../peer')
 
 let current_data = {};
+let peer;
 
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
@@ -56,10 +57,10 @@ videoPlayer = () => {
  */
 renderThumbnails = async () => {
     const thumbnails = await getAvailableStreams();
-    console.log('THUMBNAILS', thumbnails)
+    // console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
-    console.log(containerDiv)
+    // console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
         const encodedURI = encodeURIComponent(thumbnails[i])
         current_data.uri = encodedURI
@@ -128,16 +129,6 @@ createCard = (url, viewers) => {
             </div>`
 }
 
-connectToStream = () => {
-    const ws = new WebSocket('ws://localhost:8080/');
-    current_data.peer = new Peer(ws);
-    console.log("websocket", current_data.peer.sock)
-    console.log("still working")
-    current_data.peer.onopen = (event) => {
-        current_data.peer.send()
-    }
-    //setTimeout 1s, ask for the amount of frames user has selected
-}
 
 //FOR LAPTOP
 // const createCard = () => {
@@ -147,6 +138,15 @@ connectToStream = () => {
 //                 <button onclick="window.location.href='/stream?uri'">button</button>
 //             </div>`
 // }
+
+
+connectToStream = () => {
+    const ws = new WebSocket('ws://localhost:8080/')
+    current_data.peer = new Peer(ws);
+    
+    return console.log('successfully connected to stream')
+    //setTimeout 1s, ask for the amount of frames user has selected
+}
 
 const cardLogic = () => {
     const cards = document.getElementsByClassName('ftlab-card-component');

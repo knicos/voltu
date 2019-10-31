@@ -58,12 +58,13 @@ function Peer(ws) {
 		}
 	}
 
-	let close = (event) => {
+	let close = () => {
+		console.log("connection closed")
 		this.status = kDisconnected;
 		this._notify("disconnect", this);
 	}
 
-	let error = (event) => {
+	let error = () => {
 		console.error("Socket error");
 		this.sock.close();
 		this.status = kDisconnected;
@@ -71,9 +72,9 @@ function Peer(ws) {
 
 	//if undefined, client is using peer
 	if(this.sock.on === undefined){
-		console.log("THIS.SOCK", this.sock);
 		this.sock.onopen = (event) => {
-			this.sock.send(encode([1, '__handshake__']))
+			this.sock.send(encode([0, '__handshake__']));
+			console.log("socket was opened")
 		}
 	//Server is using peer
 	}else{
@@ -94,7 +95,6 @@ function Peer(ws) {
 			this.close();
 		}
 	});
-
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 }		
 
@@ -225,7 +225,7 @@ Peer.prototype.send = function(name, ...args) {
 }
 
 Peer.prototype.close = function() {
-	this.sock.close();
+	this.sock.close = close;
 	this.status = kDisconnected;
 }
 
@@ -254,5 +254,6 @@ Peer.prototype.on = function(evt, f) {
 	}
 	this.events[evt].push(f);
 }
+
 
 module.exports = Peer;
