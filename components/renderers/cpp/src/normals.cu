@@ -45,11 +45,11 @@ __global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
 	output(x,y) = make_float4(0, 0, 0, 0);
 
 	if(x > 0 && x < input.width()-1 && y > 0 && y < input.height()-1) {
-		const float3 CC = camera.screenToCam(x+0, y+0, (float)input.tex2D((int)x+0, (int)y+0) / 10000.0f);
-		const float3 PC = camera.screenToCam(x+0, y+1, (float)input.tex2D((int)x+0, (int)y+1) / 10000.0f);
-		const float3 CP = camera.screenToCam(x+1, y+0, (float)input.tex2D((int)x+1, (int)y+0) / 10000.0f);
-		const float3 MC = camera.screenToCam(x+0, y-1, (float)input.tex2D((int)x+0, (int)y-1) / 10000.0f);
-		const float3 CM = camera.screenToCam(x-1, y+0, (float)input.tex2D((int)x-1, (int)y+0) / 10000.0f);
+		const float3 CC = camera.screenToCam(x+0, y+0, (float)input.tex2D((int)x+0, (int)y+0) / 100000.0f);
+		const float3 PC = camera.screenToCam(x+0, y+1, (float)input.tex2D((int)x+0, (int)y+1) / 100000.0f);
+		const float3 CP = camera.screenToCam(x+1, y+0, (float)input.tex2D((int)x+1, (int)y+0) / 100000.0f);
+		const float3 MC = camera.screenToCam(x+0, y-1, (float)input.tex2D((int)x+0, (int)y-1) / 100000.0f);
+		const float3 CM = camera.screenToCam(x-1, y+0, (float)input.tex2D((int)x-1, (int)y+0) / 100000.0f);
 
 		//if(CC.z <  && PC.x != MINF && CP.x != MINF && MC.x != MINF && CM.x != MINF) {
 		if (isValid(camera,CC) && isValid(camera,PC) && isValid(camera,CP) && isValid(camera,MC) && isValid(camera,CM)) {
@@ -118,7 +118,7 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
 
     if(x >= depth.width() || y >= depth.height()) return;
 
-    const float3 p0 = camera.screenToCam(x,y, (float)depth.tex2D((int)x,(int)y) / 10000.0f);
+    const float3 p0 = camera.screenToCam(x,y, (float)depth.tex2D((int)x,(int)y) / 100000.0f);
     float3 nsum = make_float3(0.0f);
     float contrib = 0.0f;
 
@@ -128,7 +128,7 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
 
     for (int v=-RADIUS; v<=RADIUS; ++v) {
         for (int u=-RADIUS; u<=RADIUS; ++u) {
-            const float3 p = camera.screenToCam(x+u,y+v, (float)depth.tex2D((int)x+u,(int)y+v) / 10000.0f);
+            const float3 p = camera.screenToCam(x+u,y+v, (float)depth.tex2D((int)x+u,(int)y+v) / 100000.0f);
             if (p.z < camera.minDepth || p.z > camera.maxDepth) continue;
             const float s = ftl::cuda::spatialWeighting(p0, p, smoothing);
             //const float s = 1.0f;

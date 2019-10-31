@@ -482,7 +482,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	ftl::cuda::normals(accum_.createTexture<float4>(Channel::Normals, Format<float4>(camera.width, camera.height)),
 				temp_.createTexture<float4>(Channel::Normals),
 				temp_.getTexture<int>(Channel::Depth2),
-				1, 0.02f,
+				value("normal_radius", 1), value("normal_smoothing", 0.02f),
 				params_.camera, params_.m_viewMatrix.getFloat3x3(), params_.m_viewMatrixInverse.getFloat3x3(), stream_);
 
 	// Reprojection of colours onto surface
@@ -491,7 +491,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	if (chan == Channel::Depth)
 	{
 		// Just convert int depth to float depth
-		temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 10000.0f, cvstream);
+		temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 	} else if (chan == Channel::Normals) {
 		// Visualise normals to RGBA
 		out.create<GpuMat>(Channel::Normals, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
