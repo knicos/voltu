@@ -62,9 +62,6 @@ class Screen : public nanogui::Screen {
 	bool hasVR() const { return false; }
 #endif
 
-	void setDualView(bool v) { show_two_images_ = v; LOG(INFO) << "CLICK"; }
-	bool getDualView() { return show_two_images_; }
-
 	nanogui::Theme *windowtheme;
 	nanogui::Theme *specialtheme;
 	nanogui::Theme *mediatheme;

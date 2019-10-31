@@ -298,12 +298,9 @@ bool ftl::gui::Screen::initVR() {
 	{
 		HMD_ = nullptr;
 		LOG(ERROR) << "Unable to init VR runtime: " << vr::VR_GetVRInitErrorAsEnglishDescription(eError);
+		return false;
 	}
 
-	uint32_t size_x, size_y;
-	HMD_->GetRecommendedRenderTargetSize(&size_x, &size_y);
-	LOG(INFO) << size_x << ", " << size_y;
-	LOG(INFO) << "\n" << getCameraMatrix(HMD_, vr::Eye_Left);
 	return true;
 }
 
