@@ -2,9 +2,17 @@ import msgpack
 
 import numpy as np
 
+import sys
+import struct
+from warnings import warn
 from enum import IntEnum
 from collections import namedtuple
-from . libde265 import Decoder
+
+from . misc import is_iframe
+from . import ftltypes as ftl
+from . import libde265
+
+_calib_fmt = "@ddddIIdddd"
 
 try:
     import cv2 as cv
@@ -13,10 +21,13 @@ try:
         return cv.cvtColor(img, cv.COLOR_YCrCb2RGB)
     
 except ImportError:
+    warn("OpenCV not available. OpenCV required for full functionality.")
+
     def _ycrcb2rgb(img):
         ''' YCrCb to RGB, based on OpenCV documentation definition.
         
-        Note: It seems this implementation is not perfectly equivalent to OpenCV's
+        Note: It seems this implementation is not perfectly equivalent to
+        OpenCV's
         '''
         
         rgb = np.zeros(img.shape, np.float)
@@ -32,116 +43,126 @@ except ImportError:
 
         return rgb.round().astype(np.uint8)
 
-# FTL definitions
+class FTLStreamWriter:
+    def __init__(self, file):
+        self._file = open(file, "wb")
+        self._file.write(bytes(ord(c) for c in "FTLF")) # magic
+        self._file.write(bytes([2]))                    # version
+        self._file.write(bytes([0]*64))                 # reserved
 
-_packet = namedtuple("Packet", ["codec", "definition", "block_total", "block_number", "flags", "data"])
-_stream_packet = namedtuple("StreamPacket", ["timestamp", "streamID", "chanel_count", "channel"])
+        self._packer = msgpack.Packer(strict_types=False, use_bin_type=True)
 
-_definition_t = {
-    0 : (),
-    1 : (),
-    2 : (1080, 1920),
-    3 : (720, 1280),
-    4 : (),
-    5 : (),
-    6 : (),
-    7 : (),
-    8 : ()
-}
+    def __del__(self):
+        self.close()
 
-class NALType(IntEnum):
-    CODED_SLICE_TRAIL_N = 0
-    CODED_SLICE_TRAIL_R = 1
+    def close(self):
+        self._file.close()
 
-    CODED_SLICE_TSA_N = 2
-    CODED_SLICE_TSA_R = 3
+    def add_raw(self, sp, p):
+        if len(sp) != len(ftl.StreamPacket._fields) or len(p) != len(ftl.Packet._fields):
+           raise ValueError("invalid input")
+        
+        self._file.write(self._packer.pack((sp, p)))
+        self._file.flush()
 
-    CODED_SLICE_STSA_N = 4
-    CODED_SLICE_STSA_R = 5
+    def add_frame(self, timestamp, source, channel, channel_count, codec,  data,
+                  definition=None, flags=0, encode=True):
+        ''' Write frame to file. If encode is False (data already encoded),
+        definition needs to be specified.
+        '''
+        
+        if source < 0:
+            raise ValueError("invalid source id")
 
-    CODED_SLICE_RADL_N = 6
-    CODED_SLICE_RADL_R = 7
+        if channel not in ftl.Channel:
+            raise ValueError("invalid channel")
+        
+        if codec not in ftl.codec_t:
+            raise ValueError("invalid codec")
 
-    CODED_SLICE_RASL_N = 8
-    CODED_SLICE_RASL_R = 9
+        if encode:
+            if definition is None:
+                definition = ftl.get_definition(data.shape)
 
-    RESERVED_VCL_N10 = 10
-    RESERVED_VCL_R11 = 11
-    RESERVED_VCL_N12 = 12
-    RESERVED_VCL_R13 = 13
-    RESERVED_VCL_N14 = 14
-    RESERVED_VCL_R15 = 15
+            if definition is None:
+                raise ValueError("unsupported resolution")
+            
+            if definition != ftl.get_definition(data.shape):
+                # todo: could replace definition or scale
+                raise ValueError("definition does not match frame resolution")
 
-    CODED_SLICE_BLA_W_LP = 16
-    CODED_SLICE_BLA_W_RADL = 17
-    CODED_SLICE_BLA_N_LP = 18
-    CODED_SLICE_IDR_W_RADL = 19
-    CODED_SLICE_IDR_N_LP = 20
-    CODED_SLICE_CRA = 21
-    RESERVED_IRAP_VCL22 = 22
-    RESERVED_IRAP_VCL23 = 23
+            if codec == ftl.codec_t.PNG:
+                if ftl.is_float_channel(channel):
+                    # scaling always same (???)
+                    data = data.astype(np.float) / 1000.0
+                
+                params = [cv.IMWRITE_PNG_COMPRESSION, 9]
+                retval, data = cv.imencode(".png", data, params)
+                
+                if not retval:
+                    raise Exception("encoding error (PNG)")
+            
+            elif codec == ftl.codec_t.JPG:
+                params = []
+                retval, data = cv.imencode(".jpg", data, params)
 
-    RESERVED_VCL24 = 24
-    RESERVED_VCL25 = 25
-    RESERVED_VCL26 = 26
-    RESERVED_VCL27 = 27
-    RESERVED_VCL28 = 28
-    RESERVED_VCL29 = 29
-    RESERVED_VCL30 = 30
-    RESERVED_VCL31 = 31
+                if not retval:
+                    raise Exception("encoding error (JPG)")
+            
+            else:
+                raise ValueError("unsupported codec")
 
-    VPS = 32
-    SPS = 33
-    PPS = 34
-    ACCESS_UNIT_DELIMITER = 35
-    EOS = 36
-    EOB = 37
-    FILLER_DATA = 38
-    PREFIX_SEI = 39
-    SUFFIX_SEI = 40
+            data = data.tobytes()
+        
+        if definition is None:
+            raise ValueError("definition required")
 
-    RESERVED_NVCL41 = 41
-    RESERVED_NVCL42 = 42
-    RESERVED_NVCL43 = 43
-    RESERVED_NVCL44 = 44
-    RESERVED_NVCL45 = 45
-    RESERVED_NVCL46 = 46
-    RESERVED_NVCL47 = 47
-    UNSPECIFIED_48 = 48
-    UNSPECIFIED_49 = 49
-    UNSPECIFIED_50 = 50
-    UNSPECIFIED_51 = 51
-    UNSPECIFIED_52 = 52
-    UNSPECIFIED_53 = 53
-    UNSPECIFIED_54 = 54
-    UNSPECIFIED_55 = 55
-    UNSPECIFIED_56 = 56
-    UNSPECIFIED_57 = 57
-    UNSPECIFIED_58 = 58
-    UNSPECIFIED_59 = 59
-    UNSPECIFIED_60 = 60
-    UNSPECIFIED_61 = 61
-    UNSPECIFIED_62 = 62
-    UNSPECIFIED_63 = 63
-    INVALID = 64
+        if not isinstance(data, bytes):
+            raise ValueError("expected bytes")
 
-def get_NAL_type(data):
-    if not isinstance(data, bytes):
-        raise ValueError("expected bytes")
+        sp = ftl.StreamPacket(int(timestamp), int(source),
+                              int(channel_count), int(channel))
+        p = ftl.Packet(int(codec), int(definition), 1, 0, int(flags), data)
+
+        self.add_raw(sp, p)
+
+    def add_pose(self, timestamp, source, data):
+        if data.shape != (4, 4):
+            raise ValueError("invalid pose")
+
+        data.astype(np.float64).tobytes(order='F')
+        raise NotImplementedError("todo")
+
+    def add_calibration(self, timestamp, source, data):
+        struct.pack(_calib_fmt, *data)
+        raise NotImplementedError("todo")
+
+class FTLStreamReader:
+    ''' FTL file reader. '''
     
-    return NALType((data[4] >> 1) & 0x3f)
-
-class FTLStream:
     def __init__(self, file):
         self._file = open(file, "br")
-        self._decoders = {}
-        self._frames = {}
+        self._version = 0
+
+        self._decoders_hevc = {}
+        self._seen_iframe = set()
+
+        self._frame = None
         
+        # calibration and pose are cached
+        self._calibration = {}
+        self._pose = {}
+
         try:
             magic = self._file.read(5)
-            if magic[:4] != bytearray(ord(c) for c in "FTLF"):
+            self._version = int(magic[4])
+            if magic[:4] != bytes(ord(c) for c in "FTLF"):
                 raise Exception("wrong magic")
             
+            if self._version >= 2:
+                # first 64 bytes reserved
+                self._file.read(8*8)
+
             self._unpacker = msgpack.Unpacker(self._file, raw=True, use_list=False)
             
         except Exception as ex:
@@ -155,92 +176,181 @@ class FTLStream:
     
     def _read_next(self):
         v1, v2 = self._unpacker.unpack()
-        return _stream_packet._make(v1), _packet._make(v2)
+        return ftl.StreamPacket._make(v1), ftl.Packet._make(v2)
     
     def _update_calib(self, sp, p):
-        ''' Update calibration '''
-        pass
-    
+        ''' Update calibration. '''
+        calibration = struct.unpack(_calib_fmt, p.data[:(4*8+2*4+4*8)])
+        self._calibration[sp.streamID] = ftl.Camera._make(calibration)
+
     def _update_pose(self, sp, p):
         ''' Update pose '''
-        pass
+        pose = np.asarray(struct.unpack("@16d", p.data[:(16*8)]),
+                          dtype=np.float64)
+        pose = pose.reshape((4, 4), order='F') # Eigen
+        self._pose[sp.streamID] = pose
     
-    def _decode_frame_hevc(self, sp, p):
+    def _process_json(self, sp, p):
+        raise NotImplementedError("json decoding not implemented")
+
+    def _decode_hevc(self, sp, p):
         ''' Decode HEVC frame '''
         
         k = (sp.streamID, sp.channel)
         
-        if k not in self._decoders:
-            self._decoders[k] = Decoder(_definition_t[p.definition])
+        if k not in self._decoders_hevc:
+            self._decoders_hevc[k] = libde265.Decoder(ftl.definition_t[p.definition])
         
-        decoder = self._decoders[k]
+        decoder = self._decoders_hevc[k]
+
+        if k not in self._seen_iframe:
+            if not is_iframe(p.data):
+                # can't decode before first I-frame has been received
+                warn("received P-frame before I-frame")
+                return
+            
+            self._seen_iframe.add(k)
         
         decoder.push_data(p.data)
-        decoder.decode()
+        decoder.push_end_of_frame()
+        
+        while decoder.get_number_of_input_bytes_pending() > 0:
+            decoder.decode()
         
         img = decoder.get_next_picture()
+        if img is None:
+            # if this happens, does get_next_picture() in loop help?
+            warn("frame expected, no image from decoded")
         
-        if img is not None:
-            self._frames[k] = _ycrcb2rgb(img)
-    
-    def _flush_decoders(self):
-        for decoder in self._decoders.values():
-            decoder.flush_data()
-    
+        if ftl.is_float_channel(self._sp.channel):
+            raise NotImplementedError("non-color channel decoding not available")
+        
+        else:
+            self._frame = _ycrcb2rgb(img)
+
+    def _decode_opencv(self, sp, p):
+        try:
+            cv
+        except NameError:
+            raise Exception("OpenCV required for OpenCV (png/jpeg) decoding")
+
+        self._frame = cv.imdecode(np.frombuffer(p.data, dtype=np.uint8),
+                                  cv.IMREAD_UNCHANGED)
+
+        if ftl.is_float_channel(self._sp.channel):
+            self._frame = self._frame.astype(np.float) / 1000.0
+
+    def seek(self, ts):
+        ''' Read until timestamp reached '''
+        if self.get_timestamp() >= ts:
+            raise Exception("trying to seek to earlier timestamp")
+        
+        while self.read():
+            if self.get_timestamp() >= ts:
+                break
+
     def read(self):
         '''
         Reads data for until the next timestamp. Returns False if there is no
         more data to read, otherwise returns True.
+
+        todo: make decoding optional
         '''
-        if self._packets_read == 0:
+        self._frame = None
+
+        try:
             self._sp, self._p = self._read_next()
             self._packets_read += 1
-            
-        self._frames = {}
         
-        ts = self._sp.timestamp
-        ex = None
-        
-        while self._sp.timestamp == ts:
-            try:
-                if self._p.codec == 100: # JSON
-                    NotImplementedError("json decoding not implemented")
+        except msgpack.OutOfData:
+            return False
 
-                elif self._p.codec == 101: # CALIBRATION
-                    self._update_calib(self._sp, self._p)
+        if self._p.block_total != 1 or self._p.block_number != 0:
+            raise Exception("Unsupported block format (todo)")
 
-                elif self._p.codec == 102: # POSE
-                    self._update_pose(self._sp, self._p)
+        if self._p.codec == ftl.codec_t.JSON:
+            self._process_json(self._sp, self._p)
 
-                elif self._p.codec == 3: # HEVC
-                    self._decode_frame_hevc(self._sp, self._p)
+        elif self._p.codec == ftl.codec_t.CALIBRATION:
+            self._update_calib(self._sp, self._p)
 
-                else:
-                    raise ValueError("unkowno codec %i" % p.codec)
-            
-            except Exception as e:
-                # TODO: Multiple exceptions possible. Re-design read()?
-                ex = e
-            
-            try:
-                self._sp, self._p = self._read_next()
-                self._packets_read += 1
-            
-            except msgpack.OutOfData:
-                return False
-            
-        if ex is not None:
-            raise ex
-            
-        return True
-    
-    def get_frames(self):
-        ''' Returns all frames '''
-        return self._frames
-    
-    def get_frame(self, source, channel):
-        k = (source, channel)
-        if k in self._frames:
-            return self._frames[k]
+        elif self._p.codec == ftl.codec_t.POSE:
+            self._update_pose(self._sp, self._p)
+
+        elif self._p.codec == ftl.codec_t.HEVC:
+            self._decode_hevc(self._sp, self._p)
+
+        elif self._p.codec == ftl.codec_t.PNG:
+            self._decode_opencv(self._sp, self._p)
+
+        elif self._p.codec == ftl.codec_t.JPG:
+            self._decode_opencv(self._sp, self._p)
+
         else:
-            return None
+            raise Exception("unkowno codec %i" % self._p.codec)
+
+        return True
+
+    def get_packet_count(self):
+        return self._packets_read
+
+    def get_raw(self):
+        ''' Returns previously received StreamPacket and Packet '''
+        return self._sp, self._p
+
+    def get_channel_type(self):
+        return ftl.Channel(self._sp.channel)
+
+    def get_source_id(self):
+        return self._sp.streamID
+
+    def get_timestamp(self):
+        return self._sp.timestamp
+
+    def get_frame(self):
+        ''' Return decoded frame from previous packet. Returns None if previous
+        packet did not contain a (valid) frame. '''
+        return self._frame
+
+    def get_pose(self, source):
+        try:
+            return self._pose[source]
+        except KeyError:
+            raise ValueError("source id %i not found" % source)
+
+    def get_camera_matrix(self, source):
+        ''' Camera intrinsic parameters '''
+
+        calib = self.get_calibration(source)
+        K = np.identity(3, dtype=np.float64)
+        K[0,0] = calib.fx
+        K[1,1] = calib.fy
+        K[0,2] = calib.cx
+        K[1,2] = calib.cy
+        return K
+
+    def get_calibration(self, source):
+        try:
+            return self._calibration[source]
+        except KeyError:
+            raise ValueError("source id %i not found" % source)
+    
+    def get_Q(self, source):
+        ''' Disparity to depth matrix in OpenCV format '''
+
+        calib = self.get_calibration(source)
+        Q = np.identity(4, dtype=np.float64)
+        Q[0,3] = calib.cx
+        Q[1,3] = calib.cy
+        Q[2,2] = 0.0
+        Q[2,3] = calib.fx
+        Q[3,2] = -1 / calib.baseline
+        Q[3,3] = calib.doff
+        return Q
+
+    def get_sources(self):
+        ''' Get list of sources '''
+        return list(self._calibration.keys())
+
+    def get_version(self):
+        return self._version
