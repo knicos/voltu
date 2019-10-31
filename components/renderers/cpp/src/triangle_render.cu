@@ -3,6 +3,8 @@
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
 
+#include <ftl/cuda/weighting.hpp>
+
 using ftl::rgbd::Camera;
 using ftl::cuda::TextureObject;
 using ftl::render::SplatParams;
@@ -160,5 +162,41 @@ void ftl::cuda::triangle_render1(TextureObject<float> &depth_in, TextureObject<i
 	triangle_render_1_kernel<1,-1><<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
 	triangle_render_1_kernel<-1,1><<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
 	triangle_render_1_kernel<-1,-1><<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
+    cudaSafeCall( cudaGetLastError() );
+}
+
+// ==== BLENDER ========
+
+/*
+ * Merge two depth maps together
+ */
+ __global__ void mesh_blender_kernel(
+        TextureObject<int> depth_in,
+		TextureObject<int> depth_out,
+		ftl::rgbd::Camera camera,
+		float alpha) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if (x < 0 || x >= depth_in.width() || y < 0 || y >= depth_in.height()) return;
+
+	int a = depth_in.tex2D(x,y);
+	int b = depth_out.tex2D(x,y);
+
+	float mindepth = (float)min(a,b) / 100000.0f;
+	float maxdepth = (float)max(a,b) / 100000.0f;
+	float weight = ftl::cuda::weighting(maxdepth-mindepth, alpha);
+
+	//depth_out(x,y) = (int)(((float)mindepth + (float)maxdepth*weight) / (1.0f + weight) * 100000.0f);
+
+	float depth = (mindepth + maxdepth*weight) / (1.0f + weight);
+	depth_out(x,y) = (int)(depth * 100000.0f);
+}
+
+void ftl::cuda::mesh_blender(TextureObject<int> &depth_in, TextureObject<int> &depth_out, const ftl::rgbd::Camera &camera, float alpha, cudaStream_t stream) {
+    const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	mesh_blender_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, camera, alpha);
     cudaSafeCall( cudaGetLastError() );
 }
