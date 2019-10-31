@@ -21,6 +21,13 @@ namespace cuda {
 		ftl::cuda::TextureObject<short2> &screen,
 		const ftl::render::SplatParams &params,
 		cudaStream_t stream);
+
+	void mesh_blender(
+		ftl::cuda::TextureObject<int> &depth_in,
+		ftl::cuda::TextureObject<int> &depth_out,
+		const ftl::rgbd::Camera &camera,
+		float alpha,
+		cudaStream_t stream);
 	
 	void dibr_merge(
 		ftl::cuda::TextureObject<float4> &points,

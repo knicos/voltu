@@ -292,8 +292,17 @@ void Triangular::_dibr(cudaStream_t stream) {
 
 void Triangular::_mesh(cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 
+	bool do_blend = value("mesh_blend", true);
+	float blend_alpha = value("blend_alpha", 0.02f);
+	if (do_blend) {
+		temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+	} else {
+		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+	}
+
+	// For each source depth map
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
 		auto *s = scene_->sources[i];
@@ -305,6 +314,7 @@ void Triangular::_mesh(cudaStream_t stream) {
 
 		auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>());
 
+		// Calculate and save virtual view screen position of each source pixel
 		ftl::cuda::screen_coord(
 			f.createTexture<float>(Channel::Depth),
 			f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Depth).size())),
@@ -312,14 +322,29 @@ void Triangular::_mesh(cudaStream_t stream) {
 			params_, pose, s->parameters(), stream
 		);
 
+		// Must reset depth channel if blending
+		if (do_blend) {
+			temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+		}
+
+		// Decide on and render triangles around each point
 		ftl::cuda::triangle_render1(
 			f.getTexture<float>(Channel::Depth2),
-			temp_.createTexture<int>(Channel::Depth2),
+			temp_.createTexture<int>((do_blend) ? Channel::Depth : Channel::Depth2),
 			f.getTexture<short2>(Channel::Screen),
 			params_, stream
 		);
 
-		//LOG(INFO) << "DIBR DONE";
+		if (do_blend) {
+			// Blend this sources mesh with previous meshes
+			ftl::cuda::mesh_blender(
+				temp_.getTexture<int>(Channel::Depth),
+				temp_.createTexture<int>(Channel::Depth2),
+				params_.camera,
+				blend_alpha,
+				stream
+			);
+		}
 	}
 }
 
