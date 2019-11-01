@@ -24,6 +24,7 @@ enum struct Channel : int {
     Contribution	= 7,	// 32F
     EnergyVector	= 8,	// 32FC4
     Flow			= 9,	// 32F
+    Smoothing       = 9,    // 32F
     Energy			= 10,	// 32F
 	Mask			= 11,	// 32U
 	Density			= 12,	// 32F
@@ -124,6 +125,7 @@ inline bool isFloatChannel(ftl::codecs::Channel chan) {
 	case Channel::Depth		:
     //case Channel::Normals   :
 	case Channel::Confidence:
+    case Channel::Flow      :
 	case Channel::Density:
 	case Channel::Energy	: return true;
 	default					: return false;

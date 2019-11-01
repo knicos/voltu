@@ -121,7 +121,7 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
     d[2] = depth_in.tex2D(x,y+B);
 
     // Is this triangle valid
-	if (fabs(d[0] - d[1]) > 0.04f || fabs(d[0] - d[2]) > 0.04f) return;
+	if (fabs(d[0] - d[1]) > params.depthThreshold || fabs(d[0] - d[2]) > params.depthThreshold) return;
 	if (d[0] < params.camera.minDepth || d[0] > params.camera.maxDepth) return;
 
     short2 v[3];
@@ -138,7 +138,7 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
 	const int maxY = max(v[0].y, max(v[1].y, v[2].y));
 
 	// Remove really large triangles
-	if ((maxX - minX) * (maxY - minY) > 200) return;
+	if ((maxX - minX) * (maxY - minY) > params.triangle_limit) return;
 
 	for (int sy=minY; sy <= maxY; ++sy) {
 		for (int sx=minX; sx <= maxX; ++sx) {

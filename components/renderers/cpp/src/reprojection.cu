@@ -93,6 +93,8 @@ __global__ void reprojection_kernel(
     
 	const float d2 = depth_src.tex2D((int)screenPos.x, (int)screenPos.y);
 	const A input = in.tex2D((int)screenPos.x, (int)screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+
+	// TODO: Z checks need to interpolate between neighbors if large triangles are used
 	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
 
 	/* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */

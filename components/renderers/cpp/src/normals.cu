@@ -63,6 +63,34 @@ __global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
 	}
 }
 
+__global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
+        ftl::cuda::TextureObject<float> input, ftl::rgbd::Camera camera) {
+    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if(x >= input.width() || y >= input.height()) return;
+
+    output(x,y) = make_float4(0, 0, 0, 0);
+
+    if(x > 0 && x < input.width()-1 && y > 0 && y < input.height()-1) {
+        const float3 CC = camera.screenToCam(x+0, y+0, input.tex2D((int)x+0, (int)y+0));
+        const float3 PC = camera.screenToCam(x+0, y+1, input.tex2D((int)x+0, (int)y+1));
+        const float3 CP = camera.screenToCam(x+1, y+0, input.tex2D((int)x+1, (int)y+0));
+        const float3 MC = camera.screenToCam(x+0, y-1, input.tex2D((int)x+0, (int)y-1));
+        const float3 CM = camera.screenToCam(x-1, y+0, input.tex2D((int)x-1, (int)y+0));
+
+        //if(CC.z <  && PC.x != MINF && CP.x != MINF && MC.x != MINF && CM.x != MINF) {
+        if (isValid(camera,CC) && isValid(camera,PC) && isValid(camera,CP) && isValid(camera,MC) && isValid(camera,CM)) {
+            const float3 n = cross(PC-MC, CP-CM);
+            const float  l = length(n);
+
+            if(l > 0.0f) {
+                output(x,y) = make_float4((n/-l), 1.0f);
+            }
+        }
+    }
+}
+
 template <int RADIUS>
 __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
         ftl::cuda::TextureObject<float4> output,
@@ -236,6 +264,22 @@ void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
 	cudaSafeCall(cudaDeviceSynchronize());
 	//cutilCheckMsg(__FUNCTION__);
 	#endif
+}
+
+void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
+        ftl::cuda::TextureObject<float> &input,
+        const ftl::rgbd::Camera &camera,
+        cudaStream_t stream) {
+    const dim3 gridSize((input.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (input.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    computeNormals_kernel<<<gridSize, blockSize, 0, stream>>>(output, input, camera);
+    cudaSafeCall( cudaGetLastError() );
+
+    #ifdef _DEBUG
+    cudaSafeCall(cudaDeviceSynchronize());
+    //cutilCheckMsg(__FUNCTION__);
+    #endif
 }
 
 //==============================================================================
