@@ -205,6 +205,10 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 	left_pixels.setTo(0);
 	cv::cuda::threshold(dispt_, dispt_, 4096.0f, 0.0f, cv::THRESH_TOZERO_INV, stream);
 
+	#ifdef HAVE_OPTFLOW
+		if (use_off_) { off_.filter(frame, stream); }
+	#endif
+
 	// TODO: filter could be applied after upscaling (to the upscaled disparity image)
 	if (use_filter_)
 	{
@@ -228,9 +232,6 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 
 	dispt_scaled.convertTo(disp, CV_32F, 1.0f / 16.0f, stream);
 
-#ifdef HAVE_OPTFLOW
-	if (use_off_) { off_.filter(frame, stream); }
-#endif
 }
 
 void FixstarsSGM::setMask(Mat &mask) {
