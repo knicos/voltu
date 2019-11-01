@@ -154,6 +154,7 @@ bool FixstarsSGM::updateOFDisparityFilter() {
 	}
 	
 	if (enable) {
+		LOG(INFO) << "Optical flow filter, size: " << off_size << ", threshold: " << off_threshold;
 		off_ = ftl::rgbd::OFDisparityFilter(size_, off_size, off_threshold);
 		use_off_ = true;
 	}
@@ -206,7 +207,11 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 	cv::cuda::threshold(dispt_, dispt_, 4096.0f, 0.0f, cv::THRESH_TOZERO_INV, stream);
 
 	#ifdef HAVE_OPTFLOW
-		if (use_off_) { off_.filter(frame, stream); }
+	if (use_off_) {	
+		frame.upload(Channel::Flow, stream);
+		stream.waitForCompletion();
+		off_.filter(dispt_, frame.get<GpuMat>(Channel::Flow), stream);
+	}
 	#endif
 
 	// TODO: filter could be applied after upscaling (to the upscaled disparity image)

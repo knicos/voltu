@@ -17,6 +17,7 @@ public:
 	OFDisparityFilter() : n_max_(0), threshold_(0.0) {}
 	OFDisparityFilter(cv::Size size, int n_frames, float threshold);
 	void filter(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream);
+	void filter(cv::cuda::GpuMat &disp, cv::cuda::GpuMat &optflow, cv::cuda::Stream &stream);
 
 private:
 	int n_max_;

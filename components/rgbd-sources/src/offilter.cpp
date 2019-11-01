@@ -39,4 +39,9 @@ void OFDisparityFilter::filter(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream
 	ftl::cuda::optflow_filter(disp, optflow, disp_old_, n_max_, threshold_, stream);
 }
 
+void OFDisparityFilter::filter(cv::cuda::GpuMat &disp, cv::cuda::GpuMat &optflow, cv::cuda::Stream &stream)
+{
+	ftl::cuda::optflow_filter(disp, optflow, disp_old_, n_max_, threshold_, stream);
+}
+
 #endif  // HAVE_OPTFLOW
