@@ -58,14 +58,56 @@ using ftl::registration::loadTransformations;
 using ftl::registration::saveTransformations;
 
 static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
-  Eigen::Affine3d rx =
-      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
-  Eigen::Affine3d ry =
-      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
-  Eigen::Affine3d rz =
-      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
-  return rz * rx * ry;
+	Eigen::Affine3d rx =
+		Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+	Eigen::Affine3d ry =
+		Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+	Eigen::Affine3d rz =
+		Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+	return rz * rx * ry;
 }
+
+// TODO:	Remove this class (requires more general solution). Also does not
+//		 	process disconnections/reconnections/types etc. correctly.
+class ConfigProxy {
+	private:
+	vector<ftl::UUID> peers_;
+	vector<std::string> uris_;
+	ftl::net::Universe *net_;
+	
+	public:
+	ConfigProxy(ftl::net::Universe *net) {
+		net_ = net;
+
+		auto response = net_->findAll<std::string>("node_details");
+		for (auto &r : response) {
+			auto r_json = json_t::parse(r);
+			peers_.push_back(ftl::UUID(r_json["id"].get<std::string>()));
+			uris_.push_back(r_json["title"].get<std::string>());
+		}
+	}
+
+	void add(ftl::Configurable *root, const std::string &uri, const std::string &name) {
+		auto config = json_t::parse(net_->call<string>(peers_[0], "get_cfg", uris_[0] + "/" + uri));
+		auto *proxy = ftl::create<ftl::Configurable>(root, name);
+		
+		for (auto &itm : config.get<json::object_t>()) {
+			auto key = itm.first;
+			auto value = itm.second;
+			if (*key.begin() == '$') { continue; }
+
+			proxy->set(key, value);
+			proxy->on(key, [this, uri, key, value, proxy](const ftl::config::Event&) {
+				for (size_t i = 0; i < uris_.size(); i++) {
+					// TODO: check that config exists?
+					auto peer = peers_[i];
+					std::string name = uris_[i] + "/" + uri + "/" + key;
+					net_->send(peer, "update_cfg", name, proxy->getConfig()[key].dump());
+				}
+			});
+		}
+	}
+};
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
@@ -116,6 +158,9 @@ static void run(ftl::Configurable *root) {
 		LOG(ERROR) << "No sources configured!";
 		return;
 	}
+
+	auto configproxy = ConfigProxy(net);
+	configproxy.add(root, "source/disparity", "disparity");
 
 	// Create scene transform, intended for axis aligning the walls and floor
 	Eigen::Matrix4d transform;
