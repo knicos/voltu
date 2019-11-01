@@ -140,11 +140,21 @@ createCard = (url, viewers) => {
 // }
 
 
+createPeer = () => {
+    const ws = new WebSocket('ws://localhost:8080/');
+    ws.binaryType = "arraybuffer";
+    peer = new Peer(ws)
+}
+
+/**
+ *setTimeout 1s, ask for the amount of frames user has selected
+ *
+ *@param uri the uri where that should be called
+ * 
+ * */
 connectToStream = () => {
-    const ws = new WebSocket('ws://localhost:8080/')
-    current_data.peer = new Peer(ws);
-    console.log("currentData", current_data.peer)
-    //setTimeout 1s, ask for the amount of frames user has selected
+    peer.send("__ping__")
+    console.log(peer);
 }
 
 const cardLogic = () => {

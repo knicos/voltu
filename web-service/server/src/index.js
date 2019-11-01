@@ -194,7 +194,6 @@ app.get('/stream/rgb', (req, res) => {
 	if (uri_data.hasOwnProperty(uri)) {
 		uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
-		console.log("URIDATA", uri_data[uri].rgb);
 		res.end(uri_data[uri].rgb);
 	}
 	res.end();
@@ -367,7 +366,7 @@ app.ws('/', (ws, req) => {
 	
 	let p = new Peer(ws);
 	peer_data.push(p);
-	//console.log(peer_data)
+	// console.log(peer_data)
 
 	p.on("connect", (peer) => {
 		console.log("Node connected...", peer.string_id);
@@ -409,6 +408,7 @@ app.ws('/', (ws, req) => {
 
 	// Used to sync clocks
 	p.bind("__ping__", () => {
+		console.log(peer_data)
 		return Date.now();
 	});
 

@@ -4283,16 +4283,20 @@ function Peer(ws) {
 
 	let message = (raw) => {
 		console.log(raw)
+		//Gets right data for client
+		if(this.sock.on === undefined){
+			raw = raw.data;
+		}
 		let msg = decode(raw);
-		console.log("MSG", msg)
+		console.log('MSG', msg)
 		if (this.status == kConnecting) {
 			if (msg[1] != "__handshake__") {
 				console.log("Bad handshake");
 				this.close();
 			}
 		}
-		//console.log("MSG", msg);
 		if (msg[0] == 0) {
+			console.log("MSG", msg[1]);
 			// Notification
 			if (msg.length == 3) {
 				this._dispatchNotification(msg[1], msg[2]);
@@ -4316,17 +4320,13 @@ function Peer(ws) {
 		this.status = kDisconnected;
 	}
 
-	//if undefined, client is using peer
+	//if undefined, peer is being used by client
 	if(this.sock.on === undefined){
-		console.log("THIS.SOCK", this.sock);
+		this.sock.onmessage = message;
 		this.sock.onopen = (event) => {
-			console.log("socket opened")
-			this.sock.send(encode([0, '__handshake__']));
-			this.sock.send('get_stream');
+			this.sock.send(encode([0, "__handshake__"]))
 		}
-		this.sock.onerror = error;
-		console.log("Ready state", this.sock)
-	//Server is using peer
+	//else peer is being used by server
 	}else{
 		this.sock.on("message", message);
 		this.sock.on("close", close);
@@ -4475,7 +4475,7 @@ Peer.prototype.send = function(name, ...args) {
 }
 
 //This was a problem and needed to change it so that
-//this.sock.close() can only be called by server (!=undefined)
+//this.sock.close() can only be called by server (this.sock.on !== undefined)
 Peer.prototype.close = function() {
 	if(this.sock.on !== undefined){
 		this.sock.close();
@@ -4656,11 +4656,21 @@ createCard = (url, viewers) => {
 // }
 
 
+createPeer = () => {
+    const ws = new WebSocket('ws://localhost:8080/');
+    ws.binaryType = "arraybuffer";
+    peer = new Peer(ws)
+}
+
+/**
+ *setTimeout 1s, ask for the amount of frames user has selected
+ *
+ *@param uri the uri where that should be called
+ * 
+ * */
 connectToStream = () => {
-    const ws = new WebSocket('ws://localhost:8080/')
-    current_data.peer = new Peer(ws);
-    console.log("currentData", current_data.peer)
-    //setTimeout 1s, ask for the amount of frames user has selected
+    peer.send("__ping__")
+    console.log(peer);
 }
 
 const cardLogic = () => {
