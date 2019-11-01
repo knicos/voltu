@@ -168,20 +168,6 @@ bool FixstarsSGM::updateOFDisparityFilter() {
 
 void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 {
-	/*if (!frame.hasChannel(ftl::rgbd::kChanLeftGray))
-	{
-		auto &rgb = frame.getChannel<GpuMat>(ftl::rgbd::kChanLeft, stream);
-		auto &gray = frame.setChannel<GpuMat>(ftl::rgbd::kChanLeftGray);
-		cv::cuda::cvtColor(rgb, gray, cv::COLOR_BGR2GRAY, 0, stream);
-	}
-
-	if (!frame.hasChannel(ftl::rgbd::kChanRightGray))
-	{
-		auto &rgb = frame.getChannel<GpuMat>(ftl::rgbd::kChanRight, stream);
-		auto &gray = frame.setChannel<GpuMat>(ftl::rgbd::kChanRightGray);
-		cv::cuda::cvtColor(rgb, gray, cv::COLOR_BGR2GRAY, 0, stream);
-	}*/
-
 	const auto &l = frame.get<GpuMat>(Channel::Left);
 	const auto &r = frame.get<GpuMat>(Channel::Right);
 	auto &disp = frame.create<GpuMat>(Channel::Disparity, Format<float>(l.size()));
@@ -202,28 +188,9 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 
 	stream.waitForCompletion();
 	ssgm_->execute(lbw_.data, rbw_.data, dispt_.data);
-	GpuMat left_pixels(dispt_, cv::Rect(0, 0, max_disp_, dispt_.rows));
-	left_pixels.setTo(0);
+	// GpuMat left_pixels(dispt_, cv::Rect(0, 0, max_disp_, dispt_.rows));
+	// left_pixels.setTo(0);
 	cv::cuda::threshold(dispt_, dispt_, 4096.0f, 0.0f, cv::THRESH_TOZERO_INV, stream);
-
-	#ifdef HAVE_OPTFLOW
-	if (use_off_) {	
-		frame.upload(Channel::Flow, stream);
-		stream.waitForCompletion();
-		off_.filter(dispt_, frame.get<GpuMat>(Channel::Flow), stream);
-	}
-	#endif
-
-	// TODO: filter could be applied after upscaling (to the upscaled disparity image)
-	if (use_filter_)
-	{
-		filter_->apply(
-			dispt_,
-			(l.size() == size_) ? l : l_scaled,
-			dispt_,
-			stream
-		);
-	}
 
 	GpuMat dispt_scaled;
 	if (l.size() != size_)
@@ -235,8 +202,27 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 		dispt_scaled = dispt_;
 	}
 
+	// TODO: filter could be applied after upscaling (to the upscaled disparity image)
+	if (use_filter_)
+	{
+		filter_->apply(
+			dispt_,
+			l,
+			dispt_,
+			stream
+		);
+	}
+	
 	dispt_scaled.convertTo(disp, CV_32F, 1.0f / 16.0f, stream);
 
+#ifdef HAVE_OPTFLOW
+	// TODO: Optical flow filter expects CV_32F
+	if (use_off_) {
+		frame.upload(Channel::Flow, stream);
+		stream.waitForCompletion();
+		off_.filter(disp, frame.get<GpuMat>(Channel::Flow), stream);
+	}
+#endif
 }
 
 void FixstarsSGM::setMask(Mat &mask) {
