@@ -406,6 +406,8 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 	// Parameters object to pass to CUDA describing the camera
 	SplatParams &params = params_;
+	params.triangle_limit = value("triangle_limit", 200);
+	params.depthThreshold = value("depth_threshold", 0.04f);
 	params.m_flags = 0;
 	//if () params.m_flags |= ftl::render::kShowDisconMask;
 	if (value("normal_weight_colours", true)) params.m_flags |= ftl::render::kNormalWeightColours;
@@ -478,7 +480,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	if (aligned_source >= 0 && aligned_source < scene_->frames.size()) {
 		// FIXME: Output may not be same resolution as source!
 		cudaSafeCall(cudaStreamSynchronize(stream_));
-		scene_->frames[aligned_source].copyTo(Channel::Depth + Channel::Colour, out);
+		scene_->frames[aligned_source].copyTo(Channel::Depth + Channel::Colour + Channel::Smoothing, out);
 
 		if (chan == Channel::Normals) {
 			// Convert normal to single float value

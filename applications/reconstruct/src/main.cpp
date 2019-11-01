@@ -30,7 +30,8 @@
 #include <opencv2/opencv.hpp>
 #include <ftl/net/universe.hpp>
 
-#include "filters/smoothing.hpp"
+#include <ftl/filters/smoothing.hpp>
+#include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
 
 #include <cuda_profiler_api.h>
@@ -245,11 +246,11 @@ static void run(ftl::Configurable *root) {
 
 	bool busy = false;
 
-	auto *filter = ftl::config::create<ftl::Configurable>(root, "filters");
+	auto *smooth = ftl::config::create<ftl::DepthSmoother>(root, "filters");
 
 	group->setLatency(4);
 	group->setName("ReconGroup");
-	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls,filter](ftl::rgbd::FrameSet &fs) -> bool {
+	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls,smooth](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
 
 		//if (slave.isPaused()) return true;
@@ -264,7 +265,7 @@ static void run(ftl::Configurable *root) {
 		// Swap the entire frameset to allow rapid return
 		fs.swapTo(scene_A);
 
-		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align, filter](int id) {
+		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align, smooth](int id) {
 			//cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
 			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
@@ -272,13 +273,14 @@ static void run(ftl::Configurable *root) {
 			UNIQUE_LOCK(scene_A.mtx, lk);
 
 			cv::cuda::GpuMat tmp;
-			float factor = filter->value("smooth_factor", 0.4f);
+			/*float factor = filter->value("smooth_factor", 0.4f);
 			float colour_limit = filter->value("colour_limit", 30.0f);
 			bool do_smooth = filter->value("pre_smooth", false);
 			int iters = filter->value("iterations", 3);
 			int radius = filter->value("radius", 5);
+			float var_thesh = filter->value("variance_threshold", 0.02f);*/
 
-			if (do_smooth) {
+			//if (do_smooth) {
 				// Presmooth...
 				for (int i=0; i<scene_A.frames.size(); ++i) {
 					auto &f = scene_A.frames[i];
@@ -294,15 +296,27 @@ static void run(ftl::Configurable *root) {
 						cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA, 0);
 					}
 
-					ftl::cuda::depth_smooth(
+					smooth->smooth(f, s);
+
+					/*ftl::cuda::smoothing_factor(
+						f.createTexture<float>(Channel::Depth),
+						f.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+						f.createTexture<float>(Channel::Energy, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+						//f.createTexture<uchar4>(Channel::Colour),
+						f.createTexture<float>(Channel::Smoothing, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+						var_thesh,
+						s->parameters(), 0
+					);*/
+
+					/*ftl::cuda::depth_smooth(
 						f.createTexture<float>(Channel::Depth),
 						f.createTexture<uchar4>(Channel::Colour),
 						f.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 						s->parameters(),
 						radius, factor, colour_limit, iters, 0
-					);
+					);*/
 				}
-			}
+			//}
 
 			// Send all frames to GPU, block until done?
 			//scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.

@@ -433,6 +433,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		cv::Mat tmp;
 
 		switch(channel_) {
+			case Channel::Smoothing:
 			case Channel::Confidence:
 				if (im2_.rows == 0) { break; }
 				visualizeEnergy(im2_, tmp, 1.0);
@@ -462,7 +463,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				texture2_.update(tmp);*/
 				break;
 
-		case Channel::Flow:
+		//case Channel::Flow:
 		case Channel::Normals:
 		case Channel::Right:
 				if (im2_.rows == 0 || im2_.type() != CV_8UC3) { break; }

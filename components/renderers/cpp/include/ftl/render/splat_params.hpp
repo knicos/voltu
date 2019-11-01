@@ -18,6 +18,7 @@ struct __align__(16) SplatParams {
 	uint m_flags;
 	//float voxelSize;
 	float depthThreshold;
+	int triangle_limit;
 
 	ftl::rgbd::Camera camera;
 };
