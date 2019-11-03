@@ -493,8 +493,8 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 
-}).call(this,{"isBuffer":require("../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js")})
-},{"../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js":33}],3:[function(require,module,exports){
+}).call(this,{"isBuffer":require("../../../../../../../../../usr/local/lib/node_modules/watchify/node_modules/is-buffer/index.js")})
+},{"../../../../../../../../../usr/local/lib/node_modules/watchify/node_modules/is-buffer/index.js":33}],3:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -4324,13 +4324,15 @@ function Peer(ws) {
 	if(this.sock.on === undefined){
 		this.sock.onmessage = message;
 		this.sock.onopen = (event) => {
-			this.sock.send(encode([0, "__handshake__"]))
+			console.log("piippiip")
+			this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 		}
 	//else peer is being used by server
 	}else{
 		this.sock.on("message", message);
 		this.sock.on("close", close);
 		this.sock.on("error", error);
+		this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 	}
 
 	this.bind("__handshake__", (magic, version, id) => {
@@ -4345,7 +4347,7 @@ function Peer(ws) {
 			this.close();
 		}
 	});
-	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
+	// this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 }		
 
 
@@ -4660,6 +4662,7 @@ createPeer = () => {
     const ws = new WebSocket('ws://localhost:8080/');
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
+    console.log("peer", peer)
 }
 
 /**
@@ -4669,8 +4672,8 @@ createPeer = () => {
  * 
  * */
 connectToStream = () => {
-    peer.send("__ping__")
-    console.log(peer);
+    const data = peer.send("node_details")
+    console.log(data);
 }
 
 const cardLogic = () => {

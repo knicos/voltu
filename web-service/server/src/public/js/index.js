@@ -144,6 +144,7 @@ createPeer = () => {
     const ws = new WebSocket('ws://localhost:8080/');
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
+    console.log("peer", peer)
 }
 
 /**
@@ -153,8 +154,8 @@ createPeer = () => {
  * 
  * */
 connectToStream = () => {
-    peer.send("__ping__")
-    console.log(peer);
+    const data = peer.send("node_details")
+    console.log(data);
 }
 
 const cardLogic = () => {
