@@ -6,6 +6,8 @@ using ftl::cuda::TextureObject;
 
 #define T_PER_BLOCK 8
 
+// ===== Colour-based Smooth ===================================================
+
 template <int RADIUS>
 __global__ void depth_smooth_kernel(
 		ftl::cuda::TextureObject<float> depth_in,

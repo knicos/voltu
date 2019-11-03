@@ -208,6 +208,51 @@ __global__ void smooth_normals_kernel<0>(ftl::cuda::TextureObject<float4> norms,
     output(x,y) = n;
 }
 
+template <int RADIUS>
+__global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
+        ftl::cuda::TextureObject<float4> output,
+        ftl::cuda::TextureObject<float> depth,
+        ftl::rgbd::Camera camera, float3x3 pose, float smoothing) {
+    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if(x >= depth.width() || y >= depth.height()) return;
+
+    const float3 p0 = camera.screenToCam(x,y, depth.tex2D((int)x,(int)y));
+    float3 nsum = make_float3(0.0f);
+    float contrib = 0.0f;
+
+    output(x,y) = make_float4(0.0f,0.0f,0.0f,0.0f);
+
+    if (p0.z < camera.minDepth || p0.z > camera.maxDepth) return;
+
+    for (int v=-RADIUS; v<=RADIUS; ++v) {
+        for (int u=-RADIUS; u<=RADIUS; ++u) {
+            const float3 p = camera.screenToCam(x+u,y+v, depth.tex2D((int)x+u,(int)y+v));
+            if (p.z < camera.minDepth || p.z > camera.maxDepth) continue;
+            const float s = ftl::cuda::spatialWeighting(p0, p, smoothing);
+            //const float s = 1.0f;
+
+            //if (s > 0.0f) {
+                const float4 n = norms.tex2D((int)x+u,(int)y+v);
+                if (n.w > 0.0f) {
+                    nsum += make_float3(n) * s;
+                    contrib += s;
+                }
+            //}
+        }
+    }
+
+    // Compute dot product of normal with camera to obtain measure of how
+    // well this point faces the source camera, a measure of confidence
+    float3 ray = camera.screenToCam(x, y, 1.0f);
+    ray = ray / length(ray);
+    nsum /= contrib;
+    nsum /= length(nsum);
+
+    output(x,y) = (contrib > 0.0f) ? make_float4(pose*nsum, 1.0f) : make_float4(0.0f);
+}
+
 void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
         ftl::cuda::TextureObject<float4> &temp,
 		ftl::cuda::TextureObject<float4> &input,
@@ -257,6 +302,34 @@ void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
     case 3: smooth_normals_kernel<3><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
     case 2: smooth_normals_kernel<2><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
     case 1: smooth_normals_kernel<1><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+	}
+	cudaSafeCall( cudaGetLastError() );
+
+	#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+	//cutilCheckMsg(__FUNCTION__);
+	#endif
+}
+
+void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
+		ftl::cuda::TextureObject<float4> &temp,
+		ftl::cuda::TextureObject<float> &input,
+		int radius,
+		float smoothing,
+		const ftl::rgbd::Camera &camera,
+		const float3x3 &pose_inv, const float3x3 &pose,cudaStream_t stream) {
+	const dim3 gridSize((input.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (input.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	computeNormals_kernel<<<gridSize, blockSize, 0, stream>>>(temp, input, camera);
+	cudaSafeCall( cudaGetLastError() );
+
+	switch (radius) {
+	case 7: smooth_normals_kernel<7><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+	case 5: smooth_normals_kernel<5><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+	case 3: smooth_normals_kernel<3><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+	case 2: smooth_normals_kernel<2><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
+	case 1: smooth_normals_kernel<1><<<gridSize, blockSize, 0, stream>>>(temp, output, input, camera, pose, smoothing);
 	}
 	cudaSafeCall( cudaGetLastError() );
 

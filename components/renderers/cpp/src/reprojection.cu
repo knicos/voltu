@@ -61,7 +61,7 @@ __device__ inline void accumulateOutput(TextureObject<float4> &out, TextureObjec
 __global__ void reprojection_kernel(
         TextureObject<A> in,				// Attribute input
         TextureObject<float> depth_src,
-		TextureObject<int> depth_in,        // Virtual depth map
+		TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<float4> normals,
 		TextureObject<B> out,			// Accumulated output
 		TextureObject<float> contrib,
@@ -71,7 +71,7 @@ __global__ void reprojection_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float d = (float)depth_in.tex2D((int)x, (int)y) / 100000.0f;
+	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
 	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
@@ -118,7 +118,7 @@ template <typename A, typename B>
 void ftl::cuda::reproject(
         TextureObject<A> &in,
         TextureObject<float> &depth_src,       // Original 3D points
-		TextureObject<int> &depth_in,        // Virtual depth map
+		TextureObject<float> &depth_in,        // Virtual depth map
 		TextureObject<float4> &normals,
 		TextureObject<B> &out,   // Accumulated output
 		TextureObject<float> &contrib,
@@ -144,7 +144,7 @@ void ftl::cuda::reproject(
 template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
 	ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-	ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 	ftl::cuda::TextureObject<float4> &normals,
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 	ftl::cuda::TextureObject<float> &contrib,
@@ -155,7 +155,7 @@ template void ftl::cuda::reproject(
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<float> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
@@ -166,7 +166,7 @@ template void ftl::cuda::reproject(
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
@@ -185,7 +185,7 @@ template void ftl::cuda::reproject(
 __global__ void reprojection_kernel(
         TextureObject<A> in,				// Attribute input
         TextureObject<float> depth_src,
-		TextureObject<int> depth_in,        // Virtual depth map
+		TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<B> out,			// Accumulated output
 		TextureObject<float> contrib,
 		SplatParams params,
@@ -194,7 +194,7 @@ __global__ void reprojection_kernel(
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	const float d = (float)depth_in.tex2D((int)x, (int)y) / 100000.0f;
+	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
 	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
@@ -224,7 +224,7 @@ template <typename A, typename B>
 void ftl::cuda::reproject(
         TextureObject<A> &in,
         TextureObject<float> &depth_src,       // Original 3D points
-		TextureObject<int> &depth_in,        // Virtual depth map
+		TextureObject<float> &depth_in,        // Virtual depth map
 		TextureObject<B> &out,   // Accumulated output
 		TextureObject<float> &contrib,
 		const SplatParams &params,
@@ -248,7 +248,7 @@ void ftl::cuda::reproject(
 template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
 	ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-	ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 	ftl::cuda::TextureObject<float> &contrib,
 	const ftl::render::SplatParams &params,
@@ -258,7 +258,7 @@ template void ftl::cuda::reproject(
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,
@@ -268,7 +268,7 @@ template void ftl::cuda::reproject(
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,

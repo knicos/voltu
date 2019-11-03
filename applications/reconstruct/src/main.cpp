@@ -30,7 +30,10 @@
 #include <opencv2/opencv.hpp>
 #include <ftl/net/universe.hpp>
 
-#include <ftl/filters/smoothing.hpp>
+#include <ftl/operators/smoothing.hpp>
+#include <ftl/operators/colours.hpp>
+#include <ftl/operators/normals.hpp>
+
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
 
@@ -246,11 +249,19 @@ static void run(ftl::Configurable *root) {
 
 	bool busy = false;
 
-	auto *smooth = ftl::config::create<ftl::DepthSmoother>(root, "filters");
+	// Create the source depth map pipeline
+	auto *pipeline1 = ftl::config::create<ftl::operators::Graph>(root, "pre_filters");
+	pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
+	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
+	pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
+	pipeline1->append<ftl::operators::AdaptiveMLS>("mls");  // Perform MLS (using smoothing channel)
+	// Alignment
+
 
 	group->setLatency(4);
 	group->setName("ReconGroup");
-	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls,smooth](ftl::rgbd::FrameSet &fs) -> bool {
+	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls,pipeline1](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
 
 		//if (slave.isPaused()) return true;
@@ -265,62 +276,16 @@ static void run(ftl::Configurable *root) {
 		// Swap the entire frameset to allow rapid return
 		fs.swapTo(scene_A);
 
-		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align, smooth](int id) {
+		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align, pipeline1](int id) {
 			//cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
 			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 
 			UNIQUE_LOCK(scene_A.mtx, lk);
 
-			cv::cuda::GpuMat tmp;
-			/*float factor = filter->value("smooth_factor", 0.4f);
-			float colour_limit = filter->value("colour_limit", 30.0f);
-			bool do_smooth = filter->value("pre_smooth", false);
-			int iters = filter->value("iterations", 3);
-			int radius = filter->value("radius", 5);
-			float var_thesh = filter->value("variance_threshold", 0.02f);*/
-
-			//if (do_smooth) {
-				// Presmooth...
-				for (int i=0; i<scene_A.frames.size(); ++i) {
-					auto &f = scene_A.frames[i];
-					auto s = scene_A.sources[i];
-
-					// Convert colour from BGR to BGRA if needed
-					if (f.get<cv::cuda::GpuMat>(Channel::Colour).type() == CV_8UC3) {
-						//cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-						// Convert to 4 channel colour
-						auto &col = f.get<cv::cuda::GpuMat>(Channel::Colour);
-						tmp.create(col.size(), CV_8UC4);
-						cv::cuda::swap(col, tmp);
-						cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA, 0);
-					}
-
-					smooth->smooth(f, s);
-
-					/*ftl::cuda::smoothing_factor(
-						f.createTexture<float>(Channel::Depth),
-						f.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-						f.createTexture<float>(Channel::Energy, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-						//f.createTexture<uchar4>(Channel::Colour),
-						f.createTexture<float>(Channel::Smoothing, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-						var_thesh,
-						s->parameters(), 0
-					);*/
-
-					/*ftl::cuda::depth_smooth(
-						f.createTexture<float>(Channel::Depth),
-						f.createTexture<uchar4>(Channel::Colour),
-						f.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(f.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-						s->parameters(),
-						radius, factor, colour_limit, iters, 0
-					);*/
-				}
-			//}
-
-			// Send all frames to GPU, block until done?
-			//scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
+			pipeline1->apply(scene_A, scene_A, 0);
 			align->process(scene_A);
+
 
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.

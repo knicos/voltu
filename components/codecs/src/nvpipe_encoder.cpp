@@ -59,6 +59,11 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition,
 	auto width = ftl::codecs::getWidth(definition);
 	auto height = ftl::codecs::getHeight(definition);
 
+	if (in.empty()) {
+		LOG(WARNING) << "No data";
+		return false;
+	}
+
 	cv::cuda::GpuMat tmp;
 	if (width != in.cols || height != in.rows) {
 		LOG(WARNING) << "Mismatch resolution with encoding resolution";

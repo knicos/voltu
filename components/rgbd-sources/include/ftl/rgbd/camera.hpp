@@ -29,6 +29,8 @@ struct __align__(16) Camera {
 	double baseline;		// For stereo pair
 	double doffs;			// Disparity offset
 
+	Camera scaled(int width, int height) const;
+
 	/**
 	 * Convert camera coordinates into screen coordinates.
 	 */

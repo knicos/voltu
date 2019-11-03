@@ -280,11 +280,12 @@ void Source::notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs:
 /*
  * Scale camera parameters to match resolution.
  */
-static Camera scaled(Camera &cam, int width, int height) {
+Camera Camera::scaled(int width, int height) const {
+	const auto &cam = *this;
 	float scaleX = (float)width / (float)cam.width;
 	float scaleY = (float)height / (float)cam.height;
 
-	CHECK( abs(scaleX - scaleY) < 0.000001f );
+	CHECK( abs(scaleX - scaleY) < 0.00000001f );
 
 	Camera newcam = cam;
 	newcam.width = width;
@@ -304,7 +305,7 @@ void Source::notify(int64_t ts, cv::cuda::GpuMat &c1, cv::cuda::GpuMat &c2) {
 
 	// Do we need to scale camera parameters
 	if (impl_->params_.width < max_width || impl_->params_.height < max_height) {
-		impl_->params_ = scaled(impl_->params_, max_width, max_height);
+		impl_->params_ = impl_->params_.scaled(max_width, max_height);
 	}
 
 	// Should channel 1 be scaled?
