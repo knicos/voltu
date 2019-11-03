@@ -25,6 +25,14 @@ void normals(ftl::cuda::TextureObject<float4> &output,
         const float3x3 &pose_inv, const float3x3 &pose, cudaStream_t stream);
 
 void normals(ftl::cuda::TextureObject<float4> &output,
+        ftl::cuda::TextureObject<float4> &temp,
+        ftl::cuda::TextureObject<float> &input,
+		int radius,
+		float smoothing,
+        const ftl::rgbd::Camera &camera,
+        const float3x3 &pose_inv, const float3x3 &pose, cudaStream_t stream);
+
+void normals(ftl::cuda::TextureObject<float4> &output,
         ftl::cuda::TextureObject<float> &input,  // Integer depth values
         const ftl::rgbd::Camera &camera,
         cudaStream_t stream);

@@ -25,6 +25,11 @@ __device__ inline float spatialWeighting(const float3 &a, const float3 &b, float
 	return rh*rh*rh*rh;
 }
 
+__device__ inline float colourDistance(uchar4 a, uchar4 b) {
+	const float3 delta = make_float3((float)a.x - (float)b.x, (float)a.y - (float)b.y, (float)a.z - (float)b.z);
+	return length(delta);
+}
+
 /*
  * Colour weighting as suggested in:
  * C. Kuster et al. Spatio-Temporal Geometry Fusion for Multiple Hybrid Cameras using Moving Least Squares Surfaces. 2014.

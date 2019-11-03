@@ -66,7 +66,7 @@ namespace cuda {
 	void reproject(
 		ftl::cuda::TextureObject<A> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
@@ -78,7 +78,7 @@ namespace cuda {
 	void reproject(
 		ftl::cuda::TextureObject<A> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,

@@ -5,6 +5,7 @@
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/render/splat_params.hpp>
 #include <ftl/cuda/points.hpp>
+//#include <ftl/filters/filter.hpp>
 
 namespace ftl {
 namespace render {
@@ -42,11 +43,13 @@ class Triangular : public ftl::render::Renderer {
 	cudaStream_t stream_;
 	float3 light_pos_;
 
+	//ftl::Filters *filters_;
+
 	template <typename T>
 	void __reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
 	void _reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
-	void _dibr(cudaStream_t);
-	void _mesh(cudaStream_t);
+	void _dibr(ftl::rgbd::Frame &, cudaStream_t);
+	void _mesh(ftl::rgbd::Frame &, ftl::rgbd::Source *, cudaStream_t);
 };
 
 }

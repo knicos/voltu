@@ -7,6 +7,8 @@
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
+//#include <ftl/filters/smoothing.hpp>
+
 #include <string>
 
 using ftl::render::Triangular;
@@ -129,6 +131,9 @@ Triangular::Triangular(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::r
 	on("light_z", [this](const ftl::config::Event &e) { light_pos_.z = value("light_z", 0.3f); });
 
 	cudaSafeCall(cudaStreamCreate(&stream_));
+
+	//filters_ = ftl::create<ftl::Filters>(this, "filters");
+	//filters_->create<ftl::filters::DepthSmoother>("hfnoise");
 }
 
 Triangular::~Triangular() {
@@ -215,9 +220,9 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 		if (mesh_) {
 			ftl::cuda::reproject(
 				f.createTexture<T>(in),
-				f.createTexture<float>(Channel::Depth),  // TODO: Use depth?
-				temp_.getTexture<int>(Channel::Depth2),
-				accum_.getTexture<float4>(Channel::Normals),
+				f.createTexture<float>(Channel::Depth),
+				output.getTexture<float>(Channel::Depth),
+				output.getTexture<float4>(Channel::Normals),
 				temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
 				temp_.getTexture<float>(Channel::Contribution),
 				params_,
@@ -228,8 +233,8 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 			// Can't use normals with point cloud version
 			ftl::cuda::reproject(
 				f.createTexture<T>(in),
-				f.createTexture<float>(Channel::Depth),  // TODO: Use depth?
-				temp_.getTexture<int>(Channel::Depth2),
+				f.createTexture<float>(Channel::Depth),
+				output.getTexture<float>(Channel::Depth),
 				temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
 				temp_.getTexture<float>(Channel::Contribution),
 				params_,
@@ -269,7 +274,7 @@ void Triangular::_reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Channe
 	}
 }
 
-void Triangular::_dibr(cudaStream_t stream) {
+void Triangular::_dibr(ftl::rgbd::Frame &out, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 
@@ -288,9 +293,12 @@ void Triangular::_dibr(cudaStream_t stream) {
 			params_, stream
 		);
 	}
+
+	// Convert from int depth to float depth
+	temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 }
 
-void Triangular::_mesh(cudaStream_t stream) {
+void Triangular::_mesh(ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
 	bool do_blend = value("mesh_blend", true);
@@ -346,6 +354,18 @@ void Triangular::_mesh(cudaStream_t stream) {
 			);
 		}
 	}
+
+	// Convert from int depth to float depth
+	temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
+
+	//filters_->filter(out, src, stream);
+
+	// Generate normals for final virtual image
+	ftl::cuda::normals(out.createTexture<float4>(Channel::Normals, Format<float4>(params_.camera.width, params_.camera.height)),
+				temp_.createTexture<float4>(Channel::Normals),
+				out.createTexture<float>(Channel::Depth),
+				value("normal_radius", 1), value("normal_smoothing", 0.02f),
+				params_.camera, params_.m_viewMatrix.getFloat3x3(), params_.m_viewMatrixInverse.getFloat3x3(), stream_);
 }
 
 void Triangular::_renderChannel(
@@ -500,17 +520,10 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 	// Create and render triangles for depth
 	if (mesh_) {
-		_mesh(stream_);
+		_mesh(out, src, stream_);
 	} else {
-		_dibr(stream_);
+		_dibr(out, stream_);
 	}
-	
-	// Generate normals for final virtual image
-	ftl::cuda::normals(accum_.createTexture<float4>(Channel::Normals, Format<float4>(camera.width, camera.height)),
-				temp_.createTexture<float4>(Channel::Normals),
-				temp_.getTexture<int>(Channel::Depth2),
-				value("normal_radius", 1), value("normal_smoothing", 0.02f),
-				params_.camera, params_.m_viewMatrix.getFloat3x3(), params_.m_viewMatrixInverse.getFloat3x3(), stream_);
 
 	// Reprojection of colours onto surface
 	_renderChannel(out, Channel::Colour, Channel::Colour, stream_);
@@ -518,14 +531,16 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	if (chan == Channel::Depth)
 	{
 		// Just convert int depth to float depth
-		temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
+		//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 	} else if (chan == Channel::Normals) {
 		// Visualise normals to RGBA
-		out.create<GpuMat>(Channel::Normals, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
-		ftl::cuda::normal_visualise(accum_.getTexture<float4>(Channel::Normals), out.createTexture<uchar4>(Channel::Normals),
+		accum_.create<GpuMat>(Channel::Normals, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
+		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), accum_.createTexture<uchar4>(Channel::Normals),
 				light_pos_,
 				light_diffuse_,
 				light_ambient_, stream_);
+
+		accum_.swapTo(Channels(Channel::Normals), out);
 	}
 	//else if (chan == Channel::Contribution)
 	//{
@@ -558,9 +573,9 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 		// Need to re-dibr due to pose change
 		if (mesh_) {
-			_mesh(stream_);
+			_mesh(out, src, stream_);
 		} else {
-			_dibr(stream_);
+			_dibr(out, stream_);
 		}
 		_renderChannel(out, Channel::Left, Channel::Right, stream_);
 
