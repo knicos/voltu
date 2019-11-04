@@ -76,8 +76,8 @@ function Peer(ws) {
 	//if undefined, peer is being used by client
 	if(this.sock.on === undefined){
 		this.sock.onmessage = message;
+		this.sock.onclose = close;
 		this.sock.onopen = (event) => {
-			console.log("piippiip")
 			this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 		}
 	//else peer is being used by server
@@ -85,7 +85,6 @@ function Peer(ws) {
 		this.sock.on("message", message);
 		this.sock.on("close", close);
 		this.sock.on("error", error);
-		this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 	}
 
 	this.bind("__handshake__", (magic, version, id) => {
@@ -95,12 +94,15 @@ function Peer(ws) {
 			this.id = id.buffer;
 			this.string_id  = id.toString('hex');
 			this._notify("connect", this);
+			// if(this.sock.on === undefined){
+			// 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
+			// }
 		} else {
 			console.log("Magic does not match");
 			this.close();
 		}
 	});
-	// this.send("__handshake__", kMagic, kVersion, [my_uuid]);
+	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 }		
 
 

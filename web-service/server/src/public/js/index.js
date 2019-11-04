@@ -154,8 +154,13 @@ createPeer = () => {
  * 
  * */
 connectToStream = () => {
-    const data = peer.send("node_details")
-    console.log(data);
+    // const data = peer.send("__ping__")
+    const data = peer.send("get_stream", (current_data.uri, 10, 0, current_data.uri))
+    // closeStream();
+}
+
+closeStream = () => {
+    peer.close()
 }
 
 const cardLogic = () => {

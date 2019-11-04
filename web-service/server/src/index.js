@@ -408,7 +408,6 @@ app.ws('/', (ws, req) => {
 
 	// Used to sync clocks
 	p.bind("__ping__", () => {
-		console.log(peer_data)
 		return Date.now();
 	});
 
@@ -458,10 +457,14 @@ app.ws('/', (ws, req) => {
 
 	// Request from frames from a source
 	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
-		let peer = uri_data[uri].peer;
+		const realURI = decodeURIComponent(uri);
+		const destination = decodeURIComponent(dest);
+		console.log("URI IS ", uri);
+		console.log("URI_DATA IS ", uri_data[realURI].peer)
+		let peer = uri_data[realURI].peer;
 		console.log('PEER', peer);
 		if (peer) {
-			uri_data[uri].addClient(p, N, rate, dest);
+			uri_data[realURI].addClient(p, N, rate, destination);
 			//peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);
 		}
 	});
