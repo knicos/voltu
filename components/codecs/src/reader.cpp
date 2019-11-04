@@ -22,12 +22,36 @@ bool Reader::begin() {
 	(*stream_).read((char*)&h, sizeof(h));
 	if (h.magic[0] != 'F' || h.magic[1] != 'T' || h.magic[2] != 'L' || h.magic[3] != 'F') return false;
 
+	if (h.version >= 2) {
+		ftl::codecs::IndexHeader ih;
+		(*stream_).read((char*)&ih, sizeof(ih));
+	}
+
+	version_ = h.version;
+	LOG(INFO) << "FTL format version " << version_;
+
 	// Capture current time to adjust timestamps
 	timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
 	playing_ = true;
 
 	return true;
 }
+
+/*static void printMsgpack(msgpack::object &obj) {
+	switch (obj.type) {
+	case msgpack::type::NIL: return;
+	case msgpack::type::BOOLEAN: LOG(INFO) << "BOOL " << obj.as<bool>(); return;
+	case msgpack::type::POSITIVE_INTEGER:
+	case msgpack::type::NEGATIVE_INTEGER: LOG(INFO) << "INT " << obj.as<int>(); return;
+	case msgpack::type::FLOAT32: LOG(INFO) << "FLOAT " << obj.as<float>(); return;
+	case msgpack::type::FLOAT64: LOG(INFO) << "DOUBLE " << obj.as<double>(); return;
+	case msgpack::type::STR: LOG(INFO) << "STRING " << obj.as<std::string>(); return;
+	case msgpack::type::BIN: return;
+	case msgpack::type::EXT: return;
+	case msgpack::type::ARRAY: LOG(INFO) << "ARRAY: "; return;
+	case msgpack::type::MAP: LOG(INFO) << "MAP: "; return;
+	}
+}*/
 
 bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &f) {
 	//UNIQUE_LOCK(mtx_, lk);
@@ -67,10 +91,13 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 
 		//std::tuple<StreamPacket,Packet> data;
 		msgpack::object obj = msg.get();
+
+		//printMsgpack(obj);
+
 		try {
 			obj.convert(data_.emplace_back());
 		} catch (std::exception &e) {
-			LOG(INFO) << "Corrupt message: " << buffer_.nonparsed_size();
+			LOG(INFO) << "Corrupt message: " << buffer_.nonparsed_size() << " - " << e.what();
 			//partial = true;
 			//continue;
 			return false;
@@ -80,6 +107,11 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 
 		// Adjust timestamp
 		get<0>(data).timestamp += timestart_;
+
+		// Fix to clear flags for version 2.
+		if (version_ <= 2) {
+			get<1>(data).flags = 0;
+		}
 
 		// TODO: Need to read ahead a few frames because there may be a
 		// smaller timestamp after this one... requires a buffer. Ideally this

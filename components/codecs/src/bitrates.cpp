@@ -41,7 +41,8 @@ static const Resolution resolutions[] = {
 	854, 480,		// SD480
 	640, 360,		// LD360
 	0, 0,			// ANY
-	1852, 2056		// HTC_VIVE
+	1852, 2056,		// HTC_VIVE
+	0, 0
 };
 
 int ftl::codecs::getWidth(definition_t d) {
@@ -57,4 +58,32 @@ const CodecPreset &ftl::codecs::getPreset(preset_t p) {
     if (p > kPresetWorst) return presets[kPresetWorst];
     if (p < kPresetBest) return presets[kPresetBest];
     return presets[p];
-};
+}
+
+preset_t ftl::codecs::findPreset(size_t width, size_t height) {
+	int min_error = std::numeric_limits<int>::max();
+
+	// Find best definition
+	int best_def = (int)definition_t::Invalid;
+
+	for (int i=0; i<(int)definition_t::Invalid; ++i) {
+		int dw = resolutions[i].width - width;
+		int dh = resolutions[i].height - height;
+		int error = dw*dw + dh*dh;
+		if (error < min_error) {
+			min_error = error;
+			best_def = i;
+		}
+	}
+
+	// Find preset that matches this best definition
+	for (preset_t i=kPresetMinimum; i<=kPresetWorst; ++i) {
+		const auto &preset = getPreset(i);
+
+		if ((int)preset.colour_res == best_def && (int)preset.depth_res == best_def) {
+			return i;
+		}
+	}
+
+	return kPresetWorst;
+}

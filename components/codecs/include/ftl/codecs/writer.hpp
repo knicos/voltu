@@ -5,6 +5,7 @@
 #include <msgpack.hpp>
 //#include <Eigen/Eigen>
 
+#include <ftl/threads.hpp>
 #include <ftl/codecs/packet.hpp>
 
 namespace ftl {
@@ -24,6 +25,7 @@ class Writer {
 	msgpack::sbuffer buffer_;
 	int64_t timestart_;
 	bool active_;
+	MUTEX mutex_;
 };
 
 }

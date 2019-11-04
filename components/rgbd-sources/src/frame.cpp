@@ -112,7 +112,7 @@ template<> cv::Mat& Frame::get(ftl::codecs::Channel channel) {
 
 	// Add channel if not already there
 	if (!channels_.has(channel)) {
-		throw ftl::exception("Frame channel does not exist");
+		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
 	}
 
 	return _get(channel).host;
@@ -132,7 +132,7 @@ template<> cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) {
 
 	// Add channel if not already there
 	if (!channels_.has(channel)) {
-		throw ftl::exception("Frame channel does not exist");
+		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
 	}
 
 	return _get(channel).gpu;
@@ -147,7 +147,7 @@ template<> const cv::Mat& Frame::get(ftl::codecs::Channel channel) const {
 		LOG(FATAL) << "Getting GPU channel on CPU without explicit 'download'";
 	}
 
-	if (!channels_.has(channel)) throw ftl::exception("Frame channel does not exist");
+	if (!channels_.has(channel)) throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
 
 	return _get(channel).host;
 }
@@ -163,7 +163,7 @@ template<> const cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) cons
 
 	// Add channel if not already there
 	if (!channels_.has(channel)) {
-		throw ftl::exception("Frame channel does not exist");
+		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
 	}
 
 	return _get(channel).gpu;

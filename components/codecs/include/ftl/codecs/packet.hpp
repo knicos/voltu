@@ -16,7 +16,14 @@ namespace codecs {
  */
 struct Header {
 	const char magic[4] = {'F','T','L','F'};
-	uint8_t version = 1;
+	uint8_t version = 3;
+};
+
+/**
+ * Version 2 header padding for potential indexing use.
+ */
+struct IndexHeader {
+	int64_t reserved[8];
 };
 
 /**
@@ -48,6 +55,16 @@ struct StreamPacket {
 	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
 
 	MSGPACK_DEFINE(timestamp, streamID, channel_count, channel);
+};
+
+/**
+ * Combine both packet types into a single packet unit. This pair is always
+ * saved or transmitted in a stream together.
+ */
+struct PacketPair {
+	PacketPair(const StreamPacket &s, const Packet &p) : spkt(s), pkt(p) {}
+	const StreamPacket &spkt;
+	const Packet &pkt;
 };
 
 }

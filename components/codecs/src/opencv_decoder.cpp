@@ -17,8 +17,7 @@ bool OpenCVDecoder::accepts(const ftl::codecs::Packet &pkt) {
 	return (pkt.codec == codec_t::JPG || pkt.codec == codec_t::PNG);
 }
 
-bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
-	cv::Mat tmp;
+bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
 
 	int chunk_dim = std::sqrt(pkt.block_total);
 	int chunk_width = out.cols / chunk_dim;
@@ -28,10 +27,12 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	int cx = (pkt.block_number % chunk_dim) * chunk_width;
 	int cy = (pkt.block_number / chunk_dim) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
-	cv::Mat chunkHead = out(roi);
+	cv::cuda::GpuMat chunkHead = out(roi);
+
+	//LOG(INFO) << "DECODE JPEG " << (int)pkt.block_number << "/" << chunk_dim;
 
 	// Decode in temporary buffers to prevent long locks
-	cv::imdecode(pkt.data, cv::IMREAD_UNCHANGED, &tmp);
+	cv::imdecode(pkt.data, cv::IMREAD_UNCHANGED, &tmp_);
 
 	// Apply colour correction to chunk
 	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
@@ -41,21 +42,25 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	// Can either check JPG/PNG headers or just use pkt definition.
 
 	// Original size so just copy
-	if (tmp.cols == chunkHead.cols) {
-		if (!tmp.empty() && tmp.type() == CV_16U && chunkHead.type() == CV_32F) {
-			tmp.convertTo(chunkHead, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-		} else if (!tmp.empty() && tmp.type() == CV_8UC3 && chunkHead.type() == CV_8UC3) {
-			tmp.copyTo(chunkHead);
+	if (tmp_.cols == chunkHead.cols) {
+		if (!tmp_.empty() && tmp_.type() == CV_16U && chunkHead.type() == CV_32F) {
+			tmp_.convertTo(tmp_, CV_32FC1, 1.0f/1000.0f);
+			chunkHead.upload(tmp_);
+		} else if (!tmp_.empty() && tmp_.type() == CV_8UC3 && chunkHead.type() == CV_8UC3) {
+			//tmp_.copyTo(chunkHead);
+			chunkHead.upload(tmp_);
 		} else {
 			// Silent ignore?
 		}
 	// Downsized so needs a scale up
 	} else {
-		if (!tmp.empty() && tmp.type() == CV_16U && chunkHead.type() == CV_32F) {
-			tmp.convertTo(tmp, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
-			cv::resize(tmp, chunkHead, chunkHead.size(), 0, 0, cv::INTER_NEAREST);
-		} else if (!tmp.empty() && tmp.type() == CV_8UC3 && chunkHead.type() == CV_8UC3) {
-			cv::resize(tmp, chunkHead, chunkHead.size());
+		if (!tmp_.empty() && tmp_.type() == CV_16U && chunkHead.type() == CV_32F) {
+			tmp_.convertTo(tmp_, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
+			cv::resize(tmp_, tmp_, chunkHead.size(), 0, 0, cv::INTER_NEAREST);
+			chunkHead.upload(tmp_);
+		} else if (!tmp_.empty() && tmp_.type() == CV_8UC3 && chunkHead.type() == CV_8UC3) {
+			cv::resize(tmp_, tmp_, chunkHead.size());
+			chunkHead.upload(tmp_);
 		} else {
 			// Silent ignore?
 		}

@@ -33,7 +33,8 @@ enum class device_t {
  */
 Encoder *allocateEncoder(
 		ftl::codecs::definition_t maxdef=ftl::codecs::definition_t::HD1080,
-		ftl::codecs::device_t dev=ftl::codecs::device_t::Any);
+		ftl::codecs::device_t dev=ftl::codecs::device_t::Any,
+		ftl::codecs::codec_t codec=ftl::codecs::codec_t::Any);
 
 /**
  * Release an encoder to be reused by some other stream.
@@ -47,7 +48,7 @@ void free(Encoder *&e);
 class Encoder {
     public:
     friend Encoder *allocateEncoder(ftl::codecs::definition_t,
-			ftl::codecs::device_t);
+			ftl::codecs::device_t, ftl::codecs::codec_t);
     friend void free(Encoder *&);
 
     public:
@@ -59,7 +60,7 @@ class Encoder {
 	/**
 	 * Wrapper encode to allow use of presets.
 	 */
-	virtual bool encode(const cv::Mat &in, ftl::codecs::preset_t preset,
+	virtual bool encode(const cv::cuda::GpuMat &in, ftl::codecs::preset_t preset,
 			const std::function<void(const ftl::codecs::Packet&)> &cb);
 
 	/**
@@ -76,7 +77,7 @@ class Encoder {
 	 * @return True if succeeded with encoding.
 	 */
     virtual bool encode(
-			const cv::Mat &in,
+			const cv::cuda::GpuMat &in,
 			ftl::codecs::definition_t definition,
 			ftl::codecs::bitrate_t bitrate,
 			const std::function<void(const ftl::codecs::Packet&)> &cb)=0;
@@ -85,6 +86,8 @@ class Encoder {
     //virtual bool encode(const cv::cuda::GpuMat &in, std::vector<uint8_t> &out, bitrate_t bix, bool)=0;
 
 	virtual void reset() {}
+
+	virtual bool supports(ftl::codecs::codec_t codec)=0;
 
     protected:
     bool available;

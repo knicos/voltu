@@ -11,6 +11,7 @@ using ftl::codecs::bitrate_t;
 using ftl::codecs::definition_t;
 using ftl::codecs::preset_t;
 using ftl::codecs::device_t;
+using ftl::codecs::codec_t;
 using ftl::codecs::kPresetBest;
 using ftl::codecs::kPresetWorst;
 using ftl::codecs::kPresetLQThreshold;
@@ -34,7 +35,7 @@ using namespace ftl::codecs::internal;
 static MUTEX mutex;
 
 Encoder *ftl::codecs::allocateEncoder(ftl::codecs::definition_t maxdef,
-		ftl::codecs::device_t dev) {
+		ftl::codecs::device_t dev, ftl::codecs::codec_t codec) {
     UNIQUE_LOCK(mutex, lk);
 	if (!has_been_init) init_encoders();
 
@@ -43,6 +44,7 @@ Encoder *ftl::codecs::allocateEncoder(ftl::codecs::definition_t maxdef,
 		if (!e->available) continue;
 		if (dev != device_t::Any && dev != e->device) continue;
 		if (maxdef != definition_t::Any && (maxdef < e->max_definition || maxdef > e->min_definition)) continue;
+		if (codec != codec_t::Any && !e->supports(codec)) continue;
 		
 		e->available = false;
 		return e;
@@ -68,11 +70,11 @@ Encoder::~Encoder() {
 
 }
 
-bool Encoder::encode(const cv::Mat &in, preset_t preset,
+bool Encoder::encode(const cv::cuda::GpuMat &in, preset_t preset,
 			const std::function<void(const ftl::codecs::Packet&)> &cb) {
 	const auto &settings = ftl::codecs::getPreset(preset);
 	const definition_t definition = (in.type() == CV_32F) ? settings.depth_res : settings.colour_res;
 	const bitrate_t bitrate = (in.type() == CV_32F) ? settings.depth_qual : settings.colour_qual;
-	LOG(INFO) << "Encode definition: " << (int)definition;
+
 	return encode(in, definition, bitrate, cb);
 }

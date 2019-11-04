@@ -44,6 +44,8 @@ class FileSource : public detail::Source {
 
 	bool realtime_;
 
+	void _processCalibration(ftl::codecs::Packet &pkt);
+	void _processPose(ftl::codecs::Packet &pkt);
 	void _removeChannel(ftl::codecs::Channel channel);
 	void _createDecoder(int ix, const ftl::codecs::Packet &pkt);
 };

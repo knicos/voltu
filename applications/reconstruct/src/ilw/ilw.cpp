@@ -144,7 +144,7 @@ ILW::~ILW() {
 bool ILW::process(ftl::rgbd::FrameSet &fs) {
     if (!enabled_) return false;
 
-	fs.upload(Channel::Colour + Channel::Depth, stream_);
+	//fs.upload(Channel::Colour + Channel::Depth, stream_);
     _phase0(fs, stream_);
 
 	params_.range = value("search_range", 0.05f);

@@ -6,6 +6,10 @@
 #include <cuda_runtime.h>
 #include <ftl/cuda_util.hpp>
 
+#ifndef __CUDACC__
+#include <msgpack.hpp>
+#endif
+
 namespace ftl{
 namespace rgbd {
 
@@ -25,6 +29,8 @@ struct __align__(16) Camera {
 	double baseline;		// For stereo pair
 	double doffs;			// Disparity offset
 
+	Camera scaled(int width, int height) const;
+
 	/**
 	 * Convert camera coordinates into screen coordinates.
 	 */
@@ -34,6 +40,10 @@ struct __align__(16) Camera {
 	 * Convert screen plus depth into camera coordinates.
 	 */
 	__device__ float3 screenToCam(uint ux, uint uy, float depth) const; 
+
+	#ifndef __CUDACC__
+	MSGPACK_DEFINE(fx,fy,cx,cy,width,height,minDepth,maxDepth,baseline,doffs);
+	#endif
 };
 
 };

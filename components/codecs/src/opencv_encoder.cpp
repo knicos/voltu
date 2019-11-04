@@ -20,21 +20,30 @@ OpenCVEncoder::~OpenCVEncoder() {
     
 }
 
-bool OpenCVEncoder::encode(const cv::Mat &in, definition_t definition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
-	cv::Mat tmp;
+bool OpenCVEncoder::supports(ftl::codecs::codec_t codec) {
+	switch (codec) {
+	case codec_t::JPG:
+	case codec_t::PNG: return true;
+	default: return false;
+	}
+}
+
+bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, definition_t definition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
 	bool is_colour = in.type() != CV_32F;
 	current_definition_ = definition;
 
+	in.download(tmp_);
+
 	// Scale down image to match requested definition...
 	if (ftl::codecs::getHeight(current_definition_) < in.rows) {
-		cv::resize(in, tmp, cv::Size(ftl::codecs::getWidth(current_definition_), ftl::codecs::getHeight(current_definition_)), 0, 0, (is_colour) ? 1 : cv::INTER_NEAREST);
+		cv::resize(tmp_, tmp_, cv::Size(ftl::codecs::getWidth(current_definition_), ftl::codecs::getHeight(current_definition_)), 0, 0, (is_colour) ? 1 : cv::INTER_NEAREST);
 	} else {
-		tmp = in;
+		
 	}
 
 	// Represent float at 16bit int
     if (!is_colour) {
-		tmp.convertTo(tmp, CV_16UC1, 1000);
+		tmp_.convertTo(tmp_, CV_16UC1, 1000);
 	}
 
 	chunk_dim_ = (definition == definition_t::LD360) ? 1 : 4;
@@ -43,7 +52,7 @@ bool OpenCVEncoder::encode(const cv::Mat &in, definition_t definition, bitrate_t
 
 	for (int i=0; i<chunk_count_; ++i) {
 		// Add chunk job to thread pool
-		ftl::pool.push([this,i,&tmp,cb,is_colour,bitrate](int id) {
+		ftl::pool.push([this,i,cb,is_colour,bitrate](int id) {
 			ftl::codecs::Packet pkt;
 			pkt.block_number = i;
 			pkt.block_total = chunk_count_;
@@ -51,7 +60,7 @@ bool OpenCVEncoder::encode(const cv::Mat &in, definition_t definition, bitrate_t
 			pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
 
 			try {
-				_encodeBlock(tmp, pkt, bitrate);
+				_encodeBlock(tmp_, pkt, bitrate);
 			} catch(...) {
 				LOG(ERROR) << "OpenCV encode block exception: " << i;
 			}

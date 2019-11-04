@@ -4,6 +4,7 @@
 
 #include <ftl/cuda_util.hpp>
 #include <ftl/codecs/hevc.hpp>
+#include <ftl/codecs/h264.hpp>
 //#include <cuda_runtime.h>
 
 #include <opencv2/core/cuda/common.hpp>
@@ -21,36 +22,10 @@ NvPipeDecoder::~NvPipeDecoder() {
 	}
 }
 
-void cropAndScaleUp(cv::Mat &in, cv::Mat &out) {
-	CHECK(in.type() == out.type());
-
-	auto isize = in.size();
-	auto osize = out.size();
-	cv::Mat tmp;
-	
-	if (isize != osize) {
-		double x_scale = ((double) isize.width) / osize.width;
-		double y_scale = ((double) isize.height) / osize.height;
-		double x_scalei = 1.0 / x_scale;
-		double y_scalei = 1.0 / y_scale;
-		cv::Size sz_crop;
-
-		// assume downscaled image
-		if (x_scalei > y_scalei) {
-			sz_crop = cv::Size(isize.width, isize.height * x_scale);
-		} else {
-			sz_crop = cv::Size(isize.width * y_scale, isize.height);
-		}
-
-		tmp = in(cv::Rect(cv::Point2i(0, 0), sz_crop));
-		cv::resize(tmp, out, osize);
-	}
-}
-
-bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
+bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
 	cudaSetDevice(0);
 	UNIQUE_LOCK(mutex_,lk);
-	if (pkt.codec != codec_t::HEVC) return false;
+	if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) return false;
 	bool is_float_frame = out.type() == CV_32F;
 
 	// Is the previous decoder still valid for current resolution and type?
@@ -68,7 +43,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	if (nv_decoder_ == nullptr) {
 		nv_decoder_ = NvPipe_CreateDecoder(
 				(is_float_frame) ? NVPIPE_UINT16 : NVPIPE_RGBA32,
-				NVPIPE_HEVC,
+				(pkt.codec == codec_t::HEVC) ? NVPIPE_HEVC : NVPIPE_H264,
 				ftl::codecs::getWidth(pkt.definition),
 				ftl::codecs::getHeight(pkt.definition));
 		if (!nv_decoder_) {
@@ -82,45 +57,58 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::Mat &out) {
 	}
 	
 	// TODO: (Nick) Move to member variable to prevent re-creation
-	cv::Mat tmp(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (is_float_frame) ? CV_16U : CV_8UC4);
+	tmp_.create(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (is_float_frame) ? CV_16U : CV_8UC4);
 
+	// Check for an I-Frame
 	if (pkt.codec == ftl::codecs::codec_t::HEVC) {
-		// Obtain NAL unit type
 		if (ftl::codecs::hevc::isIFrame(pkt.data)) seen_iframe_ = true;
+	} else if (pkt.codec == ftl::codecs::codec_t::H264) {
+		if (ftl::codecs::h264::isIFrame(pkt.data)) seen_iframe_ = true;
 	}
 
+	// No I-Frame yet so don't attempt to decode P-Frames.
 	if (!seen_iframe_) return false;
 
-	int rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), tmp.data, tmp.cols, tmp.rows);
+	int rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), tmp_.data, tmp_.cols, tmp_.rows, tmp_.step);
 	if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);
 
 	if (is_float_frame) {
 		// Is the received frame the same size as requested output?
 		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
-			tmp.convertTo(out, CV_32FC1, 1.0f/1000.0f);
+			tmp_.convertTo(out, CV_32FC1, 1.0f/1000.0f, stream_);
 		} else {
-			cv::cvtColor(tmp, tmp, cv::COLOR_BGRA2BGR);
-			cv::resize(tmp, out, out.size());
-			//cv::Mat tmp2;
-			//tmp.convertTo(tmp2, CV_32FC1, 1.0f/1000.0f);
-			//cropAndScaleUp(tmp2, out);
+			LOG(WARNING) << "Resizing decoded frame from " << tmp_.size() << " to " << out.size();
+			// FIXME: This won't work on GPU
+			tmp_.convertTo(tmp_, CV_32FC1, 1.0f/1000.0f, stream_);
+			cv::cuda::resize(tmp_, out, out.size(), 0, 0, cv::INTER_NEAREST, stream_);
 		}
 	} else {
 		// Is the received frame the same size as requested output?
 		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
-			cv::cvtColor(tmp, out, cv::COLOR_BGRA2BGR);
+			// Flag 0x1 means frame is in RGB so needs conversion to BGR
+			if (pkt.flags & 0x1) {
+				cv::cuda::cvtColor(tmp_, out, cv::COLOR_RGBA2BGR, 0, stream_);
+			} else {
+				cv::cuda::cvtColor(tmp_, out, cv::COLOR_BGRA2BGR, 0, stream_);
+			}
 		} else {
-			cv::cvtColor(tmp, tmp, cv::COLOR_BGRA2BGR);
-			cv::resize(tmp, out, out.size());
-			//cv::Mat tmp2;
-			//cv::cvtColor(tmp, tmp2, cv::COLOR_BGRA2BGR);
-			//cropAndScaleUp(tmp2, out);
+			LOG(WARNING) << "Resizing decoded frame from " << tmp_.size() << " to " << out.size();
+			// FIXME: This won't work on GPU, plus it allocates extra memory...
+			// Flag 0x1 means frame is in RGB so needs conversion to BGR
+			if (pkt.flags & 0x1) {
+				cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_RGBA2BGR, 0, stream_);
+			} else {
+				cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_BGRA2BGR, 0, stream_);
+			}
+			cv::cuda::resize(tmp_, out, out.size(), 0.0, 0.0, cv::INTER_LINEAR, stream_);
 		}
 	}
+
+	stream_.waitForCompletion();
 
 	return rc > 0;
 }
 
 bool NvPipeDecoder::accepts(const ftl::codecs::Packet &pkt) {
-	return pkt.codec == codec_t::HEVC;
+	return pkt.codec == codec_t::HEVC || pkt.codec == codec_t::H264;
 }

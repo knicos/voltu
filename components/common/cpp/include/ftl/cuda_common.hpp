@@ -102,6 +102,9 @@ class TextureObject : public TextureObjectBase {
 
 	operator cv::cuda::GpuMat();
 
+	void create(const cv::Size &);
+	void create(int w, int h);
+
 	__host__ __device__ T *devicePtr() const { return (T*)(ptr_); };
 	__host__ __device__ T *devicePtr(int v) const { return &(T*)(ptr_)[v*pitch2_]; }
 
@@ -263,6 +266,20 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 	//needsdestroy_ = true;
 }
+
+#ifndef __CUDACC__
+template <typename T>
+void TextureObject<T>::create(const cv::Size &s) {
+	create(s.width, s.height);
+}
+
+template <typename T>
+void TextureObject<T>::create(int w, int h) {
+	if (width_ != w || height_ != h) {
+		*this = std::move(TextureObject<T>(w, h));
+	}
+}
+#endif
 
 template <typename T>
 TextureObject<T>::TextureObject(const TextureObject<T> &p) {

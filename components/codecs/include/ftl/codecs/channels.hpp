@@ -17,12 +17,14 @@ enum struct Channel : int {
     Disparity		= 3,
     Depth2			= 3,
     Deviation		= 4,
+    Screen          = 4,
     Normals			= 5,	// 32FC4
     Points			= 6,	// 32FC4
     Confidence		= 7,	// 32F
     Contribution	= 7,	// 32F
     EnergyVector	= 8,	// 32FC4
     Flow			= 9,	// 32F
+    Smoothing       = 9,    // 32F
     Energy			= 10,	// 32F
 	Mask			= 11,	// 32U
 	Density			= 12,	// 32F
@@ -36,7 +38,8 @@ enum struct Channel : int {
 	Configuration	= 64,	// JSON Data
 	Calibration		= 65,	// Camera Parameters Object
 	Pose			= 66,	// Eigen::Matrix4d
-	Data			= 67	// Custom data, any codec.
+    Index           = 67,
+	Data			= 2048	// Custom data, any codec.
 };
 
 inline bool isVideo(Channel c) { return (int)c < 32; };
@@ -122,6 +125,7 @@ inline bool isFloatChannel(ftl::codecs::Channel chan) {
 	case Channel::Depth		:
     //case Channel::Normals   :
 	case Channel::Confidence:
+    case Channel::Flow      :
 	case Channel::Density:
 	case Channel::Energy	: return true;
 	default					: return false;

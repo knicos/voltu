@@ -9,13 +9,14 @@ add_library(ftlnet
 	src/dispatcher.cpp
 	src/universe.cpp
 	src/ws_internal.cpp
+	src/net_configurable.cpp
 )
 
 target_include_directories(ftlnet PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlnet ftlcommon Threads::Threads glog::glog ${UUID_LIBRARIES})
+target_link_libraries(ftlnet ftlctrl ftlcommon Threads::Threads glog::glog ${UUID_LIBRARIES})
 
 install(TARGETS ftlnet EXPORT ftlnet-config
 	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

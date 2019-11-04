@@ -27,11 +27,20 @@ target_link_libraries(net_integration
 	Threads::Threads
 	${UUID_LIBRARIES})
 
+### NetConfigurable Unit #######################################################
+add_executable(net_configurable_unit
+	./tests.cpp
+	./net_configurable_unit.cpp)
+target_link_libraries(net_configurable_unit
+	ftlnet)
+
 
 
 #add_test(ProtocolUnitTest protocol_unit)
 add_test(PeerUnitTest peer_unit)
 add_test(NetIntegrationTest net_integration)
+# Testing of NetConfigurable is disabled.
+#add_test(NetConfigurableUnitTest net_configurable_unit)
 
 add_custom_target(tests)
 add_dependencies(tests peer_unit uri_unit)
