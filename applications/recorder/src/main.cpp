@@ -197,6 +197,9 @@ static void run(ftl::Configurable *root) {
 		return true;
 	});
 
+	LOG(INFO) << "Start timer";
+	ftl::timer::start(true);
+
 	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();
 	slave.stop();
