@@ -228,9 +228,6 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 		jobs_--;
 		return true;
 	});
-
-	LOG(INFO) << "Start timer";
-	ftl::timer::start(true);
 }
 
 void Group::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
