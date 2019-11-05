@@ -107,6 +107,8 @@ static void run(ftl::Configurable *root) {
 		stream->run(true);
 	//}
 
+	ftl::timer::start(true);
+
 	LOG(INFO) << "Stopping...";
 	slave.stop();
 	stream->stop();
