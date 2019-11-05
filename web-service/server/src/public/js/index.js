@@ -35,7 +35,7 @@ handleLogin = () => {
  * Returns a list of available streams
  */
 getAvailableStreams = async () => {
-    const streamsInJson = await fetch('http://localhost:8080/streams');
+    const streamsInJson = await fetch('https://130.232.253.14:8080/streams');
     const streams = await streamsInJson.json();
     console.log('AVAILABLE', streams)
     return streams;
@@ -66,7 +66,7 @@ renderThumbnails = async () => {
         current_data.uri = encodedURI
         console.log("THUMBNAIL[i]", thumbnails[i])
         try{
-            const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
+            const someData = await fetch(`https://130.232.253.14:8080/stream/rgb?uri=${encodedURI}`)
             console.log('SOME DATA', someData)
             if(!someData.ok){
                 throw new Error('Image not found')
@@ -141,7 +141,7 @@ createCard = (url, viewers) => {
 
 
 createPeer = () => {
-    const ws = new WebSocket('ws://localhost:8080/');
+    const ws = new WebSocket('ws://130.232.253.14:8080/');
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
     console.log("peer", peer)
