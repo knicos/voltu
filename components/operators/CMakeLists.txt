@@ -6,6 +6,8 @@ add_library(ftloperators
 	src/operator.cpp
 	src/colours.cpp
 	src/normals.cpp
+	src/filling.cpp
+	src/filling.cu
 )
 
 # These cause errors in CI build and are being removed from PCL in newer versions
