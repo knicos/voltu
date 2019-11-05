@@ -131,6 +131,7 @@ void ftl::cuda::mls_smooth(
 
 	float d0 = depth_in.tex2D(x, y);
 	depth_out(x,y) = d0;
+	normals_out(x,y) = normals_in(x,y);
 	if (d0 < camera.minDepth || d0 > camera.maxDepth) return;
 	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
 
@@ -146,6 +147,8 @@ void ftl::cuda::mls_smooth(
 		const float3 Xi = camera.screenToCam((int)(x)+u,(int)(y)+v,d);
 		const float3 Ni = make_float3(normals_in.tex2D((int)(x)+u, (int)(y)+v));
 
+		if (Ni.x+Ni.y+Ni.z == 0.0f) continue;
+
 		const uchar4 c = colour_in.tex2D(x+u, y+v);
 		const float cw = ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
@@ -157,6 +160,8 @@ void ftl::cuda::mls_smooth(
 		contrib += w;
     }
 	}
+
+	if (contrib == 0.0f) return;
 	
 	nX /= contrib;  // Weighted average normal
 	aX /= contrib;  // Weighted average point (centroid)

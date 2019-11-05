@@ -33,6 +33,7 @@
 #include <ftl/operators/smoothing.hpp>
 #include <ftl/operators/colours.hpp>
 #include <ftl/operators/normals.hpp>
+#include <ftl/operators/filling.hpp>
 
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
@@ -255,7 +256,8 @@ static void run(ftl::Configurable *root) {
 	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
 	pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
-	pipeline1->append<ftl::operators::AdaptiveMLS>("mls");  // Perform MLS (using smoothing channel)
+	//pipeline1->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
+	pipeline1->append<ftl::operators::ColourMLS>("mls");  // Perform MLS (using smoothing channel)
 	// Alignment
 
 

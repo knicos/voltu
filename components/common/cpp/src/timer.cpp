@@ -169,6 +169,8 @@ namespace ftl {
 	extern bool running;
 }
 
+//static MUTEX mtx;
+
 void ftl::timer::start(bool block) {
 	if (active) return;
 	active = true;

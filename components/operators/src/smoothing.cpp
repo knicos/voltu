@@ -181,8 +181,8 @@ ColourMLS::~ColourMLS() {
 bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
 	float thresh = config()->value("mls_threshold", 0.04f);
 	float col_smooth = config()->value("mls_colour_smoothing", 30.0f);
-	int iters = config()->value("mls_iterations", 1);
-	int radius = config()->value("mls_radius",2);
+	int iters = config()->value("mls_iterations", 10);
+	int radius = config()->value("mls_radius",3);
 
 	if (!in.hasChannel(Channel::Normals)) {
 		LOG(ERROR) << "Required normals channel missing for MLS";
