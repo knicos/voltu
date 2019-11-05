@@ -41,6 +41,7 @@ class Reader {
 	bool end();
 
 	inline int64_t getStartTime() const { return timestart_; };
+	inline int version() const { return version_; }
 
 	private:
 	std::istream *stream_;
@@ -49,6 +50,7 @@ class Reader {
 	bool has_data_;
 	int64_t timestart_;
 	bool playing_;
+	int version_;
 
 	MUTEX mtx_;
 

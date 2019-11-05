@@ -148,17 +148,20 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	posewin_->setTheme(screen->windowtheme);
 	posewin_->setVisible(false);
 
-	src->setCallback([this](int64_t ts, cv::Mat &channel1, cv::Mat &channel2) {
+	src->setCallback([this](int64_t ts, cv::cuda::GpuMat &channel1, cv::cuda::GpuMat &channel2) {
 		UNIQUE_LOCK(mutex_, lk);
 		im1_.create(channel1.size(), channel1.type());
 		im2_.create(channel2.size(), channel2.type());
 
 		//cv::swap(channel1, im1_);
 		//cv::swap(channel2, im2_);
+
+		channel1.download(im1_);
+		channel2.download(im2_);
 		
 		// OpenGL (0,0) bottom left
-		cv::flip(channel1, im1_, 0);
-		cv::flip(channel2, im2_, 0);
+		cv::flip(im1_, im1_, 0);
+		cv::flip(im2_, im2_, 0);
 	});
 }
 
@@ -430,6 +433,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		cv::Mat tmp;
 
 		switch(channel_) {
+			case Channel::Smoothing:
 			case Channel::Confidence:
 				if (im2_.rows == 0) { break; }
 				visualizeEnergy(im2_, tmp, 1.0);
@@ -459,7 +463,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				texture2_.update(tmp);*/
 				break;
 
-		case Channel::Flow:
+		//case Channel::Flow:
 		case Channel::Normals:
 		case Channel::Right:
 				if (im2_.rows == 0 || im2_.type() != CV_8UC3) { break; }

@@ -80,6 +80,7 @@ class Configurable {
 	template <typename T>
 	void set(const std::string &name, T value) {
 		(*config_)[name] = value;
+		inject(name, (*config_)[name]);
 		_trigger(name);
 	}
 
@@ -103,12 +104,12 @@ class Configurable {
 	protected:
 	nlohmann::json *config_;
 
+	virtual void inject(const std::string name, nlohmann::json &value) {}
+
 	private:
 	std::map<std::string, std::list<std::function<void(const config::Event&)>>> observers_; 
 
 	void _trigger(const std::string &name);
-
-	static void __changeURI(const std::string &uri, Configurable *cfg);
 };
 
 /*template <>

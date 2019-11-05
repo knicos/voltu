@@ -16,9 +16,10 @@
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/codecs/writer.hpp>
+#include <ftl/codecs/reader.hpp>
 
 #include "ilw/ilw.hpp"
-#include <ftl/render/splat_render.hpp>
+#include <ftl/render/tri_render.hpp>
 
 #include <fstream>
 #include <string>
@@ -29,6 +30,11 @@
 #include <opencv2/opencv.hpp>
 #include <ftl/net/universe.hpp>
 
+#include <ftl/operators/smoothing.hpp>
+#include <ftl/operators/colours.hpp>
+#include <ftl/operators/normals.hpp>
+
+#include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
 
 #include <cuda_profiler_api.h>
@@ -65,34 +71,6 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
   return rz * rx * ry;
 }
 
-static void writeSourceProperties(ftl::codecs::Writer &writer, int id, ftl::rgbd::Source *src) {
-	ftl::codecs::StreamPacket spkt;
-	ftl::codecs::Packet pkt;
-
-	spkt.timestamp = 0;
-	spkt.streamID = id;
-	spkt.channel = Channel::Calibration;
-	spkt.channel_count = 1;
-	pkt.codec = ftl::codecs::codec_t::CALIBRATION;
-	pkt.definition = ftl::codecs::definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
-	pkt.flags = 0;
-	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)&src->parameters(), (uint8_t*)&src->parameters() + sizeof(ftl::rgbd::Camera)));
-
-	writer.write(spkt, pkt);
-
-	spkt.channel = Channel::Pose;
-	pkt.codec = ftl::codecs::codec_t::POSE;
-	pkt.definition = ftl::codecs::definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
-	pkt.flags = 0;
-	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)src->getPose().data(), (uint8_t*)src->getPose().data() + 4*4*sizeof(double)));
-
-	writer.write(spkt, pkt);
-}
-
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Slave slave(net, root);
@@ -102,6 +80,38 @@ static void run(ftl::Configurable *root) {
 	
 	net->start();
 	net->waitConnections();
+
+	// Check paths for an FTL file to load...
+	auto paths = (*root->get<nlohmann::json>("paths"));
+	for (auto &x : paths.items()) {
+		std::string path = x.value().get<std::string>();
+		auto eix = path.find_last_of('.');
+		auto ext = path.substr(eix+1);
+
+		// Command line path is ftl file
+		if (ext == "ftl") {
+			// Create temp reader to count number of sources found in file
+			std::ifstream file;
+			file.open(path);
+			ftl::codecs::Reader reader(file);
+			reader.begin();
+
+			int max_stream = 0;
+			reader.read(reader.getStartTime()+100, [&max_stream](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+				max_stream = max(max_stream, spkt.streamID);
+			});
+			reader.end();
+
+			LOG(INFO) << "Found " << (max_stream+1) << " sources in " << path;
+
+			int N = root->value("N", 100);
+
+			// For each stream found, add a source object
+			for (int i=0; i<=min(max_stream,N-1); ++i) {
+				root->getConfig()["sources"].push_back(nlohmann::json{{"uri",std::string("file://") + path + std::string("#") + std::to_string(i)}});
+			}
+		}
+	}
 	
 	// Create a vector of all input RGB-Depth sources
 	auto sources = ftl::createArray<Source>(root, "sources", net);
@@ -165,7 +175,7 @@ static void run(ftl::Configurable *root) {
 	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
-	ftl::render::Splatter *splat = ftl::create<ftl::render::Splatter>(root, "renderer", &scene_B);
+	ftl::render::Triangular *splat = ftl::create<ftl::render::Triangular>(root, "renderer", &scene_B);
 	ftl::rgbd::Group *group = new ftl::rgbd::Group;
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
 
@@ -174,7 +184,7 @@ static void run(ftl::Configurable *root) {
 
 	// Generate virtual camera render when requested by streamer
 	virt->onRender([splat,virt,&scene_B,align](ftl::rgbd::Frame &out) {
-		virt->setTimestamp(scene_B.timestamp);
+		//virt->setTimestamp(scene_B.timestamp);
 		// Do we need to convert Lab to BGR?
 		if (align->isLabColour()) {
 			for (auto &f : scene_B.frames) {
@@ -215,14 +225,15 @@ static void run(ftl::Configurable *root) {
 			fileout.open(std::string(timestamp) + ".ftl");
 
 			writer.begin();
+			group->addRawCallback(std::function(recorder));
 
 			// TODO: Write pose+calibration+config packets
 			auto sources = group->sources();
 			for (int i=0; i<sources.size(); ++i) {
-				writeSourceProperties(writer, i, sources[i]);
+				//writeSourceProperties(writer, i, sources[i]);
+				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
+				sources[i]->inject(sources[i]->getPose()); 
 			}
-
-			group->addRawCallback(std::function(recorder));
 		} else {
 			group->removeRawCallback(recorder);
 			writer.end();
@@ -238,9 +249,19 @@ static void run(ftl::Configurable *root) {
 
 	bool busy = false;
 
+	// Create the source depth map pipeline
+	auto *pipeline1 = ftl::config::create<ftl::operators::Graph>(root, "pre_filters");
+	pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
+	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
+	pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
+	pipeline1->append<ftl::operators::AdaptiveMLS>("mls");  // Perform MLS (using smoothing channel)
+	// Alignment
+
+
 	group->setLatency(4);
 	group->setName("ReconGroup");
-	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls](ftl::rgbd::FrameSet &fs) -> bool {
+	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls,pipeline1](ftl::rgbd::FrameSet &fs) -> bool {
 		//cudaSetDevice(scene->getCUDADevice());
 
 		//if (slave.isPaused()) return true;
@@ -255,16 +276,16 @@ static void run(ftl::Configurable *root) {
 		// Swap the entire frameset to allow rapid return
 		fs.swapTo(scene_A);
 
-		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align](int id) {
+		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align, pipeline1](int id) {
 			//cudaSetDevice(scene->getCUDADevice());
 			// TODO: Release frameset here...
 			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
 
 			UNIQUE_LOCK(scene_A.mtx, lk);
 
-			// Send all frames to GPU, block until done?
-			//scene_A.upload(Channel::Colour + Channel::Depth);  // TODO: (Nick) Add scene stream.
+			pipeline1->apply(scene_A, scene_A, 0);
 			align->process(scene_A);
+
 
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.
@@ -274,6 +295,9 @@ static void run(ftl::Configurable *root) {
 		});
 		return true;
 	});
+
+	LOG(INFO) << "Start timer";
+	ftl::timer::start(true);
 
 	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();

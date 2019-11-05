@@ -22,7 +22,11 @@ enum struct codec_t : uint8_t {
 	JSON = 100,		// A JSON string
 	CALIBRATION,	// Camera parameters object
 	POSE,			// 4x4 eigen matrix
-	RAW				// Some unknown binary format (msgpack?)
+	MSGPACK,
+	STRING,			// Null terminated string
+	RAW,				// Some unknown binary format
+
+	Any = 255
 };
 
 /**
@@ -38,9 +42,11 @@ enum struct definition_t : uint8_t {
 	LD360 = 6,
 	Any = 7,
 
-	HTC_VIVE = 8
+	HTC_VIVE = 8,
 
 	// TODO: Add audio definitions
+
+	Invalid
 };
 
 /**
@@ -85,6 +91,8 @@ static const preset_t kPresetLQThreshold = 4;
 
 static const preset_t kPresetHTCVive = -1;
 
+static const preset_t kPresetMinimum = -1;
+
 /**
  * Represents the details of each preset codec configuration.
  */
@@ -122,6 +130,8 @@ preset_t findPreset(definition_t, definition_t);
  * match then return highest quality.
  */
 preset_t findPreset(definition_t);
+
+preset_t findPreset(size_t width, size_t height);
 
 }
 }

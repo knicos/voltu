@@ -6,6 +6,7 @@
 #include <ftl/uuid.hpp>
 
 #include <nanogui/formhelper.h>
+#include <ftl/net_configurable.hpp>
 
 namespace ftl {
 namespace gui {
@@ -16,15 +17,23 @@ namespace gui {
 class ConfigWindow : public nanogui::Window {
 	public:
 	ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const ftl::UUID &peer);
+	ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const std::optional<ftl::UUID> &peer = std::nullopt);
 	~ConfigWindow();
 
 	private:
+	/*
+	References holds the pointers to a NetConfigurable and all its members so that
+	they can all be returned from _addElements() and then simultaneously deleted
+	as the form is closed.
+	*/
+	class References;
 	ftl::ctrl::Master *ctrl_;
-	ftl::UUID peer_;
+	std::optional<ftl::UUID> peer_;
 	std::vector<std::string> configurables_;
 	
-	void _buildForm(const std::string &uri, ftl::config::json_t data);
-	void _addElements(nanogui::FormHelper *form, const std::string &suri, const ftl::config::json_t &data);
+	void _buildForm(const std::string &uri);
+	std::vector<References *> _addElements(nanogui::FormHelper *form, ftl::Configurable &nc, const std::string &suri, std::function<ftl::Configurable*(const std::string*, std::vector<References *>&)> construct);
+	bool exists(const std::string &uri);
 };
 
 }

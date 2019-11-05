@@ -17,6 +17,7 @@
 
 #include "ctrl_window.hpp"
 #include "src_window.hpp"
+#include "config_window.hpp"
 #include "camera.hpp"
 #include "media_panel.hpp"
 
@@ -212,12 +213,41 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		popup->setVisible(false);
 	});
 
-	button = new ToolButton(toolbar, ENTYPO_ICON_COG);
-	button->setIconExtraScale(1.5f);
-	button->setTheme(toolbuttheme);
-	button->setTooltip("Settings");
-	button->setFixedSize(Vector2i(40,40));
-	button->setPosition(Vector2i(5,height()-50));
+	popbutton = new PopupButton(innertool, "", ENTYPO_ICON_COG);
+	popbutton->setIconExtraScale(1.5f);
+	popbutton->setTheme(toolbuttheme);
+	popbutton->setTooltip("Settings");
+	popbutton->setFixedSize(Vector2i(40,40));
+	popbutton->setSide(Popup::Side::Right);
+	popbutton->setChevronIcon(0);
+	// popbutton->setPosition(Vector2i(5,height()-50));
+	popup = popbutton->popup();
+	popup->setLayout(new GroupLayout());
+	popup->setTheme(toolbuttheme);
+
+	//net_->onConnect([this,popup](ftl::net::Peer *p) {
+	{
+		LOG(INFO) << "NET CONNECT";
+		auto node_details = ctrl_->getSlaves();
+		std::vector<std::string> node_titles;
+
+		for (auto &d : node_details) {
+			LOG(INFO) << "ADDING TITLE: " << d.dump();
+			auto peer = ftl::UUID(d["id"].get<std::string>());
+			auto itembutton = new Button(popup, d["title"].get<std::string>());
+			itembutton->setCallback([this,popup,peer]() {
+				auto config_window = new ConfigWindow(this, ctrl_, peer);
+				config_window->setTheme(windowtheme);
+			});
+		}
+	}
+	//});
+
+	itembutton = new Button(popup, "Local");
+	itembutton->setCallback([this,popup]() {
+		auto config_window = new ConfigWindow(this, ctrl_);
+		config_window->setTheme(windowtheme);
+	});
 
 	//configwindow_ = new ConfigWindow(parent, ctrl_);
 	cwindow_ = new ftl::gui::ControlWindow(this, controller);
@@ -268,12 +298,9 @@ bool ftl::gui::Screen::initVR() {
 	{
 		HMD_ = nullptr;
 		LOG(ERROR) << "Unable to init VR runtime: " << vr::VR_GetVRInitErrorAsEnglishDescription(eError);
+		return false;
 	}
 
-	uint32_t size_x, size_y;
-	HMD_->GetRecommendedRenderTargetSize(&size_x, &size_y);
-	LOG(INFO) << size_x << ", " << size_y;
-	LOG(INFO) << "\n" << getCameraMatrix(HMD_, vr::Eye_Left);
 	return true;
 }
 
@@ -349,18 +376,18 @@ bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, 
 			float sx = ((float)p[0] - positionAfterOffset[0]) / mScale;
 			float sy = ((float)p[1] - positionAfterOffset[1]) / mScale;
 
-			Eigen::Vector4f camPos;
+			//Eigen::Vector4f camPos;
 
-			try {
-				camPos = camera_->source()->point(sx,sy).cast<float>();
-			} catch(...) {
-				return true;
-			}
+			//try {
+				//camPos = camera_->source()->point(sx,sy).cast<float>();
+			//} catch(...) {
+			//	return true;
+			//}
 			
-			camPos *= -1.0f;
+			//camPos *= -1.0f;
 			//Eigen::Vector4f worldPos =  camera_->source()->getPose().cast<float>() * camPos;
 			//lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
-			LOG(INFO) << "Depth at click = " << -camPos[2];
+			//LOG(INFO) << "Depth at click = " << -camPos[2];
 			return true;
 		}
 	return false;

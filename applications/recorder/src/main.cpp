@@ -62,34 +62,6 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
   return rz * rx * ry;
 }
 
-static void writeSourceProperties(ftl::codecs::Writer &writer, int id, ftl::rgbd::Source *src) {
-	ftl::codecs::StreamPacket spkt;
-	ftl::codecs::Packet pkt;
-
-	spkt.timestamp = 0;
-	spkt.streamID = id;
-	spkt.channel = Channel::Calibration;
-	spkt.channel_count = 1;
-	pkt.codec = ftl::codecs::codec_t::CALIBRATION;
-	pkt.definition = ftl::codecs::definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
-	pkt.flags = 0;
-	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)&src->parameters(), (uint8_t*)&src->parameters() + sizeof(ftl::rgbd::Camera)));
-
-	writer.write(spkt, pkt);
-
-	spkt.channel = Channel::Pose;
-	pkt.codec = ftl::codecs::codec_t::POSE;
-	pkt.definition = ftl::codecs::definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
-	pkt.flags = 0;
-	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)src->getPose().data(), (uint8_t*)src->getPose().data() + 4*4*sizeof(double)));
-
-	writer.write(spkt, pkt);
-}
-
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Slave slave(net, root);
@@ -199,7 +171,9 @@ static void run(ftl::Configurable *root) {
 			// TODO: Write pose+calibration+config packets
 			auto sources = group->sources();
 			for (int i=0; i<sources.size(); ++i) {
-				writeSourceProperties(writer, i, sources[i]);
+				//writeSourceProperties(writer, i, sources[i]);
+				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
+				sources[i]->inject(sources[i]->getPose()); 
 			}
 		} else {
 			//group->removeRawCallback(recorder);
@@ -222,6 +196,9 @@ static void run(ftl::Configurable *root) {
 	group->sync([](ftl::rgbd::FrameSet &fs) -> bool {
 		return true;
 	});
+
+	LOG(INFO) << "Start timer";
+	ftl::timer::start(true);
 
 	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();

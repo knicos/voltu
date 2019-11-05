@@ -52,8 +52,8 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 			f.chunk_total[1] = 0;
 			f.channel_count = 0;
 			f.tx_size = 0;
-			f.channel1.create(s, c1type);
-			f.channel2.create(s, c2type);
+			f.channel[0].create(s, c1type);
+			f.channel[1].create(s, c2type);
 			return f;
 		}
 		oldest = (f.timestamp < oldest) ? f.timestamp : oldest;
@@ -72,8 +72,8 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 			f.chunk_total[1] = 0;
 			f.channel_count = 0;
 			f.tx_size = 0;
-			f.channel1.create(s, c1type);
-			f.channel2.create(s, c2type);
+			f.channel[0].create(s, c1type);
+			f.channel[1].create(s, c2type);
 			return f;
 		}
 	}
@@ -90,55 +90,6 @@ void NetFrameQueue::freeFrame(NetFrame &f) {
 
 // ===== NetSource =============================================================
 
-bool NetSource::_getCalibration(Universe &net, const UUID &peer, const string &src, ftl::rgbd::Camera &p, ftl::codecs::Channel chan) {
-	try {
-		while(true) {
-			auto [cap,buf] = net.call<tuple<unsigned int,vector<unsigned char>>>(peer_, "source_details", src, chan);
-
-			capabilities_ = cap;
-
-			if (buf.size() > 0) {
-				memcpy((char*)&p, buf.data(), buf.size());
-				
-				if (sizeof(p) != buf.size()) {
-					LOG(ERROR) << "Corrupted calibration";
-					return false;
-				}
-
-				LOG(INFO) << "Calibration received: " << p.cx << ", " << p.cy << ", " << p.fx << ", " << p.fy;
-
-				if (chan == Channel::Left) {
-					// Put calibration into config manually
-					host_->getConfig()["focal"] = p.fx;
-					host_->getConfig()["centre_x"] = p.cx;
-					host_->getConfig()["centre_y"] = p.cy;
-					host_->getConfig()["baseline"] = p.baseline;
-					host_->getConfig()["doffs"] = p.doffs;
-				} else {
-					host_->getConfig()["focal_right"] = p.fx;
-					host_->getConfig()["centre_x_right"] = p.cx;
-					host_->getConfig()["centre_y_right"] = p.cy;
-					host_->getConfig()["baseline_right"] = p.baseline;
-					host_->getConfig()["doffs_right"] = p.doffs;
-				}
-				
-				return true;
-			} else {
-				LOG(INFO) << "Could not get calibration, retrying";
-				sleep_for(milliseconds(500));
-			}
-		}
-		
-	} catch (const std::exception& ex) {
-		LOG(ERROR) << "Exception: " << ex.what();
-		return false;
-
-	} catch (...) {
-		LOG(ERROR) << "Unknown exception";
-		return false;
-	}
-}
-
 NetSource::NetSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1), adaptive_(0), queue_(3) {
 
@@ -147,9 +98,10 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 	default_quality_ = host->value("quality", 0);
 	last_bitrate_ = 0;
 	params_right_.width = 0;
+	has_calibration_ = false;
 
-	decoder_c1_ = nullptr;
-	decoder_c2_ = nullptr;
+	decoder_[0] = nullptr;
+	decoder_[1] = nullptr;
 
 	host->on("gamma", [this,host](const ftl::config::Event&) {
 		gamma_ = host->value("gamma", 1.0f);
@@ -221,8 +173,8 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 }
 
 NetSource::~NetSource() {
-	if (decoder_c1_) ftl::codecs::free(decoder_c1_);
-	if (decoder_c2_) ftl::codecs::free(decoder_c2_);
+	if (decoder_[0]) ftl::codecs::free(decoder_[0]);
+	if (decoder_[1]) ftl::codecs::free(decoder_[1]);
 
 	if (uri_.size() > 0) {
 		host_->getNet()->unbind(uri_);
@@ -260,20 +212,45 @@ NetSource::~NetSource() {
 
 void NetSource::_createDecoder(int chan, const ftl::codecs::Packet &pkt) {
 	UNIQUE_LOCK(mutex_,lk);
-	auto *decoder = (chan == 0) ? decoder_c1_ : decoder_c2_;
+	auto *decoder = decoder_[chan];
 	if (decoder) {
 		if (!decoder->accepts(pkt)) {
-			ftl::codecs::free((chan == 0) ? decoder_c1_ : decoder_c2_);
+			ftl::codecs::free(decoder_[chan]);
 		} else {
 			return;
 		}
 	}
 
-	if (chan == 0) {
-		decoder_c1_ = ftl::codecs::allocateDecoder(pkt);
+	decoder_[chan] = ftl::codecs::allocateDecoder(pkt);
+}
+
+void NetSource::_processConfig(const ftl::codecs::Packet &pkt) {
+	std::tuple<std::string, std::string> cfg;
+	auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+	unpacked.get().convert(cfg);
+
+	//LOG(INFO) << "Config Received: " << std::get<1>(cfg);
+	// TODO: This needs to be put in safer / better location
+	host_->set(std::get<0>(cfg), nlohmann::json::parse(std::get<1>(cfg)));
+}
+
+void NetSource::_processCalibration(const ftl::codecs::Packet &pkt) {
+	std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, ftl::rgbd::capability_t> params;
+	auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+	unpacked.get().convert(params);
+
+	if (std::get<1>(params) == Channel::Left) {
+		params_ = std::get<0>(params);
+		capabilities_ = std::get<2>(params);
+		has_calibration_ = true;
+		LOG(INFO) << "Got Calibration channel: " << params_.width << "x" << params_.height;
 	} else {
-		decoder_c2_ = ftl::codecs::allocateDecoder(pkt);
+		params_right_ = std::get<0>(params);
 	}
+}
+
+void NetSource::_processPose(const ftl::codecs::Packet &pkt) {
+	LOG(INFO) << "Got POSE channel";
 }
 
 void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
@@ -288,6 +265,18 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	const ftl::codecs::Channel rchan = spkt.channel;
 	const int channum = (rchan == Channel::Colour) ? 0 : 1;
 
+	// Deal with the special channels...
+	switch (rchan) {
+	case Channel::Configuration		: _processConfig(pkt); return;
+	case Channel::Calibration		: _processCalibration(pkt); return;
+	case Channel::Pose				: _processPose(pkt); return;
+	}
+
+	if (!has_calibration_) {
+		LOG(WARNING) << "Missing calibration, skipping frame";
+		return;
+	}
+
 	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
 
 	// Update frame statistics
@@ -296,19 +285,19 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	// Only decode if this channel is wanted.
 	if (rchan == Channel::Colour || rchan == chan) {
 		_createDecoder(channum, pkt);
-		auto *decoder = (rchan == Channel::Colour) ? decoder_c1_ : decoder_c2_;
+		auto *decoder = decoder_[channum];
 		if (!decoder) {
 			LOG(ERROR) << "No frame decoder available";
 			return;
 		}
 
-		decoder->decode(pkt, (rchan == Channel::Colour) ? frame.channel1 : frame.channel2);
+		decoder->decode(pkt, frame.channel[channum]);
 	} else if (chan != Channel::None && rchan != Channel::Colour) {
 		// Didn't receive correct second channel so just clear the images
 		if (isFloatChannel(chan)) {
-			frame.channel2.setTo(cv::Scalar(0.0f));
+			frame.channel[1].setTo(cv::Scalar(0.0f));
 		} else {
-			frame.channel2.setTo(cv::Scalar(0,0,0));
+			frame.channel[1].setTo(cv::Scalar(0,0,0));
 		}
 	}
 
@@ -328,48 +317,39 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	}		
 
 	++frame.chunk_count[channum];
-	++frame.channel_count;
-
+	if (frame.chunk_count[channum] == frame.chunk_total[channum]) ++frame.channel_count;
 	if (frame.chunk_count[channum] > frame.chunk_total[channum]) LOG(FATAL) << "TOO MANY CHUNKS";
 
 	// Capture tx time of first received chunk
-	if (frame.channel_count == 1 && frame.chunk_count[channum] == 1) {
+	// FIXME: This seems broken
+	if (channum == 1 && frame.chunk_count[channum] == 1) {
 		UNIQUE_LOCK(frame.mtx, flk);
 		if (frame.chunk_count[channum] == 1) {
 			frame.tx_latency = int64_t(ttimeoff);
 		}
 	}
 
-	// Last chunk of both channels now received
-	if (frame.channel_count == spkt.channel_count &&
-			frame.chunk_count[0] == frame.chunk_total[0] &&
-			frame.chunk_count[1] == frame.chunk_total[1]) {
-		UNIQUE_LOCK(frame.mtx, flk);
+	// Last chunk of both channels now received, so we are done.
+	if (frame.channel_count == spkt.channel_count) {
+		_completeFrame(frame, now-(spkt.timestamp+frame.tx_latency));
+	}
+}
 
-		if (frame.timestamp >= 0 && frame.chunk_count[0] == frame.chunk_total[0] && frame.chunk_count[1] == frame.chunk_total[1]) {
-			timestamp_ = frame.timestamp;
-			frame.tx_latency = now-(spkt.timestamp+frame.tx_latency);
+void NetSource::_completeFrame(NetFrame &frame, int64_t latency) {
+	UNIQUE_LOCK(frame.mtx, flk);
 
-			adaptive_ = abr_.selectBitrate(frame);
-			//LOG(INFO) << "Frame finished: " << frame.timestamp;
-			auto cb = host_->callback();
-			if (cb) {
-				try {
-					cb(frame.timestamp, frame.channel1, frame.channel2);
-				} catch (...) {
-					LOG(ERROR) << "Exception in net frame callback";
-				}
-			} else {
-				LOG(ERROR) << "NO FRAME CALLBACK";
-			}
+	// Frame must not have already been freed.
+	if (frame.timestamp >= 0) {
+		timestamp_ = frame.timestamp;
+		frame.tx_latency = latency;
 
-			queue_.freeFrame(frame);
+		// Note: Not used currently
+		adaptive_ = abr_.selectBitrate(frame);
 
-			{
-				// Decrement expected frame counter
-				N_--;
-			}
-		}
+		host_->notify(frame.timestamp, frame.channel[0], frame.channel[1]);
+
+		queue_.freeFrame(frame);
+		N_--;
 	}
 }
 
@@ -389,12 +369,6 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 
 ftl::rgbd::Camera NetSource::parameters(ftl::codecs::Channel chan) {
 	if (chan == ftl::codecs::Channel::Right) {
-		if (params_right_.width == 0) {
-			auto uri = host_->get<string>("uri");
-			if (!uri) return params_;
-
-			_getCalibration(*host_->getNet(), peer_, *uri, params_right_, chan);
-		}
 		return params_right_;
 	} else {
 		return params_;
@@ -419,29 +393,11 @@ void NetSource::_updateURI() {
 		}
 		peer_ = *p;
 
-		has_calibration_ = _getCalibration(*host_->getNet(), peer_, *uri, params_, ftl::codecs::Channel::Left);
-		_getCalibration(*host_->getNet(), peer_, *uri, params_right_, ftl::codecs::Channel::Right);
-
 		host_->getNet()->bind(*uri, [this](short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-			//if (chunk == -1) {
-				//#ifdef HAVE_NVPIPE
-				//_recvVideo(frame, ttimeoff, bitrate, jpg, d);
-				//#else
-				//LOG(ERROR) << "Cannot receive HEVC, no NvPipe support";
-				//#endif
-			//} else {
-				//_recvChunk(frame, ttimeoff, bitrate, chunk, jpg, d);
-				_recvPacket(ttimeoff, spkt, pkt);
-			//}
+			_recvPacket(ttimeoff, spkt, pkt);
 		});
 
 		N_ = 0;
-
-		rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
-		depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
-		//d_rgb_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
-		//d_depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
-
 		uri_ = *uri;
 		active_ = true;
 	} else {
@@ -466,9 +422,9 @@ bool NetSource::compute(int n, int b) {
 
 		// Verify depth destination is of required type
 		if (isFloatChannel(chan) && depth_.type() != CV_32F) {
-			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_32FC1, 0.0f);
+			depth_.create(cv::Size(params_.width, params_.height), CV_32FC1);  // 0.0f
 		} else if (!isFloatChannel(chan) && depth_.type() != CV_8UC3) {
-			depth_ = cv::Mat(cv::Size(params_.width, params_.height), CV_8UC3, cv::Scalar(0,0,0));
+			depth_.create(cv::Size(params_.width, params_.height), CV_8UC3);  // cv::Scalar(0,0,0)
 		}
 
 		if (prev_chan_ != chan) {
@@ -491,5 +447,5 @@ bool NetSource::compute(int n, int b) {
 }
 
 bool NetSource::isReady() {
-	return has_calibration_ && !rgb_.empty();
+	return has_calibration_;
 }

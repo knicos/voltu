@@ -3,10 +3,10 @@
 
 #include <ftl/cuda_util.hpp>
 #include <ftl/configuration.hpp>
-#include <ftl/rgbd/camera.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/uri.hpp>
+#include <ftl/rgbd/camera.hpp>
 #include <ftl/rgbd/detail/source.hpp>
 #include <ftl/codecs/packet.hpp>
 #include <opencv2/opencv.hpp>
@@ -46,9 +46,6 @@ class Source : public ftl::Configurable {
 	friend T *ftl::config::create(ftl::config::json_t &, ARGS ...);
 	friend class VirtualSource;
 
-	//template <typename T, typename... ARGS>
-	//friend T *ftl::config::create(ftl::Configurable *, const std::string &, ARGS ...);
-
 	// This class cannot be constructed directly, use ftl::create
 	Source()=delete;
 
@@ -66,13 +63,16 @@ class Source : public ftl::Configurable {
 	/**
 	 * Is this source valid and ready to grab?.
 	 */
-	bool isReady() { return (impl_) ? impl_->isReady() : params_.width != 0; }
+	bool isReady() { return (impl_) ? impl_->isReady() : false; }
 
 	/**
 	 * Change the second channel source.
 	 */
 	bool setChannel(ftl::codecs::Channel c);
 
+	/**
+	 * Get the channel allocated to the second source.
+	 */
 	ftl::codecs::Channel getChannel() const { return channel_; }
 
 	/**
@@ -114,19 +114,7 @@ class Source : public ftl::Configurable {
 	 * swap rather than a copy, so the parameters should be persistent buffers for
 	 * best performance.
 	 */
-	void getFrames(cv::Mat &c, cv::Mat &d);
-
-	/**
-	 * Get a copy of the colour frame only.
-	 */
-	void getColour(cv::Mat &c);
-
-	/**
-	 * Get a copy of the depth frame only.
-	 */
-	void getDepth(cv::Mat &d);
-
-	int64_t timestamp() const { return timestamp_; }
+	[[deprecated]] void getFrames(cv::Mat &c, cv::Mat &d);
 
 	/**
 	 * Directly upload source RGB and Depth to GPU.
@@ -136,16 +124,20 @@ class Source : public ftl::Configurable {
 	void uploadColour(cv::cuda::GpuMat&);
 	void uploadDepth(cv::cuda::GpuMat&);
 
-	bool isVirtual() const { return impl_ == nullptr; }
+	//bool isVirtual() const { return impl_ == nullptr; }
 
 	/**
 	 * Get the source's camera intrinsics.
 	 */
 	const Camera &parameters() const {
 		if (impl_) return impl_->params_;
-		else return params_;
+		else throw ftl::exception("Cannot get parameters for bad source");
 	}
 
+	/**
+	 * Get camera intrinsics for another channel. For example the right camera
+	 * in a stereo pair.
+	 */
 	const Camera parameters(ftl::codecs::Channel) const;
 
 	cv::Mat cameraMatrix() const;
@@ -170,45 +162,26 @@ class Source : public ftl::Configurable {
 	capability_t getCapabilities() const;
 
 	/**
-	 * Get a point in camera coordinates at specified pixel location.
-	 */
-	Eigen::Vector4d point(uint x, uint y);
-
-	/**
-	 * Get a point in camera coordinates at specified pixel location, with a
-	 * given depth value.
-	 */
-	Eigen::Vector4d point(uint x, uint y, double d);
-
-	Eigen::Vector2i point(const Eigen::Vector4d &p);
-
-	/**
 	 * Force the internal implementation to be reconstructed.
 	 */
 	void reset();
-
-	void pause(bool);
-	bool isPaused() { return paused_; }
-
-	void bullet(bool);
-	bool isBullet() { return bullet_; }
-
-	bool thumbnail(cv::Mat &t);
 
 	ftl::net::Universe *getNet() const { return net_; }
 
 	std::string getURI() { return value("uri", std::string("")); }
 
-	void customImplementation(detail::Source *);
+	//void customImplementation(detail::Source *);
 
 	SHARED_MUTEX &mutex() { return mutex_; }
 
-	std::function<void(int64_t, cv::Mat &, cv::Mat &)> &callback() { return callback_; }
+	std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> &callback() { return callback_; }
 
 	/**
 	 * Set the callback that receives decoded frames as they are generated.
+	 * There can be only a single such callback as the buffers can be swapped
+	 * by the callback.
 	 */
-	void setCallback(std::function<void(int64_t, cv::Mat &, cv::Mat &)> cb);
+	void setCallback(std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> cb);
 	void removeCallback() { callback_ = nullptr; }
 
 	/**
@@ -218,6 +191,9 @@ class Source : public ftl::Configurable {
 	 */
 	void addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
 
+	/**
+	 * THIS DOES NOT WORK CURRENTLY.
+	 */
 	void removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
 
 	/**
@@ -225,21 +201,31 @@ class Source : public ftl::Configurable {
 	 */
 	void notifyRaw(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 
+	/**
+	 * Notify of a decoded or available pair of frames. This calls the source
+	 * callback after having verified the correct resolution of the frames.
+	 */
+	void notify(int64_t ts, cv::cuda::GpuMat &c1, cv::cuda::GpuMat &c2);
+
+	// ==== Inject Data into stream ============================================
+
+	/**
+	 * Generate a stream packet with arbitrary data. The data is packed using
+	 * msgpack and is given the timestamp of the most recent frame.
+	 */
+	template <typename... ARGS>
+	void inject(ftl::codecs::Channel c, ARGS... args);
+
+	void inject(const Eigen::Matrix4d &pose);
+
 	protected:
 	detail::Source *impl_;
-	cv::Mat rgb_;
-	cv::Mat depth_;
-	cv::Mat thumb_;
-	Camera params_;		// TODO Find better solution
 	Eigen::Matrix4d pose_;
 	ftl::net::Universe *net_;
 	SHARED_MUTEX mutex_;
-	bool paused_;
-	bool bullet_;
 	ftl::codecs::Channel channel_;
 	cudaStream_t stream_;
-	int64_t timestamp_;
-	std::function<void(int64_t, cv::Mat &, cv::Mat &)> callback_;
+	std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> callback_;
 	std::list<std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)>> rawcallbacks_;
 
 	detail::Source *_createImplementation();
@@ -253,6 +239,42 @@ class Source : public ftl::Configurable {
 };
 
 }
+}
+
+class VectorBuffer {
+	public:
+	inline explicit VectorBuffer(std::vector<unsigned char> &v) : vector_(v) {}
+
+	inline void write(const char *data, std::size_t size) {
+		vector_.insert(vector_.end(), (const unsigned char*)data, (const unsigned char*)data+size);
+	}
+
+	private:
+	std::vector<unsigned char> &vector_;
+};
+
+template <typename... ARGS>
+void ftl::rgbd::Source::inject(ftl::codecs::Channel c, ARGS... args) {
+	if (!impl_) return;
+	auto data = std::make_tuple(args...);
+
+	ftl::codecs::StreamPacket spkt;
+	ftl::codecs::Packet pkt;
+
+	spkt.timestamp = impl_->timestamp_;
+	spkt.channel = c;
+	spkt.channel_count = 0;
+	spkt.streamID = 0;
+	pkt.codec = ftl::codecs::codec_t::MSGPACK;
+	pkt.block_number = 0;
+	pkt.block_total = 1;
+	pkt.definition = ftl::codecs::definition_t::Any;
+	pkt.flags = 0;
+
+	VectorBuffer buf(pkt.data);
+	msgpack::pack(buf, data);
+
+	notifyRaw(spkt, pkt);
 }
 
 #endif  // _FTL_RGBD_SOURCE_HPP_
