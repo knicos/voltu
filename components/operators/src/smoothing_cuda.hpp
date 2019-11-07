@@ -29,6 +29,18 @@ void colour_mls_smooth(
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
 
+void colour_mls_smooth_csr(
+		ftl::cuda::TextureObject<uchar4> &region,
+		ftl::cuda::TextureObject<float4> &normals_in,
+		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<float> &depth_in,
+		ftl::cuda::TextureObject<float> &depth_out,
+		ftl::cuda::TextureObject<uchar4> &colour_in,
+		float smoothing,
+		float colour_smoothing,
+		const ftl::rgbd::Camera &camera,
+		cudaStream_t stream);
+
 void adaptive_mls_smooth(
 		ftl::cuda::TextureObject<float4> &normals_in,
 		ftl::cuda::TextureObject<float4> &normals_out,

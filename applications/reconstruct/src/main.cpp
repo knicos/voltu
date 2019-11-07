@@ -34,6 +34,7 @@
 #include <ftl/operators/colours.hpp>
 #include <ftl/operators/normals.hpp>
 #include <ftl/operators/filling.hpp>
+#include <ftl/operators/segmentation.hpp>
 
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
@@ -165,7 +166,7 @@ static void run(ftl::Configurable *root) {
 	}
 
 	auto configproxy = ConfigProxy(net);
-	configproxy.add(root, "source/disparity", "disparity");
+	//configproxy.add(root, "source/disparity", "disparity");
 
 	// Create scene transform, intended for axis aligning the walls and floor
 	Eigen::Matrix4d transform;
@@ -300,9 +301,11 @@ static void run(ftl::Configurable *root) {
 	pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
-	pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
+	//pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
 	//pipeline1->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
+	pipeline1->append<ftl::operators::CrossSupport>("cross")->set("enabled", false);
 	pipeline1->append<ftl::operators::ColourMLS>("mls");  // Perform MLS (using smoothing channel)
+	pipeline1->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
 	// Alignment
 
 

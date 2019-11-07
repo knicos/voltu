@@ -183,6 +183,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 	float col_smooth = config()->value("mls_colour_smoothing", 30.0f);
 	int iters = config()->value("mls_iterations", 10);
 	int radius = config()->value("mls_radius",3);
+	bool crosssup = config()->value("cross_support", false);
 
 	if (!in.hasChannel(Channel::Normals)) {
 		LOG(ERROR) << "Required normals channel missing for MLS";
@@ -191,18 +192,33 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 
 	// FIXME: Assume in and out are the same frame.
 	for (int i=0; i<iters; ++i) {
-		ftl::cuda::colour_mls_smooth(
-			in.createTexture<float4>(Channel::Normals),
-			in.createTexture<float4>(Channel::Points, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-			in.createTexture<float>(Channel::Depth),
-			in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-			in.createTexture<uchar4>(Channel::Colour),
-			thresh,
-			col_smooth,
-			radius,
-			s->parameters(),
-			0
-		);
+		if (!crosssup) {
+			ftl::cuda::colour_mls_smooth(
+				in.createTexture<float4>(Channel::Normals),
+				in.createTexture<float4>(Channel::Points, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				in.createTexture<float>(Channel::Depth),
+				in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				in.createTexture<uchar4>(Channel::Colour),
+				thresh,
+				col_smooth,
+				radius,
+				s->parameters(),
+				0
+			);
+		} else {
+			ftl::cuda::colour_mls_smooth_csr(
+				in.createTexture<uchar4>(Channel::Colour2),
+				in.createTexture<float4>(Channel::Normals),
+				in.createTexture<float4>(Channel::Points, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				in.createTexture<float>(Channel::Depth),
+				in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				in.createTexture<uchar4>(Channel::Colour),
+				thresh,
+				col_smooth,
+				s->parameters(),
+				0
+			);
+		}
 
 		in.swapChannels(Channel::Depth, Channel::Depth2);
 		in.swapChannels(Channel::Normals, Channel::Points);
