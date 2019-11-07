@@ -212,6 +212,117 @@ void ftl::cuda::colour_mls_smooth(
 }
 
 
+// ===== Colour MLS using cross support region =================================
+
+/*
+ * Smooth depth map using Moving Least Squares. This version uses colour
+ * similarity weights to adjust the spatial smoothing factor. It is naive in
+ * that similar colours may exist on both sides of an edge and colours at the
+ * level of single pixels can be subject to noise. Colour noise should first
+ * be removed from the image.
+ */
+ __global__ void colour_mls_smooth_csr_kernel(
+	 	TextureObject<uchar4> region,
+		TextureObject<float4> normals_in,
+		TextureObject<float4> normals_out,
+        TextureObject<float> depth_in,        // Virtual depth map
+		TextureObject<float> depth_out,   // Accumulated output
+		TextureObject<uchar4> colour_in,
+		float smoothing,
+		float colour_smoothing,
+        ftl::rgbd::Camera camera) {
+        
+    const int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if (x < 0 || y < 0 || x >= depth_in.width() || y >= depth_in.height()) return;
+
+	float3 aX = make_float3(0.0f,0.0f,0.0f);
+	float3 nX = make_float3(0.0f,0.0f,0.0f);
+    float contrib = 0.0f;
+
+	float d0 = depth_in.tex2D(x, y);
+	depth_out(x,y) = d0;
+	normals_out(x,y) = normals_in(x,y);
+	if (d0 < camera.minDepth || d0 > camera.maxDepth) return;
+	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
+
+	uchar4 c0 = colour_in.tex2D(x, y);
+
+    // Neighbourhood
+	uchar4 base = region.tex2D(x,y);
+
+	for (int v=-base.z; v<=base.w; ++v) {
+		uchar4 baseY = region.tex2D(x,y+v);
+
+		for (int u=-baseY.x; u<=baseY.y; ++u) {
+			const float d = depth_in.tex2D(x+u, y+v);
+			if (d < camera.minDepth || d > camera.maxDepth) continue;
+
+			// Point and normal of neighbour
+			const float3 Xi = camera.screenToCam((int)(x)+u,(int)(y)+v,d);
+			const float3 Ni = make_float3(normals_in.tex2D((int)(x)+u, (int)(y)+v));
+
+			if (Ni.x+Ni.y+Ni.z == 0.0f) continue;
+
+			const uchar4 c = colour_in.tex2D(x+u, y+v);
+			const float cw = ftl::cuda::colourWeighting(c0,c,colour_smoothing);
+
+			// Gauss approx weighting function using point distance
+			const float w = ftl::cuda::spatialWeighting(X,Xi,smoothing*cw);
+
+			aX += Xi*w;
+			nX += Ni*w;
+			contrib += w;
+		}
+	}
+
+	if (contrib == 0.0f) return;
+	
+	nX /= contrib;  // Weighted average normal
+	aX /= contrib;  // Weighted average point (centroid)
+
+	// Signed-Distance Field function
+	float fX = nX.x * (X.x - aX.x) + nX.y * (X.y - aX.y) + nX.z * (X.z - aX.z);
+
+	// Calculate new point using SDF function to adjust depth (and position)
+	X = X - nX * fX;
+	
+	//uint2 screen = camera.camToScreen<uint2>(X);
+
+    //if (screen.x < depth_out.width() && screen.y < depth_out.height()) {
+    //    depth_out(screen.x,screen.y) = X.z;
+	//}
+	depth_out(x,y) = X.z;
+	normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
+}
+
+void ftl::cuda::colour_mls_smooth_csr(
+		ftl::cuda::TextureObject<uchar4> &region,
+		ftl::cuda::TextureObject<float4> &normals_in,
+		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<float> &depth_in,
+		ftl::cuda::TextureObject<float> &depth_out,
+		ftl::cuda::TextureObject<uchar4> &colour_in,
+		float smoothing,
+		float colour_smoothing,
+		const ftl::rgbd::Camera &camera,
+		cudaStream_t stream) {
+
+	const dim3 gridSize((depth_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	colour_mls_smooth_csr_kernel<<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, colour_in, smoothing, colour_smoothing, camera);
+		
+	cudaSafeCall( cudaGetLastError() );
+
+
+	#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+	#endif
+}
+
+
 // ===== Adaptive MLS Smooth =====================================================
 
 /*

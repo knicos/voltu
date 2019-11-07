@@ -8,6 +8,8 @@ add_library(ftloperators
 	src/normals.cpp
 	src/filling.cpp
 	src/filling.cu
+	src/segmentation.cu
+	src/segmentation.cpp
 	src/nvopticalflow.cpp
 )
 
