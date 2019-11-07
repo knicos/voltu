@@ -43,6 +43,7 @@ bool NVOpticalFlow::apply(Frame &in, Frame &out, Source *src, cudaStream_t strea
 	cv::cuda::cvtColor(in.get<GpuMat>(channel_in_), left_gray_, cv::COLOR_BGR2GRAY, 0, cvstream);
 
 	nvof_->calc(left_gray_, left_gray_prev_, flow, cvstream);
+	std::swap(left_gray_, left_gray_prev_);
 
 	return true;
 }
