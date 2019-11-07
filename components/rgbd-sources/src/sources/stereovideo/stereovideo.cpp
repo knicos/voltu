@@ -62,7 +62,7 @@ void StereoVideoSource::init(const string &file)
 	}
 
 	// Create the source depth map pipeline
-	pipeline_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
+	pipeline_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity_pipeline");
 	/*pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
