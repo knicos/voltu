@@ -23,7 +23,7 @@ namespace operators {
 class Operator {
 	public:
 	explicit Operator(ftl::Configurable *cfg);
-    virtual ~Operator();
+	virtual ~Operator();
 
 	enum class Type {
 		OneToOne,		// Frame to Frame (Filter or generator)
@@ -87,7 +87,7 @@ struct OperatorNode {
 class Graph : public ftl::Configurable {
 	public:
 	explicit Graph(nlohmann::json &config);
-    ~Graph();
+	~Graph();
 
 	template <typename T>
 	ftl::Configurable *append(const std::string &name);

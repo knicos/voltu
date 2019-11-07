@@ -1,5 +1,5 @@
 add_library(ftloperators
-    src/smoothing.cpp
+	src/smoothing.cpp
 	src/smoothing.cu
 	src/mls.cu
 	src/smoothchan.cu
@@ -8,6 +8,7 @@ add_library(ftloperators
 	src/normals.cpp
 	src/filling.cpp
 	src/filling.cu
+	src/nvopticalflow.cpp
 )
 
 # These cause errors in CI build and are being removed from PCL in newer versions

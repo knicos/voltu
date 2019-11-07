@@ -13,17 +13,17 @@ namespace operators {
  * first derivative. Only the depth channel is used and modified.
  */
 class HFSmoother : public ftl::operators::Operator {
-    public:
-    explicit HFSmoother(ftl::Configurable*);
-    ~HFSmoother();
+	public:
+	explicit HFSmoother(ftl::Configurable*);
+	~HFSmoother();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 
-    private:
-    cv::cuda::GpuMat temp_;
-    ftl::rgbd::Frame frames_[4];
+	private:
+	cv::cuda::GpuMat temp_;
+	ftl::rgbd::Frame frames_[4];
 };
 
 /**
@@ -34,13 +34,13 @@ class HFSmoother : public ftl::operators::Operator {
  * no smoothing.
  */
 class SmoothChannel : public ftl::operators::Operator {
-    public:
-    explicit SmoothChannel(ftl::Configurable*);
-    ~SmoothChannel();
+	public:
+	explicit SmoothChannel(ftl::Configurable*);
+	~SmoothChannel();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 
 	private:
 	ftl::rgbd::Frame temp_[6];
@@ -52,15 +52,15 @@ class SmoothChannel : public ftl::operators::Operator {
  * Also outputs Depth + Normals.
  */
 class SimpleMLS : public ftl::operators::Operator {
-    public:
-    explicit SimpleMLS(ftl::Configurable*);
-    ~SimpleMLS();
+	public:
+	explicit SimpleMLS(ftl::Configurable*);
+	~SimpleMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 
-    private:
+	private:
 };
 
 /**
@@ -68,15 +68,15 @@ class SimpleMLS : public ftl::operators::Operator {
  * by a simple colour similarity weighting. In practice this is too naive.
  */
 class ColourMLS : public ftl::operators::Operator {
-    public:
-    explicit ColourMLS(ftl::Configurable*);
-    ~ColourMLS();
+	public:
+	explicit ColourMLS(ftl::Configurable*);
+	~ColourMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 
-    private:
+	private:
 };
 
 /**
@@ -87,15 +87,15 @@ class ColourMLS : public ftl::operators::Operator {
  * it can be only a few or even no pixels with a zero smoothing factor.
  */
 class AdaptiveMLS : public ftl::operators::Operator {
-    public:
-    explicit AdaptiveMLS(ftl::Configurable*);
-    ~AdaptiveMLS();
+	public:
+	explicit AdaptiveMLS(ftl::Configurable*);
+	~AdaptiveMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 
-    private:
+	private:
 };
 
 }

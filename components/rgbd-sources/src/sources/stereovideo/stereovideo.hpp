@@ -3,6 +3,7 @@
 #define _FTL_RGBD_STEREOVIDEO_HPP_
 
 #include <ftl/rgbd/source.hpp>
+#include <ftl/operators/operator.hpp>
 #include <string>
 
 namespace ftl {
@@ -39,7 +40,9 @@ class StereoVideoSource : public detail::Source {
 	LocalSource *lsrc_;
 	Calibrate *calib_;
 	Disparity *disp_;
-	
+
+	ftl::operators::Graph *pipeline_;
+
 	bool ready_;
 	bool use_optflow_;
 	

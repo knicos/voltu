@@ -1,6 +1,9 @@
 #include <loguru.hpp>
 #include "stereovideo.hpp"
+
 #include <ftl/configuration.hpp>
+#include <ftl/operators/opticalflow.hpp>
+
 #include <ftl/threads.hpp>
 #include "calibrate.hpp"
 #include "local.hpp"
@@ -58,16 +61,24 @@ void StereoVideoSource::init(const string &file)
 		lsrc_ = ftl::create<LocalSource>(host_, "feed");
 	}
 
+	// Create the source depth map pipeline
+	pipeline_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
+	/*pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
+	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
+	pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
+	//pipeline1->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
+	pipeline1->append<ftl::operators::ColourMLS>("mls");  // Perform MLS (using smoothing channel)
+	*/
+
 	cv::Size size = cv::Size(lsrc_->width(), lsrc_->height());
 	frames_ = std::vector<Frame>(2);
 
 #ifdef HAVE_OPTFLOW
+
 	use_optflow_ =  host_->value("use_optflow", false);
 	LOG(INFO) << "Using optical flow: " << (use_optflow_ ? "true" : "false");
-
-	nvof_ = cv::cuda::NvidiaOpticalFlow_1_0::create(size.width, size.height,
-													cv::cuda::NvidiaOpticalFlow_1_0::NV_OF_PERF_LEVEL_SLOW,
-													true, false, false, 0);
+	pipeline_->append<ftl::operators::NVOpticalFlow>("optflow");
 
 #endif
 
@@ -179,10 +190,11 @@ bool StereoVideoSource::retrieve() {
 	auto &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
 	auto &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
 	lsrc_->get(left, right, calib_, stream2_);
+	pipeline_->apply(frame, frame, (ftl::rgbd::Source*) lsrc_, cv::cuda::StreamAccessor::getStream(stream2_));
 
 #ifdef HAVE_OPTFLOW
 	// see comments in https://gitlab.utu.fi/nicolas.pope/ftl/issues/155
-	
+	/*
 	if (use_optflow_)
 	{
 		auto &left_gray = frame.create<cv::cuda::GpuMat>(Channel::LeftGray);
@@ -201,7 +213,7 @@ bool StereoVideoSource::retrieve() {
 			// cv::cuda::resize() does not work wiht 2-channel input
 			// cv::cuda::resize(optflow_, optflow, left.size(), 0.0, 0.0, cv::INTER_NEAREST, stream2_);
 		}
-	}
+	}*/
 #endif
 
 	stream2_.waitForCompletion();
