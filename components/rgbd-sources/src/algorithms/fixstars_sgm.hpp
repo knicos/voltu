@@ -41,6 +41,11 @@ namespace ftl {
 
 		private:
 			void init(const cv::Size size);
+			bool updateParameters();
+			bool updateBilateralFilter();
+			#ifdef HAVE_OPTFLOW
+			bool updateOFDisparityFilter();
+			#endif
 
 			float uniqueness_;
 			int P1_;

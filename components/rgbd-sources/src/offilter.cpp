@@ -39,4 +39,14 @@ void OFDisparityFilter::filter(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream
 	ftl::cuda::optflow_filter(disp, optflow, disp_old_, n_max_, threshold_, stream);
 }
 
+void OFDisparityFilter::filter(cv::cuda::GpuMat &disp, cv::cuda::GpuMat &optflow, cv::cuda::Stream &stream)
+{
+	if (disp.type() != CV_32FC1) {
+		LOG(ERROR) << "Optical flow filter expects CV_32FC1 (TODO)";
+		return;
+	}
+
+	ftl::cuda::optflow_filter(disp, optflow, disp_old_, n_max_, threshold_, stream);
+}
+
 #endif  // HAVE_OPTFLOW
