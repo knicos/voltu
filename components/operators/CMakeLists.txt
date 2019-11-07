@@ -1,4 +1,4 @@
-add_library(ftloperators
+set(OPERSRC
 	src/smoothing.cpp
 	src/smoothing.cu
 	src/mls.cu
@@ -10,8 +10,13 @@ add_library(ftloperators
 	src/filling.cu
 	src/segmentation.cu
 	src/segmentation.cpp
-	src/nvopticalflow.cpp
 )
+
+if (HAVE_OPTFLOW)
+	list(APPEND OPERSRC src/nvopticalflow.cpp)
+endif()
+
+add_library(ftloperators ${OPERSRC})
 
 # These cause errors in CI build and are being removed from PCL in newer versions
 # target_compile_options(ftlrender PUBLIC ${PCL_DEFINITIONS})

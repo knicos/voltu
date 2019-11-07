@@ -2,7 +2,10 @@
 #include "stereovideo.hpp"
 
 #include <ftl/configuration.hpp>
+
+#ifdef HAVE_OPTFLOW
 #include <ftl/operators/opticalflow.hpp>
+#endif
 
 #include <ftl/threads.hpp>
 #include "calibrate.hpp"
