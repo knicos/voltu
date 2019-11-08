@@ -17,7 +17,7 @@ NVOpticalFlow::NVOpticalFlow(ftl::Configurable* cfg) :
 NVOpticalFlow::~NVOpticalFlow() {
 }
 
-void NVOpticalFlow::init() {
+bool NVOpticalFlow::init() {
 	nvof_ = cv::cuda::NvidiaOpticalFlow_1_0::create(
 				size_.width, size_.height, 
 				cv::cuda::NvidiaOpticalFlow_1_0::NV_OF_PERF_LEVEL_SLOW,
@@ -25,12 +25,11 @@ void NVOpticalFlow::init() {
 	
 	left_gray_.create(size_, CV_8UC1);
 	left_gray_prev_.create(size_, CV_8UC1);
+	return true;
 }
 
 bool NVOpticalFlow::apply(Frame &in, Frame &out, Source *src, cudaStream_t stream) {
-	if (!in.hasChannel(channel_in_)) {
-		return true; // false?
-	}
+	if (!in.hasChannel(channel_in_)) { return false; }
 
 	if (in.get<GpuMat>(channel_in_).size() != size_) {
 		size_ = in.get<GpuMat>(channel_in_).size();

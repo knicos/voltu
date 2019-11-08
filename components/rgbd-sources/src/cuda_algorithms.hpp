@@ -38,13 +38,6 @@ namespace cuda {
 	void texture_map(const TextureObject<uchar4> &t,
 			TextureObject<float> &f);
 
-	void disparity_to_depth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
-				const ftl::rgbd::Camera &c, cv::cuda::Stream &stream);
-
-	void optflow_filter(cv::cuda::GpuMat &disp, const cv::cuda::GpuMat &optflow,
-						cv::cuda::GpuMat &history, int n_max, float threshold,
-						cv::cuda::Stream &stream);
-
 }
 }
 

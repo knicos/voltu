@@ -42,6 +42,7 @@ FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	});
 	
 #ifdef HAVE_OPTFLOW
+/*
 	updateOFDisparityFilter();
 
 	on("use_off", [this](const ftl::config::Event&) {
@@ -51,6 +52,7 @@ FixstarsSGM::FixstarsSGM(nlohmann::json &config) : Disparity(config) {
 	on("use_off", [this](const ftl::config::Event&) {
 		updateOFDisparityFilter();
 	});
+*/
 #endif
 
 	init(size_);
@@ -136,6 +138,7 @@ bool FixstarsSGM::updateBilateralFilter() {
 }
 
 #ifdef HAVE_OPTFLOW
+/*
 bool FixstarsSGM::updateOFDisparityFilter() {
 	bool enable = value("use_off", false);
 	int off_size = value("off_size", 9);
@@ -163,7 +166,7 @@ bool FixstarsSGM::updateOFDisparityFilter() {
 	}
 	
 	return use_off_;
-}
+}*/
 #endif
 
 void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
@@ -216,12 +219,14 @@ void FixstarsSGM::compute(ftl::rgbd::Frame &frame, cv::cuda::Stream &stream)
 	dispt_scaled.convertTo(disp, CV_32F, 1.0f / 16.0f, stream);
 
 #ifdef HAVE_OPTFLOW
+/*
 	// TODO: Optical flow filter expects CV_32F
 	if (use_off_) {
 		frame.upload(Channel::Flow, stream);
 		stream.waitForCompletion();
 		off_.filter(disp, frame.get<GpuMat>(Channel::Flow), stream);
 	}
+*/
 #endif
 }
 

@@ -9,53 +9,6 @@
 		}
 	},
 	
-	"disparity": {
-		"libsgm": {
-			"algorithm": "libsgm",
-			"width": 1280,
-			"height": 720,
-			"use_cuda": true,
-			"minimum": 0,
-			"maximum": 256,
-			"tau": 0.0,
-			"gamma": 0.0,
-			"window_size": 5,
-			"sigma": 1.5,
-			"lambda": 8000.0,
-			"uniqueness":  0.65,
-			"use_filter": true,
-			"P1": 8,
-			"P2": 130,
-			"filter_radius": 11,
-			"filter_iter": 2,
-			"use_off": true,
-			"off_size": 24,
-			"off_threshold": 0.75,
-			"T": 60,
-			"T_add": 0,
-			"T_del": 25,
-			"T_x" : 3.0,
-			"alpha" : 0.6,
-			"beta" : 1.7,
-			"epsilon" : 15.0
-		},
-		
-		"rtcensus": {
-			"algorithm": "rtcensus",
-			"use_cuda": true,
-			"minimum": 0,
-			"maximum": 256,
-			"tau": 0.0,
-			"gamma": 0.0,
-			"window_size": 5,
-			"sigma": 1.5,
-			"lambda": 8000.0,
-			"use_filter": true,
-			"filter_radius": 3,
-			"filter_iter": 4	
-		}
-	},
-	
 	"sources": {
 		"stereocam": {
 			"uri": "device:video",
@@ -71,7 +24,23 @@
 			},
 			"use_optflow" : true,
 			"calibration": { "$ref": "#calibrations/default" },
-			"disparity": { "$ref": "#disparity/libsgm" }
+			"disparity": {
+				"algorithm" : {
+					"P1" : 10,
+					"P2" : 120,
+					"enabled" : true
+				},
+				"bilateral_filter" : {
+					"radius" : 17,
+					"iter" : 21,
+					"enabled" : true
+				},
+				"optflow_filter" : {
+					"threshold" : 0.8,
+					"history_size" : 10,
+					"enabled": true
+				}
+			}
 		},
 		"stereovid": {},
 		"localhost": {}

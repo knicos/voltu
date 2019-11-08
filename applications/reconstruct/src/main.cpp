@@ -124,7 +124,7 @@ static void run(ftl::Configurable *root) {
 	
 	net->start();
 	net->waitConnections();
-
+	
 	// Check paths for an FTL file to load...
 	auto paths = (*root->get<nlohmann::json>("paths"));
 	for (auto &x : paths.items()) {
@@ -165,8 +165,14 @@ static void run(ftl::Configurable *root) {
 		return;
 	}
 
-	auto configproxy = ConfigProxy(net);
-	//configproxy.add(root, "source/disparity", "disparity");
+	ConfigProxy *configproxy = nullptr;
+	if (net->numberOfPeers() > 0) {
+		configproxy = new ConfigProxy(net); // TODO delete
+		auto *disparity = ftl::create<ftl::Configurable>(root, "disparity");
+		configproxy->add(disparity, "source/disparity/algorithm", "algorithm");
+		configproxy->add(disparity, "source/disparity/bilateral_filter", "bilateral_filter");
+		configproxy->add(disparity, "source/disparity/optflow_filter", "optflow_filter");
+	}
 
 	// Create scene transform, intended for axis aligning the walls and floor
 	Eigen::Matrix4d transform;
