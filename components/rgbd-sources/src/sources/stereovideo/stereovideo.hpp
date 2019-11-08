@@ -34,17 +34,14 @@ class StereoVideoSource : public detail::Source {
 	bool isReady();
 	Camera parameters(ftl::codecs::Channel chan);
 
-	//const cv::Mat &getRight() const { return right_; }
-
 	private:
 	LocalSource *lsrc_;
 	Calibrate *calib_;
-	Disparity *disp_;
 
-	ftl::operators::Graph *pipeline_;
+	ftl::operators::Graph *pipeline_input_;
+	ftl::operators::Graph *pipeline_depth_;
 
 	bool ready_;
-	bool use_optflow_;
 	
 	cv::cuda::Stream stream_;
 	cv::cuda::Stream stream2_;
@@ -52,12 +49,6 @@ class StereoVideoSource : public detail::Source {
 	std::vector<Frame> frames_;
 
 	cv::Mat mask_l_;
-
-#ifdef HAVE_OPTFLOW
-	// see comments in https://gitlab.utu.fi/nicolas.pope/ftl/issues/155
-	cv::Ptr<cv::cuda::NvidiaOpticalFlow_1_0> nvof_;
-	cv::cuda::GpuMat optflow_;
-#endif
 
 	void init(const std::string &);
 };

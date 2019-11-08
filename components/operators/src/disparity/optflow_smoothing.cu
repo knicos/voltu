@@ -1,7 +1,9 @@
 #include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/camera.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
-#include <qsort.h>
+
+#include "disparity/qsort.h"
+#include "disparity/cuda.hpp"
 
 __device__ void quicksort(float A[], size_t n)
 {

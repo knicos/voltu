@@ -16,12 +16,12 @@ __global__ void d2d_kernel(cv::cuda::PtrStepSz<float> disp, cv::cuda::PtrStepSz<
 namespace ftl {
 namespace cuda {
 	void disparity_to_depth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
-				const ftl::rgbd::Camera &c, cv::cuda::Stream &stream) {
+				const ftl::rgbd::Camera &c, cudaStream_t &stream) {
 		dim3 grid(1,1,1);
-    	dim3 threads(128, 1, 1);
-    	grid.x = cv::cuda::device::divUp(disparity.cols, 128);
+		dim3 threads(128, 1, 1);
+		grid.x = cv::cuda::device::divUp(disparity.cols, 128);
 		grid.y = cv::cuda::device::divUp(disparity.rows, 1);
-		d2d_kernel<<<grid, threads, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(
+		d2d_kernel<<<grid, threads, 0, stream>>>(
 			disparity, depth, c);
 		cudaSafeCall( cudaGetLastError() );
 	}

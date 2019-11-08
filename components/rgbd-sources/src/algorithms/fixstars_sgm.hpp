@@ -59,7 +59,7 @@ namespace ftl {
 			cv::cuda::GpuMat dispt_;
 
 			#ifdef HAVE_OPTFLOW
-			ftl::rgbd::OFDisparityFilter off_;
+			//ftl::rgbd::OFDisparityFilter off_;
 			#endif
 		};
 	};
