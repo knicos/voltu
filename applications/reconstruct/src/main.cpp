@@ -309,9 +309,9 @@ static void run(ftl::Configurable *root) {
 	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
 	//pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
 	//pipeline1->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
-	pipeline1->append<ftl::operators::CrossSupport>("cross")->set("enabled", false);
+	pipeline1->append<ftl::operators::CrossSupport>("cross");
 	pipeline1->append<ftl::operators::ColourMLS>("mls");  // Perform MLS (using smoothing channel)
-	pipeline1->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
+	pipeline1->append<ftl::operators::VisCrossSupport>("viscross");
 	// Alignment
 
 

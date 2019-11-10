@@ -214,6 +214,14 @@ void ftl::cuda::colour_mls_smooth(
 
 // ===== Colour MLS using cross support region =================================
 
+__device__ inline int segmentID(int u, int v) {
+	if (u < 0 && v < 0) return 0x001;
+	if (u > 0 && v < 0) return 0x002;
+	if (u > 0 && v > 0) return 0x004;
+	if (u < 0 && v > 0) return 0x008;
+	return 0;
+}
+
 /*
  * Smooth depth map using Moving Least Squares. This version uses colour
  * similarity weights to adjust the spatial smoothing factor. It is naive in
@@ -221,6 +229,7 @@ void ftl::cuda::colour_mls_smooth(
  * level of single pixels can be subject to noise. Colour noise should first
  * be removed from the image.
  */
+ template <bool FILLING>
  __global__ void colour_mls_smooth_csr_kernel(
 	 	TextureObject<uchar4> region,
 		TextureObject<float4> normals_in,
@@ -244,14 +253,21 @@ void ftl::cuda::colour_mls_smooth(
 	float d0 = depth_in.tex2D(x, y);
 	depth_out(x,y) = d0;
 	normals_out(x,y) = normals_in(x,y);
-	if (d0 < camera.minDepth || d0 > camera.maxDepth) return;
+	if (d0 < camera.minDepth || d0 > camera.maxDepth) {
+		if(FILLING) d0 = 0.0f;
+		else return;
+	}
 	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
 
 	uchar4 c0 = colour_in.tex2D(x, y);
 
     // Neighbourhood
 	uchar4 base = region.tex2D(x,y);
+	int segment_check = 0;
 
+	// TODO: Does using a fixed loop size with range test work better?
+	// Or with warp per pixel version, this would be less of a problem...
+	// TODO: Do a separate vote fill step?
 	for (int v=-base.z; v<=base.w; ++v) {
 		uchar4 baseY = region.tex2D(x,y+v);
 
@@ -268,12 +284,17 @@ void ftl::cuda::colour_mls_smooth(
 			const uchar4 c = colour_in.tex2D(x+u, y+v);
 			const float cw = ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
+			// Allow missing point to borrow z value
+			// TODO: This is a bad choice of Z! Perhaps try histogram vote approach
+			if (FILLING && d0 == 0.0f) X = camera.screenToCam((int)(x),(int)(y),Xi.z);
+
 			// Gauss approx weighting function using point distance
 			const float w = ftl::cuda::spatialWeighting(X,Xi,smoothing*cw);
 
 			aX += Xi*w;
 			nX += Ni*w;
 			contrib += w;
+			if (FILLING && w > 0.0f && v > -base.z+1 && v < base.w-1 && u > -baseY.x+1 && u < baseY.y-1) segment_check |= segmentID(u,v);
 		}
 	}
 
@@ -281,6 +302,11 @@ void ftl::cuda::colour_mls_smooth(
 	
 	nX /= contrib;  // Weighted average normal
 	aX /= contrib;  // Weighted average point (centroid)
+
+	if (FILLING && d0 == 0.0f) {
+		if (__popc(segment_check) < 3) return;
+		X = camera.screenToCam((int)(x),(int)(y),aX.z);
+	}
 
 	// Signed-Distance Field function
 	float fX = nX.x * (X.x - aX.x) + nX.y * (X.y - aX.y) + nX.z * (X.z - aX.z);
@@ -306,13 +332,18 @@ void ftl::cuda::colour_mls_smooth_csr(
 		ftl::cuda::TextureObject<uchar4> &colour_in,
 		float smoothing,
 		float colour_smoothing,
+		bool filling,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream) {
 
 	const dim3 gridSize((depth_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	colour_mls_smooth_csr_kernel<<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, colour_in, smoothing, colour_smoothing, camera);
+	if (filling) {
+		colour_mls_smooth_csr_kernel<true><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, colour_in, smoothing, colour_smoothing, camera);
+	} else {
+		colour_mls_smooth_csr_kernel<false><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, colour_in, smoothing, colour_smoothing, camera);
+	}
 		
 	cudaSafeCall( cudaGetLastError() );
 

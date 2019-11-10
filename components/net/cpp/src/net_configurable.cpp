@@ -7,6 +7,6 @@ ftl::NetConfigurable::NetConfigurable(ftl::UUID peer, const std::string &suri, f
 
 ftl::NetConfigurable::~NetConfigurable(){}
 
-void ftl::NetConfigurable::inject(const std::string name, nlohmann::json &value) {
+void ftl::NetConfigurable::inject(const std::string &name, nlohmann::json &value) {
     ctrl.set(peer, suri + std::string("/") + name, value);
 }

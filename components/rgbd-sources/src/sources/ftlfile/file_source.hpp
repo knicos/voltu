@@ -43,6 +43,8 @@ class FileSource : public detail::Source {
 	ftl::codecs::Decoder *decoders_[2];
 
 	bool realtime_;
+	bool freeze_;
+	bool have_frozen_;
 
 	void _processCalibration(ftl::codecs::Packet &pkt);
 	void _processPose(ftl::codecs::Packet &pkt);

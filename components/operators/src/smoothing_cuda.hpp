@@ -38,6 +38,7 @@ void colour_mls_smooth_csr(
 		ftl::cuda::TextureObject<uchar4> &colour_in,
 		float smoothing,
 		float colour_smoothing,
+		bool filling,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
 

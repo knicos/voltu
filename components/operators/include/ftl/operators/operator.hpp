@@ -56,7 +56,7 @@ class Operator {
 namespace detail {
 
 struct ConstructionHelperBase {
-	ConstructionHelperBase(ftl::Configurable *cfg) : config(cfg) {}
+	explicit ConstructionHelperBase(ftl::Configurable *cfg) : config(cfg) {}
 	virtual ~ConstructionHelperBase() {}
 	virtual ftl::operators::Operator *make()=0;
 
@@ -65,7 +65,7 @@ struct ConstructionHelperBase {
 
 template <typename T>
 struct ConstructionHelper : public ConstructionHelperBase {
-	ConstructionHelper(ftl::Configurable *cfg) : ConstructionHelperBase(cfg) {}
+	explicit ConstructionHelper(ftl::Configurable *cfg) : ConstructionHelperBase(cfg) {}
 	~ConstructionHelper() {}
 	ftl::operators::Operator *make() override {
 		return new T(config);

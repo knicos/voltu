@@ -13,7 +13,7 @@ namespace ftl {
 	~NetConfigurable();
 
 	protected:
-	void inject(const std::string name, nlohmann::json &value);
+	void inject(const std::string &name, nlohmann::json &value);
 
     private:
 	ftl::UUID peer;

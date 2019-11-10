@@ -15,6 +15,15 @@ void scan_field_fill(
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
 
+void filling_csr(
+		ftl::cuda::TextureObject<uchar4> &region,
+		ftl::cuda::TextureObject<float4> &normals_in,
+		ftl::cuda::TextureObject<float> &depth_in,
+		ftl::cuda::TextureObject<float> &depth_out,
+		ftl::cuda::TextureObject<uchar4> &colour_in,
+		const ftl::rgbd::Camera &camera,
+		cudaStream_t stream);
+
 }
 }
 

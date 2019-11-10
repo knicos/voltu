@@ -184,6 +184,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 	int iters = config()->value("mls_iterations", 10);
 	int radius = config()->value("mls_radius",3);
 	bool crosssup = config()->value("cross_support", false);
+	bool filling = config()->value("filling", false);
 
 	if (!in.hasChannel(Channel::Normals)) {
 		LOG(ERROR) << "Required normals channel missing for MLS";
@@ -207,7 +208,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 			);
 		} else {
 			ftl::cuda::colour_mls_smooth_csr(
-				in.createTexture<uchar4>(Channel::Colour2),
+				in.createTexture<uchar4>(Channel::Support1),
 				in.createTexture<float4>(Channel::Normals),
 				in.createTexture<float4>(Channel::Points, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<float>(Channel::Depth),
@@ -215,6 +216,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 				in.createTexture<uchar4>(Channel::Colour),
 				thresh,
 				col_smooth,
+				filling,
 				s->parameters(),
 				0
 			);
