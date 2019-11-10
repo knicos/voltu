@@ -8,9 +8,6 @@ set(OPERSRC
 	src/normals.cpp
 	src/filling.cpp
 	src/filling.cu
-	src/nvopticalflow.cpp
-	src/disparity/optflow_smoothing.cu
-	src/disparity/optflow_smoothing.cpp
 	src/disparity/disp2depth.cu
 	src/disparity/disparity_to_depth.cpp
 	src/disparity/fixstars_sgm.cpp
@@ -20,7 +17,9 @@ set(OPERSRC
 )
 
 if (HAVE_OPTFLOW)
-	list(APPEND OPERSRC src/nvopticalflow.cpp)
+	list(APPEND OPERSRC src/nvopticalflow.cpp
+		src/disparity/optflow_smoothing.cu
+		src/disparity/optflow_smoothing.cpp)
 endif()
 
 add_library(ftloperators ${OPERSRC})

@@ -1,7 +1,11 @@
 #pragma once
 
+#include <ftl/config.h>
 #include <ftl/operators/operator.hpp>
+
+#ifdef HAVE_OPTFLOW
 #include <opencv2/cudaoptflow.hpp>
+#endif
 
 #include <libsgm.h>
 
@@ -73,6 +77,7 @@ class DisparityToDepth : public ftl::operators::Operator {
 /*
  * Optical flow smoothing for depth
  */
+#ifdef HAVE_OPTFLOW
 class OpticalFlowTemporalSmoothing : public ftl::operators::Operator {
 	public:
 	explicit OpticalFlowTemporalSmoothing(ftl::Configurable*);
@@ -91,6 +96,7 @@ class OpticalFlowTemporalSmoothing : public ftl::operators::Operator {
 	int n_max_;
 	float threshold_;
 };
+#endif
 
 }
 }
