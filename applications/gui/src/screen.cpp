@@ -48,11 +48,13 @@ namespace {
 
 	constexpr char const *const defaultImageViewFragmentShader =
 		R"(#version 330
-		uniform sampler2D image;
+		uniform sampler2D image1;
+		uniform sampler2D image2;
+		uniform float blendAmount;
 		out vec4 color;
 		in vec2 uv;
 		void main() {
-			color = texture(image, uv);
+			color = blendAmount * texture(image1, uv) + (1.0 - blendAmount) * texture(image2, uv);
 		})";
 }
 
@@ -457,8 +459,12 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 					size().x() * r, size().y() * r);*/
 			mShader.bind();
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, mImageID);
-			mShader.setUniform("image", 0);
+			glBindTexture(GL_TEXTURE_2D, leftEye_);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, (camera_->getRight().isValid()) ? rightEye_ : leftEye_);
+			mShader.setUniform("image1", 0);
+			mShader.setUniform("image2", 1);
+			mShader.setUniform("blendAmount", (camera_->getChannel() != ftl::codecs::Channel::Left) ? root_->value("blending", 0.5f) : 1.0f);
 			mShader.setUniform("scaleFactor", scaleFactor);
 			mShader.setUniform("position", imagePosition);
 			mShader.drawIndexed(GL_TRIANGLES, 0, 2);

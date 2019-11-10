@@ -126,7 +126,10 @@ void StereoVideoSource::init(const string &file) {
 
 	pipeline_depth_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
 	pipeline_depth_->append<ftl::operators::FixstarsSGM>("algorithm");
+
+	#ifdef HAVE_OPTFLOW
 	pipeline_depth_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter");
+	#endif
 	pipeline_depth_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
 	pipeline_depth_->append<ftl::operators::DisparityToDepth>("calculate_depth");
 
