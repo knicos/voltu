@@ -104,7 +104,7 @@ class Configurable {
 	protected:
 	nlohmann::json *config_;
 
-	virtual void inject(const std::string name, nlohmann::json &value) {}
+	virtual void inject(const std::string &name, nlohmann::json &value) {}
 
 	private:
 	std::map<std::string, std::list<std::function<void(const config::Event&)>>> observers_; 

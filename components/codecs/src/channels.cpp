@@ -21,9 +21,9 @@ static ChannelInfo info[] = {
     "Energy", CV_32F,
 	"Mask", CV_32S,
 	"Density", CV_32F,
-    "LeftGray", CV_8U,
-    "RightGray", CV_8U,
-    "Overlay1", CV_8UC3,
+    "Support1", CV_8UC4,
+    "Support2", CV_8UC4,
+    "Segmentation", CV_32S,
 
 	"NoName", 0,
 	"NoName", 0,

@@ -17,7 +17,8 @@ set(OPERSRC
 )
 
 if (HAVE_OPTFLOW)
-	list(APPEND OPERSRC src/nvopticalflow.cpp
+	list(APPEND OPERSRC
+		src/nvopticalflow.cpp
 		src/disparity/optflow_smoothing.cu
 		src/disparity/optflow_smoothing.cpp)
 endif()

@@ -21,6 +21,17 @@ class ScanFieldFill : public ftl::operators::Operator {
 
 };
 
+class CrossSupportFill : public ftl::operators::Operator {
+	public:
+    explicit CrossSupportFill(ftl::Configurable*);
+    ~CrossSupportFill();
+
+	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
+
+    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+
+};
+
 }
 }
 

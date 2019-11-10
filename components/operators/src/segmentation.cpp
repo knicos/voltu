@@ -14,13 +14,25 @@ CrossSupport::~CrossSupport() {
 }
 
 bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
-	ftl::cuda::support_region(
-        in.createTexture<uchar4>(Channel::Colour),
-		out.createTexture<uchar4>(Channel::Colour2, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
-		config()->value("tau", 5),
-        config()->value("v_max", 5),
-        config()->value("h_max", 5), 0
-	);
+	bool use_depth = config()->value("depth_region", false);
+
+	if (use_depth) {
+		ftl::cuda::support_region(
+			in.createTexture<float>(Channel::Depth),
+			out.createTexture<uchar4>(Channel::Support2, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
+			config()->value("depth_tau", 0.04f),
+			config()->value("v_max", 5),
+			config()->value("h_max", 5), 0
+		);
+	} //else {
+		ftl::cuda::support_region(
+			in.createTexture<uchar4>(Channel::Colour),
+			out.createTexture<uchar4>(Channel::Support1, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
+			config()->value("tau", 5.0f),
+			config()->value("v_max", 5),
+			config()->value("h_max", 5), 0
+		);
+	//}
 
 	return true;
 }
@@ -37,11 +49,48 @@ VisCrossSupport::~VisCrossSupport() {
 }
 
 bool VisCrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
-	ftl::cuda::vis_support_region(
-        in.createTexture<uchar4>(Channel::Colour),
-		in.createTexture<uchar4>(Channel::Colour2),
-		0
-	);
+	bool show_depth = false;
+	if (in.hasChannel(Channel::Support2) && config()->value("show_depth_support", false)) {
+		show_depth = true;
+	}
+
+	bool show_bad = config()->value("show_bad", false) && in.hasChannel(Channel::Support2);
+
+	if (show_bad) {
+		ftl::cuda::vis_bad_region(
+			in.createTexture<uchar4>(Channel::Colour),
+			in.createTexture<float>(Channel::Depth),
+			in.createTexture<uchar4>(Channel::Support1),
+			in.createTexture<uchar4>(Channel::Support2),
+			0
+		);
+	} else {
+		ftl::cuda::vis_support_region(
+			in.createTexture<uchar4>(Channel::Colour),
+			in.createTexture<uchar4>(Channel::Support1),
+			make_uchar4(0,0,255,0),
+			make_uchar4(255,0,0,0),
+			config()->value("offset_x", 0),
+			config()->value("offset_y", 0),
+			config()->value("spacing_x", 50),
+			config()->value("spacing_y", 50),
+			0
+		);
+
+		if (show_depth) {
+			ftl::cuda::vis_support_region(
+				in.createTexture<uchar4>(Channel::Colour),
+				in.createTexture<uchar4>(Channel::Support2),
+				make_uchar4(0,0,255,0),
+				make_uchar4(0,255,0,0),
+				config()->value("offset_x", 0),
+				config()->value("offset_y", 0),
+				config()->value("spacing_x", 50),
+				config()->value("spacing_y", 50),
+				0
+			);
+		}
+	}
 
 	return true;
 }
