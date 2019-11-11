@@ -35,13 +35,13 @@ function Peer(ws) {
 	this.master = false;
 
 	let message = (raw) => {
-		console.log(raw)
+		// console.log(raw)
 		//Gets right data for client
 		if(this.sock.on === undefined){
 			raw = raw.data;
 		}
 		let msg = decode(raw);
-		console.log('MSG', msg)
+		// console.log('MSG', msg)
 		if (this.status == kConnecting) {
 			if (msg[1] != "__handshake__") {
 				console.log("Bad handshake");

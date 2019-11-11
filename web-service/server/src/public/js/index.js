@@ -35,20 +35,25 @@ handleLogin = () => {
  * Returns a list of available streams
  */
 getAvailableStreams = async () => {
-    const streamsInJson = await fetch('https://130.232.253.14:8080/streams');
-    const streams = await streamsInJson.json();
-    console.log('AVAILABLE', streams)
-    return streams;
+    try{
+        const streamsInJson = await fetch('http://localhost:8080/streams');
+        const streams = await streamsInJson.json();
+        console.log('AVAILABLE', streams)
+        return streams;
+    }catch(err){
+        console.log(err)
+    }
 }
 
 videoPlayer = () => {
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails()">Go back</button><br>
-    <canvas id="ftlab-stream-video" width="0" height="0"></canvas>`;
+    <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
-    let decoder = new libde265.Decoder();
-    console.log(decoder)
+    createPeer();
+    setTimeout(connectToStream, 500)
+    
 }
 
 
@@ -60,13 +65,14 @@ renderThumbnails = async () => {
     // console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
+    containerDiv.innerHTML = `<div class="ftlab-stream-thumbnails"></div>`
     // console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
         const encodedURI = encodeURIComponent(thumbnails[i])
         current_data.uri = encodedURI
         console.log("THUMBNAIL[i]", thumbnails[i])
         try{
-            const someData = await fetch(`https://130.232.253.14:8080/stream/rgb?uri=${encodedURI}`)
+            const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
             console.log('SOME DATA', someData)
             if(!someData.ok){
                 throw new Error('Image not found')
@@ -141,7 +147,7 @@ createCard = (url, viewers) => {
 
 
 createPeer = () => {
-    const ws = new WebSocket('ws://130.232.253.14:8080/');
+    const ws = new WebSocket('ws://localhost:8080/');
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
     console.log("peer", peer)
@@ -154,13 +160,27 @@ createPeer = () => {
  * 
  * */
 connectToStream = () => {
-    // const data = peer.send("__ping__")
-    const data = peer.send("get_stream", (current_data.uri, 10, 0, current_data.uri))
-    // closeStream();
+    console.log(current_data.uri)
+    const deocdedURI = decodeURIComponent(current_data.uri);
+    peer.bind(deocdedURI, (latency, streampckg, pckg) => {
+        console.log(pckg[0])
+        if(pckg[0] === 0){
+            const newBlob = new Blob( [pckg[5]], {type: "image/jpeg"});
+            const canvas = document.getElementById("ftlab-stream-video");
+            let modified = canvas.getContext("2d");
+            let image = new Image();
+            image.onload = () => {
+                modified.drawImage(image, 0, 0)
+            }
+            image.src = URL.createObjectURL(newBlob)
+        }
+    })
+    peer.send("get_stream", (current_data.uri, 10, 0, current_data.uri))
+    // setTimeout(closeStream, 2000)
 }
 
 closeStream = () => {
-    peer.close()
+    peer.sock.close()
 }
 
 const cardLogic = () => {

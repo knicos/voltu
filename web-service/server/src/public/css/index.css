@@ -43,7 +43,7 @@ body {
     border: 1px solid black;
   }
 
-  #container {
+  #ftlab-stream-thumbnails {
     padding: 0;
     margin: 0;
     display: -webkit-box;
