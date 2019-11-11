@@ -14,6 +14,8 @@ set(OPERSRC
 	src/disparity/bilateral_filter.cpp
 	src/segmentation.cu
 	src/segmentation.cpp
+	src/mask.cu
+	src/mask.cpp
 )
 
 if (HAVE_OPTFLOW)

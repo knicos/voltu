@@ -33,7 +33,7 @@ bool HFSmoother::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::S
             in.createTexture<float>(Channel::Energy, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
             in.createTexture<float>(Channel::Smoothing, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
             var_thresh,
-            s->parameters(), 0
+            s->parameters(), stream
         );
     }
 
@@ -158,7 +158,7 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 			thresh,
 			radius,
 			s->parameters(),
-			0
+			stream
 		);
 
 		in.swapChannels(Channel::Depth, Channel::Depth2);
@@ -204,7 +204,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 				col_smooth,
 				radius,
 				s->parameters(),
-				0
+				stream
 			);
 		} else {
 			ftl::cuda::colour_mls_smooth_csr(
@@ -218,7 +218,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 				col_smooth,
 				filling,
 				s->parameters(),
-				0
+				stream
 			);
 		}
 
@@ -259,7 +259,7 @@ bool AdaptiveMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::
 			in.createTexture<float>(Channel::Smoothing),
 			radius,
 			s->parameters(),
-			0
+			stream
 		);
 
 		in.swapChannels(Channel::Depth, Channel::Depth2);

@@ -22,7 +22,7 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd:
 			out.createTexture<uchar4>(Channel::Support2, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
 			config()->value("depth_tau", 0.04f),
 			config()->value("v_max", 5),
-			config()->value("h_max", 5), 0
+			config()->value("h_max", 5), stream
 		);
 	} //else {
 		ftl::cuda::support_region(
@@ -30,7 +30,7 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd:
 			out.createTexture<uchar4>(Channel::Support1, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
 			config()->value("tau", 5.0f),
 			config()->value("v_max", 5),
-			config()->value("h_max", 5), 0
+			config()->value("h_max", 5), stream
 		);
 	//}
 
@@ -62,7 +62,7 @@ bool VisCrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rg
 			in.createTexture<float>(Channel::Depth),
 			in.createTexture<uchar4>(Channel::Support1),
 			in.createTexture<uchar4>(Channel::Support2),
-			0
+			stream
 		);
 	} else {
 		ftl::cuda::vis_support_region(
@@ -74,7 +74,7 @@ bool VisCrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rg
 			config()->value("offset_y", 0),
 			config()->value("spacing_x", 50),
 			config()->value("spacing_y", 50),
-			0
+			stream
 		);
 
 		if (show_depth) {
@@ -87,7 +87,7 @@ bool VisCrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rg
 				config()->value("offset_y", 0),
 				config()->value("spacing_x", 50),
 				config()->value("spacing_y", 50),
-				0
+				stream
 			);
 		}
 	}
