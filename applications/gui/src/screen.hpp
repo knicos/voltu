@@ -29,6 +29,7 @@ class Screen : public nanogui::Screen {
 	~Screen();
 
 	bool mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers);
+	bool scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel);
 	bool mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers);
 	bool keyboardEvent(int key, int scancode, int action, int modifiers);
 
@@ -92,6 +93,9 @@ class Screen : public nanogui::Screen {
 	ftl::Configurable *root_;
 	std::string status_;
 	ftl::gui::Camera *camera_;
+	float zoom_;
+	float pos_x_;
+	float pos_y_;
 
 	GLuint leftEye_;
 	GLuint rightEye_;
