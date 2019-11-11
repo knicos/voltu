@@ -215,11 +215,11 @@ bool ILW::_phase0(ftl::rgbd::FrameSet &fs, cudaStream_t stream) {
 
         f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<float>(Channel::Confidence, Format<float>(f.get<GpuMat>(Channel::Colour).size()));
-		f.createTexture<int>(Channel::Mask, Format<int>(f.get<GpuMat>(Channel::Colour).size()));
+		//f.createTexture<int>(Channel::Mask, Format<int>(f.get<GpuMat>(Channel::Colour).size()));
         f.createTexture<uchar4>(Channel::Colour);
 		f.createTexture<float>(Channel::Depth);
 
-		f.get<GpuMat>(Channel::Mask).setTo(cv::Scalar(0));
+		//f.get<GpuMat>(Channel::Mask).setTo(cv::Scalar(0));
     }
 
 	//cudaSafeCall(cudaStreamSynchronize(stream_));
@@ -232,7 +232,7 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
     cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
     // Find discontinuity mask
-    for (size_t i=0; i<fs.frames.size(); ++i) {
+    /*for (size_t i=0; i<fs.frames.size(); ++i) {
         auto &f = fs.frames[i];
         auto s = fs.sources[i];
 
@@ -243,7 +243,7 @@ bool ILW::_phase1(ftl::rgbd::FrameSet &fs, int win, cudaStream_t stream) {
             discon_mask_,
             stream
         );
-    }
+    }*/
 
 	// First do any preprocessing
 	if (fill_depth_) {

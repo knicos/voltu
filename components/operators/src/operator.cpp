@@ -31,15 +31,17 @@ bool Operator::apply(FrameSet &in, Frame &out, Source *os, cudaStream_t stream) 
 
 
 Graph::Graph(nlohmann::json &config) : ftl::Configurable(config) {
-
+	cudaSafeCall( cudaStreamCreate(&stream_) );
 }
 
 Graph::~Graph() {
-
+	cudaStreamDestroy(stream_);
 }
 
 bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 	if (!value("enabled", true)) return false;
+
+	auto stream_actual = (stream == 0) ? stream_ : stream;
 
 	if (in.frames.size() != out.frames.size()) return false;
 
@@ -53,9 +55,14 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 			auto *instance = i.instances[j];
 
 			if (instance->enabled()) {
-				instance->apply(in.frames[j], out.frames[j], in.sources[j], stream);
+				instance->apply(in.frames[j], out.frames[j], in.sources[j], stream_actual);
 			}
 		}
+	}
+
+	if (stream == 0) {
+		cudaStreamSynchronize(stream_actual);
+		cudaSafeCall( cudaGetLastError() );
 	}
 
 	return true;

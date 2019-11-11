@@ -22,7 +22,7 @@ bool ScanFieldFill::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd
 		in.createTexture<float>(Channel::Depth),
 		in.createTexture<float>(Channel::Smoothing),
 		thresh,
-		s->parameters(), 0
+		s->parameters(), stream
 	);
 
 	return true;

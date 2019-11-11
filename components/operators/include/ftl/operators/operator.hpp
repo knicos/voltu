@@ -99,6 +99,7 @@ class Graph : public ftl::Configurable {
 	private:
 	std::list<ftl::operators::detail::OperatorNode> operators_;
 	std::map<std::string, ftl::Configurable*> configs_;
+	cudaStream_t stream_;
 
 	ftl::Configurable *_append(ftl::operators::detail::ConstructionHelperBase*);
 };

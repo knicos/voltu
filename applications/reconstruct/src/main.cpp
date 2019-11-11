@@ -35,6 +35,7 @@
 #include <ftl/operators/normals.hpp>
 #include <ftl/operators/filling.hpp>
 #include <ftl/operators/segmentation.hpp>
+#include <ftl/operators/mask.hpp>
 
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
@@ -305,13 +306,15 @@ static void run(ftl::Configurable *root) {
 	// Create the source depth map pipeline
 	auto *pipeline1 = ftl::config::create<ftl::operators::Graph>(root, "pre_filters");
 	pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
-	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
+	//pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
 	//pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
 	//pipeline1->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
 	pipeline1->append<ftl::operators::CrossSupport>("cross");
+	pipeline1->append<ftl::operators::DiscontinuityMask>("discontinuity");
+	pipeline1->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 	pipeline1->append<ftl::operators::ColourMLS>("mls");  // Perform MLS (using smoothing channel)
-	pipeline1->append<ftl::operators::VisCrossSupport>("viscross");
+	pipeline1->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
 	// Alignment
 
 
