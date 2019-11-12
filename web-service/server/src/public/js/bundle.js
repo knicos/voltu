@@ -4720,15 +4720,27 @@ renderConfigOptions = () => {
     doc.innerHTML = input
 }
 
-changeConfigs = async () => {
+updateConfigs = async () => {
     const rawResp = await fetch('http://localhost:8080/stream/config', {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({board_size: [0, 5], square_size: 1, frame_delay: 5, num_frames: 10, URI: current_data.uri})
+        body: JSON.stringify({board_size: [0, 5], square_size: 1, frame_delay: 5, num_frames: 10, URI: "current_data.uri"})
     });
+    const content = await rawResp.json();
+    console.log(content)
+}
+
+//current_data.configURI
+//configURI = 
+/**
+ * current_data.configURI is a dropdown menu
+ */
+
+loadConfigs = async () => {
+    const rawResp = await fetch(`http://localhost:8080/stream/config?uri=current_data.uri`)
     const content = await rawResp.json();
     console.log(content)
 }

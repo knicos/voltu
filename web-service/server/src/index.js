@@ -231,8 +231,11 @@ app.post('/stream/config', async (req, res) => {
 
 app.get('/stream/config', async(req, res) => {
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/default/board_size
-	
 	const wholeURI = encodeURIComponent(req.query.uri)
+	let dataURI = await Configs.find({URI: wholeURI});
+	if(dataURI[0].data.length){
+		return res.status(200).json(dataURI[0]);
+	}
 	const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
 	const uri = wholeURI.substring(47);
 	let depth = uri.split("%2F");
