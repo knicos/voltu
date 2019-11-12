@@ -273,54 +273,55 @@ __device__ inline int segmentID(int u, int v) {
 
 		for (int u=-baseY.x; u<=baseY.y; ++u) {
 			const float d = depth_in.tex2D(x+u, y+v);
-			if (d < camera.minDepth || d > camera.maxDepth) continue;
+			if (d > camera.minDepth && d < camera.maxDepth) {
 
-			// Point and normal of neighbour
-			const float3 Xi = camera.screenToCam((int)(x)+u,(int)(y)+v,d);
-			const float3 Ni = make_float3(normals_in.tex2D((int)(x)+u, (int)(y)+v));
+				// Point and normal of neighbour
+				const float3 Xi = camera.screenToCam((int)(x)+u,(int)(y)+v,d);
+				const float3 Ni = make_float3(normals_in.tex2D((int)(x)+u, (int)(y)+v));
 
-			if (Ni.x+Ni.y+Ni.z == 0.0f) continue;
+				if (Ni.x+Ni.y+Ni.z == 0.0f) continue;
 
-			const float4 c = colour_in.tex2D(float(x+u) + 0.5f, float(y+v) + 0.5f);
-			const float cw = ftl::cuda::colourWeighting(c0,c,colour_smoothing);
+				const float4 c = colour_in.tex2D(float(x+u) + 0.5f, float(y+v) + 0.5f);
+				const float cw = ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
-			// Allow missing point to borrow z value
-			// TODO: This is a bad choice of Z! Perhaps try histogram vote approach
-			if (FILLING && d0 == 0.0f) X = camera.screenToCam((int)(x),(int)(y),Xi.z);
+				// Allow missing point to borrow z value
+				// TODO: This is a bad choice of Z! Perhaps try histogram vote approach
+				if (FILLING && d0 == 0.0f) X = camera.screenToCam((int)(x),(int)(y),Xi.z);
 
-			// Gauss approx weighting function using point distance
-			const float w = ftl::cuda::spatialWeighting(X,Xi,smoothing*cw);
+				// Gauss approx weighting function using point distance
+				const float w = ftl::cuda::spatialWeighting(X,Xi,smoothing*cw);
 
-			aX += Xi*w;
-			nX += Ni*w;
-			contrib += w;
-			if (FILLING && w > 0.0f && v > -base.z+1 && v < base.w-1 && u > -baseY.x+1 && u < baseY.y-1) segment_check |= segmentID(u,v);
+				aX += Xi*w;
+				nX += Ni*w;
+				contrib += w;
+				if (FILLING && w > 0.0f && v > -base.z+1 && v < base.w-1 && u > -baseY.x+1 && u < baseY.y-1) segment_check |= segmentID(u,v);
+			}
 		}
 	}
 
-	if (contrib == 0.0f) return;
-	
-	nX /= contrib;  // Weighted average normal
-	aX /= contrib;  // Weighted average point (centroid)
+	if (contrib > 0.0f) {
+		nX /= contrib;  // Weighted average normal
+		aX /= contrib;  // Weighted average point (centroid)
 
-	if (FILLING && d0 == 0.0f) {
-		if (__popc(segment_check) < 3) return;
-		X = camera.screenToCam((int)(x),(int)(y),aX.z);
+		if (FILLING && d0 == 0.0f) {
+			if (__popc(segment_check) < 3) return;
+			X = camera.screenToCam((int)(x),(int)(y),aX.z);
+		}
+
+		// Signed-Distance Field function
+		float fX = nX.x * (X.x - aX.x) + nX.y * (X.y - aX.y) + nX.z * (X.z - aX.z);
+
+		// Calculate new point using SDF function to adjust depth (and position)
+		X = X - nX * fX;
+		
+		//uint2 screen = camera.camToScreen<uint2>(X);
+
+		//if (screen.x < depth_out.width() && screen.y < depth_out.height()) {
+		//    depth_out(screen.x,screen.y) = X.z;
+		//}
+		depth_out(x,y) = X.z;
+		normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
 	}
-
-	// Signed-Distance Field function
-	float fX = nX.x * (X.x - aX.x) + nX.y * (X.y - aX.y) + nX.z * (X.z - aX.z);
-
-	// Calculate new point using SDF function to adjust depth (and position)
-	X = X - nX * fX;
-	
-	//uint2 screen = camera.camToScreen<uint2>(X);
-
-    //if (screen.x < depth_out.width() && screen.y < depth_out.height()) {
-    //    depth_out(screen.x,screen.y) = X.z;
-	//}
-	depth_out(x,y) = X.z;
-	normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
 }
 
 void ftl::cuda::colour_mls_smooth_csr(

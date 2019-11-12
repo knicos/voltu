@@ -179,11 +179,11 @@ ColourMLS::~ColourMLS() {
 }
 
 bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
-	float thresh = config()->value("mls_threshold", 0.04f);
+	float thresh = config()->value("mls_threshold", 0.4f);
 	float col_smooth = config()->value("mls_colour_smoothing", 30.0f);
-	int iters = config()->value("mls_iterations", 10);
+	int iters = config()->value("mls_iterations", 3);
 	int radius = config()->value("mls_radius",3);
-	bool crosssup = config()->value("cross_support", false);
+	bool crosssup = config()->value("cross_support", true);
 	bool filling = config()->value("filling", false);
 
 	if (!in.hasChannel(Channel::Normals)) {
