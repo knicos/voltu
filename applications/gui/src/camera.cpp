@@ -293,6 +293,7 @@ void ftl::gui::Camera::setChannel(Channel c) {
 	case Channel::Flow:
 	case Channel::Confidence:
 	case Channel::Normals:
+	case Channel::ColourNormals:
 	case Channel::Right:
 		src_->setChannel(c);
 		break;
@@ -464,7 +465,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				break;
 
 		//case Channel::Flow:
-		case Channel::Normals:
+		case Channel::ColourNormals:
 		case Channel::Right:
 				if (im2_.rows == 0 || im2_.type() != CV_8UC3) { break; }
 				texture2_.update(im2_);

@@ -411,6 +411,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	
 	out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
 	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
+	out.createTexture<uchar4>(Channel::Colour, true);  // Force interpolated colour
 
 
 	if (scene_->frames.size() == 0) return false;
@@ -504,7 +505,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 		if (chan == Channel::Normals) {
 			// Convert normal to single float value
-			temp_.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
+			temp_.create<GpuMat>(Channel::Colour, Format<uchar4>(out.get<GpuMat>(Channel::Colour).size())).setTo(cv::Scalar(0,0,0,0), cvstream);
 			ftl::cuda::normal_visualise(scene_->frames[aligned_source].getTexture<float4>(Channel::Normals), temp_.createTexture<uchar4>(Channel::Colour),
 					light_pos_,
 					light_diffuse_,
@@ -532,15 +533,19 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	{
 		// Just convert int depth to float depth
 		//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
-	} else if (chan == Channel::Normals) {
+	} else if (chan == Channel::ColourNormals) {
 		// Visualise normals to RGBA
-		accum_.create<GpuMat>(Channel::Normals, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
-		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), accum_.createTexture<uchar4>(Channel::Normals),
+		out.create<GpuMat>(Channel::ColourNormals, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
+
+		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), out.createTexture<uchar4>(Channel::ColourNormals),
 				light_pos_,
 				light_diffuse_,
 				light_ambient_, stream_);
 
-		accum_.swapTo(Channels(Channel::Normals), out);
+		//accum_.swapTo(Channels(Channel::Normals), out);
+		//cv::cuda::swap(accum_.get<GpuMat>(Channel::Normals), out.get<GpuMat>(Channel::Normals));
+		//out.resetTexture(Channel::Normals);
+		//accum_.resetTexture(Channel::Normals);
 	}
 	//else if (chan == Channel::Contribution)
 	//{

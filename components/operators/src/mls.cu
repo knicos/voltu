@@ -135,7 +135,7 @@ void ftl::cuda::mls_smooth(
 	if (d0 < camera.minDepth || d0 > camera.maxDepth) return;
 	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
 
-	uchar4 c0 = colour_in.tex2D(x, y);
+	float4 c0 = colour_in.tex2D((float)x+0.5f, (float)y+0.5f);
 
     // Neighbourhood
     for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
@@ -149,7 +149,7 @@ void ftl::cuda::mls_smooth(
 
 		if (Ni.x+Ni.y+Ni.z == 0.0f) continue;
 
-		const uchar4 c = colour_in.tex2D(x+u, y+v);
+		const float4 c = colour_in.tex2D(float(x+u) + 0.5f, float(y+v) + 0.5f);
 		const float cw = ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
 		// Gauss approx weighting function using point distance
@@ -259,7 +259,7 @@ __device__ inline int segmentID(int u, int v) {
 	}
 	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
 
-	uchar4 c0 = colour_in.tex2D(x, y);
+	float4 c0 = colour_in.tex2D((float)x+0.5f, (float)y+0.5f);
 
     // Neighbourhood
 	uchar4 base = region.tex2D(x,y);
@@ -281,7 +281,7 @@ __device__ inline int segmentID(int u, int v) {
 
 			if (Ni.x+Ni.y+Ni.z == 0.0f) continue;
 
-			const uchar4 c = colour_in.tex2D(x+u, y+v);
+			const float4 c = colour_in.tex2D(float(x+u) + 0.5f, float(y+v) + 0.5f);
 			const float cw = ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
 			// Allow missing point to borrow z value

@@ -13,6 +13,11 @@ __device__ inline float cross<uchar4>(uchar4 p1, uchar4 p2) {
 }
 
 template <>
+__device__ inline float cross<float4>(float4 p1, float4 p2) {
+    return max(max(fabsf(p1.x - p2.x),fabsf(p1.y - p2.y)), fabsf(p1.z - p2.z));
+}
+
+template <>
 __device__ inline float cross<float>(float p1, float p2) {
     return fabs(p1-p2);
 }
@@ -26,12 +31,12 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 
 	uchar4 result = make_uchar4(0, 0, 0, 0);
 
-	T colour = img.tex2D(x,y);
-	T prev_colour = colour;
+	auto colour = img.tex2D((float)x+0.5f,(float)y+0.5f);
+	auto prev_colour = colour;
 
 	int u;
     for (u=x-1; u >= x_min; --u) {
-		T next_colour = img.tex2D(u,y);
+		auto next_colour = img.tex2D((float)u+0.5f,(float)y+0.5f);
         if (cross(prev_colour, next_colour) > tau) {
             result.x = x - u - 1;
             break;
@@ -42,7 +47,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 	
 	prev_colour = colour;
     for (u=x+1; u <= x_max; ++u) {
-		T next_colour = img.tex2D(u,y);
+		auto next_colour = img.tex2D((float)u+0.5f,(float)y+0.5f);
         if (cross(prev_colour, next_colour) > tau) {
             result.y = u - x - 1;
             break;
@@ -54,7 +59,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 	int v;
 	prev_colour = colour;
     for (v=y-1; v >= y_min; --v) {
-		T next_colour = img.tex2D(x,v);
+		auto next_colour = img.tex2D((float)x+0.5f,(float)v+0.5f);
         if (cross(prev_colour, next_colour) > tau) {
             result.z = y - v - 1;
             break;
@@ -65,7 +70,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 
 	prev_colour = colour;
     for (v=y+1; v <= y_max; ++v) {
-		T next_colour = img.tex2D(x,v);
+		auto next_colour = img.tex2D((float)x+0.5f,(float)v+0.5f);
         if (cross(prev_colour, next_colour) > tau) {
             result.w = v - y - 1;
             break;
@@ -147,10 +152,10 @@ __global__ void vis_support_region_kernel(TextureObject<uchar4> colour, TextureO
 
 		for (int u=-baseY.x; u<=baseY.y; ++u) {
 			if (x+u < 0 || y+v < 0 || x+u >= colour.width() || y+v >= colour.height()) continue;
-			uchar4 col = colour.tex2D(x+u, y+v);
+			auto col = colour.tex2D(float(x+u)+0.5f, float(y+v)+0.5f);
 			colour(x+u, y+v) = (u==0 || v == 0) ?
-					make_uchar4(max(bcolour.x, col.x), max(bcolour.y, col.y), max(bcolour.z, col.z), 0) :
-					make_uchar4(max(acolour.x, col.x), max(acolour.y, col.y), max(acolour.z, col.z), 0);
+					make_uchar4(max(bcolour.x, (unsigned char)col.x), max(bcolour.y, (unsigned char)col.y), max(bcolour.z, (unsigned char)col.z), 0) :
+					make_uchar4(max(acolour.x, (unsigned char)col.x), max(acolour.y, (unsigned char)col.y), max(acolour.z, (unsigned char)col.z), 0);
 		}
 	}
 }
@@ -198,7 +203,7 @@ __global__ void vis_bad_region_kernel(
 
 	uchar4 base = region.tex2D(x,y);
 	uchar4 baseD = dregion.tex2D(x,y);
-	uchar4 col = colour.tex2D(x,y);
+	auto col = colour.tex2D((float)x+0.5f,(float)y+0.5f);
 	float d = depth.tex2D(x,y);
 
 	if (baseD.x > base.x && baseD.y < base.y) {

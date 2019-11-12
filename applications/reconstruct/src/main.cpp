@@ -36,6 +36,7 @@
 #include <ftl/operators/filling.hpp>
 #include <ftl/operators/segmentation.hpp>
 #include <ftl/operators/mask.hpp>
+#include <ftl/operators/antialiasing.hpp>
 
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
@@ -236,8 +237,12 @@ static void run(ftl::Configurable *root) {
 	int o = root->value("origin_pose", 0) % sources.size();
 	virt->setPose(sources[o]->getPose());
 
+	auto *renderpipe = ftl::config::create<ftl::operators::Graph>(root, "render_pipe");
+	renderpipe->append<ftl::operators::ColourChannels>("colour");  // Generate interpolation texture...
+	renderpipe->append<ftl::operators::FXAA>("antialiasing"); 
+
 	// Generate virtual camera render when requested by streamer
-	virt->onRender([splat,virt,&scene_B,align](ftl::rgbd::Frame &out) {
+	virt->onRender([splat,virt,&scene_B,align,renderpipe](ftl::rgbd::Frame &out) {
 		//virt->setTimestamp(scene_B.timestamp);
 		// Do we need to convert Lab to BGR?
 		if (align->isLabColour()) {
@@ -247,6 +252,7 @@ static void run(ftl::Configurable *root) {
 			}
 		}
 		splat->render(virt, out);
+		renderpipe->apply(out, out, virt, 0);
 	});
 	stream->add(virt);
 

@@ -16,6 +16,8 @@ set(OPERSRC
 	src/segmentation.cpp
 	src/mask.cu
 	src/mask.cpp
+	src/antialiasing.cpp
+	src/antialiasing.cu
 )
 
 if (HAVE_OPTFLOW)

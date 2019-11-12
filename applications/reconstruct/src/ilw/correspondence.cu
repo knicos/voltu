@@ -65,7 +65,7 @@ __global__ void correspondence_energy_vector_kernel(
 	
 	const float3 world1 = pose1 * cam1.screenToCam(x,y,depth1);
 
-    const uchar4 colour1 = c1.tex2D(x, y);
+    const auto colour1 = c1.tex2D((float)x+0.5f, (float)y+0.5f);
 
 	float bestdepth = 0.0f;
 	float bestweight = 0.0f;
@@ -91,17 +91,17 @@ __global__ void correspondence_energy_vector_kernel(
         // Calculate adjusted depth 3D point in camera 2 space
         const float3 worldPos = world1 + j * rayStep_world; //(pose1 * cam1.screenToCam(x, y, depth_adjust));
         const float3 camPos = rayStart_2 + j * rayStep_2; //pose2 * worldPos;
-        const uint2 screen = cam2.camToScreen<uint2>(camPos);
+        const float2 screen = cam2.camToScreen<float2>(camPos);
 
         if (screen.x >= cam2.width || screen.y >= cam2.height) continue;
 
 		// Generate a depth correspondence value
-		const float depth2 = d2.tex2D((int)screen.x, (int)screen.y);
+		const float depth2 = d2.tex2D(int(screen.x+0.5f), int(screen.y+0.5f));
 		const float dweight = ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
 		//const float dweight = ftl::cuda::weighting(fabs(depth_adjust - depth1), 2.0f*params.range);
 		
 		// Generate a colour correspondence value
-		const uchar4 colour2 = c2.tex2D((int)screen.x, (int)screen.y);
+		const auto colour2 = c2.tex2D(screen.x, screen.y);
 		const float cweight = ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
 
 		const float weight = weightFunction<FUNCTION>(params, dweight, cweight);
