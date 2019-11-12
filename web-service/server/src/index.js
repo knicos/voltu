@@ -2,9 +2,9 @@ const express = require('express');
 const app = express();
 const expressWs = require('express-ws')(app);
 const Peer = require('./peer.js');
+const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const passportSetup = require('./passport/passport'); //Without this, the app doesn't know passports google strategy
-const jwt = require('jsonwebtoken');
 const keys = require('./passport/keys')
 const mongoose = require('mongoose')
 const config = require('./utils/config')
@@ -207,13 +207,17 @@ app.get('/stream/depth', (req, res) => {
 });
 
 app.post('/stream/config', async (req, res) => {
-	const {board_size, square_size, frame_delay, num_frames, name} = req.body
-	const savedConfigs = new Config({
+	const {board_size, square_size, frame_delay, num_frames, URI} = req.body;
+	console.log(req.body)
+	const data = {
 		board_size,
 		square_size,
 		frame_delay,
-		num_frames,
-		name
+		num_frames
+	}
+	const savedConfigs = new Configs({
+		URI,
+		data
 	});
 
 	try{

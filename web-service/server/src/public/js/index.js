@@ -66,7 +66,7 @@ renderThumbnails = async () => {
     // console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
-    containerDiv.innerHTML = renderConfigsButton()
+    containerDiv.innerHTML = `<button onClick="configs()">change configs</button>`
     containerDiv.innerHTML += `<div class="ftlab-stream-thumbnails"></div>`
     // console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
@@ -188,10 +188,6 @@ const cardLogic = () => {
     const cards = document.getElementsByClassName('ftlab-card-component');
 }
 
-const renderConfigsButton = () => {
-    return `<button onClick="configs()">change configs</button>`
-}
-
 configs = () => {
     const container = document.getElementById("container");
     container.innerHTML = `<div class="ftlab-configurations"></div>`;
@@ -199,7 +195,20 @@ configs = () => {
 }
 
 renderConfigOptions = () => {
-    const input = `<input type="text">`
+    const input = `<p>input1</p><br><input type="text">`
     const doc = document.getElementsByClassName('ftlab-configurations')[0];
     doc.innerHTML = input
+}
+
+changeConfigs = async () => {
+    const rawResp = await fetch('http://localhost:8080/stream/config', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({board_size: [0, 5], square_size: 1, frame_delay: 5, num_frames: 10, URI: "current_data.uri"})
+    });
+    const content = await rawResp.json();
+    console.log(content)
 }
