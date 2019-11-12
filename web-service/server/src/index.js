@@ -231,49 +231,66 @@ app.post('/stream/config', async (req, res) => {
 
 app.get('/stream/config', async(req, res) => {
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/default/board_size
-	const wholeURI = encodeURIComponent(req.query.uri)
-	let dataURI = await Configs.find({URI: wholeURI});
-	if(dataURI[0].data.length){
-		return res.status(200).json(dataURI[0]);
-	}
-	const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
-	const uri = wholeURI.substring(47);
-	let depth = uri.split("%2F");
-	console.log("DEPTH", depth)
-	let queryURI = baseURI + '%2F' + depth[0]
-	console.log("QUERYURI", queryURI)
-	let response = await Configs.find({ URI : queryURI});
-	
-	const objects = response[0].data
-	console.log(objects)
-	//Check that DB has at least some data
-	if(response.length){
-		const firstLayerObj = Object.entries(objects)
-		const helpObj = {}
-		for(const [key, value] of firstLayerObj){
-			//Save the right named object into helpObj
-			if(key == depth[1]){
-				helpObj[`${key}`] = value
-			}
+	let uri = req.query.uri;
+	// let response = await Configs.find({URI: uri});
+	// if(dbData[0].data){
+	// 	return res.status(200).json(dbData[0]);
+	// }else{
+		// let peer1 = uri_data[]
+		console.log("CONFIGURATION URI", uri)
+		let peer = uri_data[uri].peer
+		let response;
+		if(peer){
+			response = peer.rpc("get_cfg", uri)
+			console.log("PEER", peer)
 		}
-		//If the URI ends into the second objects name e.g. default
-		if(depth.length==2){
-			return res.status(200).json(helpObj)
+		return res.status(200).json(response);
+	// }
+
+
+
+
+
+
+
+	// const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
+	// const uri = wholeURI.substring(47);
+	// let depth = uri.split("%2F");
+	// console.log("DEPTH", depth)
+	// let queryURI = baseURI + '%2F' + depth[0]
+	// console.log("QUERYURI", queryURI)
+	// let response = await Configs.find({ URI : queryURI});
+	
+	// const objects = response[0].data
+	// console.log(objects)
+	// //Check that DB has at least some data
+	// if(response.length){
+	// 	const firstLayerObj = Object.entries(objects)
+	// 	const helpObj = {}
+	// 	for(const [key, value] of firstLayerObj){
+	// 		//Save the right named object into helpObj
+	// 		if(key == depth[1]){
+	// 			helpObj[`${key}`] = value
+	// 		}
+	// 	}
+	// 	//If the URI ends into the second objects name e.g. default
+	// 	if(depth.length==2){
+	// 		return res.status(200).json(helpObj)
 			
-		//Else send the value of the attribute
-		}else if(depth.length==3){
-			const secondLayerObj = Object.values(helpObj);
-			const finalLayer = Object.entries(secondLayerObj[0]);
-			for(const [key, value] of finalLayer){
-				console.log("PIIPPIIP")
-				if(key == depth[2]){
-					const data = { data : value }
-					return res.status(200).json(data)
-				}
-			}
-		}	
-	}
-		return res.status(200).json("Nothing found");
+	// 	//Else send the value of the attribute
+	// 	}else if(depth.length==3){
+	// 		const secondLayerObj = Object.values(helpObj);
+	// 		const finalLayer = Object.entries(secondLayerObj[0]);
+	// 		for(const [key, value] of finalLayer){
+	// 			console.log("PIIPPIIP")
+	// 			if(key == depth[2]){
+	// 				const data = { data : value }
+	// 				return res.status(200).json(data)
+	// 			}
+	// 		}
+	// 	}	
+	// }
+	// 	return res.status(200).json("Nothing found");
 
 })
 
@@ -462,14 +479,10 @@ app.ws('/', (ws, req) => {
 
 	// Request from frames from a source
 	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
-		const realURI = decodeURIComponent(uri);
-		const destination = decodeURIComponent(dest);
-		console.log("URI IS ", uri);
-		console.log("URI_DATA IS ", uri_data[realURI].peer)
-		let peer = uri_data[realURI].peer;
-		console.log('PEER', peer);
+		console.log("URI IS ", uri_data[uri]);
+		let peer = uri_data[uri].peer;
 		if (peer) {
-			uri_data[realURI].addClient(p, N, rate, destination);
+			uri_data[uri].addClient(p, N, rate, dest);
 			//peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);
 		}
 	});

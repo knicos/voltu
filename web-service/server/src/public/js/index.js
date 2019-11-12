@@ -48,7 +48,7 @@ getAvailableStreams = async () => {
 
 videoPlayer = () => {
     const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails()">Go back</button><br>
+    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button><br>
     <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
@@ -71,7 +71,7 @@ renderThumbnails = async () => {
     // console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
         const encodedURI = encodeURIComponent(thumbnails[i])
-        current_data.uri = encodedURI
+        current_data.uri = thumbnails[i]
         console.log("THUMBNAIL[i]", thumbnails[i])
         try{
             const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
@@ -220,7 +220,9 @@ updateConfigs = async () => {
  */
 
 loadConfigs = async () => {
-    const rawResp = await fetch(`http://localhost:8080/stream/config?uri=current_data.uri`)
+    console.log("URI", current_data.uri)
+    const uri = encodeURIComponent(current_data.uri);
+    const rawResp = await fetch(`http://localhost:8080/stream/config?uri=${uri}`)
     const content = await rawResp.json();
     console.log(content)
 }
