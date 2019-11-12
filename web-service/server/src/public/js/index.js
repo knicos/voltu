@@ -22,6 +22,7 @@ checkIfLoggedIn = async () => {
     //         if(response.status === 200){
     //             console.log("SUCCESS")
     renderThumbnails()
+
     //         }
     //     }
 }
@@ -65,7 +66,8 @@ renderThumbnails = async () => {
     // console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
-    containerDiv.innerHTML = `<div class="ftlab-stream-thumbnails"></div>`
+    containerDiv.innerHTML = renderConfigsButton()
+    containerDiv.innerHTML += `<div class="ftlab-stream-thumbnails"></div>`
     // console.log(containerDiv)
     for(var i=0; i<thumbnails.length; i++){
         const encodedURI = encodeURIComponent(thumbnails[i])
@@ -176,7 +178,6 @@ connectToStream = () => {
         }
     })
     peer.send("get_stream", (current_data.uri, 10, 0, current_data.uri))
-    // setTimeout(closeStream, 2000)
 }
 
 closeStream = () => {
@@ -185,4 +186,20 @@ closeStream = () => {
 
 const cardLogic = () => {
     const cards = document.getElementsByClassName('ftlab-card-component');
+}
+
+const renderConfigsButton = () => {
+    return `<button onClick="configs()">change configs</button>`
+}
+
+configs = () => {
+    const container = document.getElementById("container");
+    container.innerHTML = `<div class="ftlab-configurations"></div>`;
+    let configContainer = document.getElementsByClassName("ftlab-configurations")[0];
+}
+
+renderConfigOptions = () => {
+    const input = `<input type="text">`
+    const doc = document.getElementsByClassName('ftlab-configurations')[0];
+    doc.innerHTML = input
 }

@@ -11,14 +11,12 @@ const config = require('./utils/config')
 const User = require('./models/users')
 const Configs = require('./models/generic')
 const bodyParser = require('body-parser')
-const cors = require('cors')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
 app.use(express.static(__dirname + '/public'));
 
 app.use(bodyParser.json())
-app.use(cors())
 
 
 passport.serializeUser((user, done) => {
