@@ -31,6 +31,7 @@ enum struct Channel : int {
 	Support1		= 13,	// 8UC4 (currently)
 	Support2		= 14,	// 8UC4 (currently)
     Segmentation	= 15,	// 32S?
+    ColourNormals   = 16,   // 8UC4
 
 	AudioLeft		= 32,
 	AudioRight		= 33,

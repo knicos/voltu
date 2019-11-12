@@ -24,5 +24,8 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgb
 		cv::cuda::cvtColor(temp_,col, cv::COLOR_BGR2BGRA, 0, cvstream);
 	}
 
+	//in.resetTexture(Channel::Colour);
+	in.createTexture<uchar4>(Channel::Colour, true);
+
 	return true;
 }
