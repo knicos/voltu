@@ -398,6 +398,53 @@ void Triangular::_renderChannel(
 	_reprojectChannel(out, channel_in, channel_out, stream);
 }
 
+/*
+ * H(Hue): 0 - 360 degree (integer)
+ * S(Saturation): 0 - 1.00 (double)
+ * V(Value): 0 - 1.00 (double)
+ * 
+ * output[3]: Output, array size 3, int
+ */
+static cv::Scalar HSVtoRGB(int H, double S, double V) {
+	double C = S * V;
+	double X = C * (1 - abs(fmod(H / 60.0, 2) - 1));
+	double m = V - C;
+	double Rs, Gs, Bs;
+
+	if(H >= 0 && H < 60) {
+		Rs = C;
+		Gs = X;
+		Bs = 0;	
+	}
+	else if(H >= 60 && H < 120) {	
+		Rs = X;
+		Gs = C;
+		Bs = 0;	
+	}
+	else if(H >= 120 && H < 180) {
+		Rs = 0;
+		Gs = C;
+		Bs = X;	
+	}
+	else if(H >= 180 && H < 240) {
+		Rs = 0;
+		Gs = X;
+		Bs = C;	
+	}
+	else if(H >= 240 && H < 300) {
+		Rs = X;
+		Gs = 0;
+		Bs = C;	
+	}
+	else {
+		Rs = C;
+		Gs = 0;
+		Bs = X;	
+	}
+
+	return cv::Scalar((Bs + m) * 255, (Gs + m) * 255, (Rs + m) * 255, 0);
+}
+
 bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	SHARED_LOCK(scene_->mtx, lk);
 	if (!src->isReady()) return false;
@@ -444,14 +491,20 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 	bool show_discon = value("show_discontinuity_mask", false);
 	bool show_fill = value("show_filled", false);
+	bool colour_sources = value("colour_sources", false);
 
 	temp_.createTexture<int>(Channel::Depth);
 	//temp_.get<GpuMat>(Channel::Normals).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
 
-	// Display mask values
+	// Display mask values or otherwise alter colour image
 	for (int i=0; i<scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
 		auto s = scene_->sources[i];
+
+		if (colour_sources) {
+			auto colour = HSVtoRGB(360 / scene_->frames.size() * i, 0.6, 0.85); //(i == 0) ? cv::Scalar(255,0,0,0) : cv::Scalar(0,255,0,0);
+			f.get<GpuMat>(Channel::Colour).setTo(colour, cvstream);
+		}
 
 		if (f.hasChannel(Channel::Mask)) {
 			if (show_discon) {
