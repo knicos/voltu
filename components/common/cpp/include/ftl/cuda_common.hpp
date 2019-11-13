@@ -183,7 +183,7 @@ TextureObject<T>::TextureObject(const cv::cuda::GpuMat &d, bool interpolated) {
 	height_ = d.rows;
 	needsfree_ = false;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 #endif  // __CUDACC__
@@ -218,7 +218,7 @@ TextureObject<T>::TextureObject(const cv::cuda::PtrStepSz<T> &d) {
 	height_ = d.rows;
 	needsfree_ = false;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 /**
@@ -252,7 +252,7 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 	height_ = height;
 	needsfree_ = false;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 template <typename T>
@@ -285,7 +285,7 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 	needsfree_ = true;
 	pitch2_ = pitch_ / sizeof(T);
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 #ifndef __CUDACC__
@@ -312,6 +312,7 @@ TextureObject<T>::TextureObject(const TextureObject<T> &p) {
 	pitch2_ = pitch_ / sizeof(T);
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 	needsfree_ = false;
+	needsdestroy_ = false;
 }
 
 template <typename T>
@@ -323,14 +324,17 @@ TextureObject<T>::TextureObject(TextureObject<T> &&p) {
 	pitch_ = p.pitch_;
 	pitch2_ = pitch_ / sizeof(T);
 	needsfree_ = p.needsfree_;
+	needsdestroy_ = p.needsdestroy_;
 	p.texobj_ = 0;
 	p.needsfree_ = false;
+	p.needsdestroy_ = false;
 	p.ptr_ = nullptr;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 }
 
 template <typename T>
 TextureObject<T> &TextureObject<T>::operator=(const TextureObject<T> &p) {
+	free();
 	texobj_ = p.texobj_;
 	ptr_ = p.ptr_;
 	width_ = p.width_;
@@ -339,11 +343,13 @@ TextureObject<T> &TextureObject<T>::operator=(const TextureObject<T> &p) {
 	pitch2_ = pitch_ / sizeof(T);
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 	needsfree_ = false;
+	needsdestroy_ = false;
 	return *this;
 }
 
 template <typename T>
 TextureObject<T> &TextureObject<T>::operator=(TextureObject<T> &&p) {
+	free();
 	texobj_ = p.texobj_;
 	ptr_ = p.ptr_;
 	width_ = p.width_;
@@ -351,8 +357,10 @@ TextureObject<T> &TextureObject<T>::operator=(TextureObject<T> &&p) {
 	pitch_ = p.pitch_;
 	pitch2_ = pitch_ / sizeof(T);
 	needsfree_ = p.needsfree_;
+	needsdestroy_ = p.needsdestroy_;
 	p.texobj_ = 0;
 	p.needsfree_ = false;
+	p.needsdestroy_ = false;
 	p.ptr_ = nullptr;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 	return *this;

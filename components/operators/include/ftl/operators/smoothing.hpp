@@ -80,6 +80,51 @@ class ColourMLS : public ftl::operators::Operator {
 };
 
 /**
+ * Use cross aggregation of neighbors for faster MLS smoothing. Utilises the
+ * cross support regions and colour weighting. This algorithm is based upon the
+ * cross aggregation method in the papers below. MLS was adapted into an
+ * approximate form which is not identical to real MLS as the weights are not
+ * perfectly correct for each point. The errors are visually minimal and it
+ * has linear performance wrt radius, rather than quadratic.
+ * 
+ * Zhang K, Lu J, Lafruit G. Cross-based local stereo matching using orthogonal
+ * integral images. (2009).
+ * 
+ * Better explained in:
+ * X. Mei, X. Sun, M. Zhou et al. On building an accurate stereo matching system
+ * on graphics hardware. (2011).
+ * 
+ * The use of colour weighting is done as in:
+ * C. Kuster et al. Spatio-temporal geometry fusion for multiple hybrid cameras
+ * using moving least squares surfaces. (2014)
+ * 
+ * The above paper also indicates the importance of stopping MLS at depth
+ * boundaries. They use k-means clustering (K=2) of depths, but we are using
+ * an approach (discontinuity mask) indicated in the following paper combined
+ * with the cross support regions to define the extent of the MLS neighbourhood.
+ * 
+ * S. Orts-Escolano et al. Holoportation: Virtual 3D teleportation in real-time.
+ * (2016).
+ * 
+ * The use of all these approaches in this combination is novel I believe.
+ * 
+ */
+class AggreMLS : public ftl::operators::Operator {
+	public:
+	explicit AggreMLS(ftl::Configurable*);
+	~AggreMLS();
+
+	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
+
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+
+	private:
+	ftl::cuda::TextureObject<float4> centroid_horiz_;
+	ftl::cuda::TextureObject<float4> centroid_vert_;
+	ftl::cuda::TextureObject<float4> normals_horiz_;
+};
+
+/**
  * A version of Moving Least Squares where both the smoothing factor and
  * neighbourhood size are adapted over an extra large range using the colour
  * channel as a guide. Requires Depth+Normals+Colour. Neighbourhood can
