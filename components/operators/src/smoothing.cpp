@@ -6,6 +6,7 @@
 using ftl::operators::HFSmoother;
 using ftl::operators::SimpleMLS;
 using ftl::operators::ColourMLS;
+using ftl::operators::AggreMLS;
 using ftl::operators::AdaptiveMLS;
 using ftl::operators::SmoothChannel;
 using ftl::codecs::Channel;
@@ -224,6 +225,102 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 
 		in.swapChannels(Channel::Depth, Channel::Depth2);
 		in.swapChannels(Channel::Normals, Channel::Points);
+	}
+
+	return true;
+}
+
+
+// ====== Aggregating MLS ======================================================
+
+AggreMLS::AggreMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+
+}
+
+AggreMLS::~AggreMLS() {
+
+}
+
+bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+	float thresh = config()->value("mls_threshold", 0.4f);
+	float col_smooth = config()->value("mls_colour_smoothing", 30.0f);
+	int iters = config()->value("mls_iterations", 3);
+	int radius = config()->value("mls_radius",5);
+	bool aggre = config()->value("aggregation", true);
+
+	if (!in.hasChannel(Channel::Normals)) {
+		LOG(ERROR) << "Required normals channel missing for MLS";
+		return false;
+	}
+
+	auto size = in.get<GpuMat>(Channel::Depth).size();
+	centroid_horiz_.create(size.height, size.width);
+	normals_horiz_.create(size.height, size.width);
+	centroid_vert_.create(size.width, size.height);
+
+	// FIXME: Assume in and out are the same frame.
+	for (int i=0; i<iters; ++i) {
+
+		if (aggre) {
+			ftl::cuda::mls_aggr_horiz(
+				in.createTexture<uchar4>(Channel::Support1),
+				in.createTexture<float4>(Channel::Normals),
+				normals_horiz_,
+				in.createTexture<float>(Channel::Depth),
+				centroid_horiz_,
+				in.createTexture<uchar4>(Channel::Colour),
+				thresh,
+				col_smooth,
+				radius,
+				s->parameters(),
+				stream
+			);
+
+			ftl::cuda::mls_aggr_vert(
+				in.createTexture<uchar4>(Channel::Support1),
+				normals_horiz_,
+				in.createTexture<float4>(Channel::Normals),
+				centroid_horiz_,
+				centroid_vert_,
+				in.createTexture<uchar4>(Channel::Colour),
+				in.createTexture<float>(Channel::Depth),
+				thresh,
+				col_smooth,
+				radius,
+				s->parameters(),
+				stream
+			);
+
+			ftl::cuda::mls_adjust_depth(
+				in.createTexture<float4>(Channel::Normals),
+				centroid_vert_,
+				in.createTexture<float>(Channel::Depth),
+				in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(size)),
+				s->parameters(),
+				stream
+			);
+
+			in.swapChannels(Channel::Depth, Channel::Depth2);
+			//in.swapChannels(Channel::Normals, Channel::Points);
+
+		} else {
+			ftl::cuda::colour_mls_smooth_csr(
+				in.createTexture<uchar4>(Channel::Support1),
+				in.createTexture<float4>(Channel::Normals),
+				in.createTexture<float4>(Channel::Points, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				in.createTexture<float>(Channel::Depth),
+				in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				in.createTexture<uchar4>(Channel::Colour),
+				thresh,
+				col_smooth,
+				false,
+				s->parameters(),
+				stream
+			);
+
+			in.swapChannels(Channel::Depth, Channel::Depth2);
+			in.swapChannels(Channel::Normals, Channel::Points);
+		}
 	}
 
 	return true;
