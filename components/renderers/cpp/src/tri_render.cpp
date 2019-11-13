@@ -130,6 +130,19 @@ Triangular::Triangular(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::r
 	on("light_y", [this](const ftl::config::Event &e) { light_pos_.y = value("light_y", 0.3f); });
 	on("light_z", [this](const ftl::config::Event &e) { light_pos_.z = value("light_z", 0.3f); });
 
+	// Load any environment texture
+	std::string envimage = value("environment", std::string(""));
+	if (envimage.size() > 0) {
+		cv::Mat envim = cv::imread(envimage);
+		if (!envim.empty()) {
+			if (envim.type() == CV_8UC3) {
+				cv::cvtColor(envim,envim, cv::COLOR_BGR2BGRA);
+			}
+			env_image_.upload(envim);
+			env_tex_ = std::move(ftl::cuda::TextureObject<uchar4>(env_image_, true));
+		}
+	}
+
 	cudaSafeCall(cudaStreamCreate(&stream_));
 
 	//filters_ = ftl::create<ftl::Filters>(this, "filters");
@@ -485,7 +498,16 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	// Clear all channels to 0 or max depth
 
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
-	out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
+
+	if (env_image_.empty() || !value("environment_enabled", false)) {
+		out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
+	} else {
+		auto pose = params.m_viewMatrixInverse.getFloat3x3();
+		ftl::cuda::equirectangular_reproject(
+			env_tex_,
+			out.createTexture<uchar4>(Channel::Colour, true),
+			camera, pose, stream_);
+	}
 
 	//LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
