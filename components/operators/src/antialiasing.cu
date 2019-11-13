@@ -71,6 +71,7 @@ __global__ void filter_fxaa2(ftl::cuda::TextureObject<uchar4> data) {
 
     //surf2Dwrite<uchar4>(out_color, surfaceWrite, x*sizeof(uchar4), y);
 
+	// FIXME: Should not output to same texture object.
     data(x,y) = out_color;
 }
 

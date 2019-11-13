@@ -18,5 +18,12 @@ bool FXAA::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source 
 		stream
 	);
 
+	if (in.hasChannel(Channel::Right)) {
+		ftl::cuda::fxaa(
+			in.getTexture<uchar4>(Channel::Right),
+			stream
+		);
+	}
+
 	return true;
 }

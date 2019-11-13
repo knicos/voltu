@@ -628,6 +628,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 		
 		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
 		out.get<GpuMat>(Channel::Right).setTo(background_, cvstream);
+		out.createTexture<uchar4>(Channel::Right, true);
 
 		// Need to re-dibr due to pose change
 		if (mesh_) {
