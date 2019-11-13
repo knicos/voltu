@@ -619,7 +619,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 		Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 		transform(0, 3) = baseline;
-		Eigen::Matrix4f matrix = transform.inverse() * src->getPose().cast<float>();
+		Eigen::Matrix4f matrix = src->getPose().cast<float>() * transform.inverse();
 		
 		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
