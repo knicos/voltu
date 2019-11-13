@@ -85,6 +85,11 @@ namespace cuda {
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
+	void equirectangular_reproject(
+		ftl::cuda::TextureObject<uchar4> &image_in,
+		ftl::cuda::TextureObject<uchar4> &image_out,
+		const ftl::rgbd::Camera &camera, const float3x3 &pose, cudaStream_t stream);
+
 	template <typename A, typename B>
 	void dibr_normalise(
 		ftl::cuda::TextureObject<A> &in,
