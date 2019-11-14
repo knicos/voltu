@@ -7,16 +7,18 @@
 #include <opencv2/cudaoptflow.hpp>
 #endif
 
+#ifdef HAVE_LIBSGM
 #include <libsgm.h>
+#endif
 
 namespace ftl {
 namespace operators {
 
+#ifdef HAVE_LIBSGM
 /*
  * FixstarsSGM https://github.com/fixstars/libSGM
  * 
  * Requires modified version https://gitlab.utu.fi/joseha/libsgm
- * 
  */
 class FixstarsSGM : public ftl::operators::Operator {
 	public:
@@ -41,6 +43,7 @@ class FixstarsSGM : public ftl::operators::Operator {
 	int max_disp_;
 	float uniqueness_;
 };
+#endif
 
 class DisparityBilateralFilter : public::ftl::operators::Operator {
 	public:
