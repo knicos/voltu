@@ -75,8 +75,10 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 	return rz * rx * ry;
 }
 
-// TODO:	Remove this class (requires more general solution). Also does not
-//		 	process disconnections/reconnections/types etc. correctly.
+// TODO:	*	Remove this class (requires more general solution). Also does not
+//				process disconnections/reconnections/types etc. correctly.
+//			*	Update when new options become available.
+
 class ConfigProxy {
 	private:
 	vector<ftl::UUID> peers_;
@@ -99,20 +101,25 @@ class ConfigProxy {
 		auto config = json_t::parse(net_->call<string>(peers_[0], "get_cfg", uris_[0] + "/" + uri));
 		auto *proxy = ftl::create<ftl::Configurable>(root, name);
 		
-		for (auto &itm : config.get<json::object_t>()) {
-			auto key = itm.first;
-			auto value = itm.second;
-			if (*key.begin() == '$') { continue; }
+		try {
+			for (auto &itm : config.get<json::object_t>()) {
+				auto key = itm.first;
+				auto value = itm.second;
+				if (*key.begin() == '$') { continue; }
 
-			proxy->set(key, value);
-			proxy->on(key, [this, uri, key, value, proxy](const ftl::config::Event&) {
-				for (size_t i = 0; i < uris_.size(); i++) {
-					// TODO: check that config exists?
-					auto peer = peers_[i];
-					std::string name = uris_[i] + "/" + uri + "/" + key;
-					net_->send(peer, "update_cfg", name, proxy->getConfig()[key].dump());
-				}
-			});
+				proxy->set(key, value);
+				proxy->on(key, [this, uri, key, value, proxy](const ftl::config::Event&) {
+					for (size_t i = 0; i < uris_.size(); i++) {
+						// TODO: check that config exists?
+						auto peer = peers_[i];
+						std::string name = uris_[i] + "/" + uri + "/" + key;
+						net_->send(peer, "update_cfg", name, proxy->getConfig()[key].dump());
+					}
+				});
+			}
+		}
+		catch (nlohmann::detail::type_error) {
+			LOG(ERROR) << "Failed to add config proxy for: " << uri << "/" << name;
 		}
 	}
 };
@@ -166,7 +173,7 @@ static void run(ftl::Configurable *root) {
 		LOG(ERROR) << "No sources configured!";
 		return;
 	}
-
+	
 	ConfigProxy *configproxy = nullptr;
 	if (net->numberOfPeers() > 0) {
 		configproxy = new ConfigProxy(net); // TODO delete
@@ -174,6 +181,8 @@ static void run(ftl::Configurable *root) {
 		configproxy->add(disparity, "source/disparity/algorithm", "algorithm");
 		configproxy->add(disparity, "source/disparity/bilateral_filter", "bilateral_filter");
 		configproxy->add(disparity, "source/disparity/optflow_filter", "optflow_filter");
+		configproxy->add(disparity, "source/disparity/mls", "mls");
+		configproxy->add(disparity, "source/disparity/cross", "cross");
 	}
 
 	// Create scene transform, intended for axis aligning the walls and floor
@@ -289,7 +298,7 @@ static void run(ftl::Configurable *root) {
 
 			// TODO: Write pose+calibration+config packets
 			auto sources = group->sources();
-			for (int i=0; i<sources.size(); ++i) {
+			for (size_t i=0; i<sources.size(); ++i) {
 				//writeSourceProperties(writer, i, sources[i]);
 				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
 				sources[i]->inject(sources[i]->getPose()); 
