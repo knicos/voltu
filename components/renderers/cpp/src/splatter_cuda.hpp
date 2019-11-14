@@ -97,6 +97,14 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &contribs,
 		cudaStream_t stream);
 
+	void show_missing_colour(
+		ftl::cuda::TextureObject<float> &depth,
+		ftl::cuda::TextureObject<uchar4> &out,
+		ftl::cuda::TextureObject<float> &contribs,
+		uchar4 bad_colour,
+		const ftl::rgbd::Camera &cam,
+		cudaStream_t stream);
+
 	void show_mask(
         ftl::cuda::TextureObject<uchar4> &colour,
 		ftl::cuda::TextureObject<int> &mask,

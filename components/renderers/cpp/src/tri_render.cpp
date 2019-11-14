@@ -603,6 +603,17 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 	// Reprojection of colours onto surface
 	_renderChannel(out, Channel::Colour, Channel::Colour, stream_);
+
+	if (value("show_bad_colour", false)) {
+		ftl::cuda::show_missing_colour(
+			out.getTexture<float>(Channel::Depth),
+			out.getTexture<uchar4>(Channel::Colour),
+			temp_.getTexture<float>(Channel::Contribution),
+			make_uchar4(255,0,0,0),
+			camera,
+			stream_
+		);
+	}
 	
 	if (chan == Channel::Depth)
 	{
