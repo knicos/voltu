@@ -17,7 +17,6 @@ set(OPERSRC
 	src/mask.cpp
 	src/antialiasing.cpp
 	src/antialiasing.cu
-	src/edges.cpp
 )
 
 
