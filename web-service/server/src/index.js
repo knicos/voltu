@@ -231,34 +231,55 @@ app.post('/stream/config', async (req, res) => {
 
 app.get('/stream/config', async(req, res) => {
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/default/board_size
-	let uri = req.query.uri;
+	let uri = encodeURIComponent(req.query.uri);
 	// let response = await Configs.find({URI: uri});
 	// if(dbData[0].data){
 	// 	return res.status(200).json(dbData[0]);
 	// }else{
 		// let peer1 = uri_data[]
-		console.log("CONFIGURATION URI", uri)
-		let peer = uri_data[uri].peer
-		let response;
-		if(peer){
-			response = peer.rpc("get_cfg", uri)
-			console.log("PEER", peer)
-		}
-		return res.status(200).json(response);
+		// console.log("CONFIGURATION URI", uri)
+		// let peer = uri_data[uri].peer
+		// let response;
+		// if(peer){
+		// 	response = peer.rpc("get_cfg", uri)
+		// 	console.log("PEER", response)
+		// 	if(response){
+		// 		return res.status(200).json(response);
+		// 	}
+		// }
 	// }
 
 
+	//Pitää parsii uri ja tehä siitä JSON-objekti
+	const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
+	splittedUri = uri.substring(47);
+	let depth = splittedUri.split("%2F");
+	console.log("DEPTH", depth)
+	let queryURI = baseURI + '%2F' + depth[0]
+	console.log("QUERYURI", queryURI)
+
+	if(depth.length === 0){
+
+	}else if(depth.length === 1){
+
+	}else{
+		let lastObject;
+		let helpObj;
+		let helper;
+		for(let i=depth.length-2; i=>0; i--){
+			helper = {
+				[depth[i]]: depth[i+1]
+			}
+			helpObj = {
+				[depth[i]]: depth[i+1]
+			}
+
+		}
+	}
+
+	
 
 
-
-
-
-	// const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
-	// const uri = wholeURI.substring(47);
-	// let depth = uri.split("%2F");
-	// console.log("DEPTH", depth)
-	// let queryURI = baseURI + '%2F' + depth[0]
-	// console.log("QUERYURI", queryURI)
 	// let response = await Configs.find({ URI : queryURI});
 	
 	// const objects = response[0].data

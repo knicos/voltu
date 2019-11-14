@@ -4739,9 +4739,10 @@ updateConfigs = async () => {
  * current_data.configURI is a dropdown menu
  */
 
+ current_data.configs = 'ftl://utu.fi/stream/configurations/calibrations/default'
 loadConfigs = async () => {
     console.log("URI", current_data.uri)
-    const uri = encodeURIComponent(current_data.uri);
+    const uri = encodeURIComponent(current_data.configs);
     const rawResp = await fetch(`http://localhost:8080/stream/config?uri=${uri}`)
     const content = await rawResp.json();
     console.log(content)
