@@ -253,6 +253,11 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sou
 		return false;
 	}
 
+	if (!in.hasChannel(Channel::Support1)) {
+		LOG(ERROR) << "Required support channel missing for MLS";
+		return false;
+	}
+
 	auto size = in.get<GpuMat>(Channel::Depth).size();
 	centroid_horiz_.create(size.height, size.width);
 	normals_horiz_.create(size.height, size.width);

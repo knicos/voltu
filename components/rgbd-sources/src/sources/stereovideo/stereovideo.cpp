@@ -8,7 +8,14 @@
 #include "ftl/operators/opticalflow.hpp"
 #endif
 
+
+#include "ftl/operators/smoothing.hpp"
+#include "ftl/operators/colours.hpp"
+#include "ftl/operators/normals.hpp"
+#include "ftl/operators/filling.hpp"
+#include "ftl/operators/segmentation.hpp"
 #include "ftl/operators/disparity.hpp"
+#include "ftl/operators/mask.hpp"
 
 #include "ftl/threads.hpp"
 #include "calibrate.hpp"
@@ -132,6 +139,11 @@ void StereoVideoSource::init(const string &file) {
 	#endif
 	pipeline_depth_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
 	pipeline_depth_->append<ftl::operators::DisparityToDepth>("calculate_depth");
+	pipeline_depth_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	pipeline_depth_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
+	pipeline_depth_->append<ftl::operators::CrossSupport>("cross");
+	pipeline_depth_->append<ftl::operators::DiscontinuityMask>("discontinuity_mask");
+	pipeline_depth_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
 
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
