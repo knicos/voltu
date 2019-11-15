@@ -14,12 +14,12 @@ namespace operators {
  */
 class DiscontinuityMask : public ftl::operators::Operator {
 	public:
-    explicit DiscontinuityMask(ftl::Configurable*);
-    ~DiscontinuityMask();
+	explicit DiscontinuityMask(ftl::Configurable*);
+	~DiscontinuityMask();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 
 };
 
@@ -28,12 +28,12 @@ class DiscontinuityMask : public ftl::operators::Operator {
  */
 class CullDiscontinuity : public ftl::operators::Operator {
 	public:
-    explicit CullDiscontinuity(ftl::Configurable*);
-    ~CullDiscontinuity();
+	explicit CullDiscontinuity(ftl::Configurable*);
+	~CullDiscontinuity();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 
 };
 

@@ -10,7 +10,6 @@ set(OPERSRC
 	src/filling.cu
 	src/disparity/disp2depth.cu
 	src/disparity/disparity_to_depth.cpp
-	src/disparity/fixstars_sgm.cpp
 	src/disparity/bilateral_filter.cpp
 	src/segmentation.cu
 	src/segmentation.cpp
@@ -19,6 +18,11 @@ set(OPERSRC
 	src/antialiasing.cpp
 	src/antialiasing.cu
 )
+
+
+if (LIBSGM_FOUND)
+	list(APPEND OPERSRC src/disparity/fixstars_sgm.cpp)
+endif (LIBSGM_FOUND)
 
 if (HAVE_OPTFLOW)
 	list(APPEND OPERSRC
