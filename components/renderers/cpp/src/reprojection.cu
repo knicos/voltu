@@ -203,13 +203,13 @@ __global__ void reprojection_kernel(
 	const float3 camPos = poseInv * worldPos;
 	if (camPos.z < camera.minDepth) return;
 	if (camPos.z > camera.maxDepth) return;
-	const uint2 screenPos = camera.camToScreen<uint2>(camPos);
+	const float2 screenPos = camera.camToScreen<float2>(camPos);
 
 	// Not on screen so stop now...
 	if (screenPos.x >= depth_src.width() || screenPos.y >= depth_src.height()) return;
     
-	const float d2 = depth_src.tex2D((int)screenPos.x, (int)screenPos.y);
-	const A input = in.tex2D((int)screenPos.x, (int)screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+	const float d2 = depth_src.tex2D((int)(screenPos.x+0.5f), (int)(screenPos.y+0.5f));
+	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
 	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
 	const B weighted = make<B>(input) * weight;
 
