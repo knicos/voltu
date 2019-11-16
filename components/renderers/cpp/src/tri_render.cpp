@@ -300,9 +300,13 @@ void Triangular::_dibr(ftl::rgbd::Frame &out, cudaStream_t stream) {
 			continue;
 		}
 
+		auto transform = params_.m_viewMatrix * MatrixConversion::toCUDA(s->getPose().cast<float>());
+
 		ftl::cuda::dibr_merge(
-			f.createTexture<float4>(Channel::Points),
+			f.createTexture<float>(Channel::Depth),
 			temp_.createTexture<int>(Channel::Depth2),
+			transform,
+			s->parameters(),
 			params_, stream
 		);
 	}

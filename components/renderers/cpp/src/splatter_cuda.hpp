@@ -43,6 +43,14 @@ namespace cuda {
 		ftl::render::SplatParams params,
 		cudaStream_t stream);
 
+	void dibr_merge(
+		ftl::cuda::TextureObject<float> &depth,
+		ftl::cuda::TextureObject<int> &depth_out,
+		const float4x4 &transform,
+		const ftl::rgbd::Camera &cam,
+		ftl::render::SplatParams params,
+		cudaStream_t stream);
+
 	template <typename T>
 	void splat(
         ftl::cuda::TextureObject<float4> &normals,
