@@ -37,6 +37,7 @@
 #include <ftl/operators/segmentation.hpp>
 #include <ftl/operators/mask.hpp>
 #include <ftl/operators/antialiasing.hpp>
+#include <ftl/operators/clipping.hpp>
 
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
@@ -320,6 +321,7 @@ static void run(ftl::Configurable *root) {
 
 	// Create the source depth map pipeline
 	auto *pipeline1 = ftl::config::create<ftl::operators::Graph>(root, "pre_filters");
+	pipeline1->append<ftl::operators::ClipScene>("clipping");
 	pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	//pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
