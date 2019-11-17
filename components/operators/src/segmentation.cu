@@ -22,7 +22,7 @@ __device__ inline float cross<float>(float p1, float p2) {
     return fabs(p1-p2);
 }
 
-template <typename T>
+template <typename T, bool SYM>
 __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, int y, float tau, int v_max, int h_max) {
     int x_min = max(0, x - h_max);
     int x_max = min(img.width()-1, x + h_max);
@@ -79,17 +79,24 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 	}
 	if (v > y_max) result.w = y_max - y;
 
+	// Make symetric left/right and up/down
+	if (SYM) {
+		result.x = min(result.x, result.y);
+		result.y = result.x;
+		result.z = min(result.z, result.w);
+		result.w = result.z;
+	}
     return result;
 }
 
-template <typename T>
+template <typename T, bool SYM>
 __global__ void support_region_kernel(TextureObject<T> img, TextureObject<uchar4> region, float tau, int v_max, int h_max) {
     const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if (x < 0 || y < 0 || x >= img.width() || y >= img.height()) return;
 
-    region(x,y) = calculate_support_region(img, x, y, tau, v_max, h_max);
+    region(x,y) = calculate_support_region<T,SYM>(img, x, y, tau, v_max, h_max);
 }
 
 void ftl::cuda::support_region(
@@ -97,13 +104,15 @@ void ftl::cuda::support_region(
         ftl::cuda::TextureObject<uchar4> &region,
         float tau,
         int v_max,
-        int h_max,
+		int h_max,
+		bool sym,
         cudaStream_t stream) {
 
     const dim3 gridSize((region.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (region.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-    support_region_kernel<<<gridSize, blockSize, 0, stream>>>(colour, region, tau, v_max, h_max);
+	if (sym) support_region_kernel<uchar4, true><<<gridSize, blockSize, 0, stream>>>(colour, region, tau, v_max, h_max);
+	else support_region_kernel<uchar4, false><<<gridSize, blockSize, 0, stream>>>(colour, region, tau, v_max, h_max);
     cudaSafeCall( cudaGetLastError() );
 
 
@@ -118,12 +127,13 @@ void ftl::cuda::support_region(
 		float tau,
 		int v_max,
 		int h_max,
+		bool sym,
 		cudaStream_t stream) {
 
 	const dim3 gridSize((region.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (region.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	support_region_kernel<<<gridSize, blockSize, 0, stream>>>(depth, region, tau, v_max, h_max);
+	support_region_kernel<float, true><<<gridSize, blockSize, 0, stream>>>(depth, region, tau, v_max, h_max);
 	cudaSafeCall( cudaGetLastError() );
 
 

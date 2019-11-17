@@ -9,13 +9,13 @@ namespace cuda {
 void support_region(
 		ftl::cuda::TextureObject<uchar4> &colour,
 		ftl::cuda::TextureObject<uchar4> &region,
-		float tau, int v_max, int h_max,
+		float tau, int v_max, int h_max, bool sym,
 		cudaStream_t stream);
 
 void support_region(
 		ftl::cuda::TextureObject<float> &depth,
 		ftl::cuda::TextureObject<uchar4> &region,
-		float tau, int v_max, int h_max,
+		float tau, int v_max, int h_max, bool sym,
 		cudaStream_t stream);
 
 void vis_support_region(
