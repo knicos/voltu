@@ -228,7 +228,8 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
 		}
 
-		auto poseInv = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse());
+		auto transform = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse()) * params_.m_viewMatrixInverse;
+		auto transformR = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse()).getFloat3x3();
 
 		if (mesh_) {
 			ftl::cuda::reproject(
@@ -240,7 +241,7 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 				temp_.getTexture<float>(Channel::Contribution),
 				params_,
 				s->parameters(),
-				poseInv, stream
+				transform, transformR, stream
 			);
 		} else {
 			// Can't use normals with point cloud version
@@ -252,7 +253,7 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 				temp_.getTexture<float>(Channel::Contribution),
 				params_,
 				s->parameters(),
-				poseInv, stream
+				transform, stream
 			);
 		}
 	}
@@ -580,19 +581,19 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	if (aligned_source >= 0 && aligned_source < scene_->frames.size()) {
 		// FIXME: Output may not be same resolution as source!
 		cudaSafeCall(cudaStreamSynchronize(stream_));
-		scene_->frames[aligned_source].copyTo(Channel::Depth + Channel::Colour + Channel::Smoothing, out);
+		scene_->frames[aligned_source].copyTo(Channel::Depth + Channel::Colour + Channel::Smoothing + Channel::Confidence, out);
 
-		if (chan == Channel::Normals) {
+		if (chan == Channel::ColourNormals) {
 			// Convert normal to single float value
-			temp_.create<GpuMat>(Channel::Colour, Format<uchar4>(out.get<GpuMat>(Channel::Colour).size())).setTo(cv::Scalar(0,0,0,0), cvstream);
-			ftl::cuda::normal_visualise(scene_->frames[aligned_source].getTexture<float4>(Channel::Normals), temp_.createTexture<uchar4>(Channel::Colour),
+			out.create<GpuMat>(Channel::ColourNormals, Format<uchar4>(out.get<GpuMat>(Channel::Colour).size())).setTo(cv::Scalar(0,0,0,0), cvstream);
+			ftl::cuda::normal_visualise(scene_->frames[aligned_source].getTexture<float4>(Channel::Normals), out.createTexture<uchar4>(Channel::ColourNormals),
 					light_pos_,
 					light_diffuse_,
 					light_ambient_, stream_);
 
 			// Put in output as single float
-			cv::cuda::swap(temp_.get<GpuMat>(Channel::Colour), out.create<GpuMat>(Channel::Normals));
-			out.resetTexture(Channel::Normals);
+			//cv::cuda::swap(temp_.get<GpuMat>(Channel::Colour), out.create<GpuMat>(Channel::Normals));
+			//out.resetTexture(Channel::Normals);
 		}
 
 		return true;

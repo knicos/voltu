@@ -37,6 +37,7 @@
 #include <ftl/operators/segmentation.hpp>
 #include <ftl/operators/mask.hpp>
 #include <ftl/operators/antialiasing.hpp>
+#include <ftl/operators/mvmls.hpp>
 #include <ftl/operators/clipping.hpp>
 
 #include <ftl/cuda/normals.hpp>
@@ -330,8 +331,9 @@ static void run(ftl::Configurable *root) {
 	pipeline1->append<ftl::operators::CrossSupport>("cross");
 	pipeline1->append<ftl::operators::DiscontinuityMask>("discontinuity");
 	pipeline1->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
-	pipeline1->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
+	//pipeline1->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
 	pipeline1->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
+	pipeline1->append<ftl::operators::MultiViewMLS>("mvmls");
 	// Alignment
 
 

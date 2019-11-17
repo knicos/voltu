@@ -17,6 +17,8 @@ set(OPERSRC
 	src/mask.cpp
 	src/antialiasing.cpp
 	src/antialiasing.cu
+	src/mvmls.cpp
+	src/correspondence.cu
 	src/clipping.cpp
 )
 

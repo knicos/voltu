@@ -25,7 +25,7 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 }
 
 ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
-    enabled_ = value("ilw_align", true);
+    enabled_ = value("ilw_align", false);
     iterations_ = value("iterations", 4);
     motion_rate_ = value("motion_rate", 0.8f);
     motion_window_ = value("motion_window", 3);
@@ -42,7 +42,7 @@ ILW::ILW(nlohmann::json &config) : ftl::Configurable(config) {
     });
 
 	on("ilw_align", [this](const ftl::config::Event &e) {
-        enabled_ = value("ilw_align", true);
+        enabled_ = value("ilw_align", false);
     });
 
     on("iterations", [this](const ftl::config::Event &e) {
