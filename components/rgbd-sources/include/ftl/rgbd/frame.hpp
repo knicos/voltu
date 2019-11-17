@@ -233,7 +233,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const 
 
 template <typename T>
 ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, bool interpolated) {
-	if (!channels_.has(c)) throw ftl::exception("createTexture needs a format if the channel does not exist");
+	if (!channels_.has(c)) throw ftl::exception(ftl::Formatter() << "createTexture needs a format if the channel does not exist: " << (int)c);
 
 	auto &m = _get(c);
 

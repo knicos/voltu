@@ -66,7 +66,7 @@ __global__ void reprojection_kernel(
 		TextureObject<B> out,			// Accumulated output
 		TextureObject<float> contrib,
 		SplatParams params,
-		Camera camera, float4x4 poseInv) {
+		Camera camera, float4x4 transform, float3x3 transformR) {
         
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -74,10 +74,10 @@ __global__ void reprojection_kernel(
 	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
-	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
+	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
 	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
 
-	const float3 camPos = poseInv * worldPos;
+	const float3 camPos = transform * params.camera.screenToCam(x, y, d);
 	if (camPos.z < camera.minDepth) return;
 	if (camPos.z > camera.maxDepth) return;
 	const float2 screenPos = camera.camToScreen<float2>(camPos);
@@ -86,7 +86,7 @@ __global__ void reprojection_kernel(
 	if (screenPos.x >= depth_src.width() || screenPos.y >= depth_src.height()) return;
             
 	// Calculate the dot product of surface normal and camera ray
-	const float3 n = poseInv.getFloat3x3() * make_float3(normals.tex2D((int)x, (int)y));
+	const float3 n = transformR * make_float3(normals.tex2D((int)x, (int)y));
 	float3 ray = camera.screenToCam(screenPos.x, screenPos.y, 1.0f);
 	ray = ray / length(ray);
 	const float dotproduct = max(dot(ray,n),0.0f);
@@ -123,7 +123,7 @@ void ftl::cuda::reproject(
 		TextureObject<B> &out,   // Accumulated output
 		TextureObject<float> &contrib,
 		const SplatParams &params,
-		const Camera &camera, const float4x4 &poseInv, cudaStream_t stream) {
+		const Camera &camera, const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream) {
 	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
@@ -136,7 +136,8 @@ void ftl::cuda::reproject(
 		contrib,
 		params,
 		camera,
-		poseInv
+		transform,
+		transformR
     );
     cudaSafeCall( cudaGetLastError() );
 }
@@ -150,7 +151,7 @@ template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<float> &contrib,
 	const ftl::render::SplatParams &params,
 	const ftl::rgbd::Camera &camera,
-	const float4x4 &poseInv, cudaStream_t stream);
+	const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &in,	// Original colour image
@@ -161,7 +162,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &in,	// Original colour image
@@ -172,7 +173,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 //==============================================================================
 //  Without normals
@@ -197,10 +198,10 @@ __global__ void reprojection_kernel(
 	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
-	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
+	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
 	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
 
-	const float3 camPos = poseInv * worldPos;
+	const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
 	if (camPos.z < camera.minDepth) return;
 	if (camPos.z > camera.maxDepth) return;
 	const float2 screenPos = camera.camToScreen<float2>(camPos);

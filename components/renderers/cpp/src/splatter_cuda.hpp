@@ -80,7 +80,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 	template <typename A, typename B>
 	void reproject(
