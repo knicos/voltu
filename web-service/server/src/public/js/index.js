@@ -57,6 +57,9 @@ videoPlayer = () => {
     
 }
 
+videoDecoder = () => {
+    let decoder = new libde265.Decoder();
+}
 
 /**
  * Creates thumbnail (image) for all available streams and adds them to div class='container'
