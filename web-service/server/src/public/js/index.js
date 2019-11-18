@@ -191,39 +191,37 @@ const cardLogic = () => {
 configs = () => {
     const container = document.getElementById("container");
     container.innerHTML = `<div class="ftlab-configurations"></div>`;
-    let configContainer = document.getElementsByClassName("ftlab-configurations")[0];
+    // let configContainer = document.getElementsByClassName("ftlab-configurations")[0];
+    renderConfigOptions();
 }
 
 renderConfigOptions = () => {
-    const input = `<p>input1</p><br><input type="text">`
+    const input = `<p>input1</p><br>ftl://utu.fi#<input type="text">`
     const doc = document.getElementsByClassName('ftlab-configurations')[0];
-    doc.innerHTML = input
+    doc.innerHTML = input;
 }
 
-updateConfigs = async () => {
+current_data.configURI = "ftl://utu.fi#reconstruction_snap10/merge"
+
+loadConfigs = async () => {
+    const configURI = encodeURIComponent(current_data.configURI);
+    const uri = encodeURIComponent(current_data.uri)
+    const rawResp = await fetch(`http://localhost:8080/stream/config?settings=${configURI}&uri=${uri}`)
+    const response = await rawResp.json();
+    const content = JSON.parse(response);
+    container.innerHTML += `<p>${response}</p>`;
+    console.log(content)
+}
+
+saveConfigs = async () => {
     const rawResp = await fetch('http://localhost:8080/stream/config', {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({board_size: [0, 5], square_size: 1, frame_delay: 5, num_frames: 10, URI: "current_data.uri"})
+        body: {uri: current_data.configURI, data: current_data.configData}
     });
-    const content = await rawResp.json();
-    console.log(content)
-}
-
-//current_data.configURI
-//configURI = 
-/**
- * current_data.configURI is a dropdown menu
- */
-
-current_data.configs = "ftl://utu.fi#reconstruction_snap10/merge/maxerror"
-loadConfigs = async () => {
-    const configURI = encodeURIComponent(current_data.configs);
-    const uri = encodeURIComponent(current_data.uri)
-    const rawResp = await fetch(`http://localhost:8080/stream/config?settings=${configURI}&uri=${uri}`)
     const content = await rawResp.json();
     console.log(content)
 }

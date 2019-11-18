@@ -207,14 +207,8 @@ app.get('/stream/depth', (req, res) => {
 });
 
 app.post('/stream/config', async (req, res) => {
-	const {board_size, square_size, frame_delay, num_frames, URI} = req.body;
+	const {URI, data} = req.body;
 	console.log(req.body)
-	const data = {
-		board_size,
-		square_size,
-		frame_delay,
-		num_frames
-	}
 	const savedConfigs = new Configs({
 		URI,
 		data
