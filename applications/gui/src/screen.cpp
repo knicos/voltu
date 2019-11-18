@@ -48,11 +48,13 @@ namespace {
 
 	constexpr char const *const defaultImageViewFragmentShader =
 		R"(#version 330
-		uniform sampler2D image;
+		uniform sampler2D image1;
+		uniform sampler2D image2;
+		uniform float blendAmount;
 		out vec4 color;
 		in vec2 uv;
 		void main() {
-			color = texture(image, uv);
+			color = blendAmount * texture(image1, uv) + (1.0 - blendAmount) * texture(image2, uv);
 		})";
 }
 
@@ -69,6 +71,20 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	HMD_ = nullptr;
 	has_vr_ = vr::VR_IsHmdPresent();
 	#endif
+
+	zoom_ = root_->value("zoom", 1.0f);
+	root_->on("zoom", [this](const ftl::config::Event &e) {
+		zoom_ = root_->value("zoom", 1.0f);
+	});
+
+	pos_x_ = root_->value("position_x", 0.0f);
+	root_->on("position_x", [this](const ftl::config::Event &e) {
+		pos_x_ = root_->value("position_x", 0.0f);
+	});
+	pos_y_ = root_->value("position_y", 0.0f);
+	root_->on("position_y", [this](const ftl::config::Event &e) {
+		pos_y_ = root_->value("position_y", 0.0f);
+	});
 
 	setSize(Vector2i(1280,720));
 
@@ -352,11 +368,27 @@ void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
 	}
 }
 
+bool ftl::gui::Screen::scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel) {
+	if (nanogui::Screen::scrollEvent(p, rel)) {
+		return true;
+	} else {
+		zoom_ += zoom_ * 0.1f * rel[1];
+		return true;
+	}
+}
+
 bool ftl::gui::Screen::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers) {
 	if (nanogui::Screen::mouseMotionEvent(p, rel, button, modifiers)) {
 		return true;
 	} else {
-		if (camera_) camera_->mouseMovement(rel[0], rel[1], button);
+		if (camera_) {
+			if (button == 1) {
+				camera_->mouseMovement(rel[0], rel[1], button);
+			} else if (button == 2) {
+				pos_x_ += rel[0];
+				pos_y_ += -rel[1];
+			}
+		}
 	}
 	return true; // TODO: return statement was missing; is true correct?
 }
@@ -365,7 +397,10 @@ bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, 
 	if (nanogui::Screen::mouseButtonEvent(p, button, down, modifiers)) {
 		return true;
 	} else {
-		if (camera_ && down) {
+		if (!camera_) return false;
+		
+		//ol movable = camera_->source()->hasCapabilities(ftl::rgbd::kCapMovable);
+		if (button == 0 && down) {
 			Eigen::Vector2f screenSize = size().cast<float>();
 			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
 			Eigen::Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
@@ -389,8 +424,10 @@ bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, 
 			//lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
 			//LOG(INFO) << "Depth at click = " << -camPos[2];
 			return true;
+		} else {
+			
 		}
-	return false;
+		return false;
 	}
 }
 
@@ -444,9 +481,9 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		#endif
 
 		if (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) {
-			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
+			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff()) * zoom_;
 			Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
-			Vector2f positionInScreen(0.0f, 0.0f);
+			Vector2f positionInScreen(pos_x_, pos_y_);
 			auto mOffset = (screenSize - (screenSize.cwiseProduct(scaleFactor))) / 2;
 			Vector2f positionAfterOffset = positionInScreen + mOffset;
 			Vector2f imagePosition = positionAfterOffset.cwiseQuotient(screenSize);
@@ -457,8 +494,12 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 					size().x() * r, size().y() * r);*/
 			mShader.bind();
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, mImageID);
-			mShader.setUniform("image", 0);
+			glBindTexture(GL_TEXTURE_2D, leftEye_);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, (camera_->getRight().isValid()) ? rightEye_ : leftEye_);
+			mShader.setUniform("image1", 0);
+			mShader.setUniform("image2", 1);
+			mShader.setUniform("blendAmount", (camera_->getChannel() != ftl::codecs::Channel::Left) ? root_->value("blending", 0.5f) : 1.0f);
 			mShader.setUniform("scaleFactor", scaleFactor);
 			mShader.setUniform("position", imagePosition);
 			mShader.drawIndexed(GL_TRIANGLES, 0, 2);

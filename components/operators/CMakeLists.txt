@@ -1,12 +1,40 @@
-add_library(ftloperators
-    src/smoothing.cpp
+set(OPERSRC
+	src/smoothing.cpp
 	src/smoothing.cu
 	src/mls.cu
 	src/smoothchan.cu
 	src/operator.cpp
 	src/colours.cpp
 	src/normals.cpp
+	src/filling.cpp
+	src/filling.cu
+	src/disparity/disp2depth.cu
+	src/disparity/disparity_to_depth.cpp
+	src/disparity/bilateral_filter.cpp
+	src/segmentation.cu
+	src/segmentation.cpp
+	src/mask.cu
+	src/mask.cpp
+	src/antialiasing.cpp
+	src/antialiasing.cu
+	src/mvmls.cpp
+	src/correspondence.cu
+	src/clipping.cpp
 )
+
+
+if (LIBSGM_FOUND)
+	list(APPEND OPERSRC src/disparity/fixstars_sgm.cpp)
+endif (LIBSGM_FOUND)
+
+if (HAVE_OPTFLOW)
+	list(APPEND OPERSRC
+		src/nvopticalflow.cpp
+		src/disparity/optflow_smoothing.cu
+		src/disparity/optflow_smoothing.cpp)
+endif()
+
+add_library(ftloperators ${OPERSRC})
 
 # These cause errors in CI build and are being removed from PCL in newer versions
 # target_compile_options(ftlrender PUBLIC ${PCL_DEFINITIONS})

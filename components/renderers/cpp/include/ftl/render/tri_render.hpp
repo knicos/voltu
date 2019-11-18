@@ -43,6 +43,9 @@ class Triangular : public ftl::render::Renderer {
 	cudaStream_t stream_;
 	float3 light_pos_;
 
+	cv::cuda::GpuMat env_image_;
+	ftl::cuda::TextureObject<uchar4> env_tex_;
+
 	//ftl::Filters *filters_;
 
 	template <typename T>

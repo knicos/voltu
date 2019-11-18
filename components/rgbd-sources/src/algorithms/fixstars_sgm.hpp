@@ -41,6 +41,11 @@ namespace ftl {
 
 		private:
 			void init(const cv::Size size);
+			bool updateParameters();
+			bool updateBilateralFilter();
+			#ifdef HAVE_OPTFLOW
+			bool updateOFDisparityFilter();
+			#endif
 
 			float uniqueness_;
 			int P1_;
@@ -54,7 +59,7 @@ namespace ftl {
 			cv::cuda::GpuMat dispt_;
 
 			#ifdef HAVE_OPTFLOW
-			ftl::rgbd::OFDisparityFilter off_;
+			//ftl::rgbd::OFDisparityFilter off_;
 			#endif
 		};
 	};

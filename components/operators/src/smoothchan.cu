@@ -32,6 +32,7 @@ __global__ void smooth_chan_kernel(
 
 		//const float3 pos = camera.screenToCam(ix, iy, d0);
 
+		//int v=0;
 		for (int v=-RADIUS; v<=RADIUS; ++v) {
 			#pragma unroll
 			for (int u=-RADIUS; u<=RADIUS; ++u) {

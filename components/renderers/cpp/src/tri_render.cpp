@@ -130,6 +130,19 @@ Triangular::Triangular(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::r
 	on("light_y", [this](const ftl::config::Event &e) { light_pos_.y = value("light_y", 0.3f); });
 	on("light_z", [this](const ftl::config::Event &e) { light_pos_.z = value("light_z", 0.3f); });
 
+	// Load any environment texture
+	std::string envimage = value("environment", std::string(""));
+	if (envimage.size() > 0) {
+		cv::Mat envim = cv::imread(envimage);
+		if (!envim.empty()) {
+			if (envim.type() == CV_8UC3) {
+				cv::cvtColor(envim,envim, cv::COLOR_BGR2BGRA);
+			}
+			env_image_.upload(envim);
+			env_tex_ = std::move(ftl::cuda::TextureObject<uchar4>(env_image_, true));
+		}
+	}
+
 	cudaSafeCall(cudaStreamCreate(&stream_));
 
 	//filters_ = ftl::create<ftl::Filters>(this, "filters");
@@ -215,7 +228,8 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
 		}
 
-		auto poseInv = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse());
+		auto transform = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse()) * params_.m_viewMatrixInverse;
+		auto transformR = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse()).getFloat3x3();
 
 		if (mesh_) {
 			ftl::cuda::reproject(
@@ -227,7 +241,7 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 				temp_.getTexture<float>(Channel::Contribution),
 				params_,
 				s->parameters(),
-				poseInv, stream
+				transform, transformR, stream
 			);
 		} else {
 			// Can't use normals with point cloud version
@@ -239,7 +253,7 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 				temp_.getTexture<float>(Channel::Contribution),
 				params_,
 				s->parameters(),
-				poseInv, stream
+				transform, stream
 			);
 		}
 	}
@@ -287,9 +301,13 @@ void Triangular::_dibr(ftl::rgbd::Frame &out, cudaStream_t stream) {
 			continue;
 		}
 
+		auto transform = params_.m_viewMatrix * MatrixConversion::toCUDA(s->getPose().cast<float>());
+
 		ftl::cuda::dibr_merge(
-			f.createTexture<float4>(Channel::Points),
+			f.createTexture<float>(Channel::Depth),
 			temp_.createTexture<int>(Channel::Depth2),
+			transform,
+			s->parameters(),
 			params_, stream
 		);
 	}
@@ -398,6 +416,53 @@ void Triangular::_renderChannel(
 	_reprojectChannel(out, channel_in, channel_out, stream);
 }
 
+/*
+ * H(Hue): 0 - 360 degree (integer)
+ * S(Saturation): 0 - 1.00 (double)
+ * V(Value): 0 - 1.00 (double)
+ * 
+ * output[3]: Output, array size 3, int
+ */
+static cv::Scalar HSVtoRGB(int H, double S, double V) {
+	double C = S * V;
+	double X = C * (1 - abs(fmod(H / 60.0, 2) - 1));
+	double m = V - C;
+	double Rs, Gs, Bs;
+
+	if(H >= 0 && H < 60) {
+		Rs = C;
+		Gs = X;
+		Bs = 0;	
+	}
+	else if(H >= 60 && H < 120) {	
+		Rs = X;
+		Gs = C;
+		Bs = 0;	
+	}
+	else if(H >= 120 && H < 180) {
+		Rs = 0;
+		Gs = C;
+		Bs = X;	
+	}
+	else if(H >= 180 && H < 240) {
+		Rs = 0;
+		Gs = X;
+		Bs = C;	
+	}
+	else if(H >= 240 && H < 300) {
+		Rs = X;
+		Gs = 0;
+		Bs = C;	
+	}
+	else {
+		Rs = C;
+		Gs = 0;
+		Bs = X;	
+	}
+
+	return cv::Scalar((Bs + m) * 255, (Gs + m) * 255, (Rs + m) * 255, 0);
+}
+
 bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	SHARED_LOCK(scene_->mtx, lk);
 	if (!src->isReady()) return false;
@@ -411,6 +476,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	
 	out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
 	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
+	out.createTexture<uchar4>(Channel::Colour, true);  // Force interpolated colour
 
 
 	if (scene_->frames.size() == 0) return false;
@@ -437,20 +503,35 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	// Clear all channels to 0 or max depth
 
 	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
-	out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
+
+	if (env_image_.empty() || !value("environment_enabled", false)) {
+		out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
+	} else {
+		auto pose = params.m_viewMatrixInverse.getFloat3x3();
+		ftl::cuda::equirectangular_reproject(
+			env_tex_,
+			out.createTexture<uchar4>(Channel::Colour, true),
+			camera, pose, stream_);
+	}
 
 	//LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
 	bool show_discon = value("show_discontinuity_mask", false);
 	bool show_fill = value("show_filled", false);
+	bool colour_sources = value("colour_sources", false);
 
 	temp_.createTexture<int>(Channel::Depth);
 	//temp_.get<GpuMat>(Channel::Normals).setTo(cv::Scalar(0.0f,0.0f,0.0f,0.0f), cvstream);
 
-	// Display mask values
+	// Display mask values or otherwise alter colour image
 	for (int i=0; i<scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
 		auto s = scene_->sources[i];
+
+		if (colour_sources) {
+			auto colour = HSVtoRGB(360 / scene_->frames.size() * i, 0.6, 0.85); //(i == 0) ? cv::Scalar(255,0,0,0) : cv::Scalar(0,255,0,0);
+			f.get<GpuMat>(Channel::Colour).setTo(colour, cvstream);
+		}
 
 		if (f.hasChannel(Channel::Mask)) {
 			if (show_discon) {
@@ -500,19 +581,19 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	if (aligned_source >= 0 && aligned_source < scene_->frames.size()) {
 		// FIXME: Output may not be same resolution as source!
 		cudaSafeCall(cudaStreamSynchronize(stream_));
-		scene_->frames[aligned_source].copyTo(Channel::Depth + Channel::Colour + Channel::Smoothing, out);
+		scene_->frames[aligned_source].copyTo(Channel::Depth + Channel::Colour + Channel::Smoothing + Channel::Confidence, out);
 
-		if (chan == Channel::Normals) {
+		if (chan == Channel::ColourNormals) {
 			// Convert normal to single float value
-			temp_.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
-			ftl::cuda::normal_visualise(scene_->frames[aligned_source].getTexture<float4>(Channel::Normals), temp_.createTexture<uchar4>(Channel::Colour),
+			out.create<GpuMat>(Channel::ColourNormals, Format<uchar4>(out.get<GpuMat>(Channel::Colour).size())).setTo(cv::Scalar(0,0,0,0), cvstream);
+			ftl::cuda::normal_visualise(scene_->frames[aligned_source].getTexture<float4>(Channel::Normals), out.createTexture<uchar4>(Channel::ColourNormals),
 					light_pos_,
 					light_diffuse_,
 					light_ambient_, stream_);
 
 			// Put in output as single float
-			cv::cuda::swap(temp_.get<GpuMat>(Channel::Colour), out.create<GpuMat>(Channel::Normals));
-			out.resetTexture(Channel::Normals);
+			//cv::cuda::swap(temp_.get<GpuMat>(Channel::Colour), out.create<GpuMat>(Channel::Normals));
+			//out.resetTexture(Channel::Normals);
 		}
 
 		return true;
@@ -527,20 +608,35 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 	// Reprojection of colours onto surface
 	_renderChannel(out, Channel::Colour, Channel::Colour, stream_);
+
+	if (value("show_bad_colour", false)) {
+		ftl::cuda::show_missing_colour(
+			out.getTexture<float>(Channel::Depth),
+			out.getTexture<uchar4>(Channel::Colour),
+			temp_.getTexture<float>(Channel::Contribution),
+			make_uchar4(255,0,0,0),
+			camera,
+			stream_
+		);
+	}
 	
 	if (chan == Channel::Depth)
 	{
 		// Just convert int depth to float depth
 		//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
-	} else if (chan == Channel::Normals) {
+	} else if (chan == Channel::ColourNormals) {
 		// Visualise normals to RGBA
-		accum_.create<GpuMat>(Channel::Normals, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
-		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), accum_.createTexture<uchar4>(Channel::Normals),
+		out.create<GpuMat>(Channel::ColourNormals, Format<uchar4>(camera.width, camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
+
+		ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), out.createTexture<uchar4>(Channel::ColourNormals),
 				light_pos_,
 				light_diffuse_,
 				light_ambient_, stream_);
 
-		accum_.swapTo(Channels(Channel::Normals), out);
+		//accum_.swapTo(Channels(Channel::Normals), out);
+		//cv::cuda::swap(accum_.get<GpuMat>(Channel::Normals), out.get<GpuMat>(Channel::Normals));
+		//out.resetTexture(Channel::Normals);
+		//accum_.resetTexture(Channel::Normals);
 	}
 	//else if (chan == Channel::Contribution)
 	//{
@@ -561,7 +657,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 
 		Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 		transform(0, 3) = baseline;
-		Eigen::Matrix4f matrix = transform.inverse() * src->getPose().cast<float>();
+		Eigen::Matrix4f matrix = src->getPose().cast<float>() * transform.inverse();
 		
 		params.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
 		params.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
@@ -570,6 +666,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 		
 		out.create<GpuMat>(Channel::Right, Format<uchar4>(camera.width, camera.height));
 		out.get<GpuMat>(Channel::Right).setTo(background_, cvstream);
+		out.createTexture<uchar4>(Channel::Right, true);
 
 		// Need to re-dibr due to pose change
 		if (mesh_) {

@@ -19,7 +19,7 @@ enum struct Channel : int {
     Deviation		= 4,
     Screen          = 4,
     Normals			= 5,	// 32FC4
-    Points			= 6,	// 32FC4
+    Points			= 6,	// 32FC4 (should be deprecated)
     Confidence		= 7,	// 32F
     Contribution	= 7,	// 32F
     EnergyVector	= 8,	// 32FC4
@@ -28,9 +28,10 @@ enum struct Channel : int {
     Energy			= 10,	// 32F
 	Mask			= 11,	// 32U
 	Density			= 12,	// 32F
-    LeftGray		= 13,	// Deprecated
-    RightGray		= 14,	// Deprecated
-    Overlay1		= 15,	// Unused
+	Support1		= 13,	// 8UC4 (currently)
+	Support2		= 14,	// 8UC4 (currently)
+    Segmentation	= 15,	// 32S?
+    ColourNormals   = 16,   // 8UC4
 
 	AudioLeft		= 32,
 	AudioRight		= 33,

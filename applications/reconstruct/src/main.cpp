@@ -33,6 +33,12 @@
 #include <ftl/operators/smoothing.hpp>
 #include <ftl/operators/colours.hpp>
 #include <ftl/operators/normals.hpp>
+#include <ftl/operators/filling.hpp>
+#include <ftl/operators/segmentation.hpp>
+#include <ftl/operators/mask.hpp>
+#include <ftl/operators/antialiasing.hpp>
+#include <ftl/operators/mvmls.hpp>
+#include <ftl/operators/clipping.hpp>
 
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
@@ -62,14 +68,63 @@ using ftl::registration::loadTransformations;
 using ftl::registration::saveTransformations;
 
 static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
-  Eigen::Affine3d rx =
-      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
-  Eigen::Affine3d ry =
-      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
-  Eigen::Affine3d rz =
-      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
-  return rz * rx * ry;
+	Eigen::Affine3d rx =
+		Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+	Eigen::Affine3d ry =
+		Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+	Eigen::Affine3d rz =
+		Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+	return rz * rx * ry;
 }
+
+// TODO:	*	Remove this class (requires more general solution). Also does not
+//				process disconnections/reconnections/types etc. correctly.
+//			*	Update when new options become available.
+
+class ConfigProxy {
+	private:
+	vector<ftl::UUID> peers_;
+	vector<std::string> uris_;
+	ftl::net::Universe *net_;
+	
+	public:
+	ConfigProxy(ftl::net::Universe *net) {
+		net_ = net;
+
+		auto response = net_->findAll<std::string>("node_details");
+		for (auto &r : response) {
+			auto r_json = json_t::parse(r);
+			peers_.push_back(ftl::UUID(r_json["id"].get<std::string>()));
+			uris_.push_back(r_json["title"].get<std::string>());
+		}
+	}
+
+	void add(ftl::Configurable *root, const std::string &uri, const std::string &name) {
+		auto config = json_t::parse(net_->call<string>(peers_[0], "get_cfg", uris_[0] + "/" + uri));
+		auto *proxy = ftl::create<ftl::Configurable>(root, name);
+		
+		try {
+			for (auto &itm : config.get<json::object_t>()) {
+				auto key = itm.first;
+				auto value = itm.second;
+				if (*key.begin() == '$') { continue; }
+
+				proxy->set(key, value);
+				proxy->on(key, [this, uri, key, value, proxy](const ftl::config::Event&) {
+					for (size_t i = 0; i < uris_.size(); i++) {
+						// TODO: check that config exists?
+						auto peer = peers_[i];
+						std::string name = uris_[i] + "/" + uri + "/" + key;
+						net_->send(peer, "update_cfg", name, proxy->getConfig()[key].dump());
+					}
+				});
+			}
+		}
+		catch (nlohmann::detail::type_error) {
+			LOG(ERROR) << "Failed to add config proxy for: " << uri << "/" << name;
+		}
+	}
+};
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
@@ -80,7 +135,7 @@ static void run(ftl::Configurable *root) {
 	
 	net->start();
 	net->waitConnections();
-
+	
 	// Check paths for an FTL file to load...
 	auto paths = (*root->get<nlohmann::json>("paths"));
 	for (auto &x : paths.items()) {
@@ -119,6 +174,17 @@ static void run(ftl::Configurable *root) {
 	if (sources.size() == 0) {
 		LOG(ERROR) << "No sources configured!";
 		return;
+	}
+	
+	ConfigProxy *configproxy = nullptr;
+	if (net->numberOfPeers() > 0) {
+		configproxy = new ConfigProxy(net); // TODO delete
+		auto *disparity = ftl::create<ftl::Configurable>(root, "disparity");
+		configproxy->add(disparity, "source/disparity/algorithm", "algorithm");
+		configproxy->add(disparity, "source/disparity/bilateral_filter", "bilateral_filter");
+		configproxy->add(disparity, "source/disparity/optflow_filter", "optflow_filter");
+		configproxy->add(disparity, "source/disparity/mls", "mls");
+		configproxy->add(disparity, "source/disparity/cross", "cross");
 	}
 
 	// Create scene transform, intended for axis aligning the walls and floor
@@ -182,8 +248,12 @@ static void run(ftl::Configurable *root) {
 	int o = root->value("origin_pose", 0) % sources.size();
 	virt->setPose(sources[o]->getPose());
 
+	auto *renderpipe = ftl::config::create<ftl::operators::Graph>(root, "render_pipe");
+	renderpipe->append<ftl::operators::ColourChannels>("colour");  // Generate interpolation texture...
+	renderpipe->append<ftl::operators::FXAA>("antialiasing"); 
+
 	// Generate virtual camera render when requested by streamer
-	virt->onRender([splat,virt,&scene_B,align](ftl::rgbd::Frame &out) {
+	virt->onRender([splat,virt,&scene_B,align,renderpipe](ftl::rgbd::Frame &out) {
 		//virt->setTimestamp(scene_B.timestamp);
 		// Do we need to convert Lab to BGR?
 		if (align->isLabColour()) {
@@ -193,6 +263,7 @@ static void run(ftl::Configurable *root) {
 			}
 		}
 		splat->render(virt, out);
+		renderpipe->apply(out, out, virt, 0);
 	});
 	stream->add(virt);
 
@@ -229,7 +300,7 @@ static void run(ftl::Configurable *root) {
 
 			// TODO: Write pose+calibration+config packets
 			auto sources = group->sources();
-			for (int i=0; i<sources.size(); ++i) {
+			for (size_t i=0; i<sources.size(); ++i) {
 				//writeSourceProperties(writer, i, sources[i]);
 				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
 				sources[i]->inject(sources[i]->getPose()); 
@@ -251,11 +322,18 @@ static void run(ftl::Configurable *root) {
 
 	// Create the source depth map pipeline
 	auto *pipeline1 = ftl::config::create<ftl::operators::Graph>(root, "pre_filters");
+	pipeline1->append<ftl::operators::ClipScene>("clipping");
 	pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
-	pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
+	//pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
-	pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
-	pipeline1->append<ftl::operators::AdaptiveMLS>("mls");  // Perform MLS (using smoothing channel)
+	//pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
+	//pipeline1->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
+	pipeline1->append<ftl::operators::CrossSupport>("cross");
+	pipeline1->append<ftl::operators::DiscontinuityMask>("discontinuity");
+	pipeline1->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
+	//pipeline1->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
+	pipeline1->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
+	pipeline1->append<ftl::operators::MultiViewMLS>("mvmls");
 	// Alignment
 
 

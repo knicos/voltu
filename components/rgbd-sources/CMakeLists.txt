@@ -1,12 +1,11 @@
 set(RGBDSRC
 	src/sources/stereovideo/calibrate.cpp
 	src/sources/stereovideo/local.cpp
-	src/disparity.cpp
 	src/source.cpp
 	src/frame.cpp
 	src/frameset.cpp
 	src/sources/stereovideo/stereovideo.cpp
-	src/sources/middlebury/middlebury_source.cpp
+#	src/sources/middlebury/middlebury_source.cpp
 	src/sources/net/net.cpp
 	src/streamer.cpp
 	src/colour.cpp
@@ -17,7 +16,6 @@ set(RGBDSRC
 #	src/algorithms/opencv_bm.cpp
 	src/cb_segmentation.cpp
 	src/abr.cpp
-	src/offilter.cpp
 	src/sources/virtual/virtual.cpp
 	src/sources/ftlfile/file_source.cpp
 	src/sources/ftlfile/player.cpp
@@ -34,14 +32,12 @@ if (LibArchive_FOUND)
 	)
 endif (LibArchive_FOUND)
 
-if (LIBSGM_FOUND)
-	list(APPEND RGBDSRC "src/algorithms/fixstars_sgm.cpp")
-endif (LIBSGM_FOUND)
+#if (LIBSGM_FOUND)
+#	list(APPEND RGBDSRC "src/algorithms/fixstars_sgm.cpp")
+#endif (LIBSGM_FOUND)
 
 if (CUDA_FOUND)
 	list(APPEND RGBDSRC
-		src/algorithms/disp2depth.cu
-		src/algorithms/offilter.cu
 #		"src/algorithms/opencv_cuda_bm.cpp"
 #		"src/algorithms/opencv_cuda_bp.cpp"
 #		"src/algorithms/rtcensus.cu"
@@ -69,7 +65,7 @@ set_property(TARGET ftlrgbd PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen ${REALSENSE_LIBRARY} ftlnet ${LibArchive_LIBRARIES} ftlcodecs)
+target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen ${REALSENSE_LIBRARY} ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators)
 
 add_subdirectory(test)
 

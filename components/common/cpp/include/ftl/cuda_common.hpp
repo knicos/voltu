@@ -28,6 +28,22 @@ bool hasCompute(int major, int minor);
 
 int deviceCount();
 
+template <typename T>
+struct Float;
+
+template <> struct Float<float> { typedef float type; };
+template <> struct Float<int> { typedef float type; };
+template <> struct Float<float4> { typedef float4 type; };
+template <> struct Float<uchar4> { typedef float4 type; };
+template <> struct Float<short2> { typedef float2 type; };
+
+template <typename T>
+struct ScaleValue;
+
+template <> struct ScaleValue<uchar4> { static constexpr float value = 255.0f; };
+template <> struct ScaleValue<float> { static constexpr float value = 1.0f; };
+template <> struct ScaleValue<float4> { static constexpr float value = 1.0f; };
+
 /**
  * Represent a CUDA texture object. Instances of this class can be used on both
  * host and device. A texture object base cannot be constructed directly, it
@@ -89,7 +105,7 @@ class TextureObject : public TextureObjectBase {
 	static_assert((16u % sizeof(T)) == 0, "Channel format must be aligned with 16 bytes");
 
 	__host__ __device__ TextureObject() : TextureObjectBase() {};
-	explicit TextureObject(const cv::cuda::GpuMat &d);
+	explicit TextureObject(const cv::cuda::GpuMat &d, bool interpolated=false);
 	explicit TextureObject(const cv::cuda::PtrStepSz<T> &d);
 	TextureObject(T *ptr, int pitch, int width, int height);
 	TextureObject(size_t width, size_t height);
@@ -110,7 +126,8 @@ class TextureObject : public TextureObjectBase {
 
 	#ifdef __CUDACC__
 	__device__ inline T tex2D(int u, int v) const { return ::tex2D<T>(texobj_, u, v); }
-	__device__ inline T tex2D(float u, float v) const { return ::tex2D<T>(texobj_, u, v); }
+	__device__ inline T tex2D(unsigned int u, unsigned int v) const { return ::tex2D<T>(texobj_, (int)u, (int)v); }
+	__device__ inline typename Float<T>::type tex2D(float u, float v) const { return ::tex2D<typename Float<T>::type>(texobj_, u, v) * ScaleValue<T>::value; }
 	#endif
 
 	__host__ __device__ inline const T &operator()(int u, int v) const { return reinterpret_cast<T*>(ptr_)[u+v*pitch2_]; }
@@ -137,7 +154,7 @@ TextureObject<T> &TextureObject<T>::cast(TextureObjectBase &b) {
  * Create a 2D array texture from an OpenCV GpuMat object.
  */
 template <typename T>
-TextureObject<T>::TextureObject(const cv::cuda::GpuMat &d) {
+TextureObject<T>::TextureObject(const cv::cuda::GpuMat &d, bool interpolated) {
 	// GpuMat must have correct data type
 	CHECK(d.type() == ftl::traits::OpenCVType<T>::value);
 
@@ -153,7 +170,8 @@ TextureObject<T>::TextureObject(const cv::cuda::GpuMat &d) {
 	cudaTextureDesc texDesc;
 	// cppcheck-suppress memsetClassFloat
 	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.readMode = cudaReadModeElementType;
+	texDesc.readMode = (interpolated) ? cudaReadModeNormalizedFloat : cudaReadModeElementType;
+	if (interpolated) texDesc.filterMode = cudaFilterModeLinear;
 
 	cudaTextureObject_t tex = 0;
 	cudaSafeCall(cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL));
@@ -165,7 +183,7 @@ TextureObject<T>::TextureObject(const cv::cuda::GpuMat &d) {
 	height_ = d.rows;
 	needsfree_ = false;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 #endif  // __CUDACC__
@@ -188,6 +206,7 @@ TextureObject<T>::TextureObject(const cv::cuda::PtrStepSz<T> &d) {
 	// cppcheck-suppress memsetClassFloat
 	memset(&texDesc, 0, sizeof(texDesc));
 	texDesc.readMode = cudaReadModeElementType;
+	//if (std::is_same<T,uchar4>::value) texDesc.filterMode = cudaFilterModeLinear;
 
 	cudaTextureObject_t tex = 0;
 	cudaSafeCall(cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL));
@@ -199,7 +218,7 @@ TextureObject<T>::TextureObject(const cv::cuda::PtrStepSz<T> &d) {
 	height_ = d.rows;
 	needsfree_ = false;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 /**
@@ -221,9 +240,10 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 	// cppcheck-suppress memsetClassFloat
 	memset(&texDesc, 0, sizeof(texDesc));
 	texDesc.readMode = cudaReadModeElementType;
+	//if (std::is_same<T,uchar4>::value) texDesc.filterMode = cudaFilterModeLinear;
 
 	cudaTextureObject_t tex = 0;
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+	cudaSafeCall(cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL));
 	texobj_ = tex;
 	pitch_ = pitch;
 	pitch2_ = pitch_ / sizeof(T);
@@ -232,7 +252,7 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 	height_ = height;
 	needsfree_ = false;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 template <typename T>
@@ -255,7 +275,8 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 		// cppcheck-suppress memsetClassFloat
 		memset(&texDesc, 0, sizeof(texDesc));
 		texDesc.readMode = cudaReadModeElementType;
-		cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+		//if (std::is_same<T,uchar4>::value) texDesc.filterMode = cudaFilterModeLinear;
+		cudaSafeCall(cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL));
 	//}
 
 	texobj_ = tex;
@@ -264,7 +285,7 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 	needsfree_ = true;
 	pitch2_ = pitch_ / sizeof(T);
 	cvType_ = ftl::traits::OpenCVType<T>::value;
-	//needsdestroy_ = true;
+	needsdestroy_ = true;
 }
 
 #ifndef __CUDACC__
@@ -291,6 +312,7 @@ TextureObject<T>::TextureObject(const TextureObject<T> &p) {
 	pitch2_ = pitch_ / sizeof(T);
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 	needsfree_ = false;
+	needsdestroy_ = false;
 }
 
 template <typename T>
@@ -302,14 +324,17 @@ TextureObject<T>::TextureObject(TextureObject<T> &&p) {
 	pitch_ = p.pitch_;
 	pitch2_ = pitch_ / sizeof(T);
 	needsfree_ = p.needsfree_;
+	needsdestroy_ = p.needsdestroy_;
 	p.texobj_ = 0;
 	p.needsfree_ = false;
+	p.needsdestroy_ = false;
 	p.ptr_ = nullptr;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 }
 
 template <typename T>
 TextureObject<T> &TextureObject<T>::operator=(const TextureObject<T> &p) {
+	free();
 	texobj_ = p.texobj_;
 	ptr_ = p.ptr_;
 	width_ = p.width_;
@@ -318,11 +343,13 @@ TextureObject<T> &TextureObject<T>::operator=(const TextureObject<T> &p) {
 	pitch2_ = pitch_ / sizeof(T);
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 	needsfree_ = false;
+	needsdestroy_ = false;
 	return *this;
 }
 
 template <typename T>
 TextureObject<T> &TextureObject<T>::operator=(TextureObject<T> &&p) {
+	free();
 	texobj_ = p.texobj_;
 	ptr_ = p.ptr_;
 	width_ = p.width_;
@@ -330,8 +357,10 @@ TextureObject<T> &TextureObject<T>::operator=(TextureObject<T> &&p) {
 	pitch_ = p.pitch_;
 	pitch2_ = pitch_ / sizeof(T);
 	needsfree_ = p.needsfree_;
+	needsdestroy_ = p.needsdestroy_;
 	p.texobj_ = 0;
 	p.needsfree_ = false;
+	p.needsdestroy_ = false;
 	p.ptr_ = nullptr;
 	cvType_ = ftl::traits::OpenCVType<T>::value;
 	return *this;

@@ -48,32 +48,6 @@ using std::chrono::milliseconds;
 using cv::Mat;
 using json = nlohmann::json;
 
-namespace ftl {
-void disparityToDepth(const cv::Mat &disparity, cv::Mat &depth, const cv::Mat &q) {
-	cv::Matx44d _Q;
-    q.convertTo(_Q, CV_64F);
-
-	if (depth.empty()) depth = cv::Mat(disparity.size(), CV_32F);
-
-	for( int y = 0; y < disparity.rows; y++ ) {
-		const float *sptr = disparity.ptr<float>(y);
-		float *dptr = depth.ptr<float>(y);
-
-		for( int x = 0; x < disparity.cols; x++ ) {
-			double d = sptr[x];
-			cv::Vec4d homg_pt = _Q*cv::Vec4d(x, y, d, 1.0);
-			//dptr[x] = Vec3d(homg_pt.val);
-			//dptr[x] /= homg_pt[3];
-			dptr[x] = (homg_pt[2] / homg_pt[3]); // Depth in meters
-
-			if( fabs(d) <= FLT_EPSILON )
-				dptr[x] = 1000.0f;
-		}
-	}
-}
-};
-
-
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Slave slave(net, root);
@@ -106,6 +80,8 @@ static void run(ftl::Configurable *root) {
 	} else {*/
 		stream->run(true);
 	//}
+
+	ftl::timer::start(true);
 
 	LOG(INFO) << "Stopping...";
 	slave.stop();

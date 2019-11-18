@@ -43,6 +43,14 @@ namespace cuda {
 		ftl::render::SplatParams params,
 		cudaStream_t stream);
 
+	void dibr_merge(
+		ftl::cuda::TextureObject<float> &depth,
+		ftl::cuda::TextureObject<int> &depth_out,
+		const float4x4 &transform,
+		const ftl::rgbd::Camera &cam,
+		ftl::render::SplatParams params,
+		cudaStream_t stream);
+
 	template <typename T>
 	void splat(
         ftl::cuda::TextureObject<float4> &normals,
@@ -72,7 +80,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 	template <typename A, typename B>
 	void reproject(
@@ -85,11 +93,24 @@ namespace cuda {
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
+	void equirectangular_reproject(
+		ftl::cuda::TextureObject<uchar4> &image_in,
+		ftl::cuda::TextureObject<uchar4> &image_out,
+		const ftl::rgbd::Camera &camera, const float3x3 &pose, cudaStream_t stream);
+
 	template <typename A, typename B>
 	void dibr_normalise(
 		ftl::cuda::TextureObject<A> &in,
 		ftl::cuda::TextureObject<B> &out,
 		ftl::cuda::TextureObject<float> &contribs,
+		cudaStream_t stream);
+
+	void show_missing_colour(
+		ftl::cuda::TextureObject<float> &depth,
+		ftl::cuda::TextureObject<uchar4> &out,
+		ftl::cuda::TextureObject<float> &contribs,
+		uchar4 bad_colour,
+		const ftl::rgbd::Camera &cam,
 		cudaStream_t stream);
 
 	void show_mask(

@@ -192,7 +192,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	button->setCallback([this]() {
 		ftl::gui::Camera *cam = screen_->activeCamera();
 		if (cam) {
-			cam->setChannel(Channel::Normals);
+			cam->setChannel(Channel::ColourNormals);
 		}
 	});
 

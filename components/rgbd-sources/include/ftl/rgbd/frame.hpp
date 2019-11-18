@@ -81,14 +81,14 @@ public:
 	 * argument to also create (or recreate) the associated GpuMat.
 	 */
 	template <typename T>
-	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, const ftl::rgbd::Format<T> &f);
+	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, const ftl::rgbd::Format<T> &f, bool interpolated=false);
 
 	/**
 	 * Create a CUDA texture object for a channel. With this version the GpuMat
 	 * must already exist and be of the correct type.
 	 */
 	template <typename T>
-	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c);
+	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, bool interpolated=false);
 
 	void resetTexture(ftl::codecs::Channel c);
 
@@ -200,7 +200,7 @@ ftl::cuda::TextureObject<T> &Frame::getTexture(ftl::codecs::Channel c) {
 }
 
 template <typename T>
-ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const ftl::rgbd::Format<T> &f) {
+ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const ftl::rgbd::Format<T> &f, bool interpolated) {
 	if (!channels_.has(c)) channels_ += c;
 	if (!gpu_.has(c)) gpu_ += c;
 
@@ -221,19 +221,19 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const 
 
 	if (m.tex.devicePtr() == nullptr) {
 		//LOG(INFO) << "Creating texture object";
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
 	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows) {
 		LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'";
 		m.tex.free();
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
 	}
 
 	return ftl::cuda::TextureObject<T>::cast(m.tex);
 }
 
 template <typename T>
-ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c) {
-	if (!channels_.has(c)) throw ftl::exception("createTexture needs a format if the channel does not exist");
+ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, bool interpolated) {
+	if (!channels_.has(c)) throw ftl::exception(ftl::Formatter() << "createTexture needs a format if the channel does not exist: " << (int)c);
 
 	auto &m = _get(c);
 
@@ -254,11 +254,11 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c) {
 
 	if (m.tex.devicePtr() == nullptr) {
 		//LOG(INFO) << "Creating texture object";
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
 	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.tex.devicePtr() != m.gpu.data) {
 		LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'.";
 		m.tex.free();
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu);
+		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
 	}
 
 	return ftl::cuda::TextureObject<T>::cast(m.tex);

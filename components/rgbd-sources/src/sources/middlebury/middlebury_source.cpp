@@ -149,7 +149,7 @@ void MiddleburySource::_performDisparity() {
 	//calib_->rectifyStereo(left_, right_, stream_);
 	disp_->compute(rgb_, right_, disp_tmp_, stream_);
 	//disparityToDepth(disp_tmp_, depth_tmp_, params_, stream_);
-	ftl::cuda::disparity_to_depth(disp_tmp_, depth_, params_, stream_);
+	//ftl::cuda::disparity_to_depth(disp_tmp_, depth_, params_, stream_);
 	//left_.download(rgb_, stream_);
 	//rgb_ = lsrc_->cachedLeft();
 	//depth_tmp_.download(depth_, stream_);

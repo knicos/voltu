@@ -104,8 +104,8 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 		if (ftl::is_directory(path)) {
 			if (ftl::is_file(path + "/video.mp4")) {
 				return new StereoVideoSource(this, path);
-			} else if (ftl::is_file(path + "/im0.png")) {
-				return new MiddleburySource(this, path);
+//			} else if (ftl::is_file(path + "/im0.png")) {
+//				return new MiddleburySource(this, path);
 			} else {
 				LOG(ERROR) << "Directory is not a valid RGBD source: " << path;
 			}

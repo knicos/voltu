@@ -66,7 +66,7 @@ __global__ void reprojection_kernel(
 		TextureObject<B> out,			// Accumulated output
 		TextureObject<float> contrib,
 		SplatParams params,
-		Camera camera, float4x4 poseInv) {
+		Camera camera, float4x4 transform, float3x3 transformR) {
         
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -74,25 +74,25 @@ __global__ void reprojection_kernel(
 	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
-	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
+	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
 	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
 
-	const float3 camPos = poseInv * worldPos;
+	const float3 camPos = transform * params.camera.screenToCam(x, y, d);
 	if (camPos.z < camera.minDepth) return;
 	if (camPos.z > camera.maxDepth) return;
-	const uint2 screenPos = camera.camToScreen<uint2>(camPos);
+	const float2 screenPos = camera.camToScreen<float2>(camPos);
 
 	// Not on screen so stop now...
 	if (screenPos.x >= depth_src.width() || screenPos.y >= depth_src.height()) return;
             
 	// Calculate the dot product of surface normal and camera ray
-	const float3 n = poseInv.getFloat3x3() * make_float3(normals.tex2D((int)x, (int)y));
+	const float3 n = transformR * make_float3(normals.tex2D((int)x, (int)y));
 	float3 ray = camera.screenToCam(screenPos.x, screenPos.y, 1.0f);
 	ray = ray / length(ray);
 	const float dotproduct = max(dot(ray,n),0.0f);
     
-	const float d2 = depth_src.tex2D((int)screenPos.x, (int)screenPos.y);
-	const A input = in.tex2D((int)screenPos.x, (int)screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+	const float d2 = depth_src.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f));
+	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
 
 	// TODO: Z checks need to interpolate between neighbors if large triangles are used
 	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
@@ -123,7 +123,7 @@ void ftl::cuda::reproject(
 		TextureObject<B> &out,   // Accumulated output
 		TextureObject<float> &contrib,
 		const SplatParams &params,
-		const Camera &camera, const float4x4 &poseInv, cudaStream_t stream) {
+		const Camera &camera, const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream) {
 	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
@@ -136,7 +136,8 @@ void ftl::cuda::reproject(
 		contrib,
 		params,
 		camera,
-		poseInv
+		transform,
+		transformR
     );
     cudaSafeCall( cudaGetLastError() );
 }
@@ -150,7 +151,7 @@ template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<float> &contrib,
 	const ftl::render::SplatParams &params,
 	const ftl::rgbd::Camera &camera,
-	const float4x4 &poseInv, cudaStream_t stream);
+	const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &in,	// Original colour image
@@ -161,7 +162,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &in,	// Original colour image
@@ -172,7 +173,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &contrib,
 		const ftl::render::SplatParams &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
 
 //==============================================================================
 //  Without normals
@@ -197,19 +198,19 @@ __global__ void reprojection_kernel(
 	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
 
-	const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
+	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
 	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
 
-	const float3 camPos = poseInv * worldPos;
+	const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
 	if (camPos.z < camera.minDepth) return;
 	if (camPos.z > camera.maxDepth) return;
-	const uint2 screenPos = camera.camToScreen<uint2>(camPos);
+	const float2 screenPos = camera.camToScreen<float2>(camPos);
 
 	// Not on screen so stop now...
 	if (screenPos.x >= depth_src.width() || screenPos.y >= depth_src.height()) return;
     
-	const float d2 = depth_src.tex2D((int)screenPos.x, (int)screenPos.y);
-	const A input = in.tex2D((int)screenPos.x, (int)screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+	const float d2 = depth_src.tex2D((int)(screenPos.x+0.5f), (int)(screenPos.y+0.5f));
+	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
 	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
 	const B weighted = make<B>(input) * weight;
 
@@ -274,3 +275,51 @@ template void ftl::cuda::reproject(
 		const ftl::render::SplatParams &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
+
+
+// ===== Equirectangular Reprojection ==========================================
+
+__device__ inline float2 equirect_reprojection(int x_img, int y_img, double f, const float3x3 &rot, int w1, int h1, const ftl::rgbd::Camera &cam) {
+	float3 ray3d = cam.screenToCam(x_img, y_img, 1.0f);
+	ray3d /= length(ray3d);
+	ray3d = rot * ray3d;
+
+    //inverse formula for spherical projection, reference Szeliski book "Computer Vision: Algorithms and Applications" p439.
+    float theta = atan2(ray3d.y,sqrt(ray3d.x*ray3d.x+ray3d.z*ray3d.z));
+	float phi = atan2(ray3d.x, ray3d.z);
+	
+	const float pi = 3.14f;
+
+    //get 2D point on equirectangular map
+    float x_sphere = (((phi*w1)/pi+w1)/2); 
+    float y_sphere = (theta+ pi/2)*h1/pi;
+
+    return make_float2(x_sphere,y_sphere);
+};
+
+__global__ void equirectangular_kernel(
+		TextureObject<uchar4> image_in,
+		TextureObject<uchar4> image_out,
+		Camera camera, float3x3 pose) {
+		
+	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x >= 0 && y >= 0 && x < image_out.width() && y < image_out.height()) {
+		const float2 p = equirect_reprojection(x,y, camera.fx, pose, image_in.width(), image_in.height(), camera);
+		const float4 colour = image_in.tex2D(p.x, p.y);
+		image_out(x,y) = make_uchar4(colour.x, colour.y, colour.z, 0);
+	}
+}
+
+void ftl::cuda::equirectangular_reproject(
+		ftl::cuda::TextureObject<uchar4> &image_in,
+		ftl::cuda::TextureObject<uchar4> &image_out,
+		const ftl::rgbd::Camera &camera, const float3x3 &pose, cudaStream_t stream) {
+
+	const dim3 gridSize((image_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (image_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	equirectangular_kernel<<<gridSize, blockSize, 0, stream>>>(image_in, image_out, camera, pose);
+	cudaSafeCall( cudaGetLastError() );
+}

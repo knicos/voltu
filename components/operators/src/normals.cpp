@@ -28,7 +28,7 @@ bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sour
 	ftl::cuda::normals(
 		out.createTexture<float4>(Channel::Normals, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 		in.createTexture<float>(Channel::Depth),
-		s->parameters(), 0
+		s->parameters(), stream
 	);
 
 	return true;

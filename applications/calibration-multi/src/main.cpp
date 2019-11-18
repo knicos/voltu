@@ -395,37 +395,6 @@ void runCameraCalibration(	ftl::Configurable* root,
 	const size_t n_cameras = n_sources * 2;
 	size_t reference_camera = 0;
 	
-	{
-		auto camera = sources[0]->parameters();
-		params.size = Size(camera.width, camera.height);
-		LOG(INFO) << "Camera resolution: " << params.size;
-	}
-
-	params.idx_cameras.resize(n_cameras);
-	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
-
-	// TODO: parameter for calibration target type
-	auto calib = MultiCameraCalibrationNew(	n_cameras, reference_camera,
-											params.size, CalibrationTarget(0.250)
-	);
-
-	for (size_t i = 0; i < n_sources; i++) {
-		auto camera_r = sources[i]->parameters(Channel::Right);
-		auto camera_l = sources[i]->parameters(Channel::Left);
-
-		CHECK(params.size == Size(camera_r.width, camera_r.height));
-		CHECK(params.size == Size(camera_l.width, camera_l.height));
-		
-		Mat K;
-		K = createCameraMatrix(camera_r);
-		LOG(INFO) << "K[" << 2 * i + 1 << "] = \n" << K;
-		calib.setCameraParameters(2 * i + 1, K);
-
-		K = createCameraMatrix(camera_l);
-		LOG(INFO) << "K[" << 2 * i << "] = \n" << K;
-		calib.setCameraParameters(2 * i, K);
-	}
-
 	ftl::rgbd::Group group;
 	for (Source* src : sources) {
 		src->setChannel(Channel::Right);
@@ -442,6 +411,8 @@ void runCameraCalibration(	ftl::Configurable* root,
 		mutex.lock();
 		bool good = true;
 		for (size_t i = 0; i < frames.sources.size(); i ++) {
+			frames.frames[i].download(Channel::Left+Channel::Right);
+
 			if (frames.frames[i].get<cv::Mat>(Channel::Left).empty()) good = false;
 			if (frames.frames[i].get<cv::Mat>(Channel::Right).empty()) good = false;
 			if (frames.frames[i].get<cv::Mat>(Channel::Left).channels() != 3) good = false; // ASSERT
@@ -455,6 +426,43 @@ void runCameraCalibration(	ftl::Configurable* root,
 		mutex.unlock();
 		return true;
 	});
+
+	for (auto &source : sources) {
+		while (!source->isReady()) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+	}
+
+	{
+		auto camera = sources[0]->parameters();
+		params.size = Size(camera.width, camera.height);
+		LOG(INFO) << "Camera resolution: " << params.size;
+	}
+
+	params.idx_cameras.resize(n_cameras);
+	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
+
+	// TODO: parameter for calibration target type
+	auto calib = MultiCameraCalibrationNew(	n_cameras, reference_camera,
+											params.size, CalibrationTarget(0.250)
+	);
+
+	for (size_t i = 0; i < n_sources; i++) {
+		auto camera_r = sources[i]->parameters(Channel::Right);
+		auto camera_l = sources[i]->parameters();
+
+		CHECK(params.size == Size(camera_r.width, camera_r.height));
+		CHECK(params.size == Size(camera_l.width, camera_l.height));
+		
+		Mat K;
+		K = createCameraMatrix(camera_r);
+		LOG(INFO) << "K[" << 2 * i + 1 << "] = \n" << K;
+		calib.setCameraParameters(2 * i + 1, K);
+
+		K = createCameraMatrix(camera_l);
+		LOG(INFO) << "K[" << 2 * i << "] = \n" << K;
+		calib.setCameraParameters(2 * i, K);
+	}
 	
 	int iter = 0;
 	Mat show;

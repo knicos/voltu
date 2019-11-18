@@ -23,7 +23,7 @@ namespace operators {
 class Operator {
 	public:
 	explicit Operator(ftl::Configurable *cfg);
-    virtual ~Operator();
+	virtual ~Operator();
 
 	enum class Type {
 		OneToOne,		// Frame to Frame (Filter or generator)
@@ -56,7 +56,7 @@ class Operator {
 namespace detail {
 
 struct ConstructionHelperBase {
-	ConstructionHelperBase(ftl::Configurable *cfg) : config(cfg) {}
+	explicit ConstructionHelperBase(ftl::Configurable *cfg) : config(cfg) {}
 	virtual ~ConstructionHelperBase() {}
 	virtual ftl::operators::Operator *make()=0;
 
@@ -65,7 +65,7 @@ struct ConstructionHelperBase {
 
 template <typename T>
 struct ConstructionHelper : public ConstructionHelperBase {
-	ConstructionHelper(ftl::Configurable *cfg) : ConstructionHelperBase(cfg) {}
+	explicit ConstructionHelper(ftl::Configurable *cfg) : ConstructionHelperBase(cfg) {}
 	~ConstructionHelper() {}
 	ftl::operators::Operator *make() override {
 		return new T(config);
@@ -87,7 +87,7 @@ struct OperatorNode {
 class Graph : public ftl::Configurable {
 	public:
 	explicit Graph(nlohmann::json &config);
-    ~Graph();
+	~Graph();
 
 	template <typename T>
 	ftl::Configurable *append(const std::string &name);
@@ -99,6 +99,7 @@ class Graph : public ftl::Configurable {
 	private:
 	std::list<ftl::operators::detail::OperatorNode> operators_;
 	std::map<std::string, ftl::Configurable*> configs_;
+	cudaStream_t stream_;
 
 	ftl::Configurable *_append(ftl::operators::detail::ConstructionHelperBase*);
 };

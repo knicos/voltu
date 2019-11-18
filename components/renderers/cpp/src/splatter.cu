@@ -103,6 +103,40 @@ using ftl::cuda::warpSum;
 	}
 }
 
+/*
+ * Pass 1: Directly render each camera into virtual view but with no upsampling
+ * for sparse points.
+ */
+ __global__ void dibr_merge_kernel(TextureObject<float> depth,
+		TextureObject<int> depth_out,
+		float4x4 transform,
+		ftl::rgbd::Camera cam,
+		SplatParams params) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const float d0 = depth.tex2D(x, y);
+	if (d0 <= cam.minDepth || d0 >= cam.maxDepth) return;
+
+	const float3 camPos = transform * cam.screenToCam(x,y,d0);
+	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
+
+	// Find the virtual screen position of current point
+	//const float3 camPos = params.m_viewMatrix * make_float3(worldPos);
+	//if (camPos.z < params.camera.minDepth) return;
+	//if (camPos.z > params.camera.maxDepth) return;
+
+	const float d = camPos.z;
+
+	const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
+	const unsigned int cx = screenPos.x;
+	const unsigned int cy = screenPos.y;
+	if (d > params.camera.minDepth && d < params.camera.maxDepth && cx < depth.width() && cy < depth.height()) {
+		// Transform estimated point to virtual cam space and output z
+		atomicMin(&depth_out(cx,cy), d * 100000.0f);
+	}
+}
+
 void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<float4> &normals, TextureObject<int> &depth, SplatParams params, bool culling, cudaStream_t stream) {
     const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
@@ -117,6 +151,14 @@ void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<int> &de
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>(points, depth, params);
+    cudaSafeCall( cudaGetLastError() );
+}
+
+void ftl::cuda::dibr_merge(TextureObject<float> &depth, TextureObject<int> &depth_out, const float4x4 &transform, const ftl::rgbd::Camera &cam, SplatParams params, cudaStream_t stream) {
+    const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>(depth, depth_out, transform, cam, params);
     cudaSafeCall( cudaGetLastError() );
 }
 
@@ -441,9 +483,11 @@ __global__ void dibr_normalise_kernel(
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if (x < in.width() && y < in.height()) {
+		const float contrib = contribs.tex2D((int)x,(int)y);
         const A a = in.tex2D((int)x,(int)y);
         //const float4 normal = normals.tex2D((int)x,(int)y);
-        const float contrib = contribs.tex2D((int)x,(int)y);
+
+		//out(x,y) = (contrib == 0.0f) ? make<B>(a) : make<B>(a / contrib);
 
         if (contrib > 0.0f) {
             out(x,y) = make<B>(a / contrib);
@@ -464,3 +508,39 @@ void ftl::cuda::dibr_normalise(TextureObject<A> &in, TextureObject<B> &out, Text
 template void ftl::cuda::dibr_normalise<float4,uchar4>(TextureObject<float4> &in, TextureObject<uchar4> &out, TextureObject<float> &contribs, cudaStream_t stream);
 template void ftl::cuda::dibr_normalise<float,float>(TextureObject<float> &in, TextureObject<float> &out, TextureObject<float> &contribs, cudaStream_t stream);
 template void ftl::cuda::dibr_normalise<float4,float4>(TextureObject<float4> &in, TextureObject<float4> &out, TextureObject<float> &contribs, cudaStream_t stream);
+
+
+// ===== Show bad colour normalise =============================================
+
+__global__ void show_missing_colour_kernel(
+        TextureObject<float> depth,
+        TextureObject<uchar4> out,
+		TextureObject<float> contribs,
+		uchar4 bad_colour,
+		ftl::rgbd::Camera cam) {
+    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if (x < out.width() && y < out.height()) {
+		const float contrib = contribs.tex2D((int)x,(int)y);
+		const float d = depth.tex2D(x,y);
+
+		if (contrib < 0.0000001f && d > cam.minDepth && d < cam.maxDepth) {
+			out(x,y) = bad_colour;
+		}
+    }
+}
+
+void ftl::cuda::show_missing_colour(
+		TextureObject<float> &depth,
+		TextureObject<uchar4> &out,
+		TextureObject<float> &contribs,
+		uchar4 bad_colour,
+		const ftl::rgbd::Camera &cam,
+		cudaStream_t stream) {
+    const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    show_missing_colour_kernel<<<gridSize, blockSize, 0, stream>>>(depth, out, contribs, bad_colour, cam);
+    cudaSafeCall( cudaGetLastError() );
+}

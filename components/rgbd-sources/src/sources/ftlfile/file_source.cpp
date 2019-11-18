@@ -30,6 +30,13 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ft
 	realtime_ = host_->value("realtime", true);
 	timestamp_ = r->getStartTime();
 	sourceid_ = sid;
+	freeze_ = host_->value("freeze", false);
+	have_frozen_ = false;
+
+	host_->on("freeze", [this](const ftl::config::Event &e) {
+		have_frozen_ = false;
+		freeze_ = host_->value("freeze", false);
+	});
 
     r->onPacket(sid, [this](const ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
 		host_->notifyRaw(spkt, pkt);
@@ -133,18 +140,28 @@ bool FileSource::capture(int64_t ts) {
 }
 
 bool FileSource::retrieve() {
-	if (!reader_->read(timestamp_)) {
+	if (!have_frozen_ && !reader_->read(timestamp_)) {
 		cache_write_ = -1;
 	}
     return true;
 }
 
 void FileSource::swap() {
+	if (have_frozen_) return;
 	cache_read_ = cache_write_;
 	cache_write_ = (cache_write_ == 0) ? 1 : 0;
 }
 
 bool FileSource::compute(int n, int b) {
+	// Freeze frame requires a copy to be made each time...
+	if (have_frozen_) {
+		cv::cuda::GpuMat t1, t2;
+		if (!rgb_.empty()) rgb_.copyTo(t1);
+		if (!depth_.empty()) depth_.copyTo(t2);
+		host_->notify(timestamp_, t1, t2);
+		return true;
+	}
+
 	if (cache_read_ < 0) return false;
 	if (cache_[cache_read_].size() == 0) return false;
 
@@ -191,7 +208,11 @@ bool FileSource::compute(int n, int b) {
 	if (rgb_.empty() || depth_.empty()) return false;
 
 	// Inform about a decoded frame pair
-	host_->notify(timestamp_, rgb_, depth_);
+	if (freeze_ && !have_frozen_) {
+		have_frozen_ = true;
+	} else {
+		host_->notify(timestamp_, rgb_, depth_);
+	}
     return true;
 }
 
