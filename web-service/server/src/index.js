@@ -230,65 +230,25 @@ app.post('/stream/config', async (req, res) => {
 })
 
 app.get('/stream/config', async(req, res) => {
-	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/default/board_size
-	const settings = encodeURIComponent(req.query.settings);
-	const setting = req.query.settings;
+	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi#reconstruction_snap10/merge
+	const settings = req.query.settings;
 	const uri = req.query.uri;
 
-	// let response = await Configs.find({URI: uri});
+	// //Check if DB has data
+	// let response = await Configs.find({URI: settings});
 	// if(dbData[0].data){
 	// 	return res.status(200).json(dbData[0]);
 	// }else{
-		// }
+		let peer = uri_data[uri].peer
+		if(peer){
+			console.log("get_cfg", settings)
+			peer.rpc("get_cfg", (response) => {
+				if(response){
+					return res.status(200).json(response);
+				}
+			}, settings)
+		}
 	// }
-
-	const baseURI = "ftl%3A%2F%2Futu.fi%2Fstream%2Fconfigurations"
-	splittedUri = settings.substring(47);
-	let depth = splittedUri.split("%2F");
-	if(depth[depth.length-1].length === 0){
-		depth.pop();
-	}
-	// console.log("DEPTH", depth)
-	let queryURI = baseURI + '%2F' + depth[0]
-	// console.log("QUERYURI", queryURI)
-
-	// var configURI;
-	// switch(depth.length){
-	// 	case 0:
-	// 		return res.status(502)
-	// 	case 1:
-	// 		configURI = JSON.stringify(depth[0]);
-	// 		break;
-	// 	case 2:
-	// 		const obj = { [depth[depth.length-2]]: depth[depth.length-1] }
-	// 		configURI = JSON.stringify(obj);
-	// 		break;
-	// 	default:
-	// 		let lastObject = { [depth[depth.length-2]]: depth[depth.length-1] }
-	// 		let helper = { [depth[depth.length-3]]: lastObject }
-	// 		if(depth.length<4){
-	// 			configURI = JSON.stringify(helper);
-	// 		}
-	// 		for(let i=depth.length-4; i>=0; i--){
-	// 			if(i<=0){
-	// 				configURI = JSON.stringify(helper) 
-	// 			}
-	// 			lastObject = { [depth[i-1]]: helper }
-	// 			helper = lastObject
-	// 		}
-	// }
-	// return res.status(200).json(configURI);
-	let peer = uri_data[uri].peer
-	if(peer){
-		console.log("get_cfg", setting)
-		peer.rpc("get_cfg", (response) => {
-			console.log(response)
-			if(response){
-				return res.status(200).json(response);
-			}
-		}, setting)
-		
-	}
 })
 
 
