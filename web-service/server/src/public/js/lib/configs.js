@@ -1,5 +1,5 @@
 /**
- * Does the magic for client
+ * Mayby someday index.js will be refactored and this file will be used
  */
 
 

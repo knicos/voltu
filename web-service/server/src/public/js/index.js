@@ -2,6 +2,7 @@ const Peer = require('../../peer')
 
 let current_data = {};
 let peer;
+let decoder;
 
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
@@ -46,19 +47,17 @@ getAvailableStreams = async () => {
     }
 }
 
-videoPlayer = () => {
+createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button><br>
     <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
     createPeer();
+    decoder = libde265.Decoder();
     setTimeout(connectToStream, 500)
-    
-}
-
-videoDecoder = () => {
-    let decoder = new libde265.Decoder();
+    const canvas = document.getElementById("ftlab-stream-video")
+    //const player = new videoPlayer(canvas)
 }
 
 /**
@@ -136,7 +135,7 @@ createCard = (url, viewers) => {
     return `<div class='ftlab-card-component' >
                 <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
                 <p>Viewers: ${viewers}</p>
-                <button onclick="videoPlayer()">button</button>
+                <button onclick="createVideoPlayer()">button</button>
             </div>`
 }
 
@@ -191,6 +190,12 @@ const cardLogic = () => {
     const cards = document.getElementsByClassName('ftlab-card-component');
 }
 
+
+
+/**
+ * CONFIGURATIONS
+ * 
+ */
 configs = () => {
     const container = document.getElementById("container");
     container.innerHTML = `<div class="ftlab-configurations"></div>`;

@@ -4566,7 +4566,7 @@ getAvailableStreams = async () => {
     }
 }
 
-videoPlayer = () => {
+createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button><br>
     <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
@@ -4574,9 +4574,9 @@ videoPlayer = () => {
     containerDiv.innerHTML += ''
     createPeer();
     setTimeout(connectToStream, 500)
-    
+    const canvas = document.getElementById("ftlab-stream-video")
+    //const player = new videoPlayer(canvas)
 }
-
 
 /**
  * Creates thumbnail (image) for all available streams and adds them to div class='container'
@@ -4653,7 +4653,7 @@ createCard = (url, viewers) => {
     return `<div class='ftlab-card-component' >
                 <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
                 <p>Viewers: ${viewers}</p>
-                <button onclick="videoPlayer()">button</button>
+                <button onclick="createVideoPlayer()">button</button>
             </div>`
 }
 
@@ -4721,34 +4721,28 @@ renderConfigOptions = () => {
     doc.innerHTML = input;
 }
 
-
-updateConfigs = async () => {
-    const rawResp = await fetch('http://localhost:8080/stream/config', {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
-    });
-    const content = await rawResp.json();
-    console.log(content)
-}
-
-//current_data.configURI
-//configURI = 
-/**
- * current_data.configURI is a dropdown menu
- */
-
-current_data.configs = "ftl://utu.fi#reconstruction_snap10/merge"
+current_data.configURI = "ftl://utu.fi#reconstruction_snap10/merge"
 
 loadConfigs = async () => {
-    const configURI = encodeURIComponent(current_data.configs);
+    const configURI = encodeURIComponent(current_data.configURI);
     const uri = encodeURIComponent(current_data.uri)
     const rawResp = await fetch(`http://localhost:8080/stream/config?settings=${configURI}&uri=${uri}`)
     const response = await rawResp.json();
     const content = JSON.parse(response);
     container.innerHTML += `<p>${response}</p>`;
+    console.log(content)
+}
+
+saveConfigs = async () => {
+    const rawResp = await fetch('http://localhost:8080/stream/config', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: {uri: current_data.configURI, data: current_data.configData}
+    });
+    const content = await rawResp.json();
     console.log(content)
 }
 },{"../../peer":22}],24:[function(require,module,exports){
