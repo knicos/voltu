@@ -290,7 +290,8 @@ json_t &ftl::config::resolve(const std::string &puri, bool eager) {
 		std::string u = uri.getBaseURI();
 		auto ix = config_index.find(u);
 		if (ix == config_index.end()) {
-			LOG(FATAL) << "Cannot find resource: " << u;
+			LOG(WARNING) << "Cannot find resource: " << u;
+			return null_json;
 		}
 
 		auto ptr = nlohmann::json::json_pointer("/"+uri.getFragment());
