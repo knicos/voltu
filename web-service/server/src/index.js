@@ -232,6 +232,7 @@ app.post('/stream/config', async (req, res) => {
 app.get('/stream/config', async(req, res) => {
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi/stream/configurations/calibrations/default/board_size
 	const settings = encodeURIComponent(req.query.settings);
+	const setting = req.query.settings;
 	const uri = req.query.uri;
 
 	// let response = await Configs.find({URI: uri});
@@ -251,78 +252,43 @@ app.get('/stream/config', async(req, res) => {
 	let queryURI = baseURI + '%2F' + depth[0]
 	// console.log("QUERYURI", queryURI)
 
-	var configURI;
-	switch(depth.length){
-		case 0:
-			return res.status(502)
-		case 1:
-			configURI = JSON.stringify(depth[0]);
-			break;
-		case 2:
-			const obj = { [depth[depth.length-2]]: depth[depth.length-1] }
-			configURI = JSON.stringify(obj);
-			break;
-		default:
-			let lastObject = { [depth[depth.length-2]]: depth[depth.length-1] }
-			let helper = { [depth[depth.length-3]]: lastObject }
-			if(depth.length<4){
-				configURI = JSON.stringify(helper);
-			}
-			for(let i=depth.length-4; i>=0; i--){
-				if(i<=0){
-					configURI = JSON.stringify(helper) 
-				}
-				lastObject = { [depth[i-1]]: helper }
-				helper = lastObject
-			}
-	}
-	return res.status(200).json(configURI);
+	// var configURI;
+	// switch(depth.length){
+	// 	case 0:
+	// 		return res.status(502)
+	// 	case 1:
+	// 		configURI = JSON.stringify(depth[0]);
+	// 		break;
+	// 	case 2:
+	// 		const obj = { [depth[depth.length-2]]: depth[depth.length-1] }
+	// 		configURI = JSON.stringify(obj);
+	// 		break;
+	// 	default:
+	// 		let lastObject = { [depth[depth.length-2]]: depth[depth.length-1] }
+	// 		let helper = { [depth[depth.length-3]]: lastObject }
+	// 		if(depth.length<4){
+	// 			configURI = JSON.stringify(helper);
+	// 		}
+	// 		for(let i=depth.length-4; i>=0; i--){
+	// 			if(i<=0){
+	// 				configURI = JSON.stringify(helper) 
+	// 			}
+	// 			lastObject = { [depth[i-1]]: helper }
+	// 			helper = lastObject
+	// 		}
+	// }
+	// return res.status(200).json(configURI);
 	let peer = uri_data[uri].peer
-	let response;
-		if(peer){
-			console.log("get_cfg URI", configURI)
-			response = peer.rpc("get_cfg", cb(), configURI)
-			console.log("RESPONSE", response)
+	if(peer){
+		console.log("get_cfg", setting)
+		peer.rpc("get_cfg", (response) => {
+			console.log(response)
 			if(response){
 				return res.status(200).json(response);
 			}
-		}
-	
-
-
-	// let response = await Configs.find({ URI : queryURI});
-	
-	// const objects = response[0].data
-	// console.log(objects)
-	// //Check that DB has at least some data
-	// if(response.length){
-	// 	const firstLayerObj = Object.entries(objects)
-	// 	const helpObj = {}
-	// 	for(const [key, value] of firstLayerObj){
-	// 		//Save the right named object into helpObj
-	// 		if(key == depth[1]){
-	// 			helpObj[`${key}`] = value
-	// 		}
-	// 	}
-	// 	//If the URI ends into the second objects name e.g. default
-	// 	if(depth.length==2){
-	// 		return res.status(200).json(helpObj)
-			
-	// 	//Else send the value of the attribute
-	// 	}else if(depth.length==3){
-	// 		const secondLayerObj = Object.values(helpObj);
-	// 		const finalLayer = Object.entries(secondLayerObj[0]);
-	// 		for(const [key, value] of finalLayer){
-	// 			console.log("PIIPPIIP")
-	// 			if(key == depth[2]){
-	// 				const data = { data : value }
-	// 				return res.status(200).json(data)
-	// 			}
-	// 		}
-	// 	}	
-	// }
-	// 	return res.status(200).json("Nothing found");
-
+		}, setting)
+		
+	}
 })
 
 
@@ -510,7 +476,6 @@ app.ws('/', (ws, req) => {
 
 	// Request from frames from a source
 	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
-		console.log("URI IS ", uri_data[uri]);
 		let peer = uri_data[uri].peer;
 		if (peer) {
 			uri_data[uri].addClient(p, N, rate, dest);

@@ -4739,7 +4739,7 @@ updateConfigs = async () => {
  * current_data.configURI is a dropdown menu
  */
 
-current_data.configs = 'ftl://utu.fi/stream/configurations/calibrations/default/board_size'
+current_data.configs = "ftl://utu.fi#reconstruction_snap10/merge/maxerror"
 loadConfigs = async () => {
     const configURI = encodeURIComponent(current_data.configs);
     const uri = encodeURIComponent(current_data.uri)
