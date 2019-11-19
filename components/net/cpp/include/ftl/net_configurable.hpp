@@ -17,7 +17,7 @@ namespace ftl {
 
     private:
 	ftl::UUID peer;
-	const std::string &suri;
+	const std::string suri;
 	ftl::ctrl::Master &ctrl;
     };
 
