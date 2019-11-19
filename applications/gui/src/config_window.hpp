@@ -16,23 +16,15 @@ namespace gui {
  */
 class ConfigWindow : public nanogui::Window {
 	public:
-	ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const ftl::UUID &peer);
-	ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl, const std::optional<ftl::UUID> &peer = std::nullopt);
+	ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl);
 	~ConfigWindow();
 
 	private:
-	/*
-	References holds the pointers to a NetConfigurable and all its members so that
-	they can all be returned from _addElements() and then simultaneously deleted
-	as the form is closed.
-	*/
-	class References;
 	ftl::ctrl::Master *ctrl_;
-	std::optional<ftl::UUID> peer_;
 	std::vector<std::string> configurables_;
 	
 	void _buildForm(const std::string &uri);
-	std::vector<References *> _addElements(nanogui::FormHelper *form, ftl::Configurable &nc, const std::string &suri, std::function<ftl::Configurable*(const std::string*, std::vector<References *>&)> construct);
+	void _addElements(nanogui::FormHelper *form, const std::string &suri);
 	bool exists(const std::string &uri);
 };
 

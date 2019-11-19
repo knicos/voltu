@@ -63,7 +63,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		UNIQUE_LOCK(mutex_, lk);
 		_updateCameras(screen_->net()->findAll<string>("list_streams"));
 	});
-	
+
 	UNIQUE_LOCK(mutex_, lk);
 
 	std::vector<ftl::rgbd::Source*> srcs = ftl::createArray<ftl::rgbd::Source>(screen_->root(), "sources", screen_->net());
@@ -72,6 +72,14 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	}
 
 	_updateCameras(screen_->control()->getNet()->findAll<string>("list_streams"));
+}
+
+std::vector<ftl::gui::Camera*> SourceWindow::getCameras() {
+	auto cameras = std::vector<ftl::gui::Camera*>(cameras_.size());
+	for (const auto &kv : cameras_) {
+		cameras.push_back(kv.second);
+	}
+	return cameras;
 }
 
 void SourceWindow::_updateCameras(const vector<string> &netcams) {

@@ -165,6 +165,7 @@ static bool mergeConfig(const string path) {
 
 static std::map<std::string, json_t*> config_index;
 static std::map<std::string, ftl::Configurable*> config_instance;
+static std::map<std::string, std::vector<ftl::Configurable*>> tag_index;
 
 /*
  * Recursively URI index the JSON structure.
@@ -198,6 +199,10 @@ ftl::Configurable *ftl::config::find(const std::string &uri) {
 	else return (*ix).second;
 }
 
+const std::vector<Configurable*> &ftl::config::findByTag(const std::string &tag) {
+	return tag_index[tag];
+}
+
 std::vector<std::string> ftl::config::list() {
 	vector<string> r;
 	for (auto i : config_instance) {
@@ -219,6 +224,13 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 	} else {
 		config_instance[*uri] = cfg;
 		LOG(INFO) << "Registering instance: " << *uri;
+
+		auto tags = cfg->get<vector<string>>("tags");
+		if (tags) {
+			for (auto &t : *tags) {
+				tag_index[t].push_back(cfg);
+			}
+		}
 	}
 }
 

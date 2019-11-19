@@ -6,7 +6,6 @@
 #include <nanogui/window.h>
 #include <nanogui/layout.h>
 #include <nanogui/imageview.h>
-#include <nanogui/combobox.h>
 #include <nanogui/label.h>
 #include <nanogui/toolbutton.h>
 #include <nanogui/popupbutton.h>
@@ -229,30 +228,29 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		popup->setVisible(false);
 	});
 
-	popbutton = new PopupButton(innertool, "", ENTYPO_ICON_COG);
-	popbutton->setIconExtraScale(1.5f);
-	popbutton->setTheme(toolbuttheme);
-	popbutton->setTooltip("Settings");
-	popbutton->setFixedSize(Vector2i(40,40));
-	popbutton->setSide(Popup::Side::Right);
-	popbutton->setChevronIcon(0);
-	// popbutton->setPosition(Vector2i(5,height()-50));
-	popup = popbutton->popup();
-	popup->setLayout(new GroupLayout());
-	popup->setTheme(toolbuttheme);
+	itembutton = new Button(innertool, "", ENTYPO_ICON_COG);
+	itembutton->setIconExtraScale(1.5f);
+	itembutton->setTheme(toolbuttheme);
+	itembutton->setTooltip("Settings");
+	itembutton->setFixedSize(Vector2i(40,40));
 
+	itembutton->setCallback([this]() {
+		auto config_window = new ConfigWindow(this, ctrl_);
+		config_window->setTheme(windowtheme);
+	});
+
+	/*
 	//net_->onConnect([this,popup](ftl::net::Peer *p) {
 	{
 		LOG(INFO) << "NET CONNECT";
 		auto node_details = ctrl_->getSlaves();
-		std::vector<std::string> node_titles;
 
 		for (auto &d : node_details) {
 			LOG(INFO) << "ADDING TITLE: " << d.dump();
 			auto peer = ftl::UUID(d["id"].get<std::string>());
 			auto itembutton = new Button(popup, d["title"].get<std::string>());
 			itembutton->setCallback([this,popup,peer]() {
-				auto config_window = new ConfigWindow(this, ctrl_, peer);
+				auto config_window = new ConfigWindow(this, ctrl_);
 				config_window->setTheme(windowtheme);
 			});
 		}
@@ -264,6 +262,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		auto config_window = new ConfigWindow(this, ctrl_);
 		config_window->setTheme(windowtheme);
 	});
+	*/
 
 	//configwindow_ = new ConfigWindow(parent, ctrl_);
 	cwindow_ = new ftl::gui::ControlWindow(this, controller);

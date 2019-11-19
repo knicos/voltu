@@ -72,6 +72,13 @@ json_t &resolveWait(const std::string &);
  */
 Configurable *find(const std::string &uri);
 
+/**
+ * Get all configurables that contain a specified tag. Tags are given under the
+ * "tags" property as an array of strings, but only during configurable
+ * construction.
+ */
+const std::vector<Configurable *> &findByTag(const std::string &tag);
+
 std::vector<std::string> list();
 
 /**
