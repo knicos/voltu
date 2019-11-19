@@ -1,8 +1,10 @@
 const Peer = require('../../peer')
+const VideoPlayer = require('./lib/VideoPlayer')
 
 let current_data = {};
 let peer;
 let decoder;
+let player;
 
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
@@ -54,10 +56,10 @@ createVideoPlayer = () => {
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
     createPeer();
-    decoder = libde265.Decoder();
-    setTimeout(connectToStream, 500)
     const canvas = document.getElementById("ftlab-stream-video")
-    //const player = new videoPlayer(canvas)
+    player = new VideoPlayer(canvas)
+    console.log("PLAYER", player)
+    connectToStream();
 }
 
 /**
@@ -154,29 +156,25 @@ createPeer = () => {
     const ws = new WebSocket('ws://localhost:8080/');
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
-    console.log("peer", peer)
 }
 
-/**
- *setTimeout 1s, ask for the amount of frames user has selected
- *
- *@param uri the uri where that should be called
- * 
- * */
+
 connectToStream = () => {
     console.log(current_data.uri)
     const deocdedURI = decodeURIComponent(current_data.uri);
     peer.bind(deocdedURI, (latency, streampckg, pckg) => {
         console.log(pckg[0])
+        console.log("PAKETTI 5", [pckg[5]])
         if(pckg[0] === 0){
-            const newBlob = new Blob( [pckg[5]], {type: "image/jpeg"});
-            const canvas = document.getElementById("ftlab-stream-video");
-            let modified = canvas.getContext("2d");
-            let image = new Image();
-            image.onload = () => {
-                modified.drawImage(image, 0, 0)
-            }
-            image.src = URL.createObjectURL(newBlob)
+            player.playback(pckg[5]);
+            // const newBlob = new Blob( [pckg[5]], {type: "image/jpeg"});
+            // const canvas = document.getElementById("ftlab-stream-video");
+            // let modified = canvas.getContext("2d");
+            // let image = new Image();
+            // image.onload = () => {
+            //     modified.drawImage(image, 0, 0)
+            // }
+            // image.src = URL.createObjectURL(newBlob)
         }
     })
     peer.send("get_stream", (current_data.uri, 10, 0, current_data.uri))
@@ -186,16 +184,16 @@ closeStream = () => {
     peer.sock.close()
 }
 
-const cardLogic = () => {
-    const cards = document.getElementsByClassName('ftlab-card-component');
-}
-
 
 
 /**
+ * **************
  * CONFIGURATIONS
- * 
+ * **************
  */
+
+current_data.configURI = "ftl://utu.fi#reconstruction_snap10/merge"
+
 configs = () => {
     const container = document.getElementById("container");
     container.innerHTML = `<div class="ftlab-configurations"></div>`;
@@ -208,8 +206,6 @@ renderConfigOptions = () => {
     const doc = document.getElementsByClassName('ftlab-configurations')[0];
     doc.innerHTML = input;
 }
-
-current_data.configURI = "ftl://utu.fi#reconstruction_snap10/merge"
 
 loadConfigs = async () => {
     const configURI = encodeURIComponent(current_data.configURI);
