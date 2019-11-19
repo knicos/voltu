@@ -39,7 +39,7 @@
 const mongoose = require('mongoose')
 
 const configsSchema = mongoose.Schema({
-    URI: String,
+    Settings: String,
     data: Object
   })
 

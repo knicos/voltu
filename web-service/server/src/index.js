@@ -209,18 +209,28 @@ app.get('/stream/depth', (req, res) => {
 app.post('/stream/config', async (req, res) => {
 	const {URI, data} = req.body;
 	console.log(req.body)
-	const savedConfigs = new Configs({
-		URI,
-		data
-	});
+	// const savedConfigs = new Configs({
+	// 	Settings: URI,
+	// 	data
+	// });
 
-	try{
-		await savedConfigs.save();
-		return res.status(200).json('Your configurations were saved successfully')
-	}catch(err){
-		console.log(err)
-		return res.status(500).json("Something's wrong I can feel it")
-	}
+	// try{
+	// 	await savedConfigs.save();
+	// 	return res.status(200).json('Your configurations were saved successfully')
+	// }catch(err){
+	// 	console.log(err)
+	// 	return res.status(500).json("Something's wrong I can feel it")
+	// }
+
+	//EXPERIMENTAL
+	//if(saveToCPP){
+		const json = data
+		const peer = uri_data[uri].peer
+		if(peer){
+			peer.send("update_cfg", uri, json);
+		}
+	// }
+
 })
 
 app.get('/stream/config', async(req, res) => {
@@ -228,11 +238,11 @@ app.get('/stream/config', async(req, res) => {
 	const settings = req.query.settings;
 	const uri = req.query.uri;
 
-	// //Check if DB has data
-	// let response = await Configs.find({URI: settings});
-	// if(dbData[0].data){
-	// 	return res.status(200).json(dbData[0]);
-	// }else{
+	//Check if DB has data
+	let response = await Configs.find({Settings: settings});
+	if(dbData[0].data){
+		return res.status(200).json(dbData[0]);
+	}else{
 		let peer = uri_data[uri].peer
 		if(peer){
 			console.log("get_cfg", settings)
@@ -242,7 +252,7 @@ app.get('/stream/config', async(req, res) => {
 				}
 			}, settings)
 		}
-	// }
+	}
 })
 
 
