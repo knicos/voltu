@@ -383,7 +383,7 @@ BufferList.prototype._match = function(offset, search) {
 
 module.exports = BufferList
 
-},{"readable-stream":18,"safe-buffer":19,"util":40}],2:[function(require,module,exports){
+},{"readable-stream":19,"safe-buffer":20,"util":40}],2:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -493,8 +493,8 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 
-}).call(this,{"isBuffer":require("../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js")})
-},{"../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js":34}],3:[function(require,module,exports){
+}).call(this,{"isBuffer":require("../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
+},{"../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js":34}],3:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -613,7 +613,7 @@ function msgpack (options) {
 
 module.exports = msgpack
 
-},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":25,"bl":1,"safe-buffer":19}],6:[function(require,module,exports){
+},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":25,"bl":1,"safe-buffer":20}],6:[function(require,module,exports){
 'use strict'
 
 var bl = require('bl')
@@ -1396,7 +1396,7 @@ function encodeFloat (obj, forceFloat64) {
   return buf
 }
 
-},{"bl":1,"safe-buffer":19}],8:[function(require,module,exports){
+},{"bl":1,"safe-buffer":20}],8:[function(require,module,exports){
 'use strict'
 
 var Transform = require('readable-stream').Transform
@@ -1488,7 +1488,7 @@ Decoder.prototype._transform = function (buf, enc, done) {
 module.exports.decoder = Decoder
 module.exports.encoder = Encoder
 
-},{"bl":1,"inherits":3,"readable-stream":18}],9:[function(require,module,exports){
+},{"bl":1,"inherits":3,"readable-stream":19}],9:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -2739,7 +2739,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":36,"core-util-is":2,"events":32,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":19,"string_decoder/":20,"util":30}],13:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":36,"core-util-is":2,"events":32,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":20,"string_decoder/":18,"util":30}],13:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3644,7 +3644,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":36,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":19,"timers":37,"util-deprecate":21}],15:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":36,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":20,"timers":37,"util-deprecate":21}],15:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -3724,7 +3724,7 @@ if (util && util.inspect && util.inspect.custom) {
     return this.constructor.name + ' ' + obj;
   };
 }
-},{"safe-buffer":19,"util":30}],16:[function(require,module,exports){
+},{"safe-buffer":20,"util":30}],16:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -3803,79 +3803,6 @@ module.exports = {
 module.exports = require('events').EventEmitter;
 
 },{"events":32}],18:[function(require,module,exports){
-exports = module.exports = require('./lib/_stream_readable.js');
-exports.Stream = exports;
-exports.Readable = exports;
-exports.Writable = require('./lib/_stream_writable.js');
-exports.Duplex = require('./lib/_stream_duplex.js');
-exports.Transform = require('./lib/_stream_transform.js');
-exports.PassThrough = require('./lib/_stream_passthrough.js');
-
-},{"./lib/_stream_duplex.js":10,"./lib/_stream_passthrough.js":11,"./lib/_stream_readable.js":12,"./lib/_stream_transform.js":13,"./lib/_stream_writable.js":14}],19:[function(require,module,exports){
-/* eslint-disable node/no-deprecated-api */
-var buffer = require('buffer')
-var Buffer = buffer.Buffer
-
-// alternative to using Object.keys for old browsers
-function copyProps (src, dst) {
-  for (var key in src) {
-    dst[key] = src[key]
-  }
-}
-if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
-  module.exports = buffer
-} else {
-  // Copy properties from require('buffer')
-  copyProps(buffer, exports)
-  exports.Buffer = SafeBuffer
-}
-
-function SafeBuffer (arg, encodingOrOffset, length) {
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-// Copy static methods from Buffer
-copyProps(Buffer, SafeBuffer)
-
-SafeBuffer.from = function (arg, encodingOrOffset, length) {
-  if (typeof arg === 'number') {
-    throw new TypeError('Argument must not be a number')
-  }
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-SafeBuffer.alloc = function (size, fill, encoding) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  var buf = Buffer(size)
-  if (fill !== undefined) {
-    if (typeof encoding === 'string') {
-      buf.fill(fill, encoding)
-    } else {
-      buf.fill(fill)
-    }
-  } else {
-    buf.fill(0)
-  }
-  return buf
-}
-
-SafeBuffer.allocUnsafe = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return Buffer(size)
-}
-
-SafeBuffer.allocUnsafeSlow = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return buffer.SlowBuffer(size)
-}
-
-},{"buffer":31}],20:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4172,7 +4099,80 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":19}],21:[function(require,module,exports){
+},{"safe-buffer":20}],19:[function(require,module,exports){
+exports = module.exports = require('./lib/_stream_readable.js');
+exports.Stream = exports;
+exports.Readable = exports;
+exports.Writable = require('./lib/_stream_writable.js');
+exports.Duplex = require('./lib/_stream_duplex.js');
+exports.Transform = require('./lib/_stream_transform.js');
+exports.PassThrough = require('./lib/_stream_passthrough.js');
+
+},{"./lib/_stream_duplex.js":10,"./lib/_stream_passthrough.js":11,"./lib/_stream_readable.js":12,"./lib/_stream_transform.js":13,"./lib/_stream_writable.js":14}],20:[function(require,module,exports){
+/* eslint-disable node/no-deprecated-api */
+var buffer = require('buffer')
+var Buffer = buffer.Buffer
+
+// alternative to using Object.keys for old browsers
+function copyProps (src, dst) {
+  for (var key in src) {
+    dst[key] = src[key]
+  }
+}
+if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
+  module.exports = buffer
+} else {
+  // Copy properties from require('buffer')
+  copyProps(buffer, exports)
+  exports.Buffer = SafeBuffer
+}
+
+function SafeBuffer (arg, encodingOrOffset, length) {
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+// Copy static methods from Buffer
+copyProps(Buffer, SafeBuffer)
+
+SafeBuffer.from = function (arg, encodingOrOffset, length) {
+  if (typeof arg === 'number') {
+    throw new TypeError('Argument must not be a number')
+  }
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+SafeBuffer.alloc = function (size, fill, encoding) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  var buf = Buffer(size)
+  if (fill !== undefined) {
+    if (typeof encoding === 'string') {
+      buf.fill(fill, encoding)
+    } else {
+      buf.fill(fill)
+    }
+  } else {
+    buf.fill(0)
+  }
+  return buf
+}
+
+SafeBuffer.allocUnsafe = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return Buffer(size)
+}
+
+SafeBuffer.allocUnsafeSlow = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return buffer.SlowBuffer(size)
+}
+
+},{"buffer":31}],21:[function(require,module,exports){
 (function (global){
 
 /**
@@ -4616,15 +4616,6 @@ renderThumbnails = async () => {
 }
 
 
-// //FOR LAPTOP
-// const renderThumbnails = async () => {
-//     const containerDiv = document.getElementById('container')
-//     containerDiv.innerHTML = '';
-//     for(var i=0; i<2; i++){
-//             containerDiv.innerHTML += createCard()
-//     }
-// }
-
 /**
  * Renders button that will redirect to google login
  */
@@ -4652,7 +4643,8 @@ renderLogin = () => {
         </div>`
 }
 
-//FOR DESKTOP
+
+
 createCard = (url, viewers) => {
     return `<div class='ftlab-card-component' >
                 <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
@@ -4660,16 +4652,6 @@ createCard = (url, viewers) => {
                 <button onclick="createVideoPlayer()">button</button>
             </div>`
 }
-
-
-//FOR LAPTOP
-// const createCard = () => {
-//     return `<div class='ftlab-card-component'>
-//                 <img src='https://via.placeholder.com/250x150' class="thumbnail-img" width="250px" alt="Hups"></img>
-//                 <p>Viewers: yes</p>
-//                 <button onclick="window.location.href='/stream?uri'">button</button>
-//             </div>`
-// }
 
 
 createPeer = () => {
@@ -4712,12 +4694,11 @@ closeStream = () => {
  * **************
  */
 
-current_data.configURI = "ftl://utu.fi#reconstruction_snap10/merge"
+current_data.configURI = "ftl://utu.fi#reconstruction_snap8/net"
 
 configs = () => {
     const container = document.getElementById("container");
     container.innerHTML = `<div class="ftlab-configurations"></div>`;
-    // let configContainer = document.getElementsByClassName("ftlab-configurations")[0];
     renderConfigOptions();
 }
 
@@ -4727,8 +4708,9 @@ renderConfigOptions = () => {
     doc.innerHTML = input;
 }
 
-loadConfigs = async () => {
-    const configURI = encodeURIComponent(current_data.configURI);
+
+loadConfigs = async (str) => {
+    const configURI = encodeURIComponent(`ftl://utu.fi#reconstruction_snap8${str}`);
     const uri = encodeURIComponent(current_data.uri)
     const rawResp = await fetch(`http://localhost:8080/stream/config?settings=${configURI}&uri=${uri}`)
     const response = await rawResp.json();
@@ -4737,14 +4719,17 @@ loadConfigs = async () => {
     console.log(content)
 }
 
+current_data.configData = '{"peers": 1}';
+
 saveConfigs = async () => {
+    let {uri, configURI, configData} = current_data
     const rawResp = await fetch('http://localhost:8080/stream/config', {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
-        body: {uri: current_data.configURI, data: current_data.configData}
+        body: JSON.stringify({peerURI: uri, configURI, data: configData, saveToCPP: true})
     });
     const content = await rawResp.json();
     console.log(content)
