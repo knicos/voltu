@@ -1,6 +1,8 @@
 #ifndef _FTL_GUI_MEDIAPANEL_HPP_
 #define _FTL_GUI_MEDIAPANEL_HPP_
 
+#include "camera.hpp"
+
 #include <nanogui/window.h>
 
 namespace ftl {
@@ -30,6 +32,15 @@ class MediaPanel : public nanogui::Window {
 	nanogui::PopupButton *button_channels_;
 	nanogui::Button *right_button_;
 	nanogui::Button *depth_button_;
+
+	/**
+	 * These members indicate which type of recording is active, if any.
+	 * They also include a pointer to an object which is used
+	 * to end the recording. Only one of these members should have a value
+	 * at any given time.
+	 */
+	std::optional<ftl::gui::Camera*> virtualCameraRecording_;
+	std::optional<ftl::Configurable*> sceneRecording_;
 };
 
 }

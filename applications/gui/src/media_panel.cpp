@@ -1,6 +1,5 @@
 #include "media_panel.hpp"
 #include "screen.hpp"
-#include "camera.hpp"
 
 #include <nanogui/layout.h>
 #include <nanogui/button.h>
@@ -34,6 +33,9 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 		if (cam) cam->showPoseWindow();
 	});
 
+	virtualCameraRecording_ = std::optional<ftl::gui::Camera*>();
+	sceneRecording_ = std::optional<ftl::Configurable*>();
+
 	auto recordbutton = new PopupButton(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
 	recordbutton->setTooltip("Record");
 	recordbutton->setSide(Popup::Side::Right);
@@ -49,20 +51,11 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	});
 	itembutton = new Button(recordpopup, "Virtual camera recording (.ftl)");
 	itembutton->setCallback([this,recordbutton]() {
-		std::cout << "Toggling video recording in itembutton callback." << '\n';
-		screen_->activeCamera()->toggleVideoRecording();
-		recordbutton->setCallback([this,recordbutton]() {
-			std::cout << "Toggling video recording in recordbutton callback." << '\n';
-			screen_->activeCamera()->toggleVideoRecording();
-			recordbutton->setCallback([]() {});
-			recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
-
-			// Prevents the popup from being opened, though it is shown while the button
-			// is being pressed.
-			recordbutton->setPushed(false);
-		});
+		auto activeCamera = screen_->activeCamera();
+		activeCamera->toggleVideoRecording();
 		recordbutton->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
 		recordbutton->setPushed(false);
+		virtualCameraRecording_ = std::optional<ftl::gui::Camera*>(activeCamera);
 	});
 	itembutton = new Button(recordpopup, "3D scene recording (.ftl)");
 	itembutton->setCallback([this,recordbutton]() {
@@ -74,17 +67,29 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 				ftl::Configurable *configurable = configurables[0];
 				configurable->set("record", true);
 				recordbutton->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
-				recordbutton->setCallback([this,recordbutton,configurable]() {
-					configurable->set("record", false);
-					recordbutton->setCallback([]() {});
-					recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
-					recordbutton->setPushed(false);
-				});
+				sceneRecording_ = std::optional<ftl::Configurable*>(configurable);
 			}
 		}
 		recordbutton->setPushed(false);
 	});
 	itembutton = new Button(recordpopup, "Detailed recording options");
+
+	recordbutton->setCallback([this,recordbutton](){
+		if (virtualCameraRecording_) {
+			virtualCameraRecording_.value()->toggleVideoRecording();
+			recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+
+			// Prevents the popup from being opened, though it is shown while the button
+			// is being pressed.
+			recordbutton->setPushed(false);
+			virtualCameraRecording_ = std::nullopt;
+		} else if (sceneRecording_) {
+			sceneRecording_.value()->set("record", false);
+			recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+			recordbutton->setPushed(false);
+			sceneRecording_ = std::nullopt;
+		}
+	});
 
 	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_STOP);
 	button->setCallback([this]() {
