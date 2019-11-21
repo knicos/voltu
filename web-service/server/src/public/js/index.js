@@ -143,23 +143,9 @@ createPeer = () => {
 
 connectToStream = () => {
     console.log(current_data.uri)
-    const deocdedURI = decodeURIComponent(current_data.uri);
-    peer.bind(deocdedURI, (latency, streampckg, pckg) => {
-        console.log(pckg[0])
-        console.log("PAKETTI 5", [pckg[5]])
-        if(pckg[0] === 0){
-            player.playback(pckg[5]);
-            // const newBlob = new Blob( [pckg[5]], {type: "image/jpeg"});
-            // const canvas = document.getElementById("ftlab-stream-video");
-            // let modified = canvas.getContext("2d");
-            // let image = new Image();
-            // image.onload = () => {
-            //     modified.drawImage(image, 0, 0)
-            // }
-            // image.src = URL.createObjectURL(newBlob)
-        }
-    })
-    peer.send("get_stream", (current_data.uri, 10, 0, current_data.uri))
+    const uri = current_data.uri
+    const decodedURI = decodeURIComponent(current_data.uri);
+    player.playback(peer, decodedURI, uri);
 }
 
 closeStream = () => {

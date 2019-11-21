@@ -84,7 +84,10 @@ VideoPlayer.prototype._display_image = function(image) {
     });
 };
 
-VideoPlayer.prototype._handle_onload = function(frame) {
+
+
+
+VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
     var that = this;
     this._set_status("initializing");
 
@@ -93,33 +96,26 @@ VideoPlayer.prototype._handle_onload = function(frame) {
         that._display_image(image);
         image.free();
     });
-
-    // var data = frame;
-    // var pos = 0;
-    // var remaining = data.byteLength;
     var ratio = null;
     var filters = false;
+    
 
-    var decode = function() {
-        if (!that.running) {
-            return;
-        }
-
+    var decode = function(pckg) {
+        if (!that.running) { return; }
+        console.log("DECODE FUNKKARI ALKU")
         var err;
-        // if (remaining === 0) {
-        //     err = decoder.flush();
-        // } else {
-            // var l = 4096;
-            // if (l > remaining) {
-            //     l = remaining;
-            // }
+        if (pckg == null) { return; }
+        else{
 
-            let tmp = frame
-            // var tmp = new Uint8Array(data, pos, l);
-            err = decoder.push_data(tmp);
-            // pos += l;
-            // remaining -= l;
-        // }
+            try {
+                var tmp = pckg
+                err = decoder.push_data(tmp);
+            } catch(err) {
+                console.log(err);
+                err = decoder.flush();
+                return;
+            }
+        }
         if (!libde265.de265_isOK(err)) {
             that._set_error(err, libde265.de265_get_error_text(err));
             return;
@@ -138,7 +134,8 @@ VideoPlayer.prototype._handle_onload = function(frame) {
         decoder.decode(function(err) {
             switch(err) {
             case libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA:
-                // setTimeout(decode, 0);
+                console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
+                setTimeout(decode(null), 0);
                 return;
 
             default:
@@ -148,32 +145,47 @@ VideoPlayer.prototype._handle_onload = function(frame) {
                 }
             }
 
-            // if (remaining > 0 || decoder.has_more()) {
-            //     // setTimeout(decode, 0);
-            //     return;
-            // }
+            if (decoder.has_more()) {
+                console.log("has more");
+                setTimeout(decode(null), 0);
+                return;
+            }
 
             decoder.free();
             that.stop();
         });
-    };
-    decode();
-    // setTimeout(decode, 0);
+        console.log("DECODE FUNKKARIN LOPPU")
+    }
+
+
+    peer.bind(decodedURI, (latency, streampckg, pckg) => {
+        console.log(pckg[0])
+        if(pckg[0] === 0){
+            decode([pckg[5]]);
+        };
+    })
+    // Start the transaction
+    peer.send("get_stream", (uri, 10, 0, uri));
 };
 
 /** @expose */
-VideoPlayer.prototype.playback = function(pckg) {
-    // this._reset();
-    // var request = new XMLHttpRequest();
-    // request.open("get", url, true);
-    // request.responseType = "arraybuffer";
+VideoPlayer.prototype.playback = function(peer, decodedURI, uri) {
+    this._reset();
+
+    console.log(peer);
+    console.log(uri)
+    this._handle_onload(peer, decodedURI, uri)
     // var that = this;
-    // request.onload = function(event) {
-    this._handle_onload(pckg);
+
+    // peer.sock.onopen = function() {
+    //     console.log("Stream open");
+    //     that._handle_onload(ws);
     // };
+
+    // ws.onclose = function() { console.log("Connection closed."); }
     this._set_status("loading");
     this.running = true;
-    // request.send();
+    console.log("piippiip")
 };
 
 /** @expose */
