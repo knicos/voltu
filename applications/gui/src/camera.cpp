@@ -3,6 +3,8 @@
 #include "screen.hpp"
 #include <nanogui/glutil.h>
 
+#include <fstream>
+
 #ifdef HAVE_OPENVR
 #include "vr.hpp"
 #endif
