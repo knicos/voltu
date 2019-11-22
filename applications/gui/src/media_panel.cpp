@@ -149,7 +149,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 		auto button_vr = new Button(this, "VR");
 		button_vr->setFlags(Button::ToggleButton);
 		button_vr->setChangeCallback([this, button_vr](bool state) {
-			if (!screen_->useVR()) {
+			if (!screen_->isVR()) {
 				if (screen_->switchVR(true) == true) {
 					button_vr->setTextColor(nanogui::Color(0.5f,0.5f,1.0f,1.0f));
 					this->button_channels_->setEnabled(false);

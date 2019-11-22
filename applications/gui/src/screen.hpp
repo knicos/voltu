@@ -52,7 +52,7 @@ class Screen : public nanogui::Screen {
 	bool hasVR() const { return has_vr_; }
 
 	// is VR mode on/off
-	bool useVR();
+	bool isVR();
 
 	// toggle VR on/off
 	bool switchVR(bool mode);

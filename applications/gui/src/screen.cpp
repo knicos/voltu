@@ -319,14 +319,14 @@ bool ftl::gui::Screen::initVR() {
 	return true;
 }
 
-bool ftl::gui::Screen::useVR() {
+bool ftl::gui::Screen::isVR() {
 	auto *cam = activeCamera();
 	if (HMD_ == nullptr || cam == nullptr) { return false; }
 	return cam->isVR();
 }
 
 bool ftl::gui::Screen::switchVR(bool on) {
-	if (useVR() == on) { return on; }
+	if (isVR() == on) { return on; }
 
 	if (on && (HMD_ == nullptr) && !initVR()) {
 		return false;
@@ -338,7 +338,7 @@ bool ftl::gui::Screen::switchVR(bool on) {
 		activeCamera()->setVR(false);
 	}
 	
-	return useVR();
+	return isVR();
 }
 #endif
 
@@ -466,7 +466,7 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
 
 		#ifdef HAVE_OPENVR
-		if (useVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
+		if (isVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
 			
 			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );

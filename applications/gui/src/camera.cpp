@@ -268,7 +268,6 @@ bool ftl::gui::Camera::setVR(bool on) {
 		src_->set("focal", intrinsic(0, 0));
 		src_->set("centre_x", intrinsic(0, 2));
 		src_->set("centre_y", intrinsic(1, 2));
-		LOG(INFO) << intrinsic;
 		
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Right);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
@@ -376,8 +375,9 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 	if (src_ && src_->isReady()) {
 		UNIQUE_LOCK(mutex_, lk);
 
-		if (isVR()) {
+		if (screen_->isVR()) {
 			#ifdef HAVE_OPENVR
+			
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
 			if ((channel_ == Channel::Right) && rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
