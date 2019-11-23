@@ -68,7 +68,6 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 
 	#ifdef HAVE_OPENVR
 	HMD_ = nullptr;
-	has_vr_ = vr::VR_IsHmdPresent();
 	#endif
 
 	zoom_ = root_->value("zoom", 1.0f);
@@ -340,6 +339,11 @@ bool ftl::gui::Screen::switchVR(bool on) {
 	
 	return isVR();
 }
+
+bool ftl::gui::Screen::isHmdPresent() {
+	return vr::VR_IsHmdPresent();
+}
+
 #endif
 
 ftl::gui::Screen::~Screen() {

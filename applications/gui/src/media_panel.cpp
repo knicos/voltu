@@ -145,7 +145,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	*/
 
 #ifdef HAVE_OPENVR
-	if (this->screen_->hasVR()) {
+	if (this->screen_->isHmdPresent()) {
 		auto button_vr = new Button(this, "VR");
 		button_vr->setFlags(Button::ToggleButton);
 		button_vr->setChangeCallback([this, button_vr](bool state) {
