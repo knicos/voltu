@@ -102,16 +102,16 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
     var decode = function(pckg) {
         if (!that.running) { return; }
-        console.log("DECODE FUNKKARI ALKU")
+        console.log("DECODE FUNKKARI ALKU", pckg)
         var err;
-        if (pckg == null) { return; }
-        else{
-
+        if (pckg == null) { console.log("NULL NULL NULL NULL"); return; 
+        } else {
             try {
                 var tmp = pckg
                 err = decoder.push_data(tmp);
-            } catch(err) {
-                console.log(err);
+                console.log("ERROR TRY:n sisällä", err, tmp)
+            } catch(e) {
+                console.log(e);
                 err = decoder.flush();
                 return;
             }
@@ -132,14 +132,14 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
         }
 
         decoder.decode(function(err) {
+            console.log("TÄSÄ KUSEE", err)
             switch(err) {
             case libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA:
                 console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
-                setTimeout(decode(null), 0);
-                return;
 
             default:
                 if (!libde265.de265_isOK(err)) {
+                    console.log("PIIPPIIP")
                     that._set_error(err, libde265.de265_get_error_text(err));
                     return;
                 }
@@ -147,21 +147,20 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
             if (decoder.has_more()) {
                 console.log("has more");
-                setTimeout(decode(null), 0);
                 return;
             }
 
             decoder.free();
             that.stop();
+            console.log("PITÄIS LOGATA");
         });
-        console.log("DECODE FUNKKARIN LOPPU")
     }
 
 
     peer.bind(decodedURI, (latency, streampckg, pckg) => {
         console.log(pckg[0])
         if(pckg[0] === 0){
-            decode([pckg[5]]);
+            decode(pckg[5]);
         };
     })
     // Start the transaction
@@ -175,14 +174,6 @@ VideoPlayer.prototype.playback = function(peer, decodedURI, uri) {
     console.log(peer);
     console.log(uri)
     this._handle_onload(peer, decodedURI, uri)
-    // var that = this;
-
-    // peer.sock.onopen = function() {
-    //     console.log("Stream open");
-    //     that._handle_onload(ws);
-    // };
-
-    // ws.onclose = function() { console.log("Connection closed."); }
     this._set_status("loading");
     this.running = true;
     console.log("piippiip")
