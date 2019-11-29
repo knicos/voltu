@@ -241,7 +241,7 @@ static void run(ftl::Configurable *root) {
 	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
-	root->set("tags", nlohmann::json::array({ root->getID()+"/virtual" }));
+	//root->set("tags", nlohmann::json::array({ root->getID()+"/virtual" }));
 	ftl::render::Triangular *splat = ftl::create<ftl::render::Triangular>(root, "renderer", &scene_B);
 	ftl::rgbd::Group *group = new ftl::rgbd::Group;
 	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");

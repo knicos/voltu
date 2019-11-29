@@ -84,6 +84,8 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		pos_y_ = root_->value("position_y", 0.0f);
 	});
 
+	shortcuts_ = ftl::create<ftl::Configurable>(root_, "shortcuts");
+
 	setSize(Vector2i(1280,720));
 
 	toolbuttheme = new Theme(*theme());
@@ -434,12 +436,31 @@ bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, 
 	}
 }
 
+static std::string generateKeyComboStr(int key, int modifiers) {
+	std::string res = "";
+
+	switch(modifiers) {
+	case 1:		res += "Shift+"; break;
+	case 2:		res += "Ctrl+"; break;
+	case 3:		res += "Ctrl+Shift+"; break;
+	case 4:		res += "Alt+"; break;
+	default: break;
+	}
+
+	if (key < 127 && key >= 32) {
+		char buf[2] = { (char)key, 0 };
+		return res + std::string(buf);
+	} else {
+		return "";
+	}
+}
+
 bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modifiers) {
 	using namespace Eigen;
 	if (nanogui::Screen::keyboardEvent(key, scancode, action, modifiers)) {
 		return true;
 	} else {
-		LOG(INFO) << "Key press " << key << " - " << action << " - " << modifiers;
+		//LOG(INFO) << "Key press " << key << " - " << action << " - " << modifiers;
 
 		if (key >= 262 && key <= 267) {
 			if (camera_) camera_->keyMovement(key, modifiers);
@@ -447,9 +468,42 @@ bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modi
 		} else if (action == 1 && key == 'H') {
 			swindow_->setVisible(false);
 			cwindow_->setVisible(false);
-		} else if (action == 1 && key == 32) {
-			ctrl_->pause();
-			return true;
+		} else if (action == 1) {
+			std::string combo = generateKeyComboStr(key, modifiers);
+
+			if (combo.size() > 0) {
+				LOG(INFO) << "Key combo = " << combo;
+
+				auto s = shortcuts_->get<nlohmann::json>(combo);
+				if (s) {
+					//LOG(INFO) << "FOUND KEYBOARD SHORTCUT";
+					std::string op = (*s).value("op",std::string("="));
+					std::string uri = (*s).value("uri",std::string(""));
+
+					if (op == "toggle") {
+						auto v = ftl::config::get(uri);
+						if (v.is_boolean()) {
+							ftl::config::update(uri, !v.get<bool>());
+						}
+					} else if (op == "+=") {
+						auto v = ftl::config::get(uri);
+						if (v.is_number_float()) {
+							ftl::config::update(uri, v.get<float>() + (*s).value("value",0.0f));
+						} else if (v.is_number_integer()) {
+							ftl::config::update(uri, v.get<int>() + (*s).value("value",0));
+						}
+					} else if (op == "-=") {
+						auto v = ftl::config::get(uri);
+						if (v.is_number_float()) {
+							ftl::config::update(uri, v.get<float>() - (*s).value("value",0.0f));
+						} else if (v.is_number_integer()) {
+							ftl::config::update(uri, v.get<int>() - (*s).value("value",0));
+						}
+					} else if (op == "=") {
+						ftl::config::update(uri, (*s)["value"]);
+					}
+				}
+			}
 		}
 		return false;
 	}

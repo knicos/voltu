@@ -25,10 +25,12 @@ int main(int argc, char **argv) {
 
 	std::map<ftl::UUID, std::vector<ftl::NetConfigurable*>> peerConfigurables;
 
+	// FIXME: Move this elsewhere, it is not just for GUI
 	net->onConnect([&controller, &peerConfigurables](ftl::net::Peer *p) {
 		ftl::UUID peer = p->id();
 		auto cs = controller->getConfigurables(peer);
 		for (auto c : cs) {
+			//LOG(INFO) << "NET CONFIG: " << c;
 			ftl::config::json_t *configuration = new ftl::config::json_t;
 			*configuration = controller->get(peer, c);
 			if (!configuration->empty()) {

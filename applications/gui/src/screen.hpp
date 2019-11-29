@@ -101,6 +101,8 @@ class Screen : public nanogui::Screen {
 
 	bool show_two_images_ = false;
 
+	ftl::Configurable *shortcuts_;
+
 	#ifdef HAVE_OPENVR
 	vr::IVRSystem *HMD_;
 	#endif

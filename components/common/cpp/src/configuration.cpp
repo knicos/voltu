@@ -194,6 +194,7 @@ ftl::Configurable *ftl::config::find(const std::string &uri) {
 			actual_uri = rootCFG->getID() + uri;
 		}
 	}
+	
 	auto ix = config_instance.find(actual_uri);
 	if (ix == config_instance.end()) return nullptr;
 	else return (*ix).second;
@@ -228,6 +229,7 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 		auto tags = cfg->get<vector<string>>("tags");
 		if (tags) {
 			for (auto &t : *tags) {
+				//LOG(INFO) << "REGISTER TAG: " << t;
 				tag_index[t].push_back(cfg);
 			}
 		}
@@ -236,22 +238,47 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 
 json_t null_json;
 
+/* To allow for custom tag format */
+static std::string preprocessURI(const std::string &uri) {
+	if (uri[0] == '[') {
+		size_t closing = uri.find_last_of(']');
+		string tags = uri.substr(1, closing-1);
+
+		// TODO: Allow for multiple tags
+
+		const auto &cfgs = ftl::config::findByTag(tags);
+
+		// FIXME: Check for more than one tag result
+		if (cfgs.size() > 0) {
+			//LOG(INFO) << "PREPROC URI " << cfgs[0]->getID() + uri.substr(closing+1);
+			return cfgs[0]->getID() + uri.substr(closing+1);
+		} else {
+			return uri;
+		}
+	} else if (uri[0] == '/') {
+		return rootCFG->getID() + uri;
+	} else {
+		return uri;
+	}
+}
+
 bool ftl::config::update(const std::string &puri, const json_t &value) {
 	// Remove last component of URI
 	string tail = "";
 	string head = "";
-	size_t last_hash = puri.find_last_of('#');
+	string uri = preprocessURI(puri);
+	size_t last_hash = uri.find_last_of('#');
 	if (last_hash != string::npos) {
-		size_t last = puri.find_last_of('/');
+		size_t last = uri.find_last_of('/');
 		if (last != string::npos && last > last_hash) {
-			tail = puri.substr(last+1);
-			head = puri.substr(0, last);
+			tail = uri.substr(last+1);
+			head = uri.substr(0, last);
 		} else {
-			tail = puri.substr(last_hash+1);
-			head = puri.substr(0, last_hash);
+			tail = uri.substr(last_hash+1);
+			head = uri.substr(0, last_hash);
 		}
 	} else {
-		LOG(WARNING) << "Expected a # in an update URI: " << puri;
+		LOG(WARNING) << "Expected a # in an update URI: " << uri;
 		return false;
 	}
 
@@ -281,6 +308,35 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 
 		r[tail] = value;
 		return true;
+	}
+}
+
+json_t &ftl::config::get(const std::string &puri) {
+	// Remove last component of URI
+	string tail = "";
+	string head = "";
+	string uri = preprocessURI(puri);
+	size_t last_hash = uri.find_last_of('#');
+	if (last_hash != string::npos) {
+		size_t last = uri.find_last_of('/');
+		if (last != string::npos && last > last_hash) {
+			tail = uri.substr(last+1);
+			head = uri.substr(0, last);
+		} else {
+			tail = uri.substr(last_hash+1);
+			head = uri.substr(0, last_hash);
+		}
+	} else {
+		LOG(WARNING) << "Expected a # in an update URI: " << uri;
+		return null_json;
+	}
+
+	Configurable *cfg = find(head);
+
+	if (cfg) {
+		return cfg->getConfig()[tail];
+	} else {
+		return null_json;
 	}
 }
 
