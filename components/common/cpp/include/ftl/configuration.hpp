@@ -47,6 +47,8 @@ void removeConfigurable(Configurable *cfg);
  */
 bool update(const std::string &puri, const json_t &value);
 
+json_t &get(const std::string &puri);
+
 /**
  * Resolve a JSON schema reference, but do not wait for a remote reference
  * if it is not available. A null entity is returned if not resolved.
