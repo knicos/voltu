@@ -98,8 +98,9 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 
 	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_PAUS);
 	button->setCallback([this,button]() {
-		paused_ = !paused_;
-		screen_->control()->pause();
+		//paused_ = !paused_;
+		paused_ = !(bool)ftl::config::get("[reconstruction]/controls/paused");
+		ftl::config::update("[reconstruction]/controls/paused", paused_);
 		if (paused_) {
 			button->setIcon(ENTYPO_ICON_CONTROLLER_PLAY);
 		} else {
