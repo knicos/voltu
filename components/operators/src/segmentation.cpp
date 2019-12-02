@@ -14,18 +14,17 @@ CrossSupport::~CrossSupport() {
 }
 
 bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
-	bool use_depth = config()->value("depth_region", false);
+	bool use_mask = config()->value("discon_support", false);
 
-	if (use_depth) {
+	if (use_mask) {
 		ftl::cuda::support_region(
-			in.createTexture<float>(Channel::Depth),
+			in.createTexture<int>(Channel::Mask),
 			out.createTexture<uchar4>(Channel::Support2, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
-			config()->value("depth_tau", 0.04f),
 			config()->value("v_max", 5),
 			config()->value("h_max", 5),
-			config()->value("symmetric", true), stream
+			config()->value("symmetric", false), stream
 		);
-	} //else {
+	} else {
 		ftl::cuda::support_region(
 			in.createTexture<uchar4>(Channel::Colour),
 			out.createTexture<uchar4>(Channel::Support1, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
@@ -34,7 +33,7 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd:
 			config()->value("h_max", 5),
 			config()->value("symmetric", true), stream
 		);
-	//}
+	}
 
 	return true;
 }

@@ -1,8 +1,10 @@
 #include "segmentation_cuda.hpp"
+#include "mask_cuda.hpp"
 
 #define T_PER_BLOCK 8
 
 using ftl::cuda::TextureObject;
+using ftl::cuda::Mask;
 
 template <typename T>
 __device__ inline float cross(T p1, T p2);
@@ -89,6 +91,64 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
     return result;
 }
 
+__device__ uchar4 calculate_support_region(const TextureObject<int> &img, int x, int y, int v_max, int h_max) {
+    int x_min = max(0, x - h_max);
+    int x_max = min(img.width()-1, x + h_max);
+    int y_min = max(0, y - v_max);
+    int y_max = min(img.height()-1, y + v_max);
+
+	uchar4 result = make_uchar4(0, 0, 0, 0);
+
+	Mask m1(img.tex2D(x,y));
+
+	int u;
+    for (u=x-1; u >= x_min; --u) {
+		Mask m2(img.tex2D(u,y));
+        if (m2.isDiscontinuity()) {
+            result.x = x - u - 1;
+            break;
+		}
+	}
+	if (u < x_min) result.x = x - x_min;
+	
+    for (u=x+1; u <= x_max; ++u) {
+		Mask m2(img.tex2D(u,y));
+        if (m2.isDiscontinuity()) {
+            result.y = u - x - 1;
+            break;
+		}
+	}
+	if (u > x_max) result.y = x_max - x;
+
+	int v;
+    for (v=y-1; v >= y_min; --v) {
+		Mask m2(img.tex2D(x,v));
+        if (m2.isDiscontinuity()) {
+            result.z = y - v - 1;
+            break;
+		}
+	}
+	if (v < y_min) result.z = y - y_min;
+
+    for (v=y+1; v <= y_max; ++v) {
+		Mask m2(img.tex2D(x,v));
+        if (m2.isDiscontinuity()) {
+            result.w = v - y - 1;
+            break;
+		}
+	}
+	if (v > y_max) result.w = y_max - y;
+
+	// Make symetric left/right and up/down
+	if (false) {
+		result.x = min(result.x, result.y);
+		result.y = result.x;
+		result.z = min(result.z, result.w);
+		result.w = result.z;
+	}
+    return result;
+}
+
 template <typename T, bool SYM>
 __global__ void support_region_kernel(TextureObject<T> img, TextureObject<uchar4> region, float tau, int v_max, int h_max) {
     const int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -97,6 +157,15 @@ __global__ void support_region_kernel(TextureObject<T> img, TextureObject<uchar4
     if (x < 0 || y < 0 || x >= img.width() || y >= img.height()) return;
 
     region(x,y) = calculate_support_region<T,SYM>(img, x, y, tau, v_max, h_max);
+}
+
+__global__ void support_region_kernel(TextureObject<int> img, TextureObject<uchar4> region, int v_max, int h_max) {
+    const int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if (x < 0 || y < 0 || x >= img.width() || y >= img.height()) return;
+
+    region(x,y) = calculate_support_region(img, x, y, v_max, h_max);
 }
 
 void ftl::cuda::support_region(
@@ -134,6 +203,26 @@ void ftl::cuda::support_region(
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	support_region_kernel<float, true><<<gridSize, blockSize, 0, stream>>>(depth, region, tau, v_max, h_max);
+	cudaSafeCall( cudaGetLastError() );
+
+
+	#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+	#endif
+}
+
+void ftl::cuda::support_region(
+		ftl::cuda::TextureObject<int> &mask,
+		ftl::cuda::TextureObject<uchar4> &region,
+		int v_max,
+		int h_max,
+		bool sym,
+		cudaStream_t stream) {
+
+	const dim3 gridSize((region.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (region.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	support_region_kernel<<<gridSize, blockSize, 0, stream>>>(mask, region, v_max, h_max);
 	cudaSafeCall( cudaGetLastError() );
 
 
