@@ -334,7 +334,7 @@ static void run(ftl::Configurable *root) {
 	pipeline1->append<ftl::operators::CrossSupport>("cross2")->set("discon_support", true);
 	pipeline1->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 	//pipeline1->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
-	pipeline1->append<ftl::operators::VisCrossSupport>("viscross"); //->set("enabled", false);
+	pipeline1->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
 	pipeline1->append<ftl::operators::MultiViewMLS>("mvmls");
 	// Alignment
 
