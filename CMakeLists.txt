@@ -230,6 +230,7 @@ add_subdirectory(applications/calibration)
 add_subdirectory(applications/groupview)
 add_subdirectory(applications/player)
 add_subdirectory(applications/recorder)
+add_subdirectory(applications/merger)
 
 if (HAVE_AVFORMAT)
 	add_subdirectory(applications/ftl2mkv)
