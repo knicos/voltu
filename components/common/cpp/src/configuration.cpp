@@ -584,6 +584,7 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	vector<string> paths;
 	while (argc-- > 0) {
 		paths.push_back(argv[0]);
+		argv++;
 	}
 	
 	if (!findConfiguration(options["config"], paths)) {

@@ -45,6 +45,8 @@ int main(int argc, char **argv) {
 			return -1;
 		}
 
+		LOG(INFO) << "Opening("<< i <<"): " << paths[i];
+
 		rs[i] = new ftl::codecs::Reader(fs[i]);
 		if (!rs[i]->begin()) {
 			LOG(ERROR) << "Bad ftl file format";
@@ -73,7 +75,7 @@ int main(int argc, char **argv) {
 			// FIXME: Need to truncate other stream if the following returns
 			// no frames, meaning the timeshift causes this stream to run out
 			// before the main stream.
-			rs[j]->read(spkt.timestamp+timeoff, [&out,&idmap,&lastid,j,r,stream_mask2,timeoff](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			rs[j]->read(spkt.timestamp+timeoff+1, [&out,&idmap,&lastid,j,r,stream_mask2,timeoff](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 				if (((0x1 << spkt.streamID) & stream_mask2) == 0) return;
 				if (int(spkt.channel) < 32 && spkt.timestamp < r->getStartTime()+timeoff) return;
 
