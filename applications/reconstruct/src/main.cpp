@@ -200,26 +200,6 @@ static void run(ftl::Configurable *root) {
 		configproxy->add(disparity, "source/disparity/cross", "cross");
 	}
 
-	// Create scene transform, intended for axis aligning the walls and floor
-	Eigen::Matrix4d transform;
-	if (root->getConfig()["transform"].is_object()) {
-		auto &c = root->getConfig()["transform"];
-		float rx = c.value("pitch", 0.0f);
-		float ry = c.value("yaw", 0.0f);
-		float rz = c.value("roll", 0.0f);
-		float x = c.value("x", 0.0f);
-		float y = c.value("y", 0.0f);
-		float z = c.value("z", 0.0f);
-
-		Eigen::Affine3d r = create_rotation_matrix(rx, ry, rz);
-		Eigen::Translation3d trans(Eigen::Vector3d(x,y,z));
-		Eigen::Affine3d t(trans);
-		transform = t.matrix() * r.matrix();
-		LOG(INFO) << "Set transform: " << transform;
-	} else {
-		transform.setIdentity();
-	}
-
 	// Must find pose for each source...
 	if (sources.size() > 1) {
 		std::map<std::string, Eigen::Matrix4d> transformations;
@@ -235,16 +215,16 @@ static void run(ftl::Configurable *root) {
 			string uri = input->getURI();
 			auto T = transformations.find(uri);
 			if (T == transformations.end()) {
-				LOG(ERROR) << "Camera pose for " + uri + " not found in transformations";
+				LOG(WARNING) << "Camera pose for " + uri + " not found in transformations";
 				//LOG(WARNING) << "Using only first configured source";
 				// TODO: use target source if configured and found
 				//sources = { sources[0] };
 				//sources[0]->setPose(Eigen::Matrix4d::Identity());
 				//break;
-				input->setPose(transform * input->getPose());
+				input->setPose(input->getPose());
 				continue;
 			}
-			input->setPose(transform * T->second);
+			input->setPose(T->second);
 		}
 	}
 
