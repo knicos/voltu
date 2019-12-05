@@ -383,7 +383,7 @@ BufferList.prototype._match = function(offset, search) {
 
 module.exports = BufferList
 
-},{"readable-stream":19,"safe-buffer":20,"util":40}],2:[function(require,module,exports){
+},{"readable-stream":19,"safe-buffer":20,"util":44}],2:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -494,7 +494,7 @@ function objectToString(o) {
 }
 
 }).call(this,{"isBuffer":require("../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
-},{"../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js":34}],3:[function(require,module,exports){
+},{"../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js":38}],3:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -613,7 +613,7 @@ function msgpack (options) {
 
 module.exports = msgpack
 
-},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":25,"bl":1,"safe-buffer":20}],6:[function(require,module,exports){
+},{"./lib/decoder":6,"./lib/encoder":7,"./lib/streams":8,"assert":29,"bl":1,"safe-buffer":20}],6:[function(require,module,exports){
 'use strict'
 
 var bl = require('bl')
@@ -1051,7 +1051,7 @@ module.exports = function buildDecode (decodingTypes) {
 
 module.exports.IncompleteBufferError = IncompleteBufferError
 
-},{"bl":1,"util":40}],7:[function(require,module,exports){
+},{"bl":1,"util":44}],7:[function(require,module,exports){
 'use strict'
 
 var Buffer = require('safe-buffer').Buffer
@@ -1537,7 +1537,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 
 
 }).call(this,require('_process'))
-},{"_process":36}],10:[function(require,module,exports){
+},{"_process":40}],10:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -2739,7 +2739,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":36,"core-util-is":2,"events":32,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":20,"string_decoder/":18,"util":30}],13:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/BufferList":15,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":40,"core-util-is":2,"events":36,"inherits":3,"isarray":4,"process-nextick-args":9,"safe-buffer":20,"string_decoder/":18,"util":34}],13:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3644,7 +3644,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":36,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":20,"timers":37,"util-deprecate":21}],15:[function(require,module,exports){
+},{"./_stream_duplex":10,"./internal/streams/destroy":16,"./internal/streams/stream":17,"_process":40,"core-util-is":2,"inherits":3,"process-nextick-args":9,"safe-buffer":20,"timers":41,"util-deprecate":21}],15:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -3724,7 +3724,7 @@ if (util && util.inspect && util.inspect.custom) {
     return this.constructor.name + ' ' + obj;
   };
 }
-},{"safe-buffer":20,"util":30}],16:[function(require,module,exports){
+},{"safe-buffer":20,"util":34}],16:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -3802,7 +3802,7 @@ module.exports = {
 },{"process-nextick-args":9}],17:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":32}],18:[function(require,module,exports){
+},{"events":36}],18:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4172,7 +4172,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":31}],21:[function(require,module,exports){
+},{"buffer":35}],21:[function(require,module,exports){
 (function (global){
 
 /**
@@ -4244,18 +4244,114 @@ function config (name) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],22:[function(require,module,exports){
+/**
+ * Convert array of 16 byte values to UUID string format of the form:
+ * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+ */
+var byteToHex = [];
+for (var i = 0; i < 256; ++i) {
+  byteToHex[i] = (i + 0x100).toString(16).substr(1);
+}
+
+function bytesToUuid(buf, offset) {
+  var i = offset || 0;
+  var bth = byteToHex;
+  // join used to fix memory issue caused by concatenation: https://bugs.chromium.org/p/v8/issues/detail?id=3175#c4
+  return ([bth[buf[i++]], bth[buf[i++]], 
+	bth[buf[i++]], bth[buf[i++]], '-',
+	bth[buf[i++]], bth[buf[i++]], '-',
+	bth[buf[i++]], bth[buf[i++]], '-',
+	bth[buf[i++]], bth[buf[i++]], '-',
+	bth[buf[i++]], bth[buf[i++]],
+	bth[buf[i++]], bth[buf[i++]],
+	bth[buf[i++]], bth[buf[i++]]]).join('');
+}
+
+module.exports = bytesToUuid;
+
+},{}],23:[function(require,module,exports){
+// Unique ID creation requires a high quality random # generator.  In the
+// browser this is a little complicated due to unknown quality of Math.random()
+// and inconsistent support for the `crypto` API.  We do the best we can via
+// feature-detection
+
+// getRandomValues needs to be invoked in a context where "this" is a Crypto
+// implementation. Also, find the complete implementation of crypto on IE11.
+var getRandomValues = (typeof(crypto) != 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto)) ||
+                      (typeof(msCrypto) != 'undefined' && typeof window.msCrypto.getRandomValues == 'function' && msCrypto.getRandomValues.bind(msCrypto));
+
+if (getRandomValues) {
+  // WHATWG crypto RNG - http://wiki.whatwg.org/wiki/Crypto
+  var rnds8 = new Uint8Array(16); // eslint-disable-line no-undef
+
+  module.exports = function whatwgRNG() {
+    getRandomValues(rnds8);
+    return rnds8;
+  };
+} else {
+  // Math.random()-based (RNG)
+  //
+  // If all else fails, use Math.random().  It's fast, but is of unspecified
+  // quality.
+  var rnds = new Array(16);
+
+  module.exports = function mathRNG() {
+    for (var i = 0, r; i < 16; i++) {
+      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
+      rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
+    }
+
+    return rnds;
+  };
+}
+
+},{}],24:[function(require,module,exports){
+var rng = require('./lib/rng');
+var bytesToUuid = require('./lib/bytesToUuid');
+
+function v4(options, buf, offset) {
+  var i = buf && offset || 0;
+
+  if (typeof(options) == 'string') {
+    buf = options === 'binary' ? new Array(16) : null;
+    options = null;
+  }
+  options = options || {};
+
+  var rnds = options.random || (options.rng || rng)();
+
+  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+  rnds[6] = (rnds[6] & 0x0f) | 0x40;
+  rnds[8] = (rnds[8] & 0x3f) | 0x80;
+
+  // Copy bytes to buffer, if provided
+  if (buf) {
+    for (var ii = 0; ii < 16; ++ii) {
+      buf[i + ii] = rnds[ii];
+    }
+  }
+
+  return buf || bytesToUuid(rnds);
+}
+
+module.exports = v4;
+
+},{"./lib/bytesToUuid":22,"./lib/rng":23}],25:[function(require,module,exports){
 (function (Buffer){
 const msgpack = require('msgpack5')()
   , encode  = msgpack.encode
   , decode  = msgpack.decode;
+const uuidv4 = require('uuid/v4')
+const uuidParser = require('./utils/uuidParser')
 
 const kConnecting = 1;
 const kConnected = 2;
 const kDisconnected = 3;
 
 // Generate a unique id for this webservice
-let my_uuid = new Uint8Array(16);
-my_uuid[0] = 44;
+let my_uuid = uuidParser.parse(uuidv4())
+my_uuid = new Uint8Array(my_uuid);
+// my_uuid[0] = 44;
 my_uuid = Buffer.from(my_uuid);
 
 const kMagic = 0x0009340053640912;
@@ -4513,11 +4609,51 @@ Peer.prototype.on = function(evt, f) {
 	this.events[evt].push(f);
 }
 
+/**
+ * Returns a string of the UUID
+ */
+Peer.prototype.convertUUID = function() {
+	const digits = "0123456789abcdef";
+	const uuid = my_uuid
+	console.log("MY_UUID", uuid)
+	let j=0;
+		for (let i=0; i<4; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=4 ; i<6; ++i) {
+			rc[j+1] = digits[uuid[i]];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=6 ; i<8; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=8 ; i<10; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=10 ; i<16; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		console.log(rc)
+	return rc;
+}
 
 module.exports = Peer;
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":31,"msgpack5":5}],23:[function(require,module,exports){
+},{"./utils/uuidParser":28,"buffer":35,"msgpack5":5,"uuid/v4":24}],26:[function(require,module,exports){
 const Peer = require('../../peer')
 const VideoPlayer = require('./lib/VideoPlayer')
 
@@ -4662,7 +4798,6 @@ createPeer = () => {
 
 
 connectToStream = () => {
-    console.log(current_data.uri)
     const uri = current_data.uri
     const decodedURI = decodeURIComponent(current_data.uri);
     player.playback(peer, decodedURI, uri);
@@ -4720,11 +4855,14 @@ saveConfigs = async () => {
     const content = await rawResp.json();
     console.log(content)
 }
-},{"../../peer":22,"./lib/VideoPlayer":24}],24:[function(require,module,exports){
+},{"../../peer":25,"./lib/VideoPlayer":27}],27:[function(require,module,exports){
+
 /**
  * VideoPlayer for our stream
  *  
  */
+
+
 
 function VideoPlayer(canvas) {
     this.canvas = canvas;
@@ -4825,20 +4963,22 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
     var decode = function(pckg) {
         if (!that.running) { return; }
-        console.log("DECODE FUNKKARI ALKU", pckg)
+        console.log("PACKAGE", pckg)
         var err;
-        if (pckg == null) { console.log("NULL NULL NULL NULL"); return; 
+        if (pckg == null) { 
+            return; 
         } else {
             try {
                 var tmp = pckg
                 err = decoder.push_data(tmp);
-                console.log("ERROR TRY:n sisällä", err, tmp)
+                console.log("ERR VALUE INSIDE TRY", err, tmp)
             } catch(e) {
                 console.log(e);
                 err = decoder.flush();
                 return;
             }
         }
+        console.log("ERR VALUE AFTER ELSE", err)
         if (!libde265.de265_isOK(err)) {
             that._set_error(err, libde265.de265_get_error_text(err));
             return;
@@ -4854,16 +4994,20 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
             filters = that.filters;
         }
 
-        decoder.decode(function(err) {
-            console.log("TÄSÄ KUSEE", err)
-            switch(err) {
+        /**
+         * Here's the bug
+         * For some reason the decode function evaluates cbErr 
+         * to number 13 which is the case number for waiting for input data  
+         */
+        decoder.decode(function(cbErr) {
+            console.log("paramErr SHOULD BE 0, BUT IT'S", cbErr)
+            switch(cbErr) {
             case libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA:
                 console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
-
+                return;
             default:
-                if (!libde265.de265_isOK(err)) {
-                    console.log("PIIPPIIP")
-                    that._set_error(err, libde265.de265_get_error_text(err));
+                if (!libde265.de265_isOK(cbErr)) {
+                    that._set_error(err, libde265.de265_get_error_text(paramErr));
                     return;
                 }
             }
@@ -4875,7 +5019,7 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
             decoder.free();
             that.stop();
-            console.log("PITÄIS LOGATA");
+            console.log("SHOULD LOG THIS");
         });
     }
 
@@ -4899,7 +5043,6 @@ VideoPlayer.prototype.playback = function(peer, decodedURI, uri) {
     this._handle_onload(peer, decodedURI, uri)
     this._set_status("loading");
     this.running = true;
-    console.log("piippiip")
 };
 
 /** @expose */
@@ -4919,7 +5062,62 @@ VideoPlayer.prototype.disable_filters = function(disable) {
 };
 
 module.exports = VideoPlayer;
-},{}],25:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
+// Maps for number <-> hex string conversion
+var _byteToHex = [];
+var _hexToByte = {};
+for (var i = 0; i < 256; i++) {
+  _byteToHex[i] = (i + 0x100).toString(16).substr(1);
+  _hexToByte[_byteToHex[i]] = i;
+}
+
+/** 
+ * `parse()` - Parse a UUID into it's component bytes
+ * 
+ * Turns UUID into Buffer
+ **/ 
+function parse(s, buf, offset) {
+  var i = (buf && offset) || 0;
+  var ii = 0;
+
+  buf = buf || [];
+  s.toLowerCase().replace(/[0-9a-f]{2}/g, function(oct) {
+    if (ii < 16) { // Don't overflow!
+      buf[i + ii++] = _hexToByte[oct];
+    }
+  });
+
+  // Zero out remaining bytes if string was short
+  while (ii < 16) {
+    buf[i + ii++] = 0;
+  }
+
+  return buf;
+}
+
+/**
+ * `unparse()` - Convert UUID byte array (ala parse()) into a string
+ * 
+ * Turns Buffer into UUID
+ * */
+function unparse(buf, offset) {
+  var i = offset || 0;
+  var bth = _byteToHex;
+  return  bth[buf[i++]] + bth[buf[i++]] +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] +
+          bth[buf[i++]] + bth[buf[i++]] +
+          bth[buf[i++]] + bth[buf[i++]];
+}
+
+module.exports = {
+  parse: parse,
+  unparse: unparse
+};
+},{}],29:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -5429,16 +5627,16 @@ var objectKeys = Object.keys || function (obj) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"object-assign":35,"util/":28}],26:[function(require,module,exports){
+},{"object-assign":39,"util/":32}],30:[function(require,module,exports){
 arguments[4][3][0].apply(exports,arguments)
-},{"dup":3}],27:[function(require,module,exports){
+},{"dup":3}],31:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],28:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -6028,7 +6226,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":27,"_process":36,"inherits":26}],29:[function(require,module,exports){
+},{"./support/isBuffer":31,"_process":40,"inherits":30}],33:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -6182,9 +6380,9 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],30:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 
-},{}],31:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 (function (Buffer){
 /*!
  * The buffer module from node.js, for the browser.
@@ -7987,7 +8185,7 @@ var hexSliceLookupTable = (function () {
 })()
 
 }).call(this,require("buffer").Buffer)
-},{"base64-js":29,"buffer":31,"ieee754":33}],32:[function(require,module,exports){
+},{"base64-js":33,"buffer":35,"ieee754":37}],36:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8512,7 +8710,7 @@ function functionBindPolyfill(context) {
   };
 }
 
-},{}],33:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -8598,7 +8796,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],34:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -8621,7 +8819,7 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],35:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -8713,7 +8911,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],36:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -8899,7 +9097,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],37:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 (function (setImmediate,clearImmediate){
 var nextTick = require('process/browser.js').nextTick;
 var apply = Function.prototype.apply;
@@ -8978,10 +9176,10 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":36,"timers":37}],38:[function(require,module,exports){
+},{"process/browser.js":40,"timers":41}],42:[function(require,module,exports){
 arguments[4][3][0].apply(exports,arguments)
-},{"dup":3}],39:[function(require,module,exports){
-arguments[4][27][0].apply(exports,arguments)
-},{"dup":27}],40:[function(require,module,exports){
-arguments[4][28][0].apply(exports,arguments)
-},{"./support/isBuffer":39,"_process":36,"dup":28,"inherits":38}]},{},[23]);
+},{"dup":3}],43:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31}],44:[function(require,module,exports){
+arguments[4][32][0].apply(exports,arguments)
+},{"./support/isBuffer":43,"_process":40,"dup":32,"inherits":42}]},{},[26]);

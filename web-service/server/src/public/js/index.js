@@ -142,7 +142,6 @@ createPeer = () => {
 
 
 connectToStream = () => {
-    console.log(current_data.uri)
     const uri = current_data.uri
     const decodedURI = decodeURIComponent(current_data.uri);
     player.playback(peer, decodedURI, uri);

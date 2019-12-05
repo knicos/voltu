@@ -1,14 +1,17 @@
 const msgpack = require('msgpack5')()
   , encode  = msgpack.encode
   , decode  = msgpack.decode;
+const uuidv4 = require('uuid/v4')
+const uuidParser = require('./utils/uuidParser')
 
 const kConnecting = 1;
 const kConnected = 2;
 const kDisconnected = 3;
 
 // Generate a unique id for this webservice
-let my_uuid = new Uint8Array(16);
-my_uuid[0] = 44;
+let my_uuid = uuidParser.parse(uuidv4())
+my_uuid = new Uint8Array(my_uuid);
+// my_uuid[0] = 44;
 my_uuid = Buffer.from(my_uuid);
 
 const kMagic = 0x0009340053640912;
@@ -266,5 +269,45 @@ Peer.prototype.on = function(evt, f) {
 	this.events[evt].push(f);
 }
 
+/**
+ * Returns a string of the UUID
+ */
+Peer.prototype.convertUUID = function() {
+	const digits = "0123456789abcdef";
+	const uuid = my_uuid
+	console.log("MY_UUID", uuid)
+	let j=0;
+		for (let i=0; i<4; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=4 ; i<6; ++i) {
+			rc[j+1] = digits[uuid[i]];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=6 ; i<8; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=8 ; i<10; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		rc[j++] = '-';
+		for (let i=10 ; i<16; ++i) {
+			rc[j+1] = digits[uuid[i] & 0x0f];
+			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			j+=2;
+		}
+		console.log(rc)
+	return rc;
+}
 
 module.exports = Peer;

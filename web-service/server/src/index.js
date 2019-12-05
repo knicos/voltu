@@ -373,7 +373,6 @@ app.ws('/', (ws, req) => {
 			peer.master = (obj.kind == "master");
 			console.log("Peer name = ", peer.name);
 			console.log("Details: ", details);
-
 			checkStreams(peer);
 		});
 	});
@@ -404,7 +403,8 @@ app.ws('/', (ws, req) => {
 	});
 
 	p.bind("node_details", () => {
-		return ['{"title": "FTL Web-Service", "id": "0", "kind": "master"}'];
+		console.log(peer.convertUUID())
+		return [`{"title": "FTL Web-Service", "id": "${peer.convertUUID}", "kind": "master"}`];
 	});
 
 	p.bind("list_streams", () => {

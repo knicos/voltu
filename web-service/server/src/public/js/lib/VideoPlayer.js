@@ -1,7 +1,10 @@
+
 /**
  * VideoPlayer for our stream
  *  
  */
+
+
 
 function VideoPlayer(canvas) {
     this.canvas = canvas;
@@ -102,20 +105,22 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
     var decode = function(pckg) {
         if (!that.running) { return; }
-        console.log("DECODE FUNKKARI ALKU", pckg)
+        console.log("PACKAGE", pckg)
         var err;
-        if (pckg == null) { console.log("NULL NULL NULL NULL"); return; 
+        if (pckg == null) { 
+            return; 
         } else {
             try {
                 var tmp = pckg
                 err = decoder.push_data(tmp);
-                console.log("ERROR TRY:n sisällä", err, tmp)
+                console.log("ERR VALUE INSIDE TRY", err, tmp)
             } catch(e) {
                 console.log(e);
                 err = decoder.flush();
                 return;
             }
         }
+        console.log("ERR VALUE AFTER ELSE", err)
         if (!libde265.de265_isOK(err)) {
             that._set_error(err, libde265.de265_get_error_text(err));
             return;
@@ -131,16 +136,20 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
             filters = that.filters;
         }
 
-        decoder.decode(function(err) {
-            console.log("TÄSÄ KUSEE", err)
-            switch(err) {
+        /**
+         * Here's the bug
+         * For some reason the decode function evaluates cbErr 
+         * to number 13 which is the case number for waiting for input data  
+         */
+        decoder.decode(function(cbErr) {
+            console.log("paramErr SHOULD BE 0, BUT IT'S", cbErr)
+            switch(cbErr) {
             case libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA:
                 console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
-
+                return;
             default:
-                if (!libde265.de265_isOK(err)) {
-                    console.log("PIIPPIIP")
-                    that._set_error(err, libde265.de265_get_error_text(err));
+                if (!libde265.de265_isOK(cbErr)) {
+                    that._set_error(err, libde265.de265_get_error_text(paramErr));
                     return;
                 }
             }
@@ -152,7 +161,7 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
             decoder.free();
             that.stop();
-            console.log("PITÄIS LOGATA");
+            console.log("SHOULD LOG THIS");
         });
     }
 
@@ -176,7 +185,6 @@ VideoPlayer.prototype.playback = function(peer, decodedURI, uri) {
     this._handle_onload(peer, decodedURI, uri)
     this._set_status("loading");
     this.running = true;
-    console.log("piippiip")
 };
 
 /** @expose */
