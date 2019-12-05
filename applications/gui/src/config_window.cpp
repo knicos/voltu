@@ -55,6 +55,7 @@ void ConfigWindow::_addElements(nanogui::FormHelper *form, const std::string &su
 	Configurable *configurable = ftl::config::find(suri);
 	ftl::config::json_t data;
 	if (configurable) {
+		configurable->refresh();
 		data = configurable->getConfig();
 	}
 

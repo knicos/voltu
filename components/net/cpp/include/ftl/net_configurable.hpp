@@ -12,6 +12,8 @@ namespace ftl {
 	NetConfigurable(ftl::UUID peer, const std::string &suri, ftl::ctrl::Master &ctrl, ftl::config::json_t &config);
 	~NetConfigurable();
 
+	void refresh() override;
+
 	protected:
 	void inject(const std::string &name, nlohmann::json &value);
 
