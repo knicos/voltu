@@ -284,21 +284,24 @@ static void run(ftl::Configurable *root) {
 	stream->add(vs);
 
 	// ---- Recording code -----------------------------------------------------
-	/*
 	std::ofstream fileout;
 	ftl::codecs::Writer writer(fileout);
-	auto recorder = [&writer,&groups](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		ftl::codecs::StreamPacket s = spkt;
-
-		// Patch stream ID to match order in group
-		s.streamID = groups[0]->streamID(src);
-		writer.write(s, pkt);
-	};
 
 	root->set("record", false);
 
+	// Add a recording callback to all reconstruction scenes
+	for (size_t i=0; i<sources.size(); ++i) {
+		sources[i]->addRawCallback([&writer,&groups,i](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			ftl::codecs::StreamPacket s = spkt;
+
+			// Patch stream ID to match order in group
+			s.streamID = i;
+			writer.write(s, pkt);
+		});
+	}
+
 	// Allow stream recording
-	root->on("record", [&groups,&fileout,&writer,&recorder](const ftl::config::Event &e) {
+	root->on("record", [&groups,&fileout,&writer,&sources](const ftl::config::Event &e) {
 		if (e.entity->value("record", false)) {
 			char timestamp[18];
 			std::time_t t=std::time(NULL);
@@ -306,24 +309,20 @@ static void run(ftl::Configurable *root) {
 			fileout.open(std::string(timestamp) + ".ftl");
 
 			writer.begin();
-			// TODO: Add to all grounds / reconstructions
-			groups[0]->addRawCallback(std::function(recorder));
 
 			// TODO: Write pose+calibration+config packets
-			auto sources = groups[0]->sources();
+
 			for (size_t i=0; i<sources.size(); ++i) {
 				//writeSourceProperties(writer, i, sources[i]);
 				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
 				sources[i]->inject(sources[i]->getPose()); 
 			}
 		} else {
-			// FIXME: Remove doesn't work, so multiple records fail.
-			groups[0]->removeRawCallback(recorder);
 			writer.end();
 			fileout.close();
 		}
 	});
-	*/
+
 	// -------------------------------------------------------------------------
 
 	stream->setLatency(6);  // FIXME: This depends on source!?
