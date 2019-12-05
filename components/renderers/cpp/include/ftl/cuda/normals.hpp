@@ -42,6 +42,11 @@ void normal_visualise(ftl::cuda::TextureObject<float4> &norm,
         const float3 &light, const uchar4 &diffuse, const uchar4 &ambient,
         cudaStream_t stream);
 
+void cool_blue(ftl::cuda::TextureObject<float4> &norm,
+        ftl::cuda::TextureObject<uchar4> &output,
+        const uchar4 &colouring, const float3x3 &pose,
+        cudaStream_t stream);
+
 void normal_filter(ftl::cuda::TextureObject<float4> &norm,
         ftl::cuda::TextureObject<float4> &points,
         const ftl::rgbd::Camera &camera, const float4x4 &pose,

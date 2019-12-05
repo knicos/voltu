@@ -609,6 +609,18 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	// Reprojection of colours onto surface
 	_renderChannel(out, Channel::Colour, Channel::Colour, stream_);
 
+	if (value("cool_effect", false)) {
+		auto pose = params.m_viewMatrixInverse.getFloat3x3();
+		auto col = parseCUDAColour(value("cool_effect_colour", std::string("#2222ff")));
+
+		ftl::cuda::cool_blue(
+			out.getTexture<float4>(Channel::Normals),
+			out.getTexture<uchar4>(Channel::Colour),
+			col, pose,
+			stream_	
+		);
+	}
+
 	if (value("show_bad_colour", false)) {
 		ftl::cuda::show_missing_colour(
 			out.getTexture<float>(Channel::Depth),
