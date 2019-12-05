@@ -18,6 +18,8 @@ class Reconstruction : public ftl::Configurable {
 
 	void addSource(ftl::rgbd::Source *);
 
+	void addRawCallback(const std::function<void(ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &cb);
+
 	/**
 	 * Do the render for a specified virtual camera.
 	 */

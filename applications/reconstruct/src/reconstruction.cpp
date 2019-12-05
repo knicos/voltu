@@ -82,6 +82,10 @@ void Reconstruction::addSource(ftl::rgbd::Source *src) {
 	group_->addSource(src); // TODO: check if source is already in group?
 }
 
+void Reconstruction::addRawCallback(const std::function<void(ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &cb) {
+	group_->addRawCallback(cb);
+}
+
 void Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out) {
 	// Create scene transform, intended for axis aligning the walls and floor
 	Eigen::Matrix4d transform;
