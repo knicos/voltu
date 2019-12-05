@@ -581,12 +581,12 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	// Process Arguments
 	auto options = ftl::config::read_options(&argv, &argc);
 	
-	vector<string> paths;
+	vector<string> paths(argc);
 	while (argc-- > 0) {
 		paths.push_back(argv[0]);
 		argv++;
 	}
-	
+
 	if (!findConfiguration(options["config"], paths)) {
 		LOG(FATAL) << "Could not find any configuration!";
 	}

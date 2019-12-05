@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 		LOG(ERROR) << "Missing input ftl file.";
 		return -1;
 	} else {
-		filename = paths[0];
+		filename = paths[paths.size()-1];
 	}
 
 	std::ifstream f;

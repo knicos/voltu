@@ -374,7 +374,8 @@ void Triangular::_mesh(ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream
 	}
 
 	// Convert from int depth to float depth
-	temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
+	//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
+	ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), out.createTexture<float>(Channel::Depth), 1.0f / 100000.0f, stream_);
 
 	//filters_->filter(out, src, stream);
 
@@ -470,25 +471,8 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	//scene_->upload(Channel::Colour + Channel::Depth, stream_);
 
 	const auto &camera = src->parameters();
-	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
-
-	// Create all the required channels
-	
-	out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
-	out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
-	out.createTexture<uchar4>(Channel::Colour, true);  // Force interpolated colour
-
-
-	if (scene_->frames.size() == 0) return false;
-	auto &g = scene_->frames[0].get<GpuMat>(Channel::Colour);
-
-	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height)); //g.cols, g.rows));
-
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
+	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 
 	// Parameters object to pass to CUDA describing the camera
 	SplatParams &params = params_;
@@ -500,19 +484,35 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
 	params.m_viewMatrix = MatrixConversion::toCUDA(src->getPose().cast<float>().inverse());
 	params.m_viewMatrixInverse = MatrixConversion::toCUDA(src->getPose().cast<float>());
 	params.camera = camera;
-	// Clear all channels to 0 or max depth
 
-	out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
+	// Create all the required channels
+	
+	if (!out.hasChannel(Channel::Depth)) {
+		out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
+		out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
+		out.createTexture<uchar4>(Channel::Colour, true);  // Force interpolated colour
 
-	if (env_image_.empty() || !value("environment_enabled", false)) {
-		out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
-	} else {
-		auto pose = params.m_viewMatrixInverse.getFloat3x3();
-		ftl::cuda::equirectangular_reproject(
-			env_tex_,
-			out.createTexture<uchar4>(Channel::Colour, true),
-			camera, pose, stream_);
+		out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
+
+		if (env_image_.empty() || !value("environment_enabled", false)) {
+			out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
+		} else {
+			auto pose = params.m_viewMatrixInverse.getFloat3x3();
+			ftl::cuda::equirectangular_reproject(
+				env_tex_,
+				out.createTexture<uchar4>(Channel::Colour, true),
+				camera, pose, stream_);
+		}
 	}
+
+	if (scene_->frames.size() == 0) return false;
+	auto &g = scene_->frames[0].get<GpuMat>(Channel::Colour);
+
+	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height)); //g.cols, g.rows));
 
 	//LOG(INFO) << "Render ready: " << camera.width << "," << camera.height;
 
