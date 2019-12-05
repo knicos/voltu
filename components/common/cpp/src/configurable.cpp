@@ -60,3 +60,7 @@ void Configurable::on(const string &prop, function<void(const ftl::config::Event
 		(*ix).second.push_back(f);
 	}
 }
+
+void Configurable::refresh() {
+	// Do nothing by default
+}

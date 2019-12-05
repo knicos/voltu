@@ -101,6 +101,12 @@ class Configurable {
 
 	void patchPtr(nlohmann::json &newcfg) { config_ = &newcfg; }
 
+	/**
+	 * Allow configurables to refresh their internal state, perhaps from a
+	 * remote source.
+	 */
+	virtual void refresh();
+
 	protected:
 	nlohmann::json *config_;
 
