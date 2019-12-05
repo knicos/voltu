@@ -403,8 +403,8 @@ app.ws('/', (ws, req) => {
 	});
 
 	p.bind("node_details", () => {
-		console.log(peer.convertUUID())
-		return [`{"title": "FTL Web-Service", "id": "${peer.convertUUID}", "kind": "master"}`];
+		console.log(p.convertUUID())
+		return [`{"title": "FTL Web-Service", "id": "${p.convertUUID()}", "kind": "master"}`];
 	});
 
 	p.bind("list_streams", () => {

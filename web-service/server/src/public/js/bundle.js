@@ -4349,8 +4349,10 @@ const kConnected = 2;
 const kDisconnected = 3;
 
 // Generate a unique id for this webservice
+let cpp_my_uuid = uuidv4();
+console.log(cpp_my_uuid)
 let my_uuid = uuidParser.parse(uuidv4())
-my_uuid = new Uint8Array(my_uuid);
+my_uuid = new Uint8Array(cpp_my_uuid);
 // my_uuid[0] = 44;
 my_uuid = Buffer.from(my_uuid);
 
@@ -4613,40 +4615,44 @@ Peer.prototype.on = function(evt, f) {
  * Returns a string of the UUID
  */
 Peer.prototype.convertUUID = function() {
-	const digits = "0123456789abcdef";
-	const uuid = my_uuid
+	const uuid = cpp_my_uuid
 	console.log("MY_UUID", uuid)
+
+	const digits = "0123456789abcdef";
+	let rc = "";
 	let j=0;
 		for (let i=0; i<4; ++i) {
-			rc[j+1] = digits[uuid[i] & 0x0f];
-			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			rc[j+1] = digits[digits.indexOf(uuid[i])];
+			console.log(digits[digits.indexOf(uuid[i])]);
+			rc[j] = digits[digits.indexOf(uuid[i+1])];
+			console.log(digits[digits.indexOf(uuid[i+1])]);
 			j+=2;
 		}
 		rc[j++] = '-';
 		for (let i=4 ; i<6; ++i) {
-			rc[j+1] = digits[uuid[i]];
-			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			rc[j+1] = digits[digits.indexOf(uuid[i])];
+			rc[j] = digits[digits.indexOf(uuid[i])];
 			j+=2;
 		}
 		rc[j++] = '-';
 		for (let i=6 ; i<8; ++i) {
-			rc[j+1] = digits[uuid[i] & 0x0f];
-			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			rc[j+1] = digits[digits.indexOf(uuid[i])];
+			rc[j] = digits[digits.indexOf(uuid[i])];
 			j+=2;
 		}
 		rc[j++] = '-';
 		for (let i=8 ; i<10; ++i) {
-			rc[j+1] = digits[uuid[i] & 0x0f];
-			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			rc[j+1] = digits[digits.indexOf(uuid[i])];
+			rc[j] = digits[digits.indexOf(uuid[i])];
 			j+=2;
 		}
 		rc[j++] = '-';
 		for (let i=10 ; i<16; ++i) {
-			rc[j+1] = digits[uuid[i] & 0x0f];
-			rc[j] = digits[(uuid[i] >> 4) & 0x0f];
+			rc[j+1] = digits[digits.indexOf(uuid[i])];
+			rc[j] = digits[digits.indexOf(uuid[i])];
 			j+=2;
 		}
-		console.log(rc)
+		console.log("RC", rc)
 	return rc;
 }
 
