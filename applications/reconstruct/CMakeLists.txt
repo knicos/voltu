@@ -20,6 +20,7 @@ set(REPSRC
 	src/ilw/fill.cu
 	src/ilw/discontinuity.cu
 	src/ilw/correspondence.cu
+	src/reconstruction.cpp
 )
 
 add_executable(ftl-reconstruct ${REPSRC})

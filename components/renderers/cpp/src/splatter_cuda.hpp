@@ -117,6 +117,11 @@ namespace cuda {
         ftl::cuda::TextureObject<uchar4> &colour,
 		ftl::cuda::TextureObject<int> &mask,
         int id, uchar4 style, cudaStream_t stream);
+
+	void merge_convert_depth(
+        ftl::cuda::TextureObject<int> &d1,
+		ftl::cuda::TextureObject<float> &d2,
+        float factor, cudaStream_t stream);
 }
 }
 
