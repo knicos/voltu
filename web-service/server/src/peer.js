@@ -236,8 +236,9 @@ Peer.prototype.send = function(name, ...args) {
 	}
 }
 
-//This was a problem and needed to change it so that
-//this.sock.close() can only be called by server (this.sock.on !== undefined)
+/**
+ * Closes the socket
+ */
 Peer.prototype.close = function() {
 	if(this.sock.on !== undefined){
 		this.sock.close();
@@ -275,45 +276,14 @@ Peer.prototype.on = function(evt, f) {
  * Returns a string of the UUID
  */
 Peer.prototype.convertUUID = function() {
-	const uuid = cpp_my_uuid
-	console.log("MY_UUID", uuid)
-
 	const digits = "0123456789abcdef";
-	let rc = "";
-	let j=0;
-		for (let i=0; i<4; ++i) {
-			rc[j+1] = digits[digits.indexOf(uuid[i])];
-			console.log(digits[digits.indexOf(uuid[i])]);
-			rc[j] = digits[digits.indexOf(uuid[i+1])];
-			console.log(digits[digits.indexOf(uuid[i+1])]);
-			j+=2;
-		}
-		rc[j++] = '-';
-		for (let i=4 ; i<6; ++i) {
-			rc[j+1] = digits[digits.indexOf(uuid[i])];
-			rc[j] = digits[digits.indexOf(uuid[i])];
-			j+=2;
-		}
-		rc[j++] = '-';
-		for (let i=6 ; i<8; ++i) {
-			rc[j+1] = digits[digits.indexOf(uuid[i])];
-			rc[j] = digits[digits.indexOf(uuid[i])];
-			j+=2;
-		}
-		rc[j++] = '-';
-		for (let i=8 ; i<10; ++i) {
-			rc[j+1] = digits[digits.indexOf(uuid[i])];
-			rc[j] = digits[digits.indexOf(uuid[i])];
-			j+=2;
-		}
-		rc[j++] = '-';
-		for (let i=10 ; i<16; ++i) {
-			rc[j+1] = digits[digits.indexOf(uuid[i])];
-			rc[j] = digits[digits.indexOf(uuid[i])];
-			j+=2;
-		}
-		console.log("RC", rc)
-	return rc;
+	let returnVal = "";
+
+	//If the char is "-" add it, else add the letter/digit represented in the variable digits
+	for(let i=0; i<cpp_my_uuid.length; i++){
+		returnVal += (cpp_my_uuid[i] == "-") ? "-" : digits[digits.indexOf(cpp_my_uuid[i])]
+	}
+	return returnVal;
 }
 
 module.exports = Peer;

@@ -6,6 +6,9 @@ let peer;
 let decoder;
 let player;
 
+/**
+ * Validates that the user is logged in
+ */
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
     //     console.log(token)
@@ -48,6 +51,7 @@ getAvailableStreams = async () => {
         console.log(err)
     }
 }
+
 
 createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
@@ -124,7 +128,9 @@ renderLogin = () => {
 }
 
 
-
+/** 
+ * Method to create a single thumbnail
+ */
 createCard = (url, viewers) => {
     return `<div class='ftlab-card-component' >
                 <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
@@ -167,13 +173,16 @@ configs = () => {
     renderConfigOptions();
 }
 
+
 renderConfigOptions = () => {
     const input = `<p>input1</p><br>ftl://utu.fi#<input type="text">`
     const doc = document.getElementsByClassName('ftlab-configurations')[0];
     doc.innerHTML = input;
 }
 
-
+/**
+ * 
+ */
 loadConfigs = async (str) => {
     const configURI = encodeURIComponent(`ftl://utu.fi#reconstruction_snap8${str}`);
     const uri = encodeURIComponent(current_data.uri)
@@ -184,8 +193,11 @@ loadConfigs = async (str) => {
     console.log(content)
 }
 
-current_data.configData = '{"peers": 1}';
+// current_data.configData = '{"peers": 1}';
 
+/**
+ * Method to send configurations to backend 
+ */
 saveConfigs = async () => {
     let {uri, configURI, configData} = current_data
     const rawResp = await fetch('http://localhost:8080/stream/config', {

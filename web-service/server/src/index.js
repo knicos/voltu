@@ -158,6 +158,9 @@ app.get('/', (req, res) => {
 	res.end();
 });
 
+/**
+ * This is the route that actually validates the users JWT token.
+ */
 app.post('/auth/validation', async (req, res) => {
 	const token = req.headers.authorization.split(" ")
 	const decoded = jwt.verify(token[1], keys.jwt.secret)
@@ -177,11 +180,10 @@ app.post('/auth/validation', async (req, res) => {
 })
 
 
-
-
 app.get('/streams', (req, res) => {
 	res.json(Object.keys(uri_data));
 });
+
 
 /**
  * A list that has Object.keys(uri_data) values and also the image that is 
@@ -196,6 +198,7 @@ app.get('/stream/rgb', (req, res) => {
 	}
 	res.end();
 });
+
 
 app.get('/stream/depth', (req, res) => {
 	let uri = req.query.uri;
@@ -271,12 +274,14 @@ app.get('/stream', (req, res) => {
 	res.end();
 })
 
+
 /*
  * Route for Google authentication API page
  */
 app.get('/google', passport.authenticate('google', {
 	scope: ['profile']
 }))
+
 
 /**
  * Google authentication API callback route. 
@@ -309,7 +314,6 @@ app.get('/auth/google/redirect', passport.authenticate('google'), async (req, re
 				return res.send(htmlWithEmbeddedJWT)		
 			}
 		}
-
 
 		await user.save()
 		const token = jwt.sign(req.user.id, keys.jwt.secret);
@@ -354,11 +358,10 @@ function broadcastExcept(exc, name, ...args) {
 
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
-	//console.log('WEBSOCKET',ws)
+	//console.log('WEBSOCKET', ws)
 	
 	let p = new Peer(ws);
 	peer_data.push(p);
-	// console.log(peer_data)
 
 	p.on("connect", (peer) => {
 		console.log("Node connected...", peer.string_id);
