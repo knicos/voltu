@@ -13,6 +13,16 @@
 using ftl::Reconstruction;
 using ftl::codecs::Channel;
 
+static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
+	Eigen::Affine3d rx =
+		Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+	Eigen::Affine3d ry =
+		Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+	Eigen::Affine3d rz =
+		Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+	return rz * rx * ry;
+}
+
 Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	ftl::Configurable(config), busy_(false), fs_render_(), fs_align_() {
 	group_ = new ftl::rgbd::Group;
@@ -73,5 +83,25 @@ void Reconstruction::addSource(ftl::rgbd::Source *src) {
 }
 
 void Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out) {
-	renderer_->render(vs, out);
+	// Create scene transform, intended for axis aligning the walls and floor
+	Eigen::Matrix4d transform;
+	//if (getConfig()["transform"].is_object()) {
+		//auto &c = getConfig()["transform"];
+		float rx = value("transform_pitch", 0.0f);
+		float ry = value("transform_yaw", 0.0f);
+		float rz = value("transform_roll", 0.0f);
+		float x = value("transform_x", 0.0f);
+		float y = value("transform_y", 0.0f);
+		float z = value("transform_z", 0.0f);
+
+		Eigen::Affine3d r = create_rotation_matrix(rx, ry, rz);
+		Eigen::Translation3d trans(Eigen::Vector3d(x,y,z));
+		Eigen::Affine3d t(trans);
+		transform = t.matrix() * r.matrix();
+		//LOG(INFO) << "Set transform: " << transform;
+	//} else {
+	//	transform.setIdentity();
+	//}
+
+	renderer_->render(vs, out, transform);
 }

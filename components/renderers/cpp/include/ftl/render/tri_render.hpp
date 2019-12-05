@@ -19,11 +19,11 @@ class Triangular : public ftl::render::Renderer {
 	explicit Triangular(nlohmann::json &config, ftl::rgbd::FrameSet *fs);
 	~Triangular();
 
-	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) override;
+	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
 
 	protected:
-	void _renderChannel(ftl::rgbd::Frame &out, ftl::codecs::Channel channel_in, ftl::codecs::Channel channel_out, cudaStream_t stream);
+	void _renderChannel(ftl::rgbd::Frame &out, ftl::codecs::Channel channel_in, ftl::codecs::Channel channel_out, const Eigen::Matrix4d &t, cudaStream_t stream);
 
 	private:
 	int device_;
@@ -49,10 +49,10 @@ class Triangular : public ftl::render::Renderer {
 	//ftl::Filters *filters_;
 
 	template <typename T>
-	void __reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
-	void _reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t);
-	void _dibr(ftl::rgbd::Frame &, cudaStream_t);
-	void _mesh(ftl::rgbd::Frame &, ftl::rgbd::Source *, cudaStream_t);
+	void __reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
+	void _reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
+	void _dibr(ftl::rgbd::Frame &, const Eigen::Matrix4d &t, cudaStream_t);
+	void _mesh(ftl::rgbd::Frame &, ftl::rgbd::Source *, const Eigen::Matrix4d &t, cudaStream_t);
 };
 
 }
