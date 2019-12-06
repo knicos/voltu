@@ -107,5 +107,6 @@ void Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out)
 	//	transform.setIdentity();
 	//}
 
-	renderer_->render(vs, out, transform);
+	Eigen::Affine3d sm = Eigen::Affine3d(Eigen::Scaling(double(value("scale", 1.0f))));
+	renderer_->render(vs, out, sm.matrix() * transform);
 }
