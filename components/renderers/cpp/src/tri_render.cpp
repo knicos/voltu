@@ -228,8 +228,8 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
 		}
 
-		auto transform = MatrixConversion::toCUDA(t.cast<float>().inverse() * s->getPose().cast<float>().inverse()) * params_.m_viewMatrixInverse;
-		auto transformR = MatrixConversion::toCUDA(t.cast<float>().inverse() * s->getPose().cast<float>().inverse()).getFloat3x3();
+		auto transform = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse() * t.cast<float>().inverse()) * params_.m_viewMatrixInverse;
+		auto transformR = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse()).getFloat3x3();
 
 		if (mesh_) {
 			ftl::cuda::reproject(
