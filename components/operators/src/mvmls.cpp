@@ -61,7 +61,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             LOG(ERROR) << "Required normals channel missing for MLS";
             return false;
         }
-        if (!f.hasChannel(Channel::Support1)) {
+        if (!f.hasChannel(Channel::Support2)) {
             LOG(ERROR) << "Required cross support channel missing for MLS";
             return false;
         }
@@ -214,7 +214,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 			}
 
             ftl::cuda::mls_aggr_horiz(
-                f.createTexture<uchar4>(Channel::Support1),
+                f.createTexture<uchar4>(Channel::Support2),
                 f.createTexture<float4>(Channel::Normals),
                 normals_horiz_[i],
                 f.createTexture<float>(Channel::Depth),
@@ -228,7 +228,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             );
 
             ftl::cuda::mls_aggr_vert(
-                f.getTexture<uchar4>(Channel::Support1),
+                f.getTexture<uchar4>(Channel::Support2),
                 normals_horiz_[i],
                 f.getTexture<float4>(Channel::Normals),
                 centroid_horiz_[i],

@@ -399,6 +399,50 @@ void ftl::cuda::normal_visualise(ftl::cuda::TextureObject<float4> &norm,
 
 //==============================================================================
 
+__global__ void cool_blue_kernel(ftl::cuda::TextureObject<float4> norm,
+        ftl::cuda::TextureObject<uchar4> output,
+        uchar4 colouring, float3x3 pose) {
+    const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if(x >= norm.width() || y >= norm.height()) return;
+
+    //output(x,y) = make_uchar4(0,0,0,0);
+    float3 ray = pose * make_float3(0.0f,0.0f,1.0f);
+    ray = ray / length(ray);
+    float3 n = make_float3(norm.tex2D((int)x,(int)y));
+    float l = length(n);
+    if (l == 0) return;
+    n /= l;
+
+    const float d = 1.0f - max(dot(ray, n), 0.0f);
+    uchar4 original = output(x,y); //.tex2D(x,y);
+
+    output(x,y) = make_uchar4(
+        min(255.0f, colouring.x*d + original.x),
+        min(255.0f, colouring.y*d + original.y),
+        min(255.0f, colouring.z*d + original.z), 255);
+}
+
+void ftl::cuda::cool_blue(ftl::cuda::TextureObject<float4> &norm,
+        ftl::cuda::TextureObject<uchar4> &output,
+        const uchar4 &colouring, const float3x3 &pose,
+        cudaStream_t stream) {
+
+    const dim3 gridSize((norm.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (norm.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    cool_blue_kernel<<<gridSize, blockSize, 0, stream>>>(norm, output, colouring, pose);
+
+    cudaSafeCall( cudaGetLastError() );
+    #ifdef _DEBUG
+    cudaSafeCall(cudaDeviceSynchronize());
+    //cutilCheckMsg(__FUNCTION__);
+    #endif
+}
+
+//==============================================================================
+
 __global__ void filter_normals_kernel(ftl::cuda::TextureObject<float4> norm,
         ftl::cuda::TextureObject<float4> output,
         ftl::rgbd::Camera camera, float4x4 pose, float thresh) {

@@ -47,6 +47,8 @@ void removeConfigurable(Configurable *cfg);
  */
 bool update(const std::string &puri, const json_t &value);
 
+json_t &get(const std::string &puri);
+
 /**
  * Resolve a JSON schema reference, but do not wait for a remote reference
  * if it is not available. A null entity is returned if not resolved.
@@ -71,6 +73,13 @@ json_t &resolveWait(const std::string &);
  * object for that reference. Or return nullptr if not found.
  */
 Configurable *find(const std::string &uri);
+
+/**
+ * Get all configurables that contain a specified tag. Tags are given under the
+ * "tags" property as an array of strings, but only during configurable
+ * construction.
+ */
+const std::vector<Configurable *> &findByTag(const std::string &tag);
 
 std::vector<std::string> list();
 

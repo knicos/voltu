@@ -31,6 +31,8 @@ class SnapshotReader;
 class VirtualSource;
 class Player;
 
+typedef std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> RawCallback;
+
 /**
  * RGBD Generic data source configurable entity. This class hides the
  * internal implementation of an RGBD source by providing accessor functions
@@ -189,12 +191,12 @@ class Source : public ftl::Configurable {
 	 * Currently this only works for a net source since other sources don't
 	 * produce raw encoded data.
 	 */
-	void addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+	void addRawCallback(const RawCallback &);
 
 	/**
 	 * THIS DOES NOT WORK CURRENTLY.
 	 */
-	void removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+	void removeRawCallback(const RawCallback &);
 
 	/**
 	 * INTERNAL. Used to send raw data to callbacks.

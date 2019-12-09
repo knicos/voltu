@@ -304,7 +304,7 @@ void Splatter::_renderChannel(
 	}
 }
 
-bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) {
+bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) {
 	SHARED_LOCK(scene_->mtx, lk);
 	if (!src->isReady()) return false;
 

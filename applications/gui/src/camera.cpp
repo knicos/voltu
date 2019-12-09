@@ -3,6 +3,8 @@
 #include "screen.hpp"
 #include <nanogui/glutil.h>
 
+#include <fstream>
+
 #ifdef HAVE_OPENVR
 #include "vr.hpp"
 #endif
@@ -137,6 +139,13 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	sdepth_ = false;
 	ftime_ = (float)glfwGetTime();
 	pause_ = false;
+	recording_ = false;
+	fileout_ = new std::ofstream();
+	writer_ = new ftl::codecs::Writer(*fileout_);
+	recorder_ = std::function([this](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		ftl::codecs::StreamPacket s = spkt;
+		writer_->write(s, pkt);
+	});
 
 	channel_ = Channel::Left;
 
@@ -166,7 +175,8 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 }
 
 ftl::gui::Camera::~Camera() {
-
+	delete writer_;
+	delete fileout_;
 }
 
 ftl::rgbd::Source *ftl::gui::Camera::source() {
@@ -258,7 +268,6 @@ bool ftl::gui::Camera::setVR(bool on) {
 		src_->set("focal", intrinsic(0, 0));
 		src_->set("centre_x", intrinsic(0, 2));
 		src_->set("centre_y", intrinsic(1, 2));
-		LOG(INFO) << intrinsic;
 		
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Right);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
@@ -366,8 +375,9 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 	if (src_ && src_->isReady()) {
 		UNIQUE_LOCK(mutex_, lk);
 
-		if (isVR()) {
+		if (screen_->isVR()) {
 			#ifdef HAVE_OPENVR
+			
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
 			if ((channel_ == Channel::Right) && rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
@@ -492,6 +502,37 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 	}
 
 	return texture1_;
+}
+
+void ftl::gui::Camera::snapshot() {
+	UNIQUE_LOCK(mutex_, lk);
+	char timestamp[18];
+	std::time_t t = std::time(NULL);
+	std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+	cv::Mat image;
+	cv::flip(im1_, image, 0);
+	cv::imwrite(std::string(timestamp) + ".png", image);
+}
+
+void ftl::gui::Camera::toggleVideoRecording() {
+	if (recording_) {
+		src_->removeRawCallback(recorder_);
+		writer_->end();
+		fileout_->close();
+		recording_ = false;
+	} else {
+		char timestamp[18];
+		std::time_t t=std::time(NULL);
+		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+		fileout_->open(std::string(timestamp) + ".ftl");
+
+		writer_->begin();
+		src_->addRawCallback(recorder_);
+
+		src_->inject(Channel::Calibration, src_->parameters(), Channel::Left, src_->getCapabilities());
+		src_->inject(src_->getPose());
+		recording_ = true;
+	}
 }
 
 nlohmann::json ftl::gui::Camera::getMetaData() {

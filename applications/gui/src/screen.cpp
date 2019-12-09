@@ -6,7 +6,6 @@
 #include <nanogui/window.h>
 #include <nanogui/layout.h>
 #include <nanogui/imageview.h>
-#include <nanogui/combobox.h>
 #include <nanogui/label.h>
 #include <nanogui/toolbutton.h>
 #include <nanogui/popupbutton.h>
@@ -69,7 +68,6 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 
 	#ifdef HAVE_OPENVR
 	HMD_ = nullptr;
-	has_vr_ = vr::VR_IsHmdPresent();
 	#endif
 
 	zoom_ = root_->value("zoom", 1.0f);
@@ -85,6 +83,8 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	root_->on("position_y", [this](const ftl::config::Event &e) {
 		pos_y_ = root_->value("position_y", 0.0f);
 	});
+
+	shortcuts_ = ftl::create<ftl::Configurable>(root_, "shortcuts");
 
 	setSize(Vector2i(1280,720));
 
@@ -229,30 +229,29 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		popup->setVisible(false);
 	});
 
-	popbutton = new PopupButton(innertool, "", ENTYPO_ICON_COG);
-	popbutton->setIconExtraScale(1.5f);
-	popbutton->setTheme(toolbuttheme);
-	popbutton->setTooltip("Settings");
-	popbutton->setFixedSize(Vector2i(40,40));
-	popbutton->setSide(Popup::Side::Right);
-	popbutton->setChevronIcon(0);
-	// popbutton->setPosition(Vector2i(5,height()-50));
-	popup = popbutton->popup();
-	popup->setLayout(new GroupLayout());
-	popup->setTheme(toolbuttheme);
+	itembutton = new Button(innertool, "", ENTYPO_ICON_COG);
+	itembutton->setIconExtraScale(1.5f);
+	itembutton->setTheme(toolbuttheme);
+	itembutton->setTooltip("Settings");
+	itembutton->setFixedSize(Vector2i(40,40));
 
+	itembutton->setCallback([this]() {
+		auto config_window = new ConfigWindow(this, ctrl_);
+		config_window->setTheme(windowtheme);
+	});
+
+	/*
 	//net_->onConnect([this,popup](ftl::net::Peer *p) {
 	{
 		LOG(INFO) << "NET CONNECT";
 		auto node_details = ctrl_->getSlaves();
-		std::vector<std::string> node_titles;
 
 		for (auto &d : node_details) {
 			LOG(INFO) << "ADDING TITLE: " << d.dump();
 			auto peer = ftl::UUID(d["id"].get<std::string>());
 			auto itembutton = new Button(popup, d["title"].get<std::string>());
 			itembutton->setCallback([this,popup,peer]() {
-				auto config_window = new ConfigWindow(this, ctrl_, peer);
+				auto config_window = new ConfigWindow(this, ctrl_);
 				config_window->setTheme(windowtheme);
 			});
 		}
@@ -264,6 +263,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 		auto config_window = new ConfigWindow(this, ctrl_);
 		config_window->setTheme(windowtheme);
 	});
+	*/
 
 	//configwindow_ = new ConfigWindow(parent, ctrl_);
 	cwindow_ = new ftl::gui::ControlWindow(this, controller);
@@ -320,14 +320,14 @@ bool ftl::gui::Screen::initVR() {
 	return true;
 }
 
-bool ftl::gui::Screen::useVR() {
+bool ftl::gui::Screen::isVR() {
 	auto *cam = activeCamera();
 	if (HMD_ == nullptr || cam == nullptr) { return false; }
 	return cam->isVR();
 }
 
 bool ftl::gui::Screen::switchVR(bool on) {
-	if (useVR() == on) { return on; }
+	if (isVR() == on) { return on; }
 
 	if (on && (HMD_ == nullptr) && !initVR()) {
 		return false;
@@ -339,8 +339,13 @@ bool ftl::gui::Screen::switchVR(bool on) {
 		activeCamera()->setVR(false);
 	}
 	
-	return useVR();
+	return isVR();
 }
+
+bool ftl::gui::Screen::isHmdPresent() {
+	return vr::VR_IsHmdPresent();
+}
+
 #endif
 
 ftl::gui::Screen::~Screen() {
@@ -431,12 +436,31 @@ bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, 
 	}
 }
 
+static std::string generateKeyComboStr(int key, int modifiers) {
+	std::string res = "";
+
+	switch(modifiers) {
+	case 1:		res += "Shift+"; break;
+	case 2:		res += "Ctrl+"; break;
+	case 3:		res += "Ctrl+Shift+"; break;
+	case 4:		res += "Alt+"; break;
+	default: break;
+	}
+
+	if (key < 127 && key >= 32) {
+		char buf[2] = { (char)key, 0 };
+		return res + std::string(buf);
+	} else {
+		return "";
+	}
+}
+
 bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modifiers) {
 	using namespace Eigen;
 	if (nanogui::Screen::keyboardEvent(key, scancode, action, modifiers)) {
 		return true;
 	} else {
-		LOG(INFO) << "Key press " << key << " - " << action << " - " << modifiers;
+		//LOG(INFO) << "Key press " << key << " - " << action << " - " << modifiers;
 
 		if (key >= 262 && key <= 267) {
 			if (camera_) camera_->keyMovement(key, modifiers);
@@ -444,9 +468,42 @@ bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modi
 		} else if (action == 1 && key == 'H') {
 			swindow_->setVisible(false);
 			cwindow_->setVisible(false);
-		} else if (action == 1 && key == 32) {
-			ctrl_->pause();
-			return true;
+		} else if (action == 1) {
+			std::string combo = generateKeyComboStr(key, modifiers);
+
+			if (combo.size() > 0) {
+				LOG(INFO) << "Key combo = " << combo;
+
+				auto s = shortcuts_->get<nlohmann::json>(combo);
+				if (s) {
+					//LOG(INFO) << "FOUND KEYBOARD SHORTCUT";
+					std::string op = (*s).value("op",std::string("="));
+					std::string uri = (*s).value("uri",std::string(""));
+
+					if (op == "toggle") {
+						auto v = ftl::config::get(uri);
+						if (v.is_boolean()) {
+							ftl::config::update(uri, !v.get<bool>());
+						}
+					} else if (op == "+=") {
+						auto v = ftl::config::get(uri);
+						if (v.is_number_float()) {
+							ftl::config::update(uri, v.get<float>() + (*s).value("value",0.0f));
+						} else if (v.is_number_integer()) {
+							ftl::config::update(uri, v.get<int>() + (*s).value("value",0));
+						}
+					} else if (op == "-=") {
+						auto v = ftl::config::get(uri);
+						if (v.is_number_float()) {
+							ftl::config::update(uri, v.get<float>() - (*s).value("value",0.0f));
+						} else if (v.is_number_integer()) {
+							ftl::config::update(uri, v.get<int>() - (*s).value("value",0));
+						}
+					} else if (op == "=") {
+						ftl::config::update(uri, (*s)["value"]);
+					}
+				}
+			}
 		}
 		return false;
 	}
@@ -467,7 +524,7 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
 
 		#ifdef HAVE_OPENVR
-		if (useVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
+		if (isVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
 			
 			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );

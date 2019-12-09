@@ -2,6 +2,7 @@
 #include <ftl/net/universe.hpp>
 #include <ftl/rgbd.hpp>
 #include <ftl/master.hpp>
+#include <ftl/net_configurable.hpp>
 
 #include <loguru.hpp>
 
@@ -12,9 +13,6 @@ int main(int argc, char **argv) {
 	auto root = ftl::configure(argc, argv, "gui_default");
 	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
 
-	net->start();
-	net->waitConnections();
-
 	ftl::ctrl::Master *controller = new ftl::ctrl::Master(root, net);
 	controller->onLog([](const ftl::ctrl::LogEvent &e){
 		const int v = e.verbosity;
@@ -24,6 +22,35 @@ int main(int argc, char **argv) {
 		case 0:		LOG(INFO) << "Remote log: " << e.message; break;
 		}
 	});
+
+	std::map<ftl::UUID, std::vector<ftl::NetConfigurable*>> peerConfigurables;
+
+	// FIXME: Move this elsewhere, it is not just for GUI
+	net->onConnect([&controller, &peerConfigurables](ftl::net::Peer *p) {
+		ftl::UUID peer = p->id();
+		auto cs = controller->getConfigurables(peer);
+		for (auto c : cs) {
+			//LOG(INFO) << "NET CONFIG: " << c;
+			ftl::config::json_t *configuration = new ftl::config::json_t;
+			*configuration = controller->get(peer, c);
+			if (!configuration->empty()) {
+				ftl::NetConfigurable *nc = new ftl::NetConfigurable(peer, c, *controller, *configuration);
+				peerConfigurables[peer].push_back(nc);
+			}
+		}
+	});
+
+	net->onDisconnect([&peerConfigurables](ftl::net::Peer *p) {
+		ftl::UUID peer = p->id();
+		for (ftl::NetConfigurable *nc : peerConfigurables[peer]) {
+			ftl::config::json_t *configuration = &(nc->getConfig());
+			delete nc;
+			delete configuration;
+		}
+	});
+
+	net->start();
+	net->waitConnections();
 
 	/*auto available = net.findAll<string>("list_streams");
 	for (auto &a : available) {

@@ -69,7 +69,7 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 
 	button = new Button(tools, "", ENTYPO_ICON_COG);
 	button->setCallback([this,parent] {
-		auto cfgwin = new ConfigWindow(parent, ctrl_, _getActiveID());
+		auto cfgwin = new ConfigWindow(parent, ctrl_);
 		cfgwin->setTheme(theme());
 	});
 	button->setTooltip("Edit node configuration");

@@ -165,6 +165,30 @@ void ftl::cuda::triangle_render1(TextureObject<float> &depth_in, TextureObject<i
     cudaSafeCall( cudaGetLastError() );
 }
 
+// ==== Merge convert ===========
+
+__global__ void merge_convert_kernel(
+		TextureObject<int> depth_in,
+		TextureObject<float> depth_out,
+		float alpha) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < 0 || x >= depth_in.width() || y < 0 || y >= depth_in.height()) return;
+
+	float a = float(depth_in.tex2D(x,y))*alpha;
+	float b = depth_out.tex2D(x,y);
+	depth_out(x,y) = min(a,b);
+}
+
+void ftl::cuda::merge_convert_depth(TextureObject<int> &depth_in, TextureObject<float> &depth_out, float alpha, cudaStream_t stream) {
+	const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	merge_convert_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, alpha);
+	cudaSafeCall( cudaGetLastError() );
+}
+
 // ==== BLENDER ========
 
 /*

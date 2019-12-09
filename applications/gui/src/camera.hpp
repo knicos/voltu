@@ -2,6 +2,7 @@
 #define _FTL_GUI_CAMERA_HPP_
 
 #include <ftl/rgbd/source.hpp>
+#include <ftl/codecs/writer.hpp>
 #include "gltexture.hpp"
 
 #include <string>
@@ -43,13 +44,17 @@ class Camera {
 	
 	void togglePause();
 	void isPaused();
-	const ftl::codecs::Channels &availableChannels();
+	const ftl::codecs::Channels &availableChannels() { return channels_; }
 
 	const GLTexture &captureFrame();
 	const GLTexture &getLeft() const { return texture1_; }
 	const GLTexture &getRight() const { return texture2_; }
 
 	bool thumbnail(cv::Mat &thumb);
+
+	void snapshot();
+
+	void toggleVideoRecording();
 
 	nlohmann::json getMetaData();
 
@@ -85,6 +90,10 @@ class Camera {
 	ftl::codecs::Channels channels_;
 	cv::Mat im1_; // first channel (left)
 	cv::Mat im2_; // second channel ("right")
+	bool recording_;
+	std::ofstream *fileout_;
+	ftl::codecs::Writer *writer_;
+	ftl::rgbd::RawCallback recorder_;
 
 	MUTEX mutex_;
 

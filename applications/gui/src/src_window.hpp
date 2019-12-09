@@ -25,7 +25,7 @@ class SourceWindow : public nanogui::Window {
 	explicit SourceWindow(ftl::gui::Screen *screen);
 	~SourceWindow();
 
-	const std::vector<ftl::gui::Camera*> &getCameras();
+	std::vector<ftl::gui::Camera*> getCameras();
 
 	virtual void draw(NVGcontext *ctx);
 

@@ -18,6 +18,8 @@
 #include <ftl/codecs/writer.hpp>
 #include <ftl/codecs/reader.hpp>
 
+#include "reconstruction.hpp"
+
 #include "ilw/ilw.hpp"
 #include <ftl/render/tri_render.hpp>
 
@@ -136,7 +138,16 @@ static void run(ftl::Configurable *root) {
 	net->start();
 	net->waitConnections();
 	
-	// Check paths for an FTL file to load...
+	std::vector<int> sourcecounts;
+
+	// Add sources from the configuration file as a single group.
+	auto configuration_sources = root->getConfig()["sources"];
+	size_t configuration_size = configuration_sources.size();
+	if (configuration_size > 0) {
+		sourcecounts.push_back(configuration_size);
+	}
+
+	// Check paths for FTL files to load.
 	auto paths = (*root->get<nlohmann::json>("paths"));
 	for (auto &x : paths.items()) {
 		std::string path = x.value().get<std::string>();
@@ -162,12 +173,14 @@ static void run(ftl::Configurable *root) {
 			int N = root->value("N", 100);
 
 			// For each stream found, add a source object
-			for (int i=0; i<=min(max_stream,N-1); ++i) {
+			int count = min(max_stream+1, N);
+			for (int i=0; i<count; ++i) {
 				root->getConfig()["sources"].push_back(nlohmann::json{{"uri",std::string("file://") + path + std::string("#") + std::to_string(i)}});
 			}
+			sourcecounts.push_back(count);
 		}
 	}
-	
+
 	// Create a vector of all input RGB-Depth sources
 	auto sources = ftl::createArray<Source>(root, "sources", net);
 
@@ -175,7 +188,7 @@ static void run(ftl::Configurable *root) {
 		LOG(ERROR) << "No sources configured!";
 		return;
 	}
-	
+
 	ConfigProxy *configproxy = nullptr;
 	if (net->numberOfPeers() > 0) {
 		configproxy = new ConfigProxy(net); // TODO delete
@@ -185,26 +198,6 @@ static void run(ftl::Configurable *root) {
 		configproxy->add(disparity, "source/disparity/optflow_filter", "optflow_filter");
 		configproxy->add(disparity, "source/disparity/mls", "mls");
 		configproxy->add(disparity, "source/disparity/cross", "cross");
-	}
-
-	// Create scene transform, intended for axis aligning the walls and floor
-	Eigen::Matrix4d transform;
-	if (root->getConfig()["transform"].is_object()) {
-		auto &c = root->getConfig()["transform"];
-		float rx = c.value("pitch", 0.0f);
-		float ry = c.value("yaw", 0.0f);
-		float rz = c.value("roll", 0.0f);
-		float x = c.value("x", 0.0f);
-		float y = c.value("y", 0.0f);
-		float z = c.value("z", 0.0f);
-
-		Eigen::Affine3d r = create_rotation_matrix(rx, ry, rz);
-		Eigen::Translation3d trans(Eigen::Vector3d(x,y,z));
-		Eigen::Affine3d t(trans);
-		transform = t.matrix() * r.matrix();
-		LOG(INFO) << "Set transform: " << transform;
-	} else {
-		transform.setIdentity();
 	}
 
 	// Must find pose for each source...
@@ -222,73 +215,73 @@ static void run(ftl::Configurable *root) {
 			string uri = input->getURI();
 			auto T = transformations.find(uri);
 			if (T == transformations.end()) {
-				LOG(ERROR) << "Camera pose for " + uri + " not found in transformations";
+				LOG(WARNING) << "Camera pose for " + uri + " not found in transformations";
 				//LOG(WARNING) << "Using only first configured source";
 				// TODO: use target source if configured and found
 				//sources = { sources[0] };
 				//sources[0]->setPose(Eigen::Matrix4d::Identity());
 				//break;
-				input->setPose(transform * input->getPose());
+				input->setPose(input->getPose());
 				continue;
 			}
-			input->setPose(transform * T->second);
+			input->setPose(T->second);
 		}
 	}
 
-	ftl::rgbd::FrameSet scene_A;  // Output of align process
-	ftl::rgbd::FrameSet scene_B;  // Input of render process
+	ftl::rgbd::FrameSet fs_out;
 
 	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
-	ftl::rgbd::VirtualSource *virt = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
-	ftl::render::Triangular *splat = ftl::create<ftl::render::Triangular>(root, "renderer", &scene_B);
-	ftl::rgbd::Group *group = new ftl::rgbd::Group;
-	ftl::ILW *align = ftl::create<ftl::ILW>(root, "merge");
+	ftl::rgbd::VirtualSource *vs = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
+	//root->set("tags", nlohmann::json::array({ root->getID()+"/virtual" }));
 
 	int o = root->value("origin_pose", 0) % sources.size();
-	virt->setPose(sources[o]->getPose());
+	vs->setPose(sources[o]->getPose());
+
+	vector<ftl::Reconstruction*> groups;
+
+	size_t cumulative = 0;
+	for (auto c : sourcecounts) {
+		std::string id = std::to_string(cumulative);
+		auto reconstr = ftl::create<ftl::Reconstruction>(root, id, id);
+		for (size_t i=cumulative; i<cumulative+c; i++) {
+			reconstr->addSource(sources[i]);
+		}
+		groups.push_back(reconstr);
+		cumulative += c;
+	}
 
 	auto *renderpipe = ftl::config::create<ftl::operators::Graph>(root, "render_pipe");
 	renderpipe->append<ftl::operators::ColourChannels>("colour");  // Generate interpolation texture...
 	renderpipe->append<ftl::operators::FXAA>("antialiasing"); 
 
-	// Generate virtual camera render when requested by streamer
-	virt->onRender([splat,virt,&scene_B,align,renderpipe](ftl::rgbd::Frame &out) {
-		//virt->setTimestamp(scene_B.timestamp);
-		// Do we need to convert Lab to BGR?
-		if (align->isLabColour()) {
-			for (auto &f : scene_B.frames) {
-				auto &col = f.get<cv::cuda::GpuMat>(Channel::Colour);
-				cv::cuda::cvtColor(col,col, cv::COLOR_Lab2BGR); // TODO: Add stream
-			}
+	vs->onRender([vs, &groups, &renderpipe](ftl::rgbd::Frame &out) {
+		for (auto &reconstr : groups) {
+			reconstr->render(vs, out);
 		}
-		splat->render(virt, out);
-		renderpipe->apply(out, out, virt, 0);
+		renderpipe->apply(out, out, vs, 0);
 	});
-	stream->add(virt);
-
-	for (size_t i=0; i<sources.size(); i++) {
-		Source *in = sources[i];
-		in->setChannel(Channel::Depth);
-		group->addSource(in);
-	}
+	stream->add(vs);
 
 	// ---- Recording code -----------------------------------------------------
-
 	std::ofstream fileout;
 	ftl::codecs::Writer writer(fileout);
-	auto recorder = [&writer,&group](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		ftl::codecs::StreamPacket s = spkt;
-
-		// Patch stream ID to match order in group
-		s.streamID = group->streamID(src);
-		writer.write(s, pkt);
-	};
 
 	root->set("record", false);
 
+	// Add a recording callback to all reconstruction scenes
+	for (size_t i=0; i<sources.size(); ++i) {
+		sources[i]->addRawCallback([&writer,&groups,i](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			ftl::codecs::StreamPacket s = spkt;
+
+			// Patch stream ID to match order in group
+			s.streamID = i;
+			writer.write(s, pkt);
+		});
+	}
+
 	// Allow stream recording
-	root->on("record", [&group,&fileout,&writer,&recorder](const ftl::config::Event &e) {
+	root->on("record", [&groups,&fileout,&writer,&sources](const ftl::config::Event &e) {
 		if (e.entity->value("record", false)) {
 			char timestamp[18];
 			std::time_t t=std::time(NULL);
@@ -296,17 +289,15 @@ static void run(ftl::Configurable *root) {
 			fileout.open(std::string(timestamp) + ".ftl");
 
 			writer.begin();
-			group->addRawCallback(std::function(recorder));
 
 			// TODO: Write pose+calibration+config packets
-			auto sources = group->sources();
+
 			for (size_t i=0; i<sources.size(); ++i) {
 				//writeSourceProperties(writer, i, sources[i]);
 				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
 				sources[i]->inject(sources[i]->getPose()); 
 			}
 		} else {
-			group->removeRawCallback(recorder);
 			writer.end();
 			fileout.close();
 		}
@@ -317,62 +308,6 @@ static void run(ftl::Configurable *root) {
 	stream->setLatency(6);  // FIXME: This depends on source!?
 	//stream->add(group);
 	stream->run();
-
-	bool busy = false;
-
-	// Create the source depth map pipeline
-	auto *pipeline1 = ftl::config::create<ftl::operators::Graph>(root, "pre_filters");
-	pipeline1->append<ftl::operators::ClipScene>("clipping");
-	pipeline1->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
-	//pipeline1->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
-	pipeline1->append<ftl::operators::Normals>("normals");  // Estimate surface normals
-	//pipeline1->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
-	//pipeline1->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
-	pipeline1->append<ftl::operators::CrossSupport>("cross");
-	pipeline1->append<ftl::operators::DiscontinuityMask>("discontinuity");
-	pipeline1->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
-	//pipeline1->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
-	pipeline1->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
-	pipeline1->append<ftl::operators::MultiViewMLS>("mvmls");
-	// Alignment
-
-
-	group->setLatency(4);
-	group->setName("ReconGroup");
-	group->sync([splat,virt,&busy,&slave,&scene_A,&scene_B,&align,controls,pipeline1](ftl::rgbd::FrameSet &fs) -> bool {
-		//cudaSetDevice(scene->getCUDADevice());
-
-		//if (slave.isPaused()) return true;
-		if (controls->value("paused", false)) return true;
-		
-		if (busy) {
-			LOG(INFO) << "Group frameset dropped: " << fs.timestamp;
-			return true;
-		}
-		busy = true;
-
-		// Swap the entire frameset to allow rapid return
-		fs.swapTo(scene_A);
-
-		ftl::pool.push([&scene_B,&scene_A,&busy,&slave,&align, pipeline1](int id) {
-			//cudaSetDevice(scene->getCUDADevice());
-			// TODO: Release frameset here...
-			//cudaSafeCall(cudaStreamSynchronize(scene->getIntegrationStream()));
-
-			UNIQUE_LOCK(scene_A.mtx, lk);
-
-			pipeline1->apply(scene_A, scene_A, 0);
-			align->process(scene_A);
-
-
-			// TODO: To use second GPU, could do a download, swap, device change,
-			// then upload to other device. Or some direct device-2-device copy.
-			scene_A.swapTo(scene_B);
-			LOG(INFO) << "Align complete... " << scene_A.timestamp;
-			busy = false;
-		});
-		return true;
-	});
 
 	LOG(INFO) << "Start timer";
 	ftl::timer::start(true);
@@ -387,12 +322,12 @@ static void run(ftl::Configurable *root) {
 
 	LOG(INFO) << "Deleting...";
 
-	delete align;
-	delete splat;
 	delete stream;
-	delete virt;
+	delete vs;
 	delete net;
-	delete group;
+	for (auto g : groups) {
+		delete g;
+	}
 
 	ftl::config::cleanup();  // Remove any last configurable objects.
 	LOG(INFO) << "Done.";

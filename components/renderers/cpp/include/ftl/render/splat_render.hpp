@@ -22,7 +22,7 @@ class Splatter : public ftl::render::Renderer {
 	explicit Splatter(nlohmann::json &config, ftl::rgbd::FrameSet *fs);
 	~Splatter();
 
-	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out) override;
+	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
 
 	protected:

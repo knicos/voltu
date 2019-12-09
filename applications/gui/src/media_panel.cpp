@@ -1,6 +1,5 @@
 #include "media_panel.hpp"
 #include "screen.hpp"
-#include "camera.hpp"
 
 #include <nanogui/layout.h>
 #include <nanogui/button.h>
@@ -18,7 +17,6 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	using namespace nanogui;
 
 	paused_ = false;
-	writer_ = nullptr;
 	disable_switch_channels_ = false;
 
 	setLayout(new BoxLayout(Orientation::Horizontal,
@@ -35,29 +33,62 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 		if (cam) cam->showPoseWindow();
 	});
 
-	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
-	button->setFlags(Button::ToggleButton);
-	button->setChangeCallback([this,button](bool state) {
-		if (state){
-			auto *cam = screen_->activeCamera();
+	virtualCameraRecording_ = std::optional<ftl::gui::Camera*>();
+	sceneRecording_ = std::optional<ftl::Configurable*>();
 
-			button->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
-			char timestamp[18];
-			std::time_t t=std::time(NULL);
-			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-			writer_ = new ftl::rgbd::SnapshotStreamWriter(std::string(timestamp) + ".tar.gz", 1000 / 25);
-			writer_->addSource(cam->source());
-			writer_->start();
-		} else {
-			button->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
-			if (writer_) {
-				writer_->stop();
-				delete writer_;
-				writer_ = nullptr;
+	auto recordbutton = new PopupButton(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
+	recordbutton->setTooltip("Record");
+	recordbutton->setSide(Popup::Side::Right);
+	recordbutton->setChevronIcon(0);
+	auto recordpopup = recordbutton->popup();
+	recordpopup->setLayout(new GroupLayout());
+	recordpopup->setTheme(screen->toolbuttheme);
+	recordpopup->setAnchorHeight(150);
+	auto itembutton = new Button(recordpopup, "2D snapshot (.png)");
+	itembutton->setCallback([this,recordbutton]() {
+		screen_->activeCamera()->snapshot();
+		recordbutton->setPushed(false);
+	});
+	itembutton = new Button(recordpopup, "Virtual camera recording (.ftl)");
+	itembutton->setCallback([this,recordbutton]() {
+		auto activeCamera = screen_->activeCamera();
+		activeCamera->toggleVideoRecording();
+		recordbutton->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+		recordbutton->setPushed(false);
+		virtualCameraRecording_ = std::optional<ftl::gui::Camera*>(activeCamera);
+	});
+	itembutton = new Button(recordpopup, "3D scene recording (.ftl)");
+	itembutton->setCallback([this,recordbutton]() {
+		auto tag = screen_->activeCamera()->source()->get<std::string>("uri");
+		if (tag) {
+			auto tagvalue = tag.value();
+			auto configurables = ftl::config::findByTag(tagvalue);
+			if (configurables.size() > 0) {
+				ftl::Configurable *configurable = configurables[0];
+				configurable->set("record", true);
+				recordbutton->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+				sceneRecording_ = std::optional<ftl::Configurable*>(configurable);
 			}
 		}
-		//if (state) ... start
-		//else ... stop
+		recordbutton->setPushed(false);
+	});
+	itembutton = new Button(recordpopup, "Detailed recording options");
+
+	recordbutton->setCallback([this,recordbutton](){
+		if (virtualCameraRecording_) {
+			virtualCameraRecording_.value()->toggleVideoRecording();
+			recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+
+			// Prevents the popup from being opened, though it is shown while the button
+			// is being pressed.
+			recordbutton->setPushed(false);
+			virtualCameraRecording_ = std::nullopt;
+		} else if (sceneRecording_) {
+			sceneRecording_.value()->set("record", false);
+			recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+			recordbutton->setPushed(false);
+			sceneRecording_ = std::nullopt;
+		}
 	});
 
 	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_STOP);
@@ -67,8 +98,9 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 
 	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_PAUS);
 	button->setCallback([this,button]() {
-		paused_ = !paused_;
-		screen_->control()->pause();
+		//paused_ = !paused_;
+		paused_ = !(bool)ftl::config::get("[reconstruction]/controls/paused");
+		ftl::config::update("[reconstruction]/controls/paused", paused_);
 		if (paused_) {
 			button->setIcon(ENTYPO_ICON_CONTROLLER_PLAY);
 		} else {
@@ -114,11 +146,11 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	*/
 
 #ifdef HAVE_OPENVR
-	if (this->screen_->hasVR()) {
+	if (this->screen_->isHmdPresent()) {
 		auto button_vr = new Button(this, "VR");
 		button_vr->setFlags(Button::ToggleButton);
 		button_vr->setChangeCallback([this, button_vr](bool state) {
-			if (!screen_->useVR()) {
+			if (!screen_->isVR()) {
 				if (screen_->switchVR(true) == true) {
 					button_vr->setTextColor(nanogui::Color(0.5f,0.5f,1.0f,1.0f));
 					this->button_channels_->setEnabled(false);

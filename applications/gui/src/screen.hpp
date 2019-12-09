@@ -48,19 +48,18 @@ class Screen : public nanogui::Screen {
 	// initialize OpenVR
 	bool initVR();
 
-	// is VR available (HMD was found at initialization)
-	bool hasVR() const { return has_vr_; }
-
 	// is VR mode on/off
-	bool useVR();
+	bool isVR();
 
 	// toggle VR on/off
 	bool switchVR(bool mode);
 
+	bool isHmdPresent();
+
 	vr::IVRSystem* getVR() { return HMD_; }
 
 #else
-	bool hasVR() const { return false; }
+	bool isVR() { return false; }
 #endif
 
 	nanogui::Theme *windowtheme;
@@ -102,8 +101,9 @@ class Screen : public nanogui::Screen {
 
 	bool show_two_images_ = false;
 
+	ftl::Configurable *shortcuts_;
+
 	#ifdef HAVE_OPENVR
-	bool has_vr_;
 	vr::IVRSystem *HMD_;
 	#endif
 };
