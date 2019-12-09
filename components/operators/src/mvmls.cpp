@@ -103,12 +103,9 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                     // No, so skip this combination
                     if (d1.dot(d2) <= 0.0) continue;
 
-                    auto pose1 = MatrixConversion::toCUDA(s1->getPose().cast<float>());
-                    auto pose1_inv = MatrixConversion::toCUDA(s1->getPose().cast<float>().inverse());
-                    auto pose2 = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse());
-					auto pose2_inv = MatrixConversion::toCUDA(s2->getPose().cast<float>());
+                    auto pose2 = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse() * s1->getPose().cast<float>());
 
-                    auto transform = pose2 * pose1;
+                    //auto transform = pose2 * pose1;
 
                     //Calculate screen positions of estimated corresponding points
                     ftl::cuda::correspondence(
@@ -120,8 +117,6 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                         f1.getTexture<short2>(Channel::Screen),
                         f1.getTexture<float>(Channel::Confidence),
                         f1.getTexture<int>(Channel::Mask),
-                        pose1,
-                        pose1_inv,
                         pose2,
                         s1->parameters(),
                         s2->parameters(),
