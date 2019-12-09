@@ -1,6 +1,7 @@
 #include "mvmls_cuda.hpp"
 #include <ftl/cuda/weighting.hpp>
 #include <ftl/cuda/mask.hpp>
+#include <ftl/cuda/warp.hpp>
 
 using ftl::cuda::TextureObject;
 using ftl::rgbd::Camera;
@@ -8,6 +9,8 @@ using ftl::cuda::Mask;
 using ftl::cuda::MvMLSParams;
 
 #define T_PER_BLOCK 8
+#define WARP_SIZE 32
+#define INTERVAL 1
 
 template<int FUNCTION>
 __device__ float weightFunction(const ftl::cuda::MvMLSParams &params, float dweight, float cweight);
@@ -42,6 +45,45 @@ __device__ inline float weightFunction<5>(const ftl::cuda::MvMLSParams &params, 
 	return (cweight > 0.0f) ? dweight : 0.0f;
 }
 
+#ifndef PINF
+#define PINF __int_as_float(0x7f800000)
+#endif
+
+__device__ inline float distance(float4 p1, float4 p2) {
+	return min(1.0f, max(max(fabsf(p1.x - p2.x),fabsf(p1.y - p2.y)), fabsf(p1.z - p2.z))/ 10.0f);
+	//return min(1.0f, ftl::cuda::colourDistance(p1, p2) / 10.0f);
+}
+
+__device__ inline int halfWarpCensus(float e) {
+	float e0 = __shfl_sync(FULL_MASK, e, (threadIdx.x >= 16) ? 16 : 0, WARP_SIZE);
+	int c = (e > e0) ? 1 << (threadIdx.x % 16) : 0;
+	for (int i = WARP_SIZE/4; i > 0; i /= 2) {
+		const int other = __shfl_xor_sync(FULL_MASK, c, i, WARP_SIZE);
+		c |= other;
+	}
+	return c;
+}
+
+__device__ inline float4 relativeDelta(const float4 &e) {
+	const float e0x = __shfl_sync(FULL_MASK, e.x, 0, WARP_SIZE/2);
+	const float e0y = __shfl_sync(FULL_MASK, e.y, 0, WARP_SIZE/2);
+	const float e0z = __shfl_sync(FULL_MASK, e.z, 0, WARP_SIZE/2);
+	return make_float4(e.x-e0x, e.y-e0y, e.z-e0z, 0.0f);
+}
+
+/**
+ * See: Birchfield S. et al. (1998). A pixel dissimilarity measure that is
+ * insensitive to image sampling. IEEE Transactions on Pattern Analysis and
+ * Machine Intelligence.
+ */
+__device__ float dissimilarity(const float4 &l, const float4 &rp, const float4 &rc, const float4 &rn) {
+	const float rpd = distance((rc - rp) * 0.5f + rp, l);
+	const float rnd = distance((rc - rn) * 0.5f + rn, l);
+	const float rcd = distance(rc, l);
+	return min(min(rpd, rnd), rcd);
+}
+
+
 template<int COR_STEPS, int FUNCTION> 
 __global__ void corresponding_point_kernel(
         TextureObject<float> d1,
@@ -51,16 +93,14 @@ __global__ void corresponding_point_kernel(
         TextureObject<short2> screenOut,
 		TextureObject<float> conf,
 		TextureObject<int> mask,
-        float4x4 pose1,
-        float4x4 pose1_inv,
-        float4x4 pose2,  // Inverse
+        float4x4 pose,
         Camera cam1,
         Camera cam2, ftl::cuda::MvMLSParams params) {
+	
+	//const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
+	const int x = (blockIdx.x*8 + (threadIdx.x%4) + 4*(threadIdx.x / 16)); // / WARP_SIZE;
+	const int y = blockIdx.y*8 + threadIdx.x/4 + 4*threadIdx.y;
 
-    // Each warp picks point in p1
-    //const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
-	const int x = (blockIdx.x*blockDim.x + threadIdx.x); // / WARP_SIZE;
-    const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if (x >= 0 && y >=0 && x < screenOut.width() && y < screenOut.height()) {
         screenOut(x,y) = make_short2(-1,-1);
@@ -73,52 +113,52 @@ __global__ void corresponding_point_kernel(
         //const float4 temp = vout.tex2D(x,y);
         //vout(x,y) =  make_float4(depth1, 0.0f, temp.z, temp.w);
         
-        const float3 world1 = pose1 * cam1.screenToCam(x,y,depth1);
+        //const float3 world1 = pose1 * cam1.screenToCam(x,y,depth1);
 
         const auto colour1 = c1.tex2D((float)x+0.5f, (float)y+0.5f);
 
         //float bestdepth = 0.0f;
         short2 bestScreen = make_short2(-1,-1);
 		float bestdepth = 0.0f;
-		float bestdepth2 = 0.0f;
+		//float bestdepth2 = 0.0f;
         float bestweight = 0.0f;
         float bestcolour = 0.0f;
-        float bestdweight = 0.0f;
+        //float bestdweight = 0.0f;
         float totalcolour = 0.0f;
         int count = 0;
-        float contrib = 0.0f;
-        
-        const float step_interval = params.range / (COR_STEPS / 2);
-        
-        const float3 rayStep_world = pose1.getFloat3x3() * cam1.screenToCam(x,y,step_interval);
-        const float3 rayStart_2 = pose2 * world1;
-        const float3 rayStep_2 = pose2.getFloat3x3() * rayStep_world;
+        //float contrib = 0.0f;
+		
+		const float3 camPosOrigin = pose * cam1.screenToCam(x,y,depth1);
+        const float2 lineOrigin = cam2.camToScreen<float2>(camPosOrigin);
+        const float3 camPosDistant = pose * cam1.screenToCam(x,y,depth1 + 10.0f);
+        const float2 lineDistant = cam2.camToScreen<float2>(camPosDistant);
+        const float lineM = (lineDistant.y - lineOrigin.y) / (lineDistant.x - lineOrigin.x);
+		const float depthM = 10.0f / (lineDistant.x - lineOrigin.x);
+		const float depthM2 = (camPosDistant.z - camPosOrigin.z) / (lineDistant.x - lineOrigin.x);
+        float2 linePos;
+        linePos.x = lineOrigin.x - ((COR_STEPS/2));
+        linePos.y = lineOrigin.y - (((COR_STEPS/2)) * lineM);
+		float depthPos = depth1 - (float((COR_STEPS/2)) * depthM);
+		float depthPos2 = camPosOrigin.z - (float((COR_STEPS/2)) * depthM2);
+
 
         // Project to p2 using cam2
         // Each thread takes a possible correspondence and calculates a weighting
         //const int lane = tid % WARP_SIZE;
-        for (int i=0; i<COR_STEPS; ++i) {
-            const int j = i - (COR_STEPS/2);
-            const float depth_adjust = (float)j * step_interval;
-
-            // Calculate adjusted depth 3D point in camera 2 space
-            const float3 worldPos = world1 + j * rayStep_world; //(pose1 * cam1.screenToCam(x, y, depth_adjust));
-            const float3 camPos = rayStart_2 + j * rayStep_2; //pose2 * worldPos;
-			const float2 screen = cam2.camToScreen<float2>(camPos);
-			
-			float weight = (screen.x >= cam2.width || screen.y >= cam2.height) ? 0.0f : 1.0f;
+        for (int i=0; i<COR_STEPS; ++i) {			
+			float weight = (linePos.x >= cam2.width || linePos.y >= cam2.height) ? 0.0f : 1.0f;
 
 			// Generate a colour correspondence value
-            const auto colour2 = c2.tex2D(screen.x, screen.y);
+            const auto colour2 = c2.tex2D(linePos.x, linePos.y);
             const float cweight = ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
 
             // Generate a depth correspondence value
-			const float depth2 = d2.tex2D(int(screen.x+0.5f), int(screen.y+0.5f));
+			const float depth2 = d2.tex2D(int(linePos.x+0.5f), int(linePos.y+0.5f));
 			
 			if (FUNCTION == 1) {
-				weight *= ftl::cuda::weighting(fabs(depth2 - camPos.z), cweight*params.spatial_smooth);
+				weight *= ftl::cuda::weighting(fabs(depth2 - depthPos2), cweight*params.spatial_smooth);
 			} else {
-				const float dweight = ftl::cuda::weighting(fabs(depth2 - camPos.z), params.spatial_smooth);
+				const float dweight = ftl::cuda::weighting(fabs(depth2 - depthPos2), params.spatial_smooth);
             	weight *= weightFunction<FUNCTION>(params, dweight, cweight);
 			}
             //const float dweight = ftl::cuda::weighting(fabs(depth_adjust), 10.0f*params.range);
@@ -126,18 +166,23 @@ __global__ void corresponding_point_kernel(
             //weight *= weightFunction<FUNCTION>(params, dweight, cweight);
 
             ++count;
-            contrib += weight;
+            //contrib += weight;
             bestcolour = max(cweight, bestcolour);
             //bestdweight = max(dweight, bestdweight);
             totalcolour += cweight;
-			bestdepth = (weight > bestweight) ? depth_adjust : bestdepth;
+			bestdepth = (weight > bestweight) ? depthPos : bestdepth;
 			//bestdepth2 = (weight > bestweight) ? camPos.z : bestdepth2;
 			//bestScreen = (weight > bestweight) ? make_short2(screen.x+0.5f, screen.y+0.5f) : bestScreen;
 			bestweight = max(bestweight, weight);
                 //bestweight = weight;
                 //bestdepth = depth_adjust;
                 //bestScreen = make_short2(screen.x+0.5f, screen.y+0.5f);
-            //}
+			//}
+			
+			depthPos += depthM;
+			depthPos2 += depthM2;
+            linePos.x += 1.0f;
+            linePos.y += lineM;
         }
 
         const float avgcolour = totalcolour/(float)count;
@@ -149,7 +194,7 @@ __global__ void corresponding_point_kernel(
             float old = conf.tex2D(x,y);
 
             if (bestweight * confidence > old) {
-				d1(x,y) = 0.4f*bestdepth + depth1;
+				d1(x,y) = (0.4f*(bestdepth-depth1)) + depth1;
 				//d2(bestScreen.x, bestScreen.y) = bestdepth2;
                 //screenOut(x,y) = bestScreen;
                 conf(x,y) = bestweight * confidence;
@@ -169,25 +214,26 @@ void ftl::cuda::correspondence(
         TextureObject<short2> &screen,
 		TextureObject<float> &conf,
 		TextureObject<int> &mask,
-        float4x4 &pose1,
-        float4x4 &pose1_inv,
         float4x4 &pose2,
         const Camera &cam1,
         const Camera &cam2, const MvMLSParams &params, int func,
         cudaStream_t stream) {
 
-	const dim3 gridSize((d1.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (d1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	//const dim3 gridSize((d1.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (d1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	//const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	const dim3 gridSize((d1.width() + 1), (d1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(WARP_SIZE, 2);
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
 	switch (func) {
-    case 0: corresponding_point_kernel<16,0><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-	case 1: corresponding_point_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-	case 2: corresponding_point_kernel<16,2><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-	case 3: corresponding_point_kernel<16,3><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-	case 4: corresponding_point_kernel<16,4><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose1, pose1_inv, pose2, cam1, cam2, params); break;
-	case 5: corresponding_point_kernel<16,5><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose1, pose1_inv, pose2, cam1, cam2, params); break;
+    case 0: corresponding_point_kernel<16,0><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+	case 1: corresponding_point_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+	case 2: corresponding_point_kernel<16,2><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+	case 3: corresponding_point_kernel<16,3><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+	case 4: corresponding_point_kernel<16,4><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+	case 5: corresponding_point_kernel<16,5><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
 	}
 
     cudaSafeCall( cudaGetLastError() );
