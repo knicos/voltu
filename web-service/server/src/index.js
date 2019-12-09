@@ -126,7 +126,7 @@ RGBDStream.prototype.subscribe = function() {
 	//console.log("Subscribe to ", this.uri);
 	// TODO: Don't hard code 9 here, instead use 9 for thumbnails and 0 for
 	// the video...
-	this.peer.send("get_stream", this.uri, 10, 9, [Peer.uuid], this.uri);
+	this.peer.send("get_stream", this.uri, 10, 3, [Peer.uuid], this.uri);
 }
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
@@ -191,7 +191,7 @@ app.get('/streams', (req, res) => {
 app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
 	if (uri_data.hasOwnProperty(uri)) {
-		uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
+		uri_data[uri].peer.send("get_stream", uri, 3, 0, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
 		res.end(uri_data[uri].rgb);
 	}
@@ -458,12 +458,17 @@ app.ws('/', (ws, req) => {
 	});
 
 	/**
-	 * Get configuration JSON values 
+	 * Get JSON values for stream configuration
 	 */ 
 	p.bind("get_cfg", (cb, uri) => {
-		let peer = uri_data[uri].peer
-		if(peer){
-			peer.rpc("get_cfg", cb, uri)
+		if(uri_data[uri]){
+			let peer = uri_data[uri].peer
+			if(peer){
+				peer.rpc("get_cfg", cb, uri)
+			}	
+		}else{
+			console.log("Config not found", uri)
+			return "{}";
 		}
 	})
 

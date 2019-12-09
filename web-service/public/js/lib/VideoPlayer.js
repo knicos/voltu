@@ -105,7 +105,7 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
     var decode = function(pckg) {
         if (!that.running) { return; }
-        console.log("PACKAGE", pckg)
+        // console.log("PACKAGE", pckg)
         var err;
         if (pckg == null) { 
             return; 
@@ -113,14 +113,12 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
             try {
                 var tmp = pckg
                 err = decoder.push_data(tmp);
-                console.log("ERR VALUE INSIDE TRY", err, tmp)
             } catch(e) {
                 console.log(e);
                 err = decoder.flush();
                 return;
             }
         }
-        console.log("ERR VALUE AFTER ELSE", err)
         if (!libde265.de265_isOK(err)) {
             that._set_error(err, libde265.de265_get_error_text(err));
             return;
@@ -142,10 +140,10 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
          * to number 13 which is the case number for waiting for input data  
          */
         decoder.decode(function(cbErr) {
-            console.log("paramErr SHOULD BE 0, BUT IT'S", cbErr)
+            // console.log("paramErr SHOULD BE 0, BUT IT'S", cbErr)
             switch(cbErr) {
             case libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA:
-                console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
+                // console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
                 return;
             default:
                 if (!libde265.de265_isOK(cbErr)) {
@@ -155,20 +153,19 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
             }
 
             if (decoder.has_more()) {
-                console.log("has more");
+                // console.log("has more");
                 return;
             }
 
             decoder.free();
             that.stop();
-            console.log("SHOULD LOG THIS");
+            // console.log("SHOULD LOG THIS");
         });
     }
 
 
     peer.bind(decodedURI, (latency, streampckg, pckg) => {
-        console.log(pckg[0])
-        if(pckg[0] === 0){
+        if(pckg[0] === 3){
             decode(pckg[5]);
         };
     })

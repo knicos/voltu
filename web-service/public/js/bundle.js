@@ -28,7 +28,7 @@ checkIfLoggedIn = async () => {
     //         //Token is valid, show available streams
     //         if(response.status === 200){
     //             console.log("SUCCESS")
-    renderThumbnails()
+                 renderThumbnails()
 
     //         }
     //     }
@@ -56,7 +56,7 @@ getAvailableStreams = async () => {
 
 createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button><br>
+    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button> <button onclick="connectToStream()">Start Stream</button><br>
     <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
@@ -320,7 +320,7 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
 
     var decode = function(pckg) {
         if (!that.running) { return; }
-        console.log("PACKAGE", pckg)
+        // console.log("PACKAGE", pckg)
         var err;
         if (pckg == null) { 
             return; 
@@ -328,14 +328,12 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
             try {
                 var tmp = pckg
                 err = decoder.push_data(tmp);
-                console.log("ERR VALUE INSIDE TRY", err, tmp)
             } catch(e) {
                 console.log(e);
                 err = decoder.flush();
                 return;
             }
         }
-        console.log("ERR VALUE AFTER ELSE", err)
         if (!libde265.de265_isOK(err)) {
             that._set_error(err, libde265.de265_get_error_text(err));
             return;
@@ -357,10 +355,10 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
          * to number 13 which is the case number for waiting for input data  
          */
         decoder.decode(function(cbErr) {
-            console.log("paramErr SHOULD BE 0, BUT IT'S", cbErr)
+            // console.log("paramErr SHOULD BE 0, BUT IT'S", cbErr)
             switch(cbErr) {
             case libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA:
-                console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
+                // console.log("DE265_ERROR_WAITING_FOR_INPUT_DATA");
                 return;
             default:
                 if (!libde265.de265_isOK(cbErr)) {
@@ -370,20 +368,19 @@ VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
             }
 
             if (decoder.has_more()) {
-                console.log("has more");
+                // console.log("has more");
                 return;
             }
 
             decoder.free();
             that.stop();
-            console.log("SHOULD LOG THIS");
+            // console.log("SHOULD LOG THIS");
         });
     }
 
 
     peer.bind(decodedURI, (latency, streampckg, pckg) => {
-        console.log(pckg[0])
-        if(pckg[0] === 0){
+        if(pckg[0] === 3){
             decode(pckg[5]);
         };
     })
@@ -4772,9 +4769,10 @@ const kDisconnected = 3;
 // Generate a unique id for this webservice
 let cpp_my_uuid = uuidv4();
 console.log(cpp_my_uuid)
-let my_uuid = uuidParser.parse(uuidv4())
-my_uuid = new Uint8Array(cpp_my_uuid);
+let my_uuid = uuidParser.parse(cpp_my_uuid)
+my_uuid = new Uint8Array(my_uuid);
 // my_uuid[0] = 44;
+// console.log(my_uuid)
 my_uuid = Buffer.from(my_uuid);
 
 const kMagic = 0x0009340053640912;
@@ -4815,7 +4813,7 @@ function Peer(ws) {
 			}
 		}
 		if (msg[0] == 0) {
-			console.log("MSG", msg[1]);
+			// console.log("MSG...", msg[2]);
 			// Notification
 			if (msg.length == 3) {
 				this._dispatchNotification(msg[1], msg[2]);
@@ -4868,6 +4866,7 @@ function Peer(ws) {
 			this.close();
 		}
 	});
+	console.log("MY_UUID", my_uuid)
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 }		
 
@@ -4890,6 +4889,7 @@ Peer.prototype._dispatchNotification = function(name, args) {
  * @private
  */
 Peer.prototype._dispatchCall = function(name, id, args) {
+	console.log("DISPATCHCALL", name, id, args)
 	if (this.bindings.hasOwnProperty(name)) {
 		//console.log("Call for:", name, id);
 
@@ -4897,7 +4897,7 @@ Peer.prototype._dispatchCall = function(name, id, args) {
 			let res = this.bindings[name].apply(this, args);
 			this.sock.send(encode([1,id,name,res]));
 		} catch(e) {
-			console.error("Could to dispatch or return call");
+			console.error("Could to dispatch or return call", e);
 			this.close();
 		}
 	} else if (this.proxies.hasOwnProperty(name)) {
@@ -4906,6 +4906,7 @@ Peer.prototype._dispatchCall = function(name, id, args) {
 			try {
 				this.sock.send(encode([1,id,name,res]));
 			} catch(e) {
+				console.log("ERROR")
 				this.close();
 			}
 		});
@@ -5039,12 +5040,8 @@ Peer.prototype.on = function(evt, f) {
 Peer.prototype.getUuid = function() {
 	const digits = "0123456789abcdef";
 	let uuid = "";
-
-	//If the char is "-" add it, else add the letter/digit represented in the variable digits
-	for(let i=0; i<cpp_my_uuid.length; i++){
-		uuid += (cpp_my_uuid[i] == "-") ? "-" : digits[digits.indexOf(cpp_my_uuid[i])]
-	}
-	return uuid;
+	
+	return cpp_my_uuid;
 }
 
 module.exports = Peer;

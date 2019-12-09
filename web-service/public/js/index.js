@@ -27,7 +27,7 @@ checkIfLoggedIn = async () => {
     //         //Token is valid, show available streams
     //         if(response.status === 200){
     //             console.log("SUCCESS")
-    renderThumbnails()
+                 renderThumbnails()
 
     //         }
     //     }
@@ -55,7 +55,7 @@ getAvailableStreams = async () => {
 
 createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button><br>
+    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button> <button onclick="connectToStream()">Start Stream</button><br>
     <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''

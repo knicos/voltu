@@ -11,9 +11,10 @@ const kDisconnected = 3;
 // Generate a unique id for this webservice
 let cpp_my_uuid = uuidv4();
 console.log(cpp_my_uuid)
-let my_uuid = uuidParser.parse(uuidv4())
-my_uuid = new Uint8Array(cpp_my_uuid);
+let my_uuid = uuidParser.parse(cpp_my_uuid)
+my_uuid = new Uint8Array(my_uuid);
 // my_uuid[0] = 44;
+// console.log(my_uuid)
 my_uuid = Buffer.from(my_uuid);
 
 const kMagic = 0x0009340053640912;
@@ -54,7 +55,7 @@ function Peer(ws) {
 			}
 		}
 		if (msg[0] == 0) {
-			console.log("MSG", msg[1]);
+			// console.log("MSG...", msg[2]);
 			// Notification
 			if (msg.length == 3) {
 				this._dispatchNotification(msg[1], msg[2]);
@@ -107,6 +108,7 @@ function Peer(ws) {
 			this.close();
 		}
 	});
+	console.log("MY_UUID", my_uuid)
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 }		
 
@@ -129,6 +131,7 @@ Peer.prototype._dispatchNotification = function(name, args) {
  * @private
  */
 Peer.prototype._dispatchCall = function(name, id, args) {
+	console.log("DISPATCHCALL", name, id, args)
 	if (this.bindings.hasOwnProperty(name)) {
 		//console.log("Call for:", name, id);
 
@@ -136,7 +139,7 @@ Peer.prototype._dispatchCall = function(name, id, args) {
 			let res = this.bindings[name].apply(this, args);
 			this.sock.send(encode([1,id,name,res]));
 		} catch(e) {
-			console.error("Could to dispatch or return call");
+			console.error("Could to dispatch or return call", e);
 			this.close();
 		}
 	} else if (this.proxies.hasOwnProperty(name)) {
@@ -145,6 +148,7 @@ Peer.prototype._dispatchCall = function(name, id, args) {
 			try {
 				this.sock.send(encode([1,id,name,res]));
 			} catch(e) {
+				console.log("ERROR")
 				this.close();
 			}
 		});
@@ -278,12 +282,8 @@ Peer.prototype.on = function(evt, f) {
 Peer.prototype.getUuid = function() {
 	const digits = "0123456789abcdef";
 	let uuid = "";
-
-	//If the char is "-" add it, else add the letter/digit represented in the variable digits
-	for(let i=0; i<cpp_my_uuid.length; i++){
-		uuid += (cpp_my_uuid[i] == "-") ? "-" : digits[digits.indexOf(cpp_my_uuid[i])]
-	}
-	return uuid;
+	
+	return cpp_my_uuid;
 }
 
 module.exports = Peer;
