@@ -126,7 +126,7 @@ RGBDStream.prototype.subscribe = function() {
 	//console.log("Subscribe to ", this.uri);
 	// TODO: Don't hard code 9 here, instead use 9 for thumbnails and 0 for
 	// the video...
-	this.peer.send("get_stream", this.uri, 10, 3, [Peer.uuid], this.uri);
+	this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
 }
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {

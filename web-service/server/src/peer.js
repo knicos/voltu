@@ -280,9 +280,6 @@ Peer.prototype.on = function(evt, f) {
  * Returns a UUID in a string form
  */
 Peer.prototype.getUuid = function() {
-	const digits = "0123456789abcdef";
-	let uuid = "";
-	
 	return cpp_my_uuid;
 }
 

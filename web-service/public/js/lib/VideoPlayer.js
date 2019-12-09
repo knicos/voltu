@@ -88,8 +88,6 @@ VideoPlayer.prototype._display_image = function(image) {
 };
 
 
-
-
 VideoPlayer.prototype._handle_onload = function(peer, decodedURI, uri) {
     var that = this;
     this._set_status("initializing");
