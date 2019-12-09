@@ -273,17 +273,17 @@ Peer.prototype.on = function(evt, f) {
 }
 
 /**
- * Returns a string of the UUID
+ * Returns a UUID in a string form
  */
-Peer.prototype.convertUUID = function() {
+Peer.prototype.getUuid = function() {
 	const digits = "0123456789abcdef";
-	let returnVal = "";
+	let uuid = "";
 
 	//If the char is "-" add it, else add the letter/digit represented in the variable digits
 	for(let i=0; i<cpp_my_uuid.length; i++){
-		returnVal += (cpp_my_uuid[i] == "-") ? "-" : digits[digits.indexOf(cpp_my_uuid[i])]
+		uuid += (cpp_my_uuid[i] == "-") ? "-" : digits[digits.indexOf(cpp_my_uuid[i])]
 	}
-	return returnVal;
+	return uuid;
 }
 
 module.exports = Peer;

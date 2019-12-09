@@ -14,8 +14,7 @@ const bodyParser = require('body-parser')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
-app.use(express.static(__dirname + '/public'));
-
+app.use(express.static(__dirname + '/../../public'));
 app.use(bodyParser.json())
 
 
@@ -406,8 +405,7 @@ app.ws('/', (ws, req) => {
 	});
 
 	p.bind("node_details", () => {
-		console.log(p.convertUUID())
-		return [`{"title": "FTL Web-Service", "id": "${p.convertUUID()}", "kind": "master"}`];
+		return [`{"title": "FTL Web-Service", "id": "${p.getUuid()}", "kind": "master"}`];
 	});
 
 	p.bind("list_streams", () => {

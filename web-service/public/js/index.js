@@ -1,4 +1,4 @@
-const Peer = require('../../peer')
+const Peer = require('../../server/src/peer')
 const VideoPlayer = require('./lib/VideoPlayer')
 
 let current_data = {};
