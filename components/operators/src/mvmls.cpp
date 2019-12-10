@@ -249,7 +249,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             for (size_t i=0; i<in.frames.size(); ++i) {
                 auto &f1 = in.frames[i];
                 //f1.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0.0f), cvstream);
-                f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
+                //f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
                 Eigen::Vector4d d1(0.0, 0.0, 1.0, 0.0);
                 d1 = in.sources[i]->getPose() * d1;

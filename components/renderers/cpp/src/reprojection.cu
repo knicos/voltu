@@ -89,7 +89,9 @@ __global__ void reprojection_kernel(
 	const float3 n = transformR * make_float3(normals.tex2D((int)x, (int)y));
 	float3 ray = camera.screenToCam(screenPos.x, screenPos.y, 1.0f);
 	ray = ray / length(ray);
-	const float dotproduct = max(dot(ray,n),0.0f);
+
+	// Allow slightly beyond 90 degrees due to normal estimation errors
+	const float dotproduct = (max(dot(ray,n),-0.1f)+0.1) / 1.1f;
     
 	const float d2 = depth_src.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f));
 	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
