@@ -227,14 +227,22 @@ void ftl::cuda::correspondence(
 
     //printf("COR SIZE %d,%d\n", p1.width(), p1.height());
 
-	switch (func) {
+	/*switch (func) {
     case 0: corresponding_point_kernel<16,0><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
 	case 1: corresponding_point_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
 	case 2: corresponding_point_kernel<16,2><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
 	case 3: corresponding_point_kernel<16,3><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
 	case 4: corresponding_point_kernel<16,4><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
 	case 5: corresponding_point_kernel<16,5><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
-	}
+    }*/
+    
+    switch (func) {
+    case 32: corresponding_point_kernel<32,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+    case 16: corresponding_point_kernel<16,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+    case 8: corresponding_point_kernel<8,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+    case 4: corresponding_point_kernel<4,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+    case 2: corresponding_point_kernel<2,1><<<gridSize, blockSize, 0, stream>>>(d1, d2, c1, c2, screen, conf, mask, pose2, cam1, cam2, params); break;
+    }
 
     cudaSafeCall( cudaGetLastError() );
 }

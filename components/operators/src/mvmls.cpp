@@ -24,7 +24,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 	int iters = config()->value("mls_iterations", 3);
 	int radius = config()->value("mls_radius",5);
 	//bool aggre = config()->value("aggregation", true);
-    int win = config()->value("cost_function",1);
+    //int win = config()->value("cost_function",1);
+    int win = config()->value("window_size",16);
     bool do_corr = config()->value("merge_corresponding", true);
 	bool do_aggr = config()->value("merge_mls", false);
 	bool cull_zero = config()->value("cull_no_confidence", false);
@@ -139,6 +140,9 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                     );*/
 				}
 			}
+
+            // Reduce window size for next iteration
+            win = max(win>>1, 4);
 		}
 
         // Find best source for every pixel
