@@ -119,13 +119,13 @@ __global__ void corresponding_point_kernel(
 
         //float bestdepth = 0.0f;
         short2 bestScreen = make_short2(-1,-1);
-		float bestdepth = 0.0f;
+		//float bestdepth = 0.0f;
 		//float bestdepth2 = 0.0f;
         float bestweight = 0.0f;
         float bestcolour = 0.0f;
         //float bestdweight = 0.0f;
         float totalcolour = 0.0f;
-        int count = 0;
+        //int count = 0;
         //float contrib = 0.0f;
 		
 		const float3 camPosOrigin = pose * cam1.screenToCam(x,y,depth1);
@@ -138,8 +138,11 @@ __global__ void corresponding_point_kernel(
         float2 linePos;
         linePos.x = lineOrigin.x - ((COR_STEPS/2));
         linePos.y = lineOrigin.y - (((COR_STEPS/2)) * lineM);
-		float depthPos = depth1 - (float((COR_STEPS/2)) * depthM);
-		float depthPos2 = camPosOrigin.z - (float((COR_STEPS/2)) * depthM2);
+		//float depthPos = depth1 - (float((COR_STEPS/2)) * depthM);
+        float depthPos2 = camPosOrigin.z - (float((COR_STEPS/2)) * depthM2);
+        
+        uint badMask = 0;
+        int bestStep = 0;
 
 
         // Project to p2 using cam2
@@ -150,51 +153,58 @@ __global__ void corresponding_point_kernel(
 
 			// Generate a colour correspondence value
             const auto colour2 = c2.tex2D(linePos.x, linePos.y);
+
+            // TODO: Check if other colour dissimilarities are better...
             const float cweight = ftl::cuda::colourWeighting(colour1, colour2, params.colour_smooth);
 
             // Generate a depth correspondence value
-			const float depth2 = d2.tex2D(int(linePos.x+0.5f), int(linePos.y+0.5f));
+            const float depth2 = d2.tex2D(int(linePos.x+0.5f), int(linePos.y+0.5f));
+            
+            // Record which correspondences are invalid
+            badMask |= (depth2 <= cam2.minDepth || depth2 >= cam2.maxDepth) ? 1 << i : 0;
 			
-			if (FUNCTION == 1) {
+			//if (FUNCTION == 1) {
 				weight *= ftl::cuda::weighting(fabs(depth2 - depthPos2), cweight*params.spatial_smooth);
-			} else {
-				const float dweight = ftl::cuda::weighting(fabs(depth2 - depthPos2), params.spatial_smooth);
-            	weight *= weightFunction<FUNCTION>(params, dweight, cweight);
-			}
+			//} else {
+			//	const float dweight = ftl::cuda::weighting(fabs(depth2 - depthPos2), params.spatial_smooth);
+            //	weight *= weightFunction<FUNCTION>(params, dweight, cweight);
+			//}
             //const float dweight = ftl::cuda::weighting(fabs(depth_adjust), 10.0f*params.range);
 
             //weight *= weightFunction<FUNCTION>(params, dweight, cweight);
 
-            ++count;
-            //contrib += weight;
+            //++count;
+
             bestcolour = max(cweight, bestcolour);
-            //bestdweight = max(dweight, bestdweight);
             totalcolour += cweight;
-			bestdepth = (weight > bestweight) ? depthPos : bestdepth;
-			//bestdepth2 = (weight > bestweight) ? camPos.z : bestdepth2;
-			//bestScreen = (weight > bestweight) ? make_short2(screen.x+0.5f, screen.y+0.5f) : bestScreen;
-			bestweight = max(bestweight, weight);
-                //bestweight = weight;
-                //bestdepth = depth_adjust;
-                //bestScreen = make_short2(screen.x+0.5f, screen.y+0.5f);
-			//}
+
+            //bestdepth = (weight > bestweight) ? depthPos : bestdepth;
+            bestStep = (weight > bestweight) ? i : bestStep;
 			
-			depthPos += depthM;
+			bestweight = max(bestweight, weight);
+                
+			
+			//depthPos += depthM;
 			depthPos2 += depthM2;
             linePos.x += 1.0f;
             linePos.y += lineM;
         }
 
-        const float avgcolour = totalcolour/(float)count;
+        //const float avgcolour = totalcolour/(float)count;
         const float confidence = bestcolour / totalcolour; //bestcolour - avgcolour;
-        
+        const float bestadjust = float(bestStep-(COR_STEPS/2))*depthM;
+
+        // Detect matches to boundaries, and discard those
+        uint stepMask = 1 << bestStep;
+        if ((stepMask & (badMask << 1)) || (stepMask & (badMask >> 1))) bestweight = 0.0f;
+
         //Mask m(mask.tex2D(x,y));
 
         //if (bestweight > 0.0f) {
             float old = conf.tex2D(x,y);
 
             if (bestweight * confidence > old) {
-				d1(x,y) = (0.4f*(bestdepth-depth1)) + depth1;
+				d1(x,y) = (0.4f*bestadjust) + depth1;
 				//d2(bestScreen.x, bestScreen.y) = bestdepth2;
                 //screenOut(x,y) = bestScreen;
                 conf(x,y) = bestweight * confidence;

@@ -621,7 +621,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, co
 		);
 	}
 
-	if (value("show_bad_colour", false)) {
+	if (value("show_bad_colour", true)) {
 		ftl::cuda::show_missing_colour(
 			out.getTexture<float>(Channel::Depth),
 			out.getTexture<uchar4>(Channel::Colour),

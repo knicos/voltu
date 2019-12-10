@@ -340,10 +340,10 @@ static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
 
 	depth.convertTo(out, CV_8U, 255.0f / max_depth);
 	//out = 255 - out;
-	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
+	//cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
 	
 	applyColorMap(out, out, cv::COLORMAP_JET);
-	out.setTo(cv::Scalar(255, 255, 255), mask);
+	//out.setTo(cv::Scalar(255, 255, 255), mask);
 }
 
 static void drawEdges(	const cv::Mat &in, cv::Mat &out,
@@ -447,7 +447,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			case Channel::Smoothing:
 			case Channel::Confidence:
 				if (im2_.rows == 0) { break; }
-				visualizeEnergy(im2_, tmp, 1.0);
+				visualizeEnergy(im2_, tmp, screen_->root()->value("float_image_max", 1.0f));
 				texture2_.update(tmp);
 				break;
 			
