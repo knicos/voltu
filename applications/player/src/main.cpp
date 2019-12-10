@@ -7,6 +7,7 @@
 #include <ftl/timer.hpp>
 
 #include <fstream>
+#include <bitset>
 
 #include <Eigen/Eigen>
 
@@ -57,8 +58,23 @@ int main(int argc, char **argv) {
     int current_stream = 0;
     int current_channel = 0;
 
-	ftl::timer::add(ftl::timer::kTimerMain, [&current_stream,&current_channel,&r](int64_t ts) {
-		bool res = r.read(ts, [&current_stream,&current_channel,&r](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	int stream_mask = 0;
+	std::vector<std::bitset<128>> channel_mask;
+
+	ftl::timer::add(ftl::timer::kTimerMain, [&current_stream,&current_channel,&r,&stream_mask,&channel_mask](int64_t ts) {
+		bool res = r.read(ts, [&current_stream,&current_channel,&r,&stream_mask,&channel_mask](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			if (!(stream_mask & (1 << spkt.streamID))) {
+				stream_mask |= 1 << spkt.streamID;
+				LOG(INFO) << " - Stream found (" << (int)spkt.streamID << ")";
+
+				channel_mask.push_back(0);
+			}
+
+			if (!(channel_mask[spkt.streamID][(int)spkt.channel])) {
+				channel_mask[spkt.streamID].set((int)spkt.channel);
+				LOG(INFO) << " - Channel " << (int)spkt.channel << " found (" << (int)spkt.streamID << ")";
+			}
+
 			if (spkt.streamID == current_stream) {
 
 				if (pkt.codec == codec_t::POSE) {
