@@ -75,7 +75,8 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 }
 
 std::vector<ftl::gui::Camera*> SourceWindow::getCameras() {
-	auto cameras = std::vector<ftl::gui::Camera*>(cameras_.size());
+	auto cameras = std::vector<ftl::gui::Camera*>();
+	cameras.reserve(cameras_.size());
 	for (const auto &kv : cameras_) {
 		cameras.push_back(kv.second);
 	}
