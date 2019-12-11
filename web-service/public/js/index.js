@@ -58,6 +58,7 @@ createVideoPlayer = () => {
     containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br>
     <button onclick="renderThumbnails(); closeStream()">Go back</button>
     <button onclick="connectToStream()">Start Stream</button><br>
+    <button onclick="webSocketTest()">WebSocket Test</button><br>
     <video id="ftlab-stream-video" width="640" height="360"></video>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
@@ -144,6 +145,11 @@ createPeer = () => {
     const ws = new WebSocket('ws://localhost:8080/');
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
+}
+
+webSocketTest = () => {
+    console.log(current_data.uri)
+    peer.send("update_cfg", "ftl://utu.fi#reconstruction_default/0/renderer/cool_effect", "true")    
 }
 
 

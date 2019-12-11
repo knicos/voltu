@@ -11,6 +11,7 @@ const config = require('./utils/config')
 const User = require('./models/users')
 const Configs = require('./models/generic')
 const bodyParser = require('body-parser')
+const Url = require('url-parse')
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(passport.initialize());
@@ -461,6 +462,7 @@ app.ws('/', (ws, req) => {
 	 * Get JSON values for stream configuration
 	 */ 
 	p.bind("get_cfg", (cb, uri) => {
+		console.log(stringSplitter(uri))
 		if(uri_data[uri]){
 			let peer = uri_data[uri].peer
 			if(peer){
@@ -476,10 +478,15 @@ app.ws('/', (ws, req) => {
 	 * Update certain URIs values
 	 */
 	 p.bind("update_cfg", (uri, json) => {
-		 let peer = uri_data[uri].peer
-		 if(peer){
+		if(uri_data[uri]){
+			let peer = uri_data[uri].peer
+			if(peer){
 			 peer.send("update_cfg", uri, json)
-		 }
+			}
+		}else{
+			console.log("Config not found", uri)
+			return "{}";
+		}
 	 })
 
 	// Register a new stream
@@ -493,6 +500,11 @@ app.ws('/', (ws, req) => {
 		broadcastExcept(p, "add_stream", uri);
 	});
 });
+
+function stringSplitter(uri) {
+	const url = new Url(uri)
+	return url;
+}
 
 console.log("Listening or port 8080");
 app.listen(8080);
