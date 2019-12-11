@@ -158,7 +158,6 @@ connectToStream = () => {
     const converter = new VideoConverter.default(element, 20, 6);
 
     peer.bind(current_data.uri, (latency, streampckg, pckg) => {
-        console.log("CURRENTDATAS URI", current_data.uri)
         if(pckg[0] === 2){
             function decode(value){
                 converter.appendRawData(value);

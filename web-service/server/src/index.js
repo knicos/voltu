@@ -422,7 +422,6 @@ app.ws('/', (ws, req) => {
 
 	p.bind("find_stream", (uri) => {
 		const parsedURI = stringSplitter(uri)
-		console.log("PARSEDURI", parsedURI)
 		if (uri_to_peer.hasOwnProperty(parsedURI)) {
 			console.log("Stream found: ", uri);
 			return [Peer.uuid];
@@ -514,15 +513,14 @@ app.ws('/', (ws, req) => {
 	 * Update certain URIs values
 	 */
 	 p.bind("update_cfg", (uri, json) => {
-		const parsedURI = stringSplitter(uri);
-		console.log("PARSEDURI", parsedURI)
+		const parsedURI = stringSplitter(uri)
+		console.log("URI", uri)
+		console.log("JSON", json)
 		if(uri_to_peer[parsedURI]){
-			let peer = uri_to_peer[parsedURI].peer
-			if(peer){
-			 peer.send("update_cfg", uri, json)
-			}
+			let peer = uri_to_peer[parsedURI]
+			peer.send("update_cfg", uri, json)
 		}else{
-			console.log("Config not found", uri)
+			console.log("Failed to update the configuration uri", uri)
 			return "{}";
 		}
 	 })
