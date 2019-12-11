@@ -97,7 +97,8 @@ __global__ void reprojection_kernel(
 	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
 
 	// TODO: Z checks need to interpolate between neighbors if large triangles are used
-	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
+	//float weight = ftl::cuda::weighting(fabs(camPos.z - d2), params.depthThreshold);
+	float weight = (fabs(camPos.z - d2) <= params.depthThreshold) ? 1.0f : 0.0f;
 
 	/* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
 	/* Orts-Escolano S. et al. 2016. Holoportation: Virtual 3D teleportation in real-time. */

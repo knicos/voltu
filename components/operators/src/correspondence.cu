@@ -64,6 +64,15 @@ __device__ inline int halfWarpCensus(float e) {
 	return c;
 }
 
+__device__ inline float halfWarpBest(float e, float c) {
+	for (int i = WARP_SIZE/4; i > 0; i /= 2) {
+		const float o1 = __shfl_xor_sync(FULL_MASK, e, i, WARP_SIZE);
+		const float o2 = __shfl_xor_sync(FULL_MASK, c, i, WARP_SIZE);
+		e = (o2 > c) ? o1 : e;
+	}
+	return e;
+}
+
 __device__ inline float4 relativeDelta(const float4 &e) {
 	const float e0x = __shfl_sync(FULL_MASK, e.x, 0, WARP_SIZE/2);
 	const float e0y = __shfl_sync(FULL_MASK, e.y, 0, WARP_SIZE/2);
@@ -142,14 +151,14 @@ __global__ void corresponding_point_kernel(
         float depthPos2 = camPosOrigin.z - (float((COR_STEPS/2)) * depthM2);
         
         uint badMask = 0;
-        int bestStep = 0;
+        int bestStep = COR_STEPS/2;
 
 
         // Project to p2 using cam2
         // Each thread takes a possible correspondence and calculates a weighting
         //const int lane = tid % WARP_SIZE;
         for (int i=0; i<COR_STEPS; ++i) {			
-			float weight = (linePos.x >= cam2.width || linePos.y >= cam2.height) ? 0.0f : 1.0f;
+			//float weight = 1.0f; //(linePos.x >= cam2.width || linePos.y >= cam2.height) ? 0.0f : 1.0f;
 
 			// Generate a colour correspondence value
             const auto colour2 = c2.tex2D(linePos.x, linePos.y);
@@ -161,10 +170,18 @@ __global__ void corresponding_point_kernel(
             const float depth2 = d2.tex2D(int(linePos.x+0.5f), int(linePos.y+0.5f));
             
             // Record which correspondences are invalid
-            badMask |= (depth2 <= cam2.minDepth || depth2 >= cam2.maxDepth) ? 1 << i : 0;
+            badMask |= (
+					depth2 <= cam2.minDepth ||
+					depth2 >= cam2.maxDepth ||
+					linePos.x < 0.5f ||
+					linePos.y < 0.5f ||
+					linePos.x >= d2.width()-0.5f ||
+					linePos.y >= d2.height()-0.5f
+				) ? 1 << i : 0;
 			
 			//if (FUNCTION == 1) {
-				weight *= ftl::cuda::weighting(fabs(depth2 - depthPos2), cweight*params.spatial_smooth);
+			float weight = ftl::cuda::weighting(fabs(depth2 - depthPos2), cweight*params.spatial_smooth);
+			//weight = ftl::cuda::halfWarpSum(weight);
 			//} else {
 			//	const float dweight = ftl::cuda::weighting(fabs(depth2 - depthPos2), params.spatial_smooth);
             //	weight *= weightFunction<FUNCTION>(params, dweight, cweight);
@@ -191,23 +208,26 @@ __global__ void corresponding_point_kernel(
         }
 
         //const float avgcolour = totalcolour/(float)count;
-        const float confidence = bestcolour / totalcolour; //bestcolour - avgcolour;
-        const float bestadjust = float(bestStep-(COR_STEPS/2))*depthM;
+        const float confidence = ((bestcolour / totalcolour) - (1.0f / 16.0f)) * (1.0f + (1.0f/16.0f));
+        float bestadjust = float(bestStep-(COR_STEPS/2))*depthM;
 
         // Detect matches to boundaries, and discard those
         uint stepMask = 1 << bestStep;
-        if ((stepMask & (badMask << 1)) || (stepMask & (badMask >> 1))) bestweight = 0.0f;
+		if ((stepMask & badMask) || (stepMask & (badMask << 1)) || (stepMask & (badMask >> 1))) bestweight = 0.0f;
+		
+		//bestadjust = halfWarpBest(bestadjust, (bestweight > 0.0f) ? confidence : 0.0f);
 
         //Mask m(mask.tex2D(x,y));
 
         //if (bestweight > 0.0f) {
             float old = conf.tex2D(x,y);
 
-            if (bestweight * confidence > old) {
+            if (bestweight > 0.0f) {
 				d1(x,y) = (0.4f*bestadjust) + depth1;
 				//d2(bestScreen.x, bestScreen.y) = bestdepth2;
                 //screenOut(x,y) = bestScreen;
-                conf(x,y) = bestweight * confidence;
+				conf(x,y) = max(old,confidence); //bestweight * confidence;
+				//conf(x,y) = max(old,fabs(bestadjust));
             }
         //}
         
