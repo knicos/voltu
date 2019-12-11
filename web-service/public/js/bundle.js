@@ -5,7 +5,6 @@ const VideoConverter = require('./lib/dist/video-converter');
 let current_data = {};
 let peer;
 let player;
-console.log(VideoConverter);
 
 /**
  * Validates that the user is logged in
@@ -45,6 +44,7 @@ handleLogin = () => {
 getAvailableStreams = async () => {
     try{
         const streamsInJson = await fetch('http://localhost:8080/streams');
+        console.log(streamsInJson)
         const streams = await streamsInJson.json();
         console.log('AVAILABLE', streams)
         return streams;
@@ -160,6 +160,7 @@ connectToStream = () => {
     const converter = new VideoConverter.default(element, 20, 6);
 
     peer.bind(current_data.uri, (latency, streampckg, pckg) => {
+        console.log("CURRENTDATAS URI", current_data.uri)
         if(pckg[0] === 2){
             function decode(value){
                 converter.appendRawData(value);
@@ -6183,9 +6184,7 @@ Peer.prototype.on = function(evt, f) {
 	this.events[evt].push(f);
 }
 
-/**
- * Returns a UUID in a string form
- */
+
 Peer.prototype.getUuid = function() {
 	return uuid;
 }

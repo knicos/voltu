@@ -107,7 +107,6 @@ function Peer(ws) {
 			this.close();
 		}
 	});
-	console.log("MY_UUID", my_uuid)
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 }		
 
@@ -275,9 +274,7 @@ Peer.prototype.on = function(evt, f) {
 	this.events[evt].push(f);
 }
 
-/**
- * Returns a UUID in a string form
- */
+
 Peer.prototype.getUuid = function() {
 	return uuid;
 }

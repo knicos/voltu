@@ -36,12 +36,15 @@ passport.deserializeUser((userDataFromCookie, done) => {
 // 	})
 
 let peer_by_id = {};
-//let uri_to_peer = {};
+
+let uri_to_peer = {};
+
 let peer_uris = {};
 
 let uri_data = {};
 
 let peer_data = [];
+
 /**
  * A client stream request object. Each source maintains a list of clients who
  * are wanting frames from that source. Clients can only request N frames at a
@@ -202,9 +205,10 @@ app.get('/stream/rgb', (req, res) => {
 
 app.get('/stream/depth', (req, res) => {
 	let uri = req.query.uri;
-	if (uri_data.hasOwnProperty(uri)) {
+	const parsedURI = stringSplitter(uri)
+	if (uri_data.hasOwnProperty(parsedURI)) {
 		res.writeHead(200, {'Content-Type': 'image/png'});
-    	res.end(uri_data[uri].depth);
+    	res.end(uri_data[parsedURI].depth);
 	}
 	res.end();
 });
@@ -212,10 +216,11 @@ app.get('/stream/depth', (req, res) => {
 app.post('/stream/config', async (req, res) => {
 	// const rawData = JSON.parse(req.body);
 	const {peerURI, configURI, data, saveToCPP} = req.body;
+	const parsedURI = stringSplitter(peerURI)
 
 	if(saveToCPP){
 		try{
-			let peer = uri_data[peerURI].peer
+			let peer = uri_data[parsedURI].peer
 			if(peer){
 				peer.send("update_cfg", configURI, data)
 				return res.status(200).json("Successfully saved configs")
@@ -249,13 +254,14 @@ app.get('/stream/config', async(req, res) => {
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi#reconstruction_snap10/merge
 	const settings = req.query.settings;
 	const uri = req.query.uri;
+	const parsedURI = stringSplitter(uri)
 
 	//Check if DB has data
 	// let dbData = await Configs.find({Settings: settings});
 	// if(dbData[0].data){
 	// 	return res.status(200).json(dbData[0]);
 	// }else{
-		let peer = uri_data[uri].peer
+		let peer = uri_data[parsedURI].peer
 		if(peer){
 			console.log("get_cfg", settings)
 			peer.rpc("get_cfg", (response) => {
@@ -339,8 +345,9 @@ function checkStreams(peer) {
 			console.log("STREAMS", streams);
 			for (let i=0; i<streams.length; i++) {
 				//uri_to_peer[streams[i]] = peer;
-				peer_uris[peer.string_id].push(streams[i]);
-
+				let parsedURI = stringSplitter(streams[i])
+				peer_uris[peer.string_id].push(parsedURI);
+				uri_to_peer[parsedURI] = peer;
 				uri_data[streams[i]] = new RGBDStream(streams[i], peer);
 			}
 		});
@@ -414,7 +421,9 @@ app.ws('/', (ws, req) => {
 	});
 
 	p.bind("find_stream", (uri) => {
-		if (uri_data.hasOwnProperty(uri)) {
+		const parsedURI = stringSplitter(uri)
+		console.log("PARSEDURI", parsedURI)
+		if (uri_to_peer.hasOwnProperty(parsedURI)) {
 			console.log("Stream found: ", uri);
 			return [Peer.uuid];
 		} else {
@@ -425,36 +434,63 @@ app.ws('/', (ws, req) => {
 
 	// Requests camera calibration information
 	p.proxy("source_details", (cb, uri, chan) => {
-		let peer = uri_data[uri].peer;
-		if (peer) {
-			peer.rpc("source_details", cb, uri, chan);
+		const parsedURI = stringSplitter(uri);
+		if(uri_to_peer[parsedURI]){
+			let peer = uri_to_peer[parsedURI].peer
+			if (peer) {
+				peer.rpc("source_details", cb, uri, chan);
+			}
+		}else{
+			console.log("Failed to get source details for URI", uri);
+			return "{}"
 		}
 	});
 
 	// Get the current position of a camera
 	p.proxy("get_pose", (cb, uri) => {
 		//console.log("SET POSE");
-		let peer = uri_data[uri].peer;
-		if (peer) {
-			peer.rpc("get_pose", cb, uri);
+		const parsedURI = stringSplitter(uri);
+		if(uri_to_peer[parsedURI]){
+			let peer = uri_to_peer[parsedURI].peer
+			if (peer) {
+				peer.rpc("get_pose", cb, uri);
+			}
+		}else{
+			console.log("Failed to get pose for URI", uri);
+			return "{}"
 		}
 	});
 
 	// Change the position of a camera
 	p.bind("set_pose", (uri, vec) => {
-		let peer = uri_data[uri].peer;
-		if (peer) {
-			uri_data[uri].pose = vec;
-			peer.send("set_pose", uri, vec);
+		const parsedURI = stringSplitter(uri);
+		if(uri_to_peer[parsedURI]){
+			let peer = uri_to_peer[parsedURI].peer
+			if (peer) {
+				uri_data[parsedURI].pose = vec;
+				peer.send("set_pose", uri, vec);
+			}
+		}else{
+			console.log("Couldn't set pose for URI", uri)
+			return "{}";
 		}
 	});
 
 	// Request from frames from a source
 	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
-		let peer = uri_data[uri].peer;
-		if (peer) {
-			uri_data[uri].addClient(p, N, rate, dest);
+		console.log(uri)
+		const parsedURI = stringSplitter(uri);
+		if(uri_data[uri]){
+			let peer = uri_data[uri].peer
+			console.log(peer)
+			if (peer) {
+				console.log("GET_STREAM IS WORKING VERY WELL")
+				uri_data[uri].addClient(p, N, rate, dest);
 			//peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);
+			}
+		}else{
+			console.log("Couldn't get stream for ", uri)
+			return "{}";
 		}
 	});
 
@@ -462,9 +498,9 @@ app.ws('/', (ws, req) => {
 	 * Get JSON values for stream configuration
 	 */ 
 	p.bind("get_cfg", (cb, uri) => {
-		console.log(stringSplitter(uri))
-		if(uri_data[uri]){
-			let peer = uri_data[uri].peer
+		const parsedURI = stringSplitter(uri);
+		if(uri_to_peer[parsedURI]){
+			let peer = uri_to_peer[parsedURI].peer
 			if(peer){
 				peer.rpc("get_cfg", cb, uri)
 			}	
@@ -478,8 +514,10 @@ app.ws('/', (ws, req) => {
 	 * Update certain URIs values
 	 */
 	 p.bind("update_cfg", (uri, json) => {
-		if(uri_data[uri]){
-			let peer = uri_data[uri].peer
+		const parsedURI = stringSplitter(uri);
+		console.log("PARSEDURI", parsedURI)
+		if(uri_to_peer[parsedURI]){
+			let peer = uri_to_peer[parsedURI].peer
 			if(peer){
 			 peer.send("update_cfg", uri, json)
 			}
@@ -491,19 +529,25 @@ app.ws('/', (ws, req) => {
 
 	// Register a new stream
 	p.bind("add_stream", (uri) => {
+		const parsedURI = stringSplitter(uri)
 		console.log("Adding stream: ", uri);
 		//uri_to_peer[streams[i]] = peer;
-		peer_uris[p.string_id].push(uri);
-
+		peer_uris[p.string_id].push(parsedURI);
+		uri_to_peer[parsedURI] = p;
 		uri_data[uri] = new RGBDStream(uri, p);
 
 		broadcastExcept(p, "add_stream", uri);
 	});
 });
 
+/**
+ * Returns the first part of the URI
+ * e.g. ftl://utu.fi or ftl://something.fi
+ * @param {uri} uri 
+ */
 function stringSplitter(uri) {
 	const url = new Url(uri)
-	return url;
+	return url.origin;
 }
 
 console.log("Listening or port 8080");
