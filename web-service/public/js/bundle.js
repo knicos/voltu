@@ -59,7 +59,7 @@ createVideoPlayer = () => {
     containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br>
     <button onclick="renderThumbnails(); closeStream()">Go back</button>
     <button onclick="connectToStream()">Start Stream</button><br>
-    <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
+    <video id="ftlab-stream-video" width="640" height="360"></video>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
     createPeer();
@@ -151,35 +151,20 @@ createPeer = () => {
 connectToStream = () => {
     const element = document.getElementById('ftlab-stream-video');
     console.log(VideoConverter)
-    const converter = new VideoConverter.default(element, 30, 6);
+    const converter = new VideoConverter.default(element, 20, 6);
 
-    // start streaming
-    fetch('/h264/raw/stream').then((res) => {
-        if (res.body) {
-        const reader = res.body.getReader();
-        reader.read().then(function processResult(result) {
+    peer.bind(current_data.uri, (latency, streampckg, pckg) => {
+        if(pckg[0] === 2){
             function decode(value) {
-            converter.appendRawData(value);
+                converter.appendRawData(value);
             }
-    
-            if (result.done) {
-            decode([]);
-            console.log('Video Stream is done.');
-            return Promise.resolve();
-            }
-            decode(result.value);
-    
-            return reader.read().then(processResult);
-        });
-        converter.play();
-        this.canceler = (message) => {
-            reader.cancel();
-            console.log('Video Stream Request Canceled', message);
+            decode(pckg[5]);
+            converter.play();
         };
-        }
-    }).catch((err) => {
-        console.error('Video Stream Request error', err);
-    });
+    })
+
+    // Start the transaction
+    peer.send("get_stream", (current_data.uri, 30, 0, current_data.uri));
 }
 
 closeStream = () => {
