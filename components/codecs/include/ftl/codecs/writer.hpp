@@ -19,6 +19,7 @@ class Writer {
 	bool begin();
 	bool write(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &);
 	bool end();
+	bool active();
 
 	private:
 	std::ostream *stream_;

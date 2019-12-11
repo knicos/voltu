@@ -46,3 +46,7 @@ bool Writer::write(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet
 	(*stream_).write(buffer.data(), buffer.size());
 	return true;
 }
+
+bool Writer::active() {
+	return active_;
+}

@@ -52,9 +52,11 @@ class Camera {
 
 	bool thumbnail(cv::Mat &thumb);
 
-	void snapshot();
+	void snapshot(const std::string &filename);
 
-	void toggleVideoRecording();
+	void startVideoRecording(const std::string &filename);
+
+	void stopVideoRecording();
 
 	nlohmann::json getMetaData();
 
@@ -69,6 +71,8 @@ class Camera {
 #endif
 
 	private:
+	cv::Mat visualizeActiveChannel();
+
 	Screen *screen_;
 	ftl::rgbd::Source *src_;
 	GLTexture thumb_;

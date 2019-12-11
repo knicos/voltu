@@ -268,7 +268,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	//configwindow_ = new ConfigWindow(parent, ctrl_);
 	cwindow_ = new ftl::gui::ControlWindow(this, controller);
 	swindow_ = new ftl::gui::SourceWindow(this);
-	mwindow_ = new ftl::gui::MediaPanel(this);
+	mwindow_ = new ftl::gui::MediaPanel(this, swindow_);
 	mwindow_->setVisible(false);
 	mwindow_->setTheme(mediatheme);
 
