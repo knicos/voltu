@@ -1,10 +1,10 @@
 const Peer = require('../../server/src/peer')
-const VideoPlayer = require('./lib/VideoPlayer')
+const VideoConverter = require('./lib/dist/video-converter');
 
 let current_data = {};
 let peer;
-let decoder;
 let player;
+console.log(VideoConverter);
 
 /**
  * Validates that the user is logged in
@@ -55,13 +55,13 @@ getAvailableStreams = async () => {
 
 createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br><button onclick="renderThumbnails(); closeStream()">Go back</button> <button onclick="connectToStream()">Start Stream</button><br>
+    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br>
+    <button onclick="renderThumbnails(); closeStream()">Go back</button>
+    <button onclick="connectToStream()">Start Stream</button><br>
     <canvas id="ftlab-stream-video" width="640" height="360"></canvas>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
     createPeer();
-    const canvas = document.getElementById("ftlab-stream-video")
-    player = new VideoPlayer(canvas)
     console.log("PLAYER", player)
     connectToStream();
 }
@@ -148,9 +148,37 @@ createPeer = () => {
 
 
 connectToStream = () => {
-    const uri = current_data.uri
-    const decodedURI = decodeURIComponent(current_data.uri);
-    player.playback(peer, decodedURI, uri);
+    const element = document.getElementById('ftlab-stream-video');
+    console.log(VideoConverter)
+    const converter = new VideoConverter.default(element, 30, 6);
+
+    // start streaming
+    fetch('/h264/raw/stream').then((res) => {
+        if (res.body) {
+        const reader = res.body.getReader();
+        reader.read().then(function processResult(result) {
+            function decode(value) {
+            converter.appendRawData(value);
+            }
+    
+            if (result.done) {
+            decode([]);
+            console.log('Video Stream is done.');
+            return Promise.resolve();
+            }
+            decode(result.value);
+    
+            return reader.read().then(processResult);
+        });
+        converter.play();
+        this.canceler = (message) => {
+            reader.cancel();
+            console.log('Video Stream Request Canceled', message);
+        };
+        }
+    }).catch((err) => {
+        console.error('Video Stream Request error', err);
+    });
 }
 
 closeStream = () => {

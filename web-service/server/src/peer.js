@@ -9,9 +9,8 @@ const kConnected = 2;
 const kDisconnected = 3;
 
 // Generate a unique id for this webservice
-let cpp_my_uuid = uuidv4();
-console.log(cpp_my_uuid)
-let my_uuid = uuidParser.parse(cpp_my_uuid)
+let uuid = uuidv4();
+let my_uuid = uuidParser.parse(uuid)
 my_uuid = new Uint8Array(my_uuid);
 // my_uuid[0] = 44;
 // console.log(my_uuid)
@@ -280,7 +279,7 @@ Peer.prototype.on = function(evt, f) {
  * Returns a UUID in a string form
  */
 Peer.prototype.getUuid = function() {
-	return cpp_my_uuid;
+	return uuid;
 }
 
 module.exports = Peer;

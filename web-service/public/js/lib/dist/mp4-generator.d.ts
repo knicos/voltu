@@ -1,0 +1,38 @@
+import { Track } from './types';
+export default class MP4 {
+    private static types;
+    private static initalized;
+    private static FTYP;
+    private static HDLR;
+    private static DINF;
+    private static STSD;
+    private static SMHD;
+    private static VMHD;
+    private static STSZ;
+    private static STTS;
+    private static STSC;
+    private static STCO;
+    private static STYP;
+    private static init();
+    static box(type: number[], ...payload: Uint8Array[]): Uint8Array;
+    static mdat(data: Uint8Array): Uint8Array;
+    static mdhd(timescale: number): Uint8Array;
+    static mdia(track: Track): Uint8Array;
+    static mfhd(sequenceNumber: number): Uint8Array;
+    static minf(track: Track): Uint8Array;
+    static moof(sn: number, baseMediaDecodeTime: number, track: Track): Uint8Array;
+    static moov(tracks: Track[], duration: number, timescale: number): Uint8Array;
+    static mvhd(timescale: number, duration: number): Uint8Array;
+    static mvex(tracks: Track[]): Uint8Array;
+    static trep(): Uint8Array;
+    static stbl(track: Track): Uint8Array;
+    static avc1(track: Track): Uint8Array;
+    static stsd(track: Track): Uint8Array;
+    static tkhd(track: Track): Uint8Array;
+    static traf(track: Track, baseMediaDecodeTime: number): Uint8Array;
+    static trak(track: Track): Uint8Array;
+    static trex(track: Track): Uint8Array;
+    static trun(track: Track, offset: number): Uint8Array;
+    static initSegment(tracks: Track[], duration: number, timescale: number): Uint8Array;
+    static fragmentSegment(sn: number, baseMediaDecodeTime: number, track: Track, payload: Uint8Array): Uint8Array;
+}
