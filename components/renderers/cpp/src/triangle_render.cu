@@ -77,7 +77,7 @@ __device__ static
  float3 calculateBarycentricCoordinate(const short2 (&tri)[3], const short2 &point) {
 	 float beta = calculateBarycentricCoordinateValue(tri[0], point, tri[2], tri);
 	 float gamma = calculateBarycentricCoordinateValue(tri[0], tri[1], point, tri);
-	 float alpha = 1.0 - beta - gamma;
+	 float alpha = 1.0f - beta - gamma;
 	 return make_float3(alpha, beta, gamma);
  }
  
@@ -86,9 +86,9 @@ __device__ static
   */
  __host__ __device__ static
  bool isBarycentricCoordInBounds(const float3 &barycentricCoord) {
-	 return barycentricCoord.x >= 0.0 && barycentricCoord.x <= 1.0 &&
-			barycentricCoord.y >= 0.0 && barycentricCoord.y <= 1.0 &&
-			barycentricCoord.z >= 0.0 && barycentricCoord.z <= 1.0;
+	 return barycentricCoord.x >= -0.0001f && //barycentricCoord.x <= 1.0f &&
+			barycentricCoord.y >= -0.0001f && //barycentricCoord.y <= 1.0f &&
+			barycentricCoord.z >= -0.0001f; // &&barycentricCoord.z <= 1.0f;
  }
 
  /**
@@ -136,6 +136,11 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
 	const int minY = min(v[0].y, min(v[1].y, v[2].y));
 	const int maxX = max(v[0].x, max(v[1].x, v[2].x));
 	const int maxY = max(v[0].y, max(v[1].y, v[2].y));
+
+	// Ensure the points themselves are drawn
+	//atomicMin(&depth_out(v[0].x,v[0].y), int(d[0]*100000.0f));
+	//atomicMin(&depth_out(v[1].x,v[1].y), int(d[1]*100000.0f));
+	//atomicMin(&depth_out(v[2].x,v[2].y), int(d[2]*100000.0f));
 
 	// Remove really large triangles
 	if ((maxX - minX) * (maxY - minY) > params.triangle_limit) return;
