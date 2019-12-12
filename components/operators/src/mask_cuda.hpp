@@ -19,7 +19,7 @@ class Mask {
 	#endif
 	__device__ inline operator int() const { return v_; }
 
-    __device__ inline bool is(int m) const { return v_ & m; }
+	__device__ inline bool is(int m) const { return v_ & m; }
 
 	__device__ inline bool isFilled() const { return v_ & kMask_Filled; }
 	__device__ inline bool isDiscontinuity() const { return v_ & kMask_Discontinuity; }
@@ -31,7 +31,7 @@ class Mask {
 	__device__ inline void hasCorrespondence(bool v) { v_ = (v) ? v_ | kMask_Correspondence : v_ & (~kMask_Correspondence); }
 	__device__ inline void isBad(bool v) { v_ = (v) ? v_ | kMask_Bad : v_ & (~kMask_Bad); }
 
-    static constexpr int kMask_Filled = 0x0001;
+	static constexpr int kMask_Filled = 0x0001;
 	static constexpr int kMask_Discontinuity = 0x0002;
 	static constexpr int kMask_Correspondence = 0x0004;
 	static constexpr int kMask_Bad = 0x0008;
@@ -44,7 +44,9 @@ void discontinuity(
 		ftl::cuda::TextureObject<int> &mask,
 		ftl::cuda::TextureObject<uchar4> &support,
 		ftl::cuda::TextureObject<float> &depth,
-		const ftl::rgbd::Camera &params,
+		const cv::Size size,
+		const double minDepth,
+		const double maxDepth,
 		int radius, float threshold,
 		cudaStream_t stream);
 

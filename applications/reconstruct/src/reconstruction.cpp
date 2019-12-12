@@ -60,10 +60,36 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 
 		ftl::pool.push([this](int id) {
 			UNIQUE_LOCK(fs_align_.mtx, lk);
+			
+			/*rgb_.resize(fs_align_.frames.size());
+			for (size_t i = 0; i < rgb_.size(); i++) {
+				auto &depth = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Depth);
+				auto &color = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour);
+
+				if (depth.size() != color.size()) {
+					std::swap(rgb_[i], color);
+					cv::cuda::resize(rgb_[i], color, depth.size(), 0.0, 0.0, cv::INTER_LINEAR);
+				}
+			}*/
+
 			pipeline_->apply(fs_align_, fs_align_, 0);
 			
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.
+			/*
+			for (size_t i = 0; i < rgb_.size(); i++) {
+				auto &depth = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Depth);
+				auto &color = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour);
+				auto &tmp = rgb_[i];
+
+				// TODO doesn't always work correctly if resolution changes
+				if (!tmp.empty() && (depth.size() != tmp.size())) {
+					std::swap(tmp, color);
+					fs_align_.frames[i].resetTexture(ftl::codecs::Channel::Colour);
+					fs_align_.frames[i].createTexture<uchar4>(ftl::codecs::Channel::Colour, true);
+				}
+			}*/
+
 			fs_align_.swapTo(fs_render_);
 
 			LOG(INFO) << "Align complete... " << fs_align_.timestamp;

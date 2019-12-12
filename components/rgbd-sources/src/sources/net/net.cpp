@@ -52,8 +52,8 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 			f.chunk_total[1] = 0;
 			f.channel_count = 0;
 			f.tx_size = 0;
-			f.channel[0].create(s, c1type);
-			f.channel[1].create(s, c2type);
+			//f.channel[0].create(s, c1type);
+			//f.channel[1].create(s, c2type);
 			return f;
 		}
 		oldest = (f.timestamp < oldest) ? f.timestamp : oldest;
@@ -72,8 +72,8 @@ NetFrame &NetFrameQueue::getFrame(int64_t ts, const cv::Size &s, int c1type, int
 			f.chunk_total[1] = 0;
 			f.channel_count = 0;
 			f.tx_size = 0;
-			f.channel[0].create(s, c1type);
-			f.channel[1].create(s, c2type);
+			//f.channel[0].create(s, c1type);
+			//f.channel[1].create(s, c2type);
 			return f;
 		}
 	}
@@ -276,11 +276,14 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 		LOG(WARNING) << "Missing calibration, skipping frame";
 		return;
 	}
-
-	NetFrame &frame = queue_.getFrame(spkt.timestamp, cv::Size(params_.width, params_.height), CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
+	
+	const cv::Size size = cv::Size(ftl::codecs::getWidth(pkt.definition), ftl::codecs::getHeight(pkt.definition));
+	NetFrame &frame = queue_.getFrame(spkt.timestamp, size, CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
 
 	// Update frame statistics
 	frame.tx_size += pkt.data.size();
+
+	frame.channel[channum].create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC3));
 
 	// Only decode if this channel is wanted.
 	if (rchan == Channel::Colour || rchan == chan) {
@@ -290,7 +293,7 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 			LOG(ERROR) << "No frame decoder available";
 			return;
 		}
-
+	
 		decoder->decode(pkt, frame.channel[channum]);
 	} else if (chan != Channel::None && rchan != Channel::Colour) {
 		// Didn't receive correct second channel so just clear the images

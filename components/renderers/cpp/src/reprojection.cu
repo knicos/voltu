@@ -94,7 +94,10 @@ __global__ void reprojection_kernel(
 	const float dotproduct = (max(dot(ray,n),-0.1f)+0.1) / 1.1f;
     
 	const float d2 = depth_src.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f));
-	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+
+	const float inSX = float(in.width()) / float(depth_src.width());
+	const float inSY = float(in.height()) / float(depth_src.height());
+	const auto input = in.tex2D(screenPos.x*inSX, screenPos.y*inSY); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
 
 	// TODO: Z checks need to interpolate between neighbors if large triangles are used
 	//float weight = ftl::cuda::weighting(fabs(camPos.z - d2), params.depthThreshold);
@@ -213,7 +216,11 @@ __global__ void reprojection_kernel(
 	if (screenPos.x >= depth_src.width() || screenPos.y >= depth_src.height()) return;
     
 	const float d2 = depth_src.tex2D((int)(screenPos.x+0.5f), (int)(screenPos.y+0.5f));
-	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+
+	const float inSX = float(in.width()) / float(depth_src.width());
+	const float inSY = float(in.height()) / float(depth_src.height());
+	const auto input = in.tex2D(screenPos.x*inSX, screenPos.y*inSY); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+
 	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
 	const B weighted = make<B>(input) * weight;
 

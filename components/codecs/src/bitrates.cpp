@@ -8,21 +8,18 @@ using ftl::codecs::preset_t;
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 
+
 static const CodecPreset special_presets[] = {
-	definition_t::HTC_VIVE, definition_t::HTC_VIVE, bitrate_t::High, bitrate_t::High
+	definition_t::HTC_VIVE, bitrate_t::High
 };
 
 static const CodecPreset presets[] = {
-	definition_t::HD1080, definition_t::HD1080, bitrate_t::High, bitrate_t::High,
-	definition_t::HD1080, definition_t::HD720, bitrate_t::Standard, bitrate_t::Standard,
-	definition_t::HD720, definition_t::HD720, bitrate_t::High, bitrate_t::High,
-	definition_t::HD720, definition_t::SD576, bitrate_t::Standard, bitrate_t::Standard,
-	definition_t::SD576, definition_t::SD576, bitrate_t::High, bitrate_t::High,
-	definition_t::SD576, definition_t::SD480, bitrate_t::Standard, bitrate_t::Standard,
-	definition_t::SD480, definition_t::SD480, bitrate_t::High, bitrate_t::High,
-	definition_t::SD480, definition_t::LD360, bitrate_t::Standard, bitrate_t::Standard,
-	definition_t::LD360, definition_t::LD360, bitrate_t::Standard, bitrate_t::Standard,
-	definition_t::LD360, definition_t::LD360, bitrate_t::Low, bitrate_t::Low
+	definition_t::HD1080, bitrate_t::High,
+	definition_t::HD720, bitrate_t::High,
+	definition_t::SD576, bitrate_t::High,
+	definition_t::SD480, bitrate_t::High,
+	definition_t::LD360, bitrate_t::Standard,
+	definition_t::LD360, bitrate_t::Low
 };
 
 static const float kAspectRatio = 1.777778f;
@@ -53,11 +50,27 @@ int ftl::codecs::getHeight(definition_t d) {
 	return resolutions[static_cast<int>(d)].height;
 }
 
+definition_t ftl::codecs::findDefinition(int width, int height) {
+	int best = 0;
+	bool smaller = true;
+
+	for(const Resolution res : resolutions) {
+		if ((res.width == width) && (res.height == height)) {
+			return static_cast<definition_t>(best);
+		}
+		best++;
+	}
+
+	// TODO error!
+	return definition_t::Any;
+}
+
+/*
 const CodecPreset &ftl::codecs::getPreset(preset_t p) {
 	if (p < 0 && p >= -1) return special_presets[std::abs(p+1)];
-    if (p > kPresetWorst) return presets[kPresetWorst];
-    if (p < kPresetBest) return presets[kPresetBest];
-    return presets[p];
+	if (p > kPresetWorst) return presets[kPresetWorst];
+	if (p < kPresetBest) return presets[kPresetBest];
+	return presets[p];
 }
 
 preset_t ftl::codecs::findPreset(size_t width, size_t height) {
@@ -80,10 +93,11 @@ preset_t ftl::codecs::findPreset(size_t width, size_t height) {
 	for (preset_t i=kPresetMinimum; i<=kPresetWorst; ++i) {
 		const auto &preset = getPreset(i);
 
-		if ((int)preset.colour_res == best_def && (int)preset.depth_res == best_def) {
+		if ((int)preset.res == best_def) {
 			return i;
 		}
 	}
 
 	return kPresetWorst;
 }
+*/

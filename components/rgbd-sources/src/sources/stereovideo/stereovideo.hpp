@@ -17,9 +17,7 @@ class Disparity;
 
 /**
  * RGBD source from either a stereo video file with left + right images, or
- * direct from two camera devices. A variety of algorithms are included for
- * calculating disparity, before converting to depth.  Calibration of the images
- * is also performed.
+ * direct from two camera devices. 
  */
 class StereoVideoSource : public detail::Source {
 	public:
@@ -32,14 +30,20 @@ class StereoVideoSource : public detail::Source {
 	bool retrieve();
 	bool compute(int n, int b);
 	bool isReady();
-	Camera parameters(ftl::codecs::Channel chan);
+	Camera parameters(ftl::codecs::Channel chan) override;
 
 	private:
 	LocalSource *lsrc_;
 	Calibrate *calib_;
 
+	cv::Size color_size_;
+	cv::Size depth_size_;
+
 	ftl::operators::Graph *pipeline_input_;
 	ftl::operators::Graph *pipeline_depth_;
+
+	cv::cuda::GpuMat fullres_left_;
+	cv::cuda::GpuMat fullres_right_;
 
 	bool ready_;
 	

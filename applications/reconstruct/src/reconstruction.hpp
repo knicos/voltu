@@ -27,11 +27,14 @@ class Reconstruction : public ftl::Configurable {
 
 	private:
 	bool busy_;
+	
 	ftl::rgbd::FrameSet fs_render_;
 	ftl::rgbd::FrameSet fs_align_;
 	ftl::rgbd::Group *group_;
 	ftl::operators::Graph *pipeline_;
 	ftl::render::Triangular *renderer_;
+
+	std::vector<cv::cuda::GpuMat> rgb_;
 };
 
 }

@@ -211,6 +211,26 @@ void Calibrate::_updateIntrinsics() {
 	map2_gpu_.second.upload(map2_.second);
 }
 
+cv::Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
+	double scale_x = ((double) res.width) / ((double) img_size_.width);
+	double scale_y = ((double) res.height) / ((double) img_size_.height);
+	Mat scale(cv::Size(3, 3), CV_64F, 0.0);
+	scale.at<double>(0, 0) = scale_x;
+	scale.at<double>(1, 1) = scale_y;
+	scale.at<double>(2, 2) = 1.0;
+	return scale * Kl_;
+}
+
+cv::Mat Calibrate::getCameraMatrixRight(const cv::Size res) {
+	double scale_x = ((double) res.width) / ((double) img_size_.width);
+	double scale_y = ((double) res.height) / ((double) img_size_.height);
+	Mat scale(cv::Size(3, 3), CV_64F, 0.0);
+	scale.at<double>(0, 0) = scale_x;
+	scale.at<double>(1, 1) = scale_y;
+	scale.at<double>(2, 2) = 1.0;
+	return scale * Kr_;
+}
+
 void Calibrate::rectifyStereo(GpuMat &l, GpuMat &r, Stream &stream) {
 	// cv::cuda::remap() can not use same Mat for input and output
 

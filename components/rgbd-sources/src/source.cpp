@@ -303,27 +303,6 @@ void Source::notify(int64_t ts, cv::cuda::GpuMat &c1, cv::cuda::GpuMat &c2) {
 	int max_width = max(impl_->params_.width, max(c1.cols, c2.cols));
 	int max_height = max(impl_->params_.height, max(c1.rows, c2.rows));
 
-	// Do we need to scale camera parameters
-	if (impl_->params_.width < max_width || impl_->params_.height < max_height) {
-		impl_->params_ = impl_->params_.scaled(max_width, max_height);
-	}
-
-	// Should channel 1 be scaled?
-	if (c1.cols < max_width || c1.rows < max_height) {
-		LOG(WARNING) << "Resizing on GPU";
-		cv::cuda::resize(c1, c1, cv::Size(max_width, max_height));
-	}
-
-	// Should channel 2 be scaled?
-	if (!c2.empty() && (c2.cols < max_width || c2.rows < max_height)) {
-		LOG(WARNING) << "Resizing on GPU";
-		if (c2.type() == CV_32F) {
-			cv::cuda::resize(c2, c2, cv::Size(max_width, max_height), 0.0, 0.0, cv::INTER_NEAREST);
-		} else {
-			cv::cuda::resize(c2, c2, cv::Size(max_width, max_height));
-		}
-	}
-
 	if (callback_) callback_(ts, c1, c2);
 }
 

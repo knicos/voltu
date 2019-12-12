@@ -17,7 +17,7 @@ OpenCVEncoder::OpenCVEncoder(ftl::codecs::definition_t maxdef,
 }
 
 OpenCVEncoder::~OpenCVEncoder() {
-    
+	
 }
 
 bool OpenCVEncoder::supports(ftl::codecs::codec_t codec) {
@@ -30,9 +30,12 @@ bool OpenCVEncoder::supports(ftl::codecs::codec_t codec) {
 
 bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, definition_t definition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
 	bool is_colour = in.type() != CV_32F;
-	current_definition_ = definition;
+
+	// Ensure definition does not exceed max
+	current_definition_ = ((int)definition < (int)max_definition) ? max_definition : definition;
 
 	in.download(tmp_);
+	//CHECK(cv::Size(ftl::codecs::getWidth(definition), ftl::codecs::getHeight(definition)) == in.size()); 
 
 	// Scale down image to match requested definition...
 	if (ftl::codecs::getHeight(current_definition_) < in.rows) {
@@ -42,11 +45,12 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, definition_t definition, 
 	}
 
 	// Represent float at 16bit int
-    if (!is_colour) {
+	if (!is_colour) {
 		tmp_.convertTo(tmp_, CV_16UC1, 1000);
 	}
 
-	chunk_dim_ = (definition == definition_t::LD360) ? 1 : 4;
+	// FIXME: Chunking is broken so forced to single chunk
+	chunk_dim_ = 1; //(definition == definition_t::LD360) ? 1 : 4;
 	chunk_count_ = chunk_dim_ * chunk_dim_;
 	jobs_ = chunk_count_;
 
@@ -94,6 +98,7 @@ bool OpenCVEncoder::_encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt, bi
 	int cx = (pkt.block_number % chunk_dim_) * chunk_width;
 	int cy = (pkt.block_number / chunk_dim_) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
+
 	cv::Mat chunkHead = in(roi);
 
 	if (pkt.codec == codec_t::PNG) {

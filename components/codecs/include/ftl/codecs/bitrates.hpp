@@ -49,6 +49,8 @@ enum struct definition_t : uint8_t {
 	Invalid
 };
 
+definition_t findDefinition(int width, int height);
+
 /**
  * Get width in pixels of definition.
  */
@@ -97,10 +99,8 @@ static const preset_t kPresetMinimum = -1;
  * Represents the details of each preset codec configuration.
  */
 struct CodecPreset {
-	definition_t colour_res;
-	definition_t depth_res;
-	bitrate_t colour_qual;
-	bitrate_t depth_qual;
+	definition_t res;
+	bitrate_t qual;
 };
 
 /**
