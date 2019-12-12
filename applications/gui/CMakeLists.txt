@@ -13,6 +13,7 @@ set(GUISRC
 	src/camera.cpp
 	src/media_panel.cpp
 	src/thumbview.cpp
+	src/record_window.cpp
 )
 
 if (HAVE_OPENVR)

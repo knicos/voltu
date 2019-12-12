@@ -139,7 +139,6 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	sdepth_ = false;
 	ftime_ = (float)glfwGetTime();
 	pause_ = false;
-	recording_ = false;
 	fileout_ = new std::ofstream();
 	writer_ = new ftl::codecs::Writer(*fileout_);
 	recorder_ = std::function([this](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
@@ -340,10 +339,10 @@ static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
 
 	depth.convertTo(out, CV_8U, 255.0f / max_depth);
 	//out = 255 - out;
-	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
+	//cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
 	
 	applyColorMap(out, out, cv::COLORMAP_JET);
-	out.setTo(cv::Scalar(255, 255, 255), mask);
+	//out.setTo(cv::Scalar(255, 255, 255), mask);
 }
 
 static void drawEdges(	const cv::Mat &in, cv::Mat &out,
@@ -356,6 +355,27 @@ static void drawEdges(	const cv::Mat &in, cv::Mat &out,
 
 	cv::Mat edges_color(in.size(), CV_8UC3);
 	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC3);
+}
+
+cv::Mat ftl::gui::Camera::visualizeActiveChannel() {
+	cv::Mat result;
+	switch(channel_) {
+		case Channel::Smoothing:
+		case Channel::Confidence:
+			visualizeEnergy(im2_, result, 1.0);
+			break;
+		case Channel::Density:
+		case Channel::Energy:
+			visualizeEnergy(im2_, result, 10.0);
+			break;
+		case Channel::Depth:
+			visualizeDepthMap(im2_, result, 7.0);
+			if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(im1_, result);
+			break;
+		case Channel::Right:
+			result = im2_;
+	}
+	return result;
 }
 
 bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
@@ -447,7 +467,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			case Channel::Smoothing:
 			case Channel::Confidence:
 				if (im2_.rows == 0) { break; }
-				visualizeEnergy(im2_, tmp, 1.0);
+				visualizeEnergy(im2_, tmp, screen_->root()->value("float_image_max", 1.0f));
 				texture2_.update(tmp);
 				break;
 			
@@ -474,12 +494,12 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				texture2_.update(tmp);*/
 				break;
 
-		//case Channel::Flow:
-		case Channel::ColourNormals:
-		case Channel::Right:
-				if (im2_.rows == 0 || im2_.type() != CV_8UC3) { break; }
-				texture2_.update(im2_);
-				break;
+			//case Channel::Flow:
+			case Channel::ColourNormals:
+			case Channel::Right:
+					if (im2_.rows == 0 || im2_.type() != CV_8UC3) { break; }
+					texture2_.update(im2_);
+					break;
 
 			default:
 				break;
@@ -504,35 +524,35 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 	return texture1_;
 }
 
-void ftl::gui::Camera::snapshot() {
+void ftl::gui::Camera::snapshot(const std::string &filename) {
 	UNIQUE_LOCK(mutex_, lk);
-	char timestamp[18];
-	std::time_t t = std::time(NULL);
-	std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-	cv::Mat image;
-	cv::flip(im1_, image, 0);
-	cv::imwrite(std::string(timestamp) + ".png", image);
+	cv::Mat blended;
+	cv::Mat visualized = visualizeActiveChannel();
+	if (!visualized.empty()) {
+		double alpha = screen_->root()->value("blending", 0.5);
+		cv::addWeighted(im1_, alpha, visualized, 1.0-alpha, 0, blended);
+	} else {
+		blended = im1_;
+	}
+	cv::Mat flipped;
+	cv::flip(blended, flipped, 0);
+	cv::imwrite(filename, flipped);
 }
 
-void ftl::gui::Camera::toggleVideoRecording() {
-	if (recording_) {
-		src_->removeRawCallback(recorder_);
-		writer_->end();
-		fileout_->close();
-		recording_ = false;
-	} else {
-		char timestamp[18];
-		std::time_t t=std::time(NULL);
-		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-		fileout_->open(std::string(timestamp) + ".ftl");
+void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
+	fileout_->open(filename);
 
-		writer_->begin();
-		src_->addRawCallback(recorder_);
+	writer_->begin();
+	src_->addRawCallback(recorder_);
 
-		src_->inject(Channel::Calibration, src_->parameters(), Channel::Left, src_->getCapabilities());
-		src_->inject(src_->getPose());
-		recording_ = true;
-	}
+	src_->inject(Channel::Calibration, src_->parameters(), Channel::Left, src_->getCapabilities());
+	src_->inject(src_->getPose());
+}
+
+void ftl::gui::Camera::stopVideoRecording() {
+	src_->removeRawCallback(recorder_);
+	writer_->end();
+	fileout_->close();
 }
 
 nlohmann::json ftl::gui::Camera::getMetaData() {

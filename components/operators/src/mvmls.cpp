@@ -24,7 +24,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 	int iters = config()->value("mls_iterations", 3);
 	int radius = config()->value("mls_radius",5);
 	//bool aggre = config()->value("aggregation", true);
-    int win = config()->value("cost_function",1);
+    //int win = config()->value("cost_function",1);
+    int win = config()->value("window_size",16);
     bool do_corr = config()->value("merge_corresponding", true);
 	bool do_aggr = config()->value("merge_mls", false);
 	bool cull_zero = config()->value("cull_no_confidence", false);
@@ -71,6 +72,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
         f.createTexture<float>(Channel::Confidence);
         f.create<GpuMat>(Channel::Screen, Format<short2>(size));
         f.createTexture<short2>(Channel::Screen);
+
+        f.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
     }
 
     for (int iter=0; iter<iters; ++iter) {
@@ -83,7 +86,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             for (size_t i=0; i<in.frames.size(); ++i) {
                 auto &f1 = in.frames[i];
                 //f1.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0.0f), cvstream);
-                f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
+                //f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
                 Eigen::Vector4d d1(0.0, 0.0, 1.0, 0.0);
                 d1 = in.sources[i]->getPose() * d1;
@@ -103,12 +106,9 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                     // No, so skip this combination
                     if (d1.dot(d2) <= 0.0) continue;
 
-                    auto pose1 = MatrixConversion::toCUDA(s1->getPose().cast<float>());
-                    auto pose1_inv = MatrixConversion::toCUDA(s1->getPose().cast<float>().inverse());
-                    auto pose2 = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse());
-					auto pose2_inv = MatrixConversion::toCUDA(s2->getPose().cast<float>());
+                    auto pose2 = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse() * s1->getPose().cast<float>());
 
-                    auto transform = pose2 * pose1;
+                    //auto transform = pose2 * pose1;
 
                     //Calculate screen positions of estimated corresponding points
                     ftl::cuda::correspondence(
@@ -120,8 +120,6 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                         f1.getTexture<short2>(Channel::Screen),
                         f1.getTexture<float>(Channel::Confidence),
                         f1.getTexture<int>(Channel::Mask),
-                        pose1,
-                        pose1_inv,
                         pose2,
                         s1->parameters(),
                         s2->parameters(),
@@ -144,6 +142,9 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                     );*/
 				}
 			}
+
+            // Reduce window size for next iteration
+            win = max(win>>1, 4);
 		}
 
         // Find best source for every pixel
@@ -250,7 +251,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             for (size_t i=0; i<in.frames.size(); ++i) {
                 auto &f1 = in.frames[i];
                 //f1.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0.0f), cvstream);
-                f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
+                //f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
                 Eigen::Vector4d d1(0.0, 0.0, 1.0, 0.0);
                 d1 = in.sources[i]->getPose() * d1;

@@ -45,6 +45,9 @@
 #include <ftl/cuda/normals.hpp>
 #include <ftl/registration.hpp>
 
+#include <ftl/codecs/h264.hpp>
+#include <ftl/codecs/hevc.hpp>
+
 #include <cuda_profiler_api.h>
 
 #ifdef WIN32
@@ -134,10 +137,10 @@ static void run(ftl::Configurable *root) {
 
 	// Controls
 	auto *controls = ftl::create<ftl::Configurable>(root, "controls");
-	
+
 	net->start();
 	net->waitConnections();
-	
+
 	std::vector<int> sourcecounts;
 
 	// Add sources from the configuration file as a single group.
@@ -233,7 +236,9 @@ static void run(ftl::Configurable *root) {
 	//ftl::voxhash::SceneRep *scene = ftl::create<ftl::voxhash::SceneRep>(root, "voxelhash");
 	ftl::rgbd::Streamer *stream = ftl::create<ftl::rgbd::Streamer>(root, "stream", net);
 	ftl::rgbd::VirtualSource *vs = ftl::create<ftl::rgbd::VirtualSource>(root, "virtual");
-	//root->set("tags", nlohmann::json::array({ root->getID()+"/virtual" }));
+	auto tags = root->value<std::vector<std::string>>("tags", nlohmann::json::array({}));
+	tags.push_back(root->getID()+"/virtual");
+	root->set("tags", tags);
 
 	int o = root->value("origin_pose", 0) % sources.size();
 	vs->setPose(sources[o]->getPose());
@@ -267,26 +272,70 @@ static void run(ftl::Configurable *root) {
 	std::ofstream fileout;
 	ftl::codecs::Writer writer(fileout);
 
-	root->set("record", false);
+	std::ofstream snapshotout;
+	ftl::codecs::Writer snapshotwriter(snapshotout);
 
+	controls->set("record", false);
+
+	int64_t timestamp = -1;
+	bool writingSnapshot = false;
+	std::unordered_set<int64_t> precedingFrames, followingFrames;
 	// Add a recording callback to all reconstruction scenes
 	for (size_t i=0; i<sources.size(); ++i) {
-		sources[i]->addRawCallback([&writer,&groups,i](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		sources[i]->addRawCallback([&writer,&groups,&snapshotout,&snapshotwriter,&timestamp,&writingSnapshot,&precedingFrames,&followingFrames,i](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			ftl::codecs::StreamPacket s = spkt;
 
 			// Patch stream ID to match order in group
 			s.streamID = i;
 			writer.write(s, pkt);
+
+			if (snapshotwriter.active()) {
+				// The frame that is captured is the next IFrame, unless that
+				// IFrame is one of the first two frames seen. In this case a
+				// part of the frame might already have been missed, so the
+				// IFrame after that one is captured instead.
+
+				// Write all pose and calibration packets.
+				if ((int)spkt.channel >= 64) {
+					snapshotwriter.write(s, pkt);
+				} else if (precedingFrames.size() >= 2) {
+					bool isIFrame = true;
+					switch (pkt.codec) {
+						case ftl::codecs::codec_t::H264:
+							isIFrame = ftl::codecs::h264::isIFrame(pkt.data);
+							break;
+						case ftl::codecs::codec_t::HEVC:
+							isIFrame = ftl::codecs::hevc::isIFrame(pkt.data);
+					}
+
+					if (isIFrame && precedingFrames.count(s.timestamp) == 0) {
+						timestamp = s.timestamp;
+						writingSnapshot = true;
+						snapshotwriter.write(s, pkt);
+					} else if (writingSnapshot && s.timestamp > timestamp) {
+						followingFrames.insert(s.timestamp);
+					}
+
+					// Keep looking for packets of the captured frame until
+					// packets from two following frames have been seen.
+					if (followingFrames.size() >= 2) {
+						snapshotwriter.end();
+						snapshotout.close();
+					}
+				} else {
+					precedingFrames.insert(s.timestamp);
+				}
+			}
 		});
 	}
 
 	// Allow stream recording
-	root->on("record", [&groups,&fileout,&writer,&sources](const ftl::config::Event &e) {
+	controls->on("record", [&fileout,&writer,&sources](const ftl::config::Event &e) {
 		if (e.entity->value("record", false)) {
 			char timestamp[18];
 			std::time_t t=std::time(NULL);
 			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-			fileout.open(std::string(timestamp) + ".ftl");
+			fileout.open(e.entity->value<std::string>("record-name", std::string(timestamp) + ".ftl"));
 
 			writer.begin();
 
@@ -295,11 +344,30 @@ static void run(ftl::Configurable *root) {
 			for (size_t i=0; i<sources.size(); ++i) {
 				//writeSourceProperties(writer, i, sources[i]);
 				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
-				sources[i]->inject(sources[i]->getPose()); 
+				sources[i]->inject(sources[i]->getPose());
 			}
 		} else {
 			writer.end();
 			fileout.close();
+		}
+	});
+
+	controls->on("3D-snapshot", [&snapshotout,&snapshotwriter,&writingSnapshot,&precedingFrames,&followingFrames,&sources](const ftl::config::Event &e) {
+		if (!snapshotwriter.active()) {
+			char timestamp[18];
+			std::time_t t=std::time(NULL);
+			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+			snapshotout.open(e.entity->value<std::string>("3D-snapshot", std::string(timestamp) + ".ftl"));
+			writingSnapshot = false;
+			precedingFrames.clear();
+			followingFrames.clear();
+			snapshotwriter.begin();
+
+			for (size_t i=0; i<sources.size(); ++i) {
+				//writeSourceProperties(writer, i, sources[i]);
+				sources[i]->inject(Channel::Calibration, sources[i]->parameters(), Channel::Left, sources[i]->getCapabilities());
+				sources[i]->inject(sources[i]->getPose());
+			}
 		}
 	});
 

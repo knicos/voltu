@@ -89,13 +89,16 @@ __global__ void reprojection_kernel(
 	const float3 n = transformR * make_float3(normals.tex2D((int)x, (int)y));
 	float3 ray = camera.screenToCam(screenPos.x, screenPos.y, 1.0f);
 	ray = ray / length(ray);
-	const float dotproduct = max(dot(ray,n),0.0f);
+
+	// Allow slightly beyond 90 degrees due to normal estimation errors
+	const float dotproduct = (max(dot(ray,n),-0.1f)+0.1) / 1.1f;
     
 	const float d2 = depth_src.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f));
 	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
 
 	// TODO: Z checks need to interpolate between neighbors if large triangles are used
-	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
+	//float weight = ftl::cuda::weighting(fabs(camPos.z - d2), params.depthThreshold);
+	float weight = (fabs(camPos.z - d2) <= params.depthThreshold) ? 1.0f : 0.0f;
 
 	/* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
 	/* Orts-Escolano S. et al. 2016. Holoportation: Virtual 3D teleportation in real-time. */

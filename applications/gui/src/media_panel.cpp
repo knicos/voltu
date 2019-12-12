@@ -1,5 +1,6 @@
 #include "media_panel.hpp"
 #include "screen.hpp"
+#include "record_window.hpp"
 
 #include <nanogui/layout.h>
 #include <nanogui/button.h>
@@ -13,7 +14,7 @@
 using ftl::gui::MediaPanel;
 using ftl::codecs::Channel;
 
-MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), screen_(screen) {
+MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceWindow) : nanogui::Window(screen, ""), screen_(screen) {
 	using namespace nanogui;
 
 	paused_ = false;
@@ -36,57 +37,70 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen) : nanogui::Window(screen, ""), 
 	virtualCameraRecording_ = std::optional<ftl::gui::Camera*>();
 	sceneRecording_ = std::optional<ftl::Configurable*>();
 
-	auto recordbutton = new PopupButton(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
-	recordbutton->setTooltip("Record");
-	recordbutton->setSide(Popup::Side::Right);
-	recordbutton->setChevronIcon(0);
-	auto recordpopup = recordbutton->popup();
+	recordbutton_ = new PopupButton(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
+	recordbutton_->setTooltip("Record");
+	recordbutton_->setSide(Popup::Side::Right);
+	recordbutton_->setChevronIcon(0);
+	auto recordpopup = recordbutton_->popup();
 	recordpopup->setLayout(new GroupLayout());
 	recordpopup->setTheme(screen->toolbuttheme);
 	recordpopup->setAnchorHeight(150);
 	auto itembutton = new Button(recordpopup, "2D snapshot (.png)");
-	itembutton->setCallback([this,recordbutton]() {
-		screen_->activeCamera()->snapshot();
-		recordbutton->setPushed(false);
+	itembutton->setCallback([this]() {
+		char timestamp[18];
+		std::time_t t=std::time(NULL);
+		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+		screen_->activeCamera()->snapshot(std::string(timestamp) + ".png");
+		recordbutton_->setPushed(false);
 	});
 	itembutton = new Button(recordpopup, "Virtual camera recording (.ftl)");
-	itembutton->setCallback([this,recordbutton]() {
-		auto activeCamera = screen_->activeCamera();
-		activeCamera->toggleVideoRecording();
-		recordbutton->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
-		recordbutton->setPushed(false);
-		virtualCameraRecording_ = std::optional<ftl::gui::Camera*>(activeCamera);
+	itembutton->setCallback([this]() {
+		char timestamp[18];
+		std::time_t t=std::time(NULL);
+		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+		auto filename = std::string(timestamp) + ".ftl";
+		startRecording2D(screen_->activeCamera(), filename);
+		recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+		recordbutton_->setPushed(false);
+	});
+	itembutton = new Button(recordpopup, "3D scene snapshot (.ftl)");
+	itembutton->setCallback([this]() {
+		char timestamp[18];
+		std::time_t t=std::time(NULL);
+		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+		snapshot3D(screen_->activeCamera(), std::string(timestamp) + ".ftl");
+		recordbutton_->setPushed(false);
 	});
 	itembutton = new Button(recordpopup, "3D scene recording (.ftl)");
-	itembutton->setCallback([this,recordbutton]() {
-		auto tag = screen_->activeCamera()->source()->get<std::string>("uri");
-		if (tag) {
-			auto tagvalue = tag.value();
-			auto configurables = ftl::config::findByTag(tagvalue);
-			if (configurables.size() > 0) {
-				ftl::Configurable *configurable = configurables[0];
-				configurable->set("record", true);
-				recordbutton->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
-				sceneRecording_ = std::optional<ftl::Configurable*>(configurable);
-			}
-		}
-		recordbutton->setPushed(false);
+	itembutton->setCallback([this]() {
+		char timestamp[18];
+		std::time_t t=std::time(NULL);
+		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+		startRecording3D(screen_->activeCamera(), std::string(timestamp) + ".ftl");
+		recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+		recordbutton_->setPushed(false);
 	});
 	itembutton = new Button(recordpopup, "Detailed recording options");
+	itembutton->setCallback([this,sourceWindow] {
+		auto record_window = new RecordWindow(screen_, screen_, sourceWindow->getCameras(), this);
+		record_window->setTheme(screen_->windowtheme);
+		recordbutton_->setPushed(false);
+		recordbutton_->setEnabled(false);
+	});
 
-	recordbutton->setCallback([this,recordbutton](){
+	recordbutton_->setCallback([this](){
 		if (virtualCameraRecording_) {
-			virtualCameraRecording_.value()->toggleVideoRecording();
-			recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+			virtualCameraRecording_.value()->stopVideoRecording();
+			recordbutton_->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
 
 			// Prevents the popup from being opened, though it is shown while the button
 			// is being pressed.
-			recordbutton->setPushed(false);
+			recordbutton_->setPushed(false);
 			virtualCameraRecording_ = std::nullopt;
 		} else if (sceneRecording_) {
 			sceneRecording_.value()->set("record", false);
-			recordbutton->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
-			recordbutton->setPushed(false);
+			recordbutton_->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+			recordbutton_->setPushed(false);
 			sceneRecording_ = std::nullopt;
 		}
 	});
@@ -280,4 +294,45 @@ void MediaPanel::cameraChanged() {
 			right_button_->setEnabled(false);
 		}
 	}
+}
+
+void MediaPanel::startRecording2D(ftl::gui::Camera *camera, const std::string &filename) {
+	camera->startVideoRecording(filename);
+	virtualCameraRecording_ = std::optional<ftl::gui::Camera*>(camera);
+	recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+}
+
+void MediaPanel::snapshot3D(ftl::gui::Camera *camera, const std::string &filename) {
+	auto tag = camera->source()->get<std::string>("uri");
+	if (tag) {
+		auto tagvalue = tag.value();
+		auto configurables = ftl::config::findByTag(tagvalue);
+		if (configurables.size() > 0) {
+			ftl::Configurable *configurable = ftl::config::find(configurables[0]->getID() + "/controls");
+			if (configurable) {
+				configurable->set("3D-snapshot", filename);
+			}
+		}
+	}
+}
+
+void MediaPanel::startRecording3D(ftl::gui::Camera *camera, const std::string &filename) {
+	auto tag = camera->source()->get<std::string>("uri");
+	if (tag) {
+		auto tagvalue = tag.value();
+		auto configurables = ftl::config::findByTag(tagvalue);
+		if (configurables.size() > 0) {
+			ftl::Configurable *configurable = ftl::config::find(configurables[0]->getID() + "/controls");
+			if (configurable) {
+				configurable->set("record-name", filename);
+				configurable->set("record", true);
+				sceneRecording_ = std::optional<ftl::Configurable*>(configurable);
+				recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+			}
+		}
+	}
+}
+
+void MediaPanel::recordWindowClosed() {
+	recordbutton_->setEnabled(true);
 }

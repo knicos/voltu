@@ -131,7 +131,7 @@ using ftl::cuda::warpSum;
 	const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
 	const unsigned int cx = screenPos.x;
 	const unsigned int cy = screenPos.y;
-	if (d > params.camera.minDepth && d < params.camera.maxDepth && cx < depth.width() && cy < depth.height()) {
+	if (d > params.camera.minDepth && d < params.camera.maxDepth && cx < depth_out.width() && cy < depth_out.height()) {
 		// Transform estimated point to virtual cam space and output z
 		atomicMin(&depth_out(cx,cy), d * 100000.0f);
 	}
@@ -155,7 +155,7 @@ void ftl::cuda::dibr_merge(TextureObject<float4> &points, TextureObject<int> &de
 }
 
 void ftl::cuda::dibr_merge(TextureObject<float> &depth, TextureObject<int> &depth_out, const float4x4 &transform, const ftl::rgbd::Camera &cam, SplatParams params, cudaStream_t stream) {
-    const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 gridSize((depth_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>(depth, depth_out, transform, cam, params);

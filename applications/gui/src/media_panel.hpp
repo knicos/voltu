@@ -5,6 +5,8 @@
 
 #include <nanogui/window.h>
 
+#include "src_window.hpp"
+
 namespace ftl {
 
 namespace rgbd {
@@ -17,10 +19,18 @@ class Screen;
 
 class MediaPanel : public nanogui::Window {
 	public:
-	explicit MediaPanel(ftl::gui::Screen *);
+	explicit MediaPanel(ftl::gui::Screen *, ftl::gui::SourceWindow *);
 	~MediaPanel();
 
 	void cameraChanged();
+
+	void startRecording2D(ftl::gui::Camera *camera, const std::string &filename);
+
+	void snapshot3D(ftl::gui::Camera *camera, const std::string &filename);
+
+	void startRecording3D(ftl::gui::Camera *camera, const std::string &filename);
+
+	void recordWindowClosed();
 
 	private:
 	ftl::gui::Screen *screen_;
@@ -32,6 +42,7 @@ class MediaPanel : public nanogui::Window {
 	nanogui::PopupButton *button_channels_;
 	nanogui::Button *right_button_;
 	nanogui::Button *depth_button_;
+	nanogui::PopupButton *recordbutton_;
 
 	/**
 	 * These members indicate which type of recording is active, if any.
