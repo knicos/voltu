@@ -7,7 +7,7 @@ let peer;
 let player;
 
 /**
- * Validates that the user is logged in
+ * Validates that the user is logged in by sending the token 
  */
 checkIfLoggedIn = async () => {
     //     const token = window.localStorage.getItem('token')
@@ -33,11 +33,6 @@ checkIfLoggedIn = async () => {
     //     }
 }
 
-//Redirects the user to google authentication
-handleLogin = () => {
-    window.location.href="/google";
-}
-
 /**
  * Returns a list of available streams
  */
@@ -56,15 +51,14 @@ getAvailableStreams = async () => {
 
 createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br>
-    <button onclick="renderThumbnails(); closeStream()">Go back</button>
-    <button onclick="connectToStream()">Start Stream</button><br>
-    <button onclick="webSocketTest()">WebSocket Test</button><br>
-    <video id="ftlab-stream-video" width="640" height="360"></video>`;
+    containerDiv.innerHTML = `<h1>Stream from source ${current_data.uri}</h1><br>
+        <button onclick="renderThumbnails(); closeStream()">Go back</button>
+        <button onclick="connectToStream()">Start Stream</button><br>
+        <button onclick="webSocketTest()">WebSocket Test</button><br>
+        <video id="ftlab-stream-video" width="640" height="360"></video>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
     createPeer();
-    console.log("PLAYER", player)
     connectToStream();
 }
 
@@ -73,60 +67,34 @@ createVideoPlayer = () => {
  */
 renderThumbnails = async () => {
     const thumbnails = await getAvailableStreams();
-    // console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
     containerDiv.innerHTML = `<button onClick="configs()">change configs</button>`
     containerDiv.innerHTML += `<div class="ftlab-stream-thumbnails"></div>`
-    // console.log(containerDiv)
-    for(var i=0; i<thumbnails.length; i++){
-        const encodedURI = encodeURIComponent(thumbnails[i])
-        current_data.uri = thumbnails[i]
-        console.log("THUMBNAIL[i]", thumbnails[i])
-        try{
-            const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
-            console.log('SOME DATA', someData)
-            if(!someData.ok){
-                throw new Error('Image not found')
+    if(thumbnails.length === 0){
+        containerDiv.innerHTML = `<h3>No streams running currently</h3>`
+    }else{
+        for(var i=0; i<thumbnails.length; i++){
+            const encodedURI = encodeURIComponent(thumbnails[i])
+            current_data.uri = thumbnails[i]
+            console.log("URI to be added", thumbnails[i])
+            try{
+                const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
+                console.log('SOME DATA', someData)
+                if(!someData.ok){
+                    throw new Error('Image not found')
+                }
+                const myBlob = await someData.blob();
+                console.log('BLOB', myBlob)
+                const objectURL = URL.createObjectURL(myBlob);
+                // containerDiv.innerHTML += createCard()
+                containerDiv.innerHTML += createCard(objectURL, i+4)
+            }catch(err){
+                console.log("Couldn't create thumbnail");
+                console.log(err) 
             }
-            const myBlob = await someData.blob();
-            console.log('BLOB', myBlob)
-            const objectURL = URL.createObjectURL(myBlob);
-            // containerDiv.innerHTML += createCard()
-            containerDiv.innerHTML += createCard(objectURL, i+4)
-        }catch(err){
-            console.log("Couldn't create thumbnail");
-            console.log(err) 
         }
     }
-}
-
-
-/**
- * Renders button that will redirect to google login
- */
-renderLogin = () => {
-    const containerDiv = document.getElementById('container');
-        containerDiv.innerHTML = 
-        `<div id='Login'>
-            <h2>Welcome to Future Technology Lab</h2>
-            <h3>Please login!</h3>
-            <a className="button" onClick="handleLogin()">
-                <div>
-                    <span class="svgIcon t-popup-svg">
-                        <svg class="svgIcon-use" width="25" height="37" viewBox="0 0 25 25">
-                            <g fill="none" fill-rule="evenodd">
-                            <path d="M20.66 12.693c0-.603-.054-1.182-.155-1.738H12.5v3.287h4.575a3.91 3.91 0 0 1-1.697 2.566v2.133h2.747c1.608-1.48 2.535-3.65 2.535-6.24z" fill="#4285F4"/>
-                            <path d="M12.5 21c2.295 0 4.22-.76 5.625-2.06l-2.747-2.132c-.76.51-1.734.81-2.878.81-2.214 0-4.088-1.494-4.756-3.503h-2.84v2.202A8.498 8.498 0 0 0 12.5 21z" fill="#34A853"/>
-                            <path d="M7.744 14.115c-.17-.51-.267-1.055-.267-1.615s.097-1.105.267-1.615V8.683h-2.84A8.488 8.488 0 0 0 4 12.5c0 1.372.328 2.67.904 3.817l2.84-2.202z" fill="#FBBC05"/>
-                            <path d="M12.5 7.38c1.248 0 2.368.43 3.25 1.272l2.437-2.438C16.715 4.842 14.79 4 12.5 4a8.497 8.497 0 0 0-7.596 4.683l2.84 2.202c.668-2.01 2.542-3.504 4.756-3.504z" fill="#EA4335"/>
-                            </g>
-                        </svg>
-                    </span>
-                    <span class="button-label">Sign in with Google</span>
-                </div>
-            </a>
-        </div>`
 }
 
 
@@ -149,18 +117,15 @@ createPeer = () => {
 }
 
 webSocketTest = () => {
-    console.log(current_data.uri)
     peer.send("update_cfg", "ftl://utu.fi#reconstruction_default/0/renderer/cool_effect", "true")    
 }
 
 
 connectToStream = () => {
     const element = document.getElementById('ftlab-stream-video');
-    console.log(VideoConverter)
     const converter = new VideoConverter.default(element, 20, 6);
 
     peer.bind(current_data.uri, (latency, streampckg, pckg) => {
-        console.log("CURRENTDATAS URI", current_data.uri)
         if(pckg[0] === 2){
             function decode(value){
                 converter.appendRawData(value);
@@ -211,7 +176,6 @@ loadConfigs = async (str) => {
     const response = await rawResp.json();
     const content = JSON.parse(response);
     container.innerHTML += `<p>${response}</p>`;
-    console.log(content)
 }
 
 // current_data.configData = '{"peers": 1}';
@@ -230,9 +194,8 @@ saveConfigs = async () => {
         body: JSON.stringify({peerURI: uri, configURI, data: configData, saveToCPP: true})
     });
     const content = await rawResp.json();
-    console.log(content)
 }
-},{"../../server/src/peer":34,"./lib/dist/video-converter":9}],2:[function(require,module,exports){
+},{"../../server/src/peer":36,"./lib/dist/video-converter":9}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var bit_stream_1 = require("./util/bit-stream");
@@ -1952,7 +1915,7 @@ BufferList.prototype._match = function(offset, search) {
 
 module.exports = BufferList
 
-},{"readable-stream":28,"safe-buffer":29,"util":51}],11:[function(require,module,exports){
+},{"readable-stream":27,"safe-buffer":28,"util":53}],11:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -2062,8 +2025,8 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 
-}).call(this,{"isBuffer":require("../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
-},{"../../../../../../../../../usr/local/lib/node_modules/browserify/node_modules/is-buffer/index.js":45}],12:[function(require,module,exports){
+}).call(this,{"isBuffer":require("../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js")})
+},{"../../../../../../../../../../../usr/lib/node_modules/watchify/node_modules/is-buffer/index.js":47}],12:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -2182,7 +2145,7 @@ function msgpack (options) {
 
 module.exports = msgpack
 
-},{"./lib/decoder":15,"./lib/encoder":16,"./lib/streams":17,"assert":36,"bl":10,"safe-buffer":29}],15:[function(require,module,exports){
+},{"./lib/decoder":15,"./lib/encoder":16,"./lib/streams":17,"assert":38,"bl":10,"safe-buffer":28}],15:[function(require,module,exports){
 'use strict'
 
 var bl = require('bl')
@@ -2620,7 +2583,7 @@ module.exports = function buildDecode (decodingTypes) {
 
 module.exports.IncompleteBufferError = IncompleteBufferError
 
-},{"bl":10,"util":51}],16:[function(require,module,exports){
+},{"bl":10,"util":53}],16:[function(require,module,exports){
 'use strict'
 
 var Buffer = require('safe-buffer').Buffer
@@ -2965,7 +2928,7 @@ function encodeFloat (obj, forceFloat64) {
   return buf
 }
 
-},{"bl":10,"safe-buffer":29}],17:[function(require,module,exports){
+},{"bl":10,"safe-buffer":28}],17:[function(require,module,exports){
 'use strict'
 
 var Transform = require('readable-stream').Transform
@@ -3057,7 +3020,7 @@ Decoder.prototype._transform = function (buf, enc, done) {
 module.exports.decoder = Decoder
 module.exports.encoder = Encoder
 
-},{"bl":10,"inherits":12,"readable-stream":28}],18:[function(require,module,exports){
+},{"bl":10,"inherits":12,"readable-stream":27}],18:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -3106,7 +3069,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 
 
 }).call(this,require('_process'))
-},{"_process":47}],19:[function(require,module,exports){
+},{"_process":49}],19:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4308,7 +4271,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":19,"./internal/streams/BufferList":24,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":47,"core-util-is":11,"events":43,"inherits":12,"isarray":13,"process-nextick-args":18,"safe-buffer":29,"string_decoder/":27,"util":41}],22:[function(require,module,exports){
+},{"./_stream_duplex":19,"./internal/streams/BufferList":24,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":49,"core-util-is":11,"events":45,"inherits":12,"isarray":13,"process-nextick-args":18,"safe-buffer":28,"string_decoder/":29,"util":43}],22:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5213,7 +5176,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":19,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":47,"core-util-is":11,"inherits":12,"process-nextick-args":18,"safe-buffer":29,"timers":48,"util-deprecate":30}],24:[function(require,module,exports){
+},{"./_stream_duplex":19,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":49,"core-util-is":11,"inherits":12,"process-nextick-args":18,"safe-buffer":28,"timers":50,"util-deprecate":30}],24:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -5293,7 +5256,7 @@ if (util && util.inspect && util.inspect.custom) {
     return this.constructor.name + ' ' + obj;
   };
 }
-},{"safe-buffer":29,"util":41}],25:[function(require,module,exports){
+},{"safe-buffer":28,"util":43}],25:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -5371,7 +5334,80 @@ module.exports = {
 },{"process-nextick-args":18}],26:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":43}],27:[function(require,module,exports){
+},{"events":45}],27:[function(require,module,exports){
+exports = module.exports = require('./lib/_stream_readable.js');
+exports.Stream = exports;
+exports.Readable = exports;
+exports.Writable = require('./lib/_stream_writable.js');
+exports.Duplex = require('./lib/_stream_duplex.js');
+exports.Transform = require('./lib/_stream_transform.js');
+exports.PassThrough = require('./lib/_stream_passthrough.js');
+
+},{"./lib/_stream_duplex.js":19,"./lib/_stream_passthrough.js":20,"./lib/_stream_readable.js":21,"./lib/_stream_transform.js":22,"./lib/_stream_writable.js":23}],28:[function(require,module,exports){
+/* eslint-disable node/no-deprecated-api */
+var buffer = require('buffer')
+var Buffer = buffer.Buffer
+
+// alternative to using Object.keys for old browsers
+function copyProps (src, dst) {
+  for (var key in src) {
+    dst[key] = src[key]
+  }
+}
+if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
+  module.exports = buffer
+} else {
+  // Copy properties from require('buffer')
+  copyProps(buffer, exports)
+  exports.Buffer = SafeBuffer
+}
+
+function SafeBuffer (arg, encodingOrOffset, length) {
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+// Copy static methods from Buffer
+copyProps(Buffer, SafeBuffer)
+
+SafeBuffer.from = function (arg, encodingOrOffset, length) {
+  if (typeof arg === 'number') {
+    throw new TypeError('Argument must not be a number')
+  }
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+SafeBuffer.alloc = function (size, fill, encoding) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  var buf = Buffer(size)
+  if (fill !== undefined) {
+    if (typeof encoding === 'string') {
+      buf.fill(fill, encoding)
+    } else {
+      buf.fill(fill)
+    }
+  } else {
+    buf.fill(0)
+  }
+  return buf
+}
+
+SafeBuffer.allocUnsafe = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return Buffer(size)
+}
+
+SafeBuffer.allocUnsafeSlow = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return buffer.SlowBuffer(size)
+}
+
+},{"buffer":44}],29:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5668,80 +5704,7 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":29}],28:[function(require,module,exports){
-exports = module.exports = require('./lib/_stream_readable.js');
-exports.Stream = exports;
-exports.Readable = exports;
-exports.Writable = require('./lib/_stream_writable.js');
-exports.Duplex = require('./lib/_stream_duplex.js');
-exports.Transform = require('./lib/_stream_transform.js');
-exports.PassThrough = require('./lib/_stream_passthrough.js');
-
-},{"./lib/_stream_duplex.js":19,"./lib/_stream_passthrough.js":20,"./lib/_stream_readable.js":21,"./lib/_stream_transform.js":22,"./lib/_stream_writable.js":23}],29:[function(require,module,exports){
-/* eslint-disable node/no-deprecated-api */
-var buffer = require('buffer')
-var Buffer = buffer.Buffer
-
-// alternative to using Object.keys for old browsers
-function copyProps (src, dst) {
-  for (var key in src) {
-    dst[key] = src[key]
-  }
-}
-if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
-  module.exports = buffer
-} else {
-  // Copy properties from require('buffer')
-  copyProps(buffer, exports)
-  exports.Buffer = SafeBuffer
-}
-
-function SafeBuffer (arg, encodingOrOffset, length) {
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-// Copy static methods from Buffer
-copyProps(Buffer, SafeBuffer)
-
-SafeBuffer.from = function (arg, encodingOrOffset, length) {
-  if (typeof arg === 'number') {
-    throw new TypeError('Argument must not be a number')
-  }
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-SafeBuffer.alloc = function (size, fill, encoding) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  var buf = Buffer(size)
-  if (fill !== undefined) {
-    if (typeof encoding === 'string') {
-      buf.fill(fill, encoding)
-    } else {
-      buf.fill(fill)
-    }
-  } else {
-    buf.fill(0)
-  }
-  return buf
-}
-
-SafeBuffer.allocUnsafe = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return Buffer(size)
-}
-
-SafeBuffer.allocUnsafeSlow = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return buffer.SlowBuffer(size)
-}
-
-},{"buffer":42}],30:[function(require,module,exports){
+},{"safe-buffer":28}],30:[function(require,module,exports){
 (function (global){
 
 /**
@@ -5813,6 +5776,16 @@ function config (name) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],31:[function(require,module,exports){
+var v1 = require('./v1');
+var v4 = require('./v4');
+
+var uuid = v4;
+uuid.v1 = v1;
+uuid.v4 = v4;
+
+module.exports = uuid;
+
+},{"./v1":34,"./v4":35}],32:[function(require,module,exports){
 /**
  * Convert array of 16 byte values to UUID string format of the form:
  * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
@@ -5838,7 +5811,7 @@ function bytesToUuid(buf, offset) {
 
 module.exports = bytesToUuid;
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 // Unique ID creation requires a high quality random # generator.  In the
 // browser this is a little complicated due to unknown quality of Math.random()
 // and inconsistent support for the `crypto` API.  We do the best we can via
@@ -5874,7 +5847,118 @@ if (getRandomValues) {
   };
 }
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
+var rng = require('./lib/rng');
+var bytesToUuid = require('./lib/bytesToUuid');
+
+// **`v1()` - Generate time-based UUID**
+//
+// Inspired by https://github.com/LiosK/UUID.js
+// and http://docs.python.org/library/uuid.html
+
+var _nodeId;
+var _clockseq;
+
+// Previous uuid creation time
+var _lastMSecs = 0;
+var _lastNSecs = 0;
+
+// See https://github.com/broofa/node-uuid for API details
+function v1(options, buf, offset) {
+  var i = buf && offset || 0;
+  var b = buf || [];
+
+  options = options || {};
+  var node = options.node || _nodeId;
+  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
+
+  // node and clockseq need to be initialized to random values if they're not
+  // specified.  We do this lazily to minimize issues related to insufficient
+  // system entropy.  See #189
+  if (node == null || clockseq == null) {
+    var seedBytes = rng();
+    if (node == null) {
+      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
+      node = _nodeId = [
+        seedBytes[0] | 0x01,
+        seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]
+      ];
+    }
+    if (clockseq == null) {
+      // Per 4.2.2, randomize (14 bit) clockseq
+      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
+    }
+  }
+
+  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
+  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
+  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
+  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
+  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
+
+  // Per 4.2.1.2, use count of uuid's generated during the current clock
+  // cycle to simulate higher resolution clock
+  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
+
+  // Time since last uuid creation (in msecs)
+  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
+
+  // Per 4.2.1.2, Bump clockseq on clock regression
+  if (dt < 0 && options.clockseq === undefined) {
+    clockseq = clockseq + 1 & 0x3fff;
+  }
+
+  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
+  // time interval
+  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
+    nsecs = 0;
+  }
+
+  // Per 4.2.1.2 Throw error if too many uuids are requested
+  if (nsecs >= 10000) {
+    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
+  }
+
+  _lastMSecs = msecs;
+  _lastNSecs = nsecs;
+  _clockseq = clockseq;
+
+  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
+  msecs += 12219292800000;
+
+  // `time_low`
+  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+  b[i++] = tl >>> 24 & 0xff;
+  b[i++] = tl >>> 16 & 0xff;
+  b[i++] = tl >>> 8 & 0xff;
+  b[i++] = tl & 0xff;
+
+  // `time_mid`
+  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
+  b[i++] = tmh >>> 8 & 0xff;
+  b[i++] = tmh & 0xff;
+
+  // `time_high_and_version`
+  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
+  b[i++] = tmh >>> 16 & 0xff;
+
+  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
+  b[i++] = clockseq >>> 8 | 0x80;
+
+  // `clock_seq_low`
+  b[i++] = clockseq & 0xff;
+
+  // `node`
+  for (var n = 0; n < 6; ++n) {
+    b[i + n] = node[n];
+  }
+
+  return buf ? buf : bytesToUuid(b);
+}
+
+module.exports = v1;
+
+},{"./lib/bytesToUuid":32,"./lib/rng":33}],35:[function(require,module,exports){
 var rng = require('./lib/rng');
 var bytesToUuid = require('./lib/bytesToUuid');
 
@@ -5905,12 +5989,12 @@ function v4(options, buf, offset) {
 
 module.exports = v4;
 
-},{"./lib/bytesToUuid":31,"./lib/rng":32}],34:[function(require,module,exports){
+},{"./lib/bytesToUuid":32,"./lib/rng":33}],36:[function(require,module,exports){
 (function (Buffer){
 const msgpack = require('msgpack5')()
   , encode  = msgpack.encode
   , decode  = msgpack.decode;
-const uuidv4 = require('uuid/v4')
+const uuidv4 = require('uuid') //Deprecated method, should use require('uuid/v4')
 const uuidParser = require('./utils/uuidParser')
 
 const kConnecting = 1;
@@ -6016,7 +6100,6 @@ function Peer(ws) {
 			this.close();
 		}
 	});
-	console.log("MY_UUID", my_uuid)
 	this.send("__handshake__", kMagic, kVersion, [my_uuid]);
 }		
 
@@ -6192,7 +6275,7 @@ Peer.prototype.getUuid = function() {
 module.exports = Peer;
 
 }).call(this,require("buffer").Buffer)
-},{"./utils/uuidParser":35,"buffer":42,"msgpack5":14,"uuid/v4":33}],35:[function(require,module,exports){
+},{"./utils/uuidParser":37,"buffer":44,"msgpack5":14,"uuid":31}],37:[function(require,module,exports){
 // Maps for number <-> hex string conversion
 var _byteToHex = [];
 var _hexToByte = {};
@@ -6247,7 +6330,7 @@ module.exports = {
   parse: parse,
   unparse: unparse
 };
-},{}],36:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -6757,16 +6840,16 @@ var objectKeys = Object.keys || function (obj) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"object-assign":46,"util/":39}],37:[function(require,module,exports){
+},{"object-assign":48,"util/":41}],39:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12}],38:[function(require,module,exports){
+},{"dup":12}],40:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],39:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -7356,7 +7439,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":38,"_process":47,"inherits":37}],40:[function(require,module,exports){
+},{"./support/isBuffer":40,"_process":49,"inherits":39}],42:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -7510,9 +7593,9 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],41:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 
-},{}],42:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 (function (Buffer){
 /*!
  * The buffer module from node.js, for the browser.
@@ -9315,7 +9398,7 @@ var hexSliceLookupTable = (function () {
 })()
 
 }).call(this,require("buffer").Buffer)
-},{"base64-js":40,"buffer":42,"ieee754":44}],43:[function(require,module,exports){
+},{"base64-js":42,"buffer":44,"ieee754":46}],45:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -9840,7 +9923,7 @@ function functionBindPolyfill(context) {
   };
 }
 
-},{}],44:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -9926,7 +10009,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],45:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -9949,7 +10032,7 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],46:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -10041,7 +10124,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],47:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -10227,7 +10310,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],48:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 (function (setImmediate,clearImmediate){
 var nextTick = require('process/browser.js').nextTick;
 var apply = Function.prototype.apply;
@@ -10306,10 +10389,10 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":47,"timers":48}],49:[function(require,module,exports){
+},{"process/browser.js":49,"timers":50}],51:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12}],50:[function(require,module,exports){
-arguments[4][38][0].apply(exports,arguments)
-},{"dup":38}],51:[function(require,module,exports){
-arguments[4][39][0].apply(exports,arguments)
-},{"./support/isBuffer":50,"_process":47,"dup":39,"inherits":49}]},{},[1]);
+},{"dup":12}],52:[function(require,module,exports){
+arguments[4][40][0].apply(exports,arguments)
+},{"dup":40}],53:[function(require,module,exports){
+arguments[4][41][0].apply(exports,arguments)
+},{"./support/isBuffer":52,"_process":49,"dup":41,"inherits":51}]},{},[1]);

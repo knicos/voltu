@@ -50,11 +50,11 @@ getAvailableStreams = async () => {
 
 createVideoPlayer = () => {
     const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream ${current_data.uri} is live right here!</h1><br>
-    <button onclick="renderThumbnails(); closeStream()">Go back</button>
-    <button onclick="connectToStream()">Start Stream</button><br>
-    <button onclick="webSocketTest()">WebSocket Test</button><br>
-    <video id="ftlab-stream-video" width="640" height="360"></video>`;
+    containerDiv.innerHTML = `<h1>Stream from source ${current_data.uri}</h1><br>
+        <button onclick="renderThumbnails(); closeStream()">Go back</button>
+        <button onclick="connectToStream()">Start Stream</button><br>
+        <button onclick="webSocketTest()">WebSocket Test</button><br>
+        <video id="ftlab-stream-video" width="640" height="360"></video>`;
     containerDiv.innerHTML += '<br>'
     containerDiv.innerHTML += ''
     createPeer();
@@ -66,30 +66,32 @@ createVideoPlayer = () => {
  */
 renderThumbnails = async () => {
     const thumbnails = await getAvailableStreams();
-    // console.log('THUMBNAILS', thumbnails)
     const containerDiv = document.getElementById('container')
     containerDiv.innerHTML = '';
     containerDiv.innerHTML = `<button onClick="configs()">change configs</button>`
     containerDiv.innerHTML += `<div class="ftlab-stream-thumbnails"></div>`
-    // console.log(containerDiv)
-    for(var i=0; i<thumbnails.length; i++){
-        const encodedURI = encodeURIComponent(thumbnails[i])
-        current_data.uri = thumbnails[i]
-        console.log("THUMBNAIL[i]", thumbnails[i])
-        try{
-            const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
-            console.log('SOME DATA', someData)
-            if(!someData.ok){
-                throw new Error('Image not found')
+    if(thumbnails.length === 0){
+        containerDiv.innerHTML = `<h3>No streams running currently</h3>`
+    }else{
+        for(var i=0; i<thumbnails.length; i++){
+            const encodedURI = encodeURIComponent(thumbnails[i])
+            current_data.uri = thumbnails[i]
+            console.log("URI to be added", thumbnails[i])
+            try{
+                const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
+                console.log('SOME DATA', someData)
+                if(!someData.ok){
+                    throw new Error('Image not found')
+                }
+                const myBlob = await someData.blob();
+                console.log('BLOB', myBlob)
+                const objectURL = URL.createObjectURL(myBlob);
+                // containerDiv.innerHTML += createCard()
+                containerDiv.innerHTML += createCard(objectURL, i+4)
+            }catch(err){
+                console.log("Couldn't create thumbnail");
+                console.log(err) 
             }
-            const myBlob = await someData.blob();
-            console.log('BLOB', myBlob)
-            const objectURL = URL.createObjectURL(myBlob);
-            // containerDiv.innerHTML += createCard()
-            containerDiv.innerHTML += createCard(objectURL, i+4)
-        }catch(err){
-            console.log("Couldn't create thumbnail");
-            console.log(err) 
         }
     }
 }
