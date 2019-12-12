@@ -46,16 +46,16 @@ void free(Encoder *&e);
  * convert an OpenCV Mat or GpuMat into a compressed byte array of some form.
  */
 class Encoder {
-    public:
-    friend Encoder *allocateEncoder(ftl::codecs::definition_t,
+	public:
+	friend Encoder *allocateEncoder(ftl::codecs::definition_t,
 			ftl::codecs::device_t, ftl::codecs::codec_t);
-    friend void free(Encoder *&);
+	friend void free(Encoder *&);
 
-    public:
-    Encoder(ftl::codecs::definition_t maxdef,
+	public:
+	Encoder(ftl::codecs::definition_t maxdef,
 			ftl::codecs::definition_t mindef,
 			ftl::codecs::device_t dev);
-    virtual ~Encoder();
+	virtual ~Encoder();
 
 	/**
 	 * Wrapper encode to allow use of presets.
@@ -76,21 +76,21 @@ class Encoder {
 	 * @param cb Callback containing compressed data
 	 * @return True if succeeded with encoding.
 	 */
-    virtual bool encode(
+	virtual bool encode(
 			const cv::cuda::GpuMat &in,
 			ftl::codecs::definition_t definition,
 			ftl::codecs::bitrate_t bitrate,
 			const std::function<void(const ftl::codecs::Packet&)> &cb)=0;
 
 	// TODO: Eventually, use GPU memory directly since some encoders can support this
-    //virtual bool encode(const cv::cuda::GpuMat &in, std::vector<uint8_t> &out, bitrate_t bix, bool)=0;
+	//virtual bool encode(const cv::cuda::GpuMat &in, std::vector<uint8_t> &out, bitrate_t bix, bool)=0;
 
 	virtual void reset() {}
 
 	virtual bool supports(ftl::codecs::codec_t codec)=0;
 
-    protected:
-    bool available;
+	protected:
+	bool available;
 	const ftl::codecs::definition_t max_definition;
 	const ftl::codecs::definition_t min_definition;
 	const ftl::codecs::device_t device;

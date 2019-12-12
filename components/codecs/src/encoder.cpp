@@ -36,7 +36,7 @@ static MUTEX mutex;
 
 Encoder *ftl::codecs::allocateEncoder(ftl::codecs::definition_t maxdef,
 		ftl::codecs::device_t dev, ftl::codecs::codec_t codec) {
-    UNIQUE_LOCK(mutex, lk);
+	UNIQUE_LOCK(mutex, lk);
 	if (!has_been_init) init_encoders();
 
 	for (auto i=encoders.begin(); i!=encoders.end(); ++i) {
@@ -55,10 +55,10 @@ Encoder *ftl::codecs::allocateEncoder(ftl::codecs::definition_t maxdef,
 }
 
 void ftl::codecs::free(Encoder *&enc) {
-    UNIQUE_LOCK(mutex, lk);
-    enc->reset();
+	UNIQUE_LOCK(mutex, lk);
+	enc->reset();
 	enc->available = true;
-    enc = nullptr;
+	enc = nullptr;
 }
 
 Encoder::Encoder(definition_t maxdef, definition_t mindef, device_t dev) :
@@ -72,9 +72,8 @@ Encoder::~Encoder() {
 
 bool Encoder::encode(const cv::cuda::GpuMat &in, preset_t preset,
 			const std::function<void(const ftl::codecs::Packet&)> &cb) {
-	const auto &settings = ftl::codecs::getPreset(preset);
-	const definition_t definition = (in.type() == CV_32F) ? settings.depth_res : settings.colour_res;
-	const bitrate_t bitrate = (in.type() == CV_32F) ? settings.depth_qual : settings.colour_qual;
+	const definition_t definition = ftl::codecs::findDefinition(in.size().width, in.size().height);
+	const bitrate_t bitrate = bitrate_t::High;
 
 	return encode(in, definition, bitrate, cb);
 }

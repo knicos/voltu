@@ -82,8 +82,8 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 	return rz * rx * ry;
 }
 
-// TODO:	*	Remove this class (requires more general solution). Also does not
-//				process disconnections/reconnections/types etc. correctly.
+// TODO:	*	Remove this class (requires more general solution). Also does
+//				not process disconnections/reconnections/types etc. correctly.
 //			*	Update when new options become available.
 
 class ConfigProxy {
@@ -216,6 +216,7 @@ static void run(ftl::Configurable *root) {
 
 		for (auto &input : sources) {
 			string uri = input->getURI();
+
 			auto T = transformations.find(uri);
 			if (T == transformations.end()) {
 				LOG(WARNING) << "Camera pose for " + uri + " not found in transformations";

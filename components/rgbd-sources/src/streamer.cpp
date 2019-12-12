@@ -193,7 +193,7 @@ void Streamer::add(Source *src) {
 			if (spkt.channel == Channel::Calibration) {
 				// Calibration changed, so lets re-check the bitrate presets
 				const auto &params = src->parameters();
-				s->hq_bitrate = ftl::codecs::findPreset(params.width, params.height);
+				s->hq_bitrate = ftl::codecs::kPresetBest;
 			}
 
 			//LOG(INFO) << "RAW CALLBACK";

@@ -220,13 +220,13 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 		auto &f = scene_->frames[i];
 		auto *s = scene_->sources[i];
 		
-		if (f.get<GpuMat>(in).type() == CV_8UC3) {
+		/*if (f.get<GpuMat>(in).type() == CV_8UC3) {
 			// Convert to 4 channel colour
 			auto &col = f.get<GpuMat>(in);
 			GpuMat tmp(col.size(), CV_8UC4);
 			cv::cuda::swap(col, tmp);
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
-		}
+		}*/
 
 		auto transform = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse() * t.cast<float>().inverse()) * params_.m_viewMatrixInverse;
 		auto transformR = MatrixConversion::toCUDA(s->getPose().cast<float>().inverse()).getFloat3x3();
@@ -607,7 +607,11 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, co
 	}
 
 	// Reprojection of colours onto surface
-	_renderChannel(out, Channel::Colour, Channel::Colour, t, stream_);
+	auto main_channel = (scene_->frames[0].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
+	//if (scene_->frames[0].hasChannel(Channel::ColourHighRes)) {
+	//	LOG(INFO) << "HAVE HIGH RES: " << scene_->frames[0].get<GpuMat>(Channel::ColourHighRes).rows;
+	//}
+	_renderChannel(out, main_channel, Channel::Colour, t, stream_);
 
 	if (value("cool_effect", false)) {
 		auto pose = params.m_viewMatrixInverse.getFloat3x3();

@@ -22,7 +22,9 @@ bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::
 		out.createTexture<int>(Channel::Mask, ftl::rgbd::Format<int>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 		in.createTexture<uchar4>(Channel::Support1),
 		in.createTexture<float>(Channel::Depth),
-		s->parameters(), radius, threshold, stream
+		in.get<cv::cuda::GpuMat>(Channel::Depth).size(),
+		s->parameters().minDepth, s->parameters().maxDepth,
+		radius, threshold, stream
 	);
 
 	return true;

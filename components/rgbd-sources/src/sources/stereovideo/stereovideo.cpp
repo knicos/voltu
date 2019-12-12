@@ -8,7 +8,6 @@
 #include "ftl/operators/opticalflow.hpp"
 #endif
 
-
 #include "ftl/operators/smoothing.hpp"
 #include "ftl/operators/colours.hpp"
 #include "ftl/operators/normals.hpp"
@@ -69,14 +68,35 @@ void StereoVideoSource::init(const string &file) {
 		lsrc_ = ftl::create<LocalSource>(host_, "feed");
 	}
 
-	cv::Size size = cv::Size(lsrc_->width(), lsrc_->height());
+	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());
 	frames_ = std::vector<Frame>(2);
 
-	calib_ = ftl::create<Calibrate>(host_, "calibration", size, stream_);
+	pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
+	#ifdef HAVE_OPTFLOW
+	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
+	#endif
+
+	pipeline_depth_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
+	depth_size_ = cv::Size(	pipeline_depth_->value("width", color_size_.width),
+							pipeline_depth_->value("height", color_size_.height));
+
+	pipeline_depth_->append<ftl::operators::FixstarsSGM>("algorithm");
+	#ifdef HAVE_OPTFLOW
+	pipeline_depth_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter");
+	#endif
+	pipeline_depth_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
+	pipeline_depth_->append<ftl::operators::DisparityToDepth>("calculate_depth");
+	pipeline_depth_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	pipeline_depth_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
+	pipeline_depth_->append<ftl::operators::CrossSupport>("cross");
+	pipeline_depth_->append<ftl::operators::DiscontinuityMask>("discontinuity_mask");
+	pipeline_depth_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
+
+	calib_ = ftl::create<Calibrate>(host_, "calibration", color_size_, stream_);
 	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 
 	// Generate camera parameters from camera matrix
-	cv::Mat K = calib_->getCameraMatrix();
+	cv::Mat K = calib_->getCameraMatrixLeft(depth_size_);
 	params_ = {
 		K.at<double>(0,0),	// Fx
 		K.at<double>(1,1),	// Fy
@@ -126,49 +146,34 @@ void StereoVideoSource::init(const string &file) {
 	mask_l_gpu.download(mask_l);
 	mask_l_ = (mask_l == 0);
 	
-	pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
-	#ifdef HAVE_OPTFLOW
-	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
-	#endif
-
-	pipeline_depth_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
-	pipeline_depth_->append<ftl::operators::FixstarsSGM>("algorithm");
-
-	#ifdef HAVE_OPTFLOW
-	pipeline_depth_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter");
-	#endif
-	pipeline_depth_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
-	pipeline_depth_->append<ftl::operators::DisparityToDepth>("calculate_depth");
-	pipeline_depth_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
-	pipeline_depth_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
-	pipeline_depth_->append<ftl::operators::CrossSupport>("cross");
-	pipeline_depth_->append<ftl::operators::DiscontinuityMask>("discontinuity_mask");
-	pipeline_depth_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
-
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
 }
 
 ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
+	cv::Mat K;
+	
 	if (chan == Channel::Right) {
-		cv::Mat q = calib_->getCameraMatrixRight();
-		ftl::rgbd::Camera params = {
-			q.at<double>(0,0),	// Fx
-			q.at<double>(1,1),	// Fy
-			-q.at<double>(0,2),	// Cx
-			-q.at<double>(1,2),	// Cy
-			(unsigned int)lsrc_->width(),
-			(unsigned int)lsrc_->height(),
-			0.0f,	// 0m min
-			15.0f,	// 15m max
-			1.0 / calib_->getQ().at<double>(3,2), // Baseline
-			0.0f  // doffs
-		};
-		return params;
-		//params_.doffs = -calib_->getQ().at<double>(3,3) * params_.baseline;
+		K = calib_->getCameraMatrixRight(depth_size_);
 	} else {
-		return params_;
+		K = calib_->getCameraMatrixLeft(depth_size_);
 	}
+
+	// TODO: remove hardcoded values (min/max)
+	ftl::rgbd::Camera params = {
+		K.at<double>(0,0),	// Fx
+		K.at<double>(1,1),	// Fy
+		-K.at<double>(0,2),	// Cx
+		-K.at<double>(1,2),	// Cy
+		(unsigned int) depth_size_.width,
+		(unsigned int) depth_size_.height,
+		0.0f,	// 0m min
+		15.0f,	// 15m max
+		1.0 / calib_->getQ().at<double>(3,2), // Baseline
+		0.0f  // doffs
+	};
+	
+	return params;
 }
 
 bool StereoVideoSource::capture(int64_t ts) {
@@ -205,8 +210,31 @@ bool StereoVideoSource::compute(int n, int b) {
 	}
 
 	if (chan == Channel::Depth) {
-		pipeline_depth_->apply(frame, frame, host_, cv::cuda::StreamAccessor::getStream(stream_));	
+		// stereo algorithms assume input same size as output
+		bool resize = (depth_size_ != color_size_);
+
+		cv::cuda::GpuMat& left = frame.get<cv::cuda::GpuMat>(Channel::Left);
+		cv::cuda::GpuMat& right = frame.get<cv::cuda::GpuMat>(Channel::Right);
+
+		if (left.empty() || right.empty()) {
+			return false;
+		}
+
+		if (resize) {
+			cv::cuda::swap(fullres_left_, left);
+			cv::cuda::swap(fullres_right_, right);
+			cv::cuda::resize(fullres_left_, left, depth_size_, 0, 0, cv::INTER_CUBIC, stream_);
+			cv::cuda::resize(fullres_right_, right, depth_size_, 0, 0, cv::INTER_CUBIC, stream_);
+		}
+
+		pipeline_depth_->apply(frame, frame, host_, cv::cuda::StreamAccessor::getStream(stream_));
 		stream_.waitForCompletion();
+		
+		if (resize) {
+			cv::cuda::swap(fullres_left_, left);
+			cv::cuda::swap(fullres_right_, right);
+		}
+
 		host_->notify(timestamp_,
 						frame.get<cv::cuda::GpuMat>(Channel::Left),
 						frame.get<cv::cuda::GpuMat>(Channel::Depth));

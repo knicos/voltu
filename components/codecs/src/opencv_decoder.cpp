@@ -18,7 +18,7 @@ bool OpenCVDecoder::accepts(const ftl::codecs::Packet &pkt) {
 }
 
 bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
-
+	//CHECK(cv::Size(ftl::codecs::getWidth(pkt.definition), ftl::codecs::getHeight(pkt.definition)) == out.size()); 
 	int chunk_dim = std::sqrt(pkt.block_total);
 	int chunk_width = out.cols / chunk_dim;
 	int chunk_height = out.rows / chunk_dim;
@@ -36,7 +36,6 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 
 	// Apply colour correction to chunk
 	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
-
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
 	// Can either check JPG/PNG headers or just use pkt definition.
