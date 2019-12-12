@@ -2,10 +2,6 @@ const express = require('express');
 const app = express();
 const expressWs = require('express-ws')(app);
 const Peer = require('./peer.js');
-const jwt = require('jsonwebtoken');
-const passport = require('passport');
-const passportSetup = require('./passport/passport'); //Without this, the app doesn't know passports google strategy
-const keys = require('./passport/keys')
 const mongoose = require('mongoose')
 const config = require('./utils/config')
 const User = require('./models/users')
@@ -14,19 +10,10 @@ const bodyParser = require('body-parser')
 const Url = require('url-parse')
 
 // ---- INDEXES ----------------------------------------------------------------
-app.use(passport.initialize());
 app.use(express.static(__dirname + '/../../public'));
 app.use(bodyParser.json())
 
-
-passport.serializeUser((user, done) => {
-    done(null, user);
-})
-
-passport.deserializeUser((userDataFromCookie, done) => {
-    done(null, userDataFromCookie);
-})
-
+// //CONNECTS THE APP TO MONGODB
 // mongoose.connect(config.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
 // 	.then(() => {
 // 		console.log('Connected to MongoDB');
@@ -161,27 +148,6 @@ app.get('/', (req, res) => {
 	res.end();
 });
 
-/**
- * This is the route that actually validates the users JWT token.
- */
-app.post('/auth/validation', async (req, res) => {
-	const token = req.headers.authorization.split(" ")
-	const decoded = jwt.verify(token[1], keys.jwt.secret)
-	console.log('DECODED', decoded)
-	try{
-		const data = await User.find({ googleID: decoded })
-		console.log('DATA', data)
-		if(data.length !== 0){
-			return res.status(200).json("success")
-		}else {
-			return res.status(403)
-		}
-	}catch(err){
-		console.log('ERROR ERROR')
-		console.log(err)
-	}	
-})
-
 
 app.get('/streams', (req, res) => {
 	res.json(Object.keys(uri_data));
@@ -230,8 +196,8 @@ app.post('/stream/config', async (req, res) => {
 			console.log(e)
 		}
 
-	}
-
+	}// else{
+	// //Save to MongoDB
 	// const savedConfigs = new Configs({
 	// 	settingsURI: configURI,
 	// 	data
@@ -244,26 +210,24 @@ app.post('/stream/config', async (req, res) => {
 	// 	console.log(err)
 	// 	return res.status(500).json("Something's wrong I can feel it")
 	// }
-
-
-		// }
 	// }
+
 })
 
 app.get('/stream/config', async(req, res) => {
+	
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi#reconstruction_snap10/merge
 	const settings = req.query.settings;
 	const uri = req.query.uri;
 	const parsedURI = stringSplitter(uri)
 
-	//Check if DB has data
+	// //Checks if DB has data
 	// let dbData = await Configs.find({Settings: settings});
 	// if(dbData[0].data){
 	// 	return res.status(200).json(dbData[0]);
 	// }else{
 		let peer = uri_data[parsedURI].peer
 		if(peer){
-			console.log("get_cfg", settings)
 			peer.rpc("get_cfg", (response) => {
 				if(response){
 					return res.status(200).json(response);
@@ -280,64 +244,6 @@ app.get('/stream', (req, res) => {
 	res.end();
 })
 
-
-/*
- * Route for Google authentication API page
- */
-app.get('/google', passport.authenticate('google', {
-	scope: ['profile']
-}))
-
-
-/**
- * Google authentication API callback route. 
- * Sets the JWT to clients browser and redirects the user back to front page.
- */
-app.get('/auth/google/redirect', passport.authenticate('google'), async (req, res) => {
-	console.log(req.user)
-	//Save the req.user.id into MongoDB
-
-	const user = new User({
-		googleID: req.user.id
-	})
-	try{
-		const listOfUsers = await User.find({});
-		console.log(listOfUsers);
-		
-		//Checks if the userID is already in db
-		for(let i=0; i<listOfUsers.length; i++){
-			if(listOfUsers[i].googleID == req.user.id){
-				const token = jwt.sign(req.user.id, keys.jwt.secret);
-				const htmlWithEmbeddedJWT = `
-				<html>
-					<body><h3> You will be automatically redirected to next page.<h3><body>
-					<script>
-						window.localStorage.setItem('token', 'bearer ${token}');
-						window.location.href = '/';
-					</script>
-				<html>
-				`;
-				return res.send(htmlWithEmbeddedJWT)		
-			}
-		}
-
-		await user.save()
-		const token = jwt.sign(req.user.id, keys.jwt.secret);
-		const htmlWithEmbeddedJWT = `
-		<html>
-			<body><h3> You will be automatically redirected to next page.<h3><body>
-			<script>
-				window.localStorage.setItem('token', 'bearer ${token}');
-				window.location.href = '/';
-			</script>
-		<html>
-		`;
-		return res.send(htmlWithEmbeddedJWT)
-	}catch(err){
-		console.log(err)
-		return res.status(500).json('Login failed')
-	}
-})
 
 function checkStreams(peer) {
 	if (!peer.master) {

@@ -1,7 +1,7 @@
 const msgpack = require('msgpack5')()
   , encode  = msgpack.encode
   , decode  = msgpack.decode;
-const uuidv4 = require('uuid/v4')
+const uuidv4 = require('uuid') //Deprecated method, should use require('uuid/v4')
 const uuidParser = require('./utils/uuidParser')
 
 const kConnecting = 1;
