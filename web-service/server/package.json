@@ -24,7 +24,9 @@
     "passport": "^0.4.0",
     "passport-google-oauth20": "^2.0.0",
     "url-parse": "^1.4.7",
-    "uuid": "^3.3.3",
-    "watchify": "^3.11.1"
+    "uuid": "^3.3.3"
+  },
+  "devDependencies": {
+    "browserify": "^16.5.0"
   }
 }
