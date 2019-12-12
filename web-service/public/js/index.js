@@ -37,8 +37,7 @@ checkIfLoggedIn = async () => {
  */
 getAvailableStreams = async () => {
     try{
-        const streamsInJson = await fetch('http://localhost:8080/streams');
-        console.log(streamsInJson)
+        const streamsInJson = await fetch(`./streams`);
         const streams = await streamsInJson.json();
         console.log('AVAILABLE', streams)
         return streams;
@@ -78,7 +77,7 @@ renderThumbnails = async () => {
             current_data.uri = thumbnails[i]
             console.log("URI to be added", thumbnails[i])
             try{
-                const someData = await fetch(`http://localhost:8080/stream/rgb?uri=${encodedURI}`)
+                const someData = await fetch(`./stream/rgb?uri=${encodedURI}`)
                 console.log('SOME DATA', someData)
                 if(!someData.ok){
                     throw new Error('Image not found')
@@ -110,7 +109,7 @@ createCard = (url, viewers) => {
 
 
 createPeer = () => {
-    const ws = new WebSocket('ws://localhost:8080/');
+    const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
 }
@@ -150,6 +149,7 @@ closeStream = () => {
  * **************
  */
 
+
 current_data.configURI = "ftl://utu.fi#reconstruction_snap8/net"
 
 configs = () => {
@@ -171,7 +171,7 @@ renderConfigOptions = () => {
 loadConfigs = async (str) => {
     const configURI = encodeURIComponent(`ftl://utu.fi#reconstruction_snap8${str}`);
     const uri = encodeURIComponent(current_data.uri)
-    const rawResp = await fetch(`http://localhost:8080/stream/config?settings=${configURI}&uri=${uri}`)
+    const rawResp = await fetch(`./stream/config?settings=${configURI}&uri=${uri}`)
     const response = await rawResp.json();
     const content = JSON.parse(response);
     container.innerHTML += `<p>${response}</p>`;
@@ -184,7 +184,7 @@ loadConfigs = async (str) => {
  */
 saveConfigs = async () => {
     let {uri, configURI, configData} = current_data
-    const rawResp = await fetch('http://localhost:8080/stream/config', {
+    const rawResp = await fetch('./stream/config', {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
