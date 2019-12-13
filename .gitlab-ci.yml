@@ -8,7 +8,7 @@ stages:
  - all
 # - build
 # - test
-# - deploy
+ - deploy
 
 #cache:
 #  paths:
@@ -28,6 +28,20 @@ linux:
     - cmake .. -DWITH_OPTFLOW=TRUE -DBUILD_CALIBRATION=TRUE -DCMAKE_BUILD_TYPE=Release
     - make
     - ctest --output-on-failure
+
+webserver-deploy:
+  only:
+    - master
+  stage: deploy
+  tags:
+    - linux
+  variables:
+    NODE_SERVER: '10.0.0.9'
+  script:
+    - npm install web-service/server
+    - browserify web-service/public/js/index.js -o web-service/public/js/bundle.js
+    - rsync -vr --delete web-service/ nodejs@${NODE_SERVER}:/srv/nodejs/web-service
+    - ssh nodejs@${NODE_SERVER} -- "npm install web-service/server && pm2 restart web-service"
 
 windows:
   stage: all
