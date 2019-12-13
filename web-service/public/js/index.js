@@ -75,15 +75,12 @@ renderThumbnails = async () => {
         for(var i=0; i<thumbnails.length; i++){
             const encodedURI = encodeURIComponent(thumbnails[i])
             current_data.uri = thumbnails[i]
-            console.log("URI to be added", thumbnails[i])
             try{
                 const someData = await fetch(`./stream/rgb?uri=${encodedURI}`)
-                console.log('SOME DATA', someData)
                 if(!someData.ok){
                     throw new Error('Image not found')
                 }
                 const myBlob = await someData.blob();
-                console.log('BLOB', myBlob)
                 const objectURL = URL.createObjectURL(myBlob);
                 // containerDiv.innerHTML += createCard()
                 containerDiv.innerHTML += createCard(objectURL, i+4)
@@ -109,7 +106,9 @@ createCard = (url, viewers) => {
 
 
 createPeer = () => {
+    // FOR PRODUCTION
     const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
+    // const ws = new WebSocket("ws://localhost:8080")
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
 }

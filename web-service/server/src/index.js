@@ -105,7 +105,7 @@ RGBDStream.prototype.addClient = function(peer, N, rate, dest) {
 	}
 
 	this.clients.push(new RGBDClient(peer, N, rate, dest));
-
+	console.log("MINMAX", this.rxcount, this.rxmax);
 	if (this.rxcount >= this.rxmax) {
 		this.subscribe();
 	}
@@ -161,7 +161,7 @@ app.get('/streams', (req, res) => {
 app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
 	if (uri_data.hasOwnProperty(uri)) {
-		uri_data[uri].peer.send("get_stream", uri, 3, 0, [Peer.uuid], uri);
+		uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
 		res.end(uri_data[uri].rgb);
 	}
@@ -389,8 +389,9 @@ app.ws('/', (ws, req) => {
 			let peer = uri_data[uri].peer
 			console.log(peer)
 			if (peer) {
-				console.log("GET_STREAM IS WORKING VERY WELL")
+				console.log("THIS GETS LOGGED")
 				uri_data[uri].addClient(p, N, rate, dest);
+				console.log("SO DOES THIS")
 			//peer.send("get_stream", uri, N, rate, [Peer.uuid], dest);
 			}
 		}else{
