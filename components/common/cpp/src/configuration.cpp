@@ -438,7 +438,7 @@ static bool findConfiguration(const string &file, const vector<string> &paths) {
 	}
 
 	if (found) {
-		_indexConfig(config);
+		//_indexConfig(config);
 		return true;
 	} else {
 		return false;
@@ -592,6 +592,9 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	}
 
 	string root_str = (options.find("root") != options.end()) ? nlohmann::json::parse(options["root"]).get<string>() : root;
+
+	if (options.find("id") != options.end()) config["$id"] = nlohmann::json::parse(options["id"]).get<string>();
+	_indexConfig(config);
 
 	Configurable *rootcfg = create<Configurable>(config);
 	if (root_str.size() > 0) {
