@@ -276,9 +276,36 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 		LOG(WARNING) << "Missing calibration, skipping frame";
 		return;
 	}
+
+	//LOG(INFO) << "PACKET: " << spkt.timestamp << ", " << (int)spkt.channel << ", " << (int)pkt.codec;
 	
 	const cv::Size size = cv::Size(ftl::codecs::getWidth(pkt.definition), ftl::codecs::getHeight(pkt.definition));
 	NetFrame &frame = queue_.getFrame(spkt.timestamp, size, CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
+
+	if (timestamp_ > 0 && frame.timestamp <= timestamp_) {
+		LOG(ERROR) << "Duplicate frame - " << frame.timestamp << " received=" << int(rchan) << " uri=" << uri_;
+		return;
+	}
+
+	// Calculate how many packets to expect for this channel
+	if (frame.chunk_total[channum] == 0) {
+		frame.chunk_total[channum] = pkt.block_total;
+	}
+
+	// Capture tx time of first received chunk
+	if (frame.chunk_count[0] == 0 && frame.chunk_count[1] == 0) {
+		UNIQUE_LOCK(frame.mtx, flk);
+		if (frame.chunk_count[0] == 0 && frame.chunk_count[1] == 0) {
+			frame.tx_latency = int64_t(ttimeoff);
+		}
+	}	
+
+	++frame.chunk_count[channum];
+	if (frame.chunk_count[channum] == frame.chunk_total[channum]) ++frame.channel_count;
+	if (frame.chunk_count[channum] > frame.chunk_total[channum]) {
+		LOG(WARNING) << "Too many channel packets received, discarding";
+		return;
+	}
 
 	// Update frame statistics
 	frame.tx_size += pkt.data.size();
@@ -308,29 +335,6 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
-
-	if (timestamp_ > 0 && frame.timestamp <= timestamp_) {
-		LOG(ERROR) << "BAD DUPLICATE FRAME - " << frame.timestamp << " received=" << int(rchan) << " uri=" << uri_;
-		return;
-	}
-
-	// Calculate how many packets to expect for this channel
-	if (frame.chunk_total[channum] == 0) {
-		frame.chunk_total[channum] = pkt.block_total;
-	}		
-
-	++frame.chunk_count[channum];
-	if (frame.chunk_count[channum] == frame.chunk_total[channum]) ++frame.channel_count;
-	if (frame.chunk_count[channum] > frame.chunk_total[channum]) LOG(FATAL) << "TOO MANY CHUNKS";
-
-	// Capture tx time of first received chunk
-	// FIXME: This seems broken
-	if (channum == 1 && frame.chunk_count[channum] == 1) {
-		UNIQUE_LOCK(frame.mtx, flk);
-		if (frame.chunk_count[channum] == 1) {
-			frame.tx_latency = int64_t(ttimeoff);
-		}
-	}
 
 	// Last chunk of both channels now received, so we are done.
 	if (frame.channel_count == spkt.channel_count) {

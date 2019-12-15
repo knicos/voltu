@@ -97,6 +97,10 @@ inline NALType getNALType(const std::vector<uint8_t> &data) {
 	return static_cast<NALType>((data[4] >> 1) & 0x3F);
 }
 
+inline bool validNAL(const std::vector<uint8_t> &data) {
+	return data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 1;
+}
+
 /**
  * Check the HEVC bitstream for an I-Frame. With NvPipe, all I-Frames start
  * with a VPS NAL unit so just check for this.

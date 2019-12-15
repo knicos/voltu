@@ -464,27 +464,43 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				auto *enc1 = src->hq_encoder_c1;
 				auto *enc2 = src->hq_encoder_c2;
 
-				// Important to send channel 2 first if needed...
-				// Receiver only waits for channel 1 by default
-				// TODO: Each encode could be done in own thread
+				MUTEX mtx;
+				std::condition_variable cv;
+				bool chan2done = false;
+
 				if (hasChan2) {
-					// TODO: Stagger the reset between nodes... random phasing
-					if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc2->reset();
+					ftl::pool.push([this,&fs,enc2,src,hasChan2,&cv,j,&chan2done](int id) {
+						// TODO: Stagger the reset between nodes... random phasing
+						if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc2->reset();
 
-					auto chan = fs.sources[j]->getChannel();
+						auto chan = fs.sources[j]->getChannel();
 
-					enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->hq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
-						_transmitPacket(src, blk, chan, hasChan2, Quality::High);
+						try {
+							enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->hq_bitrate, [this,src,hasChan2,chan,&cv,&chan2done](const ftl::codecs::Packet &blk){
+								_transmitPacket(src, blk, chan, hasChan2, Quality::High);
+								chan2done = true;
+								cv.notify_one();
+							});
+						} catch (std::exception &e) {
+							LOG(ERROR) << "Exception in encoder: " << e.what();
+							chan2done = true;
+							cv.notify_one();
+						}
 					});
 				} else {
 					if (enc2) enc2->reset();
+					chan2done = true;
 				}
 
 				// TODO: Stagger the reset between nodes... random phasing
 				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
-				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2,&mtx](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 				});
+
+				// Ensure both channels have been completed.
+				std::unique_lock<std::mutex> lk(mtx);
+				cv.wait(lk, [&chan2done]{ return chan2done; });
 			}
 		}
 
