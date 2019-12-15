@@ -40,6 +40,21 @@ static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
 	//out.setTo(cv::Scalar(255, 255, 255), mask);
 }
 
+static std::string nameForCodec(ftl::codecs::codec_t c) {
+	switch(c) {
+	case codec_t::JPG 	: return "JPEG";
+	case codec_t::PNG	: return "PNG";
+	case codec_t::H264	: return "H264";
+	case codec_t::HEVC	: return "HEVC";
+	case codec_t::JSON	: return "JSON";
+	case codec_t::POSE	: return "POSE";
+	case codec_t::RAW	: return "RAW";
+	case codec_t::CALIBRATION : return "CALIBRATION";
+	case codec_t::MSGPACK : return "MSGPACK";
+	default: return std::string("UNKNOWN (") + std::to_string((int)c) + std::string(")");
+	}
+}
+
 int main(int argc, char **argv) {
     std::string filename(argv[1]);
     LOG(INFO) << "Playing: " << filename;
@@ -73,6 +88,11 @@ int main(int argc, char **argv) {
 			if (!(channel_mask[spkt.streamID][(int)spkt.channel])) {
 				channel_mask[spkt.streamID].set((int)spkt.channel);
 				LOG(INFO) << " - Channel " << (int)spkt.channel << " found (" << (int)spkt.streamID << ")";
+				LOG(INFO) << "     - Codec = " << nameForCodec(pkt.codec);
+				LOG(INFO) << "     - Width = " << ftl::codecs::getWidth(pkt.definition);
+				LOG(INFO) << "     - Height = " << ftl::codecs::getHeight(pkt.definition);
+				LOG(INFO) << "     - Start Time = " << float(spkt.timestamp - r.getStartTime()) / 1000.0f << "(s)";
+				LOG(INFO) << "     - Blocks = " << (int)pkt.block_total;
 			}
 
 			if (spkt.streamID == current_stream) {
