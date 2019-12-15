@@ -37,6 +37,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	is_float_channel_ = is_float_frame;
 	last_definition_ = pkt.definition;
 
+	//LOG(INFO) << "DECODE OUT: " << out.rows << ", " << out.type();
 	//LOG(INFO) << "DECODE RESOLUTION: (" << (int)pkt.definition << ") " << ftl::codecs::getWidth(pkt.definition) << "x" << ftl::codecs::getHeight(pkt.definition);
 
 	// Build a decoder instance of the correct kind
@@ -49,8 +50,6 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		if (!nv_decoder_) {
 			//LOG(INFO) << "Bitrate=" << (int)bitrate << " width=" << ABRController::getColourWidth(bitrate);
 			LOG(FATAL) << "Could not create decoder: " << NvPipe_GetError(NULL);
-		} else {
-			DLOG(INFO) << "Decoder created";
 		}
 
 		seen_iframe_ = false;
@@ -60,38 +59,46 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	tmp_.create(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (is_float_frame) ? CV_16U : CV_8UC4);
 
 	// Check for an I-Frame
-	if (pkt.codec == ftl::codecs::codec_t::HEVC) {
-		if (ftl::codecs::hevc::isIFrame(pkt.data)) seen_iframe_ = true;
-	} else if (pkt.codec == ftl::codecs::codec_t::H264) {
-		if (ftl::codecs::h264::isIFrame(pkt.data)) seen_iframe_ = true;
+	if (!seen_iframe_) {
+		if (pkt.codec == ftl::codecs::codec_t::HEVC) {
+			if (ftl::codecs::hevc::isIFrame(pkt.data)) seen_iframe_ = true;
+		} else if (pkt.codec == ftl::codecs::codec_t::H264) {
+			if (ftl::codecs::h264::isIFrame(pkt.data)) seen_iframe_ = true;
+		}
 	}
 
 	// No I-Frame yet so don't attempt to decode P-Frames.
 	if (!seen_iframe_) return false;
+
+	// Final checks for validity
+	if (pkt.data.size() == 0 || tmp_.size() != out.size()) { // || !ftl::codecs::hevc::validNAL(pkt.data)) {
+		LOG(ERROR) << "Failed to decode packet";
+		return false;
+	}
 
 	int rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), tmp_.data, tmp_.cols, tmp_.rows, tmp_.step);
 	if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);
 
 	if (is_float_frame) {
 		// Is the received frame the same size as requested output?
-		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
+		//if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
 			tmp_.convertTo(out, CV_32FC1, 1.0f/1000.0f, stream_);
-		} else {
+		/*} else {
 			LOG(WARNING) << "Resizing decoded frame from " << tmp_.size() << " to " << out.size();
 			// FIXME: This won't work on GPU
 			tmp_.convertTo(tmp_, CV_32FC1, 1.0f/1000.0f, stream_);
 			cv::cuda::resize(tmp_, out, out.size(), 0, 0, cv::INTER_NEAREST, stream_);
-		}
+		}*/
 	} else {
 		// Is the received frame the same size as requested output?
-		if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
+		//if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
 			// Flag 0x1 means frame is in RGB so needs conversion to BGR
 			if (pkt.flags & 0x1) {
 				cv::cuda::cvtColor(tmp_, out, cv::COLOR_RGBA2BGR, 0, stream_);
 			} else {
 				cv::cuda::cvtColor(tmp_, out, cv::COLOR_BGRA2BGR, 0, stream_);
 			}
-		} else {
+		/*} else {
 			LOG(WARNING) << "Resizing decoded frame from " << tmp_.size() << " to " << out.size();
 			// FIXME: This won't work on GPU, plus it allocates extra memory...
 			// Flag 0x1 means frame is in RGB so needs conversion to BGR
@@ -101,7 +108,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 				cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_BGRA2BGR, 0, stream_);
 			}
 			cv::cuda::resize(tmp_, out, out.size(), 0.0, 0.0, cv::INTER_LINEAR, stream_);
-		}
+		}*/
 	}
 
 	stream_.waitForCompletion();

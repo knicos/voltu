@@ -123,7 +123,7 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition,
 	pkt.data.resize(cs);
 	was_reset_ = false;
 
-	if (cs == 0) {
+	if (cs == 0 || cs >= ftl::codecs::kVideoBufferSize) {
 		LOG(ERROR) << "Could not encode video frame: " << NvPipe_GetError(nvenc_);
 		return false;
 	} else {

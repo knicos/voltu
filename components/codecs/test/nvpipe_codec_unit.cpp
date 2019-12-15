@@ -81,7 +81,8 @@ TEST_CASE( "NvPipeDecoder::decode() - A colour test image" ) {
 		});
 	}
 
-	SECTION("Full HD in, 720 out, FHD encoding") {
+	// No longer supported
+	/*SECTION("Full HD in, 720 out, FHD encoding") {
 		in = cv::cuda::GpuMat(cv::Size(1920,1080), CV_8UC3, cv::Scalar(255,0,0));
 		out = cv::cuda::GpuMat(cv::Size(1280,720), CV_8UC3, cv::Scalar(0,0,0));
 
@@ -90,9 +91,10 @@ TEST_CASE( "NvPipeDecoder::decode() - A colour test image" ) {
 		});
 
 		REQUIRE( (out.rows == 720) );
-	}
+	}*/
 
-	SECTION("HHD in, FHD out, FHD encoding") {
+	// No longer supported
+	/*SECTION("HHD in, FHD out, FHD encoding") {
 		in = cv::cuda::GpuMat(cv::Size(1280,720), CV_8UC3, cv::Scalar(255,0,0));
 		out = cv::cuda::GpuMat(cv::Size(1920,1080), CV_8UC3, cv::Scalar(0,0,0));
 
@@ -101,9 +103,10 @@ TEST_CASE( "NvPipeDecoder::decode() - A colour test image" ) {
 		});
 
 		REQUIRE( (out.rows == 1080) );
-	}
+	}*/
 
-	SECTION("FHD in, HHD out, SD encoding") {
+	// No longer supported
+	/*SECTION("FHD in, HHD out, SD encoding") {
 		in = cv::cuda::GpuMat(cv::Size(1920,1080), CV_8UC3, cv::Scalar(255,0,0));
 		out = cv::cuda::GpuMat(cv::Size(1280,720), CV_8UC3, cv::Scalar(0,0,0));
 
@@ -112,7 +115,7 @@ TEST_CASE( "NvPipeDecoder::decode() - A colour test image" ) {
 		});
 
 		REQUIRE( (out.rows == 720) );
-	}
+	}*/
 
 	REQUIRE( r );
 	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0,0,0)) );

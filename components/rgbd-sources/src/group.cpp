@@ -214,8 +214,8 @@ void Group::sync(std::function<bool(ftl::rgbd::FrameSet &)> cb) {
 				try {
 					cb(*fs);
 					//LOG(INFO) << "Frameset processed (" << name_ << "): " << fs->timestamp;
-				} catch(...) {
-					LOG(ERROR) << "Exception in group sync callback";
+				} catch(std::exception &e) {
+					LOG(ERROR) << "Exception in group sync callback: " << e.what();
 				}
 
 				// The buffers are invalid after callback so mark stale
