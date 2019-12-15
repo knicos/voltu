@@ -53,6 +53,8 @@ SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, Snapshot &snapshot, cons
     host->setPose(pose);
 
 	mspf_ = 1000 / host_->value("fps", 20);
+
+	cudaStreamCreate(&stream_);
 }
 
 bool SnapshotSource::compute(int n, int b) {
@@ -61,11 +63,14 @@ bool SnapshotSource::compute(int n, int b) {
 
 	//snap_rgb_.copyTo(rgb_);
 	//snap_depth_.copyTo(depth_);
-	rgb_.upload(snap_rgb_);
-	depth_.upload(snap_depth_);
+	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
+	rgb_.upload(snap_rgb_, cvstream);
+	depth_.upload(snap_depth_, cvstream);
+	cudaStreamSynchronize(stream_);
 
-	auto cb = host_->callback();
-	if (cb) cb(timestamp_, rgb_, depth_);
+	//auto cb = host_->callback();
+	//if (cb) cb(timestamp_, rgb_, depth_);
+	host_->notify(timestamp_, rgb_, depth_);
 
 	frame_idx_ = (frame_idx_ + 1) % snapshot_.getFramesCount();
 

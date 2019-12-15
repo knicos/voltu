@@ -32,6 +32,7 @@ class SnapshotSource : public detail::Source {
 	cv::Mat snap_rgb_;
 	cv::Mat snap_depth_;
 	int mspf_;
+	cudaStream_t stream_;
 };
 
 }
