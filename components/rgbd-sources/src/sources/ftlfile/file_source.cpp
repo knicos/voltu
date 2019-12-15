@@ -184,21 +184,34 @@ bool FileSource::compute(int n, int b) {
 
 		if (c.spkt.channel == Channel::Colour) {
 			rgb_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_8UC3);
-		} else {
+			_createDecoder(0, c.pkt);
+
+			try {
+				decoders_[0]->decode(c.pkt, rgb_);
+			} catch (std::exception &e) {
+				LOG(INFO) << "Decoder exception: " << e.what();
+			}
+		} else if (host_->getChannel() == c.spkt.channel) {
 			depth_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_32F);
+			_createDecoder(1, c.pkt);
+			try {
+				decoders_[1]->decode(c.pkt, depth_);
+			} catch (std::exception &e) {
+				LOG(INFO) << "Decoder exception: " << e.what();
+			}
 		}
 	
-		_createDecoder((c.spkt.channel == Channel::Colour) ? 0 : 1, c.pkt);
+		//_createDecoder((c.spkt.channel == Channel::Colour) ? 0 : 1, c.pkt);
 
-		try {
+		/*try {
 			decoders_[(c.spkt.channel == Channel::Colour) ? 0 : 1]->decode(c.pkt, (c.spkt.channel == Channel::Colour) ? rgb_ : depth_);
 		} catch (std::exception &e) {
 			LOG(INFO) << "Decoder exception: " << e.what();
-		}
+		}*/
 	}
 
 	// FIXME: Consider case of Channel::None
-	if (lastc != 2) {
+	if (lastc < 2) {
 		LOG(ERROR) << "Channels not in sync (" << sourceid_ << "): " << lastts;
 		return false;
 	}
