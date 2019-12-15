@@ -301,7 +301,6 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	}	
 
 	++frame.chunk_count[channum];
-	if (frame.chunk_count[channum] == frame.chunk_total[channum]) ++frame.channel_count;
 	if (frame.chunk_count[channum] > frame.chunk_total[channum]) {
 		LOG(WARNING) << "Too many channel packets received, discarding";
 		return;
@@ -335,6 +334,8 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
+
+	if (frame.chunk_count[channum] == frame.chunk_total[channum]) ++frame.channel_count;
 
 	// Last chunk of both channels now received, so we are done.
 	if (frame.channel_count == spkt.channel_count) {

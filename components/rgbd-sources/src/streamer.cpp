@@ -494,7 +494,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 
 				// TODO: Stagger the reset between nodes... random phasing
 				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
-				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2,&mtx](const ftl::codecs::Packet &blk){
+				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 				});
 
