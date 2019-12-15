@@ -89,6 +89,7 @@ class NetSource : public detail::Source {
 	void _processCalibration(const ftl::codecs::Packet &pkt);
 	void _processConfig(const ftl::codecs::Packet &pkt);
 	void _processPose(const ftl::codecs::Packet &pkt);
+	void _checkDataRate(size_t tx_size, int64_t tx_latency);
 };
 
 }

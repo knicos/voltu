@@ -41,7 +41,7 @@ bitrate_t ABRController::selectBitrate(const NetFrame &frame) {
 
     float actual_mbps = (float(frame.tx_size) * 8.0f * (1000.0f / float(frame.tx_latency))) / 1048576.0f;
     float min_mbps = (float(frame.tx_size) * 8.0f * (1000.0f / float(ftl::timer::getInterval()))) / 1048576.0f;
-    if (actual_mbps < min_mbps) LOG(WARNING) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
+    //if (actual_mbps < min_mbps) LOG(WARNING) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
     float ratio = actual_mbps / min_mbps;
     //LOG(INFO) << "Rate Ratio = " << frame.tx_latency;
 

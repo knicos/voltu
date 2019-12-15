@@ -253,6 +253,12 @@ void NetSource::_processPose(const ftl::codecs::Packet &pkt) {
 	LOG(INFO) << "Got POSE channel";
 }
 
+void NetSource::_checkDataRate(size_t tx_size, int64_t tx_latency) {
+	float actual_mbps = (float(tx_size) * 8.0f * (1000.0f / float(tx_latency))) / 1048576.0f;
+    float min_mbps = (float(tx_size) * 8.0f * (1000.0f / float(ftl::timer::getInterval()))) / 1048576.0f;
+    if (actual_mbps < min_mbps) LOG(WARNING) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
+}
+
 void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	// Capture time here for better net latency estimate
 	int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
@@ -334,6 +340,8 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
+	
+	_checkDataRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff));
 
 	if (frame.chunk_count[channum] == frame.chunk_total[channum]) ++frame.channel_count;
 
