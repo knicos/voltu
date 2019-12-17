@@ -93,7 +93,12 @@ void FileSource::_processPose(ftl::codecs::Packet &pkt) {
 		Eigen::Matrix4d p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
 		host_->setPose(p);
 	} else if (pkt.codec == codec_t::MSGPACK) {
+		auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+		std::vector<double> posevec;
+		unpacked.get().convert(posevec);
 
+		Eigen::Matrix4d p(posevec.data());
+		host_->setPose(p);
 	}
 }
 

@@ -314,12 +314,15 @@ void Source::inject(const Eigen::Matrix4d &pose) {
 	spkt.channel_count = 0;
 	spkt.channel = Channel::Pose;
 	spkt.streamID = 0;
-	pkt.codec = ftl::codecs::codec_t::POSE;
+	pkt.codec = ftl::codecs::codec_t::MSGPACK;
 	pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.block_number = 0;
 	pkt.block_total = 1;
 	pkt.flags = 0;
-	pkt.data = std::move(std::vector<uint8_t>((uint8_t*)pose.data(), (uint8_t*)pose.data() + 4*4*sizeof(double)));
+
+	std::vector<double> data(pose.data(), pose.data() + 4*4*sizeof(double));
+	VectorBuffer buf(pkt.data);
+	msgpack::pack(buf, data);
 
 	notifyRaw(spkt, pkt);
 }

@@ -8,6 +8,7 @@
 #include "colour.hpp"
 
 #include <ftl/rgbd/streamer.hpp>
+#include <ftl/codecs/bitrates.hpp>
 
 using ftl::rgbd::detail::NetFrame;
 using ftl::rgbd::detail::NetFrameQueue;
@@ -21,6 +22,7 @@ using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using std::tuple;
 using ftl::codecs::Channel;
+using ftl::codecs::codec_t;
 
 // ===== NetFrameQueue =========================================================
 
@@ -250,7 +252,18 @@ void NetSource::_processCalibration(const ftl::codecs::Packet &pkt) {
 }
 
 void NetSource::_processPose(const ftl::codecs::Packet &pkt) {
-	LOG(INFO) << "Got POSE channel";
+	if (pkt.codec == ftl::codecs::codec_t::POSE) {
+		Eigen::Matrix4d p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
+		//host_->setPose(p);
+	} else if (pkt.codec == ftl::codecs::codec_t::MSGPACK) {
+		auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+		std::vector<double> posevec;
+		unpacked.get().convert(posevec);
+
+		Eigen::Matrix4d p(posevec.data());
+		//host_->setPose(p);
+		// TODO: What to do with pose?
+	}
 }
 
 void NetSource::_checkDataRate(size_t tx_size, int64_t tx_latency) {
