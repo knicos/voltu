@@ -10,7 +10,14 @@
 #include <Eigen/Eigen>
 
 namespace ftl {
+
+class NetConfigurable;
+
 namespace ctrl {
+
+struct SystemState {
+	bool paused;
+};
 
 struct LogEvent {
 	int verbosity;
@@ -43,7 +50,7 @@ class Master {
 
 	std::vector<std::string> getConfigurables(const ftl::UUID &peer);
 
-	std::vector<ftl::config::json_t> getSlaves();
+	std::vector<ftl::config::json_t> getControllers();
 
 	std::vector<ftl::config::json_t> get(const std::string &uri);
 
@@ -51,11 +58,25 @@ class Master {
 
 	ftl::config::json_t get(const ftl::UUID &peer, const std::string &uri);
 
+	ftl::config::json_t getConfigurable(const ftl::UUID &peer, const std::string &uri);
+
 	void watch(const std::string &uri, std::function<void()> f);
 
 	Eigen::Matrix4d getPose(const std::string &uri);
 
 	void setPose(const std::string &uri, const Eigen::Matrix4d &pose);
+
+	/**
+	 * Clean up to remove log and status forwarding over the network.
+	 */
+	void stop();
+
+	/**
+	 * Do not call! Automatically called from logging subsystem.
+	 */
+	void sendLog(const loguru::Message& message);
+
+	bool isPaused() const { return state_.paused; }
 
 	// Events
 
@@ -72,6 +93,12 @@ class Master {
 	std::vector<std::function<void(const LogEvent&)>> log_handlers_;
 	ftl::Configurable *root_;
 	ftl::net::Universe *net_;
+	std::map<ftl::UUID, std::vector<ftl::NetConfigurable*>> peerConfigurables_;
+	std::vector<ftl::UUID> log_peers_;
+	RECURSIVE_MUTEX mutex_;
+	bool in_log_;
+	bool active_;
+	SystemState state_;
 };
 
 }

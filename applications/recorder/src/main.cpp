@@ -11,7 +11,7 @@
 #include <ftl/rgbd.hpp>
 #include <ftl/rgbd/virtual.hpp>
 #include <ftl/rgbd/streamer.hpp>
-#include <ftl/slave.hpp>
+#include <ftl/master.hpp>
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/codecs/writer.hpp>
@@ -64,7 +64,7 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
-	ftl::ctrl::Slave slave(net, root);
+	ftl::ctrl::Master ctrl(root, net);
 
 	// Controls
 	auto *controls = ftl::create<ftl::Configurable>(root, "controls");
@@ -202,7 +202,7 @@ static void run(ftl::Configurable *root) {
 
 	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();
-	slave.stop();
+	ctrl.stop();
 	net->shutdown();
 	ftl::pool.stop();
 

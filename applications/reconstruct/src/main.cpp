@@ -12,7 +12,7 @@
 #include <ftl/rgbd.hpp>
 #include <ftl/rgbd/virtual.hpp>
 #include <ftl/rgbd/streamer.hpp>
-#include <ftl/slave.hpp>
+#include <ftl/master.hpp>
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/codecs/writer.hpp>
@@ -82,58 +82,9 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 	return rz * rx * ry;
 }
 
-// TODO:	*	Remove this class (requires more general solution). Also does
-//				not process disconnections/reconnections/types etc. correctly.
-//			*	Update when new options become available.
-
-class ConfigProxy {
-	private:
-	vector<ftl::UUID> peers_;
-	vector<std::string> uris_;
-	ftl::net::Universe *net_;
-	
-	public:
-	ConfigProxy(ftl::net::Universe *net) {
-		net_ = net;
-
-		auto response = net_->findAll<std::string>("node_details");
-		for (auto &r : response) {
-			auto r_json = json_t::parse(r);
-			peers_.push_back(ftl::UUID(r_json["id"].get<std::string>()));
-			uris_.push_back(r_json["title"].get<std::string>());
-		}
-	}
-
-	void add(ftl::Configurable *root, const std::string &uri, const std::string &name) {
-		auto config = json_t::parse(net_->call<string>(peers_[0], "get_cfg", uris_[0] + "/" + uri));
-		auto *proxy = ftl::create<ftl::Configurable>(root, name);
-		
-		try {
-			for (auto &itm : config.get<json::object_t>()) {
-				auto key = itm.first;
-				auto value = itm.second;
-				if (*key.begin() == '$') { continue; }
-
-				proxy->set(key, value);
-				proxy->on(key, [this, uri, key, value, proxy](const ftl::config::Event&) {
-					for (size_t i = 0; i < uris_.size(); i++) {
-						// TODO: check that config exists?
-						auto peer = peers_[i];
-						std::string name = uris_[i] + "/" + uri + "/" + key;
-						net_->send(peer, "update_cfg", name, proxy->getConfig()[key].dump());
-					}
-				});
-			}
-		}
-		catch (nlohmann::detail::type_error) {
-			LOG(ERROR) << "Failed to add config proxy for: " << uri << "/" << name;
-		}
-	}
-};
-
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
-	ftl::ctrl::Slave slave(net, root);
+	ftl::ctrl::Master ctrl(root, net);
 
 	// Controls
 	auto *controls = ftl::create<ftl::Configurable>(root, "controls");
@@ -190,17 +141,6 @@ static void run(ftl::Configurable *root) {
 	if (sources.size() == 0) {
 		LOG(ERROR) << "No sources configured!";
 		return;
-	}
-
-	ConfigProxy *configproxy = nullptr;
-	if (net->numberOfPeers() > 0) {
-		configproxy = new ConfigProxy(net); // TODO delete
-		auto *disparity = ftl::create<ftl::Configurable>(root, "disparity");
-		configproxy->add(disparity, "source/disparity/algorithm", "algorithm");
-		configproxy->add(disparity, "source/disparity/bilateral_filter", "bilateral_filter");
-		configproxy->add(disparity, "source/disparity/optflow_filter", "optflow_filter");
-		configproxy->add(disparity, "source/disparity/mls", "mls");
-		configproxy->add(disparity, "source/disparity/cross", "cross");
 	}
 
 	// Must find pose for each source...
@@ -383,7 +323,7 @@ static void run(ftl::Configurable *root) {
 
 	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();
-	slave.stop();
+	ctrl.stop();
 	net->shutdown();
 	ftl::pool.stop();
 
