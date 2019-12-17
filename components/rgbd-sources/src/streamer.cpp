@@ -343,7 +343,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 	// Finally, inject calibration and config data
 	s->src->inject(Channel::Calibration, s->src->parameters(Channel::Left), Channel::Left, s->src->getCapabilities());
 	s->src->inject(Channel::Calibration, s->src->parameters(Channel::Right), Channel::Right, s->src->getCapabilities());
-	//s->src->inject(s->src->getPose());
+	s->src->inject(s->src->getPose());
 	//if (!(*s->src->get<nlohmann::json>("meta")).is_null()) {
 		s->src->inject(Channel::Configuration, "/original", s->src->getConfig().dump());
 	//}
