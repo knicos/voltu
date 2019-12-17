@@ -121,7 +121,7 @@ void ControlWindow::_addNode() {
 }
 
 void ControlWindow::_updateDetails() {
-	node_details_ = ctrl_->getSlaves();
+	node_details_ = ctrl_->getControllers();
 
 	node_titles_.clear();
 	for (auto &d : node_details_) {

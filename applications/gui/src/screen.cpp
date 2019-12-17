@@ -244,7 +244,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	//net_->onConnect([this,popup](ftl::net::Peer *p) {
 	{
 		LOG(INFO) << "NET CONNECT";
-		auto node_details = ctrl_->getSlaves();
+		auto node_details = ctrl_->getControllers();
 
 		for (auto &d : node_details) {
 			LOG(INFO) << "ADDING TITLE: " << d.dump();

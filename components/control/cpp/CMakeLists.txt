@@ -1,5 +1,4 @@
 add_library(ftlctrl
-	src/slave.cpp
 	src/master.cpp
 )
 

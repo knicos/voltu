@@ -22,7 +22,7 @@
 //#include <ftl/display.hpp>
 #include <ftl/rgbd/streamer.hpp>
 #include <ftl/net/universe.hpp>
-#include <ftl/slave.hpp>
+#include <ftl/master.hpp>
 #include <nlohmann/json.hpp>
 
 #include "opencv2/imgproc.hpp"
@@ -50,7 +50,7 @@ using json = nlohmann::json;
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
-	ftl::ctrl::Slave slave(net, root);
+	ftl::ctrl::Master ctrl(root, net);
 
 	auto paths = root->get<vector<string>>("paths");
 	string file = "";
@@ -84,7 +84,7 @@ static void run(ftl::Configurable *root) {
 	ftl::timer::start(true);
 
 	LOG(INFO) << "Stopping...";
-	slave.stop();
+	ctrl.stop();
 	stream->stop();
 	net->shutdown();
 

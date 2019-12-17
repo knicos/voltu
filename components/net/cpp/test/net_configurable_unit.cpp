@@ -1,6 +1,6 @@
 #include "catch.hpp"
 #include <ftl/net_configurable.hpp>
-#include <ftl/slave.hpp>
+#include <ftl/master.hpp>
 
 using ftl::NetConfigurable;
 
@@ -14,20 +14,20 @@ SCENARIO( "NetConfigurable::set()" ) {
         net->start();
         ftl::ctrl::Master *controller = new ftl::ctrl::Master(root, net);
         
-        // Set up a slave, then call getSlaves() to get the UUID string
+        // Set up a slave, then call getControllers() to get the UUID string
         nlohmann::json jsonSlave = {{"$id", "slave"}, {"test", {{"peers", {"tcp://localhost:7077"}}}}};
         ftl::Configurable *rootSlave;
         rootSlave = new ftl::Configurable(jsonSlave);
         ftl::net::Universe *netSlave = ftl::config::create<ftl::net::Universe>(rootSlave, std::string("test"));
-        ftl::ctrl::Slave slave(netSlave, rootSlave);
+        ftl::ctrl::Master ctrl(rootSlave, netSlave);
         netSlave->start();
         netSlave->waitConnections();
         net->waitConnections();
 
-        auto slaves = controller->getSlaves();
-        REQUIRE( slaves.size() == 1 );
+        auto controllers = controller->getControllers();
+        REQUIRE( controllers.size() == 1 );
 
-        ftl::UUID peer = ftl::UUID(slaves[0]["id"].get<std::string>());
+        ftl::UUID peer = ftl::UUID(controllers[0]["id"].get<std::string>());
         const std::string suri = "slave_test";
         nlohmann::json jsonTest = {{"$id", "slave_test"}, {"test", {{"peers", {"tcp://localhost:7077"}}}}};
         NetConfigurable nc(peer, suri, *controller, jsonTest);
