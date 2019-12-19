@@ -13,8 +13,8 @@ namespace codecs {
 enum struct codec_t : uint8_t {
 	JPG = 0,
 	PNG,
-    H264,
-    HEVC,  // H265
+	H264,
+	HEVC,  // H265
 
 	// TODO: Add audio codecs
 	WAV,
