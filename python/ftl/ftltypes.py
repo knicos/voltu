@@ -65,7 +65,9 @@ class codec_t(IntEnum):
     JSON = 100
     CALIBRATION = 101
     POSE = 102
-    RAW = 103
+    MSGPACK = 103,
+    STRING = 104,
+    RAW = 105
 
 definition_t = {
     0 : (7680, 4320),
@@ -85,4 +87,3 @@ def get_definition(shape):
 			return k
 	
 	return 7 # (None)
-

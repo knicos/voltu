@@ -12,8 +12,6 @@ from . misc import is_iframe
 from . import ftltypes as ftl
 from . import libde265
 
-_calib_fmt = "@ddddIIdddd"
-
 try:
     import cv2 as cv
     
@@ -27,7 +25,7 @@ except ImportError:
         ''' YCrCb to RGB, based on OpenCV documentation definition.
         
         Note: It seems this implementation is not perfectly equivalent to
-        OpenCV's
+        OpenCV's (results not exactly same, why?)
         '''
         
         rgb = np.zeros(img.shape, np.float)
@@ -43,11 +41,25 @@ except ImportError:
 
         return rgb.round().astype(np.uint8)
 
+def _ycbcr2rgb(img):
+    rgb = np.zeros(img.shape, np.float)
+
+    Y = img[:,:,0].astype(np.float)
+    Cr = img[:,:,2].astype(np.float)
+    Cb = img[:,:,1].astype(np.float)
+    delta = 128.0
+
+    rgb[:,:,0] = Y + 1.403 * (Cr - delta)
+    rgb[:,:,1] = Y - 0.714 * (Cr - delta) - 0.344 * (Cb - delta)
+    rgb[:,:,2] = Y + 1.773 * (Cb - delta)
+
+    return rgb.round().astype(np.uint8)
+
 class FTLStreamWriter:
-    def __init__(self, file):
+    def __init__(self, file, version=2):
         self._file = open(file, "wb")
         self._file.write(bytes(ord(c) for c in "FTLF")) # magic
-        self._file.write(bytes([2]))                    # version
+        self._file.write(bytes([version]))              # version
         self._file.write(bytes([0]*64))                 # reserved
 
         self._packer = msgpack.Packer(strict_types=False, use_bin_type=True)
@@ -94,7 +106,7 @@ class FTLStreamWriter:
             if codec == ftl.codec_t.PNG:
                 if ftl.is_float_channel(channel):
                     # scaling always same (???)
-                    data = data.astype(np.float) / 1000.0
+                    data = (data * 1000).astype(np.uint16)
                 
                 params = [cv.IMWRITE_PNG_COMPRESSION, 9]
                 retval, data = cv.imencode(".png", data, params)
@@ -134,7 +146,8 @@ class FTLStreamWriter:
         raise NotImplementedError("todo")
 
     def add_calibration(self, timestamp, source, data):
-        struct.pack(_calib_fmt, *data)
+        # todo: Use msgpack format instead (ftlf v3+)
+        struct.pack("@ddddIIdddd", *data)
         raise NotImplementedError("todo")
 
 class FTLStreamReader:
@@ -180,8 +193,18 @@ class FTLStreamReader:
     
     def _update_calib(self, sp, p):
         ''' Update calibration. '''
-        calibration = struct.unpack(_calib_fmt, p.data[:(4*8+2*4+4*8)])
-        self._calibration[sp.streamID] = ftl.Camera._make(calibration)
+        
+        if p.codec == ftl.codec_t.MSGPACK:
+            # TODO: channel and capabilities should be saved as well
+            calib, channel, capabilities = msgpack.unpackb(p.data)
+            self._calibration[sp.streamID] = ftl.Camera._make(calib)
+        
+        elif p.codec == ftl.codec_t.CALIBRATION:
+            calibration = struct.unpack("@ddddIIdddd", p.data[:(4*8+2*4+4*8)])
+            self._calibration[sp.streamID] = ftl.Camera._make(calibration)
+        
+        else:
+            raise Exception("Unknown codec %i for calibration" % p.codec)
 
     def _update_pose(self, sp, p):
         ''' Update pose '''
@@ -226,7 +249,10 @@ class FTLStreamReader:
             raise NotImplementedError("non-color channel decoding not available")
         
         else:
-            self._frame = _ycrcb2rgb(img)
+            if self._version < 3:
+                self._frame = _ycrcb2rgb(img)
+            else:
+                self._frame = _ycbcr2rgb(img)
 
     def _decode_opencv(self, sp, p):
         try:
@@ -254,30 +280,31 @@ class FTLStreamReader:
         Reads data for until the next timestamp. Returns False if there is no
         more data to read, otherwise returns True.
 
-        todo: make decoding optional
+        todo: make (frame) decoding optional
         '''
         self._frame = None
-
+        
         try:
             self._sp, self._p = self._read_next()
             self._packets_read += 1
         
         except msgpack.OutOfData:
             return False
-
+        
         if self._p.block_total != 1 or self._p.block_number != 0:
             raise Exception("Unsupported block format (todo)")
 
-        if self._p.codec == ftl.codec_t.JSON:
-            self._process_json(self._sp, self._p)
-
-        elif self._p.codec == ftl.codec_t.CALIBRATION:
+        # calibration/pose cached
+        # todo: should be done by user instead?
+        
+        if self._sp.channel == ftl.Channel.Calibration:
             self._update_calib(self._sp, self._p)
 
-        elif self._p.codec == ftl.codec_t.POSE:
+        elif self._sp.channel == ftl.Channel.Pose:
             self._update_pose(self._sp, self._p)
 
-        elif self._p.codec == ftl.codec_t.HEVC:
+        # decode if codec supported
+        if self._p.codec == ftl.codec_t.HEVC:
             self._decode_hevc(self._sp, self._p)
 
         elif self._p.codec == ftl.codec_t.PNG:
@@ -287,7 +314,8 @@ class FTLStreamReader:
             self._decode_opencv(self._sp, self._p)
 
         else:
-            raise Exception("unkowno codec %i" % self._p.codec)
+            # todo (unsupported codec)
+            pass
 
         return True
 
@@ -336,7 +364,7 @@ class FTLStreamReader:
             raise ValueError("source id %i not found" % source)
     
     def get_Q(self, source):
-        ''' Disparity to depth matrix in OpenCV format '''
+        ''' Disparity to depth matrix (OpenCV) '''
 
         calib = self.get_calibration(source)
         Q = np.identity(4, dtype=np.float64)
