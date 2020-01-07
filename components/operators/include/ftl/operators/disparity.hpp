@@ -77,6 +77,28 @@ class DisparityToDepth : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
 };
 
+/**
+ * Create a missing depth channel using Left and Right colour with a complete
+ * disparity pipeline. This is a wrapper operator that combines all of the
+ * disparity to depth steps.
+ */
+class DepthChannel : public ftl::operators::Operator {
+    public:
+    explicit DepthChannel(ftl::Configurable *cfg);
+    ~DepthChannel();
+
+	inline Operator::Type type() const override { return Operator::Type::ManyToMany; }
+
+    bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
+
+    private:
+    ftl::operators::Graph *pipe_;
+	std::vector<cv::cuda::GpuMat> rbuf_;
+	cv::Size depth_size_;
+
+	void _createPipeline();
+};
+
 /*
  * Optical flow smoothing for depth
  */

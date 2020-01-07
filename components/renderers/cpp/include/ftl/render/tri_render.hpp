@@ -44,6 +44,7 @@ class Triangular : public ftl::render::Renderer {
 	float3 light_pos_;
 	Eigen::Matrix4d transform_;
 	float scale_;
+	int64_t last_frame_;
 
 	cv::cuda::GpuMat env_image_;
 	ftl::cuda::TextureObject<uchar4> env_tex_;
@@ -55,6 +56,8 @@ class Triangular : public ftl::render::Renderer {
 	void _reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
 	void _dibr(ftl::rgbd::Frame &, const Eigen::Matrix4d &t, cudaStream_t);
 	void _mesh(ftl::rgbd::Frame &, ftl::rgbd::Source *, const Eigen::Matrix4d &t, cudaStream_t);
+
+	bool _alreadySeen() const { return last_frame_ == scene_->timestamp; }
 };
 
 }

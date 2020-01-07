@@ -9,6 +9,7 @@
 #include "ftl/operators/antialiasing.hpp"
 #include "ftl/operators/mvmls.hpp"
 #include "ftl/operators/clipping.hpp"
+#include <ftl/operators/disparity.hpp>
 
 using ftl::Reconstruction;
 using ftl::codecs::Channel;
@@ -24,14 +25,17 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 }
 
 Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
-	ftl::Configurable(config), busy_(false), fs_render_(), fs_align_() {
+	ftl::Configurable(config), busy_(false), rbusy_(false), new_frame_(false), fs_render_(), fs_align_() {
 	group_ = new ftl::rgbd::Group;
-	group_->setName("ReconGroup-" + name);
+	group_->setName("Reconstruction-" + name);
 	group_->setLatency(4);
 
 	renderer_ = ftl::create<ftl::render::Triangular>(this, "renderer", &fs_render_);
 
 	pipeline_ = ftl::config::create<ftl::operators::Graph>(this, "pre_filters");
+	pipeline_->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
+	pipeline_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter")->set("enabled", false);
+	pipeline_->append<ftl::operators::DisparityToDepth>("calculate_depth")->set("enabled", false);
 	pipeline_->append<ftl::operators::ClipScene>("clipping")->set("enabled", false);
 	pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	//pipeline_->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
@@ -49,52 +53,46 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	group_->sync([this](ftl::rgbd::FrameSet &fs) -> bool {
 		// TODO: pause
 		
-		if (busy_) {
-			LOG(INFO) << "Group frameset dropped: " << fs.timestamp;
+		/*if (busy_) {
+			LOG(WARNING) << "Group frameset dropped: " << fs.timestamp;
 			return true;
 		}
-		busy_ = true;
+		busy_ = true;*/
 
 		// Swap the entire frameset to allow rapid return
-		fs.swapTo(fs_align_);
+		// FIXME: This gets stuck on a mutex
+		//fs.swapTo(fs_align_);
 
-		ftl::pool.push([this](int id) {
-			UNIQUE_LOCK(fs_align_.mtx, lk);
-			
-			/*rgb_.resize(fs_align_.frames.size());
-			for (size_t i = 0; i < rgb_.size(); i++) {
-				auto &depth = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Depth);
-				auto &color = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour);
+		//ftl::pool.push([this](int id) {
+			//UNIQUE_LOCK(fs.mtx, lk);
 
-				if (depth.size() != color.size()) {
-					std::swap(rgb_[i], color);
-					cv::cuda::resize(rgb_[i], color, depth.size(), 0.0, 0.0, cv::INTER_LINEAR);
-				}
-			}*/
-
-			pipeline_->apply(fs_align_, fs_align_, 0);
+			pipeline_->apply(fs, fs, 0);
 			
 			// TODO: To use second GPU, could do a download, swap, device change,
 			// then upload to other device. Or some direct device-2-device copy.
-			/*
-			for (size_t i = 0; i < rgb_.size(); i++) {
-				auto &depth = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Depth);
-				auto &color = fs_align_.frames[i].get<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour);
-				auto &tmp = rgb_[i];
 
-				// TODO doesn't always work correctly if resolution changes
-				if (!tmp.empty() && (depth.size() != tmp.size())) {
-					std::swap(tmp, color);
-					fs_align_.frames[i].resetTexture(ftl::codecs::Channel::Colour);
-					fs_align_.frames[i].createTexture<uchar4>(ftl::codecs::Channel::Colour, true);
-				}
-			}*/
+			// FIXME: Need a buffer of framesets
+			/*if (rbusy_) {
+				LOG(WARNING) << "Render frameset dropped: " << fs_align_.timestamp;
+				busy_ = false;
+				//return;
+			}
+			rbusy_ = true;*/
 
-			fs_align_.swapTo(fs_render_);
+			//LOG(INFO) << "Align complete... " << fs.timestamp;
 
-			LOG(INFO) << "Align complete... " << fs_align_.timestamp;
-			busy_ = false;
-		});
+			// TODO: Reduce mutex locking problem here...
+			{
+				UNIQUE_LOCK(exchange_mtx_, lk);
+				if (new_frame_ == true) LOG(WARNING) << "Frame lost";
+				fs.swapTo(fs_align_);
+				new_frame_ = true;
+			}
+
+			//fs.resetFull();
+
+			//busy_ = false;
+		//});
 		return true;
 	});
 }
@@ -104,7 +102,7 @@ Reconstruction::~Reconstruction() {
 }
 
 void Reconstruction::addSource(ftl::rgbd::Source *src) {
-	src->setChannel(Channel::Depth);
+	//src->setChannel(Channel::Depth);
 	group_->addSource(src); // TODO: check if source is already in group?
 }
 
@@ -112,7 +110,20 @@ void Reconstruction::addRawCallback(const std::function<void(ftl::rgbd::Source *
 	group_->addRawCallback(cb);
 }
 
-void Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out) {
+bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out) {
+	{
+		UNIQUE_LOCK(exchange_mtx_, lk);
+		if (new_frame_) {
+			new_frame_ = false;
+			fs_align_.swapTo(fs_render_);
+		}
+	}
+	/*if (fs_render_.stale || fs_render_.timestamp <= 0) {
+		LOG(ERROR) << "STALE FRAME TO RENDER";
+		return false;
+	}
+	fs_render_.stale = true;*/
+
 	// Create scene transform, intended for axis aligning the walls and floor
 	Eigen::Matrix4d transform;
 	//if (getConfig()["transform"].is_object()) {
@@ -134,5 +145,7 @@ void Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out)
 	//}
 
 	Eigen::Affine3d sm = Eigen::Affine3d(Eigen::Scaling(double(value("scale", 1.0f))));
-	renderer_->render(vs, out, sm.matrix() * transform);
+	bool res = renderer_->render(vs, out, sm.matrix() * transform);
+	//fs_render_.resetFull();
+	return res;
 }

@@ -12,12 +12,16 @@
 #include <vector>
 
 namespace ftl {
+namespace operators {
+	class Graph;
+}
+
 namespace rgbd {
 
 class Source;
 
 // Allows a latency of 20 frames maximum
-static const size_t kFrameBufferSize = 20;
+static const size_t kMaxFramesets = 15;
 
 /**
  * Manage a group of RGB-D sources to obtain synchronised sets of frames from
@@ -54,6 +58,12 @@ class Group {
 	 * internally for all the source frames.
 	 */
 	void addGroup(ftl::rgbd::Group *);
+
+	/**
+	 * Add a pipeline to be run after each frame is received from source but
+	 * before it as added to a synchronised frameset.
+	 */
+	void addPipeline(ftl::operators::Graph *g) { pipeline_ = g; };
 
 	/**
 	 * Provide a function to be called once per frame with a valid frameset
@@ -95,20 +105,25 @@ class Group {
 	 * the reference point, this may already be several frames old. Latency
 	 * does not correspond to actual current time.
 	 */
-	void setLatency(int frames) { latency_ = frames; }
+	void setLatency(int frames) { }
 
 	void stop() {}
 
 	int streamID(const ftl::rgbd::Source *s) const;
 
 	private:
-	std::vector<FrameSet> framesets_;
+	std::list<FrameSet*> framesets_;  // Active framesets
+	std::list<FrameSet*> allocated_;  // Keep memory allocations
+
 	std::vector<Source*> sources_;
+	ftl::operators::Graph *pipeline_;
 	size_t head_;
 	std::function<bool(FrameSet &)> callback_;
 	MUTEX mutex_;
 	int mspf_;
-	int latency_;
+	float latency_;
+	float fps_;
+	int stats_count_;
 	int64_t last_ts_;
 	std::atomic<int> jobs_;
 	volatile bool skip_;
@@ -120,13 +135,19 @@ class Group {
 	/* Insert a new frameset into the buffer, along with all intermediate
 	 * framesets between the last in buffer and the new one.
 	 */
-	void _addFrameset(int64_t timestamp);
+	ftl::rgbd::FrameSet *_addFrameset(int64_t timestamp);
 
 	void _retrieveJob(ftl::rgbd::Source *);
 	void _computeJob(ftl::rgbd::Source *);
 
 	/* Find a frameset with given latency in frames. */
-	ftl::rgbd::FrameSet *_getFrameset(int f);
+	ftl::rgbd::FrameSet *_getFrameset();
+
+	/* Search for a matching frameset. */
+	ftl::rgbd::FrameSet *_findFrameset(int64_t ts);
+	void _freeFrameset(ftl::rgbd::FrameSet *);
+
+	void _recordStats(float fps, float latency);
 };
 
 }

@@ -62,8 +62,7 @@ class Source {
 	capability_t capabilities_;
 	ftl::rgbd::Source *host_;
 	ftl::rgbd::Camera params_;
-	cv::cuda::GpuMat rgb_;
-	cv::cuda::GpuMat depth_;
+	ftl::rgbd::Frame frame_;
 	int64_t timestamp_;
 	//Eigen::Matrix4f pose_;
 };

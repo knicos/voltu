@@ -23,10 +23,13 @@ class Reconstruction : public ftl::Configurable {
 	/**
 	 * Do the render for a specified virtual camera.
 	 */
-	void render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out);
+	bool render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out);
 
 	private:
 	bool busy_;
+	bool rbusy_;
+	bool new_frame_;
+	MUTEX exchange_mtx_;
 	
 	ftl::rgbd::FrameSet fs_render_;
 	ftl::rgbd::FrameSet fs_align_;

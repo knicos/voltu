@@ -24,6 +24,7 @@
 #include <ftl/net/universe.hpp>
 #include <ftl/master.hpp>
 #include <nlohmann/json.hpp>
+#include <ftl/operators/disparity.hpp>
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
@@ -54,7 +55,7 @@ static void run(ftl::Configurable *root) {
 
 	auto paths = root->get<vector<string>>("paths");
 	string file = "";
-	if (paths && (*paths).size() > 0) file = (*paths)[0];
+	if (paths && (*paths).size() > 0) file = (*paths)[(*paths).size()-1];
 
 	Source *source = nullptr;
 	source = ftl::create<Source>(root, "source");
@@ -65,6 +66,10 @@ static void run(ftl::Configurable *root) {
 	
 	Streamer *stream = ftl::create<Streamer>(root, "stream", net);
 	stream->add(source);
+
+	auto pipeline = ftl::config::create<ftl::operators::Graph>(root, "pipeline");
+	pipeline->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
+	stream->group()->addPipeline(pipeline);
 	
 	net->start();
 

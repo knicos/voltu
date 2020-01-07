@@ -22,6 +22,7 @@ using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using std::tuple;
 using ftl::codecs::Channel;
+using cv::cuda::GpuMat;
 using ftl::codecs::codec_t;
 
 // ===== NetFrameQueue =========================================================
@@ -91,6 +92,11 @@ void NetFrameQueue::freeFrame(NetFrame &f) {
 
 
 // ===== NetSource =============================================================
+
+int64_t NetSource::last_msg_ = 0;
+float NetSource::req_bitrate_ = 0.0f;
+float NetSource::sample_count_ = 0.0f;
+MUTEX NetSource::msg_mtx_;
 
 NetSource::NetSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host), active_(false), minB_(9), maxN_(1), adaptive_(0), queue_(3) {
@@ -266,10 +272,21 @@ void NetSource::_processPose(const ftl::codecs::Packet &pkt) {
 	}
 }
 
-void NetSource::_checkDataRate(size_t tx_size, int64_t tx_latency) {
+void NetSource::_checkDataRate(size_t tx_size, int64_t tx_latency, int64_t ts) {
 	float actual_mbps = (float(tx_size) * 8.0f * (1000.0f / float(tx_latency))) / 1048576.0f;
     float min_mbps = (float(tx_size) * 8.0f * (1000.0f / float(ftl::timer::getInterval()))) / 1048576.0f;
-    if (actual_mbps < min_mbps) LOG(WARNING) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
+    if (actual_mbps > 0.0f && actual_mbps < min_mbps) LOG(WARNING) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
+
+	UNIQUE_LOCK(msg_mtx_,lk);
+	req_bitrate_ += float(tx_size) * 8.0f;
+	sample_count_ += 1.0f;
+
+	if (ts - last_msg_ >= 1000) {
+		LOG(INFO) << "Required Bitrate = " << (req_bitrate_ / float(ts - last_msg_) * 1000.0f / 1048576.0f) << "Mbps";
+		last_msg_ = ts;
+		req_bitrate_ = 0.0f;
+		sample_count_ = 0.0f;
+	}
 }
 
 void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
@@ -299,7 +316,7 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	//LOG(INFO) << "PACKET: " << spkt.timestamp << ", " << (int)spkt.channel << ", " << (int)pkt.codec;
 	
 	const cv::Size size = cv::Size(ftl::codecs::getWidth(pkt.definition), ftl::codecs::getHeight(pkt.definition));
-	NetFrame &frame = queue_.getFrame(spkt.timestamp, size, CV_8UC3, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC3));
+	NetFrame &frame = queue_.getFrame(spkt.timestamp, size, CV_8UC4, (isFloatChannel(chan) ? CV_32FC1 : CV_8UC4));
 
 	if (timestamp_ > 0 && frame.timestamp <= timestamp_) {
 		LOG(ERROR) << "Duplicate frame - " << frame.timestamp << " received=" << int(rchan) << " uri=" << uri_;
@@ -328,7 +345,7 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 	// Update frame statistics
 	frame.tx_size += pkt.data.size();
 
-	frame.channel[channum].create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC3));
+	frame.channel[channum].create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
 
 	// Only decode if this channel is wanted.
 	if (rchan == Channel::Colour || rchan == chan) {
@@ -354,7 +371,7 @@ void NetSource::_recvPacket(short ttimeoff, const ftl::codecs::StreamPacket &spk
 
 	// TODO:(Nick) Decode directly into double buffer if no scaling
 	
-	_checkDataRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff));
+	_checkDataRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
 
 	if (frame.chunk_count[channum] == frame.chunk_total[channum]) ++frame.channel_count;
 
@@ -375,7 +392,13 @@ void NetSource::_completeFrame(NetFrame &frame, int64_t latency) {
 		// Note: Not used currently
 		adaptive_ = abr_.selectBitrate(frame);
 
-		host_->notify(frame.timestamp, frame.channel[0], frame.channel[1]);
+		frame_.reset();
+		cv::cuda::swap(frame_.create<GpuMat>(Channel::Colour), frame.channel[0]);
+
+		if (host_->getChannel() != Channel::None)
+			cv::cuda::swap(frame_.create<GpuMat>(host_->getChannel()), frame.channel[1]);
+
+		host_->notify(frame.timestamp, frame_);
 
 		queue_.freeFrame(frame);
 		N_--;
@@ -391,7 +414,7 @@ void NetSource::setPose(const Eigen::Matrix4d &pose) {
 			active_ = false;
 		}
 	} catch (...) {
-
+		LOG(ERROR) << "Exception when setting pose";
 	}
 	//Source::setPose(pose);
 }
@@ -450,11 +473,11 @@ bool NetSource::compute(int n, int b) {
 		N_ = maxN_;
 
 		// Verify depth destination is of required type
-		if (isFloatChannel(chan) && depth_.type() != CV_32F) {
+		/*if (isFloatChannel(chan)) {
 			depth_.create(cv::Size(params_.width, params_.height), CV_32FC1);  // 0.0f
-		} else if (!isFloatChannel(chan) && depth_.type() != CV_8UC3) {
-			depth_.create(cv::Size(params_.width, params_.height), CV_8UC3);  // cv::Scalar(0,0,0)
-		}
+		} else if (!isFloatChannel(chan)) {
+			depth_.create(cv::Size(params_.width, params_.height), CV_8UC3);  // FIXME: Use 8UC4
+		}*/
 
 		if (prev_chan_ != chan) {
 			host_->getNet()->send(peer_, "set_channel", *host_->get<string>("uri"), chan);

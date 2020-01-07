@@ -11,6 +11,8 @@ set(OPERSRC
 	src/disparity/disp2depth.cu
 	src/disparity/disparity_to_depth.cpp
 	src/disparity/bilateral_filter.cpp
+	src/disparity/opencv/disparity_bilateral_filter.cpp
+	src/disparity/opencv/disparity_bilateral_filter.cu
 	src/segmentation.cu
 	src/segmentation.cpp
 	src/mask.cu
@@ -20,6 +22,7 @@ set(OPERSRC
 	src/mvmls.cpp
 	src/correspondence.cu
 	src/clipping.cpp
+	src/depth.cpp
 )
 
 

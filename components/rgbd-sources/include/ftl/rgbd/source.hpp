@@ -32,6 +32,7 @@ class VirtualSource;
 class Player;
 
 typedef std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> RawCallback;
+typedef std::function<void(int64_t,ftl::rgbd::Frame&)> FrameCallback;
 
 /**
  * RGBD Generic data source configurable entity. This class hides the
@@ -176,14 +177,14 @@ class Source : public ftl::Configurable {
 
 	SHARED_MUTEX &mutex() { return mutex_; }
 
-	std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> &callback() { return callback_; }
+	const FrameCallback &callback() { return callback_; }
 
 	/**
 	 * Set the callback that receives decoded frames as they are generated.
 	 * There can be only a single such callback as the buffers can be swapped
 	 * by the callback.
 	 */
-	void setCallback(std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> cb);
+	void setCallback(const FrameCallback &cb);
 	void removeCallback() { callback_ = nullptr; }
 
 	/**
@@ -207,7 +208,8 @@ class Source : public ftl::Configurable {
 	 * Notify of a decoded or available pair of frames. This calls the source
 	 * callback after having verified the correct resolution of the frames.
 	 */
-	void notify(int64_t ts, cv::cuda::GpuMat &c1, cv::cuda::GpuMat &c2);
+	//void notify(int64_t ts, cv::cuda::GpuMat &c1, cv::cuda::GpuMat &c2);
+	void notify(int64_t ts, ftl::rgbd::Frame &f);
 
 	// ==== Inject Data into stream ============================================
 
@@ -227,8 +229,8 @@ class Source : public ftl::Configurable {
 	SHARED_MUTEX mutex_;
 	ftl::codecs::Channel channel_;
 	cudaStream_t stream_;
-	std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> callback_;
-	std::list<std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)>> rawcallbacks_;
+	FrameCallback callback_;
+	std::list<RawCallback> rawcallbacks_;
 
 	detail::Source *_createImplementation();
 	detail::Source *_createFileImpl(const ftl::URI &uri);

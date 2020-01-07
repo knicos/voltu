@@ -34,7 +34,12 @@ Player::Player(std::istream &s) : stream_(&s), reader_(s) {
         c->on("reverse", [this,c](const ftl::config::Event &e) {
             reversed_ = c->value("reverse", false);
         });
-    }
+    } else {
+		looping_ = true;
+		paused_ = false;
+		speed_ = 1.0f;
+		reversed_ = false;
+	}
 }
 
 Player::~Player() {

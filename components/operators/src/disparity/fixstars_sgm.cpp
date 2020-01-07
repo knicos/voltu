@@ -89,6 +89,8 @@ bool FixstarsSGM::init() {
 	rbw_.create(size_, CV_8UC1);
 	disp_int_.create(size_, CV_16SC1);
 
+	LOG(INFO) << "INIT FIXSTARS";
+
 	ssgm_ = new sgm::StereoSGM(size_.width, size_.height, max_disp_, 8, 16,
 		lbw_.step, disp_int_.step / sizeof(short),
 		sgm::EXECUTE_INOUT_CUDA2CUDA,
@@ -106,12 +108,13 @@ bool FixstarsSGM::updateParameters() {
 
 bool FixstarsSGM::apply(Frame &in, Frame &out, Source *src, cudaStream_t stream) {
 	if (!in.hasChannel(Channel::Left) || !in.hasChannel(Channel::Right)) {
+		LOG(ERROR) << "Fixstars is missing Left or Right channel";
 		return false;
 	}
 
 	const auto &l = in.get<GpuMat>(Channel::Left);
 	const auto &r = in.get<GpuMat>(Channel::Right);
-	
+
 	if (l.size() != size_) {
 		size_ = l.size();
 		if (!init()) { return false; }
@@ -120,8 +123,8 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, Source *src, cudaStream_t stream)
 	auto &disp = out.create<GpuMat>(Channel::Disparity, Format<float>(l.size()));
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-	cv::cuda::cvtColor(l, lbw_, cv::COLOR_BGR2GRAY, 0, cvstream);
-	cv::cuda::cvtColor(r, rbw_, cv::COLOR_BGR2GRAY, 0, cvstream);
+	cv::cuda::cvtColor(l, lbw_, cv::COLOR_BGRA2GRAY, 0, cvstream);
+	cv::cuda::cvtColor(r, rbw_, cv::COLOR_BGRA2GRAY, 0, cvstream);
 
 	cvstream.waitForCompletion();
 	ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data);

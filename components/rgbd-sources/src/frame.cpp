@@ -11,6 +11,19 @@ static cv::cuda::GpuMat noneGPU;
 void Frame::reset() {
 	channels_.clear();
 	gpu_.clear();
+	for (size_t i=0u; i<Channels::kMax; ++i) {
+		data_[i].encoded.clear();
+	}
+}
+
+void Frame::resetFull() {
+	channels_.clear();
+	gpu_.clear();
+	for (size_t i=0u; i<Channels::kMax; ++i) {
+		data_[i].gpu = cv::cuda::GpuMat();
+		data_[i].host = cv::Mat();
+		data_[i].encoded.clear();
+	}
 }
 
 void Frame::download(Channel c, cv::cuda::Stream stream) {
@@ -35,6 +48,37 @@ void Frame::upload(Channels c, cv::cuda::Stream stream) {
 		if (c.has(i) && channels_.has(i) && !gpu_.has(i)) {
 			data_[i].gpu.upload(data_[i].host, stream);
 			gpu_ += i;
+		}
+	}
+}
+
+void Frame::pushPacket(ftl::codecs::Channel c, ftl::codecs::Packet &pkt) {
+	if (hasChannel(c)) {
+		auto &m1 = _get(c);
+		m1.encoded.emplace_back() = std::move(pkt);
+	} else {
+		LOG(ERROR) << "Channel " << (int)c << " doesn't exist for packet push";
+	}
+}
+
+const std::list<ftl::codecs::Packet> &Frame::getPackets(ftl::codecs::Channel c) const {
+	if (!hasChannel(c)) {
+		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)c);
+	}
+
+	auto &m1 = _get(c);
+	return m1.encoded;
+}
+
+void Frame::mergeEncoding(ftl::rgbd::Frame &f) {
+	//LOG(INFO) << "MERGE " << (unsigned int)f.channels_;
+	for (auto c : channels_) {
+		//if (!f.hasChannel(c)) f.create<cv::cuda::GpuMat>(c);
+		if (f.hasChannel(c)) {
+			auto &m1 = _get(c);
+			auto &m2 = f._get(c);
+			m1.encoded.splice(m1.encoded.begin(), m2.encoded);
+			//LOG(INFO) << "SPLICED: " << m1.encoded.size();
 		}
 	}
 }
@@ -70,6 +114,12 @@ void Frame::swapTo(ftl::codecs::Channels channels, Frame &f) {
 			auto temptex = std::move(m2.tex);
 			m2.tex = std::move(m1.tex);
 			m1.tex = std::move(temptex);
+
+			if (m2.encoded.size() > 0 || m1.encoded.size() > 0) {
+				auto tempenc = std::move(m2.encoded);
+				m2.encoded = std::move(m1.encoded);
+				m1.encoded = std::move(tempenc);
+			}
 		}
 	}
 }
@@ -83,6 +133,12 @@ void Frame::swapChannels(ftl::codecs::Channel a, ftl::codecs::Channel b) {
 	auto temptex = std::move(m2.tex);
 	m2.tex = std::move(m1.tex);
 	m1.tex = std::move(temptex);
+
+	if (m2.encoded.size() > 0 || m1.encoded.size() > 0) {
+		auto tempenc = std::move(m2.encoded);
+		m2.encoded = std::move(m1.encoded);
+		m1.encoded = std::move(tempenc);
+	}
 }
 
 void Frame::copyTo(ftl::codecs::Channels channels, Frame &f) {
@@ -94,6 +150,9 @@ void Frame::copyTo(ftl::codecs::Channels channels, Frame &f) {
 		if (channels.has(c)) {
 			if (isCPU(c)) get<cv::Mat>(c).copyTo(f.create<cv::Mat>(c));
 			else get<cv::cuda::GpuMat>(c).copyTo(f.create<cv::cuda::GpuMat>(c));
+			auto &m1 = _get(c);
+			auto &m2 = f._get(c);
+			m2.encoded = m1.encoded; //std::move(m1.encoded);  // TODO: Copy?
 		}
 	}
 }
@@ -176,13 +235,15 @@ template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::Form
 	channels_ += c;
 	gpu_ -= c;
 
-	auto &m = _get(c).host;
+	auto &m = _get(c);
+
+	m.encoded.clear();  // Remove all old encoded data
 
 	if (!f.empty()) {
-		m.create(f.size(), f.cvType);
+		m.host.create(f.size(), f.cvType);
 	}
 
-	return m;
+	return m.host;
 }
 
 template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
@@ -192,13 +253,15 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::r
 	channels_ += c;
 	gpu_ += c;
 
-	auto &m = _get(c).gpu;
+	auto &m = _get(c);
+
+	m.encoded.clear();  // Remove all old encoded data
 
 	if (!f.empty()) {
-		m.create(f.size(), f.cvType);
+		m.gpu.create(f.size(), f.cvType);
 	}
 
-	return m;
+	return m.gpu;
 }
 
 template <> cv::Mat &Frame::create(ftl::codecs::Channel c) {
@@ -208,8 +271,11 @@ template <> cv::Mat &Frame::create(ftl::codecs::Channel c) {
 	channels_ += c;
 	gpu_ -= c;
 
-	auto &m = _get(c).host;
-	return m;
+	auto &m = _get(c);
+
+	m.encoded.clear();  // Remove all old encoded data
+
+	return m.host;
 }
 
 template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c) {
@@ -219,8 +285,11 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c) {
 	channels_ += c;
 	gpu_ += c;
 
-	auto &m = _get(c).gpu;
-	return m;
+	auto &m = _get(c);
+
+	m.encoded.clear();  // Remove all old encoded data
+
+	return m.gpu;
 }
 
 void Frame::resetTexture(ftl::codecs::Channel c) {

@@ -107,6 +107,8 @@ class Streamer : public ftl::Configurable {
 	 */
 	void add(ftl::rgbd::Group *grp);
 
+	ftl::rgbd::Group *group() { return &group_; }
+
 	void remove(Source *);
 	void remove(const std::string &);
 

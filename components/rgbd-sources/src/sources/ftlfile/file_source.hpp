@@ -40,11 +40,14 @@ class FileSource : public detail::Source {
 	int cache_write_;
 	int sourceid_;
 
-	ftl::codecs::Decoder *decoders_[2];
+	ftl::codecs::Decoder *decoders_[32];  // 32 is max video channels
 
 	bool realtime_;
 	bool freeze_;
 	bool have_frozen_;
+
+	ftl::codecs::Channels decode_channels_;
+	ftl::codecs::Channels available_channels_;
 
 	void _processCalibration(ftl::codecs::Packet &pkt);
 	void _processPose(ftl::codecs::Packet &pkt);

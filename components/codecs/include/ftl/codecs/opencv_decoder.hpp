@@ -16,7 +16,7 @@ class OpenCVDecoder : public ftl::codecs::Decoder {
 	bool accepts(const ftl::codecs::Packet &pkt);
 
 	private:
-	cv::Mat tmp_;
+	//cv::Mat tmp_;
 };
 
 }

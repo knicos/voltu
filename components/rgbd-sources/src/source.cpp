@@ -32,6 +32,8 @@ using ftl::rgbd::capability_t;
 using ftl::codecs::Channel;
 using ftl::rgbd::detail::FileSource;
 using ftl::rgbd::Camera;
+using ftl::rgbd::RawCallback;
+using ftl::rgbd::FrameCallback;
 
 std::map<std::string, ftl::rgbd::Player*> Source::readers__;
 
@@ -247,12 +249,12 @@ const ftl::rgbd::Camera Source::parameters(ftl::codecs::Channel chan) const {
 	return (impl_) ? impl_->parameters(chan) : parameters();
 }
 
-void Source::setCallback(std::function<void(int64_t, cv::cuda::GpuMat &, cv::cuda::GpuMat &)> cb) {
+void Source::setCallback(const FrameCallback &cb) {
 	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
 	callback_ = cb;
 }
 
-void Source::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
+void Source::addRawCallback(const RawCallback &f) {
 	UNIQUE_LOCK(mutex_,lk);
 	rawcallbacks_.push_back(f);
 }
@@ -298,12 +300,8 @@ Camera Camera::scaled(int width, int height) const {
 	return newcam;
 }
 
-void Source::notify(int64_t ts, cv::cuda::GpuMat &c1, cv::cuda::GpuMat &c2) {
-	// Ensure correct scaling of images and parameters.
-	int max_width = max(impl_->params_.width, max(c1.cols, c2.cols));
-	int max_height = max(impl_->params_.height, max(c1.rows, c2.rows));
-
-	if (callback_) callback_(ts, c1, c2);
+void Source::notify(int64_t ts, ftl::rgbd::Frame &f) {
+	if (callback_) callback_(ts, f);
 }
 
 void Source::inject(const Eigen::Matrix4d &pose) {

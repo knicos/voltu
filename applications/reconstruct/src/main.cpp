@@ -101,6 +101,8 @@ static void run(ftl::Configurable *root) {
 		sourcecounts.push_back(configuration_size);
 	}
 
+	ftl::codecs::Channels channels;
+
 	// Check paths for FTL files to load.
 	auto paths = (*root->get<nlohmann::json>("paths"));
 	for (auto &x : paths.items()) {
@@ -117,8 +119,9 @@ static void run(ftl::Configurable *root) {
 			reader.begin();
 
 			int max_stream = 0;
-			reader.read(reader.getStartTime()+100, [&max_stream](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			reader.read(reader.getStartTime()+100, [&max_stream,&channels](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 				max_stream = max(max_stream, spkt.streamID);
+				if ((int)spkt.channel < 32) channels |= spkt.channel;
 			});
 			reader.end();
 
@@ -134,6 +137,8 @@ static void run(ftl::Configurable *root) {
 			sourcecounts.push_back(count);
 		}
 	}
+
+	if (channels.empty()) channels |= Channel::Depth;
 
 	// Create a vector of all input RGB-Depth sources
 	auto sources = ftl::createArray<Source>(root, "sources", net);
@@ -191,6 +196,11 @@ static void run(ftl::Configurable *root) {
 		std::string id = std::to_string(cumulative);
 		auto reconstr = ftl::create<ftl::Reconstruction>(root, id, id);
 		for (size_t i=cumulative; i<cumulative+c; i++) {
+			if (channels.has(Channel::Depth)) {
+				sources[i]->setChannel(Channel::Depth);
+			} else if (channels.has(Channel::Right)) {
+				sources[i]->setChannel(Channel::Right);
+			}
 			reconstr->addSource(sources[i]);
 		}
 		groups.push_back(reconstr);
@@ -202,10 +212,18 @@ static void run(ftl::Configurable *root) {
 	renderpipe->append<ftl::operators::FXAA>("antialiasing"); 
 
 	vs->onRender([vs, &groups, &renderpipe](ftl::rgbd::Frame &out) {
+		bool hasFrame = false;
 		for (auto &reconstr : groups) {
-			reconstr->render(vs, out);
+			hasFrame = reconstr->render(vs, out) || hasFrame;
 		}
-		renderpipe->apply(out, out, vs, 0);
+
+		if (hasFrame) {
+			renderpipe->apply(out, out, vs, 0);
+			return true;
+		} else {
+			LOG(INFO) << "NO FRAME";
+			return false;
+		}
 	});
 	stream->add(vs);
 
@@ -313,8 +331,7 @@ static void run(ftl::Configurable *root) {
 	});
 
 	// -------------------------------------------------------------------------
-
-	stream->setLatency(6);  // FIXME: This depends on source!?
+	
 	//stream->add(group);
 	stream->run();
 

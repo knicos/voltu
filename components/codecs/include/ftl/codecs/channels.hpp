@@ -14,7 +14,6 @@ enum struct Channel : int {
 	Depth			= 1,	// 32S or 32F
 	Right			= 2,	// 8UC3 or 8UC4
 	Colour2			= 2,
-	Disparity		= 3,
 	Depth2			= 3,
 	Deviation		= 4,
 	Screen			= 4,
@@ -24,7 +23,6 @@ enum struct Channel : int {
 	Contribution	= 7,	// 32F
 	EnergyVector	= 8,	// 32FC4
 	Flow			= 9,	// 32F
-	Smoothing		= 9,	// 32F
 	Energy			= 10,	// 32F
 	Mask			= 11,	// 32U
 	Density			= 12,	// 32F
@@ -32,7 +30,9 @@ enum struct Channel : int {
 	Support2		= 14,	// 8UC4 (currently)
 	Segmentation	= 15,	// 32S?
 	ColourNormals	= 16,	// 8UC4
-	ColourHighRes	= 20,	// 8UC3 or 8UC4
+	ColourHighRes	= 17,	// 8UC3 or 8UC4
+	Disparity		= 18,
+	Smoothing		= 19,	// 32F
 
 	AudioLeft		= 32,
 	AudioRight		= 33,
@@ -102,6 +102,7 @@ class Channels {
 	}
 	
 	inline size_t count() { return std::bitset<32>(mask).count(); }
+	inline bool empty() { return mask == 0; }
 	inline void clear() { mask = 0; }
 
 	static const size_t kMax = 32;

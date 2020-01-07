@@ -49,7 +49,7 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 
 	//group_.setFPS(value("fps", 20));
 	group_.setLatency(4);
-	group_.setName("StreamGroup");
+	group_.setName("NetStreamer");
 
 	compress_level_ = value("compression", 1);
 	
@@ -196,7 +196,7 @@ void Streamer::add(Source *src) {
 				s->hq_bitrate = ftl::codecs::kPresetBest;
 			}
 
-			//LOG(INFO) << "RAW CALLBACK";
+			LOG(INFO) << "RAW CALLBACK";
 			_transmitPacket(s, spkt, pkt, Quality::Any);
 		});
 	}
@@ -227,7 +227,7 @@ void Streamer::add(ftl::rgbd::Group *grp) {
 			//group_.addSource(src);
 
 			src->addRawCallback([this,s](Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-				//LOG(INFO) << "RAW CALLBACK";
+				LOG(INFO) << "RAW CALLBACK2";
 				_transmitPacket(s, spkt, pkt, Quality::Any);
 			});
 		}
@@ -266,6 +266,7 @@ void Streamer::_addClient(const string &source, int N, int rate, const ftl::UUID
 				try {
 					mastertime = net_->call<int64_t>(peer, "__ping__");
 				} catch (...) {
+					LOG(ERROR) << "Ping failed";
 					// Reset time peer and remove timer
 					time_peer_ = ftl::UUID(0);
 					return false;
@@ -446,62 +447,107 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 		if (!fs.sources[j]->isReady()) continue;
 		if (src->clientCount == 0) continue;
 		//if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
-		if (!fs.frames[j].hasChannel(Channel::Colour) || !fs.frames[j].hasChannel(fs.sources[j]->getChannel())) continue;
+		if (!fs.frames[j].hasChannel(Channel::Colour) || !fs.frames[j].hasChannel(fs.sources[j]->getChannel())) {
+			LOG(WARNING) << "Missing required channel when streaming: " << (int)fs.sources[j]->getChannel();
+			continue;
+		}
 
-		bool hasChan2 = fs.sources[j]->getChannel() != Channel::None;
+		bool hasChan2 = fs.sources[j]->getChannel() != Channel::None &&
+				fs.frames[j].hasChannel(fs.sources[j]->getChannel());
 
 		totalclients += src->clientCount;
 
 		// Do we need to do high quality encoding?
 		if (src->hq_count > 0) {
-			if (!src->hq_encoder_c1) src->hq_encoder_c1 = ftl::codecs::allocateEncoder(
-					definition_t::HD1080, hq_devices_, hq_codec_);
-			if (!src->hq_encoder_c2 && hasChan2) src->hq_encoder_c2 = ftl::codecs::allocateEncoder(
-					definition_t::HD1080, hq_devices_, hq_codec_);
+			
+			auto chan = fs.sources[j]->getChannel();
 
 			// Do we have the resources to do a HQ encoding?
-			if (src->hq_encoder_c1 && (!hasChan2 || src->hq_encoder_c2)) {
-				auto *enc1 = src->hq_encoder_c1;
-				auto *enc2 = src->hq_encoder_c2;
+			///if (src->hq_encoder_c1 && (!hasChan2 || src->hq_encoder_c2)) {
+				//auto *enc1 = src->hq_encoder_c1;
+				//auto *enc2 = src->hq_encoder_c2;
 
 				MUTEX mtx;
 				std::condition_variable cv;
 				bool chan2done = false;
 
 				if (hasChan2) {
-					ftl::pool.push([this,&fs,enc2,src,hasChan2,&cv,j,&chan2done](int id) {
-						// TODO: Stagger the reset between nodes... random phasing
-						if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc2->reset();
+					if (fs.frames[j].getPackets(chan).size() == 0) {
+						
+						// Allocate an encoder
+						if (!src->hq_encoder_c2) src->hq_encoder_c2 = ftl::codecs::allocateEncoder(
+								definition_t::HD1080, hq_devices_, hq_codec_);
 
-						auto chan = fs.sources[j]->getChannel();
+						auto *enc = src->hq_encoder_c2;
 
-						try {
-							enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->hq_bitrate, [this,src,hasChan2,chan,&cv,&chan2done](const ftl::codecs::Packet &blk){
-								_transmitPacket(src, blk, chan, hasChan2, Quality::High);
-								chan2done = true;
-								cv.notify_one();
+						// Do we have an encoder to continue with?
+						if (enc) {
+							ftl::pool.push([this,&fs,enc,src,hasChan2,&cv,j,&chan2done](int id) {
+								// TODO: Stagger the reset between nodes... random phasing
+								if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
+
+								auto chan = fs.sources[j]->getChannel();
+
+								try {
+									enc->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->hq_bitrate, [this,src,hasChan2,chan,&cv,&chan2done](const ftl::codecs::Packet &blk){
+										_transmitPacket(src, blk, chan, hasChan2, Quality::High);
+										chan2done = true;
+										cv.notify_one();
+									});
+								} catch (std::exception &e) {
+									LOG(ERROR) << "Exception in encoder: " << e.what();
+									chan2done = true;
+									cv.notify_one();
+								}
 							});
-						} catch (std::exception &e) {
-							LOG(ERROR) << "Exception in encoder: " << e.what();
+						} else {
 							chan2done = true;
-							cv.notify_one();
+							LOG(ERROR) << "Insufficient encoder resources";
 						}
-					});
+					} else {
+						// Already have an encoding so send this
+						const auto &packets = fs.frames[j].getPackets(chan);
+						LOG(INFO) << "Send existing chan2 encoding: " << packets.size();
+						for (const auto &i : packets) {
+							_transmitPacket(src, i, chan, hasChan2, Quality::High);	
+						}
+					}
 				} else {
-					if (enc2) enc2->reset();
+					// No second channel requested...
+					if (src->hq_encoder_c2) src->hq_encoder_c2->reset();
 					chan2done = true;
 				}
+				
 
-				// TODO: Stagger the reset between nodes... random phasing
-				if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc1->reset();
-				enc1->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
-					_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
-				});
+				// TODO: Use ColourHighQuality if available
+				if (fs.frames[j].getPackets(Channel::Colour).size() == 0) {
+					if (!src->hq_encoder_c1) src->hq_encoder_c1 = ftl::codecs::allocateEncoder(
+						definition_t::HD1080, hq_devices_, hq_codec_);
+					auto *enc = src->hq_encoder_c1;
+
+					if (enc) {
+						// TODO: Stagger the reset between nodes... random phasing
+						if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
+						enc->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+							_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
+						});
+					} else {
+						LOG(ERROR) << "Insufficient encoder resources";
+					}
+				} else {
+					const auto &packets = fs.frames[j].getPackets(Channel::Colour);
+					// FIXME: Adjust block number and total to match number of packets
+					// Also requires the receiver to decode in block number order.
+					LOG(INFO) << "Send existing encoding: " << packets.size();
+					for (const auto &i : packets) {
+						_transmitPacket(src, i, Channel::Colour, hasChan2, Quality::High);	
+					}
+				}
 
 				// Ensure both channels have been completed.
 				std::unique_lock<std::mutex> lk(mtx);
 				cv.wait(lk, [&chan2done]{ return chan2done; });
-			}
+			//}
 		}
 
 		// Do we need to do low quality encoding?
@@ -546,7 +592,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 		// Make sure to unlock so clients can connect!
 		//lk.unlock();
 		slk.unlock();
-		sleep_for(milliseconds(50));
+		//sleep_for(milliseconds(50));
 	} else _cleanUp();
 }
 
@@ -563,6 +609,7 @@ void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt
 }
 
 void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt, Quality q) {
+	//LOG(INFO) << "TRANSMIT: " << spkt.timestamp;
 	// Lock to prevent clients being added / removed
 	//SHARED_LOCK(src->mutex,lk);
 	auto c = src->clients.begin();

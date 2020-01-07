@@ -19,7 +19,7 @@ void GLTexture::update(cv::Mat &m) {
 		glGenTextures(1, &glid_);
 		glBindTexture(GL_TEXTURE_2D, glid_);
 		//cv::Mat m(cv::Size(100,100), CV_8UC3);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, m.cols, m.rows, 0, GL_BGR, GL_UNSIGNED_BYTE, m.data);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m.cols, m.rows, 0, GL_BGRA, GL_UNSIGNED_BYTE, m.data);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -27,7 +27,7 @@ void GLTexture::update(cv::Mat &m) {
 	} else {
 		glBindTexture(GL_TEXTURE_2D, glid_);
 		// TODO Allow for other formats
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, m.cols, m.rows, 0, GL_BGR, GL_UNSIGNED_BYTE, m.data);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m.cols, m.rows, 0, GL_BGRA, GL_UNSIGNED_BYTE, m.data);
 	}
 	auto err = glGetError();
 	if (err != 0) LOG(ERROR) << "OpenGL Texture error: " << err;

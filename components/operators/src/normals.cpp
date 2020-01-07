@@ -22,7 +22,8 @@ bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sour
 	}
 
 	if (out.hasChannel(Channel::Normals)) {
-		LOG(WARNING) << "Output already has normals";
+		//LOG(WARNING) << "Output already has normals";
+		return true;
 	}
 
 	ftl::cuda::normals(
@@ -53,7 +54,8 @@ bool SmoothNormals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd
 	}
 
 	if (out.hasChannel(Channel::Normals)) {
-		LOG(WARNING) << "Output already has normals";
+		//LOG(WARNING) << "Output already has normals";
+		return true;
 	}
 
 	auto &depth = in.get<cv::cuda::GpuMat>(Channel::Depth);

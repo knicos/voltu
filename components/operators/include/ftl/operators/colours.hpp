@@ -17,6 +17,7 @@ class ColourChannels : public ftl::operators::Operator {
 
     private:
     cv::cuda::GpuMat temp_;
+	cv::cuda::GpuMat rbuf_;
 };
 
 }
