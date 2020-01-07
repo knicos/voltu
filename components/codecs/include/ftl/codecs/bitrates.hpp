@@ -15,6 +15,8 @@ enum struct codec_t : uint8_t {
 	PNG,
 	H264,
 	HEVC,  // H265
+	H264_LOSSLESS,
+	HEVC_LOSSLESS,
 
 	// TODO: Add audio codecs
 	WAV,

@@ -8,6 +8,7 @@ set(CODECSRC
 	src/writer.cpp
 	src/reader.cpp
 	src/channels.cpp
+	src/depth_convert.cu
 )
 
 if (HAVE_NVPIPE)

@@ -22,6 +22,7 @@ class NvPipeDecoder : public ftl::codecs::Decoder {
 	NvPipe *nv_decoder_;
 	bool is_float_channel_;
 	ftl::codecs::definition_t last_definition_;
+	ftl::codecs::codec_t last_codec_;
 	MUTEX mutex_;
 	bool seen_iframe_;
 	cv::cuda::GpuMat tmp_;

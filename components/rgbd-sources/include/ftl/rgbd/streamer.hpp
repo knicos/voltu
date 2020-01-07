@@ -149,6 +149,7 @@ class Streamer : public ftl::Configurable {
 	ftl::UUID time_peer_;
 	int64_t last_frame_;
 	int64_t frame_no_;
+	bool insert_iframes_;
 
 	encoder_t encode_mode_;
 

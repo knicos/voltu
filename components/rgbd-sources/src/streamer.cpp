@@ -136,11 +136,27 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 		}
 	});
 
+	on("video_codec", [this](const ftl::config::Event &e) {
+		UNIQUE_LOCK(mutex_,ulk);
+		hq_codec_ = value("video_codec", ftl::codecs::codec_t::Any);
+		for (auto &s : sources_) {
+			if (s.second->hq_encoder_c1) ftl::codecs::free(s.second->hq_encoder_c1);
+			if (s.second->hq_encoder_c2) ftl::codecs::free(s.second->hq_encoder_c2);
+			s.second->hq_encoder_c1 = nullptr;
+			s.second->hq_encoder_c2 = nullptr;
+		}
+	});
+
 	on("lq_bitrate", [this](const ftl::config::Event &e) {
 		UNIQUE_LOCK(mutex_,ulk);
 		for (auto &s : sources_) {
 			s.second->lq_bitrate = value("lq_bitrate", ftl::codecs::kPresetWorst);
 		}
+	});
+
+	insert_iframes_ = value("insert_iframes", false);
+	on("insert_iframes", [this](const ftl::config::Event &e) {
+		insert_iframes_ = value("insert_iframes", false);
 	});
 }
 
@@ -484,7 +500,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 						if (enc) {
 							ftl::pool.push([this,&fs,enc,src,hasChan2,&cv,j,&chan2done](int id) {
 								// TODO: Stagger the reset between nodes... random phasing
-								if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
+								if (insert_iframes_ && fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
 
 								auto chan = fs.sources[j]->getChannel();
 
@@ -527,7 +543,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 
 					if (enc) {
 						// TODO: Stagger the reset between nodes... random phasing
-						if (fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
+						if (insert_iframes_ && fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
 						enc->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 							_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 						});

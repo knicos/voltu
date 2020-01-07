@@ -28,6 +28,7 @@ class NvPipeEncoder : public ftl::codecs::Encoder {
 	bool supports(ftl::codecs::codec_t codec) override;
 
 	static constexpr int kFlagRGB = 0x00000001;
+	static constexpr int kFlagMappedDepth = 0x00000002;
 
 	private:
 	NvPipe *nvenc_;
@@ -35,6 +36,7 @@ class NvPipeEncoder : public ftl::codecs::Encoder {
 	bool is_float_channel_;
 	bool was_reset_;
 	ftl::codecs::codec_t preference_;
+	ftl::codecs::codec_t current_codec_;
 	cv::cuda::GpuMat tmp_;
 	cv::cuda::GpuMat tmp2_;
 	cv::cuda::Stream stream_;
