@@ -94,9 +94,9 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		//if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
 			// Flag 0x1 means frame is in RGB so needs conversion to BGR
 			if (pkt.flags & 0x1) {
-				cv::cuda::cvtColor(tmp_, out, cv::COLOR_RGBA2BGR, 0, stream_);
+				cv::cuda::cvtColor(tmp_, out, cv::COLOR_RGBA2BGRA, 0, stream_);
 			} else {
-				cv::cuda::cvtColor(tmp_, out, cv::COLOR_BGRA2BGR, 0, stream_);
+				//cv::cuda::cvtColor(tmp_, out, cv::COLOR_BGRA2BGR, 0, stream_);
 			}
 		/*} else {
 			LOG(WARNING) << "Resizing decoded frame from " << tmp_.size() << " to " << out.size();

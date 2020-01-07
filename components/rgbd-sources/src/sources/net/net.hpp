@@ -63,6 +63,11 @@ class NetSource : public detail::Source {
 	ftl::rgbd::detail::ABRController abr_;
 	int last_bitrate_;
 
+	static int64_t last_msg_;
+	static float req_bitrate_;
+	static float sample_count_;
+	static MUTEX msg_mtx_;
+
 	//#ifdef HAVE_NVPIPE
 	//NvPipe *nv_channel1_decoder_;
 	//NvPipe *nv_channel2_decoder_;
@@ -89,7 +94,7 @@ class NetSource : public detail::Source {
 	void _processCalibration(const ftl::codecs::Packet &pkt);
 	void _processConfig(const ftl::codecs::Packet &pkt);
 	void _processPose(const ftl::codecs::Packet &pkt);
-	void _checkDataRate(size_t tx_size, int64_t tx_latency);
+	void _checkDataRate(size_t tx_size, int64_t tx_latency, int64_t ts);
 };
 
 }

@@ -31,8 +31,15 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 
 	//LOG(INFO) << "DECODE JPEG " << (int)pkt.block_number << "/" << chunk_dim;
 
+	cv::Mat tmp2_, tmp_;
 	// Decode in temporary buffers to prevent long locks
-	cv::imdecode(pkt.data, cv::IMREAD_UNCHANGED, &tmp_);
+	cv::imdecode(pkt.data, cv::IMREAD_UNCHANGED, &tmp2_);
+
+	if (tmp2_.type() == CV_8UC3) {
+		cv::cvtColor(tmp2_, tmp_, cv::COLOR_BGR2BGRA);
+	} else {
+		tmp_ = tmp2_;
+	}
 
 	// Apply colour correction to chunk
 	//ftl::rgbd::colourCorrection(tmp_rgb, gamma_, temperature_);
@@ -45,7 +52,7 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		if (!tmp_.empty() && tmp_.type() == CV_16U && chunkHead.type() == CV_32F) {
 			tmp_.convertTo(tmp_, CV_32FC1, 1.0f/1000.0f);
 			chunkHead.upload(tmp_);
-		} else if (!tmp_.empty() && tmp_.type() == CV_8UC3 && chunkHead.type() == CV_8UC3) {
+		} else if (!tmp_.empty() && tmp_.type() == CV_8UC4 && chunkHead.type() == CV_8UC4) {
 			//tmp_.copyTo(chunkHead);
 			chunkHead.upload(tmp_);
 		} else {
@@ -57,7 +64,7 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 			tmp_.convertTo(tmp_, CV_32FC1, 1.0f/1000.0f); //(16.0f*10.0f));
 			cv::resize(tmp_, tmp_, chunkHead.size(), 0, 0, cv::INTER_NEAREST);
 			chunkHead.upload(tmp_);
-		} else if (!tmp_.empty() && tmp_.type() == CV_8UC3 && chunkHead.type() == CV_8UC3) {
+		} else if (!tmp_.empty() && tmp_.type() == CV_8UC4 && chunkHead.type() == CV_8UC4) {
 			cv::resize(tmp_, tmp_, chunkHead.size());
 			chunkHead.upload(tmp_);
 		} else {

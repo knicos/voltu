@@ -14,6 +14,7 @@ using ftl::gui::GLTexture;
 using ftl::gui::PoseWindow;
 using ftl::codecs::Channel;
 using ftl::codecs::Channels;
+using cv::cuda::GpuMat;
 
 // TODO(Nick) MOVE
 class StatisticsImage {
@@ -156,20 +157,22 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	posewin_->setTheme(screen->windowtheme);
 	posewin_->setVisible(false);
 
-	src->setCallback([this](int64_t ts, cv::cuda::GpuMat &channel1, cv::cuda::GpuMat &channel2) {
+	src->setCallback([this](int64_t ts, ftl::rgbd::Frame &frame) {
 		UNIQUE_LOCK(mutex_, lk);
+
+		auto &channel1 = frame.get<GpuMat>(Channel::Colour);
 		im1_.create(channel1.size(), channel1.type());
-		im2_.create(channel2.size(), channel2.type());
-
-		//cv::swap(channel1, im1_);
-		//cv::swap(channel2, im2_);
-
 		channel1.download(im1_);
-		channel2.download(im2_);
-		
+
 		// OpenGL (0,0) bottom left
 		cv::flip(im1_, im1_, 0);
-		cv::flip(im2_, im2_, 0);
+
+		if (channel_ != Channel::Colour && channel_ != Channel::None && frame.hasChannel(channel_)) {
+			auto &channel2 = frame.get<GpuMat>(channel_);
+			im2_.create(channel2.size(), channel2.type());
+			channel2.download(im2_);
+			cv::flip(im2_, im2_, 0);
+		}
 	});
 }
 
@@ -330,6 +333,7 @@ static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
 	
 	applyColorMap(out, out, cv::COLORMAP_JET);
 	out.setTo(cv::Scalar(255, 255, 255), mask);
+	cv::cvtColor(out,out, cv::COLOR_BGR2BGRA);
 }
 
 static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
@@ -343,6 +347,7 @@ static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
 	
 	applyColorMap(out, out, cv::COLORMAP_JET);
 	//out.setTo(cv::Scalar(255, 255, 255), mask);
+	cv::cvtColor(out,out, cv::COLOR_BGR2BGRA);
 }
 
 static void drawEdges(	const cv::Mat &in, cv::Mat &out,
@@ -353,8 +358,8 @@ static void drawEdges(	const cv::Mat &in, cv::Mat &out,
 	cv::Laplacian(in, edges, 8, ksize);
 	cv::threshold(edges, edges, threshold, 255, threshold_type);
 
-	cv::Mat edges_color(in.size(), CV_8UC3);
-	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC3);
+	cv::Mat edges_color(in.size(), CV_8UC4);
+	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC4);
 }
 
 cv::Mat ftl::gui::Camera::visualizeActiveChannel() {
@@ -497,7 +502,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			//case Channel::Flow:
 			case Channel::ColourNormals:
 			case Channel::Right:
-					if (im2_.rows == 0 || im2_.type() != CV_8UC3) { break; }
+					if (im2_.rows == 0 || im2_.type() != CV_8UC4) { break; }
 					texture2_.update(im2_);
 					break;
 

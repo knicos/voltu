@@ -37,3 +37,11 @@ void FrameSet::swapTo(ftl::rgbd::FrameSet &fs) {
 
 	stale = true;
 }
+
+void FrameSet::resetFull() {
+	//count = 0;
+	//stale = false;
+	for (auto &f : frames) {
+		f.resetFull();
+	}
+}

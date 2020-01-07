@@ -8,9 +8,9 @@ struct ChannelInfo {
 };
 
 static ChannelInfo info[] = {
-    "Colour", CV_8UC3,
+    "Colour", CV_8UC4,
     "Depth", CV_32F,
-    "Right", CV_8UC3,
+    "Right", CV_8UC4,
     "DepthRight", CV_32F,
     "Deviation", CV_32F,
     "Normals", CV_32FC4,

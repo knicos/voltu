@@ -147,6 +147,7 @@ Triangular::Triangular(nlohmann::json &config, ftl::rgbd::FrameSet *fs) : ftl::r
 
 	//filters_ = ftl::create<ftl::Filters>(this, "filters");
 	//filters_->create<ftl::filters::DepthSmoother>("hfnoise");
+	last_frame_ = -1;
 }
 
 Triangular::~Triangular() {
@@ -579,6 +580,13 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, co
 
 	int aligned_source = value("aligned_source",-1);
 	if (aligned_source >= 0 && aligned_source < scene_->frames.size()) {
+		// Can only send at originally received frame rate due to reuse of
+		// encodings that can't be sent twice.
+		if (_alreadySeen()) {
+			out.reset();
+			return false;
+		}
+
 		// FIXME: Output may not be same resolution as source!
 		cudaSafeCall(cudaStreamSynchronize(stream_));
 		scene_->frames[aligned_source].copyTo(Channel::Depth + Channel::Colour + Channel::Smoothing + Channel::Confidence, out);
@@ -596,6 +604,7 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, co
 			//out.resetTexture(Channel::Normals);
 		}
 
+		last_frame_ = scene_->timestamp;
 		return true;
 	}
 
@@ -704,5 +713,6 @@ bool Triangular::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, co
 	}
 
 	cudaSafeCall(cudaStreamSynchronize(stream_));
+	last_frame_ = scene_->timestamp;
 	return true;
 }

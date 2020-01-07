@@ -9,6 +9,8 @@
 
 using namespace ftl::rgbd;
 using ftl::rgbd::detail::SnapshotSource;
+using cv::cuda::GpuMat;
+using ftl::codecs::Channel;
 
 using std::string;
 using std::vector;
@@ -64,13 +66,13 @@ bool SnapshotSource::compute(int n, int b) {
 	//snap_rgb_.copyTo(rgb_);
 	//snap_depth_.copyTo(depth_);
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
-	rgb_.upload(snap_rgb_, cvstream);
-	depth_.upload(snap_depth_, cvstream);
+	frame_.create<GpuMat>(Channel::Colour).upload(snap_rgb_, cvstream);
+	frame_.create<GpuMat>(Channel::Depth).upload(snap_depth_, cvstream);
 	cudaStreamSynchronize(stream_);
 
 	//auto cb = host_->callback();
 	//if (cb) cb(timestamp_, rgb_, depth_);
-	host_->notify(timestamp_, rgb_, depth_);
+	host_->notify(timestamp_, frame_);
 
 	frame_idx_ = (frame_idx_ + 1) % snapshot_.getFramesCount();
 

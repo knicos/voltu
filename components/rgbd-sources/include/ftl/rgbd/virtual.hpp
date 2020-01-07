@@ -11,7 +11,7 @@ class VirtualSource : public ftl::rgbd::Source {
     explicit VirtualSource(ftl::config::json_t &cfg);
 	~VirtualSource();
 
-	void onRender(const std::function<void(ftl::rgbd::Frame &)> &);
+	void onRender(const std::function<bool(ftl::rgbd::Frame &)> &);
 
     /**
 	 * Write frames into source buffers from an external renderer. Virtual

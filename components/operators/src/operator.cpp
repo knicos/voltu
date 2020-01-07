@@ -52,15 +52,22 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 
 		if (i.instances[0]->type() == Operator::Type::OneToOne) {
 			// Make sure there are enough instances
-			while (i.instances.size() < in.frames.size()) {
+			//while (i.instances.size() < in.frames.size()) {
+				//i.instances.push_back(i.maker->make());
+			//}
+			if (in.frames.size() > 1) {
 				i.instances.push_back(i.maker->make());
 			}
 
 			for (int j=0; j<in.frames.size(); ++j) {
-				auto *instance = i.instances[j];
+				auto *instance = i.instances[j&0x1];
 
 				if (instance->enabled()) {
-					instance->apply(in.frames[j], out.frames[j], in.sources[j], stream_actual);
+					try {
+						if (!instance->apply(in.frames[j], out.frames[j], in.sources[j], stream_actual)) return false;
+					} catch (const std::exception &e) {
+						LOG(ERROR) << "Operator exception: " << e.what();
+					}
 				}
 			}
 		} else if (i.instances[0]->type() == Operator::Type::ManyToMany) {
@@ -68,7 +75,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 
 			if (instance->enabled()) {
 				try {
-					instance->apply(in, out, stream_actual);
+					if (!instance->apply(in, out, stream_actual)) return false;
 				} catch (const std::exception &e) {
 					LOG(ERROR) << "Operator exception: " << e.what();
 				}
@@ -96,7 +103,7 @@ bool Graph::apply(Frame &in, Frame &out, Source *s, cudaStream_t stream) {
 		auto *instance = i.instances[0];
 
 		if (instance->enabled()) {
-			instance->apply(in, out, s, stream);
+			if (!instance->apply(in, out, s, stream)) return false;
 		}
 	}
 

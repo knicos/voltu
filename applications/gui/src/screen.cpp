@@ -54,6 +54,7 @@ namespace {
 		in vec2 uv;
 		void main() {
 			color = blendAmount * texture(image1, uv) + (1.0 - blendAmount) * texture(image2, uv);
+			color.w = 1.0f;
 		})";
 }
 

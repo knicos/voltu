@@ -29,6 +29,8 @@ struct FrameSet {
 	void upload(ftl::codecs::Channels, cudaStream_t stream=0);
 	void download(ftl::codecs::Channels, cudaStream_t stream=0);
 	void swapTo(ftl::rgbd::FrameSet &);
+
+	void resetFull();
 };
 
 }

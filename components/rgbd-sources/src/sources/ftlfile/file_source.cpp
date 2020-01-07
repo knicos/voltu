@@ -6,6 +6,7 @@
 using ftl::rgbd::detail::FileSource;
 using ftl::codecs::codec_t;
 using ftl::codecs::Channel;
+using cv::cuda::GpuMat;
 
 void FileSource::_createDecoder(int ix, const ftl::codecs::Packet &pkt) {
 	if (decoders_[ix]) {
@@ -23,11 +24,12 @@ void FileSource::_createDecoder(int ix, const ftl::codecs::Packet &pkt) {
 FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ftl::rgbd::detail::Source(s) {
     reader_ = r;
 	has_calibration_ = false;
-	decoders_[0] = nullptr;
-	decoders_[1] = nullptr;
+
+	for (int i=0; i<32; ++i) decoders_[i] = nullptr;
+
 	cache_read_ = -1;
 	cache_write_ = 0;
-	realtime_ = host_->value("realtime", true);
+	realtime_ = host_->value("realtime", false);
 	timestamp_ = r->getStartTime();
 	sourceid_ = sid;
 	freeze_ = host_->value("freeze", false);
@@ -39,7 +41,7 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ft
 	});
 
     r->onPacket(sid, [this](const ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
-		host_->notifyRaw(spkt, pkt);
+		//host_->notifyRaw(spkt, pkt);
 
 		// Some channels are to be directly handled by the source object and
 		// do not proceed to any subsequent step.
@@ -60,6 +62,8 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ft
 			return;
 		}
 
+		available_channels_ |= spkt.channel;
+
 		// FIXME: For bad and old FTL files where wrong channel is used
 		if (pkt.codec == codec_t::POSE) {
 			_processPose(pkt);
@@ -77,9 +81,8 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ft
 		cache_[cache_write_].emplace_back();
 		auto &c = cache_[cache_write_].back();
 
-		// TODO: Attempt to avoid this copy operation
 		c.spkt = spkt;
-		c.pkt = pkt;
+		c.pkt = std::move(pkt);
     });
 }
 
@@ -161,9 +164,10 @@ bool FileSource::compute(int n, int b) {
 	// Freeze frame requires a copy to be made each time...
 	if (have_frozen_) {
 		cv::cuda::GpuMat t1, t2;
-		if (!rgb_.empty()) rgb_.copyTo(t1);
-		if (!depth_.empty()) depth_.copyTo(t2);
-		host_->notify(timestamp_, t1, t2);
+		// FIXME: Implement this?
+		//if (!rgb_.empty()) rgb_.copyTo(t1);
+		//if (!depth_.empty()) depth_.copyTo(t2);
+		//host_->notify(timestamp_, t1, t2);
 		return true;
 	}
 
@@ -172,6 +176,17 @@ bool FileSource::compute(int n, int b) {
 
 	int64_t lastts = 0;
 	int lastc = 0;
+
+	frame_.reset();
+
+	// Decide which channels to decode
+	decode_channels_ = Channel::Colour;
+
+	if (available_channels_.has(host_->getChannel())) {
+		decode_channels_ |= host_->getChannel();
+	} else if (host_->getChannel() == Channel::Depth && available_channels_.has(Channel::Right)) {
+		decode_channels_ |= Channel::Right;
+	}
 
 	// Go through previously read and cached frames in sequence
 	// needs to be done due to P-Frames
@@ -187,32 +202,38 @@ bool FileSource::compute(int n, int b) {
 			lastc++;
 		}
 
-		if (c.spkt.channel == Channel::Colour) {
-			rgb_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_8UC3);
-			_createDecoder(0, c.pkt);
+		// Has this channel been requested?
+		if (decode_channels_.has(c.spkt.channel)) { //c.spkt.channel == Channel::Colour || c.spkt.channel == host_->getChannel()) {
 
-			try {
-				decoders_[0]->decode(c.pkt, rgb_);
-			} catch (std::exception &e) {
-				LOG(INFO) << "Decoder exception: " << e.what();
+			// Create channel only if not existing
+			if (!frame_.hasChannel(c.spkt.channel)) {
+				frame_.create<GpuMat>(c.spkt.channel);
 			}
-		} else if (host_->getChannel() == c.spkt.channel) {
-			depth_.create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_32F);
-			_createDecoder(1, c.pkt);
-			try {
-				decoders_[1]->decode(c.pkt, depth_);
-			} catch (std::exception &e) {
-				LOG(INFO) << "Decoder exception: " << e.what();
+
+			int channum = int(c.spkt.channel);
+			if (!ftl::codecs::isFloatChannel(c.spkt.channel)) {
+				frame_.get<GpuMat>(c.spkt.channel).create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_8UC4);
+				_createDecoder(channum, c.pkt);
+
+				try {
+					decoders_[channum]->decode(c.pkt, frame_.get<GpuMat>(c.spkt.channel));
+				} catch (std::exception &e) {
+					LOG(INFO) << "Decoder exception: " << e.what();
+				}
+			} else {
+				frame_.get<GpuMat>(c.spkt.channel).create(cv::Size(ftl::codecs::getWidth(c.pkt.definition),ftl::codecs::getHeight(c.pkt.definition)), CV_32F);
+				_createDecoder(channum, c.pkt);
+				try {
+					decoders_[channum]->decode(c.pkt, frame_.get<GpuMat>(c.spkt.channel));
+				} catch (std::exception &e) {
+					LOG(INFO) << "Decoder exception: " << e.what();
+				}
 			}
+
+			frame_.pushPacket(c.spkt.channel, c.pkt);
 		}
-	
-		//_createDecoder((c.spkt.channel == Channel::Colour) ? 0 : 1, c.pkt);
 
-		/*try {
-			decoders_[(c.spkt.channel == Channel::Colour) ? 0 : 1]->decode(c.pkt, (c.spkt.channel == Channel::Colour) ? rgb_ : depth_);
-		} catch (std::exception &e) {
-			LOG(INFO) << "Decoder exception: " << e.what();
-		}*/
+		//host_->notifyRaw(c.spkt, c.pkt);
 	}
 
 	// FIXME: Consider case of Channel::None
@@ -221,15 +242,17 @@ bool FileSource::compute(int n, int b) {
 		return false;
 	}
 
+	//LOG(INFO) << "MERGE " << cache_[cache_read_].size();
+
 	cache_[cache_read_].clear();
 
-	if (rgb_.empty() || depth_.empty()) return false;
+	//if (rgb_.empty() || depth_.empty()) return false;
 
 	// Inform about a decoded frame pair
 	if (freeze_ && !have_frozen_) {
 		have_frozen_ = true;
 	} else {
-		host_->notify(timestamp_, rgb_, depth_);
+		host_->notify(timestamp_, frame_);
 	}
     return true;
 }

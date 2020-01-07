@@ -11,11 +11,13 @@
 #include <ftl/codecs/channels.hpp>
 #include <ftl/rgbd/format.hpp>
 #include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/packet.hpp>
 
 #include <ftl/cuda_common.hpp>
 
 #include <type_traits>
 #include <array>
+#include <list>
 
 namespace ftl {
 namespace rgbd {
@@ -90,12 +92,29 @@ public:
 	template <typename T>
 	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, bool interpolated=false);
 
+	/**
+	 * Append encoded data for a channel. This will move the data, invalidating
+	 * the original packet structure. It is to be used to allow data that is
+	 * already encoded to be transmitted or saved again without re-encoding.
+	 * A called to `create` will clear all encoded data for that channel.
+	 */
+	void pushPacket(ftl::codecs::Channel c, ftl::codecs::Packet &pkt);
+
+	const std::list<ftl::codecs::Packet> &getPackets(ftl::codecs::Channel c) const;
+
+	void mergeEncoding(ftl::rgbd::Frame &f);
+
 	void resetTexture(ftl::codecs::Channel c);
 
 	/**
 	 * Reset all channels without releasing memory.
 	 */
 	void reset();
+
+	/**
+	 * Reset all channels and release memory.
+	 */
+	void resetFull();
 
 	bool empty(ftl::codecs::Channels c);
 
@@ -159,6 +178,7 @@ private:
 		ftl::cuda::TextureObjectBase tex;
 		cv::Mat host;
 		cv::cuda::GpuMat gpu;
+		std::list<ftl::codecs::Packet> encoded;
 	};
 
 	std::array<ChannelData, ftl::codecs::Channels::kMax> data_;

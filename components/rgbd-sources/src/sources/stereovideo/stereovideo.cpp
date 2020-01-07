@@ -209,7 +209,17 @@ bool StereoVideoSource::compute(int n, int b) {
 		return false;
 	}
 
-	if (chan == Channel::Depth) {
+	cv::cuda::GpuMat& left = frame.get<cv::cuda::GpuMat>(Channel::Left);
+	cv::cuda::GpuMat& right = frame.get<cv::cuda::GpuMat>(Channel::Right);
+
+	if (left.empty() || right.empty()) {
+		return false;
+	}
+
+	//stream_.waitForCompletion();
+	host_->notify(timestamp_, frame);
+
+	/*if (chan == Channel::Depth) {
 		// stereo algorithms assume input same size as output
 		bool resize = (depth_size_ != color_size_);
 
@@ -235,24 +245,16 @@ bool StereoVideoSource::compute(int n, int b) {
 			cv::cuda::swap(fullres_right_, right);
 		}
 
-		host_->notify(timestamp_,
-						frame.get<cv::cuda::GpuMat>(Channel::Left),
-						frame.get<cv::cuda::GpuMat>(Channel::Depth));
+		host_->notify(timestamp_, frame);
 
 	} else if (chan == Channel::Right) {
-		stream_.waitForCompletion(); // TODO:(Nick) Move to getFrames
-		host_->notify(timestamp_,
-						frame.get<cv::cuda::GpuMat>(Channel::Left),
-						frame.get<cv::cuda::GpuMat>(Channel::Right));
+		stream_.waitForCompletion();
+		host_->notify(timestamp_, frame);
 	
 	} else {
-		stream_.waitForCompletion(); // TODO:(Nick) Move to getFrames
-		auto &left = frame.get<cv::cuda::GpuMat>(Channel::Left);
-		depth_.create(left.size(), left.type());
-		host_->notify(timestamp_,
-						frame.get<cv::cuda::GpuMat>(Channel::Left),
-						depth_);
-	}
+		stream_.waitForCompletion();
+		host_->notify(timestamp_, frame);
+	}*/
 
 	return true;
 }

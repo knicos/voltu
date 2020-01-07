@@ -15,8 +15,12 @@ DiscontinuityMask::~DiscontinuityMask() {
 }
 
 bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+	if (in.hasChannel(Channel::Mask)) return true;
+	
 	int radius = config()->value("radius", 2);
 	float threshold = config()->value("threshold", 0.1f);
+
+	if (!in.hasChannel(Channel::Depth) || !in.hasChannel(Channel::Support1)) return false;
 
 	ftl::cuda::discontinuity(
 		out.createTexture<int>(Channel::Mask, ftl::rgbd::Format<int>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),

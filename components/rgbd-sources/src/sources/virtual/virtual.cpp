@@ -80,17 +80,18 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 
 	bool compute(int n, int b) override {
 		if (callback) {
-			frame.reset();
+			frame_.reset();
+			bool goodFrame = false;
 
 			try {
-				callback(frame);
+				goodFrame = callback(frame_);
 			} catch (std::exception &e) {
 				LOG(ERROR) << "Exception in render callback: " << e.what();
 			} catch (...) {
 				LOG(ERROR) << "Unknown exception in render callback";
 			}
 
-			if (frame.hasChannel(Channel::Colour)) {
+			/*if (frame.hasChannel(Channel::Colour)) {
 				//frame.download(Channel::Colour);
 				cv::cuda::swap(frame.get<cv::cuda::GpuMat>(Channel::Colour), rgb_);	
 			} else {
@@ -101,9 +102,9 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 					frame.hasChannel(host_->getChannel())) {
 				//frame.download(host_->getChannel());
 				cv::cuda::swap(frame.get<cv::cuda::GpuMat>(host_->getChannel()), depth_);
-			}
+			}*/
 
-			host_->notify(timestamp_, rgb_, depth_);
+			if (goodFrame) host_->notify(timestamp_, frame_);
 		}
 		return true;
 	}
@@ -114,8 +115,8 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 
 	bool isReady() override { return true; }
 
-	std::function<void(ftl::rgbd::Frame &)> callback;
-	ftl::rgbd::Frame frame;
+	std::function<bool(ftl::rgbd::Frame &)> callback;
+	//ftl::rgbd::Frame frame;
 
 	ftl::rgbd::Camera params_right_;
 };
@@ -128,7 +129,7 @@ VirtualSource::~VirtualSource() {
 
 }
 
-void VirtualSource::onRender(const std::function<void(ftl::rgbd::Frame &)> &f) {
+void VirtualSource::onRender(const std::function<bool(ftl::rgbd::Frame &)> &f) {
 	dynamic_cast<VirtualImpl*>(impl_)->callback = f;
 }
 

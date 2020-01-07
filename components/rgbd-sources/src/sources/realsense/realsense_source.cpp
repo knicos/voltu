@@ -5,6 +5,8 @@
 
 using ftl::rgbd::detail::RealsenseSource;
 using std::string;
+using ftl::codecs::Channel;
+using cv::cuda::GpuMat;
 
 RealsenseSource::RealsenseSource(ftl::rgbd::Source *host)
         : ftl::rgbd::detail::Source(host), align_to_depth_(RS2_STREAM_DEPTH) {
@@ -56,12 +58,11 @@ bool RealsenseSource::compute(int n, int b) {
 
     cv::Mat tmp_depth(cv::Size((int)w, (int)h), CV_16UC1, (void*)depth.get_data(), depth.get_stride_in_bytes());
     tmp_depth.convertTo(tmp_depth, CV_32FC1, scale_);
-	depth_.upload(tmp_depth);
+	frame_.get<GpuMat>(Channel::Depth).upload(tmp_depth);
     cv::Mat tmp_rgb(cv::Size(w, h), CV_8UC4, (void*)rscolour_.get_data(), cv::Mat::AUTO_STEP);
-	rgb_.upload(tmp_rgb);
+	frame_.get<GpuMat>(Channel::Colour).upload(tmp_rgb);
 
-	auto cb = host_->callback();
-	if (cb) cb(timestamp_, rgb_, depth_);
+	host_->notify(timestamp_, frame_);
     return true;
 }
 
