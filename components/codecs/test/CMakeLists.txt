@@ -22,6 +22,7 @@ add_executable(nvpipe_codec_unit
 	../src/encoder.cpp
 	../src/nvpipe_encoder.cpp
 	../src/nvpipe_decoder.cpp
+	../src/depth_convert.cu
 	./nvpipe_codec_unit.cpp
 )
 target_include_directories(nvpipe_codec_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")

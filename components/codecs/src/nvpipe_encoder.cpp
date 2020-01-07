@@ -6,6 +6,8 @@
 
 #include <opencv2/core/cuda/common.hpp>
 
+#include "depth_convert_cuda.hpp"
+
 using ftl::codecs::NvPipeEncoder;
 using ftl::codecs::bitrate_t;
 using ftl::codecs::codec_t;
@@ -21,6 +23,7 @@ NvPipeEncoder::NvPipeEncoder(definition_t maxdef,
 	is_float_channel_ = false;
 	was_reset_ = false;
 	preference_ = codec_t::Any;
+	current_codec_ = codec_t::HEVC;
 }
 
 NvPipeEncoder::~NvPipeEncoder() {
@@ -33,6 +36,8 @@ void NvPipeEncoder::reset() {
 
 bool NvPipeEncoder::supports(ftl::codecs::codec_t codec) {
 	switch (codec) {
+	case codec_t::H264_LOSSLESS:
+	case codec_t::HEVC_LOSSLESS:
 	case codec_t::H264:
 	case codec_t::HEVC: preference_ = codec; return true;
 	default: return false;
@@ -50,6 +55,10 @@ definition_t NvPipeEncoder::_verifiedDefinition(definition_t def, const cv::cuda
 	}
 
 	return def;
+}
+
+static bool isLossy(codec_t c) {
+	return !(c == codec_t::HEVC_LOSSLESS || c == codec_t::H264_LOSSLESS);
 }
 
 bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
@@ -83,13 +92,22 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition,
 		LOG(ERROR) << "Missing data for Nvidia encoder";
 		return false;
 	}
+
+	if (preference_ == codec_t::Any) preference_ = codec_t::HEVC;
+
 	if (!_createEncoder(tmp, definition, bitrate)) return false;
 
 	//LOG(INFO) << "NvPipe Encode: " << int(definition) << " " << in.cols;
 
 	//cv::Mat tmp;
 	if (tmp.type() == CV_32F) {
-		tmp.convertTo(tmp2_, CV_16UC1, 1000, stream_);
+		if (isLossy(preference_)) {
+			// Use special encoding transform
+			tmp2_.create(tmp.size(), CV_8UC4);
+			ftl::cuda::depth_to_vuya(tmp, tmp2_, 16.0f, stream_);
+		} else {
+			tmp.convertTo(tmp2_, CV_16UC1, 1000, stream_);
+		}
 	} else if (tmp.type() == CV_8UC3) {
 		cv::cuda::cvtColor(tmp, tmp2_, cv::COLOR_BGR2RGBA, 0, stream_);
 	} else if (tmp.type() == CV_8UC4) {
@@ -103,11 +121,11 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition,
 	stream_.waitForCompletion();
 
 	Packet pkt;
-	pkt.codec = (preference_ == codec_t::Any) ? codec_t::HEVC : preference_;
+	pkt.codec = preference_;
 	pkt.definition = definition;
 	pkt.block_total = 1;
 	pkt.block_number = 0;
-	pkt.flags = NvPipeEncoder::kFlagRGB;
+	pkt.flags = NvPipeEncoder::kFlagRGB | NvPipeEncoder::kFlagMappedDepth;
 
 	pkt.data.resize(ftl::codecs::kVideoBufferSize);
 	uint64_t cs = NvPipe_Encode(
@@ -134,7 +152,7 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition,
 
 bool NvPipeEncoder::_encoderMatch(const cv::cuda::GpuMat &in, definition_t def) {
 	return ((in.type() == CV_32F && is_float_channel_) ||
-		((in.type() == CV_8UC3 || in.type() == CV_8UC4) && !is_float_channel_)) && current_definition_ == def;
+		((in.type() == CV_8UC3 || in.type() == CV_8UC4) && !is_float_channel_)) && current_definition_ == def && current_codec_ == preference_;
 }
 
 static uint64_t calculateBitrate(definition_t def, bitrate_t rate) {
@@ -163,19 +181,42 @@ static uint64_t calculateBitrate(definition_t def, bitrate_t rate) {
 bool NvPipeEncoder::_createEncoder(const cv::cuda::GpuMat &in, definition_t def, bitrate_t rate) {
 	if (_encoderMatch(in, def) && nvenc_) return true;
 
-	uint64_t bitrate = calculateBitrate(def, rate);
-	LOG(INFO) << "Calculated bitrate: " << bitrate;
-
 	if (in.type() == CV_32F) is_float_channel_ = true;
 	else is_float_channel_ = false;
 	current_definition_ = def;
+	current_codec_ = preference_;
+
+	uint64_t bitrate = calculateBitrate(def, rate);
+	if (is_float_channel_) bitrate *= 2.0f;
+	//LOG(INFO) << "Calculated bitrate: " << bitrate;
+
+	NvPipe_Codec codec;
+	NvPipe_Format format;
+	NvPipe_Compression compression;
+
+	if (is_float_channel_) {
+		if (isLossy(preference_)) {
+			format = NVPIPE_YUV32;
+			compression = NVPIPE_LOSSY_10BIT_420;
+			codec = (preference_ == codec_t::HEVC) ? NVPIPE_HEVC : NVPIPE_H264;
+		} else {
+			format = NVPIPE_UINT16;
+			compression = NVPIPE_LOSSLESS;
+			codec = (preference_ == codec_t::HEVC_LOSSLESS) ? NVPIPE_HEVC : NVPIPE_H264;
+		}
+	} else {
+		format = NVPIPE_RGBA32;
+		compression = NVPIPE_LOSSY;
+		codec = (preference_ == codec_t::HEVC || preference_ == codec_t::HEVC_LOSSLESS) ? NVPIPE_HEVC : NVPIPE_H264;
+	}
+
 
 	if (nvenc_) NvPipe_Destroy(nvenc_);
 	const int fps = 1000/ftl::timer::getInterval();
 	nvenc_ = NvPipe_CreateEncoder(
-		(is_float_channel_) ? NVPIPE_UINT16 : NVPIPE_RGBA32,
-		(preference_ == codec_t::Any || preference_ == codec_t::HEVC) ? NVPIPE_HEVC : NVPIPE_H264,
-		(is_float_channel_) ? NVPIPE_LOSSLESS : NVPIPE_LOSSY,
+		format,
+		codec,
+		compression,
 		bitrate,
 		fps,				// FPS
 		ftl::codecs::getWidth(def),	// Output Width
