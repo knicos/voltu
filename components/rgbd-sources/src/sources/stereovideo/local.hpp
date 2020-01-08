@@ -25,10 +25,15 @@ class LocalSource : public Configurable {
 	//bool left(cv::Mat &m);
 	//bool right(cv::Mat &m);
 	bool grab();
-	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, Calibrate *c, cv::cuda::Stream &stream);
+	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h, Calibrate *c, cv::cuda::Stream &stream);
 
-	unsigned int width() const { return width_; }
-	unsigned int height() const { return height_; }
+	unsigned int width() const { return dwidth_; }
+	unsigned int height() const { return dheight_; }
+
+	unsigned int fullWidth() const { return width_; }
+	unsigned int fullHeight() const { return height_; }
+
+	inline bool hasHigherRes() const { return dwidth_ != width_; }
 	
 	//void setFramerate(float fps);
 	//float getFramerate() const;
@@ -50,9 +55,13 @@ class LocalSource : public Configurable {
 	cv::VideoCapture *camera_b_;
 	unsigned int width_;
 	unsigned int height_;
+	unsigned int dwidth_;
+	unsigned int dheight_;
 
 	cv::cuda::HostMem left_hm_;
 	cv::cuda::HostMem right_hm_;
+	cv::cuda::HostMem hres_hm_;
+	cv::Mat rtmp_;
 };
 
 }

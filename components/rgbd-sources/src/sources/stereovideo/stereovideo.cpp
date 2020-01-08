@@ -76,7 +76,10 @@ void StereoVideoSource::init(const string &file) {
 	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
 	#endif
 
-	pipeline_depth_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
+	//depth_size_ = cv::Size(	host_->value("depth_width", 1280),
+	//						host_->value("depth_height", 720));
+
+	/*pipeline_depth_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
 	depth_size_ = cv::Size(	pipeline_depth_->value("width", color_size_.width),
 							pipeline_depth_->value("height", color_size_.height));
 
@@ -90,13 +93,13 @@ void StereoVideoSource::init(const string &file) {
 	pipeline_depth_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
 	pipeline_depth_->append<ftl::operators::CrossSupport>("cross");
 	pipeline_depth_->append<ftl::operators::DiscontinuityMask>("discontinuity_mask");
-	pipeline_depth_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
+	pipeline_depth_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)*/
 
-	calib_ = ftl::create<Calibrate>(host_, "calibration", color_size_, stream_);
+	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
 	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
 
 	// Generate camera parameters from camera matrix
-	cv::Mat K = calib_->getCameraMatrixLeft(depth_size_);
+	cv::Mat K = calib_->getCameraMatrixLeft(color_size_);
 	params_ = {
 		K.at<double>(0,0),	// Fx
 		K.at<double>(1,1),	// Fy
@@ -154,9 +157,9 @@ ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
 	cv::Mat K;
 	
 	if (chan == Channel::Right) {
-		K = calib_->getCameraMatrixRight(depth_size_);
+		K = calib_->getCameraMatrixRight(color_size_);
 	} else {
-		K = calib_->getCameraMatrixLeft(depth_size_);
+		K = calib_->getCameraMatrixLeft(color_size_);
 	}
 
 	// TODO: remove hardcoded values (min/max)
@@ -165,8 +168,8 @@ ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
 		K.at<double>(1,1),	// Fy
 		-K.at<double>(0,2),	// Cx
 		-K.at<double>(1,2),	// Cy
-		(unsigned int) depth_size_.width,
-		(unsigned int) depth_size_.height,
+		(unsigned int) color_size_.width,
+		(unsigned int) color_size_.height,
 		0.0f,	// 0m min
 		15.0f,	// 15m max
 		1.0 / calib_->getQ().at<double>(3,2), // Baseline
@@ -187,7 +190,12 @@ bool StereoVideoSource::retrieve() {
 	frame.reset();
 	auto &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
 	auto &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
-	lsrc_->get(left, right, calib_, stream2_);
+	cv::cuda::GpuMat dummy;
+	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : dummy;
+
+	lsrc_->get(left, right, hres, calib_, stream2_);
+
+	//LOG(INFO) << "Channel size: " << hres.size();
 
 	pipeline_input_->apply(frame, frame, host_, cv::cuda::StreamAccessor::getStream(stream2_));
 	stream2_.waitForCompletion();
