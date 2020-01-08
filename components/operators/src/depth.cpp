@@ -23,8 +23,8 @@ void DepthChannel::_createPipeline() {
 	if (pipe_ != nullptr) return;
 
 	pipe_ = ftl::config::create<ftl::operators::Graph>(config(), "depth");
-	depth_size_ = cv::Size(	pipe_->value("width", 1280),
-							pipe_->value("height", 720));
+	depth_size_ = cv::Size(	config()->value("width", 1280),
+							config()->value("height", 720));
 
 	pipe_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pipe_->append<ftl::operators::FixstarsSGM>("algorithm");
@@ -52,7 +52,7 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 			cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
 			cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
 			cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
-			depth.create(left.size(), CV_32FC1);
+			depth.create(depth_size_, CV_32FC1);
 
 			if (left.empty() || right.empty()) continue;
 
