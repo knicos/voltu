@@ -71,14 +71,19 @@ LocalSource::LocalSource(nlohmann::json &config)
 		stereo_ = true;
 	}
 
+	dwidth_ = value("depth_width", width_);
+	dheight_ = value("depth_height", height_);
+
 	// Allocate page locked host memory for fast GPU transfer
-	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
-	right_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
+	left_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC3);
+	right_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC3);
+	hres_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
 }
 
 LocalSource::LocalSource(nlohmann::json &config, const string &vid)
 	:	Configurable(config), timestamp_(0.0) {
-
+	LOG(FATAL) << "Stereo video file sources no longer supported";
+ /*
 	//flip_ = value("flip", false);
 	//flip_v_ = value("flip_vert", false);
 	nostereo_ = value("nostereo", false);
@@ -119,11 +124,16 @@ LocalSource::LocalSource(nlohmann::json &config, const string &vid)
 		stereo_ = false;
 	}
 
+	dwidth_ = value("depth_width", width_);
+	dheight_ = value("depth_height", height_);
+
 	// Allocate page locked host memory for fast GPU transfer
-	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
-	right_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
+	left_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC3);
+	right_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC3);
+	hres_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC3);
 
 	//tps_ = 1.0 / value("max_fps", 25.0);
+	*/
 }
 
 /*bool LocalSource::left(cv::Mat &l) {
@@ -225,26 +235,32 @@ bool LocalSource::grab() {
 	return true;
 }
 
-bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, Calibrate *c, cv::cuda::Stream &stream) {
-	Mat l, r;
+bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda::GpuMat &hres_out, Calibrate *c, cv::cuda::Stream &stream) {
+	Mat l, r ,hres;
 
 	// Use page locked memory
 	l = left_hm_.createMatHeader();
 	r = right_hm_.createMatHeader();
+	hres = hres_hm_.createMatHeader();
+
+	Mat &lfull = (!hasHigherRes()) ? l : hres;
+	Mat &rfull = (!hasHigherRes()) ? r : rtmp_;
 
 	if (!camera_a_) return false;
 
 	if (camera_b_ || !stereo_) {
-		if (!camera_a_->retrieve(l)) {
+		// TODO: Use threads here?
+		if (!camera_a_->retrieve(lfull)) {
 			LOG(ERROR) << "Unable to read frame from camera A";
 			return false;
 		}
-		if (camera_b_ && !camera_b_->retrieve(r)) {
+		if (camera_b_ && !camera_b_->retrieve(rfull)) {
 			LOG(ERROR) << "Unable to read frame from camera B";
 			return false;
 		}
 	} else {
-		Mat frame;
+		LOG(FATAL) << "Stereo video no longer supported";
+		/*Mat frame;
 		if (!camera_a_->retrieve(frame)) {
 			LOG(ERROR) << "Unable to read frame from video";
 			return false;
@@ -257,7 +273,7 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, Calibrat
 		//} else {
 			l = Mat(frame, Rect(0, 0, resx, frame.rows));
 			r = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
-		//}
+		//}*/
 	}
 
 	/*if (downsize_ != 1.0f) {
@@ -283,7 +299,18 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, Calibrat
 		r = tr;
 	}*/
 
-	c->rectifyStereo(l, r);
+	c->rectifyStereo(lfull, rfull);
+
+	// Need to resize
+	if (hasHigherRes()) {
+		// TODO: Use threads?
+		cv::resize(lfull, l, l.size(), 0.0, 0.0, cv::INTER_CUBIC);
+		cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
+		hres_out.upload(hres, stream);
+		//LOG(INFO) << "Early Resize: " << l.size() << " from " << lfull.size();
+	} else {
+		hres_out = cv::cuda::GpuMat();
+	}
 
 	l_out.upload(l, stream);
 	r_out.upload(r, stream);

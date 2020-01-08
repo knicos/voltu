@@ -54,7 +54,7 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgb
 		if (in.hasChannel(Channel::Right)) {
 			auto &right = in.get<cv::cuda::GpuMat>(Channel::Right);
 			if (depth.size() != right.size()) {
-				cv::cuda::resize(right, rbuf_, depth.size(), 0.0, 0.0, cv::INTER_CUBIC, cvstream);
+				cv::cuda::resize(right, rbuf_, depth.size(), 0.0, 0.0, cv::INTER_LINEAR, cvstream);
 				cv::cuda::swap(right, rbuf_);
 			}
 		}

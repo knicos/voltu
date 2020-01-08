@@ -535,8 +535,8 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				}
 				
 
-				// TODO: Use ColourHighQuality if available
-				if (fs.frames[j].getPackets(Channel::Colour).size() == 0) {
+				auto colChan = (fs.frames[j].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
+				if (fs.frames[j].getPackets(colChan).size() == 0) {
 					if (!src->hq_encoder_c1) src->hq_encoder_c1 = ftl::codecs::allocateEncoder(
 						definition_t::HD1080, hq_devices_, hq_codec_);
 					auto *enc = src->hq_encoder_c1;
@@ -544,14 +544,14 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 					if (enc) {
 						// TODO: Stagger the reset between nodes... random phasing
 						if (insert_iframes_ && fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
-						enc->encode(fs.frames[j].get<cv::cuda::GpuMat>(Channel::Colour), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
+						enc->encode(fs.frames[j].get<cv::cuda::GpuMat>(colChan), src->hq_bitrate, [this,src,hasChan2](const ftl::codecs::Packet &blk){
 							_transmitPacket(src, blk, Channel::Colour, hasChan2, Quality::High);
 						});
 					} else {
 						LOG(ERROR) << "Insufficient encoder resources";
 					}
 				} else {
-					const auto &packets = fs.frames[j].getPackets(Channel::Colour);
+					const auto &packets = fs.frames[j].getPackets(colChan);
 					// FIXME: Adjust block number and total to match number of packets
 					// Also requires the receiver to decode in block number order.
 					LOG(INFO) << "Send existing encoding: " << packets.size();
