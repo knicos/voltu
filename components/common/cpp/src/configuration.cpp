@@ -212,6 +212,17 @@ std::vector<std::string> ftl::config::list() {
 	return r;
 }
 
+const std::vector<Configurable *> ftl::config::getChildren(const string &uri) {
+	std::vector<Configurable *> children;
+	for (const auto &[curi, c] : config_instance) {
+		auto mismatch = std::mismatch(uri.begin(), uri.end(), curi.begin());
+		if (mismatch.first == uri.end()) {
+			children.push_back(c);
+		}
+	}
+	return children;
+}
+
 void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 	auto uri = cfg->get<string>("$id");
 	if (!uri) {
