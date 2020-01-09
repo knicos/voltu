@@ -8,6 +8,13 @@ def disparity_to_depth(disparity, camera, max_depth=10.0, invalid_value=0.0):
     depth[depth > max_depth] = invalid_value
     return depth
 
+def depth_to_disparity(depth, camera, invalid_value=0.0):
+    invalid = depth == 0.0
+    depth[invalid] = 1.0
+    disparity = ((camera.fx * camera.baseline) / depth) + camera.doff
+    disparity[invalid] = invalid_value 
+    return disparity
+
 from enum import IntEnum
 
 # components/codecs/include/ftl/codecs/hevc.hpp
