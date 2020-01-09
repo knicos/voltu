@@ -12,7 +12,7 @@ try:
     import cv2 as cv
     def _resize(img, size):
         return cv.resize(img, dsize=tuple(reversed(size)), interpolation=cv.INTER_CUBIC)
-    
+
 except ImportError:
     from skimage.transform import resize as resize_skimage
     def _resize(img, size):
@@ -27,7 +27,7 @@ from enum import IntEnum
 
 import numpy as np
 
-import os 
+import os
 
 '''
 # default number of worker threads for decoder: half of os.cpu_count()
@@ -164,8 +164,7 @@ class WaitingForInput(libde265Error):
     pass
 
 class Decoder:
-    def __init__(self, size, threads=_threads):
-        self._size = size
+    def __init__(self, threads=_threads):
         self._more = ctypes.c_int()
         self._out_stride = ctypes.c_int()
         self._ctx = libde265.de265_new_decoder()
@@ -175,84 +174,92 @@ class Decoder:
 
         if err:
             raise libde265Error(err)
-        
+
     def __del__(self):
         libde265.de265_free_decoder(self._ctx)
 
     def _copy_image(self, de265_image):
-        res = np.zeros((self._size[0], self._size[1], 3), dtype=np.uint8)
+        size = (libde265.de265_get_image_height(de265_image, 0),
+                libde265.de265_get_image_width(de265_image, 0))
+
+        res = np.zeros((*size, 3), dtype=np.uint8)
 
         # libde265: always 420 (???)
         # chroma_format = libde265.de265_get_chroma_format(de265_image)
 
         for c in range(0, 3):
-            size = (libde265.de265_get_image_height(de265_image, c),
-                    libde265.de265_get_image_width(de265_image, c))
-            
+            size_channel = (libde265.de265_get_image_height(de265_image, c),
+                            libde265.de265_get_image_width(de265_image, c))
+
+            if size_channel[0] > size[0] or size_channel[1] > size[1]:
+                # Is this possible?
+                print(size, size_channel)
+                raise Exception("Channel larger than first channel")
+
             bpp = libde265.de265_get_bits_per_pixel(de265_image, c)
             if bpp != 8:
-                raise NotImplementedError("unsupported bits per pixel %i" % bpp)
+                raise NotImplementedError("%i-bit format not implemented (TODO)" % bpp)
 
             img_ptr = libde265.de265_get_image_plane(de265_image, c, self._out_stride)
-            
-			# for frombuffer() no copy assumed
-            ch = np.frombuffer(img_ptr[:size[0] * size[1]], dtype=np.uint8)
-            ch.shape = size
-            
-            res[:,:,c] = _resize(ch, self._size)
-        
+
+			# libde: how is 10 bits per pixel returned
+            ch = np.frombuffer(img_ptr[:size_channel[0] * size_channel[1]], dtype=np.uint8)
+            ch.shape = size_channel
+
+            res[:,:,c] = _resize(ch, size)
+
         return res
 
     def _warning(self):
         if self._supress_warnings:
             return
-        
+
         code = libde265.de265_get_warning(self._ctx)
-        
+
         if code != _libde265error.DE265_OK:
             msg = libde265.de265_get_error_text(code).decode("ascii")
             warn(msg)
 
     def decode(self):
         err = libde265.de265_decode(self._ctx, self._more)
-        
+
         if err:
             if err == _libde265error.DE265_ERROR_WAITING_FOR_INPUT_DATA:
                 raise WaitingForInput(err)
 
             raise libde265Error(err)
-        
+
         self._warning()
 
         return self._more.value != 0
-    
+
     def flush_data(self):
         err = libde265.de265_flush_data(self._ctx)
-        
+
         if err:
             raise libde265Error(err)
-    
+
     def push_data(self, data):
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
-        
+
         err = libde265.de265_push_data(self._ctx, data, len(data), None, None)
-        
+
         if err:
             raise libde265Error(err)
-    
+
     def push_end_of_frame(self):
         err = libde265.de265_push_end_of_frame(self._ctx)
-        
+
         if err:
             raise libde265Error(err)
-            
+
     def push_NAL(self, data):
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
-        
+
         err = libde265.de265_push_NAL(self._ctx, data, len(data), None, None)
-        
+
         if err:
             raise libde265Error(err)
 
@@ -266,7 +273,7 @@ class Decoder:
 
         if not de265_image:
             return None
-        
+
         res = self._copy_image(de265_image)
 
         libde265.de265_release_next_picture(self._ctx)
@@ -281,7 +288,7 @@ class Decoder:
 
         if not de265_image:
             return None
-        
+
         res = self._copy_image(de265_image)
 
         libde265.de265_release_next_picture(self._ctx)
