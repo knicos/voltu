@@ -2,10 +2,10 @@
 #define _FTL_GUI_CFGWINDOW_HPP_
 
 #include <nanogui/window.h>
+#include <nanogui/formhelper.h>
+
 #include <ftl/master.hpp>
 #include <ftl/uuid.hpp>
-
-#include <nanogui/formhelper.h>
 #include <ftl/net_configurable.hpp>
 
 namespace ftl {
@@ -21,7 +21,6 @@ class ConfigWindow : public nanogui::Window {
 
 	private:
 	ftl::ctrl::Master *ctrl_;
-	std::vector<std::string> configurables_;
 	
 	void _buildForm(const std::string &uri);
 	void _addElements(nanogui::FormHelper *form, const std::string &suri);

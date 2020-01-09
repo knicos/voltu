@@ -6,6 +6,7 @@
 #include <nanogui/entypo.h>
 #include <nanogui/formhelper.h>
 #include <nanogui/vscrollpanel.h>
+#include <nanogui/opengl.h>
 
 #include <vector>
 #include <string>
@@ -15,6 +16,67 @@ using std::string;
 using std::vector;
 using ftl::config::json_t;
 
+class SearchBox : public nanogui::TextBox {
+private:
+	std::vector<std::string> configurables_;
+	Widget *buttons_;
+	std::string previous;
+
+	void _setVisible(const std::string &str) {
+		// Check whether the search string has changed to prevent
+		// unnecessary searching.
+		if (str != previous) {
+			for (int i = configurables_.size()-1; i >= 0; --i) {
+				if (configurables_[i].find(mValueTemp) != std::string::npos) {
+					buttons_->childAt(i)->setVisible(true);
+				} else {
+					buttons_->childAt(i)->setVisible(false);
+				}
+			}
+			previous = str;
+		}
+	}
+
+public:
+	SearchBox(Widget *parent, std::vector<std::string> &configurables) : nanogui::TextBox(parent, ""), configurables_(configurables) {
+		setAlignment(TextBox::Alignment::Left);
+		setEditable(true);
+		setPlaceholder("Search");
+	}
+
+	~SearchBox() {
+	}
+
+	bool keyboardEvent(int key, int scancode, int action, int modifier) {
+		TextBox::keyboardEvent(key, scancode, action, modifier);
+		_setVisible(mValueTemp);
+		return true;
+	}
+
+	void setButtons(Widget *buttons) {
+		buttons_ = buttons;
+	}
+};
+
+static std::string titleForURI(const ftl::URI &uri) {
+	auto *cfg = ftl::config::find(uri.getBaseURI());
+	if (cfg && cfg->get<std::string>("title")) {
+		return *cfg->get<std::string>("title");
+	} else if (uri.getPath().size() > 0) {
+		return uri.getPathSegment(-1);
+	} else {
+		return uri.getHost();
+	}
+}
+
+static std::string genPadding(const std::string &str, size_t count) {
+	std::string res = "";
+	for (size_t i=0; i<count; ++i) {
+		res += str;
+	}
+	return res;
+}
+
 ConfigWindow::ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		: nanogui::Window(parent, "Settings"), ctrl_(ctrl) {
 	using namespace nanogui;
@@ -23,17 +85,52 @@ ConfigWindow::ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	setPosition(Vector2i(parent->width()/2.0f - 100.0f, parent->height()/2.0f - 100.0f));
 	//setModal(true);
 
-	configurables_ = ftl::config::list();
+	auto configurables = ftl::config::list();
+	const auto size = configurables.size();
 
 	new Label(this, "Select Configurable","sans-bold");
 
+	auto searchBox = new SearchBox(this, configurables);
+
 	auto vscroll = new VScrollPanel(this);
 	vscroll->setFixedHeight(300);
-	Widget *buttons = new Widget(vscroll);
+	auto buttons = new Widget(vscroll);
 	buttons->setLayout(new BoxLayout(Orientation::Vertical, Alignment::Fill));
 
-	for (auto c : configurables_) {
-		auto itembutton = new Button(buttons, c);
+	searchBox->setButtons(buttons);
+
+	std::vector<std::string> configurable_titles(size);
+	for (int i = 0; i < size; ++i) {
+		ftl::URI uri(configurables[i]);
+		std::string label = uri.getFragment();
+
+		size_t pos = label.find_last_of("/");
+		if (pos != std::string::npos) label = label.substr(pos+1);
+
+		std::string parentName = configurables[i];
+		size_t pos2 = parentName.find_last_of("/");
+		if (pos2 != std::string::npos) parentName = parentName.substr(0,pos2);
+
+		// FIXME: Does not indicated parent indentation ... needs sorting?
+
+		if (i > 0 && parentName == configurables[i-1]) {
+			ftl::URI uri(configurables[i-1]);
+			configurable_titles[i-1] = std::string("[") + titleForURI(uri) + std::string("] ") + uri.getFragment();
+
+			auto *prev = dynamic_cast<Button*>(buttons->childAt(buttons->childCount()-1));
+			prev->setCaption(configurable_titles[i-1]);
+			prev->setBackgroundColor(nanogui::Color(0.3f,0.3f,0.3f,1.0f));
+			prev->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
+			prev->setIconPosition(Button::IconPosition::Left);
+			prev->setIcon(ENTYPO_ICON_FOLDER);
+		}
+
+		configurable_titles[i] = label;
+
+		auto itembutton = new nanogui::Button(buttons, configurable_titles[i]);
+		std::string c = configurables[i];
+		itembutton->setTooltip(c);
+		itembutton->setBackgroundColor(nanogui::Color(0.9f,0.9f,0.9f,0.9f));
 		itembutton->setCallback([this,c]() {
 			LOG(INFO) << "Change configurable: " << c;
 			_buildForm(c);
@@ -136,3 +233,4 @@ void ConfigWindow::_buildForm(const std::string &suri) {
 bool ConfigWindow::exists(const std::string &uri) {
 	return ftl::config::find(uri) != nullptr;
 }
+

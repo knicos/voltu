@@ -227,6 +227,13 @@ static void run(ftl::Configurable *root) {
 	});
 	stream->add(vs);
 
+	for (auto c : ftl::config::getChildren(root->getID())) {
+		LOG(INFO) << "Tagging configurable: " << c->getID();
+		auto tags = c->value<std::vector<std::string>>("tags", nlohmann::json::array({}));
+		tags.push_back("reconstruction");
+		c->set("tags", tags);
+	}
+
 	// ---- Recording code -----------------------------------------------------
 	std::ofstream fileout;
 	ftl::codecs::Writer writer(fileout);

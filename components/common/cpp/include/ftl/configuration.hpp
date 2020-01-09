@@ -84,6 +84,13 @@ const std::vector<Configurable *> &findByTag(const std::string &tag);
 std::vector<std::string> list();
 
 /**
+ * Recursively get all children of a configurable. The given configurable is
+ * also included in the vector, unless it is null,
+ * in which case an empty vector is returned.
+ */
+const std::vector<Configurable *> getChildren(const std::string &uri);
+
+/**
  * Adds a Configurable instance to the database of instances so that it can
  * then be resolved using find().
  */
