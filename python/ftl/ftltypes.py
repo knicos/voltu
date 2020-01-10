@@ -13,6 +13,10 @@ Packet = namedtuple("Packet", ["codec", "definition", "block_total",
 StreamPacket = namedtuple("StreamPacket", ["timestamp", "streamID",
                                            "channel_count", "channel"])
 
+class PacketFlags:
+    RGB = 0x00000001
+    MappedDepth = 0x00000002
+
 # components/codecs/include/ftl/codecs/channels.hpp
 class Channel(IntEnum):
     None_           = -1

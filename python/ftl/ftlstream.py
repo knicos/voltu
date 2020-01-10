@@ -246,21 +246,43 @@ class FTLStreamReader:
             warn("frame expected, no image received from decoder")
 
         if ftl.is_float_channel(self._sp.channel):
-            # TODO: only supports 8 bits per pixel format and 16 bits
-            #       ()"old format")
-            #
-            # NVPipe: (2 * width), high bits in left, low in right
+            if (p.flags & ftl.PacketFlags.MappedDepth):
+                # New format
 
-            high = img[:,(img.shape[1]//2):,0].astype(np.uint32) << 8
-            low = img[:,:(img.shape[1]//2),0].astype(np.uint32)
-            img = (high|low).astype(np.float)/1000.0
+                # hardcoded constants maxdepth and P
+                maxdepth = 16
+                P = (2.0 * 256.0) / 16384.0
 
+                # use only 8 bits of 10
+                img = (img >> 2).astype(np.float) / 255
+                
+                L = img[:,:,0]
+                Ha = img[:,:,1]
+                Hb = img[:,:,2]
+
+                m = np.floor(4.0 * (L/P) - 0.5).astype(np.int) % 4
+                L0 = L - ((L-(P / 8.0)) % P) + (P / 4.0) * m.astype(np.float) - (P/8.0)
+                
+                s = np.zeros(img.shape[:2], dtype=np.float)
+                np.copyto(s, (P/2.0) * Ha, where=m == 0)
+                np.copyto(s, (P/2.0) * Hb, where=m == 1)
+                np.copyto(s, (P/2.0) * (1.0 - Ha), where=m == 2)
+                np.copyto(s, (P/2.0) * (1.0 - Hb), where=m == 3)
+                
+                img = (L0+s) * maxdepth
+
+            else:
+                # NvPipe format
+                high = img[:,(img.shape[1]//2):,0].astype(np.uint32) << 8
+                low = img[:,:(img.shape[1]//2),0].astype(np.uint32)
+                img = (high|low).astype(np.float)/1000.0
+            '''
             try:
                 img[img < self._calibration[sp.streamID].min_depth] = 0.0
                 img[img > self._calibration[sp.streamID].max_depth] = 0.0
             except KeyError:
                 warn("no calibration for received frame")
-
+            '''
             self._frame = img
 
         else:

@@ -1,24 +1,28 @@
-'''
-Python wrapper for libde265. Only decoding is (partly) implemented.
+'''!
+Python wrapper for libde265. Only decoding is implemented.
 
 Requirements:
  * libde265 library (libde265.so.0)
  * numpy
- * opencv or skimage
+ * opencv (recommended) or skimage
 
 '''
 
 try:
     import cv2 as cv
     def _resize(img, size):
-        return cv.resize(img, dsize=tuple(reversed(size)), interpolation=cv.INTER_CUBIC)
+        dst = np.zeros(size, dtype=img.dtype)
+        cv.resize(img, tuple(reversed(size)), dst, interpolation=cv.INTER_LINEAR)
+        return dst
 
 except ImportError:
+    # seems to be much slower than OpenCV resize()
+
     from skimage.transform import resize as resize_skimage
     def _resize(img, size):
-        # skimage resize() return dtype float64, convert back to uint8
+        # skimage resize() return dtype float64, convert back to original type
         # order: 0 nn, 1 bilinear, 3 bicubic
-        return (resize_skimage(img, size, order=3, mode="constant", cval=0) * 255).astype(np.uint8)
+        return (resize_skimage(img, size, order=2, mode="constant", cval=0) *  np.iinfo(img.dtype).max).astype(img.dtype)
 
 from warnings import warn
 
@@ -38,6 +42,10 @@ if _threads is None:
 '''
 
 _threads = 1
+
+################################################################################
+# interface and definitions from libde256 api
+################################################################################
 
 # error codes copied from header (de265.h)
 
@@ -155,6 +163,8 @@ libde265.de265_get_image_plane.restype = ctypes.POINTER(ctypes.c_char)
 libde265.de265_get_number_of_input_bytes_pending.argtypes = [ctypes.c_void_p]
 libde265.de265_get_number_of_input_bytes_pending.restype = ctypes.c_int
 
+################################################################################
+
 class libde265Error(Exception):
     def __init__(self, code):
         super(libde265Error, self).__init__(
@@ -168,7 +178,7 @@ class Decoder:
         self._more = ctypes.c_int()
         self._out_stride = ctypes.c_int()
         self._ctx = libde265.de265_new_decoder()
-        self._supress_warnings = False
+        self._disable_warnings = False
 
         err = libde265.de265_start_worker_threads(self._ctx, threads)
 
@@ -182,28 +192,29 @@ class Decoder:
         size = (libde265.de265_get_image_height(de265_image, 0),
                 libde265.de265_get_image_width(de265_image, 0))
 
-        res = np.zeros((*size, 3), dtype=np.uint8)
+        res = np.zeros((*size, 3), dtype=np.uint16)
 
         # libde265: always 420 (???)
-        # chroma_format = libde265.de265_get_chroma_format(de265_image)
-
+        chroma_format = libde265.de265_get_chroma_format(de265_image)
+        if chroma_format != de265_chroma.de265_chroma_420:
+            raise NotImplementedError("Unsupported chroma format %s" % str(chroma_format))
+        
         for c in range(0, 3):
             size_channel = (libde265.de265_get_image_height(de265_image, c),
                             libde265.de265_get_image_width(de265_image, c))
 
             if size_channel[0] > size[0] or size_channel[1] > size[1]:
-                # Is this possible?
-                print(size, size_channel)
                 raise Exception("Channel larger than first channel")
 
             bpp = libde265.de265_get_bits_per_pixel(de265_image, c)
-            if bpp != 8:
-                raise NotImplementedError("%i-bit format not implemented (TODO)" % bpp)
+            if bpp == 8:
+                dtype = np.uint8
+            else:
+                dtype = np.uint16
 
             img_ptr = libde265.de265_get_image_plane(de265_image, c, self._out_stride)
 
-			# libde: how is 10 bits per pixel returned
-            ch = np.frombuffer(img_ptr[:size_channel[0] * size_channel[1]], dtype=np.uint8)
+            ch = np.frombuffer(img_ptr[:size_channel[0] * self._out_stride.value], dtype=dtype)
             ch.shape = size_channel
 
             res[:,:,c] = _resize(ch, size)
@@ -211,7 +222,7 @@ class Decoder:
         return res
 
     def _warning(self):
-        if self._supress_warnings:
+        if self._disable_warnings:
             return
 
         code = libde265.de265_get_warning(self._ctx)
