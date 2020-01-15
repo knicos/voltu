@@ -10,7 +10,6 @@ include(GNUInstallDirs)
 include(CTest)
 enable_testing()
 
-option(WITH_PCL "Use PCL if available" OFF)
 option(WITH_NVPIPE "Use NvPipe for compression if available" ON)
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
 option(WITH_OPENVR "Build with OpenVR support" OFF)
@@ -68,16 +67,8 @@ if(${CMAKE_VERSION} VERSION_GREATER "3.12.0")
 	cmake_policy(SET CMP0074 NEW)
 endif()
 
-if (WITH_PCL)
-	find_package( PCL QUIET COMPONENTS io common visualization registration segmentation)
-endif()
-
 set(CMAKE_CXX_STANDARD 17) # For PCL/VTK https://github.com/PointCloudLibrary/pcl/issues/2686
 set(HAVE_OPENCV TRUE)
-
-if (PCL_FOUND)
-	set(HAVE_PCL TRUE)
-endif()
 
 # Readline library is not required on Windows
 # May also entirely remove dependence on this... it should be optional at least.
@@ -248,10 +239,6 @@ endif()
 if (BUILD_CALIBRATION)
 	find_package( cvsba REQUIRED )
 	add_subdirectory(applications/calibration-multi)
-endif()
-
-if (HAVE_PCL)
-	#add_subdirectory(applications/registration)
 endif()
 
 if (BUILD_RECONSTRUCT)

@@ -47,5 +47,4 @@ to configure the project.
 You will need to have OpenCV and glog installed. CUDA and LibSGM are optional
 but recommended also. OpenCV should have cuda stereo modules compiled, along
 with the viz module if local point cloud display is required. These are contrib
-modules. PCL is also required to build the reconstruction components and app.
-
+modules.

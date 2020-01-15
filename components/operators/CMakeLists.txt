@@ -39,11 +39,7 @@ endif()
 
 add_library(ftloperators ${OPERSRC})
 
-# These cause errors in CI build and are being removed from PCL in newer versions
-# target_compile_options(ftlrender PUBLIC ${PCL_DEFINITIONS})
-
 target_include_directories(ftloperators PUBLIC
-	${PCL_INCLUDE_DIRS}
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
