@@ -20,7 +20,7 @@ linux:
 #  before_script:
 #    - export DEBIAN_FRONTEND=noninteractive
 #    - apt-get update -qq && apt-get install -y -qq g++ cmake git
-#    - apt-get install -y -qq libopencv-dev libgoogle-glog-dev liburiparser-dev libreadline-dev libmsgpack-dev uuid-dev libpcl-dev
+#    - apt-get install -y -qq libopencv-dev libgoogle-glog-dev liburiparser-dev libreadline-dev libmsgpack-dev uuid-dev
   script:
     - mkdir build
     - cd build
