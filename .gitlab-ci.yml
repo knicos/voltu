@@ -4,15 +4,14 @@
 #
 # Perhaps relevant in future https://gitlab.com/gitlab-org/gitlab-ce/issues/47063
 
+variables:
+  CMAKE_ARGS_WINDOWS: '-DCMAKE_GENERATOR_PLATFORM=x64 -DNVPIPE_DIR="D:/Build/NvPipe" -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/Build/opencv-4.1.1" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1"'
+
 stages:
  - all
-# - build
-# - test
  - deploy
 
-#cache:
-#  paths:
-#    - build/
+#### Linux
 
 linux:
   stage: all
@@ -43,20 +42,40 @@ webserver-deploy:
     - rsync -vr --delete web-service/ nodejs@${NODE_SERVER}:/srv/nodejs/web-service
     - ssh nodejs@${NODE_SERVER} -- "npm install web-service/server && pm2 restart web-service"
 
-windows:
-  stage: all
-  variables:
-    CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE -DWITH_PCL=FALSE -DCMAKE_GENERATOR_PLATFORM=x64 -DNVPIPE_DIR="D:/Build/NvPipe" -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/Build/opencv-4.1.1" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.1"'
-    DEPLOY_DIR: 'D:/Shared/AutoDeploy'
-  tags:
-    - win
-  script:
+### Windows
+
+.build-windows: &build-windows
     - 'call "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat"'
     - mkdir build
     - cd build
-    - cmake %CMAKE_ARGS% ..
+    - echo cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% ..
+    - cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% ..
     - devenv ftl.utu.fi.sln /build Release
     - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - mkdir "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - 'copy "applications\vision\Release\ftl-vision.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
     - 'copy "applications\calibration\Release\ftl-calibrate.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
+
+windows-vision:
+  except:
+    - master
+  stage: all
+  variables:
+    CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE -DBUILD_VISION=TRUE -DBUILD_CALIBRATION=FALSE -DBUILDRECONSTRUCT=FALSE -DBUILDRENDERER=FALSE -DBUILD_TESTING=FALSE'
+    DEPLOY_DIR: 'D:/Shared/AutoDeploy'
+  tags:
+    - win
+  script:
+    - *build-windows
+
+windows-master:
+  only:
+    - master
+  stage: all
+  variables:
+    CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE'
+    DEPLOY_DIR: 'D:/Shared/AutoDeploy'
+  tags:
+    - win
+  script:
+    - *build-windows

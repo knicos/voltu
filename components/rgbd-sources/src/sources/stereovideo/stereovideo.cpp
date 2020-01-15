@@ -96,8 +96,7 @@ void StereoVideoSource::init(const string &file) {
 	pipeline_depth_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)*/
 
 	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
-	if (!calib_->isCalibrated()) LOG(WARNING) << "Cameras are not calibrated!";
-
+	
 	// Generate camera parameters from camera matrix
 	cv::Mat K = calib_->getCameraMatrixLeft(color_size_);
 	params_ = {
@@ -121,7 +120,10 @@ void StereoVideoSource::init(const string &file) {
 	host_->getConfig()["baseline"] = params_.baseline;
 	host_->getConfig()["doffs"] = params_.doffs;
 
-	// Add event handlers to allow calibration changes...
+	// TODO: remove (not used, fx/fy/baseline/.. do not change)
+	//		 in case they are modified, update using Calibrate
+	//		 (requires new method)
+
 	host_->on("baseline", [this](const ftl::config::Event &e) {
 		params_.baseline = host_->value("baseline", params_.baseline);
 		UNIQUE_LOCK(host_->mutex(), lk);
@@ -134,13 +136,15 @@ void StereoVideoSource::init(const string &file) {
 		UNIQUE_LOCK(host_->mutex(), lk);
 		calib_->updateCalibration(params_);
 	});
+	//
 
 	host_->on("doffs", [this](const ftl::config::Event &e) {
 		params_.doffs = host_->value("doffs", params_.doffs);
 	});
 	
+
 	// left and right masks (areas outside rectified images)
-	// only left mask used (not used)
+	// TODO: remove mask
 	cv::cuda::GpuMat mask_r_gpu(lsrc_->height(), lsrc_->width(), CV_8U, 255);
 	cv::cuda::GpuMat mask_l_gpu(lsrc_->height(), lsrc_->width(), CV_8U, 255);
 	calib_->rectifyStereo(mask_l_gpu, mask_r_gpu, stream_);
@@ -149,6 +153,7 @@ void StereoVideoSource::init(const string &file) {
 	mask_l_gpu.download(mask_l);
 	mask_l_ = (mask_l == 0);
 	
+
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
 }
@@ -162,7 +167,7 @@ ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
 		K = calib_->getCameraMatrixLeft(color_size_);
 	}
 
-	// TODO: remove hardcoded values (min/max)
+	// TODO: remove hardcoded values (min/max), move to Calibrate?
 	ftl::rgbd::Camera params = {
 		K.at<double>(0,0),	// Fx
 		K.at<double>(1,1),	// Fy
