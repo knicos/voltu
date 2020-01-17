@@ -28,7 +28,7 @@ class Source {
 	friend class ftl::rgbd::Source;
 
 	public:
-	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_({0}), timestamp_(0) { }
+	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_(state_.getLeft()), timestamp_(0) { }
 	virtual ~Source() {}
 
 	/**
@@ -54,17 +54,18 @@ class Source {
 	virtual void swap() {}
 
 	virtual bool isReady() { return false; };
-	virtual void setPose(const Eigen::Matrix4d &pose) { };
+	virtual void setPose(const Eigen::Matrix4d &pose) { state_.setPose(pose); };
 
 	virtual Camera parameters(ftl::codecs::Channel) { return params_; };
 
 	protected:
+	ftl::rgbd::FrameState state_;
 	capability_t capabilities_;
 	ftl::rgbd::Source *host_;
-	ftl::rgbd::Camera params_;
+	ftl::rgbd::Camera &params_;
 	ftl::rgbd::Frame frame_;
 	int64_t timestamp_;
-	//Eigen::Matrix4f pose_;
+	//Eigen::Matrix4d &pose_;
 };
 
 }	

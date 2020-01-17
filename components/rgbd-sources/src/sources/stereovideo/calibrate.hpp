@@ -29,11 +29,13 @@ class Calibrate : public ftl::Configurable {
 	public:
 	Calibrate(nlohmann::json &config, cv::Size image_size, cv::cuda::Stream &stream);
 
-	/* @brief	Rectify and undistort stereo pair images (GPU)
+	/**
+	 * @brief	Rectify and undistort stereo pair images (GPU)
 	 */
 	void rectifyStereo(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::Stream &stream);
 
-	/* @brief	Rectify and undistort stereo pair images (CPU)
+	/**
+	 * @brief	Rectify and undistort stereo pair images (CPU)
 	 * @todo	Uses same rectification maps as GPU version, according to OpenCV
 	 * 			documentation for remap(), fixed point versions faster for CPU
 	 */
@@ -41,10 +43,13 @@ class Calibrate : public ftl::Configurable {
 
 	void updateCalibration(const ftl::rgbd::Camera &p);
 	
-	/* @brief Get disparity to depth matrix
+	/**
+	 * @brief Get disparity to depth matrix
 	 *
-	 * 2020/01/15:	Not used, StereoVideoSource creates a Camera object which
-	 * 				is used to calculate depth from disparity (disp2depth.cu)
+	 * 2020/01/15:	StereoVideoSource creates a Camera object which is used to
+	 * 				calculate depth from disparity (disp2depth.cu). Seems to be
+	 * 				used only in StereoVideoSource to get doff and baseline
+	 * 				parameter values in updateParameters()
 	 */
 	const cv::Mat &getQ() const { return Q_; }
 
@@ -54,39 +59,100 @@ class Calibrate : public ftl::Configurable {
 	cv::Mat getCameraMatrixLeft(const cv::Size res);
 	cv::Mat getCameraMatrixRight(const cv::Size res);
 
-	/* @brief	Get camera pose from calibration
+	/**
+	 * @brief	Get camera pose from calibration
 	 */
-	cv::Mat getPose() { return pose_; };
+	const cv::Mat &getPose() const { return pose_; };
 	
-	/* @brief	Enable/disable recitification. If disabled, instance returns
+	/**
+	 * @brief	Enable/disable recitification. If disabled, instance returns
 	 *			original camera intrinsic parameters (getCameraMatrixLeft() and
-				getCameraMatrixRight() methods). When enabled (default), those
-				methods return camera parameters for rectified images.
+	 *			getCameraMatrixRight() methods). When enabled (default), those
+	 *			methods return camera parameters for rectified images. Does not
+	 *			enable rectification, if valid parameters are missing.
 	 * @param	Rectification on/off
+	 * @returns	Status after call
 	 */
-	void setRectify(bool enabled) { rectify_ = enabled; }
+	bool setRectify(bool enabled);
+
+	/**
+	 * @brief	Set intrinsic parameters for both cameras.
+	 * 
+	 * @param	size	calibration size
+	 * @param	K		2 camera matricies (3x3)
+	 * @param	D 		2 distortion parameters (5x1)
+	 * @returns	true if valid parameters
+	 */
+	bool setIntrinsics(const cv::Size size, const std::vector<cv::Mat> K, const std::vector<cv::Mat> D);
+
+	/**
+	 * @brief	Set extrinsic parameters.
+	 * 
+	 * @param	R	Rotation matrix (3x3) from left to right camera
+	 * @param	t	Translation vector (1x3) from left to right camera
+	 * @returns	true if valid parameters
+	 */
+	bool setExtrinsics(const cv::Mat R, const cv::Mat t);
+
+	/**
+	 * @brief	Set pose
+	 * @param	pose	Pose for left camera
+	 * @returns	true if valid pose
+	 */
+	bool setPose(const cv::Mat P);
+
+	/**
+	 * @brief	Calculate rectification parameters and maps. Can fail if
+	 * 			calibration parameters are invalid.
+	 * @returns	true if successful
+	 */
+	bool calculateRectificationParameters();
+
+	/**
+	 * @brief	Load calibration from file
+	 * @param	fname	File name
+	 */
+	bool loadCalibration(const std::string fname);
+
+	/**
+	 * @brief	Write calibration parameters to file
+	 * 
+	 * Assumes two cameras and intrinsic calibration parameters have the same
+	 * resolution.
+	 * 
+	 * @todo	Validate loaded values
+	 * 
+	 * @param	fname file name
+	 * @param	size calibration resolution (intrinsic parameters)
+	 * @param	K intrinsic matrices
+	 * @param	D distortion coefficients
+	 * @param	R rotation from first camera to second
+	 * @param	t translation from first camera to second
+	 * @param	pose first camera's pose 
+	 */
+	static bool writeCalibration(std::string fname,
+								cv::Size size,
+								std::vector<cv::Mat> K, std::vector<cv::Mat> D, 
+								cv::Mat R, cv::Mat t,
+								cv::Mat pose);
+
+	/*	@brief	Save current calibration to file
+	 *	@param	File name
+	 */
+	bool saveCalibration(const std::string fname);
 
 private:
 	// rectification enabled/disabled
 	bool rectify_;
 
-	/* @brief	Get intrinsic matrix saved in calibration.
+	/**
+	 * @brief	Get intrinsic matrix saved in calibration.
 	 * @param	Camera index (0 left, 1 right)
 	 * @param	Resolution
 	 */
 	cv::Mat _getK(size_t idx, cv::Size size);
 	cv::Mat _getK(size_t idx);
 
-	/* @brief	Calculate rectification parameters and maps
-	 * @param	Camera resolution
-	 */
-	void _calculateRectificationParameters(cv::Size img_size);
-
-	/* @brief	Load calibration from file
-	 * @todo	File names as arguments
-	 */
-	bool _loadCalibration();
-	
 	// calibration resolution (loaded from file by _loadCalibration)
 	cv::Size calib_size_;
 	// camera resolution (set by _calculateRecitificationParameters)
@@ -97,12 +163,6 @@ private:
 	std::pair<cv::Mat, cv::Mat> map2_;
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map1_gpu_;
 	std::pair<cv::cuda::GpuMat, cv::cuda::GpuMat> map2_gpu_;
-
-	// transformation from left to right camera: R_ and T_
-	cv::Mat R_;
-	cv::Mat T_;
-	// pose for left camera
-	cv::Mat pose_;
 
 	// parameters for rectification, see cv::stereoRectify() documentation
 	cv::Mat R1_;
@@ -116,6 +176,12 @@ private:
 	// intrinsic parameters and distortion coefficients
 	std::vector<cv::Mat> K_;
 	std::vector<cv::Mat> D_;
+
+	// transformation from left to right camera: R_ and T_
+	cv::Mat R_;
+	cv::Mat t_;
+	// pose for left camera
+	cv::Mat pose_;
 };
 
 }

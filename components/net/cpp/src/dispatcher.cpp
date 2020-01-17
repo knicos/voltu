@@ -76,7 +76,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 		if (func) {
 			//DLOG(INFO) << "Found binding for " << name;
 		    try {
-		        auto result = (*func)(args); //->get();
+		        auto result = (*func)(s, args); //->get();
 		        s._sendResponse(id, result->get());
 		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
 				std::stringstream buf;
@@ -112,6 +112,10 @@ optional<Dispatcher::adaptor_type> ftl::net::Dispatcher::_locateHandler(const st
 	}
 }
 
+bool ftl::net::Dispatcher::isBound(const std::string &name) const {
+	return funcs_.find(name) != funcs_.end();
+}
+
 void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const &msg) {
     notification_t the_call;
     msg.convert(the_call);
@@ -128,7 +132,7 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 
     if (binding) {
         try {
-            auto result = (*binding)(args);
+            auto result = (*binding)(s, args);
         } catch (const int &e) {
 			LOG(ERROR) << "Exception in bound function";
 			throw &e;

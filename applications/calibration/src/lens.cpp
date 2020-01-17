@@ -39,7 +39,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	const int delay = getOptionInt(opt, "delay", 1000);
 	const double aperture_width = getOptionDouble(opt, "aperture_width", 6.2);
 	const double aperture_height = getOptionDouble(opt, "aperture_height", 4.6);
-	const string filename_intrinsics = getOptionString(opt, "profile", FTL_LOCAL_CONFIG_ROOT "/intrinsics.yml");
+	const string filename_intrinsics = getOptionString(opt, "profile", FTL_LOCAL_CONFIG_ROOT "/calibration.yml");
 	CalibrationChessboard calib(opt);
 	bool use_guess = getOptionInt(opt, "use_guess", 1);
 	//bool use_guess_distortion = getOptionInt(opt, "use_guess_distortion", 0);
@@ -53,7 +53,8 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	LOG(INFO) << "                 delay: " << delay;
 	LOG(INFO) << "        aperture_width: " << aperture_width;
 	LOG(INFO) << "       aperture_height: " << aperture_height;
-	LOG(INFO) << "             use_guess: " << use_guess;
+	LOG(INFO) << "             use_guess: " << use_guess << "\n";
+	LOG(WARNING) << "WARNING: This application overwrites existing files and does not previous values!";
 	//LOG(INFO) << "  use_guess_distortion: " << use_guess_distortion;
 
 	LOG(INFO) << "-----------------------------------";

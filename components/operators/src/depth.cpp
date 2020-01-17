@@ -68,8 +68,42 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 				cv::cuda::swap(right, rbuf_[i]);
 			}*/
 
-			pipe_->apply(f, f, in.sources[i], stream);
+			pipe_->apply(f, f, stream);
 		}
+	}
+
+	return true;
+}
+
+bool DepthChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+	//rbuf_.resize(1);
+
+	auto &f = in;
+	if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
+		_createPipeline();
+
+		cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
+		cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
+		cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
+		depth.create(depth_size_, CV_32FC1);
+
+		if (left.empty() || right.empty()) return false;
+
+		/*if (depth_size_ != left.size()) {
+			auto &col2 = f.create<cv::cuda::GpuMat>(Channel::ColourHighRes);
+			cv::cuda::resize(left, col2, depth_size_, 0.0, 0.0, cv::INTER_CUBIC, cvstream);
+			f.createTexture<uchar4>(Channel::ColourHighRes, true);
+			f.swapChannels(Channel::Colour, Channel::ColourHighRes);
+		}
+
+		if (depth_size_ != right.size()) {
+			cv::cuda::resize(right, rbuf_[i], depth_size_, 0.0, 0.0, cv::INTER_CUBIC, cvstream);
+			cv::cuda::swap(right, rbuf_[i]);
+		}*/
+
+		pipe_->apply(f, f, stream);
 	}
 
 	return true;

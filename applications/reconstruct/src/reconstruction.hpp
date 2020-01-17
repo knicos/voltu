@@ -11,19 +11,35 @@
 
 namespace ftl {
 
-class Reconstruction : public ftl::Configurable {
+class Reconstruction : public ftl::Configurable, public ftl::rgbd::Generator {
 	public:
 	Reconstruction(nlohmann::json &config, const std::string name);
 	~Reconstruction();
 
-	void addSource(ftl::rgbd::Source *);
+	//void addSource(ftl::rgbd::Source *);
 
-	void addRawCallback(const std::function<void(ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &cb);
+	//void addRawCallback(const std::function<void(ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &cb);
+
+	void setGenerator(ftl::rgbd::Generator *);
 
 	/**
 	 * Do the render for a specified virtual camera.
 	 */
 	bool render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out);
+
+	/** Number of frames in last frameset. This can change over time. */
+	size_t size() override;
+
+	/**
+	 * Get the persistent state object for a frame. An exception is thrown
+	 * for a bad index.
+	 */
+	ftl::rgbd::FrameState &state(int ix) override;
+
+	/** Register a callback to receive new frame sets. */
+	void onFrameSet(const ftl::rgbd::VideoCallback &) override;
+
+	bool post(ftl::rgbd::FrameSet &fs);
 
 	private:
 	bool busy_;
@@ -33,9 +49,11 @@ class Reconstruction : public ftl::Configurable {
 	
 	ftl::rgbd::FrameSet fs_render_;
 	ftl::rgbd::FrameSet fs_align_;
-	ftl::rgbd::Group *group_;
+	ftl::rgbd::Generator *gen_;
 	ftl::operators::Graph *pipeline_;
 	ftl::render::Triangular *renderer_;
+
+	ftl::rgbd::VideoCallback cb_;
 
 	std::vector<cv::cuda::GpuMat> rgb_;
 };

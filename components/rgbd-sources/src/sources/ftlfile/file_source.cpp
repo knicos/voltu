@@ -76,7 +76,7 @@ FileSource::FileSource(ftl::rgbd::Source *s, ftl::rgbd::Player *r, int sid) : ft
 
 		// TODO: Check I-Frames for H264
 		if (pkt.codec == codec_t::HEVC) {
-			if (ftl::codecs::hevc::isIFrame(pkt.data)) _removeChannel(spkt.channel);
+			if (ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) _removeChannel(spkt.channel);
 		}
 		cache_[cache_write_].emplace_back();
 		auto &c = cache_[cache_write_].back();
@@ -178,6 +178,7 @@ bool FileSource::compute(int n, int b) {
 	int lastc = 0;
 
 	frame_.reset();
+	frame_.setOrigin(&state_);
 
 	// Decide which channels to decode
 	decode_channels_ = Channel::Colour;

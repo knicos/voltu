@@ -2,7 +2,7 @@
 #define _FTL_RENDER_RENDERER_HPP_
 
 #include <ftl/configurable.hpp>
-#include <ftl/rgbd/virtual.hpp>
+#include <ftl/rgbd/frameset.hpp>
 #include <ftl/cuda_common.hpp>
 
 namespace ftl {
@@ -22,11 +22,10 @@ class Renderer : public ftl::Configurable {
     virtual ~Renderer() {};
 
     /**
-     * Generate a single virtual camera frame. The frame takes its pose from
-     * the virtual camera object passed, and writes the result into the
-     * virtual camera.
+     * Generate a single virtual frame. The frame takes its pose and calibration
+	 * from the output frame pose and calibration channels.
      */
-    virtual bool render(ftl::rgbd::VirtualSource *, ftl::rgbd::Frame &, const Eigen::Matrix4d &)=0;
+    virtual bool render(ftl::rgbd::FrameSet &, ftl::rgbd::Frame &, ftl::codecs::Channel, const Eigen::Matrix4d &)=0;
 };
 
 }

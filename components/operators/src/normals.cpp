@@ -15,7 +15,7 @@ Normals::~Normals() {
 
 }
 
-bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(Channel::Depth)) {
 		LOG(ERROR) << "Missing depth channel in Normals operator";
 		return false;
@@ -29,7 +29,7 @@ bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sour
 	ftl::cuda::normals(
 		out.createTexture<float4>(Channel::Normals, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 		in.createTexture<float>(Channel::Depth),
-		s->parameters(), stream
+		in.getLeftCamera(), stream
 	);
 
 	return true;
@@ -44,7 +44,7 @@ SmoothNormals::~SmoothNormals() {
 
 }
 
-bool SmoothNormals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool SmoothNormals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
     float smoothing = config()->value("normal_smoothing", 0.02f);
     int radius = max(0, min(config()->value("radius",1), 5));
 
@@ -67,9 +67,9 @@ bool SmoothNormals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd
 		temp_,
 		in.createTexture<float>(Channel::Depth),
 		radius, smoothing,
-		s->parameters(),
-		MatrixConversion::toCUDA(s->getPose().cast<float>().inverse()).getFloat3x3(),
-		MatrixConversion::toCUDA(s->getPose().cast<float>()).getFloat3x3(),
+		in.getLeftCamera(),
+		MatrixConversion::toCUDA(in.getPose().cast<float>().inverse()).getFloat3x3(),
+		MatrixConversion::toCUDA(in.getPose().cast<float>()).getFloat3x3(),
 		stream
 	);
 

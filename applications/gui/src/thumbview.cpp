@@ -29,6 +29,6 @@ void ThumbView::draw(NVGcontext *ctx) {
 	nvgScissor(ctx, mPos.x(), mPos.y(), mSize.x(), mSize.y());
 	nvgFontSize(ctx, 14);
 	nvgFontFace(ctx, "sans-bold");
-	nvgText(ctx, mPos.x() + 10, mPos.y()+mSize.y() - 10, cam_->source()->getURI().c_str(), NULL);
+	//nvgText(ctx, mPos.x() + 10, mPos.y()+mSize.y() - 10, cam_->source()->getURI().c_str(), NULL);
 	nvgResetScissor(ctx);
 }

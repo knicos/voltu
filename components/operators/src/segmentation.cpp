@@ -13,7 +13,7 @@ CrossSupport::~CrossSupport() {
 
 }
 
-bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	bool use_mask = config()->value("discon_support", false);
 
 
@@ -51,7 +51,7 @@ VisCrossSupport::~VisCrossSupport() {
 
 }
 
-bool VisCrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool VisCrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	bool show_depth = false;
 	if (in.hasChannel(Channel::Support2) && config()->value("show_depth_support", false)) {
 		show_depth = true;

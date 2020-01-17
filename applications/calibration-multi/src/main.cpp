@@ -1,9 +1,13 @@
 #include <loguru.hpp>
-
+#include <ftl/threads.hpp>
 #include <ftl/configuration.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/rgbd/source.hpp>
 #include <ftl/rgbd/group.hpp>
+
+#include <ftl/master.hpp>
+#include <ftl/streams/receiver.hpp>
+#include <ftl/streams/netstream.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/aruco.hpp>
@@ -44,95 +48,21 @@ Mat createCameraMatrix(const ftl::rgbd::Camera &parameters) {
 	return m;
 }
 
-void to_json(nlohmann::json &json, map<string, Eigen::Matrix4d> &transformations) {
-	for (auto &item : transformations) {
-		auto val = nlohmann::json::array();
-		for(size_t i = 0; i < 16; i++) { val.push_back((float) item.second.data()[i]); }
-		json[item.first] = val;
-	}
-}
+struct CalibrationParams {
+	string output_path;
+	string registration_file;
+	vector<size_t> idx_cameras;
+	bool save_extrinsic = true;
+	bool save_intrinsic = false;
+	bool optimize_intrinsic = false;
+	int reference_camera = -1;
+	double alpha = 0.0;
+	Size size;
+};
 
-// FileStorage allows only alphanumeric keys (code below does not work with URIs)
-
-bool saveRegistration(const string &ofile, const map<string, Mat> &data) {
-	cv::FileStorage fs(ofile, cv::FileStorage::WRITE);
-	if (!fs.isOpened()) return false;
-	for (auto &item : data) { fs << item.first << item.second; }
-	fs.release();
-	return true;
-}
-
-bool saveRegistration(const string &ofile, const map<string, Eigen::Matrix4d> &data) {
-	map<string, Mat> _data;
-	for (auto &item : data) {
-		Mat M;
-		cv::eigen2cv(item.second, M);
-		_data[item.first] = M; 
-	}
-	return saveRegistration(ofile, _data);
-}
-
-bool loadRegistration(const string &ifile, map<string, Mat> &data) {
-	cv::FileStorage fs(ifile, cv::FileStorage::READ);
-	if (!fs.isOpened()) return false;
-	for(cv::FileNodeIterator fit = fs.getFirstTopLevelNode().begin();
-		fit != fs.getFirstTopLevelNode().end();
-		++fit)
-	{
-		data[(*fit).name()] = (*fit).mat();
-	}
-	fs.release();
-	return true; // TODO errors?
-}
-
-bool loadRegistration(const string &ifile, map<string, Eigen::Matrix4d> &data) {
-	map<string, Mat> _data;
-	if (!loadRegistration(ifile, _data)) return false;
-	for (auto &item : _data) {
-		Eigen::Matrix4d M;
-		cv::cv2eigen(item.second, M);
-		data[item.first] = M;
-	}
-	return true;
-}
-
-//
-
-bool saveIntrinsics(const string &ofile, const vector<Mat> &M, const Size &size) {
-	vector<Mat> D;
-	{
-		cv::FileStorage fs(ofile, cv::FileStorage::READ);
-		fs["D"] >> D;
-		fs.release();
-	}
-	{
-		cv::FileStorage fs(ofile, cv::FileStorage::WRITE);
-		if (fs.isOpened()) {
-			fs << "resolution" << size;
-			fs << "K" << M << "D" << D;
-			fs.release();
-			return true;
-		}
-		else {
-			LOG(ERROR) << "Error: can not save the intrinsic parameters to '" << ofile << "'";
-		}
-		return false;
-	}
-}
-
-bool saveExtrinsics(const string &ofile, Mat &R, Mat &T, Mat &R1, Mat &R2, Mat &P1, Mat &P2, Mat &Q) {
-	cv::FileStorage fs;
-	fs.open(ofile, cv::FileStorage::WRITE);
-	if (fs.isOpened()) {
-		fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1"
-			<< P1 << "P2" << P2 << "Q" << Q;
-		fs.release();
-		return true;
-	} else {
-		LOG(ERROR) << "Error: can not save the extrinsic parameters";
-	}
-	return false;
-}
+////////////////////////////////////////////////////////////////////////////////
+// Visualization
+////////////////////////////////////////////////////////////////////////////////
 
 void stack(const vector<Mat> &img, Mat &out, const int rows, const int cols) {
 	Size size = img[0].size();
@@ -154,13 +84,6 @@ void stack(const vector<Mat> &img, Mat &out) {
 	int rows = 2;
 	int cols = (img.size() + 1) / 2;
 	stack(img, out, rows, cols);
-}
-
-string time_now_string() {
-	char timestamp[18];
-	std::time_t t=std::time(NULL);
-	std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-	return string(timestamp);
 }
 
 void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
@@ -192,21 +115,57 @@ void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
 	stack(rgb, out);
 }
 
-struct CalibrationParams {
-	string output_path;
-	string registration_file;
-	vector<size_t> idx_cameras;
-	bool save_extrinsic = true;
-	bool save_intrinsic = false;
-	bool optimize_intrinsic = false;
-	int reference_camera = -1;
-	double alpha = 0.0;
-	Size size;
-};
+////////////////////////////////////////////////////////////////////////////////
+// RPC
+////////////////////////////////////////////////////////////////////////////////
 
-void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
-				const CalibrationParams &params, vector<Mat> &map1, vector<Mat> &map2, vector<cv::Rect> &roi)
-{
+bool setRectifyRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, bool enabled) {
+	return net->call<bool>(nstream->getPeer(), "set_rectify", enabled);
+}
+
+bool setIntrinsicsRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Size size, vector<Mat> K, vector<Mat> D) {
+	Mat K0 = K[0].t();
+	Mat K1 = K[1].t();
+
+	return net->call<bool>(	nstream->getPeer(), "set_intrinsics",
+							vector<int>{size.width, size.height},
+							vector<double>(K0.begin<double>(), K0.end<double>()),
+							vector<double>(D[0].begin<double>(), D[0].end<double>()),
+							vector<double>(K1.begin<double>(), K1.end<double>()),
+							vector<double>(D[1].begin<double>(), D[1].end<double>())
+	);
+}
+
+bool setExtrinsicsRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Mat R, Mat t) {
+	Mat rvec;
+	cv::Rodrigues(R, rvec);
+	return net->call<bool>(	nstream->getPeer(), "set_extrinsics",
+							vector<double>(rvec.begin<double>(), rvec.end<double>()),
+							vector<double>(t.begin<double>(), t.end<double>())
+	);
+}
+
+bool setPoseRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Mat pose) {
+	Mat P = pose.t();
+	return net->call<bool>(	nstream->getPeer(), "set_pose", 
+							vector<double>(P.begin<double>(), P.end<double>()));
+}
+
+bool saveCalibrationRPC(ftl::net::Universe* net, ftl::stream::Net* nstream) {
+	return net->call<bool>(nstream->getPeer(), "save_calibration");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/* run calibration and perform RPC to update calibration on nodes */
+
+void calibrateRPC(	ftl::net::Universe* net,
+					MultiCameraCalibrationNew &calib,
+					const CalibrationParams &params,
+					vector<ftl::stream::Net*> &nstreams,
+					vector<Mat> &map1,
+					vector<Mat> &map2,
+					vector<cv::Rect> &roi) {
 	int reference_camera = params.reference_camera;
 	if (params.reference_camera < 0) {
 		reference_camera = calib.getOptimalReferenceCamera();
@@ -246,44 +205,23 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 		Rt_out[c] = getMat4x4(R[c], t[c]) * getMat4x4(R1, _t).inv();
 		Rt_out[c + 1] = getMat4x4(R[c + 1], t[c + 1]) * getMat4x4(R2, _t).inv();
 
-		{
-			string node_name;
-			size_t pos1 = uri_cameras[c/2].find("node");
-			size_t pos2 = uri_cameras[c/2].find("#", pos1);
-			node_name = uri_cameras[c/2].substr(pos1, pos2 - pos1);
-			
-			if (params.save_extrinsic)
-			{
-				// TODO:	only R and T required when rectification performed
-				//			on vision node. Consider saving extrinsic global
-				//			for node as well?
-				saveExtrinsics(	params.output_path + node_name + "-extrinsic.yml",
-								R_c1c2, T_c1c2, R1, R2, P1, P2, Q
-				);
-				LOG(INFO) << "Saved: " << params.output_path + node_name + "-extrinsic.yml";
+		auto *nstream = nstreams[c/2];
+		while(true) {
+			try {
+				/*setIntrinsicsRPC(net, nstream,
+					params.size,
+					vector<Mat>{calib.getCameraMat(c), calib.getCameraMat(c+1)},
+					vector<Mat>{calib.getDistCoeffs(c), calib.getDistCoeffs(c+1)}
+				);*/
+				setExtrinsicsRPC(net, nstream, R_c1c2, T_c1c2);
+				setPoseRPC(net, nstream, Rt_out[c]);
+				saveCalibrationRPC(net, nstream);
+				LOG(INFO) << "CALIBRATION SENT";
+				break;
 			}
-			else
-			{
-				Mat rvec;
-				cv::Rodrigues(R_c1c2, rvec);
-				LOG(INFO) << "From camera " << c << " to " << c + 1;
-				LOG(INFO) << "rotation:    " << rvec.t();
-				LOG(INFO) << "translation: " << T_c1c2.t();
-			}
-
-			if (params.save_intrinsic)
-			{
-				saveIntrinsics(
-					params.output_path + node_name + "-intrinsic.yml",
-					{ calib.getCameraMat(c), calib.getCameraMat(c + 1) },
-					params.size
-				);
-				LOG(INFO) << "Saved: " << params.output_path + node_name + "-intrinsic.yml";
-			}
-			else if (params.optimize_intrinsic)
-			{
-				LOG(INFO) << "K1:\n" << K1;
-				LOG(INFO) << "K2:\n" << K2;
+			catch (...) {
+				LOG(ERROR) << "RPC failed!";
+				sleep(1);
 			}
 		}
 
@@ -295,88 +233,6 @@ void calibrate(	MultiCameraCalibrationNew &calib, vector<string> &uri_cameras,
 		cv::initUndistortRectifyMap(K1, D1, R1, P1, params.size, CV_16SC2, map1[c], map2[c]);
 		cv::initUndistortRectifyMap(K2, D2, R2, P2, params.size, CV_16SC2, map1[c + 1], map2[c + 1]);
 	}
-
-	{
-		map<string, Eigen::Matrix4d> out;
-		for (size_t i = 0; i < n_cameras; i += 2) {
-			Eigen::Matrix4d M_eigen;
-			Mat M_cv = Rt_out[i];
-			cv::cv2eigen(M_cv, M_eigen);
-			out[uri_cameras[i/2]] = M_eigen;
-		}
-		
-		nlohmann::json out_json;
-		to_json(out_json, out);
-		if (params.save_extrinsic) {
-			std::ofstream file_out(params.registration_file);
-			file_out << out_json;
-		}
-		else {
-			LOG(INFO) << "Registration not saved to file";
-			LOG(INFO) << out_json;
-		}
-	}
-}
-
-void calibrateFromPath(	const string &path,
-						const string &filename,
-						CalibrationParams &params,
-						bool visualize=false)
-{
-	size_t reference_camera = 0;
-	auto calib = MultiCameraCalibrationNew(0, reference_camera, Size(0, 0), CalibrationTarget(0.250));
-	
-	vector<string> uri_cameras;
-	cv::FileStorage fs(path + filename, cv::FileStorage::READ);
-	fs["uri"] >> uri_cameras;
-	fs["resolution"] >> params.size;
-
-	//params.idx_cameras = {2, 3};//{0, 1, 4, 5, 6, 7, 8, 9, 10, 11};
-	params.idx_cameras.resize(uri_cameras.size() * 2);
-	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
-
-	calib.loadInput(path + filename, params.idx_cameras);
-	
-	vector<Mat> map1, map2;
-	vector<cv::Rect> roi;
-	calibrate(calib, uri_cameras, params, map1, map2, roi);
-
-	if (!visualize) return;
-
-	vector<Scalar> colors = {
-		Scalar(64, 64, 255),
-		Scalar(64, 64, 255),
-		Scalar(64, 255, 64),
-		Scalar(64, 255, 64),
-	};
-	vector<int> markers = {cv::MARKER_SQUARE, cv::MARKER_DIAMOND};
-
-	Mat out;
-	size_t n_cameras = calib.getCamerasCount();
-	vector<Mat> rgb(n_cameras);
-	size_t i = 0;
-	while(ftl::running) {
-		for (size_t c = 0; c < n_cameras; c++) {
-			rgb[c] = cv::imread(path + std::to_string(params.idx_cameras[c]) + "_" + std::to_string(i) + ".jpg");
-			for (size_t j = 0; j < rgb.size(); j++) {
-				vector<Point2d> points;
-				// TODO: indexing incorrect if all cameras used (see also loadInput)
-				calib.projectPointsOptimized(c, i, points); // project BA point to image
-
-				for (Point2d &p : points) {
-					cv::drawMarker(rgb[c], cv::Point2i(p), colors[j % colors.size()], markers[j % markers.size()], 10 + 3 * j, 1);
-				}
-			}
-		}
-		
-		visualizeCalibration(calib, out, rgb, map1, map2, roi);	
-		cv::namedWindow("Calibration", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
-		cv::imshow("Calibration", out);
-
-		i = (i + 1) % calib.getViewsCount();
-		
-		if (cv::waitKey(50) != -1) { ftl::running = false; }
-	}
 }
 
 void runCameraCalibration(	ftl::Configurable* root,
@@ -386,59 +242,91 @@ void runCameraCalibration(	ftl::Configurable* root,
 							CalibrationParams &params)
 {
 	Universe *net = ftl::create<Universe>(root, "net");
+	ftl::ctrl::Master ctrl(root, net);
+
 	net->start();
 	net->waitConnections();
-
-	vector<Source*> sources = ftl::createArray<Source>(root, "sources", net);
 	
-	const size_t n_sources = sources.size();
+	ftl::stream::Muxer *stream = ftl::create<ftl::stream::Muxer>(root, "muxstream");
+	ftl::stream::Receiver *gen = ftl::create<ftl::stream::Receiver>(root, "receiver");
+	gen->setStream(stream);
+	auto stream_uris = net->findAll<std::string>("list_streams");
+	std::vector<ftl::stream::Net*> nstreams;
+
+	int count = 0;
+	for (auto &s : stream_uris) {
+		LOG(INFO) << " --- found stream: " << s;
+		auto *nstream = ftl::create<ftl::stream::Net>(stream, std::to_string(count), net);
+		nstream->set("uri", s);
+		nstreams.push_back(nstream);
+		stream->add(nstream);
+		++count;
+	}
+	
+	const size_t n_sources = nstreams.size();
 	const size_t n_cameras = n_sources * 2;
 	size_t reference_camera = 0;
-	
-	ftl::rgbd::Group group;
-	for (Source* src : sources) {
-		src->setChannel(Channel::Right);
-		group.addSource(src);
-	}
 
 	std::mutex mutex;
 	std::atomic<bool> new_frames = false;
-	vector<Mat> rgb(n_cameras), rgb_new(n_cameras);
-	
-	ftl::timer::start(false);
+	vector<Mat> rgb_(n_cameras), rgb_new(n_cameras);
+	vector<Mat> camera_parameters(n_cameras);
+	Size res;
 
-	group.sync([&mutex, &new_frames, &rgb_new](ftl::rgbd::FrameSet &frames) {
-		mutex.lock();
+	gen->onFrameSet([stream, &mutex, &new_frames, &rgb_new, &camera_parameters, &res](ftl::rgbd::FrameSet &fs) {
+		stream->select(fs.id, Channel::Left + Channel::Right);
+		UNIQUE_LOCK(mutex, CALLBACK);
 		bool good = true;
-		for (size_t i = 0; i < frames.sources.size(); i ++) {
-			frames.frames[i].download(Channel::Left+Channel::Right);
+		try {
+			for (size_t i = 0; i < fs.frames.size(); i ++) {	
+				fs.frames[i].download(Channel::Left+Channel::Right);
+				
+				Mat left = fs.frames[i].get<Mat>(Channel::Left);
+				cv::cvtColor(left, rgb_new[2*i], cv::COLOR_BGRA2BGR);
+				Mat right = fs.frames[i].get<Mat>(Channel::Right);
+				cv::cvtColor(right, rgb_new[2*i+1], cv::COLOR_BGRA2BGR);
 
-			if (frames.frames[i].get<cv::Mat>(Channel::Left).empty()) good = false;
-			if (frames.frames[i].get<cv::Mat>(Channel::Right).empty()) good = false;
-			if (frames.frames[i].get<cv::Mat>(Channel::Left).channels() != 3) good = false; // ASSERT
-			if (frames.frames[i].get<cv::Mat>(Channel::Right).channels() != 3) good = false;
-			if (!good) break;
-			cv::swap(frames.frames[i].get<cv::Mat>(Channel::Left), rgb_new[2 * i]);
-			cv::swap(frames.frames[i].get<cv::Mat>(Channel::Right), rgb_new[2 * i + 1]);
+				if (left.empty()) good = false;
+				if (right.empty()) good = false;
+				if (!good) break;
+
+				camera_parameters[2*i] = createCameraMatrix(fs.frames[i].getLeftCamera());
+				camera_parameters[2*i+1] = createCameraMatrix(fs.frames[i].getRightCamera());
+				if (res.empty()) res = rgb_new[2*i].size();
+			}
 		}
-
+		catch (...) {
+			good = false;
+		}
 		new_frames = good;
-		mutex.unlock();
 		return true;
 	});
 
-	for (auto &source : sources) {
-		while (!source->isReady()) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	stream->begin();
+	ftl::timer::start(false);
+
+	while(true) {
+		if (!res.empty()) {
+			params.size = res;
+			LOG(INFO) << "Camera resolution: " << params.size;
+			break;
+		}
+		sleep(1);
+	}
+
+	for (auto *nstream: nstreams) {
+		bool res = false;
+		try { res = setRectifyRPC(net, nstream, false); }
+		catch (...) {}
+
+		if (!res) {
+			LOG(ERROR) << "set_rectify() failed for " << *(nstream->get<string>("uri"));
+		}
+		else {
+			LOG(INFO) << "rectification disabled for " << *(nstream->get<string>("uri"));
 		}
 	}
-
-	{
-		auto camera = sources[0]->parameters();
-		params.size = Size(camera.width, camera.height);
-		LOG(INFO) << "Camera resolution: " << params.size;
-	}
-
+	
 	params.idx_cameras.resize(n_cameras);
 	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
 
@@ -447,40 +335,25 @@ void runCameraCalibration(	ftl::Configurable* root,
 											params.size, CalibrationTarget(0.250)
 	);
 
-	for (size_t i = 0; i < n_sources; i++) {
-		auto camera_r = sources[i]->parameters(Channel::Right);
-		auto camera_l = sources[i]->parameters();
-
-		CHECK(params.size == Size(camera_r.width, camera_r.height));
-		CHECK(params.size == Size(camera_l.width, camera_l.height));
-		
-		Mat K;
-		K = createCameraMatrix(camera_r);
-		LOG(INFO) << "K[" << 2 * i + 1 << "] = \n" << K;
-		calib.setCameraParameters(2 * i + 1, K);
-
-		K = createCameraMatrix(camera_l);
-		LOG(INFO) << "K[" << 2 * i << "] = \n" << K;
-		calib.setCameraParameters(2 * i, K);
-	}
-	
 	int iter = 0;
 	Mat show;
 
 	vector<int> visible;
 	vector<vector<Point2d>> points(n_cameras);
 
+	vector<Mat> rgb(n_cameras);
+	sleep(3);
+
 	while(calib.getMinVisibility() < n_views) {
 		cv::waitKey(10);
-		while (!new_frames) {
-			for (auto src : sources) { src->grab(30); }
-			cv::waitKey(10);
+		
+		while (new_frames) {
+			UNIQUE_LOCK(mutex, LOCK);
+			if (new_frames) rgb.swap(rgb_new);
+			new_frames = false;
 		}
-
-		mutex.lock();
-		rgb.swap(rgb_new);
-		new_frames = false;
-		mutex.unlock();
+		
+		for (Mat &im : rgb) { CHECK(!im.empty()); }
 
 		visible.clear();
 		int n_found = findCorrespondingPoints(rgb, points, visible);
@@ -521,41 +394,39 @@ void runCameraCalibration(	ftl::Configurable* root,
 	}
 	cv::destroyWindow("Cameras");
 
-	vector<string> uri;
-	for (size_t i = 0; i < n_sources; i++) {
-		uri.push_back(sources[i]->getURI());
+	for (size_t i = 0; i < camera_parameters.size(); i++) {
+		//CHECK(params.size == Size(camera_r.width, camera_r.height));
+		//CHECK(params.size == Size(camera_l.width, camera_l.height));
+		
+		LOG(INFO) << "K[" << i << "] = \n" << camera_parameters[i];
+		calib.setCameraParameters(i, camera_parameters[i]);
 	}
-
-	if (save_input) {
-		cv::FileStorage fs(path + filename, cv::FileStorage::WRITE);
-		fs << "uri" << uri;
-		calib.saveInput(fs);
-		fs.release();
-	}
-
+	
 	Mat out;
 	vector<Mat> map1, map2;
 	vector<cv::Rect> roi;
 	vector<size_t> idx;
-	calibrate(calib, uri, params, map1, map2, roi);
+	calibrateRPC(net, calib, params, nstreams, map1, map2, roi);
 
 	// visualize
 	while(ftl::running) {
 		cv::waitKey(10);
 		while (!new_frames) {
-			for (auto src : sources) { src->grab(30); }
 			if (cv::waitKey(50) != -1) { ftl::running = false; }
 		}
 
-		mutex.lock();
-		rgb.swap(rgb_new);
-		new_frames = false;
-		mutex.unlock();
+		{
+			UNIQUE_LOCK(mutex, LOCK)
+			rgb.swap(rgb_new);
+			new_frames = false;
+			mutex.unlock();
+		}
 
 		visualizeCalibration(calib, out, rgb, map1, map2, roi);
 		cv::namedWindow("Calibration", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
 		cv::imshow("Calibration", out);
 	}
+	
 }
 
 int main(int argc, char **argv) {
@@ -595,25 +466,23 @@ int main(int argc, char **argv) {
 	params.reference_camera = ref_camera;
 	
 	LOG(INFO)	<< "\n"
-				<< "\nIMPORTANT: Remeber to set \"use_intrinsics\" to false for nodes!"
 				<< "\n"
-				<< "\n                save_input: " << (int) save_input
-				<< "\n                load_input: " << (int) load_input
-				<< "\n            save_extrinsic: " << (int) save_extrinsic
-				<< "\n            save_intrinsic: " << (int) save_intrinsic
+//				<< "\n                save_input: " << (int) save_input
+//				<< "\n                load_input: " << (int) load_input
+//				<< "\n            save_extrinsic: " << (int) save_extrinsic
+//				<< "\n            save_intrinsic: " << (int) save_intrinsic
 				<< "\n        optimize_intrinsic: " << (int) optimize_intrinsic
-				<< "\n      calibration_data_dir: " << calibration_data_dir
-				<< "\n     calibration_data_file: " << calibration_data_file
+//				<< "\n      calibration_data_dir: " << calibration_data_dir
+//				<< "\n     calibration_data_file: " << calibration_data_file
 				<< "\n               min_visible: " << min_visible
 				<< "\n                   n_views: " << n_views
 				<< "\n          reference_camera: " << ref_camera << (ref_camera != -1 ? "" : " (automatic)")
-				<< "\n         registration_file: " << registration_file
-				<< "\n          output_directory: " << output_directory
+//				<< "\n         registration_file: " << registration_file
+//				<< "\n          output_directory: " << output_directory
 				<< "\n";
 
 	if (load_input) {
-		vector<size_t> idx = {};
-		calibrateFromPath(calibration_data_dir, calibration_data_file, params, true);
+		LOG(FATAL) << "TODO";
 	}
 	else {
 		runCameraCalibration(root, n_views, min_visible, calibration_data_dir, calibration_data_file, save_input, params);

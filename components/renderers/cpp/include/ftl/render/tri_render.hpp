@@ -16,10 +16,10 @@ namespace render {
  */
 class Triangular : public ftl::render::Renderer {
 	public:
-	explicit Triangular(nlohmann::json &config, ftl::rgbd::FrameSet *fs);
+	explicit Triangular(nlohmann::json &config);
 	~Triangular();
 
-	bool render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) override;
+	bool render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, ftl::codecs::Channel, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
 
 	protected:
@@ -55,7 +55,16 @@ class Triangular : public ftl::render::Renderer {
 	void __reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
 	void _reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
 	void _dibr(ftl::rgbd::Frame &, const Eigen::Matrix4d &t, cudaStream_t);
-	void _mesh(ftl::rgbd::Frame &, ftl::rgbd::Source *, const Eigen::Matrix4d &t, cudaStream_t);
+	void _mesh(ftl::rgbd::Frame &, const Eigen::Matrix4d &t, cudaStream_t);
+	void _preprocessColours();
+	void _updateParameters(ftl::rgbd::Frame &out);
+	void _allocateChannels(ftl::rgbd::Frame &out);
+	void _postprocessColours(ftl::rgbd::Frame &out);
+
+	void _renderNormals(ftl::rgbd::Frame &out);
+	void _renderDensity(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
+	void _renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
+	void _renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan, const Eigen::Matrix4d &t);
 
 	bool _alreadySeen() const { return last_frame_ == scene_->timestamp; }
 };

@@ -89,7 +89,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                 //f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
                 Eigen::Vector4d d1(0.0, 0.0, 1.0, 0.0);
-                d1 = in.sources[i]->getPose() * d1;
+                d1 = f1.getPose() * d1;
 
                 for (size_t j=0; j<in.frames.size(); ++j) {
                     if (i == j) continue;
@@ -97,16 +97,16 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                     //LOG(INFO) << "Running phase1";
 
                     auto &f2 = in.frames[j];
-                    auto s1 = in.sources[i];
-                    auto s2 = in.sources[j];
+                    //auto s1 = in.sources[i];
+                    //auto s2 = in.sources[j];
 
                     // Are cameras facing similar enough direction?
                     Eigen::Vector4d d2(0.0, 0.0, 1.0, 0.0);
-                    d2 = in.sources[j]->getPose() * d2;
+                    d2 = f2.getPose() * d2;
                     // No, so skip this combination
                     if (d1.dot(d2) <= 0.0) continue;
 
-                    auto pose2 = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse() * s1->getPose().cast<float>());
+                    auto pose2 = MatrixConversion::toCUDA(f2.getPose().cast<float>().inverse() * f1.getPose().cast<float>());
 
                     //auto transform = pose2 * pose1;
 
@@ -121,8 +121,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                         f1.getTexture<float>(Channel::Confidence),
                         f1.getTexture<int>(Channel::Mask),
                         pose2,
-                        s1->parameters(),
-                        s2->parameters(),
+                        f1.getLeftCamera(),
+                        f2.getLeftCamera(),
                         params,
                         win,
                         stream
@@ -200,7 +200,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
         // But don't do the final move step.
         for (size_t i=0; i<in.frames.size(); ++i) {
             auto &f = in.frames[i];
-            auto *s = in.sources[i];
+            //auto *s = in.sources[i];
 
             // Clear data
             cv::cuda::GpuMat data(contributions_[i].height(), contributions_[i].width(), CV_32F, contributions_[i].pixelPitch());
@@ -224,7 +224,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                 thresh,
                 col_smooth,
                 radius,
-                s->parameters(),
+                f.getLeftCamera(),
                 stream
             );
 
@@ -239,7 +239,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                 thresh,
                 col_smooth,
                 radius,
-                s->parameters(),
+                f.getLeftCamera(),
                 stream
             );
         }
@@ -254,7 +254,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                 //f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
                 Eigen::Vector4d d1(0.0, 0.0, 1.0, 0.0);
-                d1 = in.sources[i]->getPose() * d1;
+                d1 = f1.getPose() * d1;
 
                 for (size_t j=0; j<in.frames.size(); ++j) {
                     if (i == j) continue;
@@ -262,19 +262,19 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                     //LOG(INFO) << "Running phase1";
 
                     auto &f2 = in.frames[j];
-                    auto s1 = in.sources[i];
-                    auto s2 = in.sources[j];
+                    //auto s1 = in.sources[i];
+                    //auto s2 = in.sources[j];
 
                     // Are cameras facing similar enough direction?
                     Eigen::Vector4d d2(0.0, 0.0, 1.0, 0.0);
-                    d2 = in.sources[j]->getPose() * d2;
+                    d2 = f2.getPose() * d2;
                     // No, so skip this combination
                     if (d1.dot(d2) <= 0.0) continue;
 
-                    auto pose1 = MatrixConversion::toCUDA(s1->getPose().cast<float>());
-					auto pose1_inv = MatrixConversion::toCUDA(s1->getPose().cast<float>().inverse());
-					auto pose2 = MatrixConversion::toCUDA(s2->getPose().cast<float>().inverse());
-					auto pose2_inv = MatrixConversion::toCUDA(s2->getPose().cast<float>());
+                    auto pose1 = MatrixConversion::toCUDA(f1.getPose().cast<float>());
+					auto pose1_inv = MatrixConversion::toCUDA(f1.getPose().cast<float>().inverse());
+					auto pose2 = MatrixConversion::toCUDA(f2.getPose().cast<float>().inverse());
+					auto pose2_inv = MatrixConversion::toCUDA(f2.getPose().cast<float>());
 
 					auto transform = pose2 * pose1;
 
@@ -289,8 +289,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                         //contributions_[j],
                         //f1.getTexture<short2>(Channel::Screen),
 						transform,
-						s1->parameters(),
-						s2->parameters(),
+						f1.getLeftCamera(),
+						f2.getLeftCamera(),
                         stream
                     );
 
@@ -303,7 +303,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
         // Normalise aggregations and move the points
         for (size_t i=0; i<in.frames.size(); ++i) {
             auto &f = in.frames[i];
-            auto *s = in.sources[i];
+            //auto *s = in.sources[i];
             auto size = f.get<GpuMat>(Channel::Depth).size();
 
             /*if (do_corr) {
@@ -320,7 +320,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                 centroid_vert_[i],
                 f.getTexture<float>(Channel::Depth),
                 f.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(size)),
-                s->parameters(),
+                f.getLeftCamera(),
                 stream
             );
 

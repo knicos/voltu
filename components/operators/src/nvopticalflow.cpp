@@ -28,7 +28,7 @@ bool NVOpticalFlow::init() {
 	return true;
 }
 
-bool NVOpticalFlow::apply(Frame &in, Frame &out, Source *src, cudaStream_t stream) {
+bool NVOpticalFlow::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(channel_in_)) { return false; }
 
 	if (in.get<GpuMat>(channel_in_).size() != size_) {

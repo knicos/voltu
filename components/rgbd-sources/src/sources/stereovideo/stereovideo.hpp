@@ -30,9 +30,12 @@ class StereoVideoSource : public detail::Source {
 	bool retrieve();
 	bool compute(int n, int b);
 	bool isReady();
+
 	Camera parameters(ftl::codecs::Channel chan) override;
 
 	private:
+	void updateParameters();
+
 	LocalSource *lsrc_;
 	Calibrate *calib_;
 

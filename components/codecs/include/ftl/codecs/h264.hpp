@@ -51,16 +51,16 @@ enum class NALType : int {
  * Extract the NAL unit type from the first NAL header.
  * With NvPipe, the 5th byte contains the NAL Unit header.
  */
-inline NALType getNALType(const std::vector<uint8_t> &data) {
-	return static_cast<NALType>(data[4] & 0x1F);
+inline NALType getNALType(const unsigned char *data, size_t size) {
+	return (size > 4) ? static_cast<NALType>(data[4] & 0x1F) : NALType::UNSPECIFIED_0;
 }
 
 /**
  * Check the H264 bitstream for an I-Frame. With NvPipe, all I-Frames start
  * with a SPS NAL unit so just check for this.
  */
-inline bool isIFrame(const std::vector<uint8_t> &data) {
-	return getNALType(data) == NALType::SPS;
+inline bool isIFrame(const unsigned char *data, size_t size) {
+	return getNALType(data, size) == NALType::SPS;
 }
 
 }

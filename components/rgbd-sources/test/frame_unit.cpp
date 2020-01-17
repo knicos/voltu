@@ -2,6 +2,7 @@
 #include <ftl/rgbd/frame.hpp>
 
 using ftl::rgbd::Frame;
+using ftl::rgbd::FrameState;
 using ftl::codecs::Channel;
 using ftl::codecs::Channels;
 using ftl::rgbd::Format;
@@ -275,9 +276,104 @@ TEST_CASE("Frame::swapTo()", "") {
 		Frame f2;
 
 		f1.create<cv::Mat>(Channel::Colour, Format<uchar3>(100,100));
-		f1.swapTo(Channels::All(), f2);
+		f1.swapTo(Channels<0>::All(), f2);
 
 		REQUIRE( f2.hasChannel(Channel::Colour) );
 		REQUIRE( (f2.get<cv::Mat>(Channel::Colour).cols == 100) );
+	}
+}
+
+TEST_CASE("Frame::setOrigin()", "") {
+	SECTION("With changed pose") {
+		Frame f;
+		FrameState s;
+
+		REQUIRE( !f.hasChanged(Channel::Pose) );
+
+		s.setPose(Eigen::Matrix4d());
+		f.setOrigin(&s);
+
+		REQUIRE( f.hasChanged(Channel::Pose) );
+	}
+
+	SECTION("With stale pose") {
+		Frame f;
+		FrameState s;
+
+		REQUIRE( !f.hasChanged(Channel::Pose) );
+
+		s.setPose(Eigen::Matrix4d());
+		f.setOrigin(&s);
+
+		f.reset();
+		f.setOrigin(&s);
+
+		REQUIRE( !f.hasChanged(Channel::Pose) );
+	}
+
+	SECTION("With updated pose") {
+		Frame f;
+		FrameState s;
+
+		REQUIRE( !f.hasChanged(Channel::Pose) );
+
+		s.setPose(Eigen::Matrix4d());
+		f.setOrigin(&s);
+
+		f.reset();
+		f.setOrigin(&s);
+
+		REQUIRE( !f.hasChanged(Channel::Pose) );
+
+		s.setPose(Eigen::Matrix4d());
+
+		REQUIRE( !f.hasChanged(Channel::Pose) );
+		REQUIRE( s.hasChanged(Channel::Pose) );
+	}
+
+	SECTION("Fail on multi set") {
+		Frame f;
+		FrameState s;
+
+		s.setPose(Eigen::Matrix4d());
+		f.setOrigin(&s);
+
+		bool failed = false;
+		try {
+			f.setOrigin(&s);
+		} catch (...) {
+			failed = true;
+		}
+
+		REQUIRE( failed );
+	}
+
+	SECTION("Reset and multi set") {
+		Frame f;
+		FrameState s;
+
+		s.setPose(Eigen::Matrix4d());
+		f.setOrigin(&s);
+
+		f.reset();
+		f.setOrigin(&s);
+	}
+}
+
+TEST_CASE("Frame::get() Pose", "") {
+	SECTION("Get valid pose") {
+		Frame f;
+		FrameState s;
+
+		Eigen::Matrix4d pose1;
+		s.setPose(pose1);
+		f.setOrigin(&s);
+
+		REQUIRE( f.hasChannel(Channel::Pose) );
+		REQUIRE( f.hasChanged(Channel::Pose) );
+
+		auto pose2 = f.getPose();
+
+		REQUIRE( pose1 == pose2 );
 	}
 }

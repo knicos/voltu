@@ -26,7 +26,7 @@ class FixstarsSGM : public ftl::operators::Operator {
 
 	~FixstarsSGM();
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 	
 	private:
 	bool init();
@@ -52,7 +52,7 @@ class DisparityBilateralFilter : public::ftl::operators::Operator {
 	~DisparityBilateralFilter() {};
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 	cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
@@ -74,7 +74,7 @@ class DisparityToDepth : public ftl::operators::Operator {
 
 	~DisparityToDepth() {};
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 };
 
 /**
@@ -90,6 +90,7 @@ class DepthChannel : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::ManyToMany; }
 
     bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
     private:
     ftl::operators::Graph *pipe_;
@@ -110,7 +111,7 @@ class OpticalFlowTemporalSmoothing : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 	bool init();

@@ -94,7 +94,7 @@ enum encoder_t {
  */
 class Streamer : public ftl::Configurable {
 	public:
-	Streamer(nlohmann::json &config, ftl::net::Universe *net);
+	[[deprecated]] Streamer(nlohmann::json &config, ftl::net::Universe *net);
 	~Streamer();
 
 	/**
@@ -125,8 +125,6 @@ class Streamer : public ftl::Configurable {
 
 	void wait();
 
-	void setLatency(int l) { group_.setLatency(l); }
-
 	/**
 	 * Alternative to calling run(), it will operate a single frame capture,
 	 * compress and stream cycle.
@@ -138,6 +136,7 @@ class Streamer : public ftl::Configurable {
 	private:
 	ftl::rgbd::Group group_;
 	std::map<std::string, detail::StreamSource*> sources_;
+	std::vector<detail::StreamSource*> sourcesByNum_;
 	std::list<ftl::rgbd::Group*> proxy_grps_;
 	//ctpl::thread_pool pool_;
 	SHARED_MUTEX mutex_;
@@ -151,7 +150,7 @@ class Streamer : public ftl::Configurable {
 	int64_t frame_no_;
 	bool insert_iframes_;
 
-	encoder_t encode_mode_;
+	ftl::codecs::Channel second_channel_;
 
 	int64_t mspf_;
 	float actual_fps_;

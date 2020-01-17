@@ -363,7 +363,8 @@ void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
 	camera_ = cam;
 
 	if (cam) {
-		status_ = cam->source()->getURI();
+		// FIXME: Alternative to source URI
+		status_ = cam->name();
 		mwindow_->setVisible(true);
 		mwindow_->cameraChanged();
 		swindow_->setVisible(false);

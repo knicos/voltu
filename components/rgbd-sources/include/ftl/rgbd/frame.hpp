@@ -10,6 +10,7 @@
 
 #include <ftl/codecs/channels.hpp>
 #include <ftl/rgbd/format.hpp>
+#include <ftl/rgbd/camera.hpp>
 #include <ftl/codecs/bitrates.hpp>
 #include <ftl/codecs/packet.hpp>
 
@@ -18,6 +19,8 @@
 #include <type_traits>
 #include <array>
 #include <list>
+
+#include <Eigen/Eigen>
 
 namespace ftl {
 namespace rgbd {
@@ -29,14 +32,129 @@ class Frame;
 class Source;
 
 /**
+ * Represent state that is persistent across frames. Such state may or may not
+ * change from one frame to the next so a record of what has changed must be
+ * kept. Changing state should be done at origin and not in the frame. State
+ * that is marked as changed will then be send into a stream and the changed
+ * status will be cleared, allowing data to only be sent/saved when actual
+ * changes occur.
+ */
+class FrameState {
+	public:
+	FrameState();
+	FrameState(FrameState &);
+	FrameState(FrameState &&);
+
+	/**
+	 * Update the pose and mark as changed.
+	 */
+	void setPose(const Eigen::Matrix4d &pose);
+
+	/**
+	 * Update the left camera intrinsics and mark as changed.
+	 */
+	void setLeft(const ftl::rgbd::Camera &p);
+
+	/**
+	 * Update the right camera intrinsics and mark as changed.
+	 */
+	void setRight(const ftl::rgbd::Camera &p);
+
+	/**
+	 * Get the current camera pose.
+	 */
+	inline const Eigen::Matrix4d &getPose() const { return pose_; }
+
+	/**
+	 * Get the left camera intrinsics.
+	 */
+	inline const ftl::rgbd::Camera &getLeft() const { return camera_left_; }
+
+	/**
+	 * Get the right camera intrinsics.
+	 */
+	inline const ftl::rgbd::Camera &getRight() const { return camera_right_; }
+
+	/**
+	 * Get a modifiable pose reference that does not change the changed status.
+	 * @attention Should only be used internally.
+	 * @todo Make private eventually.
+	 */
+	inline Eigen::Matrix4d &getPose() { return pose_; }
+
+	/**
+	 * Get a modifiable left camera intrinsics reference that does not change
+	 * the changed status. Modifications made using this will not be propagated.
+	 * @attention Should only be used internally.
+	 * @todo Make private eventually.
+	 */
+	inline ftl::rgbd::Camera &getLeft() { return camera_left_; }
+
+	/**
+	 * Get a modifiable right camera intrinsics reference that does not change
+	 * the changed status. Modifications made using this will not be propagated.
+	 * @attention Should only be used internally.
+	 * @todo Make private eventually.
+	 */
+	inline ftl::rgbd::Camera &getRight() { return camera_right_; }
+
+	/**
+	 * Get a named config property.
+	 */
+	template <typename T>
+	std::optional<T> get(const std::string &name) {
+		try {
+			return config_[name].get<T>();
+		} catch (...) {
+			return {};
+		}
+	}
+
+	/**
+	 * Set a named config property. Also makes state as changed to be resent.
+	 */
+	template <typename T>
+	void set(const std::string &name, T value) {
+		config_[name] = value;
+		changed_ += ftl::codecs::Channel::Configuration;
+	}
+
+	inline const nlohmann::json &getConfig() const { return config_; }
+
+	inline nlohmann::json &getConfig() { return config_; }
+
+	/**
+	 * Check if pose of intrinsics have been modified and not yet forwarded.
+	 * Once forwarded through a pipeline / stream the changed status is cleared.
+	 */
+	inline bool hasChanged(ftl::codecs::Channel c) const { return changed_.has(c); }
+
+	/**
+	 * Copy assignment will clear the changed status of the original.
+	 */
+	FrameState &operator=(FrameState &);
+
+	FrameState &operator=(FrameState &&);
+
+	/**
+	 * Clear the changed status to unchanged.
+	 */
+	inline void clear() { changed_.clear(); }
+
+	private:
+	Eigen::Matrix4d pose_;
+	ftl::rgbd::Camera camera_left_;
+	ftl::rgbd::Camera camera_right_;
+	nlohmann::json config_;
+	ftl::codecs::Channels<64> changed_;  // Have the state channels changed?
+};
+
+/**
  * Manage a set of image channels corresponding to a single camera frame.
  */
 class Frame {
 public:
-	Frame() : src_(nullptr) {}
-	explicit Frame(ftl::rgbd::Source *src) : src_(src) {}
-
-	inline ftl::rgbd::Source *source() const { return src_; }
+	Frame() : origin_(nullptr) {}
 
 	// Prevent frame copy, instead use a move.
 	//Frame(const Frame &)=delete;
@@ -44,27 +162,27 @@ public:
 
 	void download(ftl::codecs::Channel c, cv::cuda::Stream stream);
 	void upload(ftl::codecs::Channel c, cv::cuda::Stream stream);
-	void download(ftl::codecs::Channels c, cv::cuda::Stream stream);
-	void upload(ftl::codecs::Channels c, cv::cuda::Stream stream);
+	void download(ftl::codecs::Channels<0> c, cv::cuda::Stream stream);
+	void upload(ftl::codecs::Channels<0> c, cv::cuda::Stream stream);
 
 	inline void download(ftl::codecs::Channel c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
 	inline void upload(ftl::codecs::Channel c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
-	inline void download(ftl::codecs::Channels c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
-	inline void upload(ftl::codecs::Channels c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void download(const ftl::codecs::Channels<0> &c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+	inline void upload(const ftl::codecs::Channels<0> &c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
 
 	/**
 	 * Perform a buffer swap of the selected channels. This is intended to be
 	 * a copy from `this` to the passed frame object but by buffer swap
 	 * instead of memory copy, meaning `this` may become invalid afterwards.
 	 */
-	void swapTo(ftl::codecs::Channels, Frame &);
+	void swapTo(ftl::codecs::Channels<0>, Frame &);
 
 	void swapChannels(ftl::codecs::Channel, ftl::codecs::Channel);
 
 	/**
 	 * Does a host or device memory copy into the given frame.
 	 */
-	void copyTo(ftl::codecs::Channels, Frame &);
+	void copyTo(ftl::codecs::Channels<0>, Frame &);
 
 	/**
 	 * Create a channel with a given format. This will discard any existing
@@ -100,8 +218,22 @@ public:
 	 */
 	void pushPacket(ftl::codecs::Channel c, ftl::codecs::Packet &pkt);
 
+	/**
+	 * Obtain a list of any existing encodings for this channel.
+	 */
 	const std::list<ftl::codecs::Packet> &getPackets(ftl::codecs::Channel c) const;
 
+	/**
+	 * Clear any existing encoded packets. Used when the channel data is
+	 * modified and the encodings are therefore out-of-date.
+	 */
+	void clearPackets(ftl::codecs::Channel c);
+
+	/**
+	 * Packets from multiple frames are merged together in sequence. An example
+	 * case is if a frame gets dropped but the original encoding is inter-frame
+	 * and hence still requires the dropped frames encoding data.
+	 */
 	void mergeEncoding(ftl::rgbd::Frame &f);
 
 	void resetTexture(ftl::codecs::Channel c);
@@ -116,21 +248,34 @@ public:
 	 */
 	void resetFull();
 
-	bool empty(ftl::codecs::Channels c);
+	/**
+	 * Check if any specified channels are empty or missing.
+	 */
+	bool empty(ftl::codecs::Channels<0> c);
 
+	/**
+	 * Check if a specific channel is missing or has no memory allocated.
+	 */
 	inline bool empty(ftl::codecs::Channel c) {
 		auto &m = _get(c);
 		return !hasChannel(c) || (m.host.empty() && m.gpu.empty());
 	}
 
 	/**
-	 * Is there valid data in channel (either host or gpu).
+	 * Is there valid data in channel (either host or gpu). This does not
+	 * verify that any memory or data exists for the channel.
 	 */
 	inline bool hasChannel(ftl::codecs::Channel channel) const {
-		return channels_.has(channel);
+		int c = static_cast<int>(channel);
+		if (c >= 64 && c <= 68) return true;
+		else if (c >= 32) return false;
+		else return channels_.has(channel);
 	}
 
-	inline ftl::codecs::Channels getChannels() const { return channels_; }
+	/**
+	 * Obtain a mask of all available channels in the frame.
+	 */
+	inline ftl::codecs::Channels<0> getChannels() const { return channels_; }
 
 	/**
 	 * Is the channel data currently located on GPU. This also returns false if
@@ -146,6 +291,15 @@ public:
 	 */
 	inline bool isCPU(ftl::codecs::Channel channel) const {
 		return channels_.has(channel) && !gpu_.has(channel);
+	}
+
+	/**
+	 * Does this frame have new data for a channel. This is compared with a
+	 * previous frame and always returns true for image data. It may return
+	 * false for persistent state data (calibration, pose etc).
+	 */
+	inline bool hasChanged(ftl::codecs::Channel c) const {
+		return (static_cast<int>(c) < 32) ? true : state_.hasChanged(c);
 	}
 
 	/**
@@ -170,8 +324,81 @@ public:
 	 */
 	template <typename T> T& get(ftl::codecs::Channel channel);
 
+	/**
+	 * Get an existing CUDA texture object.
+	 */
 	template <typename T> const ftl::cuda::TextureObject<T> &getTexture(ftl::codecs::Channel) const;
+
+	/**
+	 * Get an existing CUDA texture object.
+	 */
 	template <typename T> ftl::cuda::TextureObject<T> &getTexture(ftl::codecs::Channel);
+
+	/**
+	 * Wrapper accessor function to get frame pose.
+	 */
+	const Eigen::Matrix4d &getPose() const;
+
+	/**
+	 * Change the pose of the origin state and mark as changed.
+	 */
+	void setPose(const Eigen::Matrix4d &pose);
+
+	/**
+	 * Wrapper to access left camera intrinsics channel.
+	 */
+	const ftl::rgbd::Camera &getLeftCamera() const;
+
+	/**
+	 * Wrapper to access right camera intrinsics channel.
+	 */
+	const ftl::rgbd::Camera &getRightCamera() const;
+
+	/**
+	 * Change left camera intrinsics in the origin state. This should send
+	 * the changed parameters in reverse through a stream.
+	 */
+	void setLeftCamera(const ftl::rgbd::Camera &c);
+
+	/**
+	 * Change right camera intrinsics in the origin state. This should send
+	 * the changed parameters in reverse through a stream.
+	 */
+	void setRightCamera(const ftl::rgbd::Camera &c);
+
+	/**
+	 * Dump the current frame config object to a json string.
+	 */
+	std::string getConfigString() const;
+
+	/**
+	 * Wrapper to access a config property. If the property does not exist or
+	 * is not of the requested type then the returned optional is false.
+	 */
+	template <typename T>
+	std::optional<T> get(const std::string &name) { return state_.get<T>(name); }
+
+	/**
+	 * Modify a config property. This does not modify the origin config so
+	 * will not get transmitted over the stream.
+	 * @todo Modify origin to send backwards over a stream.
+	 */
+	template <typename T>
+	void set(const std::string &name, T value) { state_.set(name, value); }
+
+	/**
+	 * Set the persistent state for the frame. This can only be done after
+	 * construction or a reset. Multiple calls to this otherwise will throw
+	 * an exception. The pointer must remain valid for the life of the frame.
+	 */
+	void setOrigin(ftl::rgbd::FrameState *state);
+
+	/**
+	 * Get the original frame state object. This can be a nullptr in some rare
+	 * cases. When wishing to change state (pose, calibration etc) then those
+	 * changes must be done on this origin, either directly or via wrappers.
+	 */
+	FrameState *origin() const { return origin_; }
 
 private:
 	struct ChannelData {
@@ -181,13 +408,16 @@ private:
 		std::list<ftl::codecs::Packet> encoded;
 	};
 
-	std::array<ChannelData, ftl::codecs::Channels::kMax> data_;
+	std::array<ChannelData, ftl::codecs::Channels<0>::kMax> data_;
 
-	ftl::codecs::Channels channels_;	// Does it have a channel
-	ftl::codecs::Channels gpu_;		// Is the channel on a GPU
+	ftl::codecs::Channels<0> channels_;	// Does it have a channel
+	ftl::codecs::Channels<0> gpu_;		// Is the channel on a GPU
 
-	ftl::rgbd::Source *src_;
+	// Persistent state
+	FrameState state_;
+	FrameState *origin_;
 
+	/* Lookup internal state for a given channel. */
 	inline ChannelData &_get(ftl::codecs::Channel c) { return data_[static_cast<unsigned int>(c)]; }
 	inline const ChannelData &_get(ftl::codecs::Channel c) const { return data_[static_cast<unsigned int>(c)]; }
 };
@@ -198,6 +428,9 @@ template<> const cv::Mat& Frame::get(ftl::codecs::Channel channel) const;
 template<> const cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) const;
 template<> cv::Mat& Frame::get(ftl::codecs::Channel channel);
 template<> cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel);
+
+//template<> const Eigen::Matrix4d &Frame::get(ftl::codecs::Channel channel) const;
+template<> const ftl::rgbd::Camera &Frame::get(ftl::codecs::Channel channel) const;
 
 template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &);
 template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &);

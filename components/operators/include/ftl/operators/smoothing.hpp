@@ -19,7 +19,7 @@ class HFSmoother : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 	cv::cuda::GpuMat temp_;
@@ -40,7 +40,7 @@ class SmoothChannel : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 	ftl::rgbd::Frame temp_[6];
@@ -58,7 +58,7 @@ class SimpleMLS : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 };
@@ -74,7 +74,7 @@ class ColourMLS : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 };
@@ -116,7 +116,7 @@ class AggreMLS : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 	ftl::cuda::TextureObject<float4> centroid_horiz_;
@@ -138,7 +138,7 @@ class AdaptiveMLS : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
 };

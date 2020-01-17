@@ -14,7 +14,7 @@ DiscontinuityMask::~DiscontinuityMask() {
 
 }
 
-bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	if (in.hasChannel(Channel::Mask)) return true;
 	
 	int radius = config()->value("radius", 2);
@@ -27,7 +27,7 @@ bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::
 		in.createTexture<uchar4>(Channel::Support1),
 		in.createTexture<float>(Channel::Depth),
 		in.get<cv::cuda::GpuMat>(Channel::Depth).size(),
-		s->parameters().minDepth, s->parameters().maxDepth,
+		in.getLeftCamera().minDepth, in.getLeftCamera().maxDepth,
 		radius, threshold, stream
 	);
 
@@ -44,7 +44,8 @@ CullDiscontinuity::~CullDiscontinuity() {
 
 }
 
-bool CullDiscontinuity::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool CullDiscontinuity::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
+	out.clearPackets(Channel::Depth);  // Force reset
 	ftl::cuda::cull_discontinuity(
 		in.createTexture<int>(Channel::Mask),
 		out.createTexture<float>(Channel::Depth),

@@ -20,9 +20,6 @@ namespace rgbd {
 
 class Source;
 
-// Allows a latency of 20 frames maximum
-static const size_t kMaxFramesets = 15;
-
 /**
  * Manage a group of RGB-D sources to obtain synchronised sets of frames from
  * those sources. The Group class provides a synchronised callback mechanism
@@ -33,7 +30,7 @@ static const size_t kMaxFramesets = 15;
  * then it will be used. This can be disabled. It is also possible to allow
  * incomplete frames to be used, but this is disabled by default.
  */
-class Group {
+class Group : public ftl::rgbd::Generator {
 	public:
 	Group();
 	~Group();
@@ -74,7 +71,7 @@ class Group {
 	 * the frameset are swapped during the function call, meaning that the
 	 * frameset data is no longer valid upon returning.
 	 */
-	void sync(std::function<bool(FrameSet &)>);
+	void onFrameSet(const VideoCallback &cb) override;
 
 	/**
 	 * Whenever any source within the group receives raw data, this callback
@@ -88,66 +85,33 @@ class Group {
 	/**
 	 * Removes a raw data callback from all sources in the group.
 	 */
-	void removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
+	//void removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &);
 
 	inline std::vector<Source*> sources() const { return sources_; }
 
-	/** @deprecated */
-	//bool getFrames(FrameSet &, bool complete=false);
+	size_t size() override { return builder_.size(); }
 
-	/** To be deprecated in favour of ftl::timer::setInterval.
-	 */
-	//void setFPS(int fps);
-
-	/**
-	 * Set the minimum number of frames latency. The latency is from the most
-	 * recent frame obtained, meaning that the timestamp of the input frames is
-	 * the reference point, this may already be several frames old. Latency
-	 * does not correspond to actual current time.
-	 */
-	void setLatency(int frames) { }
+	ftl::rgbd::FrameState &state(int ix) override { return builder_.state(ix); }
 
 	void stop() {}
 
 	int streamID(const ftl::rgbd::Source *s) const;
 
 	private:
-	std::list<FrameSet*> framesets_;  // Active framesets
-	std::list<FrameSet*> allocated_;  // Keep memory allocations
-
+	ftl::rgbd::Builder builder_;
 	std::vector<Source*> sources_;
 	ftl::operators::Graph *pipeline_;
-	size_t head_;
-	std::function<bool(FrameSet &)> callback_;
-	MUTEX mutex_;
-	int mspf_;
-	float latency_;
-	float fps_;
-	int stats_count_;
-	int64_t last_ts_;
+	
 	std::atomic<int> jobs_;
 	volatile bool skip_;
 	ftl::timer::TimerHandle cap_id_;
 	ftl::timer::TimerHandle swap_id_;
 	ftl::timer::TimerHandle main_id_;
 	std::string name_;
-
-	/* Insert a new frameset into the buffer, along with all intermediate
-	 * framesets between the last in buffer and the new one.
-	 */
-	ftl::rgbd::FrameSet *_addFrameset(int64_t timestamp);
+	MUTEX mutex_;
 
 	void _retrieveJob(ftl::rgbd::Source *);
 	void _computeJob(ftl::rgbd::Source *);
-
-	/* Find a frameset with given latency in frames. */
-	ftl::rgbd::FrameSet *_getFrameset();
-
-	/* Search for a matching frameset. */
-	ftl::rgbd::FrameSet *_findFrameset(int64_t ts);
-	void _freeFrameset(ftl::rgbd::FrameSet *);
-
-	void _recordStats(float fps, float latency);
 };
 
 }

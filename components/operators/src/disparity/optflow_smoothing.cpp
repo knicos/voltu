@@ -74,7 +74,7 @@ bool OpticalFlowTemporalSmoothing::init() {
 	return true;
 }
 
-bool OpticalFlowTemporalSmoothing::apply(Frame &in, Frame &out, Source *src, cudaStream_t stream) {
+bool OpticalFlowTemporalSmoothing::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	if (!out.hasChannel(channel_) || !in.hasChannel(Channel::Flow)) { return false; }
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);

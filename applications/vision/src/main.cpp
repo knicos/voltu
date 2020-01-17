@@ -8,7 +8,6 @@
 #include <loguru.hpp>
 #include <ftl/configuration.hpp>
 #include <ctpl_stl.h>
-// #include <zlib.h>
 
 #include <string>
 #include <map>
@@ -19,12 +18,13 @@
 #include <opencv2/opencv.hpp>
 #include <ftl/rgbd.hpp>
 #include <ftl/middlebury.hpp>
-//#include <ftl/display.hpp>
-#include <ftl/rgbd/streamer.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/master.hpp>
 #include <nlohmann/json.hpp>
 #include <ftl/operators/disparity.hpp>
+
+#include <ftl/streams/netstream.hpp>
+#include <ftl/streams/sender.hpp>
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
@@ -37,8 +37,7 @@
 
 using ftl::rgbd::Source;
 using ftl::rgbd::Camera;
-//using ftl::Display;
-using ftl::rgbd::Streamer;
+using ftl::codecs::Channel;
 using ftl::net::Universe;
 using std::string;
 using std::vector;
@@ -58,45 +57,44 @@ static void run(ftl::Configurable *root) {
 	if (paths && (*paths).size() > 0) file = (*paths)[(*paths).size()-1];
 
 	Source *source = nullptr;
-	source = ftl::create<Source>(root, "source");
-
+	source = ftl::create<Source>(root, "source", net);
 	if (file != "") source->set("uri", file);
 	
-	//Display *display = ftl::create<Display>(root, "display", "local");
-	
-	Streamer *stream = ftl::create<Streamer>(root, "stream", net);
-	stream->add(source);
+	ftl::stream::Sender *sender = ftl::create<ftl::stream::Sender>(root, "sender");
+	ftl::stream::Net *outstream = ftl::create<ftl::stream::Net>(root, "stream", net);
+	outstream->set("uri", outstream->getID());
+	outstream->begin();
+	sender->setStream(outstream);
 
+	auto *grp = new ftl::rgbd::Group();
+	source->setChannel(Channel::Depth);
+	grp->addSource(source);
+
+	grp->onFrameSet([sender](ftl::rgbd::FrameSet &fs) {
+		fs.id = 0;
+		sender->post(fs);
+		return true;
+	});
+	
 	auto pipeline = ftl::config::create<ftl::operators::Graph>(root, "pipeline");
 	pipeline->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
-	stream->group()->addPipeline(pipeline);
+	grp->addPipeline(pipeline);
 	
 	net->start();
 
 	LOG(INFO) << "Running...";
-	/*if (display->hasDisplays()) {
-		stream->run();
-		while (ftl::running && display->active()) {
-			cv::Mat rgb, depth;
-			source->getFrames(rgb, depth);
-			if (!rgb.empty()) display->render(rgb, depth, source->parameters());
-			display->wait(10);
-		}
-	} else {*/
-		stream->run(true);
-	//}
-
 	ftl::timer::start(true);
-
 	LOG(INFO) << "Stopping...";
 	ctrl.stop();
-	stream->stop();
+	
 	net->shutdown();
 
 	ftl::pool.stop();
 
-	delete stream;
-	//delete display;
+	delete grp;
+	delete sender;
+	delete outstream;
+
 	//delete source;  // TODO(Nick) Add ftl::destroy
 	delete net;
 }
@@ -108,15 +106,8 @@ int main(int argc, char **argv) {
 	std::cout << "FTL Vision Node " << FTL_VERSION_LONG << std::endl;
 	auto root = ftl::configure(argc, argv, "vision_default");
 	
-	//config["ftl://vision/default"]["paths"] = paths;
-
-	// Choose normal or middlebury modes
-	//if (config["middlebury"]["dataset"] == "") {
-		std::cout << "Loading..." << std::endl;
-		run(root);
-	//} else {
-	//	ftl::middlebury::test(config);
-	//}
+	std::cout << "Loading..." << std::endl;
+	run(root);
 
 	delete root;
 	LOG(INFO) << "Terminating with code " << ftl::exit_code;

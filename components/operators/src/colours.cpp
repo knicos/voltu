@@ -11,7 +11,7 @@ ColourChannels::~ColourChannels() {
 
 }
 
-bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
 	auto &col = in.get<cv::cuda::GpuMat>(Channel::Colour);

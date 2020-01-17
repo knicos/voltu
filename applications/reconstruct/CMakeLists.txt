@@ -15,11 +15,11 @@ set(REPSRC
 	#src/mls.cu
 	#src/depth_camera.cu
 	#src/depth_camera.cpp
-	src/ilw/ilw.cpp
-	src/ilw/ilw.cu
-	src/ilw/fill.cu
-	src/ilw/discontinuity.cu
-	src/ilw/correspondence.cu
+	#src/ilw/ilw.cpp
+	#src/ilw/ilw.cu
+	#src/ilw/fill.cu
+	#src/ilw/discontinuity.cu
+	#src/ilw/correspondence.cu
 	src/reconstruction.cpp
 )
 
@@ -37,6 +37,6 @@ set_property(TARGET ftl-reconstruct PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-reconstruct ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet ftlrender ftloperators)
+target_link_libraries(ftl-reconstruct ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet ftlrender ftloperators ftlstreams)
 
 

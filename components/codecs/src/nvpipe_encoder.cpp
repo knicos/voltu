@@ -123,8 +123,8 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, definition_t odefinition,
 	Packet pkt;
 	pkt.codec = preference_;
 	pkt.definition = definition;
-	pkt.block_total = 1;
-	pkt.block_number = 0;
+	pkt.frame_count = 1;
+	pkt.bitrate = 0;
 	pkt.flags = NvPipeEncoder::kFlagRGB | NvPipeEncoder::kFlagMappedDepth;
 
 	pkt.data.resize(ftl::codecs::kVideoBufferSize);

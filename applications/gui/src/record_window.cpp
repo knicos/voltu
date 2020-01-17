@@ -33,11 +33,14 @@ RecordWindow::RecordWindow(nanogui::Widget *parent, ftl::gui::Screen *screen, co
     auto streamNames = std::vector<std::string>();
     streamNames.reserve(streams.size());
     std::optional<int> ix;
+	int i=1;
     for (const auto s : streams) {
         if (s == screen->activeCamera()) {
             ix = std::optional<int>(streamNames.size());
         }
-        streamNames.push_back(s->source()->getURI());
+        // FIXME: Find alternative to source URI
+        //streamNames.push_back(s->source()->getURI());
+		streamNames.push_back(std::string("Stream")+std::to_string(i++));
     }
     auto streamSelect = new ComboBox(this, streamNames);
     // TODO: The function availableChannels() only finds those channels that
@@ -103,11 +106,11 @@ RecordWindow::RecordWindow(nanogui::Widget *parent, ftl::gui::Screen *screen, co
         } else if (tab == recording2D) {
             stream->setChannel(channels_[recordingChannel->selectedIndex()]);
             screen->setActiveCamera(stream);
-            media_panel->startRecording2D(stream, name);
+            //media_panel->startRecording2D(stream, name);
         } else if (tab == snapshot3D) {
-            media_panel->snapshot3D(stream, name);
+            //media_panel->snapshot3D(stream, name);
         } else if (tab == recording3D) {
-            media_panel->startRecording3D(stream, name);
+            //media_panel->startRecording3D(stream, name);
         }
         dispose();
         media_panel->recordWindowClosed();

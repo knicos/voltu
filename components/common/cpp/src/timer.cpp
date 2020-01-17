@@ -156,11 +156,14 @@ static void trigger_jobs() {
 		}
 		j.active = true;
 		active_jobs++;
-		ftl::pool.push([&j,ts](int id) {
-			bool doremove = !j.job(ts);
-			j.active = false;
+
+		auto *pj = &j;
+
+		ftl::pool.push([pj,ts](int id) {
+			bool doremove = !pj->job(ts);
+			pj->active = false;
 			active_jobs--;
-			if (doremove) removeJob(j.id);
+			if (doremove) removeJob(pj->id);
 		});
 	}
 }

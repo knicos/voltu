@@ -20,7 +20,7 @@ DisparityBilateralFilter::DisparityBilateralFilter(ftl::Configurable* cfg) :
 }
 
 bool DisparityBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
-									 ftl::rgbd::Source *src, cudaStream_t stream) {
+									 cudaStream_t stream) {
 
 	if (!in.hasChannel(Channel::Colour)) {
 		LOG(ERROR) << "Joint Bilateral Filter is missing Colour";
@@ -29,7 +29,7 @@ bool DisparityBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out
 		// Have depth, so calculate disparity...
 		if (in.hasChannel(Channel::Depth)) {
 			// No disparity, so create it.
-			const auto params = src->parameters();
+			const auto params = in.getLeftCamera();
 			const GpuMat &depth = in.get<GpuMat>(Channel::Depth);
 
 			GpuMat &disp = out.create<GpuMat>(Channel::Disparity);

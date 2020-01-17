@@ -19,6 +19,10 @@
 
 namespace ftl {
 
+namespace net {
+class Peer;
+}
+
 namespace internal {
 	//! \brief Calls a functor with argument provided directly
 	template <typename Functor, typename Arg>
@@ -34,16 +38,28 @@ namespace internal {
 		return func(std::get<I>(params)...);
 	}
 
+	template <typename Functor, typename... Args, std::size_t... I>
+	decltype(auto) call_helper(Functor func, ftl::net::Peer &p, std::tuple<Args...> &&params,
+		                       std::index_sequence<I...>) {
+		return func(p, std::get<I>(params)...);
+	}
+
 	//! \brief Calls a functor with arguments provided as a tuple
 	template <typename Functor, typename... Args>
 	decltype(auto) call(Functor f, std::tuple<Args...> &args) {
 		return call_helper(f, std::forward<std::tuple<Args...>>(args),
 		                   std::index_sequence_for<Args...>{});
 	}
+
+	//! \brief Calls a functor with arguments provided as a tuple
+	template <typename Functor, typename... Args>
+	decltype(auto) call(Functor f, ftl::net::Peer &p, std::tuple<Args...> &args) {
+		return call_helper(f, p, std::forward<std::tuple<Args...>>(args),
+		                   std::index_sequence_for<Args...>{});
+	}
 }
 
 namespace net {
-class Peer;
 
 class Dispatcher {
 	public:
@@ -51,14 +67,17 @@ class Dispatcher {
 	
 	//void dispatch(Peer &, const std::string &msg);
 	void dispatch(Peer &, const msgpack::object &msg);
+
+	// Without peer object =====================================================
 	
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::void_result const &,
-		                  ftl::internal::tags::zero_arg const &) {
+		                  ftl::internal::tags::zero_arg const &,
+						  ftl::internal::false_ const &) {
 		enforce_unique_name(name);
 		funcs_.insert(
-		    std::make_pair(name, [func, name](msgpack::object const &args) {
+		    std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
 		        enforce_arg_count(name, 0, args.via.array.size);
 		        func();
 		        return std::make_unique<msgpack::object_handle>();
@@ -68,13 +87,14 @@ class Dispatcher {
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::void_result const &,
-		                  ftl::internal::tags::nonzero_arg const &) {
+		                  ftl::internal::tags::nonzero_arg const &,
+						  ftl::internal::false_ const &) {
 		using ftl::internal::func_traits;
 		using args_type = typename func_traits<F>::args_type;
 
 		enforce_unique_name(name);
 		funcs_.insert(
-		    std::make_pair(name, [func, name](msgpack::object const &args) {
+		    std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
 		        constexpr int args_count = std::tuple_size<args_type>::value;
 		        enforce_arg_count(name, args_count, args.via.array.size);
 		        args_type args_real;
@@ -87,12 +107,13 @@ class Dispatcher {
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::nonvoid_result const &,
-		                  ftl::internal::tags::zero_arg const &) {
+		                  ftl::internal::tags::zero_arg const &,
+						  ftl::internal::false_ const &) {
 		using ftl::internal::func_traits;
 
 		enforce_unique_name(name);
 		funcs_.insert(std::make_pair(name, [func,
-		                                    name](msgpack::object const &args) {
+		                                    name](ftl::net::Peer &p, msgpack::object const &args) {
 		    enforce_arg_count(name, 0, args.via.array.size);
 		    auto z = std::make_unique<msgpack::zone>();
 		    auto result = msgpack::object(func(), *z);
@@ -103,13 +124,14 @@ class Dispatcher {
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::nonvoid_result const &,
-		                  ftl::internal::tags::nonzero_arg const &) {
+		                  ftl::internal::tags::nonzero_arg const &,
+						  ftl::internal::false_ const &) {
 		using ftl::internal::func_traits;
 		using args_type = typename func_traits<F>::args_type;
 
 		enforce_unique_name(name);
 		funcs_.insert(std::make_pair(name, [func,
-		                                    name](msgpack::object const &args) {
+		                                    name](ftl::net::Peer &p, msgpack::object const &args) {
 		    constexpr int args_count = std::tuple_size<args_type>::value;
 		    enforce_arg_count(name, args_count, args.via.array.size);
 		    args_type args_real;
@@ -120,6 +142,82 @@ class Dispatcher {
 		}));
 	}
 
+	// With peer object ========================================================
+
+	template <typename F>
+	void bind(std::string const &name, F func,
+		                  ftl::internal::tags::void_result const &,
+		                  ftl::internal::tags::zero_arg const &,
+						  ftl::internal::true_ const &) {
+		enforce_unique_name(name);
+		funcs_.insert(
+		    std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
+		        enforce_arg_count(name, 0, args.via.array.size);
+		        func(p);
+		        return std::make_unique<msgpack::object_handle>();
+		    }));
+	}
+
+	template <typename F>
+	void bind(std::string const &name, F func,
+		                  ftl::internal::tags::void_result const &,
+		                  ftl::internal::tags::nonzero_arg const &,
+						  ftl::internal::true_ const &) {
+		using ftl::internal::func_traits;
+		using args_type = typename func_traits<F>::args_type;
+
+		enforce_unique_name(name);
+		funcs_.insert(
+		    std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
+		        constexpr int args_count = std::tuple_size<args_type>::value;
+		        enforce_arg_count(name, args_count, args.via.array.size);
+		        args_type args_real;
+		        args.convert(args_real);
+		        ftl::internal::call(func, p, args_real);
+		        return std::make_unique<msgpack::object_handle>();
+		    }));
+	}
+
+	template <typename F>
+	void bind(std::string const &name, F func,
+		                  ftl::internal::tags::nonvoid_result const &,
+		                  ftl::internal::tags::zero_arg const &,
+						  ftl::internal::true_ const &) {
+		using ftl::internal::func_traits;
+
+		enforce_unique_name(name);
+		funcs_.insert(std::make_pair(name, [func,
+		                                    name](ftl::net::Peer &p, msgpack::object const &args) {
+		    enforce_arg_count(name, 0, args.via.array.size);
+		    auto z = std::make_unique<msgpack::zone>();
+		    auto result = msgpack::object(func(p), *z);
+		    return std::make_unique<msgpack::object_handle>(result, std::move(z));
+		}));
+	}
+
+	template <typename F>
+	void bind(std::string const &name, F func,
+		                  ftl::internal::tags::nonvoid_result const &,
+		                  ftl::internal::tags::nonzero_arg const &,
+						  ftl::internal::true_ const &) {
+		using ftl::internal::func_traits;
+		using args_type = typename func_traits<F>::args_type;
+
+		enforce_unique_name(name);
+		funcs_.insert(std::make_pair(name, [func,
+		                                    name](ftl::net::Peer &p, msgpack::object const &args) {
+		    constexpr int args_count = std::tuple_size<args_type>::value;
+		    enforce_arg_count(name, args_count, args.via.array.size);
+		    args_type args_real;
+		    args.convert(args_real);
+		    auto z = std::make_unique<msgpack::zone>();
+		    auto result = msgpack::object(ftl::internal::call(func, p, args_real), *z);
+		    return std::make_unique<msgpack::object_handle>(result, std::move(z));
+		}));
+	}
+
+	//==========================================================================
+
 	void unbind(const std::string &name) {
 		auto i = funcs_.find(name);
 		if (i != funcs_.end()) {
@@ -128,9 +226,11 @@ class Dispatcher {
 	}
 	
 	std::vector<std::string> getBindings() const;
+
+	bool isBound(const std::string &name) const;
 	
 	using adaptor_type = std::function<std::unique_ptr<msgpack::object_handle>(
-        msgpack::object const &)>;
+        ftl::net::Peer &, msgpack::object const &)>;
 
     //! \brief This is the type of messages as per the msgpack-rpc spec.
     using call_t = std::tuple<int8_t, uint32_t, std::string, msgpack::object>;

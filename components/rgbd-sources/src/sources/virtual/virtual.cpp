@@ -81,6 +81,7 @@ class VirtualImpl : public ftl::rgbd::detail::Source {
 	bool compute(int n, int b) override {
 		if (callback) {
 			frame_.reset();
+			frame_.setOrigin(&state_);
 			bool goodFrame = false;
 
 			try {

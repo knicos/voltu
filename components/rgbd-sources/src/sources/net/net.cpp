@@ -393,6 +393,7 @@ void NetSource::_completeFrame(NetFrame &frame, int64_t latency) {
 		adaptive_ = abr_.selectBitrate(frame);
 
 		frame_.reset();
+		frame_.setOrigin(&state_);
 		cv::cuda::swap(frame_.create<GpuMat>(Channel::Colour), frame.channel[0]);
 
 		if (host_->getChannel() != Channel::None)
@@ -406,6 +407,7 @@ void NetSource::_completeFrame(NetFrame &frame, int64_t latency) {
 }
 
 void NetSource::setPose(const Eigen::Matrix4d &pose) {
+	ftl::rgbd::detail::Source::setPose(pose);
 	if (!active_) return;
 
 	vector<unsigned char> vec((unsigned char*)pose.data(), (unsigned char*)(pose.data()+(pose.size())));
