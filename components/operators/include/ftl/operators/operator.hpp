@@ -37,9 +37,9 @@ class Operator {
 	 */
 	virtual Type type() const =0;
 
-	virtual bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream);
+	virtual bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream);
 	virtual bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream);
-	virtual bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *os, cudaStream_t stream);
+	virtual bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, cudaStream_t stream);
 
 	inline void enable() { enabled_ = true; }
 	inline void disable() { enabled_ = false; }
@@ -92,9 +92,9 @@ class Graph : public ftl::Configurable {
 	template <typename T>
 	ftl::Configurable *append(const std::string &name);
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream=0);
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream=0);
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream=0);
-	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream=0);
+	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, cudaStream_t stream=0);
 
 	private:
 	std::list<ftl::operators::detail::OperatorNode> operators_;

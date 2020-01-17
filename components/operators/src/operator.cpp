@@ -16,15 +16,18 @@ Operator::Operator(ftl::Configurable *config) : config_(config) {
 
 Operator::~Operator() {}
 
-bool Operator::apply(Frame &in, Frame &out, Source *s, cudaStream_t stream) {
+bool Operator::apply(Frame &in, Frame &out, cudaStream_t stream) {
+	LOG(ERROR) << "Operation application to frame not supported";
 	return false;
 }
 
 bool Operator::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
+	LOG(ERROR) << "Operation application to frameset not supported";
 	return false;
 }
 
-bool Operator::apply(FrameSet &in, Frame &out, Source *os, cudaStream_t stream) {
+bool Operator::apply(FrameSet &in, Frame &out, cudaStream_t stream) {
+	LOG(ERROR) << "Operation application as a reduction not supported";
 	return false;
 }
 
@@ -55,7 +58,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 			//while (i.instances.size() < in.frames.size()) {
 				//i.instances.push_back(i.maker->make());
 			//}
-			if (in.frames.size() > 1) {
+			if (in.frames.size() > 1 && i.instances.size() < 2) {
 				i.instances.push_back(i.maker->make());
 			}
 
@@ -64,7 +67,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 
 				if (instance->enabled()) {
 					try {
-						if (!instance->apply(in.frames[j], out.frames[j], in.sources[j], stream_actual)) return false;
+						if (!instance->apply(in.frames[j], out.frames[j], stream_actual)) return false;
 					} catch (const std::exception &e) {
 						LOG(ERROR) << "Operator exception: " << e.what();
 					}
@@ -91,8 +94,10 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 	return true;
 }
 
-bool Graph::apply(Frame &in, Frame &out, Source *s, cudaStream_t stream) {
+bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	if (!value("enabled", true)) return false;
+
+	auto stream_actual = (stream == 0) ? stream_ : stream;
 
 	for (auto &i : operators_) {
 		// Make sure there are enough instances
@@ -103,8 +108,13 @@ bool Graph::apply(Frame &in, Frame &out, Source *s, cudaStream_t stream) {
 		auto *instance = i.instances[0];
 
 		if (instance->enabled()) {
-			if (!instance->apply(in, out, s, stream)) return false;
+			if (!instance->apply(in, out, stream_actual)) return false;
 		}
+	}
+
+	if (stream == 0) {
+		cudaStreamSynchronize(stream_actual);
+		cudaSafeCall( cudaGetLastError() );
 	}
 
 	return true;

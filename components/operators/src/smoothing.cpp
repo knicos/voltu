@@ -21,7 +21,7 @@ HFSmoother::~HFSmoother() {
 
 }
 
-bool HFSmoother::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool HFSmoother::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
     float var_thresh = config()->value("variance_threshold", 0.0002f);
     int levels = max(0, min(config()->value("levels",0), 4));
     int iters = config()->value("iterations",5);
@@ -34,7 +34,7 @@ bool HFSmoother::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::S
             in.createTexture<float>(Channel::Energy, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
             in.createTexture<float>(Channel::Smoothing, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
             var_thresh,
-            s->parameters(), stream
+            in.getLeftCamera(), stream
         );
     }
 
@@ -72,13 +72,13 @@ SmoothChannel::~SmoothChannel() {
 
 }
 
-bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	int radius = config()->value("radius", 3);
 	float threshold = config()->value("threshold", 30.0f);
 	int iters = max(0, min(6, config()->value("levels", 4)));
 
-	int width = s->parameters().width;
-	int height = s->parameters().height;
+	int width = in.getLeftCamera().width;
+	int height = in.getLeftCamera().height;
 	float scale = 1.0f;
 
 	// Clear to max smoothing
@@ -89,7 +89,7 @@ bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd
 		in.createTexture<uchar4>(Channel::Colour),
 		//in.createTexture<float>(Channel::Depth),
 		out.createTexture<float>(Channel::Smoothing),
-		s->parameters(),
+		in.getLeftCamera(),
 		threshold,
 		scale,
 		radius,
@@ -101,7 +101,7 @@ bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd
 		height /= 2;
 		scale *= 2.0f;
 
-		ftl::rgbd::Camera scaledCam = s->parameters().scaled(width, height);
+		ftl::rgbd::Camera scaledCam = in.getLeftCamera().scaled(width, height);
 
 		// Downscale images for next pass
 		cv::cuda::resize(in.get<GpuMat>(Channel::Colour), temp_[i].create<GpuMat>(Channel::Colour), cv::Size(width, height), 0.0, 0.0, cv::INTER_LINEAR);
@@ -134,7 +134,7 @@ SimpleMLS::~SimpleMLS() {
 
 }
 
-bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	float thresh = config()->value("mls_threshold", 0.04f);
 	int iters = config()->value("mls_iterations", 1);
 	int radius = config()->value("mls_radius",2);
@@ -158,7 +158,7 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 			in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 			thresh,
 			radius,
-			s->parameters(),
+			in.getLeftCamera(),
 			stream
 		);
 
@@ -179,7 +179,7 @@ ColourMLS::~ColourMLS() {
 
 }
 
-bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	float thresh = config()->value("mls_threshold", 0.4f);
 	float col_smooth = config()->value("mls_colour_smoothing", 30.0f);
 	int iters = config()->value("mls_iterations", 3);
@@ -204,7 +204,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 				thresh,
 				col_smooth,
 				radius,
-				s->parameters(),
+				in.getLeftCamera(),
 				stream
 			);
 		} else {
@@ -218,7 +218,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::So
 				thresh,
 				col_smooth,
 				filling,
-				s->parameters(),
+				in.getLeftCamera(),
 				stream
 			);
 		}
@@ -241,7 +241,7 @@ AggreMLS::~AggreMLS() {
 
 }
 
-bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	float thresh = config()->value("mls_threshold", 0.4f);
 	float col_smooth = config()->value("mls_colour_smoothing", 30.0f);
 	int iters = config()->value("mls_iterations", 3);
@@ -277,7 +277,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sou
 				thresh,
 				col_smooth,
 				radius,
-				s->parameters(),
+				in.getLeftCamera(),
 				stream
 			);
 
@@ -292,7 +292,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sou
 				thresh,
 				col_smooth,
 				radius,
-				s->parameters(),
+				in.getLeftCamera(),
 				stream
 			);
 
@@ -301,7 +301,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sou
 				centroid_vert_,
 				in.createTexture<float>(Channel::Depth),
 				in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(size)),
-				s->parameters(),
+				in.getLeftCamera(),
 				stream
 			);
 
@@ -319,7 +319,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Sou
 				thresh,
 				col_smooth,
 				false,
-				s->parameters(),
+				in.getLeftCamera(),
 				stream
 			);
 
@@ -342,7 +342,7 @@ AdaptiveMLS::~AdaptiveMLS() {
 
 }
 
-bool AdaptiveMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool AdaptiveMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	int iters = config()->value("mls_iterations", 1);
 	int radius = config()->value("mls_radius",2);
 
@@ -360,7 +360,7 @@ bool AdaptiveMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::
 			in.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 			in.createTexture<float>(Channel::Smoothing),
 			radius,
-			s->parameters(),
+			in.getLeftCamera(),
 			stream
 		);
 

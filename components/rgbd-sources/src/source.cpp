@@ -2,7 +2,7 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/threads.hpp>
 
-#include "sources/net/net.hpp"
+//#include "sources/net/net.hpp"
 #include "sources/stereovideo/stereovideo.hpp"
 #include "sources/image/image.hpp"
 #include "sources/middlebury/middlebury_source.hpp"
@@ -12,7 +12,7 @@
 #include "sources/snapshot/snapshot_source.hpp"
 #endif
 
-#include "sources/ftlfile/file_source.hpp"
+//#include "sources/ftlfile/file_source.hpp"
 
 #ifdef HAVE_REALSENSE
 #include "sources/realsense/realsense_source.hpp"
@@ -25,12 +25,12 @@ using ftl::rgbd::Source;
 using ftl::Configurable;
 using std::string;
 using ftl::rgbd::detail::StereoVideoSource;
-using ftl::rgbd::detail::NetSource;
+//using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::capability_t;
 using ftl::codecs::Channel;
-using ftl::rgbd::detail::FileSource;
+//using ftl::rgbd::detail::FileSource;
 using ftl::rgbd::Camera;
 using ftl::rgbd::RawCallback;
 using ftl::rgbd::FrameCallback;
@@ -118,9 +118,11 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 		string ext = path.substr(eix+1);
 
 		if (ext == "ftl") {
-			ftl::rgbd::Player *reader = __createReader(path);
-			LOG(INFO) << "Playing track: " << uri.getFragment();
-			return new FileSource(this, reader, std::stoi(uri.getFragment()));
+			//ftl::rgbd::Player *reader = __createReader(path);
+			//LOG(INFO) << "Playing track: " << uri.getFragment();
+			//return new FileSource(this, reader, std::stoi(uri.getFragment()));
+			LOG(FATAL) << "File sources not supported";
+			return nullptr;
 		} else if (ext == "png" || ext == "jpg") {
 			return new ImageSource(this, path);
 		} else if (ext == "mp4") {
@@ -144,7 +146,7 @@ ftl::rgbd::detail::Source *Source::_createFileImpl(const ftl::URI &uri) {
 	return nullptr;
 }
 
-ftl::rgbd::Player *Source::__createReader(const std::string &path) {
+/*ftl::rgbd::Player *Source::__createReader(const std::string &path) {
 	if (readers__.find(path) != readers__.end()) {
 		return readers__[path];
 	}
@@ -158,10 +160,12 @@ ftl::rgbd::Player *Source::__createReader(const std::string &path) {
 	readers__[path] = r;
 	r->begin();
 	return r;
-}
+}*/
 
 ftl::rgbd::detail::Source *Source::_createNetImpl(const ftl::URI &uri) {
-	return new NetSource(this);
+	LOG(FATAL) << "Net sources no longer supported";
+	//return new NetSource(this);
+	return nullptr;
 }
 
 ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
@@ -301,6 +305,7 @@ Camera Camera::scaled(int width, int height) const {
 }
 
 void Source::notify(int64_t ts, ftl::rgbd::Frame &f) {
+	//if (impl_) f.setOrigin(&impl_->state_);
 	if (callback_) callback_(ts, f);
 }
 
@@ -309,13 +314,13 @@ void Source::inject(const Eigen::Matrix4d &pose) {
 	ftl::codecs::Packet pkt;
 
 	spkt.timestamp = impl_->timestamp_;
-	spkt.channel_count = 0;
+	spkt.frame_number = 0;
 	spkt.channel = Channel::Pose;
 	spkt.streamID = 0;
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;
 	pkt.definition = ftl::codecs::definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
+	pkt.bitrate = 0;
+	pkt.frame_count = 1;
 	pkt.flags = 0;
 
 	std::vector<double> data(pose.data(), pose.data() + 4*4*sizeof(double));

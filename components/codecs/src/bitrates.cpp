@@ -52,7 +52,6 @@ int ftl::codecs::getHeight(definition_t d) {
 
 definition_t ftl::codecs::findDefinition(int width, int height) {
 	int best = 0;
-	bool smaller = true;
 
 	for(const Resolution res : resolutions) {
 		if ((res.width == width) && (res.height == height)) {

@@ -1,4 +1,5 @@
 #include <ftl/codecs/nvpipe_decoder.hpp>
+#include <ftl/codecs/nvpipe_encoder.hpp>
 
 #include <loguru.hpp>
 
@@ -24,6 +25,24 @@ NvPipeDecoder::~NvPipeDecoder() {
 	}
 }
 
+template <typename T>
+static T readValue(const unsigned char **data) {
+	const T *ptr = (const T*)(*data);
+	*data += sizeof(T);
+	return *ptr;
+}
+
+bool NvPipeDecoder::_checkIFrame(ftl::codecs::codec_t codec, const unsigned char *data, size_t size) {
+	if (!seen_iframe_) {
+		if (codec == ftl::codecs::codec_t::HEVC || codec == ftl::codecs::codec_t::HEVC_LOSSLESS) {
+			if (ftl::codecs::hevc::isIFrame(data, size)) seen_iframe_ = true;
+		} else if (codec == ftl::codecs::codec_t::H264 || codec == ftl::codecs::codec_t::H264_LOSSLESS) {
+			if (ftl::codecs::h264::isIFrame(data, size)) seen_iframe_ = true;
+		}
+	}
+	return seen_iframe_;
+}
+
 bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
 	cudaSetDevice(0);
 	UNIQUE_LOCK(mutex_,lk);
@@ -42,9 +61,6 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 
 	bool islossless = ((pkt.codec == ftl::codecs::codec_t::HEVC || pkt.codec == ftl::codecs::codec_t::H264) && is_float_frame && !(pkt.flags & 0x2)) || pkt.codec == ftl::codecs::codec_t::HEVC_LOSSLESS || pkt.codec == ftl::codecs::codec_t::H264_LOSSLESS; 
 
-	//LOG(INFO) << "DECODE OUT: " << out.rows << ", " << out.type();
-	//LOG(INFO) << "DECODE RESOLUTION: (" << (int)pkt.definition << ") " << ftl::codecs::getWidth(pkt.definition) << "x" << ftl::codecs::getHeight(pkt.definition);
-
 	// Build a decoder instance of the correct kind
 	if (nv_decoder_ == nullptr) {
 		nv_decoder_ = NvPipe_CreateDecoder(
@@ -62,71 +78,60 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	
 	tmp_.create(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (!is_float_frame) ? CV_8UC4 : (islossless) ? CV_16U : CV_16UC4);
 
-	// Check for an I-Frame
-	if (!seen_iframe_) {
-		if (pkt.codec == ftl::codecs::codec_t::HEVC || pkt.codec == ftl::codecs::codec_t::HEVC_LOSSLESS) {
-			if (ftl::codecs::hevc::isIFrame(pkt.data)) seen_iframe_ = true;
-		} else if (pkt.codec == ftl::codecs::codec_t::H264 || pkt.codec == ftl::codecs::codec_t::H264_LOSSLESS) {
-			if (ftl::codecs::h264::isIFrame(pkt.data)) seen_iframe_ = true;
-		}
-	}
-
-	// No I-Frame yet so don't attempt to decode P-Frames.
-	if (!seen_iframe_) return false;
-
 	// Final checks for validity
 	if (pkt.data.size() == 0 || tmp_.size() != out.size()) { // || !ftl::codecs::hevc::validNAL(pkt.data)) {
 		LOG(ERROR) << "Failed to decode packet";
 		return false;
 	}
 
-	int rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), tmp_.data, tmp_.cols, tmp_.rows, tmp_.step);
-	if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);
+	int rc = 0;
+	if (pkt.flags & ftl::codecs::kFlagMultiple) {
+		const unsigned char *ptr = pkt.data.data();
+		const unsigned char *eptr = ptr+pkt.data.size();
+
+		while (ptr < eptr) {
+			int size = readValue<int>(&ptr);
+
+			// Skip if still missing an IFrame.
+			if (!_checkIFrame(pkt.codec, ptr, size)) {
+				LOG(WARNING) << "P-Frame without I-Frame in decoder";
+				ptr += size;
+				if (ptr < eptr) continue;
+				else return false;
+			}
+
+			rc = NvPipe_Decode(nv_decoder_, ptr, size, tmp_.data, tmp_.cols, tmp_.rows, tmp_.step);
+			if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);
+			ptr += size;
+		}
+
+		//LOG(WARNING) << "Decode of multiple frames: " << count;
+	} else {
+		if (!_checkIFrame(pkt.codec, pkt.data.data(), pkt.data.size())) {
+			LOG(WARNING) << "P-Frame without I-Frame in decoder";
+			return false;
+		}
+		rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), tmp_.data, tmp_.cols, tmp_.rows, tmp_.step);
+		if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);
+	}
 
 	if (is_float_frame) {
-		// Is the received frame the same size as requested output?
-		//if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
+		if (!islossless) {
+			//cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_RGB2YUV, 4, stream_);
+			/*cv::Mat tmpHost;
+			tmp_.download(tmpHost);
+			cv::imshow("DEPTH", tmpHost);
+			cv::waitKey(1);*/
 
-			//tmp_.convertTo(out, CV_32FC1, 1.0f/1000.0f, stream_);
-			
-
-			if (!islossless) {
-				//cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_RGB2YUV, 4, stream_);
-				/*cv::Mat tmpHost;
-				tmp_.download(tmpHost);
-				cv::imshow("DEPTH", tmpHost);
-				cv::waitKey(1);*/
-				ftl::cuda::vuya_to_depth(out, tmp_, 16.0f, stream_);
-			} else {
-				tmp_.convertTo(out, CV_32FC1, 1.0f/1000.0f, stream_);
-			}
-
-		/*} else {
-			LOG(WARNING) << "Resizing decoded frame from " << tmp_.size() << " to " << out.size();
-			// FIXME: This won't work on GPU
-			tmp_.convertTo(tmp_, CV_32FC1, 1.0f/1000.0f, stream_);
-			cv::cuda::resize(tmp_, out, out.size(), 0, 0, cv::INTER_NEAREST, stream_);
-		}*/
+			ftl::cuda::vuya_to_depth(out, tmp_, 16.0f, stream_);
+		} else {
+			tmp_.convertTo(out, CV_32FC1, 1.0f/1000.0f, stream_);
+		}
 	} else {
-		// Is the received frame the same size as requested output?
-		//if (out.rows == ftl::codecs::getHeight(pkt.definition)) {
-			// Flag 0x1 means frame is in RGB so needs conversion to BGR
-			if (pkt.flags & 0x1) {
-				cv::cuda::cvtColor(tmp_, out, cv::COLOR_RGBA2BGRA, 0, stream_);
-			} else {
-				//cv::cuda::cvtColor(tmp_, out, cv::COLOR_BGRA2BGR, 0, stream_);
-			}
-		/*} else {
-			LOG(WARNING) << "Resizing decoded frame from " << tmp_.size() << " to " << out.size();
-			// FIXME: This won't work on GPU, plus it allocates extra memory...
-			// Flag 0x1 means frame is in RGB so needs conversion to BGR
-			if (pkt.flags & 0x1) {
-				cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_RGBA2BGR, 0, stream_);
-			} else {
-				cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_BGRA2BGR, 0, stream_);
-			}
-			cv::cuda::resize(tmp_, out, out.size(), 0.0, 0.0, cv::INTER_LINEAR, stream_);
-		}*/
+		// Flag 0x1 means frame is in RGB so needs conversion to BGR
+		if (pkt.flags & 0x1) {
+			cv::cuda::cvtColor(tmp_, out, cv::COLOR_RGBA2BGRA, 0, stream_);
+		}
 	}
 
 	stream_.waitForCompletion();

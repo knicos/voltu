@@ -111,6 +111,11 @@ class Universe : public ftl::Configurable {
 	void unbind(const std::string &name);
 
 	/**
+	 * Check if an RPC name is already bound.
+	 */
+	inline bool isBound(const std::string &name) const { return disp_.isBound(name); }
+
+	/**
 	 * Subscribe a function to a resource. The subscribed function is
 	 * triggered whenever that resource is published to. It is akin to
 	 * RPC broadcast (no return value) to a subgroup of peers.
@@ -259,7 +264,8 @@ void Universe::bind(const std::string &name, F func) {
 	UNIQUE_LOCK(net_mutex_,lk);
 	disp_.bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
-	    typename ftl::internal::func_kind_info<F>::args_kind());
+	    typename ftl::internal::func_kind_info<F>::args_kind(),
+		typename ftl::internal::func_kind_info<F>::has_peer());
 }
 
 /*template <typename F>

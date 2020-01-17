@@ -43,12 +43,11 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	//last_dropped_ = 0;
 	//drop_count_ = 0;
 
-	encode_mode_ = ftl::rgbd::kEncodeVideo;
+	second_channel_ = Channel::None;
 	hq_devices_ = (value("disable_hardware_encode", false)) ? device_t::Software : device_t::Any;
 	hq_codec_ = value("video_codec", ftl::codecs::codec_t::Any);
 
 	//group_.setFPS(value("fps", 20));
-	group_.setLatency(4);
 	group_.setName("NetStreamer");
 
 	compress_level_ = value("compression", 1);
@@ -116,9 +115,10 @@ Streamer::Streamer(nlohmann::json &config, Universe *net)
 	net->bind("set_channel", [this](const string &uri, Channel chan) {
 		SHARED_LOCK(mutex_,slk);
 
-		if (sources_.find(uri) != sources_.end()) {
-			sources_[uri]->src->setChannel(chan);
-		}
+		//if (sources_.find(uri) != sources_.end()) {
+		//	sources_[uri]->src->setChannel(chan);
+		//}
+		second_channel_ = chan;
 	});
 
 	//net->bind("sync_streams", [this](unsigned long long time) {
@@ -202,6 +202,7 @@ void Streamer::add(Source *src) {
 		s->lq_bitrate = value("lq_bitrate", ftl::codecs::kPresetWorst);
 
 		sources_[src->getID()] = s;
+		sourcesByNum_.push_back(s);
 
 		group_.addSource(src);
 
@@ -219,6 +220,17 @@ void Streamer::add(Source *src) {
 
 	LOG(INFO) << "Streaming: " << src->getID();
 	net_->broadcast("add_stream", src->getID());
+
+	// FIXME: Temp hack for forward compatibility.
+	net_->bind(src->getID(), [this,src](ftl::net::Peer &p, short ttime, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		LOG(INFO) << "RECEIVED PACKET: " << spkt.timestamp;
+		_addClient(src->getID(), pkt.frame_count, 0, p.id(), src->getID());
+		if (spkt.channel != Channel::Colour && src->getChannel() != spkt.channel) {
+			LOG(INFO) << "SET CHANNEL: " << (int)spkt.channel;
+			src->setChannel(spkt.channel);
+			second_channel_ = spkt.channel;
+		}
+	});
 }
 
 void Streamer::add(ftl::rgbd::Group *grp) {
@@ -380,14 +392,14 @@ void Streamer::stop() {
 
 void Streamer::run(bool block) {
 	if (block) {
-		group_.sync([this](FrameSet &fs) -> bool {
+		group_.onFrameSet([this](FrameSet &fs) -> bool {
 			_process(fs);
 			return true;
 		});
 	} else {
 		// Create thread job for frame ticking
 		ftl::pool.push([this](int id) {
-			group_.sync([this](FrameSet &fs) -> bool {
+			group_.onFrameSet([this](FrameSet &fs) -> bool {
 				_process(fs);
 				return true;
 			});
@@ -454,29 +466,29 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 
 	frame_no_ = fs.timestamp;
 
-	for (int j=0; j<fs.sources.size(); ++j) {
-		StreamSource *src = sources_[fs.sources[j]->getID()];
+	for (int j=0; j<fs.frames.size(); ++j) {
+		StreamSource *src = sourcesByNum_[j];
 		SHARED_LOCK(src->mutex,lk);
 
 		// Don't do any work in the following cases
 		if (!src) continue;
-		if (!fs.sources[j]->isReady()) continue;
+		//if (!fs.sources[j]->isReady()) continue;
 		if (src->clientCount == 0) continue;
 		//if (fs.channel1[j].empty() || (fs.sources[j]->getChannel() != ftl::rgbd::kChanNone && fs.channel2[j].empty())) continue;
-		if (!fs.frames[j].hasChannel(Channel::Colour) || !fs.frames[j].hasChannel(fs.sources[j]->getChannel())) {
-			LOG(WARNING) << "Missing required channel when streaming: " << (int)fs.sources[j]->getChannel();
+		if (!fs.frames[j].hasChannel(Channel::Colour) || !fs.frames[j].hasChannel(second_channel_)) {
+			LOG(WARNING) << "Missing required channel when streaming: " << (int)second_channel_;
 			continue;
 		}
 
-		bool hasChan2 = fs.sources[j]->getChannel() != Channel::None &&
-				fs.frames[j].hasChannel(fs.sources[j]->getChannel());
+		bool hasChan2 = second_channel_ != Channel::None &&
+				fs.frames[j].hasChannel(second_channel_);
 
 		totalclients += src->clientCount;
 
 		// Do we need to do high quality encoding?
 		if (src->hq_count > 0) {
 			
-			auto chan = fs.sources[j]->getChannel();
+			auto chan = second_channel_;
 
 			// Do we have the resources to do a HQ encoding?
 			///if (src->hq_encoder_c1 && (!hasChan2 || src->hq_encoder_c2)) {
@@ -502,7 +514,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 								// TODO: Stagger the reset between nodes... random phasing
 								if (insert_iframes_ && fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
 
-								auto chan = fs.sources[j]->getChannel();
+								auto chan = second_channel_;
 
 								try {
 									enc->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->hq_bitrate, [this,src,hasChan2,chan,&cv,&chan2done](const ftl::codecs::Packet &blk){
@@ -523,7 +535,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 					} else {
 						// Already have an encoding so send this
 						const auto &packets = fs.frames[j].getPackets(chan);
-						LOG(INFO) << "Send existing chan2 encoding: " << packets.size();
+						//LOG(INFO) << "Send existing chan2 encoding: " << packets.size();
 						for (const auto &i : packets) {
 							_transmitPacket(src, i, chan, hasChan2, Quality::High);	
 						}
@@ -554,7 +566,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 					const auto &packets = fs.frames[j].getPackets(colChan);
 					// FIXME: Adjust block number and total to match number of packets
 					// Also requires the receiver to decode in block number order.
-					LOG(INFO) << "Send existing encoding: " << packets.size();
+					//LOG(INFO) << "Send existing encoding: " << packets.size();
 					for (const auto &i : packets) {
 						_transmitPacket(src, i, Channel::Colour, hasChan2, Quality::High);	
 					}
@@ -581,7 +593,7 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 				// Important to send channel 2 first if needed...
 				// Receiver only waits for channel 1 by default
 				if (hasChan2) {
-					auto chan = fs.sources[j]->getChannel();
+					auto chan = second_channel_;
 
 					enc2->encode(fs.frames[j].get<cv::cuda::GpuMat>(chan), src->lq_bitrate, [this,src,hasChan2,chan](const ftl::codecs::Packet &blk){
 						_transmitPacket(src, blk, chan, hasChan2, Quality::Low);
@@ -613,15 +625,29 @@ void Streamer::_process(ftl::rgbd::FrameSet &fs) {
 }
 
 void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::Packet &pkt, Channel chan, bool hasChan2, Quality q) {
-	ftl::codecs::StreamPacket spkt = {
-		frame_no_,
-		src->id,
-		(hasChan2) ? 2 : 1,
-		chan
-		//static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
-	};
+	const int version = 4;  // FIXME: Needs to be selected based on client version? Or removed when refactor complete.
 
-	_transmitPacket(src, spkt, pkt, q);
+	if (version <= 3) {
+		ftl::codecs::StreamPacket spkt = {
+			3, // Version
+			frame_no_,
+			src->id,
+			(hasChan2) ? 2 : 1,
+			chan
+			//static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
+		};
+		_transmitPacket(src, spkt, pkt, q);
+	} else {
+		ftl::codecs::StreamPacket spkt = {
+			4, // Version
+			frame_no_,
+			0,
+			src->id,
+			chan
+			//static_cast<uint8_t>((chan & 0x1) | ((hasChan2) ? 0x2 : 0x0))
+		};
+		_transmitPacket(src, spkt, pkt, q);
+	}
 }
 
 void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt, Quality q) {
@@ -650,7 +676,7 @@ void Streamer::_transmitPacket(StreamSource *src, const ftl::codecs::StreamPacke
 				(*c).txcount = (*c).txmax;
 			} else {
 				// Count frame as completed only if last block and channel is 0
-				if (pkt.block_number == pkt.block_total - 1 && spkt.channel == Channel::Colour) ++(*c).txcount;
+				if (spkt.channel == Channel::Colour) ++(*c).txcount; // pkt.block_number == pkt.block_total - 1 && 
 			}
 		} catch(...) {
 			(*c).txcount = (*c).txmax;

@@ -26,11 +26,9 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 
 Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	ftl::Configurable(config), busy_(false), rbusy_(false), new_frame_(false), fs_render_(), fs_align_() {
-	group_ = new ftl::rgbd::Group;
-	group_->setName("Reconstruction-" + name);
-	group_->setLatency(4);
+	gen_ = nullptr;
 
-	renderer_ = ftl::create<ftl::render::Triangular>(this, "renderer", &fs_render_);
+	//renderer_ = ftl::create<ftl::render::Triangular>(this, "renderer", &fs_render_);
 
 	pipeline_ = ftl::config::create<ftl::operators::Graph>(this, "pre_filters");
 	pipeline_->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
@@ -45,70 +43,82 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	pipeline_->append<ftl::operators::CrossSupport>("cross");
 	pipeline_->append<ftl::operators::DiscontinuityMask>("discontinuity");
 	pipeline_->append<ftl::operators::CrossSupport>("cross2")->set("discon_support", true);
-	pipeline_->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
+	pipeline_->append<ftl::operators::CullDiscontinuity>("remove_discontinuity")->set("enabled", false);
 	//pipeline_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
 	pipeline_->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
 	pipeline_->append<ftl::operators::MultiViewMLS>("mvmls");
 
-	group_->sync([this](ftl::rgbd::FrameSet &fs) -> bool {
-		// TODO: pause
-		
-		/*if (busy_) {
-			LOG(WARNING) << "Group frameset dropped: " << fs.timestamp;
-			return true;
-		}
-		busy_ = true;*/
-
-		// Swap the entire frameset to allow rapid return
-		// FIXME: This gets stuck on a mutex
-		//fs.swapTo(fs_align_);
-
-		//ftl::pool.push([this](int id) {
-			//UNIQUE_LOCK(fs.mtx, lk);
-
-			pipeline_->apply(fs, fs, 0);
-			
-			// TODO: To use second GPU, could do a download, swap, device change,
-			// then upload to other device. Or some direct device-2-device copy.
-
-			// FIXME: Need a buffer of framesets
-			/*if (rbusy_) {
-				LOG(WARNING) << "Render frameset dropped: " << fs_align_.timestamp;
-				busy_ = false;
-				//return;
-			}
-			rbusy_ = true;*/
-
-			//LOG(INFO) << "Align complete... " << fs.timestamp;
-
-			// TODO: Reduce mutex locking problem here...
-			{
-				UNIQUE_LOCK(exchange_mtx_, lk);
-				if (new_frame_ == true) LOG(WARNING) << "Frame lost";
-				fs.swapTo(fs_align_);
-				new_frame_ = true;
-			}
-
-			//fs.resetFull();
-
-			//busy_ = false;
-		//});
-		return true;
-	});
+	//pipeline_->set("enabled", false);
 }
 
 Reconstruction::~Reconstruction() {
 	// TODO delete
 }
 
-void Reconstruction::addSource(ftl::rgbd::Source *src) {
+size_t Reconstruction::size() {
+	UNIQUE_LOCK(exchange_mtx_, lk);
+	return fs_align_.frames.size();
+}
+
+
+ftl::rgbd::FrameState &Reconstruction::state(int ix) {
+	UNIQUE_LOCK(exchange_mtx_, lk);
+	if (ix >= 0 && ix < fs_align_.frames.size()) {
+		return *fs_align_.frames[ix].origin();
+	}
+	throw ftl::exception("State index out-of-bounds");
+}
+
+void Reconstruction::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
+	cb_ = cb;
+}
+
+bool Reconstruction::post(ftl::rgbd::FrameSet &fs) {
+	pipeline_->apply(fs, fs, 0);
+		
+	{
+		UNIQUE_LOCK(exchange_mtx_, lk);
+		if (new_frame_ == true) LOG(WARNING) << "Frame lost";
+		fs.swapTo(fs_align_);
+		new_frame_ = true;
+	}
+
+	if (cb_) {
+		ftl::pool.push([this](int id) {
+			if (new_frame_) {
+				{
+					UNIQUE_LOCK(exchange_mtx_, lk);
+					new_frame_ = false;
+					fs_align_.swapTo(fs_render_);
+				}
+
+				if (cb_) cb_(fs_render_);
+			}
+		});
+	}
+
+	return true;
+}
+
+void Reconstruction::setGenerator(ftl::rgbd::Generator *gen) {
+	if (gen_) {
+		throw ftl::exception("Reconstruction already has generator");
+	}
+
+	gen_ = gen;
+	gen_->onFrameSet([this](ftl::rgbd::FrameSet &fs) -> bool {
+		return post(fs);
+	});
+}
+
+/*void Reconstruction::addSource(ftl::rgbd::Source *src) {
 	//src->setChannel(Channel::Depth);
 	group_->addSource(src); // TODO: check if source is already in group?
 }
 
 void Reconstruction::addRawCallback(const std::function<void(ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &cb) {
 	group_->addRawCallback(cb);
-}
+}*/
 
 bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out) {
 	{
@@ -145,7 +155,7 @@ bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out)
 	//}
 
 	Eigen::Affine3d sm = Eigen::Affine3d(Eigen::Scaling(double(value("scale", 1.0f))));
-	bool res = renderer_->render(vs, out, sm.matrix() * transform);
+	bool res = false; //renderer_->render(vs, out, sm.matrix() * transform);
 	//fs_render_.resetFull();
 	return res;
 }

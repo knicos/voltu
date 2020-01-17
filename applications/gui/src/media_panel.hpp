@@ -7,6 +7,8 @@
 
 #include "src_window.hpp"
 
+#include <array>
+
 namespace ftl {
 
 namespace rgbd {
@@ -24,25 +26,39 @@ class MediaPanel : public nanogui::Window {
 
 	void cameraChanged();
 
-	void startRecording2D(ftl::gui::Camera *camera, const std::string &filename);
+	//void startRecording2D(ftl::gui::Camera *camera, const std::string &filename);
 
-	void snapshot3D(ftl::gui::Camera *camera, const std::string &filename);
+	//void snapshot3D(ftl::gui::Camera *camera, const std::string &filename);
 
-	void startRecording3D(ftl::gui::Camera *camera, const std::string &filename);
+	//void startRecording3D(ftl::gui::Camera *camera, const std::string &filename);
 
 	void recordWindowClosed();
 
 	private:
 	ftl::gui::Screen *screen_;
+	ftl::gui::SourceWindow *sourceWindow_;
 
 	bool paused_;
 	bool disable_switch_channels_;
 
 	ftl::rgbd::SnapshotStreamWriter *writer_;
 	nanogui::PopupButton *button_channels_;
-	nanogui::Button *right_button_;
-	nanogui::Button *depth_button_;
+	//nanogui::Button *right_button_;
+	//nanogui::Button *depth_button_;
 	nanogui::PopupButton *recordbutton_;
+	std::array<nanogui::Button*,32> channel_buttons_={};
+
+	enum class RecordMode {
+		None,
+		Snapshot2D,
+		Snapshot3D,
+		Video2D,
+		Video3D
+	};
+	RecordMode record_mode_;
+
+	void _startRecording(RecordMode mode);
+	void _stopRecording();
 
 	/**
 	 * These members indicate which type of recording is active, if any.
@@ -50,8 +66,8 @@ class MediaPanel : public nanogui::Window {
 	 * to end the recording. Only one of these members should have a value
 	 * at any given time.
 	 */
-	std::optional<ftl::gui::Camera*> virtualCameraRecording_;
-	std::optional<ftl::Configurable*> sceneRecording_;
+	//std::optional<ftl::gui::Camera*> virtualCameraRecording_;
+	//std::optional<ftl::Configurable*> sceneRecording_;
 };
 
 }

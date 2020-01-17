@@ -54,19 +54,19 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, definition_t definition, 
 	chunk_count_ = chunk_dim_ * chunk_dim_;
 	jobs_ = chunk_count_;
 
-	for (int i=0; i<chunk_count_; ++i) {
+	//for (int i=0; i<chunk_count_; ++i) {
 		// Add chunk job to thread pool
-		ftl::pool.push([this,i,cb,is_colour,bitrate](int id) {
+		//ftl::pool.push([this,i,cb,is_colour,bitrate](int id) {
 			ftl::codecs::Packet pkt;
-			pkt.block_number = i;
-			pkt.block_total = chunk_count_;
+			pkt.bitrate = 0;
+			pkt.frame_count = 1;
 			pkt.definition = current_definition_;
 			pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
 
 			try {
 				_encodeBlock(tmp_, pkt, bitrate);
 			} catch(...) {
-				LOG(ERROR) << "OpenCV encode block exception: " << i;
+				LOG(ERROR) << "OpenCV encode block exception: ";
 			}
 
 			try {
@@ -75,17 +75,17 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, definition_t definition, 
 				LOG(ERROR) << "OpenCV encoder callback exception";
 			}
 
-			std::unique_lock<std::mutex> lk(job_mtx_);
-			--jobs_;
-			if (jobs_ == 0) job_cv_.notify_one();
-		});
-	}
+			//std::unique_lock<std::mutex> lk(job_mtx_);
+			//--jobs_;
+			//if (jobs_ == 0) job_cv_.notify_one();
+		//});
+	//}
 
-	std::unique_lock<std::mutex> lk(job_mtx_);
-	job_cv_.wait_for(lk, std::chrono::seconds(20), [this]{ return jobs_ == 0; });
-	if (jobs_ != 0) {
-		LOG(FATAL) << "Deadlock detected (" << jobs_ << ")";
-	}
+	//std::unique_lock<std::mutex> lk(job_mtx_);
+	//job_cv_.wait_for(lk, std::chrono::seconds(20), [this]{ return jobs_ == 0; });
+	//if (jobs_ != 0) {
+	//	LOG(FATAL) << "Deadlock detected (" << jobs_ << ")";
+	//}
 
 	return true;
 }
@@ -95,8 +95,8 @@ bool OpenCVEncoder::_encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt, bi
 	int chunk_height = in.rows / chunk_dim_;
 
 	// Build chunk heads
-	int cx = (pkt.block_number % chunk_dim_) * chunk_width;
-	int cy = (pkt.block_number / chunk_dim_) * chunk_height;
+	int cx = 0; //(pkt.block_number % chunk_dim_) * chunk_width;
+	int cy = 0; //(pkt.block_number / chunk_dim_) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
 
 	cv::Mat chunkHead = in(roi);

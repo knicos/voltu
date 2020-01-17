@@ -8,27 +8,27 @@ struct ChannelInfo {
 };
 
 static ChannelInfo info[] = {
-    "Colour", CV_8UC4,
-    "Depth", CV_32F,
-    "Right", CV_8UC4,
-    "DepthRight", CV_32F,
-    "Deviation", CV_32F,
-    "Normals", CV_32FC4,
-    "Points", CV_32FC4,
-    "Confidence", CV_32F,
-    "EnergyVector", CV_32FC4,
-    "Flow", CV_32F,
-    "Energy", CV_32F,
-	"Mask", CV_32S,
-	"Density", CV_32F,
-    "Support1", CV_8UC4,
-    "Support2", CV_8UC4,
-    "Segmentation", CV_32S,
+    "Colour", CV_8UC4,			// 0
+    "Depth", CV_32F,			// 1
+    "Right", CV_8UC4,			// 2
+    "DepthRight", CV_32F,		// 3
+    "Deviation", CV_32F,		// 4
+    "Normals", CV_32FC4,		// 5
+    "Points", CV_32FC4,			// 6
+    "Confidence", CV_32F,		// 7
+    "EnergyVector", CV_32FC4,	// 8
+    "Flow", CV_32F,				// 9
+    "Energy", CV_32F,			// 10
+	"Mask", CV_32S,				// 11
+	"Density", CV_32F,			// 12
+    "Support1", CV_8UC4,		// 13
+    "Support2", CV_8UC4,		// 14
+    "Segmentation", CV_32S,		// 15
 
-	"NoName", 0,
-	"NoName", 0,
-	"NoName", 0,
-	"NoName", 0,
+	"ColourNormals", 0,			// 16
+	"ColourHighRes", 0,			// 17
+	"Disparity", 0,				// 18
+	"Smoothing", 0,				// 19
 	"NoName", 0,
 	"NoName", 0,
 	"NoName", 0,

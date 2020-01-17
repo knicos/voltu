@@ -12,7 +12,7 @@ FXAA::~FXAA() {
 
 }
 
-bool FXAA::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool FXAA::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	ftl::cuda::fxaa(
 		in.getTexture<uchar4>(Channel::Colour),
 		stream

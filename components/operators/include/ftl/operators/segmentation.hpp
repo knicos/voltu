@@ -16,7 +16,7 @@ class CrossSupport : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 };
 
@@ -30,7 +30,7 @@ class VisCrossSupport : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
-    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *src, cudaStream_t stream) override;
+    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 };
 

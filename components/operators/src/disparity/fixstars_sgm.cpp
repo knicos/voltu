@@ -106,7 +106,7 @@ bool FixstarsSGM::updateParameters() {
 		sgm::StereoSGM::Parameters(P1_, P2_, uniqueness_, true));
 }
 
-bool FixstarsSGM::apply(Frame &in, Frame &out, Source *src, cudaStream_t stream) {
+bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(Channel::Left) || !in.hasChannel(Channel::Right)) {
 		LOG(ERROR) << "Fixstars is missing Left or Right channel";
 		return false;

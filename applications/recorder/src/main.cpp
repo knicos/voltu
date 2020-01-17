@@ -185,15 +185,13 @@ static void run(ftl::Configurable *root) {
 
 	// -------------------------------------------------------------------------
 
-	stream->setLatency(6);  // FIXME: This depends on source!?
 	stream->add(group);
 	stream->run();
 
 	bool busy = false;
 
-	group->setLatency(4);
 	group->setName("ReconGroup");
-	group->sync([](ftl::rgbd::FrameSet &fs) -> bool {
+	group->onFrameSet([](ftl::rgbd::FrameSet &fs) -> bool {
 		return true;
 	});
 

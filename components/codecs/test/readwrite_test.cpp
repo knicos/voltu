@@ -27,8 +27,8 @@ TEST_CASE( "Write and read - Single frame" ) {
 
 	pkt.codec = codec_t::JSON;
 	pkt.definition = definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
+	pkt.bitrate = 0;
+	pkt.frame_count = 1;
 	pkt.flags = 0;
 	pkt.data = {44,44,44};
 
@@ -68,8 +68,8 @@ TEST_CASE( "Write and read - Multiple frames" ) {
 
 	pkt.codec = codec_t::JSON;
 	pkt.definition = definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
+	pkt.bitrate = 0;
+	pkt.frame_count = 1;
 	pkt.flags = 0;
 	pkt.data = {44,44,44};
 
@@ -115,8 +115,8 @@ TEST_CASE( "Write and read - Multiple streams" ) {
 
 	pkt.codec = codec_t::JSON;
 	pkt.definition = definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
+	pkt.bitrate = 0;
+	pkt.frame_count = 1;
 	pkt.flags = 0;
 	pkt.data = {44,44,44};
 
@@ -170,8 +170,8 @@ TEST_CASE( "Write and read - Multiple frames with limit" ) {
 
 	pkt.codec = codec_t::JSON;
 	pkt.definition = definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
+	pkt.bitrate = 0;
+	pkt.frame_count = 1;
 	pkt.flags = 0;
 	pkt.data = {44,44,44};
 
@@ -217,8 +217,8 @@ TEST_CASE( "Write and read - Multiple reads" ) {
 
 	pkt.codec = codec_t::JSON;
 	pkt.definition = definition_t::Any;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
+	pkt.bitrate = 0;
+	pkt.frame_count = 1;
 	pkt.flags = 0;
 	pkt.data = {44,44,44};
 

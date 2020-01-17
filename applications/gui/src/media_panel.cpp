@@ -14,11 +14,12 @@
 using ftl::gui::MediaPanel;
 using ftl::codecs::Channel;
 
-MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceWindow) : nanogui::Window(screen, ""), screen_(screen) {
+MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceWindow) : nanogui::Window(screen, ""), screen_(screen), sourceWindow_(sourceWindow) {
 	using namespace nanogui;
 
 	paused_ = false;
 	disable_switch_channels_ = false;
+	record_mode_ = RecordMode::None;
 
 	setLayout(new BoxLayout(Orientation::Horizontal,
 									Alignment::Middle, 5, 10));
@@ -34,9 +35,6 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 		if (cam) cam->showPoseWindow();
 	});
 
-	virtualCameraRecording_ = std::optional<ftl::gui::Camera*>();
-	sceneRecording_ = std::optional<ftl::Configurable*>();
-
 	recordbutton_ = new PopupButton(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
 	recordbutton_->setTooltip("Record");
 	recordbutton_->setSide(Popup::Side::Right);
@@ -47,36 +45,23 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 	recordpopup->setAnchorHeight(150);
 	auto itembutton = new Button(recordpopup, "2D snapshot (.png)");
 	itembutton->setCallback([this]() {
-		char timestamp[18];
-		std::time_t t=std::time(NULL);
-		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-		screen_->activeCamera()->snapshot(std::string(timestamp) + ".png");
+		_startRecording(RecordMode::Snapshot2D);
 		recordbutton_->setPushed(false);
 	});
 	itembutton = new Button(recordpopup, "Virtual camera recording (.ftl)");
 	itembutton->setCallback([this]() {
-		char timestamp[18];
-		std::time_t t=std::time(NULL);
-		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-		auto filename = std::string(timestamp) + ".ftl";
-		startRecording2D(screen_->activeCamera(), filename);
+		_startRecording(RecordMode::Video2D);
 		recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
 		recordbutton_->setPushed(false);
 	});
 	itembutton = new Button(recordpopup, "3D scene snapshot (.ftl)");
 	itembutton->setCallback([this]() {
-		char timestamp[18];
-		std::time_t t=std::time(NULL);
-		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-		snapshot3D(screen_->activeCamera(), std::string(timestamp) + ".ftl");
+		_startRecording(RecordMode::Snapshot3D);
 		recordbutton_->setPushed(false);
 	});
 	itembutton = new Button(recordpopup, "3D scene recording (.ftl)");
 	itembutton->setCallback([this]() {
-		char timestamp[18];
-		std::time_t t=std::time(NULL);
-		std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-		startRecording3D(screen_->activeCamera(), std::string(timestamp) + ".ftl");
+		_startRecording(RecordMode::Video3D);
 		recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
 		recordbutton_->setPushed(false);
 	});
@@ -89,19 +74,10 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 	});
 
 	recordbutton_->setCallback([this](){
-		if (virtualCameraRecording_) {
-			virtualCameraRecording_.value()->stopVideoRecording();
-			recordbutton_->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
-
-			// Prevents the popup from being opened, though it is shown while the button
-			// is being pressed.
-			recordbutton_->setPushed(false);
-			virtualCameraRecording_ = std::nullopt;
-		} else if (sceneRecording_) {
-			sceneRecording_.value()->set("record", false);
+		if (record_mode_ != RecordMode::None) {
+			_stopRecording();
 			recordbutton_->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
 			recordbutton_->setPushed(false);
-			sceneRecording_ = std::nullopt;
 		}
 	});
 
@@ -121,39 +97,10 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 			button->setIcon(ENTYPO_ICON_CONTROLLER_PAUS);
 		}
 	});
-
-	//button = new Button(this, "", ENTYPO_ICON_CONTROLLER_RECORD);
-
-	/* Doesn't work at the moment
- #ifdef HAVE_LIBARCHIVE
-	auto button_snapshot = new Button(this, "", ENTYPO_ICON_IMAGES);
-	button_snapshot->setTooltip("Screen capture");
-	button_snapshot->setCallback([this] {
-	ftl::gui::Camera *cam = screen_->activeCamera();
-	if (!cam) return;
-
-	try {
-		char timestamp[18];
-			std::time_t t=std::time(NULL);
-			std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
-			auto writer = ftl::rgbd::SnapshotWriter(std::string(timestamp) + ".tar.gz");
-			cv::Mat rgb, depth;
-			cam->source()->getFrames(rgb, depth);
-			writer.addSource(	cam->source()->getURI(),
-								cam->source()->parameters(),
-								cam->source()->getPose());
-			writer.addRGBD(0, rgb, depth);
-		}
-		catch(std::runtime_error) {
-			LOG(ERROR) << "Snapshot failed (file error)";
-		}
-	});
-#endif
-
 	
 	// not very useful (l/r)
 
-	auto button_dual = new Button(this, "", ENTYPO_ICON_MAP);
+	/*auto button_dual = new Button(this, "", ENTYPO_ICON_MAP);
 	button_dual->setCallback([this]() {
 		screen_->setDualView(!screen_->getDualView());
 	});
@@ -188,33 +135,20 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 	popup->setTheme(screen->toolbuttheme);
 	popup->setAnchorHeight(150);
 
-	button = new Button(popup, "Left");
-	button->setFlags(Button::RadioButton);
-	button->setPushed(true);
-	button->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Left);
-		}
-	});
-
-	right_button_ = new Button(popup, "Right");
-	right_button_->setFlags(Button::RadioButton);
-	right_button_->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Right);
-		}
-	});
-
-	depth_button_ = new Button(popup, "Depth");
-	depth_button_->setFlags(Button::RadioButton);
-	depth_button_->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Depth);
-		}
-	});
+	for (int i=0; i<=2; ++i) {
+		ftl::codecs::Channel c = static_cast<ftl::codecs::Channel>(i);
+		button = new Button(popup, ftl::codecs::name(c));
+		button->setFlags(Button::RadioButton);
+		//button->setPushed(true);
+		button->setVisible(false);
+		button->setCallback([this,c]() {
+			ftl::gui::Camera *cam = screen_->activeCamera();
+			if (cam) {
+				cam->setChannel(c);
+			}
+		});
+		channel_buttons_[i] = button;
+	}
 
 	auto *popbutton = new PopupButton(popup, "More");
 	popbutton->setSide(Popup::Side::Right);
@@ -224,110 +158,75 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 	popup->setTheme(screen->toolbuttheme);
 	popup->setAnchorHeight(150);
 
-	button = new Button(popup, "Deviation");
-	button->setFlags(Button::RadioButton);
-	button->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Deviation);
-		}
-	});
-
-	button = new Button(popup, "Normals");
-	button->setFlags(Button::RadioButton);
-	button->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::ColourNormals);
-		}
-	});
-
-	button = new Button(popup, "Flow");
-	button->setFlags(Button::RadioButton);
-	button->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Flow);
-		}
-	});
-
-	button = new Button(popup, "Confidence");
-	button->setFlags(Button::RadioButton);
-	button->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Confidence);
-		}
-	});
-
-	button = new Button(popup, "Energy");
-	button->setFlags(Button::RadioButton);
-	button->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Energy);
-		}
-	});
-
-	button = new Button(popup, "Density");
-	button->setFlags(Button::RadioButton);
-	button->setCallback([this]() {
-		ftl::gui::Camera *cam = screen_->activeCamera();
-		if (cam) {
-			cam->setChannel(Channel::Density);
-		}
-	});
-
+	for (int i=3; i<32; ++i) {
+		ftl::codecs::Channel c = static_cast<ftl::codecs::Channel>(i);
+		button = new Button(popup, ftl::codecs::name(c));
+		button->setFlags(Button::RadioButton);
+		//button->setPushed(true);
+		button->setVisible(false);
+		button->setCallback([this,c]() {
+			ftl::gui::Camera *cam = screen_->activeCamera();
+			if (cam) {
+				cam->setChannel(c);
+			}
+		});
+		channel_buttons_[i] = button;
+	}
 }
 
 MediaPanel::~MediaPanel() {
 
 }
 
+void MediaPanel::_startRecording(MediaPanel::RecordMode mode) {
+	char timestamp[18];
+	std::time_t t=std::time(NULL);
+	std::strftime(timestamp, sizeof(timestamp), "%F-%H%M%S", std::localtime(&t));
+
+	std::string filename(timestamp);
+	switch(mode) {
+	case RecordMode::Snapshot2D		: filename += ".png"; break;
+	case RecordMode::Snapshot3D		:
+	case RecordMode::Video3D		: filename += ".ftl"; break;
+	case RecordMode::Video2D		: filename += ".ftl"; break;
+	}
+
+	if (mode == RecordMode::Video3D) {
+		record_mode_ = mode;
+		sourceWindow_->recordVideo(filename);
+	} else if (mode == RecordMode::Snapshot2D) {
+		screen_->activeCamera()->snapshot(filename);
+	} else if (mode == RecordMode::Video2D) {
+		record_mode_ = mode;
+		screen_->activeCamera()->startVideoRecording(filename);
+	}
+}
+
+void MediaPanel::_stopRecording() {
+	if (record_mode_ == RecordMode::Video3D) {
+		sourceWindow_->stopRecordingVideo();
+	} else if (record_mode_ == RecordMode::Video2D) {
+		screen_->activeCamera()->stopVideoRecording();
+	}
+	record_mode_ = RecordMode::None;
+}
+
 // Update button enabled status
 void MediaPanel::cameraChanged() {
 	ftl::gui::Camera *cam = screen_->activeCamera();
 	if (cam) {
-		if (cam->source()->hasCapabilities(ftl::rgbd::kCapStereo)) {
-			right_button_->setEnabled(true);
-		} else {
-			right_button_->setEnabled(false);
-		}
-	}
-}
-
-void MediaPanel::startRecording2D(ftl::gui::Camera *camera, const std::string &filename) {
-	camera->startVideoRecording(filename);
-	virtualCameraRecording_ = std::optional<ftl::gui::Camera*>(camera);
-	recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
-}
-
-void MediaPanel::snapshot3D(ftl::gui::Camera *camera, const std::string &filename) {
-	auto tag = camera->source()->get<std::string>("uri");
-	if (tag) {
-		auto tagvalue = tag.value();
-		auto configurables = ftl::config::findByTag(tagvalue);
-		if (configurables.size() > 0) {
-			ftl::Configurable *configurable = ftl::config::find(configurables[0]->getID() + "/controls");
-			if (configurable) {
-				configurable->set("3D-snapshot", filename);
+		auto channels = cam->availableChannels();
+		for (int i=0; i<32; ++i) {
+			if (channels.has(static_cast<ftl::codecs::Channel>(i))) {
+				channel_buttons_[i]->setVisible(true);
+			} else {
+				channel_buttons_[i]->setVisible(false);
 			}
-		}
-	}
-}
 
-void MediaPanel::startRecording3D(ftl::gui::Camera *camera, const std::string &filename) {
-	auto tag = camera->source()->get<std::string>("uri");
-	if (tag) {
-		auto tagvalue = tag.value();
-		auto configurables = ftl::config::findByTag(tagvalue);
-		if (configurables.size() > 0) {
-			ftl::Configurable *configurable = ftl::config::find(configurables[0]->getID() + "/controls");
-			if (configurable) {
-				configurable->set("record-name", filename);
-				configurable->set("record", true);
-				sceneRecording_ = std::optional<ftl::Configurable*>(configurable);
-				recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+			if (cam->getChannel() == static_cast<ftl::codecs::Channel>(i)) {
+				channel_buttons_[i]->setPushed(true);
+			} else {
+				channel_buttons_[i]->setPushed(false);
 			}
 		}
 	}

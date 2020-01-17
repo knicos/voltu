@@ -146,45 +146,6 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 	json_t global = json_t{{"$id","ftl://test"}};
 	ftl::config::configure(global);
 
-	SECTION("with valid image file uri") {
-		json_t cfg = json_t{
-			{"$id","ftl://test/1"},
-			{"uri","file://" FTL_SOURCE_DIRECTORY "/components/rgbd-sources/test/data/image.png"}
-		};
-
-		Source *src = ftl::create<Source>(cfg);
-
-		REQUIRE( src );
-		REQUIRE( src->isReady() );
-		REQUIRE( last_type == "image"); 
-	}
-
-	SECTION("with valid video file uri") {
-		json_t cfg = json_t{
-			{"$id","ftl://test/2"},
-			{"uri","file://" FTL_SOURCE_DIRECTORY "/components/rgbd-sources/test/data/video.mp4"}
-		};
-
-		Source *src = ftl::create<Source>(cfg);
-
-		REQUIRE( src );
-		REQUIRE( src->isReady() );
-		REQUIRE( last_type == "video");
-	}
-
-	SECTION("with valid net uri") {
-		json_t cfg = json_t{
-			{"$id","ftl://test/2"},
-			{"uri","ftl://utu.fi/dummy"}
-		};
-
-		Source *src = ftl::create<Source>(cfg);
-
-		REQUIRE( src );
-		REQUIRE( src->isReady() );
-		REQUIRE( last_type == "net");
-	}
-
 	SECTION("with an invalid uri") {
 		json_t cfg = json_t{
 			{"$id","ftl://test/2"},
@@ -197,50 +158,6 @@ TEST_CASE("ftl::create<Source>(cfg)", "[rgbd]") {
 		REQUIRE( !src->isReady() );
 	}
 
-	SECTION("with an invalid file uri") {
-		json_t cfg = json_t{
-			{"$id","ftl://test/2"},
-			{"uri","file:///not/a/file"}
-		};
-
-		Source *src = ftl::create<Source>(cfg);
-
-		REQUIRE( src );
-		REQUIRE( !src->isReady() );
-	}
-
-	SECTION("with a missing file") {
-		json_t cfg = json_t{
-			{"$id","ftl://test/2"},
-			{"uri","file:///data/image2.png"}
-		};
-
-		Source *src = ftl::create<Source>(cfg);
-
-		REQUIRE( src );
-		REQUIRE( !src->isReady() );
-	}
+	
 }
 
-TEST_CASE("Source::set(uri)", "[rgbd]") {
-	json_t global = json_t{{"$id","ftl://test"}};
-	ftl::config::configure(global);
-
-	SECTION("change to different valid URI type") {
-		json_t cfg = json_t{
-			{"$id","ftl://test/1"},
-			{"uri","file://" FTL_SOURCE_DIRECTORY "/components/rgbd-sources/test/data/image.png"}
-		};
-
-		Source *src = ftl::create<Source>(cfg);
-
-		REQUIRE( src );
-		REQUIRE( src->isReady() );
-		REQUIRE( last_type == "image" );
-
-		src->set("uri", "file://" FTL_SOURCE_DIRECTORY "/components/rgbd-sources/test/data/video.mp4");
-
-		REQUIRE( src->isReady() );
-		REQUIRE( last_type == "video" ); 
-	}
-}

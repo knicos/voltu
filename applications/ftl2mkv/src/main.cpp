@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
 
 			bool keyframe = false;
 			if (pkt.codec == codec_t::HEVC) {
-				if (ftl::codecs::hevc::isIFrame(pkt.data)) {
+				if (ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) {
 					seen_key[spkt.streamID] = true;
 					keyframe = true;
 				}

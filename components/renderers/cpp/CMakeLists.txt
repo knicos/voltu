@@ -1,5 +1,4 @@
 add_library(ftlrender
-	src/splatter.cpp
 	src/splatter.cu
 	src/points.cu
 	src/normals.cu

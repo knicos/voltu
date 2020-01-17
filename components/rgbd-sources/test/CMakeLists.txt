@@ -1,6 +1,7 @@
 ### Source Unit ################################################################
 add_executable(source_unit
 	./tests.cpp
+	../src/frame.cpp
 	./source_unit.cpp
 )
 target_include_directories(source_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")

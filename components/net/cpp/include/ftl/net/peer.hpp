@@ -311,7 +311,8 @@ template <typename F>
 void Peer::bind(const std::string &name, F func) {
 	disp_->bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
-	    typename ftl::internal::func_kind_info<F>::args_kind());
+	    typename ftl::internal::func_kind_info<F>::args_kind(),
+		typename ftl::internal::func_kind_info<F>::has_peer());
 }
 
 template <typename R, typename... ARGS>

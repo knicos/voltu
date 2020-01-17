@@ -19,13 +19,13 @@ bool OpenCVDecoder::accepts(const ftl::codecs::Packet &pkt) {
 
 bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
 	//CHECK(cv::Size(ftl::codecs::getWidth(pkt.definition), ftl::codecs::getHeight(pkt.definition)) == out.size()); 
-	int chunk_dim = std::sqrt(pkt.block_total);
+	int chunk_dim = std::sqrt(pkt.frame_count);
 	int chunk_width = out.cols / chunk_dim;
 	int chunk_height = out.rows / chunk_dim;
 
 	// Build chunk head
-	int cx = (pkt.block_number % chunk_dim) * chunk_width;
-	int cy = (pkt.block_number / chunk_dim) * chunk_height;
+	int cx = 0; //(pkt.block_number % chunk_dim) * chunk_width;
+	int cy = 0; //(pkt.block_number / chunk_dim) * chunk_height;
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
 	cv::cuda::GpuMat chunkHead = out(roi);
 

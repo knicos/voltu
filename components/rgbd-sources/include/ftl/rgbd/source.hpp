@@ -155,7 +155,7 @@ class Source : public ftl::Configurable {
 	/**
 	 * Get the camera position as a pose matrix.
 	 */
-	const Eigen::Matrix4d &getPose() const;
+	[[deprecated]] const Eigen::Matrix4d &getPose() const;
 
 	/**
 	 * Check what features this source has available.
@@ -172,6 +172,8 @@ class Source : public ftl::Configurable {
 	ftl::net::Universe *getNet() const { return net_; }
 
 	std::string getURI() { return value("uri", std::string("")); }
+
+	ftl::rgbd::FrameState &state() { return impl_->state_; }
 
 	//void customImplementation(detail::Source *);
 
@@ -267,11 +269,11 @@ void ftl::rgbd::Source::inject(ftl::codecs::Channel c, ARGS... args) {
 
 	spkt.timestamp = impl_->timestamp_;
 	spkt.channel = c;
-	spkt.channel_count = 0;
+	spkt.frame_number = 0;
 	spkt.streamID = 0;
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;
-	pkt.block_number = 0;
-	pkt.block_total = 1;
+	pkt.bitrate = 0;
+	pkt.frame_count = 1;
 	pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.flags = 0;
 

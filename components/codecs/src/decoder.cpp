@@ -5,6 +5,14 @@
 
 using ftl::codecs::Decoder;
 using ftl::codecs::codec_t;
+using std::string;
+using std::to_string;
+
+ftl::codecs::StreamPacket::operator std::string() const {
+	return string("[\n  timestamp=") + to_string(timestamp) + string(",\n  frameset=") +
+		to_string(streamID) + string(",\n  frame=") + to_string(frame_number) +
+		string(",\n  channel=") + to_string((int)channel) + string("\n]");
+}
 
 Decoder *ftl::codecs::allocateDecoder(const ftl::codecs::Packet &pkt) {
 	switch(pkt.codec) {

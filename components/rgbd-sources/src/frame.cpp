@@ -2,24 +2,90 @@
 #include <ftl/rgbd/frame.hpp>
 
 using ftl::rgbd::Frame;
+using ftl::rgbd::FrameState;
 using ftl::codecs::Channels;
 using ftl::codecs::Channel;
 
 static cv::Mat none;
 static cv::cuda::GpuMat noneGPU;
 
+FrameState::FrameState() : camera_left_({0}), camera_right_({0}), config_(nlohmann::json::value_t::object) {
+	pose_ = Eigen::Matrix4d::Identity();
+}
+
+FrameState::FrameState(FrameState &f) {
+	pose_ = f.pose_;
+	camera_left_ = f.camera_left_;
+	camera_right_ = f.camera_right_;
+	changed_ = f.changed_;
+	config_ = f.config_;
+	// TODO: Add mutex lock
+	f.changed_.clear();
+}
+
+FrameState::FrameState(FrameState &&f) {
+	pose_ = f.pose_;
+	camera_left_ = f.camera_left_;
+	camera_right_ = f.camera_right_;
+	changed_ = f.changed_;
+	config_ = std::move(f.config_);
+	// TODO: Add mutex lock
+	f.changed_.clear();
+}
+
+FrameState &FrameState::operator=(FrameState &f) {
+	pose_ = f.pose_;
+	camera_left_ = f.camera_left_;
+	camera_right_ = f.camera_right_;
+	changed_ = f.changed_;
+	config_ = f.config_;
+	// TODO: Add mutex lock
+	f.changed_.clear();
+	return *this;
+}
+
+FrameState &FrameState::operator=(FrameState &&f) {
+	pose_ = f.pose_;
+	camera_left_ = f.camera_left_;
+	camera_right_ = f.camera_right_;
+	changed_ = f.changed_;
+	config_ = std::move(f.config_);
+	// TODO: Add mutex lock
+	f.changed_.clear();
+	return *this;
+}
+
+void FrameState::setPose(const Eigen::Matrix4d &pose) {
+	pose_ = pose;
+	changed_ += Channel::Pose;
+}
+
+void FrameState::setLeft(const ftl::rgbd::Camera &p) {
+	camera_left_ = p;
+	changed_ += Channel::Calibration;
+}
+
+void FrameState::setRight(const ftl::rgbd::Camera &p) {
+	camera_right_ = p;
+	changed_ += Channel::Calibration2;
+}
+
+// =============================================================================
+
 void Frame::reset() {
+	origin_ = nullptr;
 	channels_.clear();
 	gpu_.clear();
-	for (size_t i=0u; i<Channels::kMax; ++i) {
+	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
 		data_[i].encoded.clear();
 	}
 }
 
 void Frame::resetFull() {
+	origin_ = nullptr;
 	channels_.clear();
 	gpu_.clear();
-	for (size_t i=0u; i<Channels::kMax; ++i) {
+	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
 		data_[i].gpu = cv::cuda::GpuMat();
 		data_[i].host = cv::Mat();
 		data_[i].encoded.clear();
@@ -34,8 +100,8 @@ void Frame::upload(Channel c, cv::cuda::Stream stream) {
 	upload(Channels(c), stream);
 }
 
-void Frame::download(Channels c, cv::cuda::Stream stream) {
-	for (size_t i=0u; i<Channels::kMax; ++i) {
+void Frame::download(Channels<0> c, cv::cuda::Stream stream) {
+	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
 		if (c.has(i) && channels_.has(i) && gpu_.has(i)) {
 			data_[i].gpu.download(data_[i].host, stream);
 			gpu_ -= i;
@@ -43,8 +109,8 @@ void Frame::download(Channels c, cv::cuda::Stream stream) {
 	}
 }
 
-void Frame::upload(Channels c, cv::cuda::Stream stream) {
-	for (size_t i=0u; i<Channels::kMax; ++i) {
+void Frame::upload(Channels<0> c, cv::cuda::Stream stream) {
+	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
 		if (c.has(i) && channels_.has(i) && !gpu_.has(i)) {
 			data_[i].gpu.upload(data_[i].host, stream);
 			gpu_ += i;
@@ -83,15 +149,17 @@ void Frame::mergeEncoding(ftl::rgbd::Frame &f) {
 	}
 }
 
-bool Frame::empty(ftl::codecs::Channels channels) {
+bool Frame::empty(ftl::codecs::Channels<0> channels) {
 	for (auto c : channels) {
 		if (empty(c)) return true;
 	}
 	return false;
 }
 
-void Frame::swapTo(ftl::codecs::Channels channels, Frame &f) {
+void Frame::swapTo(ftl::codecs::Channels<0> channels, Frame &f) {
 	f.reset();
+	f.origin_ = origin_;
+	f.state_ = state_;
 
 	// For all channels in this frame object
 	for (auto c : channels_) {
@@ -141,8 +209,10 @@ void Frame::swapChannels(ftl::codecs::Channel a, ftl::codecs::Channel b) {
 	}
 }
 
-void Frame::copyTo(ftl::codecs::Channels channels, Frame &f) {
+void Frame::copyTo(ftl::codecs::Channels<0> channels, Frame &f) {
 	f.reset();
+	f.origin_ = origin_;
+	f.state_ = state_;
 
 	// For all channels in this frame object
 	for (auto c : channels_) {
@@ -228,6 +298,32 @@ template<> const cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) cons
 	return _get(channel).gpu;
 }
 
+template<> const Eigen::Matrix4d& Frame::get(ftl::codecs::Channel channel) const {
+	if (channel == Channel::Pose) {
+		return state_.getPose();
+	}
+
+	throw ftl::exception(ftl::Formatter() << "Invalid pose channel: " << (int)channel);
+}
+
+template<> const ftl::rgbd::Camera& Frame::get(ftl::codecs::Channel channel) const {
+	if (channel == Channel::Calibration) {
+		return state_.getLeft();
+	} else if (channel == Channel::Calibration2) {
+		return state_.getRight();
+	}
+
+	throw ftl::exception(ftl::Formatter() << "Invalid calibration channel: " << (int)channel);
+}
+
+template<> const nlohmann::json& Frame::get(ftl::codecs::Channel channel) const {
+	if (channel == Channel::Configuration) {
+		return state_.getConfig();
+	}
+
+	throw ftl::exception(ftl::Formatter() << "Invalid configuration channel: " << (int)channel);
+}
+
 template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
 	if (c == Channel::None) {
 		throw ftl::exception("Cannot create a None channel");
@@ -264,6 +360,11 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::r
 	return m.gpu;
 }
 
+void Frame::clearPackets(ftl::codecs::Channel c) {
+	auto &m = _get(c);
+	m.encoded.clear();
+}
+
 template <> cv::Mat &Frame::create(ftl::codecs::Channel c) {
 	if (c == Channel::None) {
 		throw ftl::exception("Cannot create a None channel");
@@ -295,5 +396,42 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c) {
 void Frame::resetTexture(ftl::codecs::Channel c) {
 	auto &m = _get(c);
 	m.tex.free();
+}
+
+void Frame::setOrigin(ftl::rgbd::FrameState *state) {
+	if (origin_ != nullptr) {
+		throw ftl::exception("Can only set origin once after reset");
+	}
+
+	origin_ = state;
+	state_ = *state;
+}
+
+const Eigen::Matrix4d &Frame::getPose() const {
+	return get<Eigen::Matrix4d>(ftl::codecs::Channel::Pose);
+}
+
+const ftl::rgbd::Camera &Frame::getLeftCamera() const {
+	return get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration);
+}
+
+const ftl::rgbd::Camera &Frame::getRightCamera() const {
+	return get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration2);
+}
+
+void ftl::rgbd::Frame::setPose(const Eigen::Matrix4d &pose) {
+	if (origin_) origin_->setPose(pose);
+}
+
+void ftl::rgbd::Frame::setLeftCamera(const ftl::rgbd::Camera &c) {
+	if (origin_) origin_->setLeft(c);
+}
+
+void ftl::rgbd::Frame::setRightCamera(const ftl::rgbd::Camera &c) {
+	if (origin_) origin_->setRight(c);
+}
+
+std::string ftl::rgbd::Frame::getConfigString() const {
+	return get<nlohmann::json>(ftl::codecs::Channel::Configuration).dump();
 }
 

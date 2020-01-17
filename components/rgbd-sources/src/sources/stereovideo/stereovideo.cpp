@@ -1,5 +1,8 @@
 #include <loguru.hpp>
 
+#include <Eigen/Eigen>
+#include <opencv2/core/eigen.hpp>
+
 #include "stereovideo.hpp"
 
 #include "ftl/configuration.hpp"
@@ -67,7 +70,7 @@ void StereoVideoSource::init(const string &file) {
 		LOG(INFO) << "Using cameras...";
 		lsrc_ = ftl::create<LocalSource>(host_, "feed");
 	}
-
+	
 	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());
 	frames_ = std::vector<Frame>(2);
 
@@ -76,99 +79,133 @@ void StereoVideoSource::init(const string &file) {
 	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
 	#endif
 
-	//depth_size_ = cv::Size(	host_->value("depth_width", 1280),
-	//						host_->value("depth_height", 720));
-
-	/*pipeline_depth_ = ftl::config::create<ftl::operators::Graph>(host_, "disparity");
-	depth_size_ = cv::Size(	pipeline_depth_->value("width", color_size_.width),
-							pipeline_depth_->value("height", color_size_.height));
-
-	pipeline_depth_->append<ftl::operators::FixstarsSGM>("algorithm");
-	#ifdef HAVE_OPTFLOW
-	pipeline_depth_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter");
-	#endif
-	pipeline_depth_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
-	pipeline_depth_->append<ftl::operators::DisparityToDepth>("calculate_depth");
-	pipeline_depth_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
-	pipeline_depth_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
-	pipeline_depth_->append<ftl::operators::CrossSupport>("cross");
-	pipeline_depth_->append<ftl::operators::DiscontinuityMask>("discontinuity_mask");
-	pipeline_depth_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)*/
-
 	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
+
+	string fname_default = "calibration.yml";
+	auto fname_config = calib_->get<string>("calibration");
+	string fname = fname_config ? *fname_config : fname_default;
+	auto calibf = ftl::locateFile(fname);
+	if (calibf) {
+		fname = *calibf;
+		if (calib_->loadCalibration(fname)) {
+			calib_->calculateRectificationParameters();
+			calib_->setRectify(true);
+		}
+	}
+	else {
+		fname = fname_config ? *fname_config : 
+								string(FTL_LOCAL_CONFIG_ROOT) + "/"
+								+ std::string("calibration.yml");
+		
+		LOG(ERROR) << "No calibration, default path set to " + fname;
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	// RPC callbacks to update calibration
+	// Should only be used by calibration app (interface may change)
+	// Tries to follow interface of ftl::Calibrate
 	
+	host_->getNet()->bind("set_pose",
+		[this](std::vector<double> data){
+			if (data.size() != 16) {
+				LOG(ERROR) << "invalid pose received (wrong size)";
+				return false;
+			}
+
+			cv::Mat M = cv::Mat(data).reshape(1, 4).t();
+			if (!calib_->setPose(M)) {
+				LOG(ERROR) << "invalid pose received (bad value)";
+				return false;
+			}
+
+			return true;
+	});
+
+	host_->getNet()->bind("set_intrinsics",
+		[this](	std::vector<int> size,
+				std::vector<double> camera_l, std::vector<double> d_left,
+				std::vector<double> camera_r, std::vector<double> d_right) {
+		if ((size.size() != 2) || (camera_l.size() != 9) || (camera_r.size() != 9)) {
+			LOG(ERROR) << "bad intrinsic parameters (wrong size)";
+			return false;
+		}
+		cv::Size calib_size(size[0], size[1]);
+		cv::Mat K_l = cv::Mat(camera_l).reshape(1, 3).t();
+		cv::Mat K_r = cv::Mat(camera_r).reshape(1, 3).t();
+		cv::Mat D_l = cv::Mat(D_l);
+		cv::Mat D_r = cv::Mat(D_r);
+		
+		if (!calib_->setIntrinsics(calib_size, {K_l, K_r}, {D_l, D_r})) {
+			LOG(ERROR) << "bad intrinsic parameters (bad values)";
+			return false;
+		}
+		return true;
+	});
+
+	host_->getNet()->bind("set_extrinsics",
+		[this](std::vector<double> data_rvec, std::vector<double> data_tvec){
+			if ((data_rvec.size() != 3) || (data_tvec.size() != 3)) {
+				LOG(ERROR) << "invalid extrinsic parameters received (wrong size)";
+				return false;
+			}
+
+			cv::Mat R;
+			cv::Rodrigues(data_rvec, R);
+			cv::Mat t(data_tvec);
+			
+			if (!calib_->setExtrinsics(R, t)) {
+				LOG(ERROR) << "invalid extrinsic parameters (bad values)";
+				return false;
+			}
+			return true;
+	});
+
+	host_->getNet()->bind("save_calibration", 
+		[this, fname](){
+			return calib_->saveCalibration(fname);
+	});
+
+	host_->getNet()->bind("use_rectify", 
+		[this](bool enable){
+			bool retval = enable && calib_->setRectify(enable);
+			updateParameters();
+			return retval;
+	});
+
+	////////////////////////////////////////////////////////////////////////////
+
 	// Generate camera parameters from camera matrix
-	cv::Mat K = calib_->getCameraMatrixLeft(color_size_);
-	params_ = {
-		K.at<double>(0,0),	// Fx
-		K.at<double>(1,1),	// Fy
-		-K.at<double>(0,2),	// Cx
-		-K.at<double>(1,2),	// Cy
-		(unsigned int) lsrc_->width(),
-		(unsigned int) lsrc_->height(),
-		0.0f,	// 0m min
-		15.0f,	// 15m max
-		1.0 / calib_->getQ().at<double>(3,2), // Baseline
-		0.0f  // doffs
-	};
-	params_.doffs = -calib_->getQ().at<double>(3,3) * params_.baseline;
-
-	// Add calibration to config object
-	host_->getConfig()["focal"] = params_.fx;
-	host_->getConfig()["centre_x"] = params_.cx;
-	host_->getConfig()["centre_y"] = params_.cy;
-	host_->getConfig()["baseline"] = params_.baseline;
-	host_->getConfig()["doffs"] = params_.doffs;
-
-	// TODO: remove (not used, fx/fy/baseline/.. do not change)
-	//		 in case they are modified, update using Calibrate
-	//		 (requires new method)
-
-	host_->on("baseline", [this](const ftl::config::Event &e) {
-		params_.baseline = host_->value("baseline", params_.baseline);
-		UNIQUE_LOCK(host_->mutex(), lk);
-		calib_->updateCalibration(params_);
-	});
-
-	host_->on("focal", [this](const ftl::config::Event &e) {
-		params_.fx = host_->value("focal", params_.fx);
-		params_.fy = params_.fx;
-		UNIQUE_LOCK(host_->mutex(), lk);
-		calib_->updateCalibration(params_);
-	});
-	//
-
-	host_->on("doffs", [this](const ftl::config::Event &e) {
-		params_.doffs = host_->value("doffs", params_.doffs);
-	});
+	updateParameters();
 	
-
-	// left and right masks (areas outside rectified images)
-	// TODO: remove mask
-	cv::cuda::GpuMat mask_r_gpu(lsrc_->height(), lsrc_->width(), CV_8U, 255);
-	cv::cuda::GpuMat mask_l_gpu(lsrc_->height(), lsrc_->width(), CV_8U, 255);
-	calib_->rectifyStereo(mask_l_gpu, mask_r_gpu, stream_);
-	stream_.waitForCompletion();
-	cv::Mat mask_l;
-	mask_l_gpu.download(mask_l);
-	mask_l_ = (mask_l == 0);
-	
-
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
+
+	state_.set("name", host_->value("name", host_->getID()));
 }
 
 ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
+	if (chan == Channel::Right) {
+		return state_.getRight();
+	} else {
+		return state_.getLeft();
+	}
+}
+
+void StereoVideoSource::updateParameters() {
+	Eigen::Matrix4d pose;
+	cv::cv2eigen(calib_->getPose(), pose);
+	setPose(pose);
+
 	cv::Mat K;
 	
-	if (chan == Channel::Right) {
-		K = calib_->getCameraMatrixRight(color_size_);
-	} else {
-		K = calib_->getCameraMatrixLeft(color_size_);
-	}
+	// same for left and right
+	double baseline = calib_->getQ().at<double>(3,2);
+	double doff =  -calib_->getQ().at<double>(3,3) * baseline;
 
-	// TODO: remove hardcoded values (min/max), move to Calibrate?
-	ftl::rgbd::Camera params = {
+	// left
+
+	K = calib_->getCameraMatrixLeft(color_size_);
+	state_.getLeft() = {
 		K.at<double>(0,0),	// Fx
 		K.at<double>(1,1),	// Fy
 		-K.at<double>(0,2),	// Cx
@@ -177,11 +214,31 @@ ftl::rgbd::Camera StereoVideoSource::parameters(Channel chan) {
 		(unsigned int) color_size_.height,
 		0.0f,	// 0m min
 		15.0f,	// 15m max
-		1.0 / calib_->getQ().at<double>(3,2), // Baseline
-		0.0f  // doffs
+		1.0 / baseline, // Baseline
+		doff
 	};
 	
-	return params;
+	host_->getConfig()["focal"] = params_.fx;
+	host_->getConfig()["centre_x"] = params_.cx;
+	host_->getConfig()["centre_y"] = params_.cy;
+	host_->getConfig()["baseline"] = params_.baseline;
+	host_->getConfig()["doffs"] = params_.doffs;
+
+	// right
+
+	K = calib_->getCameraMatrixRight(color_size_);
+	state_.getRight() = {
+		K.at<double>(0,0),	// Fx
+		K.at<double>(1,1),	// Fy
+		-K.at<double>(0,2),	// Cx
+		-K.at<double>(1,2),	// Cy
+		(unsigned int) color_size_.width,
+		(unsigned int) color_size_.height,
+		0.0f,	// 0m min
+		15.0f,	// 15m max
+		1.0 / baseline, // Baseline
+		doff
+	};
 }
 
 bool StereoVideoSource::capture(int64_t ts) {
@@ -193,6 +250,7 @@ bool StereoVideoSource::capture(int64_t ts) {
 bool StereoVideoSource::retrieve() {
 	auto &frame = frames_[0];
 	frame.reset();
+	frame.setOrigin(&state_);
 	auto &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
 	auto &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
 	cv::cuda::GpuMat dummy;
@@ -202,7 +260,7 @@ bool StereoVideoSource::retrieve() {
 
 	//LOG(INFO) << "Channel size: " << hres.size();
 
-	pipeline_input_->apply(frame, frame, host_, cv::cuda::StreamAccessor::getStream(stream2_));
+	pipeline_input_->apply(frame, frame, cv::cuda::StreamAccessor::getStream(stream2_));
 	stream2_.waitForCompletion();
 	
 	return true;
@@ -231,43 +289,6 @@ bool StereoVideoSource::compute(int n, int b) {
 
 	//stream_.waitForCompletion();
 	host_->notify(timestamp_, frame);
-
-	/*if (chan == Channel::Depth) {
-		// stereo algorithms assume input same size as output
-		bool resize = (depth_size_ != color_size_);
-
-		cv::cuda::GpuMat& left = frame.get<cv::cuda::GpuMat>(Channel::Left);
-		cv::cuda::GpuMat& right = frame.get<cv::cuda::GpuMat>(Channel::Right);
-
-		if (left.empty() || right.empty()) {
-			return false;
-		}
-
-		if (resize) {
-			cv::cuda::swap(fullres_left_, left);
-			cv::cuda::swap(fullres_right_, right);
-			cv::cuda::resize(fullres_left_, left, depth_size_, 0, 0, cv::INTER_CUBIC, stream_);
-			cv::cuda::resize(fullres_right_, right, depth_size_, 0, 0, cv::INTER_CUBIC, stream_);
-		}
-
-		pipeline_depth_->apply(frame, frame, host_, cv::cuda::StreamAccessor::getStream(stream_));
-		stream_.waitForCompletion();
-		
-		if (resize) {
-			cv::cuda::swap(fullres_left_, left);
-			cv::cuda::swap(fullres_right_, right);
-		}
-
-		host_->notify(timestamp_, frame);
-
-	} else if (chan == Channel::Right) {
-		stream_.waitForCompletion();
-		host_->notify(timestamp_, frame);
-	
-	} else {
-		stream_.waitForCompletion();
-		host_->notify(timestamp_, frame);
-	}*/
 
 	return true;
 }

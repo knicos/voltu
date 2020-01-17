@@ -7,14 +7,14 @@ using ftl::codecs::Channel;
 using cv::cuda::GpuMat;
 
 bool DisparityToDepth::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
-							 ftl::rgbd::Source *src, cudaStream_t stream) {
+							cudaStream_t stream) {
 	
 	if (!in.hasChannel(Channel::Disparity)) {
 		LOG(ERROR) << "Missing disparity before convert to depth";
 		return false;
 	}
 
-	const auto params = src->parameters();
+	const auto params = in.getLeftCamera();
 	const GpuMat &disp = in.get<GpuMat>(Channel::Disparity);
 
 	GpuMat &depth = out.create<GpuMat>(Channel::Depth);

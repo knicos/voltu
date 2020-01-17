@@ -204,7 +204,7 @@ void Splatter::_dibr(cudaStream_t stream) {
 
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
-		auto *s = scene_->sources[i];
+		//auto *s = scene_->sources[i];
 
 		if (f.empty(Channel::Depth + Channel::Colour)) {
 			LOG(ERROR) << "Missing required channel";
@@ -355,7 +355,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cons
 	temp_.createTexture<float4>(Channel::Normals);
 	for (int i=0; i<scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
-		auto s = scene_->sources[i];
+		//auto s = scene_->sources[i];
 
 		if (f.hasChannel(Channel::Mask)) {
 			if (show_discon) {
@@ -371,8 +371,8 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cons
 			//LOG(INFO) << "Creating points... " << s->parameters().width;
 			
 			auto &t = f.createTexture<float4>(Channel::Points, Format<float4>(f.get<GpuMat>(Channel::Colour).size()));
-			auto pose = MatrixConversion::toCUDA(s->getPose().cast<float>()); //.inverse());
-			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), s->parameters(), pose, 0, stream_);
+			auto pose = MatrixConversion::toCUDA(f.getPose().cast<float>()); //.inverse());
+			ftl::cuda::point_cloud(t, f.createTexture<float>(Channel::Depth), f.getLeftCamera(), pose, 0, stream_);
 
 			//LOG(INFO) << "POINTS Added";
 		}
@@ -383,7 +383,7 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cons
 		}
 
 		if (!f.hasChannel(Channel::Normals)) {
-			Eigen::Matrix4f matrix =  s->getPose().cast<float>().transpose();
+			Eigen::Matrix4f matrix =  f.getPose().cast<float>().transpose();
 			auto pose = MatrixConversion::toCUDA(matrix);
 
 			auto &g = f.get<GpuMat>(Channel::Colour);
@@ -391,10 +391,10 @@ bool Splatter::render(ftl::rgbd::VirtualSource *src, ftl::rgbd::Frame &out, cons
 				temp_.getTexture<float4>(Channel::Normals),
 				f.getTexture<float4>(Channel::Points),
 				1, 0.02f,
-				s->parameters(), pose.getFloat3x3(), stream_);
+				f.getLeftCamera(), pose.getFloat3x3(), stream_);
 
 			if (norm_filter_ > -0.1f) {
-				ftl::cuda::normal_filter(f.getTexture<float4>(Channel::Normals), f.getTexture<float4>(Channel::Points), s->parameters(), pose, norm_filter_, stream_);
+				ftl::cuda::normal_filter(f.getTexture<float4>(Channel::Normals), f.getTexture<float4>(Channel::Points), f.getLeftCamera(), pose, norm_filter_, stream_);
 			}
 		}
 	}

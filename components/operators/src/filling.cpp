@@ -14,7 +14,7 @@ ScanFieldFill::~ScanFieldFill() {
 
 }
 
-bool ScanFieldFill::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool ScanFieldFill::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	float thresh = config()->value("threshold", 0.1f);
 
 	ftl::cuda::scan_field_fill(
@@ -22,7 +22,7 @@ bool ScanFieldFill::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd
 		in.createTexture<float>(Channel::Depth),
 		in.createTexture<float>(Channel::Smoothing),
 		thresh,
-		s->parameters(), stream
+		in.getLeftCamera(), stream
 	);
 
 	return true;
@@ -37,7 +37,7 @@ CrossSupportFill::~CrossSupportFill() {
 
 }
 
-bool CrossSupportFill::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, ftl::rgbd::Source *s, cudaStream_t stream) {
+bool CrossSupportFill::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 
 	/*ftl::cuda::filling_csr(
 		in.createTexture<uchar4>(Channel::Colour2),

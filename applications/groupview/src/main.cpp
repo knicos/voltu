@@ -88,7 +88,7 @@ void modeLeftRight(ftl::Configurable *root) {
 	std::atomic<bool> new_frames = false;
 	vector<Mat> rgb(n_cameras), rgb_new(n_cameras);
 	
-	group.sync([&mutex, &new_frames, &rgb_new](ftl::rgbd::FrameSet &frames) {
+	group.onFrameSet([&mutex, &new_frames, &rgb_new](ftl::rgbd::FrameSet &frames) {
 		mutex.lock();
 		bool good = true;
 		for (size_t i = 0; i < frames.frames.size(); i ++) {
@@ -179,7 +179,7 @@ void modeFrame(ftl::Configurable *root, int frames=1) {
 	vector<cv::Mat> depth(sources.size());
 	MUTEX mtx;
 
-	group.sync([&grab,&rgb,&depth,&mtx](ftl::rgbd::FrameSet &fs) {
+	group.onFrameSet([&grab,&rgb,&depth,&mtx](ftl::rgbd::FrameSet &fs) {
 		UNIQUE_LOCK(mtx, lk);
 		//LOG(INFO) << "Complete set: " << fs.timestamp;
 		if (!ftl::running) { return false; }

@@ -46,8 +46,8 @@ class FileSource : public detail::Source {
 	bool freeze_;
 	bool have_frozen_;
 
-	ftl::codecs::Channels decode_channels_;
-	ftl::codecs::Channels available_channels_;
+	ftl::codecs::Channels<0> decode_channels_;
+	ftl::codecs::Channels<0> available_channels_;
 
 	void _processCalibration(ftl::codecs::Packet &pkt);
 	void _processPose(ftl::codecs::Packet &pkt);

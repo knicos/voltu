@@ -11,12 +11,15 @@
 namespace ftl {
 namespace codecs {
 
+static constexpr uint8_t kAllFrames = 255;
+static constexpr uint8_t kAllFramesets = 255;
+
 /**
  * First bytes of our file format.
  */
 struct Header {
 	const char magic[4] = {'F','T','L','F'};
-	uint8_t version = 3;
+	uint8_t version = 4;
 };
 
 /**
@@ -34,13 +37,22 @@ struct IndexHeader {
  */
 struct Packet {
 	ftl::codecs::codec_t codec;
-	ftl::codecs::definition_t definition;
-	uint8_t block_total;	// Packets expected per frame
-	uint8_t block_number; 	// This packets number within a frame
+	ftl::codecs::definition_t definition;	// Data resolution
+
+	union {
+	[[deprecated]] uint8_t block_total;	// v1-3 Packets expected per frame
+	uint8_t frame_count;	// v4+ Frames included in this packet
+	};
+
+	union {
+	[[deprecated]] uint8_t block_number; 	// v1-3 This packets number within a frame
+	uint8_t bitrate=0;	// v4+ For multi-bitrate encoding, 0=highest
+	};
+
 	uint8_t flags;			// Codec dependent flags (eg. I-Frame or P-Frame)
 	std::vector<uint8_t> data;
 
-	MSGPACK_DEFINE(codec, definition, block_total, block_number, flags, data);
+	MSGPACK_DEFINE(codec, definition, frame_count, bitrate, flags, data);
 };
 
 /**
@@ -49,12 +61,24 @@ struct Packet {
  * or included before a frame packet structure.
  */
 struct StreamPacket {
+	int version;			// FTL version, Not encoded into stream
+
 	int64_t timestamp;
-	uint8_t streamID;  		// Source number... 255 = broadcast stream
-	uint8_t channel_count;	// Number of channels to expect for this frame to complete (usually 1 or 2)
+	uint8_t streamID;  		// Source number [or v4 frameset id]
+
+	union {
+		[[deprecated]] uint8_t channel_count;	// v1-3 Number of channels to expect for this frame(set) to complete (usually 1 or 2)
+		uint8_t frame_number;	// v4+ First frame number (packet may include multiple frames)
+	};
+
 	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
 
-	MSGPACK_DEFINE(timestamp, streamID, channel_count, channel);
+	inline int frameNumber() const { return (version >= 4) ? frame_number : streamID; }
+	inline int frameSetID() const { return (version >= 4) ? streamID : 0; }
+
+	MSGPACK_DEFINE(timestamp, streamID, frame_number, channel);
+
+	operator std::string() const;
 };
 
 /**

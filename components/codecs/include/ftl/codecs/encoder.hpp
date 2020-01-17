@@ -12,6 +12,7 @@ namespace ftl {
 namespace codecs {
 
 static const unsigned int kVideoBufferSize = 10*1024*1024;
+static constexpr uint8_t kFlagMultiple = 0x80;
 
 class Encoder;
 

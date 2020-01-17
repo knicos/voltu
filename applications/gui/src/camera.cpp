@@ -131,7 +131,7 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 	return rz * rx * ry;
 }
 
-ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : screen_(screen), src_(src) {
+ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codecs::Channel c) : screen_(screen), fsid_(fsid), fid_(fid), channel_(c),channels_(0u) {
 	eye_ = Eigen::Vector3d(0.0f, 0.0f, 0.0f);
 	neye_ = Eigen::Vector4d(0.0f, 0.0f, 0.0f, 0.0f);
 	rotmat_.setIdentity();
@@ -140,24 +140,34 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 	sdepth_ = false;
 	ftime_ = (float)glfwGetTime();
 	pause_ = false;
-	fileout_ = new std::ofstream();
-	writer_ = new ftl::codecs::Writer(*fileout_);
+	//fileout_ = new std::ofstream();
+	/*writer_ = new ftl::codecs::Writer(*fileout_);
 	recorder_ = std::function([this](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		ftl::codecs::StreamPacket s = spkt;
 		writer_->write(s, pkt);
-	});
+	});*/
+	recording_ = false;
 
-	channel_ = Channel::Left;
+#ifdef HAVE_OPENVR
+	vr_mode_ = false;
+#endif
 
-	channels_ += Channel::Left;
-	channels_ += Channel::Depth;
+	//channel_ = Channel::Left;
+
+	channels_ += c;
+	//channels_ += Channel::Depth;
+	width_ = 0;
+	height_ = 0;
 
 	// Create pose window...
-	posewin_ = new PoseWindow(screen, src_->getURI());
-	posewin_->setTheme(screen->windowtheme);
-	posewin_->setVisible(false);
+	//posewin_ = new PoseWindow(screen, src_->getURI());
+	//posewin_->setTheme(screen->windowtheme);
+	//posewin_->setVisible(false);
+	posewin_ = nullptr;
+	renderer_ = nullptr;
+	record_stream_ = nullptr;
 
-	src->setCallback([this](int64_t ts, ftl::rgbd::Frame &frame) {
+	/*src->setCallback([this](int64_t ts, ftl::rgbd::Frame &frame) {
 		UNIQUE_LOCK(mutex_, lk);
 
 		auto &channel1 = frame.get<GpuMat>(Channel::Colour);
@@ -173,16 +183,120 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, ftl::rgbd::Source *src) : scr
 			channel2.download(im2_);
 			cv::flip(im2_, im2_, 0);
 		}
-	});
+	});*/
+
+	auto *host = screen->root();
+
+	// Is virtual camera?
+	if (fid == 255) {
+		state_.getLeft().width = host->value("width", 1280);
+		state_.getLeft().height = host->value("height", 720);
+		state_.getLeft().fx = host->value("focal", 700.0f);
+		state_.getLeft().fy = state_.getLeft().fx;
+		state_.getLeft().cx = -(double)state_.getLeft().width / 2.0;
+		state_.getLeft().cy = -(double)state_.getLeft().height / 2.0;
+		state_.getLeft().minDepth = host->value("minDepth", 0.1f);
+		state_.getLeft().maxDepth = host->value("maxDepth", 20.0f);
+		state_.getLeft().doffs = 0;
+		state_.getLeft().baseline = host->value("baseline", 0.05f);
+
+		state_.getRight().width = host->value("width", 1280);
+		state_.getRight().height = host->value("height", 720);
+		state_.getRight().fx = host->value("focal_right", 700.0f);
+		state_.getRight().fy = state_.getRight().fx;
+		state_.getRight().cx = host->value("centre_x_right", -(double)state_.getLeft().width / 2.0);
+		state_.getRight().cy = host->value("centre_y_right", -(double)state_.getLeft().height / 2.0);
+		state_.getRight().minDepth = host->value("minDepth", 0.1f);
+		state_.getRight().maxDepth = host->value("maxDepth", 20.0f);
+		state_.getRight().doffs = 0;
+		state_.getRight().baseline = host->value("baseline", 0.05f);
+
+		Eigen::Matrix4d pose;
+		pose.setIdentity();
+		state_.setPose(pose);
+	}
 }
 
 ftl::gui::Camera::~Camera() {
-	delete writer_;
-	delete fileout_;
+	//delete writer_;
+	//delete fileout_;
 }
 
-ftl::rgbd::Source *ftl::gui::Camera::source() {
-	return src_;
+void ftl::gui::Camera::draw(ftl::rgbd::FrameSet &fs) {
+	UNIQUE_LOCK(mutex_, lk);
+	_draw(fs);
+}
+
+void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
+	frame_.reset();
+	frame_.setOrigin(&state_);
+	if (!renderer_) renderer_ = ftl::create<ftl::render::Triangular>(screen_->root(), "vcam1");
+	Eigen::Matrix4d t;
+	t.setIdentity();
+	renderer_->render(fs, frame_, channel_, t);
+	_downloadFrames(&frame_);
+
+	if (record_stream_ && record_stream_->active()) {
+		// TODO: Allow custom channel selection
+		ftl::rgbd::FrameSet fs2;
+		auto &f = fs2.frames.emplace_back();
+		fs2.count = 1;
+		fs2.mask = 1;
+		fs2.stale = false;
+		frame_.swapTo(Channels<0>(Channel::Colour), f);  // Channel::Colour + Channel::Depth
+		fs2.timestamp = fs.timestamp;
+		fs2.id = 0;
+		record_sender_->post(fs2);
+		record_stream_->select(0, Channels<0>(Channel::Colour));
+		f.swapTo(Channels<0>(Channel::Colour), frame_);
+	}
+}
+
+void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
+	if (!frame) return;
+
+	auto &channel1 = frame->get<GpuMat>(Channel::Colour);
+	im1_.create(channel1.size(), channel1.type());
+	channel1.download(im1_);
+
+	// OpenGL (0,0) bottom left
+	cv::flip(im1_, im1_, 0);
+
+	width_ = im1_.cols;
+	height_ = im1_.rows;
+
+	if (channel_ != Channel::Colour && channel_ != Channel::None && frame->hasChannel(channel_)) {
+		auto &channel2 = frame->get<GpuMat>(channel_);
+		im2_.create(channel2.size(), channel2.type());
+		channel2.download(im2_);
+		//LOG(INFO) << "Have channel2: " << im2_.type() << ", " << im2_.size();
+		cv::flip(im2_, im2_, 0);
+	}
+}
+
+void ftl::gui::Camera::update(ftl::rgbd::FrameSet &fs) {
+	UNIQUE_LOCK(mutex_, lk);
+
+	ftl::rgbd::Frame *frame = nullptr;
+
+	if (fid_ == 255) {
+		name_ = "Virtual Camera";
+		// Do a draw if not active. If active the draw function will be called
+		// directly.
+		//if (screen_->activeCamera() != this) {
+			_draw(fs);
+		//}
+	} else {
+		if (fid_ >= fs.frames.size()) return;
+		frame = &fs.frames[fid_];
+		_downloadFrames(frame);
+		auto n = frame->get<std::string>("name");
+		if (n) {
+			name_ = *n;
+		} else {
+			name_ = "No name";
+		}
+	}
 }
 
 void ftl::gui::Camera::setPose(const Eigen::Matrix4d &p) {
@@ -211,7 +325,8 @@ void ftl::gui::Camera::setPose(const Eigen::Matrix4d &p) {
 }
 
 void ftl::gui::Camera::mouseMovement(int rx, int ry, int button) {
-	if (!src_->hasCapabilities(ftl::rgbd::kCapMovable)) return;
+	//if (!src_->hasCapabilities(ftl::rgbd::kCapMovable)) return;
+	if (fid_ < 255) return;
 	if (button == 1) {
 		float rrx = ((float)ry * 0.2f * delta_);
 		//orientation_[2] += std::cos(orientation_[1])*((float)rel[1] * 0.2f * delta_);
@@ -225,7 +340,8 @@ void ftl::gui::Camera::mouseMovement(int rx, int ry, int button) {
 }
 
 void ftl::gui::Camera::keyMovement(int key, int modifiers) {
-	if (!src_->hasCapabilities(ftl::rgbd::kCapMovable)) return;
+	//if (!src_->hasCapabilities(ftl::rgbd::kCapMovable)) return;
+	if (fid_ < 255) return;
 	if (key == 263 || key == 262) {
 		float mag = (modifiers & 0x1) ? 0.01f : 0.1f;
 		float scalar = (key == 263) ? -mag : mag;
@@ -254,28 +370,39 @@ void ftl::gui::Camera::showSettings() {
 
 #ifdef HAVE_OPENVR
 bool ftl::gui::Camera::setVR(bool on) {
+	
 	if (on == vr_mode_) {
 		LOG(WARNING) << "VR mode already enabled";
 		return on;
 	}
+	vr_mode_ = on;
 
 	if (on) {
 		setChannel(Channel::Right);
-		src_->set("baseline", baseline_);
+		//src_->set("baseline", baseline_);
+		state_.getLeft().baseline = baseline_;
 
 		Eigen::Matrix3d intrinsic;
 		
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Left);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
-		src_->set("focal", intrinsic(0, 0));
-		src_->set("centre_x", intrinsic(0, 2));
-		src_->set("centre_y", intrinsic(1, 2));
+		//src_->set("focal", intrinsic(0, 0));
+		//src_->set("centre_x", intrinsic(0, 2));
+		//src_->set("centre_y", intrinsic(1, 2));
+		state_.getLeft().fx = intrinsic(0,0);
+		state_.getLeft().fy = intrinsic(0,0);
+		state_.getLeft().cx = intrinsic(0,2);
+		state_.getLeft().cy = intrinsic(1,2);
 		
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Right);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
-		src_->set("focal_right", intrinsic(0, 0));
-		src_->set("centre_x_right", intrinsic(0, 2));
-		src_->set("centre_y_right", intrinsic(1, 2));
+		//src_->set("focal_right", intrinsic(0, 0));
+		//src_->set("centre_x_right", intrinsic(0, 2));
+		//src_->set("centre_y_right", intrinsic(1, 2));
+		state_.getRight().fx = intrinsic(0,0);
+		state_.getRight().fy = intrinsic(0,0);
+		state_.getRight().cx = intrinsic(0,2);
+		state_.getRight().cy = intrinsic(1,2);
 
 		vr_mode_ = true;
 	}
@@ -284,7 +411,7 @@ bool ftl::gui::Camera::setVR(bool on) {
 		setChannel(Channel::Left); // reset to left channel
 		// todo restore camera params
 	}
-	
+
 	return vr_mode_;
 }
 #endif
@@ -298,7 +425,7 @@ void ftl::gui::Camera::setChannel(Channel c) {
 #endif
 
 	channel_ = c;
-	switch (c) {
+	/*switch (c) {
 	case Channel::Energy:
 	case Channel::Density:
 	case Channel::Flow:
@@ -319,7 +446,8 @@ void ftl::gui::Camera::setChannel(Channel c) {
 		break;
 	
 	default: src_->setChannel(Channel::None);
-	}
+	}*/
+	// FIXME: Somehow send channel request...
 }
 
 static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
@@ -385,9 +513,10 @@ cv::Mat ftl::gui::Camera::visualizeActiveChannel() {
 
 bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
 	UNIQUE_LOCK(mutex_, lk);
-	src_->grab(1,9);
-	if (im1_.empty()) return false;
-	cv::resize(im1_, thumb, cv::Size(320,180));
+	/*src_->grab(1,9);*/
+	cv::Mat sel = (channel_ != Channel::None && channel_ != Channel::Colour && !im2_.empty()) ? visualizeActiveChannel() : im1_;
+	if (sel.empty()) return false;
+	cv::resize(sel, thumb, cv::Size(320,180));
 	cv::flip(thumb, thumb, 0);
 	return true;
 }
@@ -397,7 +526,8 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 	delta_ = now - ftime_;
 	ftime_ = now;
 
-	if (src_ && src_->isReady()) {
+	//if (src_ && src_->isReady()) {
+	if (width_ > 0 && height_ > 0) {
 		UNIQUE_LOCK(mutex_, lk);
 
 		if (screen_->isVR()) {
@@ -417,7 +547,8 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				
 				if (baseline_in != baseline_) {
 					baseline_ = baseline_in;
-					src_->set("baseline", baseline_);
+					//src_->set("baseline", baseline_);
+					state_.getLeft().baseline = baseline_;
 				}
 				Eigen::Matrix4d pose = ConvertSteamVRMatrixToMatrix4(rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
 				Eigen::Vector3d ea = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
@@ -448,9 +579,9 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		Eigen::Affine3d t(trans);
 		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
 
-		if (src_->hasCapabilities(ftl::rgbd::kCapMovable)) src_->setPose(viewPose);
+		if (isVirtual()) state_.setPose(viewPose);
 	
-		src_->grab();
+		//src_->grab();
 
 		// When switching from right to depth, client may still receive
 		// right images from previous batch (depth.channels() == 1 check)
@@ -484,7 +615,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				break;
 			
 			case Channel::Depth:
-				if (im2_.rows == 0) { break; }
+				if (im2_.rows == 0 || im2_.type() != CV_32F) { break; }
 				visualizeDepthMap(im2_, tmp, 7.0);
 				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(im1_, tmp);
 				texture2_.update(tmp);
@@ -533,6 +664,7 @@ void ftl::gui::Camera::snapshot(const std::string &filename) {
 	UNIQUE_LOCK(mutex_, lk);
 	cv::Mat blended;
 	cv::Mat visualized = visualizeActiveChannel();
+
 	if (!visualized.empty()) {
 		double alpha = screen_->root()->value("blending", 0.5);
 		cv::addWeighted(im1_, alpha, visualized, 1.0-alpha, 0, blended);
@@ -541,23 +673,26 @@ void ftl::gui::Camera::snapshot(const std::string &filename) {
 	}
 	cv::Mat flipped;
 	cv::flip(blended, flipped, 0);
+	cv::cvtColor(flipped, flipped, cv::COLOR_BGRA2BGR);
 	cv::imwrite(filename, flipped);
 }
 
 void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
-	fileout_->open(filename);
+	if (!record_stream_) {
+		record_stream_ = ftl::create<ftl::stream::File>(screen_->root(), "video2d");
+		record_stream_->setMode(ftl::stream::File::Mode::Write);
+		record_sender_ = ftl::create<ftl::stream::Sender>(screen_->root(), "videoEncode");
+		record_sender_->setStream(record_stream_);
+	}
 
-	writer_->begin();
-	src_->addRawCallback(recorder_);
+	if (record_stream_->active()) return;
 
-	src_->inject(Channel::Calibration, src_->parameters(), Channel::Left, src_->getCapabilities());
-	src_->inject(src_->getPose());
+	record_stream_->set("filename", filename);
+	record_stream_->begin();
 }
 
 void ftl::gui::Camera::stopVideoRecording() {
-	src_->removeRawCallback(recorder_);
-	writer_->end();
-	fileout_->close();
+	if (record_stream_ && record_stream_->active()) record_stream_->end();
 }
 
 nlohmann::json ftl::gui::Camera::getMetaData() {
