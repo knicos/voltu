@@ -1,4 +1,3 @@
-
 from collections import namedtuple
 from enum import IntEnum
 
@@ -89,5 +88,5 @@ def get_definition(shape):
 	for k, v in definition_t.items():
 		if shape[:2] == v:
 			return k
-	
+
 	return 7 # (None)

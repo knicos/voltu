@@ -1,4 +1,4 @@
-'''!
+"""
 Python wrapper for libde265. Only decoding is implemented.
 
 Requirements:
@@ -6,7 +6,7 @@ Requirements:
  * numpy
  * opencv (recommended) or skimage
 
-'''
+"""
 
 try:
     import cv2 as cv
@@ -33,13 +33,12 @@ import numpy as np
 
 import os
 
-'''
-# default number of worker threads for decoder: half of os.cpu_count()
 
-_threads = os.cpu_count() // 2
-if _threads is None:
-    _threads = 1
-'''
+# default number of worker threads for decoder: half of os.cpu_count()
+#
+#_threads = os.cpu_count() // 2
+#if _threads is None:
+#    _threads = 1
 
 _threads = 1
 
@@ -174,6 +173,8 @@ class WaitingForInput(libde265Error):
     pass
 
 class Decoder:
+    """ Python interface to libde256 decoder API.
+    """
     def __init__(self, threads=_threads):
         self._more = ctypes.c_int()
         self._out_stride = ctypes.c_int()
@@ -186,7 +187,8 @@ class Decoder:
             raise libde265Error(err)
 
     def __del__(self):
-        libde265.de265_free_decoder(self._ctx)
+        if self._ctx:
+            libde265.de265_free_decoder(self._ctx)
 
     def _copy_image(self, de265_image):
         size = (libde265.de265_get_image_height(de265_image, 0),
@@ -198,7 +200,7 @@ class Decoder:
         chroma_format = libde265.de265_get_chroma_format(de265_image)
         if chroma_format != de265_chroma.de265_chroma_420:
             raise NotImplementedError("Unsupported chroma format %s" % str(chroma_format))
-        
+
         for c in range(0, 3):
             size_channel = (libde265.de265_get_image_height(de265_image, c),
                             libde265.de265_get_image_width(de265_image, c))
@@ -251,6 +253,10 @@ class Decoder:
             raise libde265Error(err)
 
     def push_data(self, data):
+        """ Push data to decoder
+
+            @param  data    input bytes
+        """
         if not isinstance(data, bytes):
             raise ValueError("expected bytes")
 
@@ -276,8 +282,9 @@ class Decoder:
 
     def get_next_picture(self):
         '''
-        Returns next decoded frame. Image in YCbCr format. If no frame available
-        returns None.
+        Get decoded frame.
+
+        @returns image in YCbCr format or None if no frame available
         '''
 
         de265_image = libde265.de265_get_next_picture(self._ctx)
