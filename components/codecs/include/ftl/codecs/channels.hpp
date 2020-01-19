@@ -87,6 +87,7 @@ class Channels {
 	inline Channels &operator-=(unsigned int c) { mask &= ~(0x1 << (c - BASE)); return *this; }
 	inline Channels &operator&=(const Channels<BASE> &c) { mask &= c.mask; return *this; }
 	inline Channels operator&(const Channels<BASE> &c) const { return Channels<BASE>(mask & c.mask); }
+	inline Channels operator-(const Channels<BASE> &c) const { return Channels<BASE>(mask & ~c.mask);}
 
 	inline bool has(Channel c) const {
 		return (c == Channel::None || static_cast<unsigned int>(c) - BASE >= 32) ? true : mask & (0x1 << (static_cast<unsigned int>(c) - BASE));
@@ -100,6 +101,7 @@ class Channels {
 	inline iterator end() { return iterator(*this, 32+BASE); }
 
 	inline bool operator==(const Channels<BASE> &c) const { return mask == c.mask; }
+	inline bool operator!=(const Channels<BASE> &c) const { return mask != c.mask; }
 	inline operator unsigned int() const { return mask; }
 	inline operator bool() const { return mask > 0; }
 	inline operator Channel() const {

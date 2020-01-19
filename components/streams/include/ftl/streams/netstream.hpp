@@ -71,6 +71,8 @@ class Net : public Stream {
 	std::string uri_;
 	bool host_;
 	int tally_;
+	std::array<std::atomic<int>,32> reqtally_;
+	ftl::codecs::Channels<0> last_selected_;
 
 	float req_bitrate_;
 	float sample_count_;

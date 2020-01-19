@@ -12,6 +12,8 @@ using std::string;
 using std::vector;
 using std::optional;
 
+static constexpr int kTallyScale = 10;
+
 Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), net_(net), active_(false) {
 	// TODO: Install "find_stream" binding if not installed...
 	if (!net_->isBound("find_stream")) {
@@ -49,6 +51,18 @@ bool Net::onPacket(const std::function<void(const ftl::codecs::StreamPacket &, c
 
 bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	if (!active_) return false;
+
+	// Check if the channel has been requested recently enough. If not then disable it.
+	if (host_ && pkt.data.size() > 0 && static_cast<int>(spkt.channel) >= 0 && static_cast<int>(spkt.channel) < 32) {
+		if (reqtally_[static_cast<int>(spkt.channel)] == 0) {
+			auto sel = selected(0);
+			sel -= spkt.channel;
+			select(0, sel);
+			LOG(INFO) << "Unselect Channel: " << (int)spkt.channel;
+		} else {
+			--reqtally_[static_cast<int>(spkt.channel)];
+		}
+	}
 
 	// Lock to prevent clients being added / removed
 	{
@@ -131,19 +145,34 @@ bool Net::begin() {
 		spkt.version = 4;
 
 		// Manage recuring requests
-		if (last_frame_ != spkt.timestamp) {
+		if (!host_ && last_frame_ != spkt.timestamp) {
 			UNIQUE_LOCK(mutex_, lk);
 			if (last_frame_ != spkt.timestamp) {
 				last_frame_ = spkt.timestamp;
-				if (tally_ <= 5) {
+
+				auto sel = selected(0);
+
+				// A change in channel selections, so send those requests now
+				if (sel != last_selected_) {
+					auto changed = sel - last_selected_;
+					last_selected_ = sel;
+
 					if (size() > 0) {
-						auto sel = selected(0);
-						// FIXME: Send selection changes immediately.
+						for (auto c : changed) {
+							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
+						}
+					}
+				}
+
+				// Are we close to reaching the end of our frames request?
+				if (tally_ <= 5) {
+					// Yes, so send new requests
+					if (size() > 0) {
 						for (auto c : sel) {
 							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
 						}
 					}
-					tally_ = 30;
+					tally_ = 30*kTallyScale;
 				} else {
 					--tally_;
 				}
@@ -159,6 +188,7 @@ bool Net::begin() {
 				for (int i=0; i<size(); ++i) {
 					select(i, selected(i) + spkt.channel);
 				}
+				reqtally_[static_cast<int>(spkt.channel)] = static_cast<int>(pkt.frame_count)*size()*kTallyScale;
 			} else {
 				select(spkt.frameSetID(), selected(spkt.frameSetID()) + spkt.channel);
 			}
@@ -185,7 +215,8 @@ bool Net::begin() {
 
 	host_ = false;
 	peer_ = *p;
-	tally_ = 30;
+	tally_ = 30*kTallyScale;
+	for (size_t i=0; i<reqtally_.size(); ++i) reqtally_[i] = 0;
 	
 	// Initially send a colour request just to create the connection
 	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 0);
@@ -246,7 +277,7 @@ bool Net::_processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt) {
 			if (c.peerid == p.id()) {
 				// Yes, so reset internal request counters
 				c.txcount = 0;
-				c.txmax = pkt.frame_count;
+				c.txmax = static_cast<int>(pkt.frame_count)*kTallyScale;
 				found = true;
 			}
 		}
@@ -257,7 +288,7 @@ bool Net::_processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt) {
 			client.peerid = p.id();
 			client.quality = 0;  // TODO: Use quality given in packet
 			client.txcount = 0;
-			client.txmax = pkt.frame_count;
+			client.txmax = static_cast<int>(pkt.frame_count)*kTallyScale;
 		}
 
 		// First connected peer (or reconnecting peer) becomes a time server
