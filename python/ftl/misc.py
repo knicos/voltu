@@ -1,4 +1,5 @@
 import numpy as np
+from . ftltype import Camera
 
 def get_camera_matrix(calib):
     K = np.identity(3, dtype=np.float64)
@@ -41,6 +42,12 @@ def depth_to_disparity(depth, camera, invalid_value=0.0):
     return disparity
 
 class Calibration:
+    @staticmethod
+    def from_K(K, size, min_depth=0.0, max_depth=100.0, baseline=0.0, doff=0.0):
+        calib = Camera._make([K[0,0], K[1,1], K[0,2], K[1,2], size[1], size[0],
+                             min_depth, max_depth, baseline, doff])
+        return Calibration(calib, None, None)
+
     def __init__(self, calib, channel, capabilities):
         self._calib = calib
         self._capabilities = capabilities
@@ -64,7 +71,7 @@ def point3d(calib, u, v, d):
 
     return np.array([(u+calib.cx)*d/calib.fx, (v+calib.cy)*d / calib.fy, d], dtype=np.float)
 
-def depth_image_to_3D(depth, calib):
+def depth_image_to_3d(depth, calib):
     """ Calculate 3D points from depth image and calibration paramters
         @param      depth   depth image
         @param      calib   calibration paramters
