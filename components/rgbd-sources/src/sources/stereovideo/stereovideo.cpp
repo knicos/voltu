@@ -199,7 +199,7 @@ void StereoVideoSource::updateParameters() {
 	cv::Mat K;
 	
 	// same for left and right
-	double baseline = calib_->getQ().at<double>(3,2);
+	double baseline = 1.0 / calib_->getQ().at<double>(3,2);
 	double doff =  -calib_->getQ().at<double>(3,3) * baseline;
 
 	// left
@@ -214,7 +214,7 @@ void StereoVideoSource::updateParameters() {
 		(unsigned int) color_size_.height,
 		0.0f,	// 0m min
 		15.0f,	// 15m max
-		1.0 / baseline, // Baseline
+		baseline, // Baseline
 		doff
 	};
 	
@@ -236,7 +236,7 @@ void StereoVideoSource::updateParameters() {
 		(unsigned int) color_size_.height,
 		0.0f,	// 0m min
 		15.0f,	// 15m max
-		1.0 / baseline, // Baseline
+		baseline, // Baseline
 		doff
 	};
 }

@@ -10,7 +10,11 @@ ftl::rgbd::Camera ftl::stream::parseCalibration(const ftl::codecs::Packet &pkt) 
 	auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
 	unpacked.get().convert(params);
 
-	LOG(INFO) << "Got Calibration: " << std::get<0>(params).width << "x" << std::get<0>(params).height;
+	LOG(INFO) << "Got Calibration: "
+			  << std::get<0>(params).width << "x" << std::get<0>(params).height
+			  << ", fx: " << std::get<0>(params).fx
+			  << ", cx: " << std::get<0>(params).cx
+			  << ", cy: " << std::get<0>(params).cy;
 	return std::get<0>(params);
 }
 
