@@ -377,3 +377,125 @@ TEST_CASE("Frame::get() Pose", "") {
 		REQUIRE( pose1 == pose2 );
 	}
 }
+
+TEST_CASE("Frame::get() Data channel", "") {
+	SECTION("Get valid data") {
+		Frame f;
+		
+		auto val_in = std::make_tuple(55,87.0f);
+		decltype(val_in) val_out;
+
+		f.create(Channel::Data, val_in);
+		f.get(Channel::Data, val_out);
+
+		REQUIRE( std::get<0>(val_in) == std::get<0>(val_out) );
+		REQUIRE( std::get<1>(val_in) == std::get<1>(val_out) );
+	}
+
+	SECTION("Read from non existing channel") {
+		Frame f;
+		
+		auto val_in = std::make_tuple(55,87.0f);
+		decltype(val_in) val_out;
+
+		//f.create(Channel::Data, val_in);
+
+		bool except = false;
+		try {
+			f.get(Channel::Data, val_out);
+		} catch (...) {
+			except = true;
+		}
+
+		REQUIRE( except );
+	}
+
+	SECTION("Read from non data channel") {
+		Frame f;
+		
+		auto val_in = std::make_tuple(55,87.0f);
+		decltype(val_in) val_out;
+
+		//f.create(Channel::Data, val_in);
+
+		bool except = false;
+		try {
+			f.get(Channel::Colour, val_out);
+		} catch (...) {
+			except = true;
+		}
+
+		REQUIRE( except );
+	}
+
+	SECTION("Use non data channel") {
+		Frame f;
+		
+		auto val_in = std::make_tuple(55,87.0f);
+		decltype(val_in) val_out;
+
+		bool except = false;
+		try {
+			f.create(Channel::Colour, val_in);
+		} catch (...) {
+			except = true;
+		}
+
+		REQUIRE( except );
+	}
+
+	SECTION("Mix types") {
+		Frame f;
+		
+		std::string val_in = "Hello World";
+		std::tuple<int,float> val_out;
+
+		f.create(Channel::Data, val_in);
+
+		bool except = false;
+		try {
+			f.get(Channel::Data, val_out);
+		} catch (...) {
+			except = true;
+		}
+
+		REQUIRE( except );
+	}
+
+	SECTION("Has channel after create") {
+		Frame f;
+		
+		std::string val_in = "Hello World";
+
+		REQUIRE( !f.hasChannel(Channel::Data) );
+		f.create(Channel::Data, val_in);
+		REQUIRE( f.hasChannel(Channel::Data) );
+	}
+}
+
+TEST_CASE("Frame::swapTo() Data channel", "") {
+	SECTION("Swap valid data") {
+		Frame f1;
+		Frame f2;
+		
+		auto val_in = std::make_tuple(55,87.0f);
+		auto val_in2 = std::make_tuple(52,7.0f);
+		decltype(val_in) val_out;
+
+		f1.create(Channel::Data, val_in);
+
+		REQUIRE( f1.hasChannel(Channel::Data) );
+		REQUIRE( !f2.hasChannel(Channel::Data) );
+
+		f1.swapTo(Channels<0>::All(), f2);
+
+		REQUIRE( !f1.hasChannel(Channel::Data) );
+		REQUIRE( f2.hasChannel(Channel::Data) );
+
+		f1.create(Channel::Data, val_in2);
+		f2.get(Channel::Data, val_out);
+
+		REQUIRE( std::get<0>(val_in) == std::get<0>(val_out) );
+		REQUIRE( std::get<1>(val_in) == std::get<1>(val_out) );
+	}
+}

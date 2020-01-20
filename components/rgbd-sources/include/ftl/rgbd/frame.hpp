@@ -13,6 +13,7 @@
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/codecs/codecs.hpp>
 #include <ftl/codecs/packet.hpp>
+#include <ftl/utility/vectorbuffer.hpp>
 
 #include <ftl/cuda_common.hpp>
 
@@ -197,6 +198,12 @@ public:
 	template <typename T> T &create(ftl::codecs::Channel c);
 
 	/**
+	 * Set the value of a channel. Some channels should not be modified via the
+	 * non-const get method, for example the data channels.
+	 */
+	template <typename T> void create(ftl::codecs::Channel channel, const T &value);
+
+	/**
 	 * Create a CUDA texture object for a channel. This version takes a format
 	 * argument to also create (or recreate) the associated GpuMat.
 	 */
@@ -268,6 +275,7 @@ public:
 	inline bool hasChannel(ftl::codecs::Channel channel) const {
 		int c = static_cast<int>(channel);
 		if (c >= 64 && c <= 68) return true;
+		else if (c >= 2048) return data_channels_.has(channel);
 		else if (c >= 32) return false;
 		else return channels_.has(channel);
 	}
@@ -276,6 +284,9 @@ public:
 	 * Obtain a mask of all available channels in the frame.
 	 */
 	inline ftl::codecs::Channels<0> getChannels() const { return channels_; }
+	inline ftl::codecs::Channels<0> getVideoChannels() const { return channels_; }
+
+	inline ftl::codecs::Channels<2048> getDataChannels() const { return data_channels_; }
 
 	/**
 	 * Is the channel data currently located on GPU. This also returns false if
@@ -312,6 +323,8 @@ public:
 	 * download should be used.
 	 */
 	template <typename T> const T& get(ftl::codecs::Channel channel) const;
+
+	template <typename T> void get(ftl::codecs::Channel channel, T &params) const;
 
 	/**
 	 * Method to get reference to the channel content.
@@ -372,6 +385,13 @@ public:
 	std::string getConfigString() const;
 
 	/**
+	 * Access the raw data channel vector object.
+	 */
+	const std::vector<unsigned char> &getRawData(ftl::codecs::Channel c) const;
+
+	void createRawData(ftl::codecs::Channel c, const std::vector<unsigned char> &v);
+
+	/**
 	 * Wrapper to access a config property. If the property does not exist or
 	 * is not of the requested type then the returned optional is false.
 	 */
@@ -409,9 +429,11 @@ private:
 	};
 
 	std::array<ChannelData, ftl::codecs::Channels<0>::kMax> data_;
+	std::unordered_map<int, std::vector<unsigned char>> data_data_;
 
 	ftl::codecs::Channels<0> channels_;	// Does it have a channel
 	ftl::codecs::Channels<0> gpu_;		// Is the channel on a GPU
+	ftl::codecs::Channels<2048> data_channels_;
 
 	// Persistent state
 	FrameState state_;
@@ -432,10 +454,33 @@ template<> cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel);
 //template<> const Eigen::Matrix4d &Frame::get(ftl::codecs::Channel channel) const;
 template<> const ftl::rgbd::Camera &Frame::get(ftl::codecs::Channel channel) const;
 
+// Default data channel implementation
+template <typename T>
+void Frame::get(ftl::codecs::Channel channel, T &params) const {
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Cannot use generic type with non data channel");
+	if (!hasChannel(channel)) throw ftl::exception("Data channel does not exist");
+
+	const auto &i = data_data_.find(static_cast<int>(channel));
+	if (i == data_data_.end()) throw ftl::exception("Data channel does not exist");
+
+	auto unpacked = msgpack::unpack((const char*)(*i).second.data(), (*i).second.size());
+	unpacked.get().convert(params);
+}
+
 template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &);
 template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &);
 template <> cv::Mat &Frame::create(ftl::codecs::Channel c);
 template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c);
+
+template <typename T>
+void Frame::create(ftl::codecs::Channel channel, const T &value) {
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Cannot use generic type with non data channel");
+
+	data_channels_ += channel;
+	data_data_.insert({static_cast<int>(channel),{}});
+	ftl::util::FTLVectorBuffer buf(data_data_[static_cast<int>(channel)]);
+	msgpack::pack(buf, value);
+}
 
 template <typename T>
 ftl::cuda::TextureObject<T> &Frame::getTexture(ftl::codecs::Channel c) {

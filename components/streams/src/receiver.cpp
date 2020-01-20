@@ -103,7 +103,11 @@ void Receiver::setStream(ftl::stream::Stream *s) {
 			//return;
 		//}
 
-		if (channum >= 64) {
+		if (channum >= 2048) {
+			InternalStates &frame = _getFrame(spkt);
+			frame.frame.createRawData(spkt.channel, pkt.data);
+			return;
+		} else if (channum >= 64) {
 			for (int i=0; i<pkt.frame_count; ++i) {
 				InternalStates &frame = _getFrame(spkt,i);
 
