@@ -58,7 +58,7 @@ _float_channels = [
 def is_float_channel(channel):
     return channel in _float_channels
 
-# components/codecs/include/ftl/codecs/bitrates.hpp
+# components/codecs/include/ftl/codecs/codecs.hpp
 class codec_t(IntEnum):
     JPG = 0
     PNG = 1

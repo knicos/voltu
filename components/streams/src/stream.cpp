@@ -17,9 +17,10 @@ const ftl::codecs::Channels<0> &Stream::selected(int fs) const {
 	return state_[fs].selected;
 }
 
-void Stream::select(int fs, const ftl::codecs::Channels<0> &s) {
+void Stream::select(int fs, const ftl::codecs::Channels<0> &s, bool make) {
 	UNIQUE_LOCK(mtx_, lk);
-	if (fs < 0 || fs >= state_.size()) throw ftl::exception("Frameset index out-of-bounds");
+	if (fs < 0 || (!make && fs >= state_.size())) throw ftl::exception("Frameset index out-of-bounds");
+	if (fs >= state_.size()) state_.resize(fs+1);
 	state_[fs].selected = s;
 }
 
@@ -28,6 +29,10 @@ ftl::codecs::Channels<0> &Stream::available(int fs) {
 	if (fs < 0) throw ftl::exception("Frameset index out-of-bounds");
 	if (fs >= state_.size()) state_.resize(fs+1);
 	return state_[fs].available;
+}
+
+void Stream::reset() {
+	// Clear available and selected?
 }
 
 // ==== Muxer ==================================================================
@@ -106,6 +111,12 @@ bool Muxer::active() {
 		r = r && s.stream->active();
 	}
 	return r;
+}
+
+void Muxer::reset() {
+	for (auto &s : streams_) {
+		s.stream->reset();
+	}
 }
 
 int Muxer::_lookup(int sid, int ssid) {
@@ -190,6 +201,12 @@ bool Broadcast::active() {
 	return r;
 }
 
+void Broadcast::reset() {
+	for (auto &s : streams_) {
+		s->reset();
+	}
+}
+
 // ==== Intercept ==============================================================
 
 Intercept::Intercept(nlohmann::json &config) : Stream(config) {
@@ -243,4 +260,8 @@ bool Intercept::end() {
 
 bool Intercept::active() {
 	return stream_->active();
+}
+
+void Intercept::reset() {
+	stream_->reset();
 }

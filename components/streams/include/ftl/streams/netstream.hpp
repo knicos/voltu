@@ -56,6 +56,8 @@ class Net : public Stream {
 	bool end() override;
 	bool active() override;
 
+	void reset() override;
+
 	inline const ftl::UUID &getPeer() const { return peer_; }
 
 	private:

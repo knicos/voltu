@@ -11,7 +11,7 @@
 #include <ftl/codecs/channels.hpp>
 #include <ftl/rgbd/format.hpp>
 #include <ftl/rgbd/camera.hpp>
-#include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/codecs.hpp>
 #include <ftl/codecs/packet.hpp>
 
 #include <ftl/cuda_common.hpp>

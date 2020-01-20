@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include <vector>
-#include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/codecs.hpp>
 #include <ftl/codecs/channels.hpp>
 
 #include <msgpack.hpp>

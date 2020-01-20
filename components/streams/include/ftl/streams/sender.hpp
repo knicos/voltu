@@ -29,16 +29,31 @@ class Sender : public ftl::Configurable {
 
 	//void onStateChange(const std::function<void(ftl::codecs::Channel, int, int)>&);
 
+	void onRequest(const ftl::stream::StreamCallback &);
+
 	private:
 	ftl::stream::Stream *stream_;
 	int64_t timestamp_;
 	SHARED_MUTEX mutex_;
 	std::atomic_flag do_inject_;
 	//std::function<void(ftl::codecs::Channel, int, int)> state_cb_;
+	ftl::stream::StreamCallback reqcb_;
 
-	std::unordered_map<int, ftl::codecs::Encoder*> encoders_;
+	struct EncodingState {
+		uint8_t bitrate;
+		ftl::codecs::Encoder *encoder[2];
+		cv::cuda::GpuMat surface;
+		cudaStream_t stream;
+	};
 
-	ftl::codecs::Encoder *_getEncoder(int fsid, int fid, ftl::codecs::Channel c);
+	std::unordered_map<int, EncodingState> state_;
+
+	//ftl::codecs::Encoder *_getEncoder(int fsid, int fid, ftl::codecs::Channel c);
+	void _encodeChannel(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
+	int _generateTiles(const ftl::rgbd::FrameSet &fs, int offset, ftl::codecs::Channel c, cv::cuda::Stream &stream, bool);
+	EncodingState &_getTile(int fsid, ftl::codecs::Channel c);
+	cv::Rect _generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset);
+	float _selectFloatMax(ftl::codecs::Channel c);
 };
 
 }

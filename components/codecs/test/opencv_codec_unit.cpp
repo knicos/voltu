@@ -3,8 +3,7 @@
 #include <ftl/codecs/opencv_decoder.hpp>
 #include <ftl/threads.hpp>
 
-using ftl::codecs::CodecPreset;
-using ftl::codecs::preset_t;
+using ftl::codecs::format_t;
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 
@@ -87,12 +86,16 @@ TEST_CASE( "OpenCVDecoder::decode() - A colour test image no resolution change" 
 	cv::cuda::GpuMat in(cv::Size(1024,576), CV_8UC4, cv::Scalar(255,0,0,0));
 	cv::cuda::GpuMat out(cv::Size(1024,576), CV_8UC4, cv::Scalar(0,0,0,0));
 
-	std::mutex mtx;
+	ftl::codecs::Packet pkt;
+	pkt.codec = codec_t::Any;
+	pkt.definition = definition_t::Any;
+	pkt.bitrate = 255;
+	pkt.flags = 0;
+	pkt.frame_count = 1;
+	bool r = encoder.encode(in, pkt);
 
-	bool r = encoder.encode(in, ftl::codecs::kPreset4, [&mtx, &out,&decoder](const ftl::codecs::Packet &pkt) {
-		std::unique_lock<std::mutex> lk(mtx);
-		REQUIRE( decoder.decode(pkt, out) );
-	});
+	REQUIRE( r );
+	REQUIRE( decoder.decode(pkt, out) );
 
-	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0,0,0)) );
+	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0,0,0,0)) );
 }

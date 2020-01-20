@@ -5,14 +5,13 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 
-#include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/codecs.hpp>
 #include <ftl/codecs/packet.hpp>
 
 namespace ftl {
 namespace codecs {
 
 static const unsigned int kVideoBufferSize = 10*1024*1024;
-static constexpr uint8_t kFlagMultiple = 0x80;
 
 class Encoder;
 
@@ -59,42 +58,31 @@ class Encoder {
 	virtual ~Encoder();
 
 	/**
-	 * Wrapper encode to allow use of presets.
-	 */
-	virtual bool encode(const cv::cuda::GpuMat &in, ftl::codecs::preset_t preset,
-			const std::function<void(const ftl::codecs::Packet&)> &cb);
-
-	/**
-	 * Encode a frame at specified preset and call a callback function for each
-	 * block as it is encoded. The callback may be called only once with the
-	 * entire frame or it may be called many times from many threads with
-	 * partial blocks of a frame. Each packet should be sent over the network
-	 * to all listening clients.
+	 * Encode a frame given as an opencv gpumat. The packet structure should
+	 * be filled before calling this function as the codec, definition and
+	 * bitrate given in the packet are used as suggestions for the encoder. The
+	 * encoder will modify the fields within the packet and will populate the
+	 * data element.
 	 * 
 	 * @param in An OpenCV image of the frame to compress
-	 * @param preset Codec preset for resolution and quality
-	 * @param iframe Full frame if true, else might be a delta frame
-	 * @param cb Callback containing compressed data
+	 * @param fmt Colour format used.
+	 * @param pkt Partially filled packet to be encoded into.
 	 * @return True if succeeded with encoding.
 	 */
-	virtual bool encode(
-			const cv::cuda::GpuMat &in,
-			ftl::codecs::definition_t definition,
-			ftl::codecs::bitrate_t bitrate,
-			const std::function<void(const ftl::codecs::Packet&)> &cb)=0;
-
-	// TODO: Eventually, use GPU memory directly since some encoders can support this
-	//virtual bool encode(const cv::cuda::GpuMat &in, std::vector<uint8_t> &out, bitrate_t bix, bool)=0;
+	virtual bool encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)=0;
 
 	virtual void reset() {}
 
 	virtual bool supports(ftl::codecs::codec_t codec)=0;
+
+	cv::cuda::Stream &stream() { return stream_; }
 
 	protected:
 	bool available;
 	const ftl::codecs::definition_t max_definition;
 	const ftl::codecs::definition_t min_definition;
 	const ftl::codecs::device_t device;
+	cv::cuda::Stream stream_;
 };
 
 }

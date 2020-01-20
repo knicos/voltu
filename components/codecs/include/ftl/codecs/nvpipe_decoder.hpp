@@ -26,7 +26,6 @@ class NvPipeDecoder : public ftl::codecs::Decoder {
 	MUTEX mutex_;
 	bool seen_iframe_;
 	cv::cuda::GpuMat tmp_;
-	cv::cuda::Stream stream_;
 
 	bool _checkIFrame(ftl::codecs::codec_t codec, const unsigned char *data, size_t size);
 };

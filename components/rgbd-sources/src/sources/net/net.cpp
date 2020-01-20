@@ -8,7 +8,7 @@
 #include "colour.hpp"
 
 #include <ftl/rgbd/streamer.hpp>
-#include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/codecs.hpp>
 
 using ftl::rgbd::detail::NetFrame;
 using ftl::rgbd::detail::NetFrameQueue;

@@ -363,7 +363,6 @@ void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
 	camera_ = cam;
 
 	if (cam) {
-		// FIXME: Alternative to source URI
 		status_ = cam->name();
 		mwindow_->setVisible(true);
 		mwindow_->cameraChanged();
@@ -397,7 +396,7 @@ bool ftl::gui::Screen::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::V
 			}
 		}
 	}
-	return true; // TODO: return statement was missing; is true correct?
+	return true;
 }
 
 bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {

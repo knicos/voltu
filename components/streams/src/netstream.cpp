@@ -37,6 +37,7 @@ Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), net_
 	}
 
 	last_frame_ = 0;
+	last_msg_ = 0;
 	time_peer_ = ftl::UUID(0);
 }
 
@@ -53,7 +54,7 @@ bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet 
 	if (!active_) return false;
 
 	// Check if the channel has been requested recently enough. If not then disable it.
-	if (host_ && pkt.data.size() > 0 && static_cast<int>(spkt.channel) >= 0 && static_cast<int>(spkt.channel) < 32) {
+	if (host_ && pkt.data.size() > 0 && spkt.frame_number == 0 && static_cast<int>(spkt.channel) >= 0 && static_cast<int>(spkt.channel) < 32) {
 		if (reqtally_[static_cast<int>(spkt.channel)] == 0) {
 			auto sel = selected(0);
 			sel -= spkt.channel;
@@ -75,9 +76,9 @@ bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet 
 				auto &client = *c;
 
 				// Quality filter the packets
-				if (client.quality >= 0 && pkt.bitrate != client.quality) {
+				if (pkt.bitrate > 0 && pkt.bitrate != client.quality) {
 					++c;
-					LOG(INFO) << "INCORRECT QUALITY";
+					LOG(INFO) << "Incorrect quality: " << (int)pkt.bitrate << " but requested " << (int)client.quality;
 					continue;
 				}
 
@@ -150,16 +151,18 @@ bool Net::begin() {
 			if (last_frame_ != spkt.timestamp) {
 				last_frame_ = spkt.timestamp;
 
-				auto sel = selected(0);
+				if (size() > 0) {
+					auto sel = selected(0);
 
-				// A change in channel selections, so send those requests now
-				if (sel != last_selected_) {
-					auto changed = sel - last_selected_;
-					last_selected_ = sel;
+					// A change in channel selections, so send those requests now
+					if (sel != last_selected_) {
+						auto changed = sel - last_selected_;
+						last_selected_ = sel;
 
-					if (size() > 0) {
-						for (auto c : changed) {
-							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
+						if (size() > 0) {
+							for (auto c : changed) {
+								_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
+							}
 						}
 					}
 				}
@@ -168,6 +171,8 @@ bool Net::begin() {
 				if (tally_ <= 5) {
 					// Yes, so send new requests
 					if (size() > 0) {
+						auto sel = selected(0);
+						
 						for (auto c : sel) {
 							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
 						}
@@ -188,7 +193,7 @@ bool Net::begin() {
 				for (int i=0; i<size(); ++i) {
 					select(i, selected(i) + spkt.channel);
 				}
-				reqtally_[static_cast<int>(spkt.channel)] = static_cast<int>(pkt.frame_count)*size()*kTallyScale;
+				reqtally_[static_cast<int>(spkt.channel)] = static_cast<int>(pkt.frame_count)*kTallyScale;
 			} else {
 				select(spkt.frameSetID(), selected(spkt.frameSetID()) + spkt.channel);
 			}
@@ -222,6 +227,19 @@ bool Net::begin() {
 	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 0);
 
 	return true;
+}
+
+void Net::reset() {
+	UNIQUE_LOCK(mutex_, lk);
+
+	if (size() > 0) {
+		auto sel = selected(0);
+		
+		for (auto c : sel) {
+			_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
+		}
+	}
+	tally_ = 30*kTallyScale;
 }
 
 bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate) {
@@ -286,7 +304,7 @@ bool Net::_processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt) {
 		if (!found) {
 			auto &client = clients_.emplace_back();
 			client.peerid = p.id();
-			client.quality = 0;  // TODO: Use quality given in packet
+			client.quality = 255;  // TODO: Use quality given in packet
 			client.txcount = 0;
 			client.txmax = static_cast<int>(pkt.frame_count)*kTallyScale;
 		}

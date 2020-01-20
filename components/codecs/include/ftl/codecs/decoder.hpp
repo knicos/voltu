@@ -38,6 +38,11 @@ class Decoder {
 	virtual bool decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out)=0;
 
 	virtual bool accepts(const ftl::codecs::Packet &)=0;
+
+	cv::cuda::Stream &stream() { return stream_; }
+
+	protected:
+	cv::cuda::Stream stream_;
 };
 
 }

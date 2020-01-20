@@ -54,6 +54,7 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 		ftl::rgbd::FrameState state;
 		ftl::rgbd::Frame frame;
 		ftl::codecs::Decoder* decoders[32];
+		cv::cuda::GpuMat surface[32];
 		MUTEX mutex;
 		ftl::codecs::Channels<0> completed;
 	};
@@ -62,7 +63,7 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 
 	void _processConfig(InternalStates &frame, const ftl::codecs::Packet &pkt);
 	void _createDecoder(InternalStates &frame, int chan, const ftl::codecs::Packet &pkt);
-	InternalStates &_getFrame(const ftl::codecs::StreamPacket &spkt);
+	InternalStates &_getFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
 };
 
 }

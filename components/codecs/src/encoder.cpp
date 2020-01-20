@@ -7,14 +7,9 @@
 #include <loguru.hpp>
 
 using ftl::codecs::Encoder;
-using ftl::codecs::bitrate_t;
 using ftl::codecs::definition_t;
-using ftl::codecs::preset_t;
 using ftl::codecs::device_t;
 using ftl::codecs::codec_t;
-using ftl::codecs::kPresetBest;
-using ftl::codecs::kPresetWorst;
-using ftl::codecs::kPresetLQThreshold;
 
 namespace ftl {
 namespace codecs {
@@ -70,10 +65,17 @@ Encoder::~Encoder() {
 
 }
 
-bool Encoder::encode(const cv::cuda::GpuMat &in, preset_t preset,
-			const std::function<void(const ftl::codecs::Packet&)> &cb) {
-	const definition_t definition = ftl::codecs::findDefinition(in.size().width, in.size().height);
-	const bitrate_t bitrate = bitrate_t::High;
-
-	return encode(in, definition, bitrate, cb);
+std::pair<int,int> ftl::codecs::chooseTileConfig(int size) {
+	switch (size) {
+	case 1:		return {1,1};
+	case 2:		return {2,1};
+	case 3:		return {2,2};
+	case 4:		return {2,2};
+	case 5:		return {3,2};
+	case 6:		return {3,2};
+	case 7:		return {4,2};
+	case 8:		return {4,2};
+	case 9:		return {3,3};
+	}
+	return {3,3};
 }

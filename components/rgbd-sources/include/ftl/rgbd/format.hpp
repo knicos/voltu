@@ -4,7 +4,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <ftl/cuda_util.hpp>
-#include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/codecs.hpp>
 #include <ftl/traits.hpp>
 
 namespace ftl {

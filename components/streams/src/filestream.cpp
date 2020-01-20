@@ -55,7 +55,7 @@ bool File::post(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet &p
 	return ostream_->good();
 }
 
-bool File::tick() {
+bool File::tick(int64_t ts) {
 	if (!active_) return false;
 	if (mode_ != Mode::Read) {
 		LOG(ERROR) << "Cannot read from a write only file";
@@ -77,6 +77,7 @@ bool File::tick() {
 		for (auto i = data_.begin(); i != data_.end(); ++i) {
 			if (std::get<0>(*i).timestamp <= timestamp_) {
 				++jobs_;
+				std::get<0>(*i).timestamp = ts;
 				ftl::pool.push([this,i](int id) {
 					auto &spkt = std::get<0>(*i);
 					auto &pkt = std::get<1>(*i);
@@ -141,6 +142,10 @@ bool File::tick() {
 		if (version_ < 4) {
 			std::get<0>(data).frame_number = std::get<0>(data).streamID;
 			std::get<0>(data).streamID = 0;
+			if (isFloatChannel(std::get<0>(data).channel)) std::get<1>(data).flags |= ftl::codecs::kFlagFloat;
+
+			auto codec = std::get<1>(data).codec;
+			if (codec == ftl::codecs::codec_t::HEVC) std::get<1>(data).codec = ftl::codecs::codec_t::HEVC_LOSSLESS;
 		}
 		std::get<0>(data).version = 4;
 
@@ -151,6 +156,7 @@ bool File::tick() {
 		// the data buffer is already several frames ahead so is processed
 		// above. Hence, no need to bother parallelising this bit.
 		if (std::get<0>(data).timestamp <= timestamp_) {
+			std::get<0>(data).timestamp = ts;
 			if (cb_) {
 				dlk.lock();
 				try {
@@ -188,7 +194,7 @@ bool File::tick() {
 
 bool File::run() {
 	timer_ = ftl::timer::add(ftl::timer::kTimerMain, [this](int64_t ts) {
-		tick();
+		tick(ts);
 		return active_;
 	});
 	return true;
@@ -219,10 +225,10 @@ bool File::begin(bool dorun) {
 		// Capture current time to adjust timestamps
 		timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
 		active_ = true;
-		interval_ = ftl::timer::getInterval();
+		interval_ = 50; //ftl::timer::getInterval();
 		timestamp_ = timestart_;
 
-		tick(); // Do some now!
+		tick(timestart_); // Do some now!
 		if (dorun) run();
 	} else if (mode_ == Mode::Write) {
 		if (!ostream_) ostream_ = new std::ofstream;
