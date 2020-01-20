@@ -72,6 +72,20 @@ struct ConstructionHelper : public ConstructionHelperBase {
 	}
 };
 
+template <typename T, typename... ARGS>
+struct ConstructionHelper2 : public ConstructionHelperBase {
+	explicit ConstructionHelper2(ftl::Configurable *cfg, ARGS... args) : ConstructionHelperBase(cfg) {
+		arguments_ = std::make_tuple(args...);
+	}
+	~ConstructionHelper2() {}
+	ftl::operators::Operator *make() override {
+		return new T(config, arguments_);
+	}
+
+	private:
+	std::tuple<ARGS...> arguments_;
+};
+
 struct OperatorNode {
 	ConstructionHelperBase *maker;
 	std::vector<ftl::operators::Operator*> instances;
@@ -91,6 +105,9 @@ class Graph : public ftl::Configurable {
 
 	template <typename T>
 	ftl::Configurable *append(const std::string &name);
+
+	template <typename T, typename... ARGS>
+	ftl::Configurable *append(const std::string &name, ARGS...);
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream=0);
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream=0);
@@ -113,6 +130,14 @@ ftl::Configurable *ftl::operators::Graph::append(const std::string &name) {
 		configs_[name] = ftl::create<ftl::Configurable>(this, name);
 	}
 	return _append(new ftl::operators::detail::ConstructionHelper<T>(configs_[name]));
+}
+
+template <typename T, typename... ARGS>
+ftl::Configurable *ftl::operators::Graph::append(const std::string &name, ARGS... args) {
+	if (configs_.find(name) == configs_.end()) {
+		configs_[name] = ftl::create<ftl::Configurable>(this, name);
+	}
+	return _append(new ftl::operators::detail::ConstructionHelper2<T, ARGS...>(configs_[name], args...));
 }
 
 #endif  // _FTL_OPERATORS_OPERATOR_HPP_

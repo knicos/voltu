@@ -10,8 +10,13 @@ using cv::Size;
 using cv::cuda::GpuMat;
 
 NVOpticalFlow::NVOpticalFlow(ftl::Configurable* cfg) :
-		ftl::operators::Operator(cfg) {
+		ftl::operators::Operator(cfg), channel_in_(ftl::codecs::Channel::Colour), channel_out_(ftl::codecs::Channel::Flow) {
 	size_ = Size(0, 0);
+}
+
+NVOpticalFlow::NVOpticalFlow(ftl::Configurable*cfg, const std::tuple<ftl::codecs::Channel,ftl::codecs::Channel> &channels) : ftl::operators::Operator(cfg) {
+	channel_in_ = std::get<0>(channels);
+	channel_out_ = std::get<1>(channels);
 }
 
 NVOpticalFlow::~NVOpticalFlow() {

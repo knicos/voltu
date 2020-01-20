@@ -76,7 +76,7 @@ void StereoVideoSource::init(const string &file) {
 
 	pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
 	#ifdef HAVE_OPTFLOW
-	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
+	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
 	#endif
 
 	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
