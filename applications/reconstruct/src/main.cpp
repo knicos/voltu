@@ -188,6 +188,7 @@ static void run(ftl::Configurable *root) {
 			reconstr->setGenerator(gen);
 			reconstr->onFrameSet([sender,i](ftl::rgbd::FrameSet &fs) {
 				fs.id = i;
+				//fs.frames[0].create(Channel::Data, 44);
 				sender->post(fs);
 				return true;
 			});

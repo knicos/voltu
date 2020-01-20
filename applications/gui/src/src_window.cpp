@@ -83,6 +83,12 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		// Request the channels required by current camera configuration
 		interceptor_->select(fs.id, _aggregateChannels());
 
+		/*if (fs.frames[0].hasChannel(Channel::Data)) {
+			int data = 0;
+			fs.frames[0].get(Channel::Data, data);
+			LOG(INFO) << "GOT DATA : " << data;
+		}*/
+
 		const auto *cstream = interceptor_;
 		_createDefaultCameras(fs, cstream->available(fs.id).has(Channel::Depth));
 

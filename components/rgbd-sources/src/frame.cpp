@@ -76,6 +76,7 @@ void Frame::reset() {
 	origin_ = nullptr;
 	channels_.clear();
 	gpu_.clear();
+	data_channels_.clear();
 	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
 		data_[i].encoded.clear();
 	}
@@ -190,6 +191,10 @@ void Frame::swapTo(ftl::codecs::Channels<0> channels, Frame &f) {
 			}
 		}
 	}
+
+	f.data_data_ = std::move(data_data_);
+	f.data_channels_ = data_channels_;
+	data_channels_.clear();
 }
 
 void Frame::swapChannels(ftl::codecs::Channel a, ftl::codecs::Channel b) {
@@ -225,6 +230,9 @@ void Frame::copyTo(ftl::codecs::Channels<0> channels, Frame &f) {
 			m2.encoded = m1.encoded; //std::move(m1.encoded);  // TODO: Copy?
 		}
 	}
+
+	f.data_data_ = data_data_;
+	f.data_channels_ = data_channels_;
 }
 
 template<> cv::Mat& Frame::get(ftl::codecs::Channel channel) {
@@ -433,5 +441,17 @@ void ftl::rgbd::Frame::setRightCamera(const ftl::rgbd::Camera &c) {
 
 std::string ftl::rgbd::Frame::getConfigString() const {
 	return get<nlohmann::json>(ftl::codecs::Channel::Configuration).dump();
+}
+
+const std::vector<unsigned char> &ftl::rgbd::Frame::getRawData(ftl::codecs::Channel channel) const {
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Non data channel");
+	if (!hasChannel(channel)) throw ftl::exception("Data channel does not exist");
+
+	return data_data_.at(static_cast<int>(channel));
+}
+
+void ftl::rgbd::Frame::createRawData(ftl::codecs::Channel c, const std::vector<unsigned char> &v) {
+	data_data_.insert({static_cast<int>(c), v});
+	data_channels_ += c;
 }
 

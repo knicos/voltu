@@ -141,6 +141,25 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
 				available += c;
 			}
         }
+
+		// FIXME: Allow data channel selection rather than always send
+		for (auto c : frame.getDataChannels()) {
+			StreamPacket spkt;
+			spkt.version = 4;
+			spkt.timestamp = fs.timestamp;
+			spkt.streamID = 0; //fs.id;
+			spkt.frame_number = i;
+			spkt.channel = c;
+
+			ftl::codecs::Packet pkt;
+			pkt.codec = ftl::codecs::codec_t::MSGPACK;
+			pkt.definition = ftl::codecs::definition_t::Any;
+			pkt.frame_count = 1;
+			pkt.flags = 0;
+			pkt.bitrate = 0;
+			pkt.data = frame.getRawData(c);
+			stream_->post(spkt, pkt);
+		}
     }
 
 	for (auto c : available) {
