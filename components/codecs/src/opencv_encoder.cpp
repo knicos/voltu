@@ -5,10 +5,7 @@
 
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
-using ftl::codecs::bitrate_t;
 using ftl::codecs::OpenCVEncoder;
-using ftl::codecs::preset_t;
-using ftl::codecs::CodecPreset;
 using std::vector;
 
 OpenCVEncoder::OpenCVEncoder(ftl::codecs::definition_t maxdef,
@@ -28,51 +25,51 @@ bool OpenCVEncoder::supports(ftl::codecs::codec_t codec) {
 	}
 }
 
-bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, definition_t definition, bitrate_t bitrate, const std::function<void(const ftl::codecs::Packet&)> &cb) {
-	bool is_colour = in.type() != CV_32F;
+bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
+	bool is_colour = !(pkt.flags & ftl::codecs::kFlagFloat);
+
+	if (is_colour && in.type() != CV_8UC4) return false;
+	if (!is_colour && in.type() == CV_8UC4) {
+		LOG(ERROR) << "OpenCV Encoder doesn't support lossy depth";
+		return false;
+	}
+
+	pkt.definition = (pkt.definition == definition_t::Any) ? ftl::codecs::findDefinition(in.cols, in.rows) : pkt.definition;
+
+	if (pkt.definition == definition_t::Invalid || pkt.definition == definition_t::Any) return false;
 
 	// Ensure definition does not exceed max
-	current_definition_ = ((int)definition < (int)max_definition) ? max_definition : definition;
+	current_definition_ = ((int)pkt.definition < (int)max_definition) ? max_definition : pkt.definition;
 
 	in.download(tmp_);
 	//CHECK(cv::Size(ftl::codecs::getWidth(definition), ftl::codecs::getHeight(definition)) == in.size()); 
 
+	int width = ftl::codecs::getWidth(current_definition_);
+	int height = ftl::codecs::getHeight(current_definition_);
+
 	// Scale down image to match requested definition...
-	if (ftl::codecs::getHeight(current_definition_) < in.rows) {
+	/*if (ftl::codecs::getHeight(current_definition_) < in.rows) {
 		cv::resize(tmp_, tmp_, cv::Size(ftl::codecs::getWidth(current_definition_), ftl::codecs::getHeight(current_definition_)), 0, 0, (is_colour) ? 1 : cv::INTER_NEAREST);
 	} else {
 		
-	}
+	}*/
+	if (width != in.cols || height != in.rows) return false;
 
-	// Represent float at 16bit int
-	if (!is_colour) {
-		tmp_.convertTo(tmp_, CV_16UC1, 1000);
-	}
-
-	// FIXME: Chunking is broken so forced to single chunk
-	chunk_dim_ = 1; //(definition == definition_t::LD360) ? 1 : 4;
-	chunk_count_ = chunk_dim_ * chunk_dim_;
-	jobs_ = chunk_count_;
+	if (pkt.codec == codec_t::Any) pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
 
 	//for (int i=0; i<chunk_count_; ++i) {
 		// Add chunk job to thread pool
 		//ftl::pool.push([this,i,cb,is_colour,bitrate](int id) {
-			ftl::codecs::Packet pkt;
-			pkt.bitrate = 0;
-			pkt.frame_count = 1;
-			pkt.definition = current_definition_;
-			pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
+			//ftl::codecs::Packet pkt;
+			//pkt.bitrate = 0;
+			//pkt.frame_count = 1;
+			//pkt.definition = current_definition_;
+			//pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
 
 			try {
-				_encodeBlock(tmp_, pkt, bitrate);
+				_encodeBlock(tmp_, pkt);
 			} catch(...) {
 				LOG(ERROR) << "OpenCV encode block exception: ";
-			}
-
-			try {
-				cb(pkt);
-			} catch(...) {
-				LOG(ERROR) << "OpenCV encoder callback exception";
 			}
 
 			//std::unique_lock<std::mutex> lk(job_mtx_);
@@ -90,16 +87,16 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, definition_t definition, 
 	return true;
 }
 
-bool OpenCVEncoder::_encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt, bitrate_t bitrate) {
-	int chunk_width = in.cols / chunk_dim_;
-	int chunk_height = in.rows / chunk_dim_;
+bool OpenCVEncoder::_encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt) {
+	//int chunk_width = in.cols / 1;
+	//int chunk_height = in.rows / 1;
 
 	// Build chunk heads
-	int cx = 0; //(pkt.block_number % chunk_dim_) * chunk_width;
-	int cy = 0; //(pkt.block_number / chunk_dim_) * chunk_height;
-	cv::Rect roi(cx,cy,chunk_width,chunk_height);
+	//int cx = 0; //(pkt.block_number % chunk_dim_) * chunk_width;
+	//int cy = 0; //(pkt.block_number / chunk_dim_) * chunk_height;
+	//cv::Rect roi(cx,cy,chunk_width,chunk_height);
 
-	cv::Mat chunkHead = in(roi);
+	cv::Mat chunkHead = in;
 
 	if (pkt.codec == codec_t::PNG) {
 		vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, 1};
@@ -109,13 +106,7 @@ bool OpenCVEncoder::_encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt, bi
 		}
 		return true;
 	} else if (pkt.codec == codec_t::JPG) {
-		int q = 95;
-
-		switch (bitrate) {
-		case bitrate_t::High		: q = 95; break;
-		case bitrate_t::Standard	: q = 75; break;
-		case bitrate_t::Low			: q = 50; break;
-		}
+		int q = int((95.0f - 50.0f) * (float(pkt.bitrate)/255.0f) + 50.0f);
 
 		vector<int> params = {cv::IMWRITE_JPEG_QUALITY, q};
 		cv::imencode(".jpg", chunkHead, pkt.data, params);

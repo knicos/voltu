@@ -18,9 +18,10 @@ ThumbView::~ThumbView() {
 bool ThumbView::mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {
 	if (button == 0 && !down) {
 		screen_->setActiveCamera(cam_);
+		return true;
+	} else {
+		return false;
 	}
-
-	return false; // TODO: return statement was missing; is false correct?
 }
 
 void ThumbView::draw(NVGcontext *ctx) {

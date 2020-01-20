@@ -560,11 +560,13 @@ Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
 
 static bool doing_cleanup = false;
 void ftl::config::cleanup() {
+	if (doing_cleanup) return;
 	doing_cleanup = true;
 	for (auto f : config_instance) {
 		delete f.second;
 	}
 	config_instance.clear();
+	doing_cleanup = false;
 }
 
 void ftl::config::removeConfigurable(Configurable *cfg) {

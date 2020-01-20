@@ -1,4 +1,4 @@
-#include "depth_convert_cuda.hpp"
+#include <ftl/codecs/depth_convert_cuda.hpp>
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
 

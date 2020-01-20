@@ -20,13 +20,7 @@ class OpenCVEncoder : public ftl::codecs::Encoder {
 			ftl::codecs::definition_t mindef);
     ~OpenCVEncoder();
 
-	bool encode(const cv::cuda::GpuMat &in, ftl::codecs::preset_t preset,
-			const std::function<void(const ftl::codecs::Packet&)> &cb) {
-		return Encoder::encode(in, preset, cb);
-	}
-
-    bool encode(const cv::cuda::GpuMat &in, ftl::codecs::definition_t definition, ftl::codecs::bitrate_t bitrate,
-			const std::function<void(const ftl::codecs::Packet&)>&) override;
+	bool encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) override;
 
 	bool supports(ftl::codecs::codec_t codec) override;
 
@@ -35,14 +29,13 @@ class OpenCVEncoder : public ftl::codecs::Encoder {
 	private:
 	int chunk_count_;
 	int chunk_dim_;
-	ftl::codecs::preset_t current_preset_;
 	ftl::codecs::definition_t current_definition_;
 	std::atomic<int> jobs_;
 	std::mutex job_mtx_;
 	std::condition_variable job_cv_;
 	cv::Mat tmp_;
 
-	bool _encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt, ftl::codecs::bitrate_t);
+	bool _encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt);
 };
 
 }

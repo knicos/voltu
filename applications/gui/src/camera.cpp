@@ -140,13 +140,6 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codec
 	sdepth_ = false;
 	ftime_ = (float)glfwGetTime();
 	pause_ = false;
-	//fileout_ = new std::ofstream();
-	/*writer_ = new ftl::codecs::Writer(*fileout_);
-	recorder_ = std::function([this](ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		ftl::codecs::StreamPacket s = spkt;
-		writer_->write(s, pkt);
-	});*/
-	recording_ = false;
 
 #ifdef HAVE_OPENVR
 	vr_mode_ = false;
@@ -425,29 +418,6 @@ void ftl::gui::Camera::setChannel(Channel c) {
 #endif
 
 	channel_ = c;
-	/*switch (c) {
-	case Channel::Energy:
-	case Channel::Density:
-	case Channel::Flow:
-	case Channel::Confidence:
-	case Channel::Normals:
-	case Channel::ColourNormals:
-	case Channel::Right:
-		src_->setChannel(c);
-		break;
-
-	case Channel::Deviation:
-		if (stats_) { stats_->reset(); }
-		src_->setChannel(Channel::Depth);
-		break;
-	
-	case Channel::Depth:
-		src_->setChannel(c);
-		break;
-	
-	default: src_->setChannel(Channel::None);
-	}*/
-	// FIXME: Somehow send channel request...
 }
 
 static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,

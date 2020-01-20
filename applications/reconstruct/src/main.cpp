@@ -11,7 +11,6 @@
 #include <ftl/depth_camera.hpp>
 #include <ftl/rgbd.hpp>
 #include <ftl/rgbd/virtual.hpp>
-#include <ftl/rgbd/streamer.hpp>
 #include <ftl/master.hpp>
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
@@ -72,16 +71,6 @@ using std::chrono::milliseconds;
 
 using ftl::registration::loadTransformations;
 using ftl::registration::saveTransformations;
-
-static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
-	Eigen::Affine3d rx =
-		Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
-	Eigen::Affine3d ry =
-		Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
-	Eigen::Affine3d rz =
-		Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
-	return rz * rx * ry;
-}
 
 /* Build a generator using a deprecated list of source objects. */
 static ftl::rgbd::Generator *createSourceGenerator(const std::vector<ftl::rgbd::Source*> &srcs) {
@@ -216,6 +205,12 @@ static void run(ftl::Configurable *root) {
 			ftl::stream::Muxer *stream = ftl::create<ftl::stream::Muxer>(root, "muxstream");
 			ftl::stream::Receiver *gen = ftl::create<ftl::stream::Receiver>(root, "receiver");
 			gen->setStream(stream);
+
+			sender->onRequest([stream](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+				if (spkt.channel == Channel::Colour) {
+					stream->reset();
+				}
+			});
 
 			int count = 0;
 			for (auto &s : stream_uris) {

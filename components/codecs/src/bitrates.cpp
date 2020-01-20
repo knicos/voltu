@@ -1,26 +1,10 @@
 
-#include <ftl/codecs/bitrates.hpp>
+#include <ftl/codecs/codecs.hpp>
 #include <cmath>
 
-using ftl::codecs::CodecPreset;
-using ftl::codecs::bitrate_t;
-using ftl::codecs::preset_t;
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 
-
-static const CodecPreset special_presets[] = {
-	definition_t::HTC_VIVE, bitrate_t::High
-};
-
-static const CodecPreset presets[] = {
-	definition_t::HD1080, bitrate_t::High,
-	definition_t::HD720, bitrate_t::High,
-	definition_t::SD576, bitrate_t::High,
-	definition_t::SD480, bitrate_t::High,
-	definition_t::LD360, bitrate_t::Standard,
-	definition_t::LD360, bitrate_t::Low
-};
 
 static const float kAspectRatio = 1.777778f;
 
@@ -60,43 +44,6 @@ definition_t ftl::codecs::findDefinition(int width, int height) {
 		best++;
 	}
 
-	// TODO error!
-	return definition_t::Any;
+	return definition_t::Invalid;
 }
 
-/*
-const CodecPreset &ftl::codecs::getPreset(preset_t p) {
-	if (p < 0 && p >= -1) return special_presets[std::abs(p+1)];
-	if (p > kPresetWorst) return presets[kPresetWorst];
-	if (p < kPresetBest) return presets[kPresetBest];
-	return presets[p];
-}
-
-preset_t ftl::codecs::findPreset(size_t width, size_t height) {
-	int min_error = std::numeric_limits<int>::max();
-
-	// Find best definition
-	int best_def = (int)definition_t::Invalid;
-
-	for (int i=0; i<(int)definition_t::Invalid; ++i) {
-		int dw = resolutions[i].width - width;
-		int dh = resolutions[i].height - height;
-		int error = dw*dw + dh*dh;
-		if (error < min_error) {
-			min_error = error;
-			best_def = i;
-		}
-	}
-
-	// Find preset that matches this best definition
-	for (preset_t i=kPresetMinimum; i<=kPresetWorst; ++i) {
-		const auto &preset = getPreset(i);
-
-		if ((int)preset.res == best_def) {
-			return i;
-		}
-	}
-
-	return kPresetWorst;
-}
-*/

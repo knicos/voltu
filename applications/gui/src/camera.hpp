@@ -93,7 +93,6 @@ class Camera {
 	Screen *screen_;
 	int fsid_;
 	int fid_;
-	// TODO: Renderer
 
 	int width_;
 	int height_;
@@ -117,12 +116,6 @@ class Camera {
 	ftl::codecs::Channels<0> channels_;
 	cv::Mat im1_; // first channel (left)
 	cv::Mat im2_; // second channel ("right")
-
-	// FIXME: Recording will now be broken?
-	bool recording_;
-	//std::ofstream *fileout_;
-	//ftl::codecs::Writer *writer_;
-	//ftl::rgbd::RawCallback recorder_;
 
 	ftl::render::Triangular *renderer_;
 	ftl::rgbd::Frame frame_;

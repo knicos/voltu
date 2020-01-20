@@ -37,7 +37,7 @@ class File : public Stream {
 	/**
 	 * Manually tick through the frames one per call.
 	 */
-	bool tick();
+	bool tick(int64_t);
 
 	enum class Mode {
 		Read,

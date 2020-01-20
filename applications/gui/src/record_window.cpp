@@ -38,16 +38,11 @@ RecordWindow::RecordWindow(nanogui::Widget *parent, ftl::gui::Screen *screen, co
         if (s == screen->activeCamera()) {
             ix = std::optional<int>(streamNames.size());
         }
-        // FIXME: Find alternative to source URI
-        //streamNames.push_back(s->source()->getURI());
+
 		streamNames.push_back(std::string("Stream")+std::to_string(i++));
     }
     auto streamSelect = new ComboBox(this, streamNames);
-    // TODO: The function availableChannels() only finds those channels that
-    // have been set in camera.cpp. The only channels that are set in
-    // camera.cpp currently are Colour and Depth. This means that currently,
-    // the list of channels returned by availableChannels() is not accurate
-    // and should be fixed.
+
     TabWidget *tabWidget = add<TabWidget>();
     tabWidget->setFixedWidth(400);
     auto snapshot2D = tabWidget->createTab("2D snapshot");

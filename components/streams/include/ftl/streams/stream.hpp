@@ -57,6 +57,13 @@ class Stream : public ftl::Configurable {
 	virtual bool active()=0;
 
 	/**
+	 * Perform a forced reset of the stream. This means something different
+	 * depending on stream type, for example with a network stream it involves
+	 * resending all stream requests as if a reconnection had occured.
+	 */
+	virtual void reset();
+
+	/**
 	 * Query available video channels for a frameset.
 	 */
 	const ftl::codecs::Channels<0> &available(int fs) const;
@@ -70,7 +77,7 @@ class Stream : public ftl::Configurable {
 	/**
 	 * Change the video channel selection for a frameset.
 	 */
-	void select(int fs, const ftl::codecs::Channels<0> &);
+	void select(int fs, const ftl::codecs::Channels<0> &, bool make=false);
 
 	/**
 	 * Number of framesets in stream.
@@ -116,6 +123,8 @@ class Muxer : public Stream {
 	bool end() override;
 	bool active() override;
 
+	void reset() override;
+
 	private:
 	struct StreamEntry {
 		Stream *stream;
@@ -152,6 +161,8 @@ class Broadcast : public Stream {
 	bool end() override;
 	bool active() override;
 
+	void reset() override;
+
 	private:
 	std::list<Stream*> streams_;
 	StreamCallback cb_;
@@ -176,6 +187,8 @@ class Intercept : public Stream {
 	bool begin() override;
 	bool end() override;
 	bool active() override;
+
+	void reset() override;
 
 	private:
 	Stream *stream_;

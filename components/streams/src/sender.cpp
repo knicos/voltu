@@ -1,4 +1,5 @@
 #include <ftl/streams/sender.hpp>
+#include <ftl/codecs/depth_convert_cuda.hpp>
 
 #include "injectors.hpp"
 
@@ -10,16 +11,21 @@ using ftl::codecs::Channel;
 using ftl::codecs::definition_t;
 using ftl::codecs::device_t;
 using ftl::codecs::codec_t;
+using ftl::codecs::format_t;
 using ftl::stream::injectCalibration;
 using ftl::stream::injectPose;
 using ftl::stream::injectConfig;
 
 Sender::Sender(nlohmann::json &config) : ftl::Configurable(config), stream_(nullptr) {
-	//do_inject_ = false;
+	do_inject_.test_and_set();
 }
 
 Sender::~Sender() {
     // Delete all encoders
+	for (auto c : state_) {
+		if (c.second.encoder[0]) ftl::codecs::free(c.second.encoder[0]);
+		if (c.second.encoder[1]) ftl::codecs::free(c.second.encoder[1]);
+	}
 }
 
 /*void Sender::onStateChange(const std::function<void(ftl::codecs::Channel,const ftl::rgbd::FrameState&)> &cb) {
@@ -31,14 +37,19 @@ void Sender::setStream(ftl::stream::Stream*s) {
 	if (stream_) stream_->onPacket(nullptr);
     stream_ = s;
 	stream_->onPacket([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		LOG(INFO) << "SENDER REQUEST : " << (int)spkt.channel;
+		//LOG(INFO) << "SENDER REQUEST : " << (int)spkt.channel;
 
 		//if (state_cb_) state_cb_(spkt.channel, spkt.streamID, spkt.frame_number);
+		if (reqcb_) reqcb_(spkt,pkt);
 
 		// Inject state packets
 		//do_inject_ = true;
 		do_inject_.clear();
 	});
+}
+
+void Sender::onRequest(const ftl::stream::StreamCallback &cb) {
+	reqcb_ = cb;
 }
 
 template <typename T>
@@ -73,12 +84,12 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
     if (!stream_) return;
 
     Channels selected;
+	Channels available;  // but not selected and actually sent.
+	Channels needencoding;
+
 	if (stream_->size() > 0) selected = stream_->selected(0);
 
-	Channels available;  // but not selected and actually sent.
-
 	bool do_inject = !do_inject_.test_and_set();
-	//do_inject_ = false;
 
     for (int i=0; i<fs.frames.size(); ++i) {
         const auto &frame = fs.frames[i];
@@ -124,22 +135,7 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
 						//}
 					}
 				} else  {
-					auto *enc = _getEncoder(fs.id, i, cc);
-
-					if (enc) {
-						// FIXME: Timestamps may not always be aligned to interval.
-						//if (do_inject || fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
-						if (do_inject) enc->reset();
-						try {
-							enc->encode(frame.get<cv::cuda::GpuMat>(cc), 0, [this,&spkt](const ftl::codecs::Packet &pkt){
-								stream_->post(spkt, pkt);
-							});
-						} catch (std::exception &e) {
-							LOG(ERROR) << "Exception in encoder: " << e.what();
-						}
-					} else {
-						LOG(ERROR) << "No encoder";
-					}
+					needencoding += c;
 				}
 			} else {
 				available += c;
@@ -164,23 +160,167 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
 		stream_->post(spkt, pkt);
 	}
 
+	for (auto c : needencoding) {
+		// TODO: One thread per channel.
+		_encodeChannel(fs, c, do_inject);
+	}
+
 	//do_inject_ = false;
 }
 
-ftl::codecs::Encoder *Sender::_getEncoder(int fsid, int fid, Channel c) {
-	int id = (fsid << 16) | (fid << 8) | (int)c;
+void Sender::_encodeChannel(const ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
+	bool lossless = value("lossless", false);
+	int max_bitrate = std::max(0, std::min(255, value("max_bitrate", 255)));
+	int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));
+	codec_t codec = value("codec", codec_t::Any);
+
+	int offset = 0;
+	while (offset < fs.frames.size()) {
+		StreamPacket spkt;
+		spkt.version = 4;
+		spkt.timestamp = fs.timestamp;
+		spkt.streamID = 0; // FIXME: fs.id;
+		spkt.frame_number = offset;
+		spkt.channel = c;
+
+		auto &tile = _getTile(fs.id, c);
+
+		ftl::codecs::Encoder *enc = tile.encoder[(offset==0)?0:1];
+		if (!enc) {
+			enc = ftl::codecs::allocateEncoder(
+				definition_t::HD1080, device_t::Any, codec);
+			tile.encoder[(offset==0)?0:1] = enc;
+		}
+
+		if (!enc) {
+			LOG(ERROR) << "No encoder";
+			return;
+		}
+
+		int count = _generateTiles(fs, offset, c, enc->stream(), lossless);
+		if (count <= 0) {
+			LOG(ERROR) << "Could not generate tiles.";
+			break;
+		}
+
+		if (enc) {
+			// FIXME: Timestamps may not always be aligned to interval.
+			//if (do_inject || fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
+			if (reset) enc->reset();
+
+			try {
+				ftl::codecs::Packet pkt;
+				pkt.frame_count = count;
+				pkt.codec = codec;
+				pkt.definition = definition_t::Any;
+				pkt.bitrate = max_bitrate;
+				pkt.flags = 0;
+
+				if (!lossless && ftl::codecs::isFloatChannel(c)) pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
+				else if (lossless && ftl::codecs::isFloatChannel(c)) pkt.flags = ftl::codecs::kFlagFloat;
+				else pkt.flags = ftl::codecs::kFlagFlipRGB;
+
+				// Choose correct region of interest into the surface.
+				cv::Rect roi = _generateROI(fs, c, offset);
+				cv::cuda::GpuMat sroi = tile.surface(roi);
+
+				if (enc->encode(sroi, pkt)) {
+					stream_->post(spkt, pkt);
+
+					/*cv::Mat tmp;
+					tile.surface.download(tmp);
+					cv::imshow("Test", tmp);
+					cv::waitKey(1);*/
+				} else {
+					LOG(ERROR) << "Encoding failed";
+				}
+			} catch (std::exception &e) {
+				LOG(ERROR) << "Exception in encoder: " << e.what();
+			}
+		} else {
+			LOG(ERROR) << "No encoder";
+		}
+
+		offset += count;
+	}
+}
+
+cv::Rect Sender::_generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset) {
+	const ftl::rgbd::Frame *cframe = &fs.frames[offset];
+	int rwidth = cframe->get<cv::cuda::GpuMat>(c).cols;
+	int rheight = cframe->get<cv::cuda::GpuMat>(c).rows;
+	auto [tx,ty] = ftl::codecs::chooseTileConfig(fs.frames.size()-offset);
+	return cv::Rect(0, 0, tx*rwidth, ty*rheight);
+}
+
+Sender::EncodingState &Sender::_getTile(int fsid, Channel c) {
+	int id = (fsid << 8) | (int)c;
 
 	{
 		SHARED_LOCK(mutex_, lk);
-		auto i = encoders_.find(id);
-		if (i != encoders_.end()) {
+		auto i = state_.find(id);
+		if (i != state_.end()) {
 			return (*i).second;
 		}
 	}
 
-	auto *enc = ftl::codecs::allocateEncoder(
-					definition_t::HD1080, device_t::Any, codec_t::Any);
 	UNIQUE_LOCK(mutex_, lk);
-	encoders_[id] = enc;
-	return enc;
+	state_[id] = {
+		uint8_t(255),
+		{nullptr,nullptr},
+		cv::cuda::GpuMat(),
+		0
+	};
+	return state_[id];
+}
+
+float Sender::_selectFloatMax(Channel c) {
+	switch (c) {
+	case Channel::Depth		: return 16.0f;
+	default					: return 1.0f;
+	}
+}
+
+int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool lossless) {
+	auto &surface = _getTile(fs.id, c);
+
+	const ftl::rgbd::Frame *cframe = &fs.frames[offset];
+	auto &m = cframe->get<cv::cuda::GpuMat>(c);
+
+	// Choose tile configuration and allocate memory
+	auto [tx,ty] = ftl::codecs::chooseTileConfig(fs.frames.size());
+	int rwidth = cframe->get<cv::cuda::GpuMat>(c).cols;
+	int rheight = cframe->get<cv::cuda::GpuMat>(c).rows;
+	int width = tx * rwidth;
+	int height = ty * rheight;
+	int tilecount = tx*ty;
+	int count = 0;
+
+	surface.surface.create(height, width, (lossless && m.type() == CV_32F) ? CV_16U : CV_8UC4);
+
+	// Loop over tiles with ROI mats and do colour conversions.
+	while (tilecount > 0 && count+offset < fs.frames.size()) {
+		auto &m = cframe->get<cv::cuda::GpuMat>(c);
+		cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
+		cv::cuda::GpuMat sroi = surface.surface(roi);
+
+		if (m.type() == CV_32F) {
+			if (lossless) {
+				m.convertTo(sroi, CV_16UC1, 1000, stream);
+			} else {
+				ftl::cuda::depth_to_vuya(m, sroi, _selectFloatMax(c), stream);
+			}
+		} else if (m.type() == CV_8UC4) {
+			cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
+		} else {
+			LOG(ERROR) << "Unsupported colour format";
+			return 0;
+		}
+
+		++count;
+		--tilecount;
+		cframe = &fs.frames[offset+count];
+	}
+
+	return count;
 }
