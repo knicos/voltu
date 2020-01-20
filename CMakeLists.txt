@@ -17,6 +17,7 @@ option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
 option(BUILD_RENDERER "Enable the renderer component" ON)
+option(BUILD_GUI "Enable the GUI" ON)
 option(BUILD_CALIBRATION "Enable the calibration component" OFF)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -92,14 +93,39 @@ else()
 	set(REALSENSE_LIBRARY "")
 endif()
 
+if (BUILD_GUI)
+	#find_library( NANOGUI_LIBRARY NAMES nanogui libnanogui PATHS ${NANOGUI_DIR} PATH_SUFFIXES lib)
+	#if (NANOGUI_LIBRARY)
+	#	set(HAVE_NANOGUI TRUE)
+	#	add_library(nanogui UNKNOWN IMPORTED)
+	#	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+	#	set_property(TARGET nanogui PROPERTY IMPORTED_LOCATION ${NANOGUI_LIBRARY})
+	#	message(STATUS "Found NanoGUI: ${NANOGUI_LIBRARY}")
 
-find_library( NANOGUI_LIBRARY NAMES nanogui libnanogui)
-if (NANOGUI_LIBRARY)
+	#	if(WIN32)
+	#		# Find include
+	#		find_path(NANOGUI_INCLUDE_DIRS
+	#			NAMES nanogui/nanogui.h
+	#			PATHS "C:/Program Files/NanoGUI" "C:/Program Files (x86)/NanoGUI" ${NANOGUI_DIR}
+	#			PATH_SUFFIXES include
+	#		)
+	#		set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_INCLUDE_DIRS})
+	#	endif()
+	#endif()
+
 	set(HAVE_NANOGUI TRUE)
-	add_library(nanogui UNKNOWN IMPORTED)
-	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
-	set_property(TARGET nanogui PROPERTY IMPORTED_LOCATION ${NANOGUI_LIBRARY})
-    message(STATUS "Found NanoGUI: ${NANOGUI_LIBRARY}")
+
+	# Disable building extras we won't need (pure C++ project)
+	set(NANOGUI_BUILD_SHARED OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_BUILD_EXAMPLE OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_BUILD_PYTHON  OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_INSTALL       OFF CACHE BOOL " " FORCE)
+
+	# Add the configurations from nanogui
+	add_subdirectory(ext/nanogui)
+
+	# For reliability of parallel build, make the NanoGUI targets dependencies
+	set_property(TARGET glfw glfw_objects nanogui PROPERTY FOLDER "dependencies")
 endif()
 
 find_library( NVPIPE_LIBRARY NAMES NvPipe libNvPipe PATHS ${NVPIPE_DIR} PATH_SUFFIXES lib)
