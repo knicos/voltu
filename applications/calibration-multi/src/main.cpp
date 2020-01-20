@@ -126,7 +126,6 @@ bool setRectifyRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, bool enab
 bool setIntrinsicsRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Size size, vector<Mat> K, vector<Mat> D) {
 	Mat K0 = K[0].t();
 	Mat K1 = K[1].t();
-
 	return net->call<bool>(	nstream->getPeer(), "set_intrinsics",
 							vector<int>{size.width, size.height},
 							vector<double>(K0.begin<double>(), K0.end<double>()),
@@ -208,19 +207,19 @@ void calibrateRPC(	ftl::net::Universe* net,
 		auto *nstream = nstreams[c/2];
 		while(true) {
 			try {
-				/*setIntrinsicsRPC(net, nstream,
+				setIntrinsicsRPC(net, nstream,
 					params.size,
 					vector<Mat>{calib.getCameraMat(c), calib.getCameraMat(c+1)},
 					vector<Mat>{calib.getDistCoeffs(c), calib.getDistCoeffs(c+1)}
-				);*/
+				);
 				setExtrinsicsRPC(net, nstream, R_c1c2, T_c1c2);
 				setPoseRPC(net, nstream, Rt_out[c]);
 				saveCalibrationRPC(net, nstream);
 				LOG(INFO) << "CALIBRATION SENT";
 				break;
 			}
-			catch (...) {
-				LOG(ERROR) << "RPC failed!";
+			catch (std::exception ex) {
+				LOG(ERROR) << "RPC failed: " << ex.what();
 				sleep(1);
 			}
 		}
@@ -315,15 +314,18 @@ void runCameraCalibration(	ftl::Configurable* root,
 	}
 
 	for (auto *nstream: nstreams) {
-		bool res = false;
-		try { res = setRectifyRPC(net, nstream, false); }
-		catch (...) {}
+		bool res = true;
+		while(res) {
+			try { res = setRectifyRPC(net, nstream, false); }
+			catch (...) {}
 
-		if (!res) {
-			LOG(ERROR) << "set_rectify() failed for " << *(nstream->get<string>("uri"));
-		}
-		else {
-			LOG(INFO) << "rectification disabled for " << *(nstream->get<string>("uri"));
+			if (res) {
+				LOG(ERROR) << "set_rectify() failed for " << *(nstream->get<string>("uri"));
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+			else {
+				LOG(INFO) << "rectification disabled for " << *(nstream->get<string>("uri"));
+			}
 		}
 	}
 	

@@ -123,8 +123,8 @@ void StereoVideoSource::init(const string &file) {
 
 	host_->getNet()->bind("set_intrinsics",
 		[this](	std::vector<int> size,
-				std::vector<double> camera_l, std::vector<double> d_left,
-				std::vector<double> camera_r, std::vector<double> d_right) {
+				std::vector<double> camera_l, std::vector<double> dist_l,
+				std::vector<double> camera_r, std::vector<double> dist_r) {
 		if ((size.size() != 2) || (camera_l.size() != 9) || (camera_r.size() != 9)) {
 			LOG(ERROR) << "bad intrinsic parameters (wrong size)";
 			return false;
@@ -132,8 +132,8 @@ void StereoVideoSource::init(const string &file) {
 		cv::Size calib_size(size[0], size[1]);
 		cv::Mat K_l = cv::Mat(camera_l).reshape(1, 3).t();
 		cv::Mat K_r = cv::Mat(camera_r).reshape(1, 3).t();
-		cv::Mat D_l = cv::Mat(D_l);
-		cv::Mat D_r = cv::Mat(D_r);
+		cv::Mat D_l = cv::Mat(dist_l);
+		cv::Mat D_r = cv::Mat(dist_r);
 		
 		if (!calib_->setIntrinsics(calib_size, {K_l, K_r}, {D_l, D_r})) {
 			LOG(ERROR) << "bad intrinsic parameters (bad values)";
