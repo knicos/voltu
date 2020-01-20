@@ -477,8 +477,10 @@ void Frame::create(ftl::codecs::Channel channel, const T &value) {
 	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Cannot use generic type with non data channel");
 
 	data_channels_ += channel;
-	data_data_.insert({static_cast<int>(channel),{}});
-	ftl::util::FTLVectorBuffer buf(data_data_[static_cast<int>(channel)]);
+
+	auto &v = *std::get<0>(data_data_.insert({static_cast<int>(channel),{}}));
+	v.second.resize(0);
+	ftl::util::FTLVectorBuffer buf(v.second);
 	msgpack::pack(buf, value);
 }
 
