@@ -376,11 +376,20 @@ void runCameraCalibration(	ftl::Configurable* root,
 				cv::drawMarker(	rgb[i], points[i][1],
 								Scalar(42, 42, 255), cv::MARKER_TILTED_CROSS, 25, 2);
 			}
+			
+			// index
 			cv::putText(rgb[i],
 						"Camera " + std::to_string(i),
 						Point2i(10, 30),
 						cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, Scalar(64, 64, 255), 1);
 			
+			// resolution
+			cv::putText(rgb[i],
+						"[" + std::to_string(rgb[i].size().width) + "x" + std::to_string(rgb[i].size().height) + "]",
+						Point2i(rgb[i].size().width-150, 30),
+						cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, Scalar(64, 64, 255), 1);
+
+			// remaining frames
 			cv::putText(rgb[i],
 						std::to_string(std::max(0, (int) (n_views - calib.getViewsCount(i)))),
 						Point2i(10, rgb[i].rows-10),

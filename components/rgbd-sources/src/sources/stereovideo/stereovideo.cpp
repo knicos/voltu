@@ -165,7 +165,7 @@ void StereoVideoSource::init(const string &file) {
 			return calib_->saveCalibration(fname);
 	});
 
-	host_->getNet()->bind("use_rectify", 
+	host_->getNet()->bind("set_rectify", 
 		[this](bool enable){
 			bool retval = enable && calib_->setRectify(enable);
 			updateParameters();
