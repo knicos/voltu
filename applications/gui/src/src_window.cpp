@@ -125,6 +125,16 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		return true;
 	});
 
+	ftl::timer::add(ftl::timer::kTimerMain, [this](int64_t ts) {
+		auto *c = screen_->activeCamera();
+		// Only offer full framerate render on active camera.
+		if (c) {
+			UNIQUE_LOCK(frameset_.mtx,lk);
+			c->draw(frameset_);
+		}
+		return true;
+	});
+
 	_updateCameras(screen_->control()->getNet()->findAll<string>("list_streams"));
 
 	// Also check for a file on command line.
