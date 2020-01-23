@@ -132,9 +132,11 @@ int Muxer::_lookup(int sid, int ssid) {
 		lk.unlock();
 		{
 			UNIQUE_LOCK(mutex_, lk2);
-			int nid = nid_++;
-			se.maps.push_back(nid);
-			revmap_.push_back({sid,ssid});
+			if (ssid >= se.maps.size()) {
+				int nid = nid_++;
+				se.maps.push_back(nid);
+				revmap_.push_back({sid,ssid});
+			}
 		}
 		lk.lock();
 	}

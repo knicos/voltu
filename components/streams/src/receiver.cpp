@@ -125,6 +125,7 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 	if (audio_cb_) {
 		// Create an audio frameset wrapper.
 		ftl::audio::FrameSet fs;
+		fs.id = 0;
 		fs.timestamp = frame.timestamp;
 		fs.count = 1;
 		fs.stale = false;

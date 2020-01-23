@@ -66,7 +66,7 @@ void Sender::post(const ftl::audio::FrameSet &fs) {
 		StreamPacket spkt;
 		spkt.version = 4;
 		spkt.timestamp = fs.timestamp;
-		spkt.streamID = 0; //fs.id;
+		spkt.streamID = fs.id;
 		spkt.frame_number = i;
 		spkt.channel = Channel::Audio;
 

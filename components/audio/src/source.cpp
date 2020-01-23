@@ -110,6 +110,7 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(4800
         // Remove one interval since the audio starts from the last frame
 		frameset_.timestamp = ts - ftl::timer::getInterval();
 
+		frameset_.id = 0;
 		frameset_.count = 1;
 		frameset_.stale = false;
 
