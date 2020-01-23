@@ -142,9 +142,9 @@ void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
 
 			if (fs) {
 				UNIQUE_LOCK(fs->mtx, lk2);
-				lk.unlock();
 				// The buffers are invalid after callback so mark stale
 				fs->stale = true;
+				lk.unlock();
 
 				//LOG(INFO) << "PROCESS FRAMESET";
 
@@ -187,6 +187,7 @@ ftl::rgbd::FrameState &Builder::state(int ix) {
 static void mergeFrameset(ftl::rgbd::FrameSet &f1, ftl::rgbd::FrameSet &f2) {
 	// Prepend all frame encodings in f2 into corresponding frame in f1.
 	for (int i=0; i<f1.frames.size(); ++i) {
+		if (f2.frames.size() <= i) break;
 		f1.frames[i].mergeEncoding(f2.frames[i]);
 	}
 }
@@ -224,6 +225,7 @@ ftl::rgbd::FrameSet *Builder::_findFrameset(int64_t ts) {
  * Note: Must occur inside a mutex lock.
  */
 ftl::rgbd::FrameSet *Builder::_getFrameset() {
+	LOG(INFO) << "BUF SIZE = " << framesets_.size();
 	for (auto i=framesets_.begin(); i!=framesets_.end(); i++) {
 		auto *f = *i;
 		//LOG(INFO) << "GET: " << f->count << " of " << size_;
