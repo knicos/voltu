@@ -51,6 +51,10 @@ struct VideoData {
 	T &make() {
 		throw ftl::exception("Unsupported type for Video data channel");
 	};
+
+	inline void reset() {
+		encoded.clear();
+	}
 };
 
 // Specialisations for cv mat types

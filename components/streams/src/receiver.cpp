@@ -22,7 +22,10 @@ Receiver::Receiver(nlohmann::json &config) : ftl::Configurable(config), stream_(
 }
 
 Receiver::~Receiver() {
-
+	//if (stream_) {
+	//	stream_->onPacket(nullptr);
+	//}
+	builder_.onFrameSet(nullptr);
 }
 
 void Receiver::onAudio(const ftl::audio::FrameSet::Callback &cb) {
@@ -151,13 +154,15 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		//if (rchan != Channel::Colour && rchan != chan) return;
 
 		if (frame.frame.hasChannel(spkt.channel)) {
-			// FIXME: Is this a corruption in recording or in playback?
-			// Seems to occur in same place in ftl file, one channel is missing
-			LOG(ERROR) << "Previous frame not complete: " << frame.timestamp;
-			//LOG(ERROR) << " --- " << (string)spkt;
 			UNIQUE_LOCK(frame.mutex, lk);
-			frame.frame.reset();
-			frame.completed.clear();
+			//if (frame.frame.hasChannel(spkt.channel)) {
+				// FIXME: Is this a corruption in recording or in playback?
+				// Seems to occur in same place in ftl file, one channel is missing
+				LOG(WARNING) << "Previous frame not complete: " << frame.timestamp;
+				//LOG(ERROR) << " --- " << (string)spkt;
+				//frame.frame.reset();
+				//frame.completed.clear();
+			//}
 		}
 		frame.timestamp = spkt.timestamp;
 

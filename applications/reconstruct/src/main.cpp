@@ -266,11 +266,11 @@ static void run(ftl::Configurable *root) {
 
 	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();
+	ftl::pool.stop(true);
 	ctrl.stop();
 	net->shutdown();
-	ftl::pool.stop();
 
-	cudaProfilerStop();
+	//cudaProfilerStop();
 
 	LOG(INFO) << "Deleting...";
 

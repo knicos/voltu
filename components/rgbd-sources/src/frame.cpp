@@ -56,9 +56,9 @@ cv::cuda::GpuMat &VideoData::make<cv::cuda::GpuMat>() {
 	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
 		data_[i].encoded.clear();
 	}
-}
+}*/
 
-void Frame::resetFull() {
+/*void Frame::resetFull() {
 	origin_ = nullptr;
 	channels_.clear();
 	gpu_.clear();

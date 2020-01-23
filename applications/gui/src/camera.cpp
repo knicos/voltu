@@ -227,6 +227,10 @@ void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
 	Eigen::Matrix4d t;
 	t.setIdentity();
 	renderer_->render(fs, frame_, channel_, t);
+
+	// TODO: Insert post-render pipeline.
+	// FXAA + Bad colour removal
+
 	_downloadFrames(&frame_);
 
 	if (record_stream_ && record_stream_->active()) {

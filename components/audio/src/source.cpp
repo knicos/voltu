@@ -47,13 +47,15 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(4800
 	#ifdef HAVE_PORTAUDIO
     ftl::audio::pa_init();
 
+	int device = value("audio_device",-1);
+	if (device >= Pa_GetDeviceCount()) device = -1;
+
     PaStreamParameters inputParameters;
     //bzero( &inputParameters, sizeof( inputParameters ) );
     inputParameters.channelCount = 2;
-    inputParameters.device = value("audio_device",-1);
-    //inputParameters.hostApiSpecificStreamInfo = NULL;
+    inputParameters.device = device;
     inputParameters.sampleFormat = paInt16;
-    inputParameters.suggestedLatency = (inputParameters.device >= 0) ? Pa_GetDeviceInfo(inputParameters.device)->defaultLowInputLatency : 0;
+    inputParameters.suggestedLatency = (device >= 0) ? Pa_GetDeviceInfo(device)->defaultLowInputLatency : 0;
     inputParameters.hostApiSpecificStreamInfo = NULL;
 
 	PaError err;
