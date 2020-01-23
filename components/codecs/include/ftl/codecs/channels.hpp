@@ -34,15 +34,20 @@ enum struct Channel : int {
 	Disparity		= 18,
 	Smoothing		= 19,	// 32F
 
+	Audio			= 32,
 	AudioLeft		= 32,
 	AudioRight		= 33,
 
 	Configuration	= 64,	// JSON Data
+	Settings1		= 65,
 	Calibration		= 65,	// Camera Parameters Object
 	Pose			= 66,	// Eigen::Matrix4d
+	Settings2		= 67,
 	Calibration2	= 67,	// Right camera parameters
 	Index           = 68,
 	Control			= 69,	// For stream and encoder control
+	Settings3		= 70,
+
 	Data			= 2048	// Custom data, any codec.
 };
 

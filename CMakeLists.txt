@@ -14,6 +14,7 @@ option(WITH_NVPIPE "Use NvPipe for compression if available" ON)
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
 option(WITH_OPENVR "Build with OpenVR support" OFF)
 option(WITH_FIXSTARS "Use Fixstars libSGM if available" ON)
+option(USE_CPPCHECK "Apply cppcheck during build" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
 option(BUILD_RENDERER "Enable the renderer component" ON)
@@ -94,25 +95,6 @@ else()
 endif()
 
 if (BUILD_GUI)
-	#find_library( NANOGUI_LIBRARY NAMES nanogui libnanogui PATHS ${NANOGUI_DIR} PATH_SUFFIXES lib)
-	#if (NANOGUI_LIBRARY)
-	#	set(HAVE_NANOGUI TRUE)
-	#	add_library(nanogui UNKNOWN IMPORTED)
-	#	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
-	#	set_property(TARGET nanogui PROPERTY IMPORTED_LOCATION ${NANOGUI_LIBRARY})
-	#	message(STATUS "Found NanoGUI: ${NANOGUI_LIBRARY}")
-
-	#	if(WIN32)
-	#		# Find include
-	#		find_path(NANOGUI_INCLUDE_DIRS
-	#			NAMES nanogui/nanogui.h
-	#			PATHS "C:/Program Files/NanoGUI" "C:/Program Files (x86)/NanoGUI" ${NANOGUI_DIR}
-	#			PATH_SUFFIXES include
-	#		)
-	#		set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_INCLUDE_DIRS})
-	#	endif()
-	#endif()
-
 	set(HAVE_NANOGUI TRUE)
 
 	# Disable building extras we won't need (pure C++ project)
@@ -148,6 +130,30 @@ if (NVPIPE_LIBRARY)
 else()
 	set(NVPIPE_LIBRARY "")
 	add_library(nvpipe INTERFACE)
+endif()
+
+# Portaudio v19 library
+find_library( PORTAUDIO_LIBRARY NAMES portaudio PATHS ${PORTAUDIO_DIR} PATH_SUFFIXES lib)
+if (PORTAUDIO_LIBRARY)
+	set(HAVE_PORTAUDIO TRUE)
+	add_library(portaudio UNKNOWN IMPORTED)
+	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+	set_property(TARGET portaudio PROPERTY IMPORTED_LOCATION ${PORTAUDIO_LIBRARY})
+	message(STATUS "Found Portaudio: ${PORTAUDIO_LIBRARY}")
+	
+	if(WIN32)
+		# Find include
+		find_path(PORTAUDIO_INCLUDE_DIRS
+		    NAMES portaudio.h
+		    PATHS "C:/Program Files/Portaudio" "C:/Program Files (x86)/Portaudio" ${PORTAUDIO_DIR}
+		    PATH_SUFFIXES include
+		)
+		set_property(TARGET portaudio PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${PORTAUDIO_INCLUDE_DIRS})
+	endif()
+else()
+	set(PORTAUDIO_LIBRARY "")
+	add_library(portaudio INTERFACE)
+	message(WARNING "Portaudio not found - sound disabled")
 endif()
 
 find_program( NODE_NPM NAMES npm )
@@ -209,10 +215,12 @@ check_include_file_cxx("opencv2/viz.hpp" HAVE_VIZ)
 check_include_file_cxx("opencv2/cudastereo.hpp" HAVE_OPENCVCUDA)
 
 # Optional source problem check
-find_program(CPPCHECK_FOUND cppcheck)
-if (CPPCHECK_FOUND)
-	message(STATUS "Found cppcheck: will perform source checks")
-	set(CMAKE_CXX_CPPCHECK "cppcheck" "-D__align__(A)" "-DCUDARTAPI" "--enable=warning,performance,style" "--inline-suppr" "--std=c++14" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*nanogui*" "--suppress=*:*json.hpp" "--quiet")
+if (USE_CPPCHECK)
+	find_program(CPPCHECK_FOUND cppcheck)
+	if (CPPCHECK_FOUND)
+		message(STATUS "Found cppcheck: will perform source checks")
+		set(CMAKE_CXX_CPPCHECK "cppcheck" "-D__align__(A)" "-DCUDARTAPI" "--enable=warning,performance,style" "--inline-suppr" "--std=c++14" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*nanogui*" "--suppress=*:*json.hpp" "--quiet")
+	endif()
 endif()
 
 # include_directories(${PROJECT_SOURCE_DIR}/common/cpp/include)
@@ -239,11 +247,13 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_subdirectory(components/common/cpp)
 add_subdirectory(components/codecs)
+add_subdirectory(components/structures)
 add_subdirectory(components/net)
 add_subdirectory(components/rgbd-sources)
 add_subdirectory(components/control/cpp)
 add_subdirectory(components/operators)
 add_subdirectory(components/streams)
+add_subdirectory(components/audio)
 add_subdirectory(applications/calibration)
 #add_subdirectory(applications/groupview)
 #add_subdirectory(applications/player)

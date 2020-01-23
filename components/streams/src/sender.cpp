@@ -52,6 +52,40 @@ void Sender::onRequest(const ftl::stream::StreamCallback &cb) {
 	reqcb_ = cb;
 }
 
+void Sender::post(const ftl::audio::FrameSet &fs) {
+    if (!stream_) return;
+
+	//if (fs.stale) return;
+	//fs.stale = true;
+
+	for (int i=0; i<fs.frames.size(); ++i) {
+		if (!fs.frames[i].hasChannel(Channel::Audio)) continue;
+
+		auto &data = fs.frames[i].get<ftl::audio::Audio>(Channel::Audio);
+
+		StreamPacket spkt;
+		spkt.version = 4;
+		spkt.timestamp = fs.timestamp;
+		spkt.streamID = 0; //fs.id;
+		spkt.frame_number = i;
+		spkt.channel = Channel::Audio;
+
+		ftl::codecs::Packet pkt;
+		pkt.codec = ftl::codecs::codec_t::RAW;
+		pkt.definition = ftl::codecs::definition_t::Any;
+		pkt.frame_count = 1;
+		pkt.flags = 0;
+		pkt.bitrate = 0;
+
+		const unsigned char *ptr = (unsigned char*)data.data().data();
+		pkt.data = std::move(std::vector<unsigned char>(ptr, ptr+data.size()));  // TODO: Reduce copy...
+
+		stream_->post(spkt, pkt);
+
+		//LOG(INFO) << "SENT AUDIO: " << fs.timestamp << " - " << pkt.data.size();
+	}
+}
+
 template <typename T>
 static void writeValue(std::vector<unsigned char> &data, T value) {
 	unsigned char *pvalue_start = (unsigned char*)&value;

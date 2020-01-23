@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <ftl/rgbd/frameset.hpp>
+#include <ftl/audio/frameset.hpp>
 #include <ftl/streams/stream.hpp>
 #include <ftl/codecs/decoder.hpp>
 
@@ -37,18 +38,19 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 	 */
 	void onFrameSet(const ftl::rgbd::VideoCallback &cb) override;
 
-	// void onFrameSet(const AudioCallback &cb);
+	void onAudio(const ftl::audio::FrameSet::Callback &cb);
 
 	private:
 	ftl::stream::Stream *stream_;
 	ftl::rgbd::VideoCallback fs_callback_;
+	ftl::audio::FrameSet::Callback audio_cb_;
 	ftl::rgbd::Builder builder_;
 	ftl::codecs::Channel second_channel_;
 	int64_t timestamp_;
 	SHARED_MUTEX mutex_;
 
-	struct InternalStates {
-		InternalStates();
+	struct InternalVideoStates {
+		InternalVideoStates();
 
 		int64_t timestamp;
 		ftl::rgbd::FrameState state;
@@ -59,11 +61,27 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 		ftl::codecs::Channels<0> completed;
 	};
 
-	std::vector<InternalStates*> frames_;
+	struct InternalAudioStates {
+		InternalAudioStates();
 
-	void _processConfig(InternalStates &frame, const ftl::codecs::Packet &pkt);
-	void _createDecoder(InternalStates &frame, int chan, const ftl::codecs::Packet &pkt);
-	InternalStates &_getFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
+		int64_t timestamp;
+		ftl::audio::FrameState state;
+		ftl::audio::Frame frame;
+		MUTEX mutex;
+		ftl::codecs::Channels<0> completed;
+	};
+
+	std::vector<InternalVideoStates*> video_frames_;
+	std::vector<InternalAudioStates*> audio_frames_;
+
+	void _processConfig(InternalVideoStates &frame, const ftl::codecs::Packet &pkt);
+	void _processState(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
+	void _processData(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
+	void _processAudio(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
+	void _processVideo(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
+	void _createDecoder(InternalVideoStates &frame, int chan, const ftl::codecs::Packet &pkt);
+	InternalVideoStates &_getVideoFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
+	InternalAudioStates &_getAudioFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
 };
 
 }

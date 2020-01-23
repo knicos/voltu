@@ -52,6 +52,8 @@
 #include <ftl/streams/sender.hpp>
 #include <ftl/streams/netstream.hpp>
 
+#include <ftl/audio/source.hpp>
+
 #include <cuda_profiler_api.h>
 
 #ifdef WIN32
@@ -143,6 +145,8 @@ static void run(ftl::Configurable *root) {
 	outstream->begin();
 	sender->setStream(outstream);
 
+	ftl::audio::Source *audioSrc = nullptr;
+
 	std::vector<Source*> sources;
 	// Create a vector of all input RGB-Depth sources
 	if (root->getConfig()["sources"].size() > 0) {
@@ -194,6 +198,14 @@ static void run(ftl::Configurable *root) {
 			});
 			groups.push_back(reconstr);
 			++i;
+
+			// TODO: Temporary reconstruction local audio source for testing
+			audioSrc = ftl::create<ftl::audio::Source>(root, "audio_test");
+
+			audioSrc->onFrameSet([sender](ftl::audio::FrameSet &fs) {
+				sender->post(fs);
+				return true;
+			});
 		}
 	}
 
@@ -229,6 +241,11 @@ static void run(ftl::Configurable *root) {
 				return reconstr->post(fs);
 			});
 
+			gen->onAudio([sender](ftl::audio::FrameSet &fs) {
+				sender->post(fs);
+				return true;
+			});
+
 			int i = groups.size();
 			reconstr->onFrameSet([sender,i](ftl::rgbd::FrameSet &fs) {
 				fs.id = i;
@@ -242,9 +259,10 @@ static void run(ftl::Configurable *root) {
 		}
 	}
 
-
 	LOG(INFO) << "Start timer";
 	ftl::timer::start(true);
+
+	if (audioSrc) delete audioSrc;
 
 	LOG(INFO) << "Shutting down...";
 	ftl::timer::stop();

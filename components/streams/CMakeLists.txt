@@ -19,6 +19,6 @@ target_include_directories(ftlstreams PUBLIC
 	PRIVATE src)
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftlstreams ftlrgbd ftlcommon ${OpenCV_LIBS} Eigen3::Eigen ftlnet ftlcodecs)
+target_link_libraries(ftlstreams ftlrgbd ftlcommon ${OpenCV_LIBS} Eigen3::Eigen ftlnet ftlcodecs ftlaudio)
 
 add_subdirectory(test)
