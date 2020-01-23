@@ -232,7 +232,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 			if ((frame.completed & sel) == sel) {
 				timestamp_ = frame.timestamp;
 
-				//LOG(INFO) << "BUILDER PUSH: " << timestamp_ << ", " << spkt.frameNumber();
+				//LOG(INFO) << "BUILDER PUSH: " << timestamp_ << ", " << spkt.frameNumber() << ", " << (int)pkt.frame_count;
 
 				if (frame.state.getLeft().width == 0) {
 					LOG(WARNING) << "Missing calibration, skipping frame";

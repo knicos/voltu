@@ -55,11 +55,15 @@ void Muxer::add(Stream *s) {
 
 	s->onPacket([this,s,i](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		//SHARED_LOCK(mutex_, lk);
-		int id = _lookup(i, spkt.frame_number);
-		
+	
 		ftl::codecs::StreamPacket spkt2 = spkt;
 		spkt2.streamID = 0;
-		spkt2.frame_number = id;
+
+		if (spkt2.frame_number < 255) {
+			int id = _lookup(i, spkt.frame_number);
+			spkt2.frame_number = id;
+		}
+
 		_notify(spkt2, pkt);
 		s->select(spkt.streamID, selected(0));
 	});
@@ -78,6 +82,8 @@ bool Muxer::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packe
 	if (spkt.frame_number < revmap_.size()) {
 		auto [sid, ssid] = revmap_[spkt.frame_number];
 		auto &se = streams_[sid];
+
+		//LOG(INFO) << "POST " << spkt.frame_number;
 
 		ftl::codecs::StreamPacket spkt2 = spkt;
 		spkt2.streamID = 0;
@@ -138,7 +144,7 @@ int Muxer::_lookup(int sid, int ssid) {
 void Muxer::_notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	SHARED_LOCK(mutex_, lk);
 	available(spkt.frameSetID()) += spkt.channel;
-	if (cb_) cb_(spkt, pkt);
+	if (cb_) cb_(spkt, pkt);  // spkt.frame_number < 255 && 
 }
 
 // ==== Broadcaster ============================================================

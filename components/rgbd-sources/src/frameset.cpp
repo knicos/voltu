@@ -85,6 +85,8 @@ void Builder::push(int64_t timestamp, int ix, ftl::rgbd::Frame &frame) {
 
 	UNIQUE_LOCK(mutex_, lk);
 
+	//LOG(INFO) << "BUILDER PUSH: " << timestamp << ", " << ix << ", " << size_;
+
 	// Size is determined by largest frame index received... note that size
 	// cannot therefore reduce.
 	if (ix >= size_) {
@@ -224,6 +226,7 @@ ftl::rgbd::FrameSet *Builder::_findFrameset(int64_t ts) {
 ftl::rgbd::FrameSet *Builder::_getFrameset() {
 	for (auto i=framesets_.begin(); i!=framesets_.end(); i++) {
 		auto *f = *i;
+		//LOG(INFO) << "GET: " << f->count << " of " << size_;
 		if (!f->stale && f->count >= size_) {
 			//LOG(INFO) << "GET FRAMESET and remove: " << f->timestamp;
 			auto j = framesets_.erase(i);
