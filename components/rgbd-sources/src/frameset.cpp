@@ -37,6 +37,7 @@ void FrameSet::swapTo(ftl::rgbd::FrameSet &fs) {
 	fs.count = static_cast<int>(count);
 	fs.stale = stale;
 	fs.mask = static_cast<unsigned int>(mask);
+	fs.id = id;
 
 	for (size_t i=0; i<frames.size(); ++i) {
 		frames[i].swapTo(Channels<0>::All(), fs.frames[i]);
@@ -225,7 +226,7 @@ ftl::rgbd::FrameSet *Builder::_findFrameset(int64_t ts) {
  * Note: Must occur inside a mutex lock.
  */
 ftl::rgbd::FrameSet *Builder::_getFrameset() {
-	LOG(INFO) << "BUF SIZE = " << framesets_.size();
+	//LOG(INFO) << "BUF SIZE = " << framesets_.size();
 	for (auto i=framesets_.begin(); i!=framesets_.end(); i++) {
 		auto *f = *i;
 		//LOG(INFO) << "GET: " << f->count << " of " << size_;
@@ -266,8 +267,11 @@ ftl::rgbd::FrameSet *Builder::_addFrameset(int64_t timestamp) {
 		if (framesets_.size() < kMaxFramesets) {
 			allocated_.push_back(new ftl::rgbd::FrameSet);
 		} else {
-			LOG(ERROR) << "Could not allocate framesetL: " << timestamp;
-			return nullptr;
+			LOG(WARNING) << "Frameset buffer full, resetting: " << timestamp;
+
+			// Do a complete reset
+			std::swap(framesets_, allocated_);
+			//return nullptr;
 		}
 	}
 	FrameSet *newf = allocated_.front();

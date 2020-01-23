@@ -36,11 +36,16 @@ int main(int argc, char **argv) {
 	try {
 		nanogui::init();
 
-		/* scoped variables */ {
+		{
 			nanogui::ref<ftl::gui::Screen> app = new ftl::gui::Screen(root, net, controller);
 			app->drawAll();
 			app->setVisible(true);
 			nanogui::mainloop();
+
+			LOG(INFO) << "Stopping...";
+			ftl::timer::stop(false);
+			ftl::pool.stop(true);
+			LOG(INFO) << "All threads stopped.";
 		}
 
 		nanogui::shutdown();
@@ -54,7 +59,8 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	net->shutdown();
+
+	net->shutdown();	
 	delete controller;
 	delete net;
 	delete root;

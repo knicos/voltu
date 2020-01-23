@@ -80,6 +80,13 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	cycle_ = 0;
 	receiver_->onFrameSet([this](ftl::rgbd::FrameSet &fs) {
+		// Enforce interpolated colour
+		for (int i=0; i<fs.frames.size(); ++i) {
+			fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
+		}
+
+		pre_pipeline_->apply(fs, fs, 0);
+
 		fs.swapTo(frameset_);
 
 		// Request the channels required by current camera configuration
@@ -95,13 +102,6 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		_createDefaultCameras(frameset_, cstream->available(fs.id).has(Channel::Depth));
 
 		//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
-
-		// Enforce interpolated colour
-		for (int i=0; i<frameset_.frames.size(); ++i) {
-			frameset_.frames[i].createTexture<uchar4>(Channel::Colour, true);
-		}
-
-		pre_pipeline_->apply(frameset_, frameset_, 0);
 
 		int i=0;
 		for (auto cam : cameras_) {

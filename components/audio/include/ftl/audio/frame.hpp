@@ -30,6 +30,8 @@ struct AudioData {
 		throw ftl::exception("Type not valid for audio channel");
 	}
 
+	inline void reset() {}
+
 	Audio data;
 };
 

@@ -270,6 +270,9 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::reset() {
 	origin_ = nullptr;
 	channels_.clear();
 	data_channels_.clear();
+	for (size_t i=0u; i<ftl::codecs::Channels<BASE>::kMax; ++i) {
+		data_[i].reset();
+	}
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
@@ -283,7 +286,7 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::swapTo(ftl::codecs::Channels<BASE> cha
 		// Should we swap this channel?
 		if (channels.has(c)) {
 			f.channels_ += c;
-			f.getData(c) = std::move(getData(c));
+			std::swap(f.getData(c),getData(c));
 		}
 	}
 

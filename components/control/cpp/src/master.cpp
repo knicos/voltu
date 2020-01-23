@@ -99,7 +99,7 @@ Master::Master(Configurable *root, Universe *net)
 }
 
 Master::~Master() {
-	net_->unbind("log");
+	stop();
 }
 
 void Master::restart() {
@@ -214,6 +214,7 @@ void Master::stop() {
 	net_->unbind("get_cfg");
 	net_->unbind("slave_details"); // TODO: Remove
 	net_->unbind("log_subscribe");
+	net_->unbind("log");
 }
 
 void Master::sendLog(const loguru::Message& message) {
