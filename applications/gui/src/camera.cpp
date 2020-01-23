@@ -276,9 +276,9 @@ void ftl::gui::Camera::update(ftl::rgbd::FrameSet &fs) {
 		name_ = "Virtual Camera";
 		// Do a draw if not active. If active the draw function will be called
 		// directly.
-		//if (screen_->activeCamera() != this) {
+		if (screen_->activeCamera() != this) {
 			_draw(fs);
-		//}
+		}
 	} else {
 		if (fid_ >= fs.frames.size()) return;
 		frame = &fs.frames[fid_];
