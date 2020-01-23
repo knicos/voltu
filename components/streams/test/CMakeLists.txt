@@ -46,7 +46,7 @@ add_executable(sender_unit
 )
 target_include_directories(sender_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(sender_unit
-	ftlcommon ftlcodecs ftlrgbd)
+	ftlcommon ftlcodecs ftlrgbd ftlaudio)
 
 add_test(SenderUnitTest sender_unit)
 
@@ -61,6 +61,6 @@ add_executable(receiver_unit
 )
 target_include_directories(receiver_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(receiver_unit
-	ftlcommon ftlcodecs ftlrgbd)
+	ftlcommon ftlcodecs ftlrgbd ftlaudio)
 
 add_test(ReceiverUnitTest receiver_unit)

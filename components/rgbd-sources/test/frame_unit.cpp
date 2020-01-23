@@ -109,7 +109,7 @@ TEST_CASE("Frame::get()", "") {
 			hadexception = true;
 		}
 
-		REQUIRE( !hadexception );
+		REQUIRE( hadexception );
 	}
 
 	SECTION("get a gpu mat from cpu channel") {
@@ -130,7 +130,7 @@ TEST_CASE("Frame::get()", "") {
 			hadexception = true;
 		}
 
-		REQUIRE( !hadexception );
+		REQUIRE( hadexception );
 	}
 }
 

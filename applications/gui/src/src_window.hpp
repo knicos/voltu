@@ -16,6 +16,8 @@
 #include <ftl/streams/receiver.hpp>
 #include <ftl/streams/filestream.hpp>
 
+#include <ftl/audio/speaker.hpp>
+
 class VirtualCameraView;
 
 namespace ftl {
@@ -67,6 +69,10 @@ class SourceWindow : public nanogui::Window {
 	int cycle_;
 	ftl::operators::Graph *pre_pipeline_;
 	MUTEX mutex_;
+
+	ftl::audio::Speaker *speaker_;
+
+	ftl::rgbd::FrameSet frameset_;
 
 	void _updateCameras(const std::vector<std::string> &netcams);
 	void _createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtual);

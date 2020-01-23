@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <ftl/rgbd/frameset.hpp>
+#include <ftl/audio/frameset.hpp>
 #include <ftl/streams/stream.hpp>
 #include <ftl/codecs/encoder.hpp>
 
@@ -26,6 +27,11 @@ class Sender : public ftl::Configurable {
 	 * an encoded form, in which case that is used instead.
 	 */
 	void post(const ftl::rgbd::FrameSet &fs);
+
+	/**
+	 * Encode and transmit a set of audio channels.
+	 */
+	void post(const ftl::audio::FrameSet &fs);
 
 	//void onStateChange(const std::function<void(ftl::codecs::Channel, int, int)>&);
 

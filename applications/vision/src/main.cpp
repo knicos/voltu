@@ -26,6 +26,8 @@
 #include <ftl/streams/netstream.hpp>
 #include <ftl/streams/sender.hpp>
 
+#include <ftl/audio/source.hpp>
+
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/highgui.hpp"
@@ -72,6 +74,13 @@ static void run(ftl::Configurable *root) {
 
 	grp->onFrameSet([sender](ftl::rgbd::FrameSet &fs) {
 		fs.id = 0;
+		sender->post(fs);
+		return true;
+	});
+
+	// TODO: TEMPORARY
+	ftl::audio::Source *audioSrc = ftl::create<ftl::audio::Source>(root, "audio_test");
+	audioSrc->onFrameSet([sender](ftl::audio::FrameSet &fs) {
 		sender->post(fs);
 		return true;
 	});

@@ -80,8 +80,10 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	cycle_ = 0;
 	receiver_->onFrameSet([this](ftl::rgbd::FrameSet &fs) {
+		fs.swapTo(frameset_);
+
 		// Request the channels required by current camera configuration
-		interceptor_->select(fs.id, _aggregateChannels());
+		interceptor_->select(frameset_.id, _aggregateChannels());
 
 		/*if (fs.frames[0].hasChannel(Channel::Data)) {
 			int data = 0;
@@ -90,27 +92,36 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		}*/
 
 		const auto *cstream = interceptor_;
-		_createDefaultCameras(fs, cstream->available(fs.id).has(Channel::Depth));
+		_createDefaultCameras(frameset_, cstream->available(fs.id).has(Channel::Depth));
 
 		//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
 
 		// Enforce interpolated colour
-		for (int i=0; i<fs.frames.size(); ++i) {
-			fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
+		for (int i=0; i<frameset_.frames.size(); ++i) {
+			frameset_.frames[i].createTexture<uchar4>(Channel::Colour, true);
 		}
 
-		pre_pipeline_->apply(fs, fs, 0);
+		pre_pipeline_->apply(frameset_, frameset_, 0);
 
 		int i=0;
 		for (auto cam : cameras_) {
 			// Only update the camera periodically unless the active camera
 			if (screen_->activeCamera() == cam.second.camera ||
-				(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(fs);
+				(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(frameset_);
 
-			cam.second.camera->update(cstream->available(fs.id));
+			cam.second.camera->update(cstream->available(frameset_.id));
 		}
 		++cycle_;
 
+		return true;
+	});
+
+	speaker_ = ftl::create<ftl::audio::Speaker>(screen_->root(), "speaker_test");
+
+	receiver_->onAudio([this](ftl::audio::FrameSet &fs) {
+		//LOG(INFO) << "Audio delay required = " << (ts - frameset_.timestamp) << "ms";
+		speaker_->setDelay(fs.timestamp - frameset_.timestamp + ftl::timer::getInterval());  // Add Xms for local render time
+		speaker_->queue(fs.timestamp, fs.frames[0]);
 		return true;
 	});
 

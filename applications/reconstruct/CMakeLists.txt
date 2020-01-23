@@ -37,6 +37,6 @@ set_property(TARGET ftl-reconstruct PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-reconstruct ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet ftlrender ftloperators ftlstreams)
+target_link_libraries(ftl-reconstruct ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet ftlrender ftloperators ftlstreams ftlaudio)
 
 

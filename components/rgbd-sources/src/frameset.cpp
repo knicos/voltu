@@ -49,7 +49,7 @@ void FrameSet::resetFull() {
 	//count = 0;
 	//stale = false;
 	for (auto &f : frames) {
-		f.resetFull();
+		//f.resetFull();
 	}
 }
 
