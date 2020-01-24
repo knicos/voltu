@@ -215,5 +215,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	}
 
 	ftl::timer::stop(true);
+	//while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	delete receiver;
+	//ftl::config::cleanup();
 }

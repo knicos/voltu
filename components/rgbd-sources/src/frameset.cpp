@@ -124,6 +124,15 @@ size_t Builder::size() {
 }
 
 void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
+	if (!cb) {
+		main_id_.cancel();
+		return;
+	}
+
+	if (main_id_.id() != -1) {
+		main_id_.cancel();
+	}
+
 	// 3. Issue IO retrieve ad compute jobs before finding a valid
 	// frame at required latency to pass to callback.
 	main_id_ = ftl::timer::add(ftl::timer::kTimerMain, [this,cb](int64_t ts) {

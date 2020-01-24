@@ -25,6 +25,7 @@ Receiver::~Receiver() {
 	//if (stream_) {
 	//	stream_->onPacket(nullptr);
 	//}
+
 	builder_.onFrameSet(nullptr);
 }
 
