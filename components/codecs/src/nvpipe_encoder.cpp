@@ -93,7 +93,7 @@ static uint64_t calculateBitrate(definition_t def, float ratescale) {
 }
 
 bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
-	cudaSetDevice(0);
+	//cudaSetDevice(0);
 
 	if (pkt.codec != codec_t::Any && !supports(pkt.codec)) {
 		pkt.codec = codec_t::Invalid;
