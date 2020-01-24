@@ -28,6 +28,12 @@ bool hasCompute(int major, int minor);
 
 int deviceCount();
 
+int getDevice();
+
+void setDevice(int);
+
+void setDevice();
+
 template <typename T>
 struct Float;
 

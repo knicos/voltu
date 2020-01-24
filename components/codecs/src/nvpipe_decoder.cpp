@@ -44,7 +44,7 @@ bool NvPipeDecoder::_checkIFrame(ftl::codecs::codec_t codec, const unsigned char
 }
 
 bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
-	cudaSetDevice(0);
+	//cudaSetDevice(0);
 	UNIQUE_LOCK(mutex_,lk);
 	if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264 && pkt.codec != codec_t::HEVC_LOSSLESS && pkt.codec != codec_t::H264_LOSSLESS) return false;
 

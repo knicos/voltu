@@ -140,6 +140,11 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 }
 
 void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
+	//ftl::cuda::setDevice();
+	//int dev;
+	//cudaSafeCall(cudaGetDevice(&dev));
+	//LOG(INFO) << "Cuda device = " << dev;
+
 	const ftl::codecs::Channel rchan = spkt.channel;
 	const unsigned int channum = (unsigned int)spkt.channel;
 	InternalVideoStates &iframe = _getVideoFrame(spkt);
@@ -179,6 +184,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	//LOG(INFO) << "Decode surface: " << (width*tx) << "x" << (height*ty);
 
 	auto &surface = iframe.surface[static_cast<int>(spkt.channel)];
+
 	surface.create(height*ty, width*tx, ((isFloatChannel(spkt.channel)) ? ((pkt.flags & 0x2) ? CV_16UC4 : CV_16U) : CV_8UC4));
 
 	// Do the actual decode
@@ -200,6 +206,8 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		//return;
 	}
 
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(decoder->stream());
+
 	/*if (spkt.channel == Channel::Depth && (pkt.flags & 0x2)) {
 	cv::Mat tmp;
 	surface.download(tmp);
@@ -212,19 +220,19 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 		cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
 		cv::cuda::GpuMat sroi = surface(roi);
-
+		
 		// Do colour conversion
 		if (isFloatChannel(rchan) && (pkt.flags & 0x2)) {
 			//LOG(INFO) << "VUYA Convert";
-			ftl::cuda::vuya_to_depth(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), sroi, 16.0f, decoder->stream());
+			ftl::cuda::vuya_to_depth(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), sroi, 16.0f, cvstream);
 		} else if (isFloatChannel(rchan)) {
-			sroi.convertTo(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, decoder->stream());
+			sroi.convertTo(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, cvstream);
 		} else {
-			cv::cuda::cvtColor(sroi, frame.frame.get<cv::cuda::GpuMat>(spkt.channel), cv::COLOR_RGBA2BGRA, 0, decoder->stream());
+			cv::cuda::cvtColor(sroi, frame.frame.get<cv::cuda::GpuMat>(spkt.channel), cv::COLOR_RGBA2BGRA, 0, cvstream);
 		}
 	}
 
-	decoder->stream().waitForCompletion();
+	cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
 
 	for (int i=0; i<pkt.frame_count; ++i) {
 		InternalVideoStates &frame = _getVideoFrame(spkt,i);

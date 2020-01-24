@@ -2,6 +2,7 @@
 
 using ftl::cuda::TextureObjectBase;
 
+static int dev_to_use = 0;
 static int dev_count = 0;
 static std::vector<cudaDeviceProp> properties;
 
@@ -34,6 +35,19 @@ bool ftl::cuda::hasCompute(int major, int minor) {
 
 int ftl::cuda::deviceCount() {
 	return dev_count;
+}
+
+int ftl::cuda::getDevice() {
+	return dev_to_use;
+}
+
+void ftl::cuda::setDevice(int id) {
+	dev_to_use = id;
+	ftl::cuda::setDevice();
+}
+
+void ftl::cuda::setDevice() {
+	cudaSafeCall(cudaSetDevice(dev_to_use));
 }
 
 TextureObjectBase::~TextureObjectBase() {

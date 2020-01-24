@@ -3,6 +3,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
 
 #include <ftl/codecs/packet.hpp>
 
@@ -32,17 +33,17 @@ void free(Decoder *&e);
  */
 class Decoder {
 	public:
-	Decoder() {};
-	virtual ~Decoder() {};
+	Decoder() { cudaStreamCreate(&stream_); };
+	virtual ~Decoder() { cudaStreamDestroy(stream_); };
 
 	virtual bool decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out)=0;
 
 	virtual bool accepts(const ftl::codecs::Packet &)=0;
 
-	cv::cuda::Stream &stream() { return stream_; }
+	cudaStream_t stream() { return stream_; }
 
 	protected:
-	cv::cuda::Stream stream_;
+	cudaStream_t stream_;
 };
 
 }

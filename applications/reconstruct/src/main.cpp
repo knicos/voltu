@@ -125,7 +125,25 @@ static ftl::rgbd::Generator *createFileGenerator(ftl::Configurable *root, const 
 	return gen;
 }
 
+static void threadSetCUDADevice() {
+	// Ensure all threads have correct cuda device
+	std::atomic<int> ijobs = 0;
+	for (int i=0; i<ftl::pool.size(); ++i) {
+		ftl::pool.push([&ijobs](int id) {
+			ftl::cuda::setDevice();
+			++ijobs;
+			while (ijobs < ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		});
+	}
+	while (ijobs < ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+}
+
 static void run(ftl::Configurable *root) {
+	// Use other GPU if available.
+	ftl::cuda::setDevice(ftl::cuda::deviceCount()-1);
+	threadSetCUDADevice();
+	
+
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Master ctrl(root, net);
 
@@ -188,6 +206,7 @@ static void run(ftl::Configurable *root) {
 			LOG(INFO) << "Found " << (max_stream+1) << " sources in " << path;
 
 			auto *gen = createFileGenerator(root, path);
+
 			auto reconstr = ftl::create<ftl::Reconstruction>(root, std::string("recon")+std::to_string(i), std::to_string(i));
 			reconstr->setGenerator(gen);
 			reconstr->onFrameSet([sender,i](ftl::rgbd::FrameSet &fs) {
