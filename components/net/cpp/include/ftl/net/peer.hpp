@@ -266,7 +266,7 @@ class Peer {
 	//std::vector<std::function<void(Peer &)>> close_handlers_;
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 	
-	static int rpcid__;				// Return ID for RPC calls
+	static volatile int rpcid__;				// Return ID for RPC calls
 };
 
 // --- Inline Template Implementations -----------------------------------------
@@ -361,7 +361,7 @@ int Peer::asyncCall(
 		std::function<void(const T&)> cb,
 		ARGS... args) {
 	auto args_obj = std::make_tuple(args...);
-	auto rpcid = 0;
+	uint32_t rpcid = 0;
 
 	{
 		// Could this be the problem????

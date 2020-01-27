@@ -59,7 +59,7 @@ using std::vector;
     return ss.str();
 }*/
 
-int Peer::rpcid__ = 0;
+volatile int Peer::rpcid__ = 0;
 
 // Global peer UUID
 ftl::UUID ftl::net::this_peer;
@@ -548,7 +548,6 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 	// TODO: Handle error reporting...
 	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
-		//DLOG(1) << "Received return RPC value";
 		
 		// Allow for unlock before callback
 		auto cb = std::move(callbacks_[id]);
