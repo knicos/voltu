@@ -876,7 +876,8 @@ RECURSIVE              = YES
 EXCLUDE                = "components/common/cpp/include/nlohmann/json.hpp" \
 						 "components/common/cpp/include/loguru.hpp" \
 						 "components/common/cpp/include/ctpl_stl.h" \
-						 "build/"
+						 "build/" \
+						 "ext/"
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded

@@ -406,7 +406,7 @@ bool ftl::gui::Camera::setVR(bool on) {
 	else {
 		vr_mode_ = false;
 		setChannel(Channel::Left); // reset to left channel
-		// todo restore camera params
+		// todo restore camera params<
 	}
 
 	return vr_mode_;
@@ -415,7 +415,7 @@ bool ftl::gui::Camera::setVR(bool on) {
 
 void ftl::gui::Camera::setChannel(Channel c) {
 #ifdef HAVE_OPENVR
-	if (isVR()) {
+	if (isVR() && (c != Channel::Right)) {
 		LOG(ERROR) << "Changing channel in VR mode is not possible.";
 		return;
 	}
