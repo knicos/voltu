@@ -6,16 +6,7 @@ __device__ inline uchar4 toChar(const float4 rgba) {
     return make_uchar4(rgba.x*255.0f, rgba.y*255.0f, rgba.z*255.0f, 255);
 }
 
-__global__ void filter_fxaa2(ftl::cuda::TextureObject<uchar4> data) {
-
-    int x = blockIdx.x*blockDim.x + threadIdx.x;
-    int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-    if(x >= data.width() || y >= data.height())
-    {
-        return;
-    }
-
+__device__ void fxaa2(int x, int y, ftl::cuda::TextureObject<uchar4> &data) {
     uchar4 out_color;
     cudaTextureObject_t texRef = data.cudaTexture();
 
@@ -73,6 +64,51 @@ __global__ void filter_fxaa2(ftl::cuda::TextureObject<uchar4> data) {
 
 	// FIXME: Should not output to same texture object.
     data(x,y) = out_color;
+}
+
+__global__ void filter_fxaa2(ftl::cuda::TextureObject<uchar4> data, ftl::cuda::TextureObject<float> depth, float threshold) {
+
+    int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if(x >= 0 && x < data.width() && y >= 0 && y < data.height())
+    {
+        // Do a depth discon test
+        bool discon = false;
+        float d = depth.tex2D(x,y);
+        #pragma unroll
+        for (int u=-1; u<=1; ++u) {
+            #pragma unroll
+            for (int v=-1; v<=1; ++v) {
+                discon |= fabsf(d-depth.tex2D(x+u,y+v)) > threshold;
+            }
+        }
+
+        if (discon) fxaa2(x, y, data);
+    }
+}
+
+void ftl::cuda::fxaa(ftl::cuda::TextureObject<uchar4> &colour, ftl::cuda::TextureObject<float> &depth, float threshold, cudaStream_t stream) {
+	const dim3 gridSize((colour.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (colour.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    filter_fxaa2<<<gridSize, blockSize, 0, stream>>>(colour, depth, threshold);
+	cudaSafeCall( cudaGetLastError() );
+
+#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+#endif
+}
+
+__global__ void filter_fxaa2(ftl::cuda::TextureObject<uchar4> data) {
+
+    int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if(x >= 0 && x < data.width() && y >= 0 && y < data.height())
+    {
+        fxaa2(x, y, data);
+    }
 }
 
 void ftl::cuda::fxaa(ftl::cuda::TextureObject<uchar4> &colour, cudaStream_t stream) {

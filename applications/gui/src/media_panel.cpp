@@ -87,10 +87,14 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 	});
 
 	button = new Button(this, "", ENTYPO_ICON_CONTROLLER_PAUS);
-	button->setCallback([this,button]() {
+	button->setCallback([this,button,sourceWindow]() {
 		//paused_ = !paused_;
-		paused_ = !(bool)ftl::config::get("[reconstruction]/controls/paused");
-		ftl::config::update("[reconstruction]/controls/paused", paused_);
+		//paused_ = !(bool)ftl::config::get("[reconstruction]/controls/paused");
+		//ftl::config::update("[reconstruction]/controls/paused", paused_);
+
+		paused_ = !paused_;
+		sourceWindow->paused(paused_);
+
 		if (paused_) {
 			button->setIcon(ENTYPO_ICON_CONTROLLER_PLAY);
 		} else {

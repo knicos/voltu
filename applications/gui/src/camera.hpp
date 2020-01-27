@@ -118,6 +118,7 @@ class Camera {
 	cv::Mat im2_; // second channel ("right")
 
 	ftl::render::Triangular *renderer_;
+	ftl::operators::Graph *post_pipe_;
 	ftl::rgbd::Frame frame_;
 	ftl::rgbd::FrameState state_;
 	ftl::stream::File *record_stream_;

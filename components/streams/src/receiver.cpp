@@ -61,6 +61,7 @@ void Receiver::_createDecoder(InternalVideoStates &frame, int chan, const ftl::c
 
 Receiver::InternalVideoStates::InternalVideoStates() {
 	for (int i=0; i<32; ++i) decoders[i] = nullptr;
+	timestamp = -1;
 }
 
 Receiver::InternalVideoStates &Receiver::_getVideoFrame(const StreamPacket &spkt, int ix) {
@@ -140,11 +141,6 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 }
 
 void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
-	//ftl::cuda::setDevice();
-	//int dev;
-	//cudaSafeCall(cudaGetDevice(&dev));
-	//LOG(INFO) << "Cuda device = " << dev;
-
 	const ftl::codecs::Channel rchan = spkt.channel;
 	const unsigned int channum = (unsigned int)spkt.channel;
 	InternalVideoStates &iframe = _getVideoFrame(spkt);
@@ -153,41 +149,15 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	int width = ftl::codecs::getWidth(pkt.definition);
 	int height = ftl::codecs::getHeight(pkt.definition);
 
-	for (int i=0; i<pkt.frame_count; ++i) {
-		InternalVideoStates &frame = _getVideoFrame(spkt,i);
-
-		// Packets are for unwanted channel.
-		//if (rchan != Channel::Colour && rchan != chan) return;
-
-		if (frame.frame.hasChannel(spkt.channel)) {
-			UNIQUE_LOCK(frame.mutex, lk);
-			//if (frame.frame.hasChannel(spkt.channel)) {
-				// FIXME: Is this a corruption in recording or in playback?
-				// Seems to occur in same place in ftl file, one channel is missing
-				LOG(WARNING) << "Previous frame not complete: " << frame.timestamp;
-				//LOG(ERROR) << " --- " << (string)spkt;
-				//frame.frame.reset();
-				//frame.completed.clear();
-			//}
-		}
-		frame.timestamp = spkt.timestamp;
-
-		// Add channel to frame and allocate memory if required
-		const cv::Size size = cv::Size(width, height);
-		frame.frame.create<cv::cuda::GpuMat>(spkt.channel).create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
-	}
-
-	Packet tmppkt = pkt;
-	iframe.frame.pushPacket(spkt.channel, tmppkt);
-
 	//LOG(INFO) << " CODEC = " << (int)pkt.codec << " " << (int)pkt.flags << " " << (int)spkt.channel;
 	//LOG(INFO) << "Decode surface: " << (width*tx) << "x" << (height*ty);
 
 	auto &surface = iframe.surface[static_cast<int>(spkt.channel)];
 
+	// Allocate a decode surface, this is a tiled image to be split later
 	surface.create(height*ty, width*tx, ((isFloatChannel(spkt.channel)) ? ((pkt.flags & 0x2) ? CV_16UC4 : CV_16U) : CV_8UC4));
 
-	// Do the actual decode
+	// Find or create the decoder
 	_createDecoder(iframe, channum, pkt);
 	auto *decoder = iframe.decoders[channum];
 	if (!decoder) {
@@ -195,15 +165,15 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		return;
 	}
 
+	// Do the actual decode into the surface buffer
 	try {
-		//LOG(INFO) << "TYPE = " << frame.frame.get<cv::cuda::GpuMat>(spkt.channel).type();
 		if (!decoder->decode(pkt, surface)) {
 			LOG(ERROR) << "Decode failed";
-			//return;
+			return;
 		}
 	} catch (std::exception &e) {
 		LOG(ERROR) << "Decode failed for " << spkt.timestamp << ": " << e.what();
-		//return;
+		return;
 	}
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(decoder->stream());
@@ -215,15 +185,51 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	cv::waitKey(1);
 	}*/
 
+	bool apply_Y_filter = value("apply_Y_filter", true);
+
+	// Now split the tiles from surface into frames, doing colour conversions
+	// at the same time.
 	for (int i=0; i<pkt.frame_count; ++i) {
 		InternalVideoStates &frame = _getVideoFrame(spkt,i);
+
+		if (frame.frame.hasChannel(spkt.channel)) {
+			// FIXME: Is this a corruption in recording or in playback?
+			// Seems to occur in same place in ftl file, one channel is missing
+			LOG(WARNING) << "Previous frame not complete: " << frame.timestamp;
+		}
+
+		{
+			// This ensures that if previous frames are unfinished then they
+			// are discarded.
+			UNIQUE_LOCK(frame.mutex, lk);
+			if (frame.timestamp != spkt.timestamp && frame.timestamp != -1) {
+				frame.frame.reset();
+				frame.completed.clear();
+				LOG(WARNING) << "Frames out-of-phase by: " << spkt.timestamp - frame.timestamp;
+			}
+			frame.timestamp = spkt.timestamp;
+		}
+
+		// Add channel to frame and allocate memory if required
+		const cv::Size size = cv::Size(width, height);
+		frame.frame.create<cv::cuda::GpuMat>(spkt.channel).create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
 
 		cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
 		cv::cuda::GpuMat sroi = surface(roi);
 		
 		// Do colour conversion
 		if (isFloatChannel(rchan) && (pkt.flags & 0x2)) {
-			//LOG(INFO) << "VUYA Convert";
+			// Smooth Y channel around discontinuities
+			// Lerp the uv channels / smooth over a small kernal size.
+
+			if (value("apply_median", false)) {
+				cv::Mat tmp;
+				sroi.download(tmp);
+				cv::medianBlur(tmp, tmp, 5);
+				sroi.upload(tmp);
+			}
+
+			if (apply_Y_filter) ftl::cuda::smooth_y(sroi, cvstream);
 			ftl::cuda::vuya_to_depth(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), sroi, 16.0f, cvstream);
 		} else if (isFloatChannel(rchan)) {
 			sroi.convertTo(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, cvstream);
@@ -232,28 +238,29 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		}
 	}
 
+	Packet tmppkt = pkt;
+	iframe.frame.pushPacket(spkt.channel, tmppkt);
+
+	// Must ensure all processing is finished before completing a frame.
 	cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
 
 	for (int i=0; i<pkt.frame_count; ++i) {
 		InternalVideoStates &frame = _getVideoFrame(spkt,i);
-		
-		frame.completed += spkt.channel;
-	
-		// Complete if all requested frames are found
-		auto sel = stream_->selected(spkt.frameSetID());
 
-		if ((frame.completed & sel) == sel) {
-			UNIQUE_LOCK(frame.mutex, lk);
+		auto sel = stream_->selected(spkt.frameSetID());
+		
+		UNIQUE_LOCK(frame.mutex, lk);
+		if (frame.timestamp == spkt.timestamp) {
+			frame.completed += spkt.channel;
+			
+			// Complete if all requested channels are found
 			if ((frame.completed & sel) == sel) {
 				timestamp_ = frame.timestamp;
 
 				//LOG(INFO) << "BUILDER PUSH: " << timestamp_ << ", " << spkt.frameNumber() << ", " << (int)pkt.frame_count;
 
 				if (frame.state.getLeft().width == 0) {
-					LOG(WARNING) << "Missing calibration, skipping frame";
-					//frame.frame.reset();
-					//frame.completed.clear();
-					//return;
+					LOG(WARNING) << "Missing calibration for frame";
 				}
 
 				// TODO: Have multiple builders for different framesets.
@@ -266,7 +273,10 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 				frame.frame.reset();
 				frame.completed.clear();
+				frame.timestamp = -1;
 			}
+		} else {
+			LOG(ERROR) << "Frame timestamps mistmatch";
 		}
 	}
 }

@@ -156,8 +156,8 @@ namespace
     {
         using namespace ftl::cuda::device::disp_bilateral_filter;
 
-        const short edge_disc = std::max<short>(short(1), short(ndisp * edge_threshold + 0.5));
-        const short max_disc = short(ndisp * max_disc_threshold + 0.5);
+        const T edge_disc = std::max<T>(T(1), T(ndisp * edge_threshold + 0.5));
+        const T max_disc = T(ndisp * max_disc_threshold + 0.5);
 
         size_t table_space_step = table_space.step / sizeof(float);
 
