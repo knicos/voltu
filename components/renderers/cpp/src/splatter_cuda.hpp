@@ -122,6 +122,14 @@ namespace cuda {
         ftl::cuda::TextureObject<int> &d1,
 		ftl::cuda::TextureObject<float> &d2,
         float factor, cudaStream_t stream);
+
+	void fix_bad_colour(
+		ftl::cuda::TextureObject<float> &depth,
+		ftl::cuda::TextureObject<uchar4> &out,
+		ftl::cuda::TextureObject<float> &contribs,
+		uchar4 bad_colour,
+		const ftl::rgbd::Camera &cam,
+		cudaStream_t stream);
 }
 }
 

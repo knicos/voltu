@@ -542,8 +542,17 @@ void Triangular::_postprocessColours(ftl::rgbd::Frame &out) {
 		);
 	}
 
-	if (value("show_bad_colour", true)) {
+	if (value("show_bad_colour", false)) {
 		ftl::cuda::show_missing_colour(
+			out.getTexture<float>(Channel::Depth),
+			out.getTexture<uchar4>(Channel::Colour),
+			temp_.getTexture<float>(Channel::Contribution),
+			make_uchar4(255,0,0,0),
+			params_.camera,
+			stream_
+		);
+	} else {
+		ftl::cuda::fix_bad_colour(
 			out.getTexture<float>(Channel::Depth),
 			out.getTexture<uchar4>(Channel::Colour),
 			temp_.getTexture<float>(Channel::Contribution),
