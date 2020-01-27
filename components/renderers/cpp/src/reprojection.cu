@@ -333,3 +333,57 @@ void ftl::cuda::equirectangular_reproject(
 	equirectangular_kernel<<<gridSize, blockSize, 0, stream>>>(image_in, image_out, camera, pose);
 	cudaSafeCall( cudaGetLastError() );
 }
+
+// ==== Correct for bad colours ================================================
+
+__device__ inline uchar4 make_uchar4(const float4 v) {
+	return make_uchar4(v.x,v.y,v.z,v.w);
+}
+
+template <int RADIUS>
+__global__ void fix_colour_kernel(
+		TextureObject<float> depth,
+		TextureObject<uchar4> out,
+		TextureObject<float> contribs,
+		uchar4 bad_colour,
+		ftl::rgbd::Camera cam) {
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < out.width() && y < out.height()) {
+		const float contrib = contribs.tex2D((int)x,(int)y);
+		const float d = depth.tex2D(x,y);
+
+		if (contrib < 0.0000001f && d > cam.minDepth && d < cam.maxDepth) {
+			float4 sumcol = make_float4(0.0f);
+			float count = 0.0f;
+
+			for (int v=-RADIUS; v<=RADIUS; ++v) {
+				for (int u=-RADIUS; u<=RADIUS; ++u) {
+					const float contrib = contribs.tex2D((int)x+u,(int)y+v);
+					const float4 c = make_float4(out(int(x)+u,int(y)+v));
+					if (contrib > 0.0000001f) {
+						sumcol += c;
+						count += 1.0f;
+					}
+				}
+			}
+
+			out(x,y) = (count > 0.0f) ? make_uchar4(sumcol / count) : bad_colour;
+		}
+	}
+}
+
+void ftl::cuda::fix_bad_colour(
+		TextureObject<float> &depth,
+		TextureObject<uchar4> &out,
+		TextureObject<float> &contribs,
+		uchar4 bad_colour,
+		const ftl::rgbd::Camera &cam,
+		cudaStream_t stream) {
+	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	fix_colour_kernel<1><<<gridSize, blockSize, 0, stream>>>(depth, out, contribs, bad_colour, cam);
+	cudaSafeCall( cudaGetLastError() );
+}
