@@ -57,6 +57,13 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
 	edge_disc_ = cfg->value("edge_discontinuity", 0.04f);
 	max_disc_ = cfg->value("max_discontinuity", 0.1f);
 	channel_ = Channel::Depth;
+
+	cfg->on("edge_discontinuity", [this](const ftl::config::Event &e) {
+		edge_disc_ = config()->value("edge_discontinuity", 0.04f);
+	});
+	cfg->on("max_discontinuity", [this](const ftl::config::Event &e) {
+		max_disc_ = config()->value("max_discontinuity", 0.1f);
+	});
 	
 
 	calc_color_weighted_table(table_color_, sigma_range_, 255);
@@ -73,6 +80,13 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg, const std::tu
 	edge_disc_ = cfg->value("edge_discontinuity", 0.04f);
 	max_disc_ = cfg->value("max_discontinuity", 0.1f);
 	channel_ = std::get<0>(p);
+
+	cfg->on("edge_discontinuity", [this](const ftl::config::Event &e) {
+		edge_disc_ = config()->value("edge_discontinuity", 0.04f);
+	});
+	cfg->on("max_discontinuity", [this](const ftl::config::Event &e) {
+		max_disc_ = config()->value("max_discontinuity", 0.1f);
+	});
 	
 
 	calc_color_weighted_table(table_color_, sigma_range_, 255);
