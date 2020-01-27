@@ -75,6 +75,13 @@ bool Muxer::onPacket(const std::function<void(const ftl::codecs::StreamPacket &,
 	return true;
 }
 
+int Muxer::originStream(int fsid, int fid) {
+	if (fid < revmap_.size()) {
+		return std::get<0>(revmap_[fid]);
+	}
+	return -1;
+}
+
 bool Muxer::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	SHARED_LOCK(mutex_, lk);
 	available(spkt.frameSetID()) += spkt.channel;

@@ -125,6 +125,8 @@ class Muxer : public Stream {
 
 	void reset() override;
 
+	int originStream(int fsid, int fid);
+
 	private:
 	struct StreamEntry {
 		Stream *stream;
