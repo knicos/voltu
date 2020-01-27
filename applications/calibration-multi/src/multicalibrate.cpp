@@ -91,7 +91,7 @@ MultiCameraCalibrationNew::MultiCameraCalibrationNew(
 	reference_camera_(reference_camera),
 	min_visible_points_(50),
 
-	fix_intrinsics_(fix_intrinsics == 1 ? 0 : 5),
+	fix_intrinsics_(fix_intrinsics == 1 ? 5 : 0),
 	resolution_(resolution),
 	K_(n_cameras),
 	dist_coeffs_(n_cameras),
@@ -610,6 +610,10 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 	if (reference_camera != -1) {
 		DCHECK(reference_camera >= 0 && reference_camera < n_cameras_);
 		reference_camera_ = reference_camera; 
+	}
+
+	for (const auto &K : K_) {
+		LOG(INFO) << K;
 	}
 
 	reset(); // remove all old calibration results

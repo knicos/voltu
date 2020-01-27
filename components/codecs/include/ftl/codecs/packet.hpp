@@ -5,8 +5,7 @@
 #include <vector>
 #include <ftl/codecs/codecs.hpp>
 #include <ftl/codecs/channels.hpp>
-
-#include <msgpack.hpp>
+#include <ftl/utility/msgpack.hpp>
 
 namespace ftl {
 namespace codecs {

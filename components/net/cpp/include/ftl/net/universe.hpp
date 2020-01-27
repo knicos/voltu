@@ -1,9 +1,7 @@
 #ifndef _FTL_NET_UNIVERSE_HPP_
 #define _FTL_NET_UNIVERSE_HPP_
 
-#ifdef _MSC_VER
-#include <msgpack_optional.hpp>
-#endif
+#include <ftl/utility/msgpack.hpp>
 
 #include <ftl/configurable.hpp>
 #include <ftl/net/peer.hpp>

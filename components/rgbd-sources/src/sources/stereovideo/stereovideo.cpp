@@ -46,6 +46,25 @@ StereoVideoSource::~StereoVideoSource() {
 	delete lsrc_;
 }
 
+template<typename T>
+static std::pair<std::vector<int>, std::vector<T>> MatToVec(cv::Mat M) {
+	std::pair<std::vector<int>, std::vector<T>> res;
+	res.first = std::vector<int>(3);
+	res.first[0] = M.type();
+	res.first[1] = M.size().width;
+	res.first[2] = M.size().height;
+	res.second = std::vector<T>(M.begin<T>(), M.end<T>());
+	return res;
+}
+
+template<typename T>
+static cv::Mat VecToMat(std::pair<std::vector<int>, std::vector<T>> data) {
+	return cv::Mat(	data.first[1],
+					data.first[2],
+					data.first[0],
+					data.second.data());
+}
+
 void StereoVideoSource::init(const string &file) {
 	capabilities_ = kCapVideo | kCapStereo;
 
@@ -106,53 +125,35 @@ void StereoVideoSource::init(const string &file) {
 	// Tries to follow interface of ftl::Calibrate
 	
 	host_->getNet()->bind("set_pose",
-		[this](std::vector<double> data){
-			if (data.size() != 16) {
-				LOG(ERROR) << "invalid pose received (wrong size)";
-				return false;
-			}
-
-			cv::Mat M = cv::Mat(data).reshape(1, 4).t();
-			if (!calib_->setPose(M)) {
+		[this](cv::Mat pose){
+			if (!calib_->setPose(pose)) {
 				LOG(ERROR) << "invalid pose received (bad value)";
 				return false;
 			}
 
 			return true;
 	});
-
+	
 	host_->getNet()->bind("set_intrinsics",
-		[this](	std::vector<int> size,
-				std::vector<double> camera_l, std::vector<double> dist_l,
-				std::vector<double> camera_r, std::vector<double> dist_r) {
-		if ((size.size() != 2) || (camera_l.size() != 9) || (camera_r.size() != 9)) {
-			LOG(ERROR) << "bad intrinsic parameters (wrong size)";
-			return false;
-		}
-		cv::Size calib_size(size[0], size[1]);
-		cv::Mat K_l = cv::Mat(camera_l).reshape(1, 3).t();
-		cv::Mat K_r = cv::Mat(camera_r).reshape(1, 3).t();
-		cv::Mat D_l = cv::Mat(dist_l);
-		cv::Mat D_r = cv::Mat(dist_r);
-		
-		if (!calib_->setIntrinsics(calib_size, {K_l, K_r}, {D_l, D_r})) {
-			LOG(ERROR) << "bad intrinsic parameters (bad values)";
-			return false;
-		}
-		return true;
-	});
-
-	host_->getNet()->bind("set_extrinsics",
-		[this](std::vector<double> data_rvec, std::vector<double> data_tvec){
-			if ((data_rvec.size() != 3) || (data_tvec.size() != 3)) {
-				LOG(ERROR) << "invalid extrinsic parameters received (wrong size)";
+		[this](cv::Size size, cv::Mat K_l, cv::Mat D_l, cv::Mat K_r, cv::Mat D_r) {
+			
+			if (!calib_->setIntrinsics(size, {K_l, K_r})) {
+				LOG(ERROR) << "bad intrinsic parameters (bad values)";
 				return false;
 			}
 
-			cv::Mat R;
-			cv::Rodrigues(data_rvec, R);
-			cv::Mat t(data_tvec);
-			
+			if (!D_l.empty() && !D_r.empty()) {
+				if (!calib_->setDistortion({D_l, D_r})) {
+					LOG(ERROR) << "bad distortion parameters (bad values)";
+					return false;
+				}
+			}
+
+			return true;
+	});
+
+	host_->getNet()->bind("set_extrinsics",
+		[this](cv::Mat R, cv::Mat t){
 			if (!calib_->setExtrinsics(R, t)) {
 				LOG(ERROR) << "invalid extrinsic parameters (bad values)";
 				return false;
@@ -167,11 +168,17 @@ void StereoVideoSource::init(const string &file) {
 
 	host_->getNet()->bind("set_rectify", 
 		[this](bool enable){
-			bool retval = enable && calib_->setRectify(enable);
+			bool retval = calib_->setRectify(enable);
 			updateParameters();
 			return retval;
 	});
 
+	host_->getNet()->bind("get_distortion", [this]() {
+		return std::vector<cv::Mat>{
+			cv::Mat(calib_->getCameraDistortionLeft()),
+			cv::Mat(calib_->getCameraDistortionRight()) };
+	});
+	
 	////////////////////////////////////////////////////////////////////////////
 
 	// Generate camera parameters from camera matrix
@@ -201,6 +208,8 @@ void StereoVideoSource::updateParameters() {
 	// same for left and right
 	double baseline = 1.0 / calib_->getQ().at<double>(3,2);
 	double doff =  -calib_->getQ().at<double>(3,3) * baseline;
+	double min_depth = this->host_->getConfig().value<double>("min_depth", 0.0);
+	double max_depth = this->host_->getConfig().value<double>("max_depth", 15.0);
 
 	// left
 
@@ -212,9 +221,9 @@ void StereoVideoSource::updateParameters() {
 		-K.at<double>(1,2),	// Cy
 		(unsigned int) color_size_.width,
 		(unsigned int) color_size_.height,
-		0.0f,	// 0m min
-		15.0f,	// 15m max
-		baseline, // Baseline
+		min_depth,
+		max_depth,
+		baseline,
 		doff
 	};
 	
@@ -234,9 +243,9 @@ void StereoVideoSource::updateParameters() {
 		-K.at<double>(1,2),	// Cy
 		(unsigned int) color_size_.width,
 		(unsigned int) color_size_.height,
-		0.0f,	// 0m min
-		15.0f,	// 15m max
-		baseline, // Baseline
+		min_depth,
+		max_depth,
+		baseline,
 		doff
 	};
 }

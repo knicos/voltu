@@ -5,8 +5,8 @@
 #include <cstddef>
 #include <functional>
 #include <ftl/uri.hpp>
-#include <msgpack.hpp>
 
+#include <ftl/utility/msgpack.hpp>
 #include <ftl/net/common.hpp>
 
 using std::size_t;

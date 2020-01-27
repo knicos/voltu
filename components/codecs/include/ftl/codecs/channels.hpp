@@ -2,7 +2,7 @@
 #define _FTL_RGBD_CHANNELS_HPP_
 
 #include <bitset>
-#include <msgpack.hpp>
+#include <ftl/utility/msgpack.hpp>
 
 namespace ftl {
 namespace codecs {

@@ -44,7 +44,10 @@ using ftl::rgbd::Source;
 using ftl::codecs::Channel;
 
 Mat createCameraMatrix(const ftl::rgbd::Camera &parameters) {
-	Mat m = (cv::Mat_<double>(3,3) << parameters.fx, 0.0, -parameters.cx, 0.0, parameters.fy, -parameters.cy, 0.0, 0.0, 1.0);
+	Mat m = (cv::Mat_<double>(3,3) <<
+				parameters.fx,	0.0,			-parameters.cx,
+				0.0, 			parameters.fy,	-parameters.cy,
+				0.0,			0.0,			 1.0);
 	return m;
 }
 
@@ -118,36 +121,28 @@ void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
 ////////////////////////////////////////////////////////////////////////////////
 // RPC
 ////////////////////////////////////////////////////////////////////////////////
+// Using Mat directly
+
+vector<Mat> getDistortionParametersRPC(ftl::net::Universe* net, ftl::stream::Net* nstream) {
+	return net->call<vector<Mat>>(nstream->getPeer(), "get_distortion");
+}
 
 bool setRectifyRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, bool enabled) {
 	return net->call<bool>(nstream->getPeer(), "set_rectify", enabled);
 }
 
 bool setIntrinsicsRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Size size, vector<Mat> K, vector<Mat> D) {
-	Mat K0 = K[0].t();
-	Mat K1 = K[1].t();
-	return net->call<bool>(	nstream->getPeer(), "set_intrinsics",
-							vector<int>{size.width, size.height},
-							vector<double>(K0.begin<double>(), K0.end<double>()),
-							vector<double>(D[0].begin<double>(), D[0].end<double>()),
-							vector<double>(K1.begin<double>(), K1.end<double>()),
-							vector<double>(D[1].begin<double>(), D[1].end<double>())
-	);
+	return true;
+	return net->call<bool>(nstream->getPeer(), "set_intrinsics",
+							size, K[0], D[0], K[1], D[1] );
 }
 
 bool setExtrinsicsRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Mat R, Mat t) {
-	Mat rvec;
-	cv::Rodrigues(R, rvec);
-	return net->call<bool>(	nstream->getPeer(), "set_extrinsics",
-							vector<double>(rvec.begin<double>(), rvec.end<double>()),
-							vector<double>(t.begin<double>(), t.end<double>())
-	);
+	return net->call<bool>(nstream->getPeer(), "set_extrinsics", R, t);
 }
 
 bool setPoseRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Mat pose) {
-	Mat P = pose.t();
-	return net->call<bool>(	nstream->getPeer(), "set_pose", 
-							vector<double>(P.begin<double>(), P.end<double>()));
+	return net->call<bool>(nstream->getPeer(), "set_pose",  pose);
 }
 
 bool saveCalibrationRPC(ftl::net::Universe* net, ftl::stream::Net* nstream) {
@@ -199,26 +194,43 @@ void calibrateRPC(	ftl::net::Universe* net,
 		calculateTransform(R[c], t[c], R[c + 1], t[c + 1], R_c1c2, T_c1c2);
 		cv::stereoRectify(K1, D1, K2, D2, params.size, R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, params.alpha);
 
+		R_c1c2 = R_c1c2.clone();
+		T_c1c2 = T_c1c2.clone();
+
 		// calculate extrinsics from rectified parameters
 		Mat _t = Mat(Size(1, 3), CV_64FC1, Scalar(0.0));
 		Rt_out[c] = getMat4x4(R[c], t[c]) * getMat4x4(R1, _t).inv();
 		Rt_out[c + 1] = getMat4x4(R[c + 1], t[c + 1]) * getMat4x4(R2, _t).inv();
 
+		LOG(INFO) << K1;
+		LOG(INFO) << K2;
+		LOG(INFO) << R_c1c2;
+		LOG(INFO) << T_c1c2;
+		LOG(INFO) << "R.isContinuous(): " << R_c1c2.isContinuous ();
+		LOG(INFO) << "R.step: " << R_c1c2.step;
+		LOG(INFO) << "R.cols: " << R_c1c2.cols;
+		LOG(INFO) << "T.isContinuous(): " << T_c1c2.isContinuous ();
+		LOG(INFO) << "T.step: " << T_c1c2.step;
+		LOG(INFO) << "T.cols: " << T_c1c2.cols;
+		LOG(INFO) << "--------------------------------------------------------";
+
 		auto *nstream = nstreams[c/2];
 		while(true) {
 			try {
-				setIntrinsicsRPC(net, nstream,
-					params.size,
-					vector<Mat>{calib.getCameraMat(c), calib.getCameraMat(c+1)},
-					vector<Mat>{calib.getDistCoeffs(c), calib.getDistCoeffs(c+1)}
-				);
+				if (params.optimize_intrinsic) {
+					setIntrinsicsRPC(net, nstream,
+						params.size,
+						vector<Mat>{calib.getCameraMat(c), calib.getCameraMat(c+1)},
+						vector<Mat>{calib.getDistCoeffs(c), calib.getDistCoeffs(c+1)}
+					);
+				}
 				setExtrinsicsRPC(net, nstream, R_c1c2, T_c1c2);
 				setPoseRPC(net, nstream, Rt_out[c]);
 				saveCalibrationRPC(net, nstream);
 				LOG(INFO) << "CALIBRATION SENT";
 				break;
 			}
-			catch (std::exception ex) {
+			catch (std::exception &ex) {
 				LOG(ERROR) << "RPC failed: " << ex.what();
 				sleep(1);
 			}
@@ -259,6 +271,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 		nstream->set("uri", s);
 		nstreams.push_back(nstream);
 		stream->add(nstream);
+		
 		++count;
 	}
 	
@@ -278,23 +291,22 @@ void runCameraCalibration(	ftl::Configurable* root,
 		bool good = true;
 		try {
 			for (size_t i = 0; i < fs.frames.size(); i ++) {	
+				auto idx = stream->originStream(0, i);
+				if (idx < 0) { LOG(ERROR) << "negative index"; }
 				fs.frames[i].download(Channel::Left+Channel::Right);
 				
-				Mat left = fs.frames[i].get<Mat>(Channel::Left);
-				cv::cvtColor(left, rgb_new[2*i], cv::COLOR_BGRA2BGR);
-				Mat right = fs.frames[i].get<Mat>(Channel::Right);
-				cv::cvtColor(right, rgb_new[2*i+1], cv::COLOR_BGRA2BGR);
-
-				if (left.empty()) good = false;
-				if (right.empty()) good = false;
-				if (!good) break;
-
-				camera_parameters[2*i] = createCameraMatrix(fs.frames[i].getLeftCamera());
-				camera_parameters[2*i+1] = createCameraMatrix(fs.frames[i].getRightCamera());
-				if (res.empty()) res = rgb_new[2*i].size();
+				//fs.frames[i].get<Mat>(Channel::Left).copyTo(rgb_new[2*i]);
+				//fs.frames[i].get<Mat>(Channel::Right).copyTo(rgb_new[2*i+1]);
+				cv::cvtColor(fs.frames[i].get<Mat>(Channel::Left), rgb_new[2*idx], cv::COLOR_BGRA2BGR);
+				cv::cvtColor(fs.frames[i].get<Mat>(Channel::Right), rgb_new[2*idx+1], cv::COLOR_BGRA2BGR);
+				
+				camera_parameters[2*idx] = createCameraMatrix(fs.frames[i].getLeftCamera());
+				camera_parameters[2*idx+1] = createCameraMatrix(fs.frames[i].getRightCamera());
+				if (res.empty()) res = rgb_new[2*idx].size();
 			}
 		}
-		catch (...) {
+		catch (std::exception ex) {
+			LOG(ERROR) << ex.what();
 			good = false;
 		}
 		new_frames = good;
@@ -303,7 +315,8 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	stream->begin();
 	ftl::timer::start(false);
-
+	sleep(5);
+	
 	while(true) {
 		if (!res.empty()) {
 			params.size = res;
@@ -347,15 +360,25 @@ void runCameraCalibration(	ftl::Configurable* root,
 	sleep(3);
 
 	while(calib.getMinVisibility() < n_views) {
+		loop:
 		cv::waitKey(10);
 		
-		while (new_frames) {
-			UNIQUE_LOCK(mutex, LOCK);
-			if (new_frames) rgb.swap(rgb_new);
-			new_frames = false;
+		while (true) {
+			if (new_frames) {
+				UNIQUE_LOCK(mutex, LOCK);
+				rgb.swap(rgb_new);
+				new_frames = false;
+				break;
+			}
+			cv::waitKey(10);
 		}
 		
-		for (Mat &im : rgb) { CHECK(!im.empty()); }
+		for (Mat &im : rgb) {
+			if (im.empty()) {
+				LOG(ERROR) << "EMPTY";
+				goto loop;
+			}
+		}
 
 		visible.clear();
 		int n_found = findCorrespondingPoints(rgb, points, visible);
@@ -404,13 +427,21 @@ void runCameraCalibration(	ftl::Configurable* root,
 		cv::imshow("Cameras", show);
 	}
 	cv::destroyWindow("Cameras");
-
-	for (size_t i = 0; i < camera_parameters.size(); i++) {
-		//CHECK(params.size == Size(camera_r.width, camera_r.height));
-		//CHECK(params.size == Size(camera_l.width, camera_l.height));
-		
-		LOG(INFO) << "K[" << i << "] = \n" << camera_parameters[i];
-		calib.setCameraParameters(i, camera_parameters[i]);
+	
+	for (size_t i = 0; i < nstreams.size(); i++) {
+		while(true) {
+			try {
+				vector<Mat> D = getDistortionParametersRPC(net, nstreams[i]);
+				LOG(INFO) << "K[" << 2*i << "] = \n" << camera_parameters[2*i];
+				LOG(INFO) << "D[" << 2*i << "] = " << D[0];
+				LOG(INFO) << "K[" << 2*i+1 << "] = \n" << camera_parameters[2*i+1];
+				LOG(INFO) << "D[" << 2*i+1 << "] = " << D[1];
+				calib.setCameraParameters(2*i, camera_parameters[2*i], D[0]);
+				calib.setCameraParameters(2*i+1, camera_parameters[2*i+1], D[1]);
+				break;
+			}
+			catch (...) {}
+		}
 	}
 	
 	Mat out;
@@ -419,9 +450,16 @@ void runCameraCalibration(	ftl::Configurable* root,
 	vector<size_t> idx;
 	calibrateRPC(net, calib, params, nstreams, map1, map2, roi);
 
+	if (save_input) {
+		cv::FileStorage fs(path + filename, cv::FileStorage::WRITE);
+		calib.saveInput(fs);
+		fs.release();
+	}
+
+
 	// visualize
-	while(ftl::running) {
-		cv::waitKey(10);
+	while(cv::waitKey(10) != 27) {
+
 		while (!new_frames) {
 			if (cv::waitKey(50) != -1) { ftl::running = false; }
 		}
@@ -430,14 +468,26 @@ void runCameraCalibration(	ftl::Configurable* root,
 			UNIQUE_LOCK(mutex, LOCK)
 			rgb.swap(rgb_new);
 			new_frames = false;
-			mutex.unlock();
 		}
 
 		visualizeCalibration(calib, out, rgb, map1, map2, roi);
 		cv::namedWindow("Calibration", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
 		cv::imshow("Calibration", out);
 	}
-	
+
+	for (size_t i = 0; i < nstreams.size(); i++) {
+		while(true) {
+			try {
+				setRectifyRPC(net, nstreams[i], true);
+				break;
+			}
+			catch (...) {}
+		}
+	}
+
+	ftl::running = false;
+	ftl::timer::stop();
+	ftl::pool.stop(true);
 }
 
 int main(int argc, char **argv) {
@@ -478,7 +528,7 @@ int main(int argc, char **argv) {
 	
 	LOG(INFO)	<< "\n"
 				<< "\n"
-//				<< "\n                save_input: " << (int) save_input
+				<< "\n                save_input: " << (int) save_input
 //				<< "\n                load_input: " << (int) load_input
 //				<< "\n            save_extrinsic: " << (int) save_extrinsic
 //				<< "\n            save_intrinsic: " << (int) save_intrinsic

@@ -39,9 +39,15 @@ target_include_directories(timer_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc
 target_link_libraries(timer_unit
 	Threads::Threads ${OS_LIBS})
 
+### URI ########################################################################
+add_executable(msgpack_unit
+	./tests.cpp
+	../src/loguru.cpp
+	./msgpack_unit.cpp)
+target_include_directories(msgpack_unit PUBLIC ${OpenCV_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(msgpack_unit Threads::Threads ${OS_LIBS} ${OpenCV_LIBS})
 
 add_test(ConfigurableUnitTest configurable_unit)
 add_test(URIUnitTest uri_unit)
+add_test(MsgpackUnitTest msgpack_unit)
 # add_test(TimerUnitTest timer_unit) CI server can't achieve this
-
-

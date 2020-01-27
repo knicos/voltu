@@ -7,7 +7,7 @@
 #include <ftl/cuda_util.hpp>
 
 #ifndef __CUDACC__
-#include <msgpack.hpp>
+#include <ftl/utility/msgpack.hpp>
 #endif
 
 namespace ftl{
