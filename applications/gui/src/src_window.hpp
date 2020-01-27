@@ -48,6 +48,8 @@ class SourceWindow : public nanogui::Window {
 	void recordVideo(const std::string &filename);
 	void stopRecordingVideo();
 
+	inline void paused(bool p) { paused_ = p; }
+
 	private:
 	ftl::gui::Screen *screen_;
 
@@ -73,6 +75,7 @@ class SourceWindow : public nanogui::Window {
 	ftl::audio::Speaker *speaker_;
 
 	ftl::rgbd::FrameSet frameset_;
+	bool paused_;
 
 	void _updateCameras(const std::vector<std::string> &netcams);
 	void _createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtual);

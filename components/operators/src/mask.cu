@@ -70,7 +70,7 @@ __global__ void cull_discontinuity_kernel(ftl::cuda::TextureObject<int> mask, ft
 
 	if (x < depth.width() && y < depth.height()) {
 		Mask m(mask.tex2D((int)x,(int)y));
-		if (m.isDiscontinuity()) depth(x,y) = 1000.0f;
+		if (m.isDiscontinuity()) depth(x,y) = 0.0f;
 	}
 }
 

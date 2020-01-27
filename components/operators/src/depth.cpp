@@ -6,10 +6,105 @@
 #include "ftl/operators/filling.hpp"
 #include "ftl/operators/segmentation.hpp"
 #include "ftl/operators/disparity.hpp"
+#include "ftl/operators/depth.hpp"
 #include "ftl/operators/mask.hpp"
 
+#include "./disparity/opencv/disparity_bilateral_filter.hpp"
+
 using ftl::operators::DepthChannel;
+using ftl::operators::DepthBilateralFilter;
 using ftl::codecs::Channel;
+using cv::Mat;
+using cv::cuda::GpuMat;
+
+static void calc_color_weighted_table(GpuMat& table_color, float sigma_range, int len)
+{
+	Mat cpu_table_color(1, len, CV_32F);
+
+	float* line = cpu_table_color.ptr<float>();
+
+	for(int i = 0; i < len; i++)
+		line[i] = static_cast<float>(std::exp(-double(i * i) / (2 * sigma_range * sigma_range)));
+
+	table_color.upload(cpu_table_color);
+}
+
+static void calc_space_weighted_filter(GpuMat& table_space, int win_size, float dist_space)
+{
+	int half = (win_size >> 1);
+
+	Mat cpu_table_space(half + 1, half + 1, CV_32F);
+
+	for (int y = 0; y <= half; ++y)
+	{
+		float* row = cpu_table_space.ptr<float>(y);
+		for (int x = 0; x <= half; ++x)
+			row[x] = exp(-sqrt(float(y * y) + float(x * x)) / dist_space);
+	}
+
+	table_space.upload(cpu_table_space);
+}
+
+// ==== Depth Bilateral Filter =================================================
+
+DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
+		ftl::operators::Operator(cfg) {
+	
+	scale_ = 16.0;
+	radius_ = cfg->value("radius", 7);
+	iter_ = cfg->value("iter", 2);
+	sigma_range_ = 10.0f;
+	edge_disc_ = cfg->value("edge_discontinuity", 0.04f);
+	max_disc_ = cfg->value("max_discontinuity", 0.1f);
+	channel_ = Channel::Depth;
+	
+
+	calc_color_weighted_table(table_color_, sigma_range_, 255);
+    calc_space_weighted_filter(table_space_, radius_ * 2 + 1, radius_ + 1.0f);
+}
+
+DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg, const std::tuple<ftl::codecs::Channel> &p) :
+		ftl::operators::Operator(cfg) {
+	
+	scale_ = 16.0;
+	radius_ = cfg->value("radius", 7);
+	iter_ = cfg->value("iter", 2);
+	sigma_range_ = 10.0f;
+	edge_disc_ = cfg->value("edge_discontinuity", 0.04f);
+	max_disc_ = cfg->value("max_discontinuity", 0.1f);
+	channel_ = std::get<0>(p);
+	
+
+	calc_color_weighted_table(table_color_, sigma_range_, 255);
+    calc_space_weighted_filter(table_space_, radius_ * 2 + 1, radius_ + 1.0f);
+}
+
+bool DepthBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
+									 cudaStream_t stream) {
+
+	if (!in.hasChannel(Channel::Colour)) {
+		LOG(ERROR) << "Joint Bilateral Filter is missing Colour";
+		return false;
+	} else if (!in.hasChannel(Channel::Depth)) {
+		LOG(ERROR) << "Joint Bilateral Filter is missing Depth";
+		return false;
+	}
+
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
+	GpuMat &depth = in.get<GpuMat>(channel_);
+
+	ftl::cuda::device::disp_bilateral_filter::disp_bilateral_filter<float>(depth, rgb, rgb.channels(), iter_,
+			table_color_.ptr<float>(), (float *)table_space_.data, table_space_.step / sizeof(float),
+			radius_, edge_disc_, max_disc_, stream);
+
+	//disp_in.convertTo(disp_int_, CV_16SC1, scale_, cvstream);
+	//filter_->apply(disp_in, rgb, disp_out, cvstream);
+	//disp_int_result_.convertTo(disp_out, disp_in.type(), 1.0/scale_, cvstream);
+	return true;
+}
+
+// =============================================================================
 
 DepthChannel::DepthChannel(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
 	pipe_ = nullptr;

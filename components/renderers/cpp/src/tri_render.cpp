@@ -339,14 +339,15 @@ void Triangular::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 			continue;
 		}
 
-		auto pose = MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
+		//auto pose = MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
+		auto transform = params_.m_viewMatrix * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
 
 		// Calculate and save virtual view screen position of each source pixel
 		ftl::cuda::screen_coord(
 			f.createTexture<float>(Channel::Depth),
 			f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Depth).size())),
 			f.createTexture<short2>(Channel::Screen, Format<short2>(f.get<GpuMat>(Channel::Depth).size())),
-			params_, pose, f.getLeftCamera(), stream
+			params_, transform, f.getLeftCamera(), stream
 		);
 
 		// Must reset depth channel if blending
