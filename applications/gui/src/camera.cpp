@@ -3,6 +3,8 @@
 #include "screen.hpp"
 #include <nanogui/glutil.h>
 
+#include <ftl/operators/antialiasing.hpp>
+
 #include <fstream>
 
 #ifdef HAVE_OPENVR
@@ -158,6 +160,7 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codec
 	//posewin_->setVisible(false);
 	posewin_ = nullptr;
 	renderer_ = nullptr;
+	post_pipe_ = nullptr;
 	record_stream_ = nullptr;
 
 	/*src->setCallback([this](int64_t ts, ftl::rgbd::Frame &frame) {
@@ -230,6 +233,13 @@ void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
 
 	// TODO: Insert post-render pipeline.
 	// FXAA + Bad colour removal
+
+	if (!post_pipe_) {
+		post_pipe_ = ftl::config::create<ftl::operators::Graph>(screen_->root(), "post_filters");
+		post_pipe_->append<ftl::operators::FXAA>("fxaa");
+	}
+
+	post_pipe_->apply(frame_, frame_, 0);
 
 	_downloadFrames(&frame_);
 

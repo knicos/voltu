@@ -13,10 +13,19 @@ FXAA::~FXAA() {
 }
 
 bool FXAA::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
-	ftl::cuda::fxaa(
-		in.getTexture<uchar4>(Channel::Colour),
-		stream
-	);
+	if (in.hasChannel(Channel::Depth)) {
+		ftl::cuda::fxaa(
+			in.getTexture<uchar4>(Channel::Colour),
+			in.getTexture<float>(Channel::Depth),
+			config()->value("threshold", 0.1f),
+			stream
+		);
+	} else {
+		ftl::cuda::fxaa(
+			in.getTexture<uchar4>(Channel::Colour),
+			stream
+		);
+	}
 
 	if (in.hasChannel(Channel::Right)) {
 		ftl::cuda::fxaa(

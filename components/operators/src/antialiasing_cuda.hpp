@@ -7,6 +7,7 @@ namespace ftl {
 namespace cuda {
 
 void fxaa(ftl::cuda::TextureObject<uchar4> &colour, cudaStream_t stream);
+void fxaa(ftl::cuda::TextureObject<uchar4> &colour, ftl::cuda::TextureObject<float> &depth, float threshold, cudaStream_t stream);
 
 }
 }
