@@ -21,6 +21,7 @@
 #include "ftl/operators/segmentation.hpp"
 #include "ftl/operators/mask.hpp"
 #include "ftl/operators/antialiasing.hpp"
+#include <ftl/operators/smoothing.hpp>
 
 #ifdef HAVE_LIBARCHIVE
 #include "ftl/rgbd/snapshot.hpp"
@@ -72,22 +73,26 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	});
 
 	pre_pipeline_ = ftl::config::create<ftl::operators::Graph>(screen->root(), "pre_filters");
+	//pre_pipeline_->append<ftl::operators::HFSmoother>("hfnoise");
 	//pre_pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pre_pipeline_->append<ftl::operators::CrossSupport>("cross");
 	pre_pipeline_->append<ftl::operators::DiscontinuityMask>("discontinuity");
 	pre_pipeline_->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 	pre_pipeline_->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
 
+	paused_ = false;
 	cycle_ = 0;
 	receiver_->onFrameSet([this](ftl::rgbd::FrameSet &fs) {
-		// Enforce interpolated colour
-		for (int i=0; i<fs.frames.size(); ++i) {
-			fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
+		if (!paused_) {
+			// Enforce interpolated colour
+			for (int i=0; i<fs.frames.size(); ++i) {
+				fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
+			}
+
+			pre_pipeline_->apply(fs, fs, 0);
+
+			fs.swapTo(frameset_);
 		}
-
-		pre_pipeline_->apply(fs, fs, 0);
-
-		fs.swapTo(frameset_);
 
 		// Request the channels required by current camera configuration
 		interceptor_->select(frameset_.id, _aggregateChannels());

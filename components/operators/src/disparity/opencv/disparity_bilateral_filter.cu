@@ -77,12 +77,18 @@ namespace ftl { namespace cuda { namespace device
             }
 		};
 
+		template <typename T>
+		__device__ inline T Abs(T v) { return ::abs(v); }
+
+		template <>
+		__device__ inline float Abs<float>(float v) { return fabsf(v); }
+
         template <int channels, typename T>
         __global__ void disp_bilateral_filter(int t, T* disp, size_t disp_step,
             const uchar* img, size_t img_step, int h, int w,
             const float* ctable_color, const float * ctable_space, size_t ctable_space_step,
             int cradius,
-            short cedge_disc, short cmax_disc)
+            T cedge_disc, T cmax_disc)
         {
             const int y = blockIdx.y * blockDim.y + threadIdx.y;
             const int x = ((blockIdx.x * blockDim.x + threadIdx.x) << 1) + ((y + t) & 1);
@@ -97,7 +103,7 @@ namespace ftl { namespace cuda { namespace device
                 dp[3] = *(disp + (y+1) * disp_step + x + 0);
                 dp[4] = *(disp + (y  ) * disp_step + x + 1);
 
-                if(::abs(dp[1] - dp[0]) >= cedge_disc || ::abs(dp[2] - dp[0]) >= cedge_disc || ::abs(dp[3] - dp[0]) >= cedge_disc || ::abs(dp[4] - dp[0]) >= cedge_disc)
+                if(Abs(dp[1] - dp[0]) >= cedge_disc || Abs(dp[2] - dp[0]) >= cedge_disc || Abs(dp[3] - dp[0]) >= cedge_disc || Abs(dp[4] - dp[0]) >= cedge_disc)
                 {
                     const int ymin = ::max(0, y - cradius);
                     const int xmin = ::max(0, x - cradius);
@@ -122,11 +128,11 @@ namespace ftl { namespace cuda { namespace device
 
                             const T disp_reg = disp_y[xi];
 
-                            cost[0] += ::min(cmax_disc, ::abs(disp_reg - dp[0])) * weight;
-                            cost[1] += ::min(cmax_disc, ::abs(disp_reg - dp[1])) * weight;
-                            cost[2] += ::min(cmax_disc, ::abs(disp_reg - dp[2])) * weight;
-                            cost[3] += ::min(cmax_disc, ::abs(disp_reg - dp[3])) * weight;
-                            cost[4] += ::min(cmax_disc, ::abs(disp_reg - dp[4])) * weight;
+                            cost[0] += ::min(cmax_disc, Abs(disp_reg - dp[0])) * weight;
+                            cost[1] += ::min(cmax_disc, Abs(disp_reg - dp[1])) * weight;
+                            cost[2] += ::min(cmax_disc, Abs(disp_reg - dp[2])) * weight;
+                            cost[3] += ::min(cmax_disc, Abs(disp_reg - dp[3])) * weight;
+                            cost[4] += ::min(cmax_disc, Abs(disp_reg - dp[4])) * weight;
                         }
                     }
 
@@ -165,7 +171,7 @@ namespace ftl { namespace cuda { namespace device
         }
 
         template <typename T>
-        void disp_bilateral_filter(cv::cuda::PtrStepSz<T> disp, cv::cuda::PtrStepSzb img, int channels, int iters, const float *table_color, const float* table_space, size_t table_step, int radius, short edge_disc, short max_disc, cudaStream_t stream)
+        void disp_bilateral_filter(cv::cuda::PtrStepSz<T> disp, cv::cuda::PtrStepSzb img, int channels, int iters, const float *table_color, const float* table_space, size_t table_step, int radius, T edge_disc, T max_disc, cudaStream_t stream)
         {
             dim3 threads(32, 8, 1);
             dim3 grid(1, 1, 1);
@@ -212,8 +218,9 @@ namespace ftl { namespace cuda { namespace device
                 cudaSafeCall( cudaDeviceSynchronize() );
         }
 
-        template void disp_bilateral_filter<uchar>(cv::cuda::PtrStepSz<uchar> disp, cv::cuda::PtrStepSzb img, int channels, int iters, const float *table_color, const float *table_space, size_t table_step, int radius, short, short, cudaStream_t stream);
-        template void disp_bilateral_filter<short>(cv::cuda::PtrStepSz<short> disp, cv::cuda::PtrStepSzb img, int channels, int iters, const float *table_color, const float *table_space, size_t table_step, int radius, short, short, cudaStream_t stream);
+        template void disp_bilateral_filter<uchar>(cv::cuda::PtrStepSz<uchar> disp, cv::cuda::PtrStepSzb img, int channels, int iters, const float *table_color, const float *table_space, size_t table_step, int radius, uchar, uchar, cudaStream_t stream);
+		template void disp_bilateral_filter<short>(cv::cuda::PtrStepSz<short> disp, cv::cuda::PtrStepSzb img, int channels, int iters, const float *table_color, const float *table_space, size_t table_step, int radius, short, short, cudaStream_t stream);
+		template void disp_bilateral_filter<float>(cv::cuda::PtrStepSz<float> disp, cv::cuda::PtrStepSzb img, int channels, int iters, const float *table_color, const float *table_space, size_t table_step, int radius, float, float, cudaStream_t stream);
     } // namespace bilateral_filter
 }}} // namespace ftl { namespace cuda { namespace cudev
 

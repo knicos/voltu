@@ -192,7 +192,7 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codec
 		state_.getLeft().cx = -(double)state_.getLeft().width / 2.0;
 		state_.getLeft().cy = -(double)state_.getLeft().height / 2.0;
 		state_.getLeft().minDepth = host->value("minDepth", 0.1f);
-		state_.getLeft().maxDepth = host->value("maxDepth", 20.0f);
+		state_.getLeft().maxDepth = host->value("maxDepth", 15.0f);
 		state_.getLeft().doffs = 0;
 		state_.getLeft().baseline = host->value("baseline", 0.05f);
 
@@ -203,7 +203,7 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codec
 		state_.getRight().cx = host->value("centre_x_right", -(double)state_.getLeft().width / 2.0);
 		state_.getRight().cy = host->value("centre_y_right", -(double)state_.getLeft().height / 2.0);
 		state_.getRight().minDepth = host->value("minDepth", 0.1f);
-		state_.getRight().maxDepth = host->value("maxDepth", 20.0f);
+		state_.getRight().maxDepth = host->value("maxDepth", 15.0f);
 		state_.getRight().doffs = 0;
 		state_.getRight().baseline = host->value("baseline", 0.05f);
 

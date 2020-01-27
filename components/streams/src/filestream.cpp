@@ -225,7 +225,7 @@ bool File::begin(bool dorun) {
 		// Capture current time to adjust timestamps
 		timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
 		active_ = true;
-		interval_ = 50; //ftl::timer::getInterval();
+		interval_ = 50; //ftl::timer::getInterval();  // FIXME: Use correct interval!!
 		timestamp_ = timestart_;
 
 		tick(timestart_); // Do some now!

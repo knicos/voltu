@@ -30,7 +30,9 @@ __global__ void depth_to_vuya_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda:
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x < depth.cols && y < depth.rows) {
-        float d = max(0.0f,min(maxdepth,depth(y,x)));
+		//float d = max(0.0f,min(maxdepth,depth(y,x)));
+		float d = max(0.0f,depth(y,x));
+		if (d >= maxdepth) d = 0.0f;
         float L = d / maxdepth;
         const float p = P;
         
@@ -62,6 +64,11 @@ void ftl::cuda::depth_to_vuya(const cv::cuda::PtrStepSz<float> &depth, const cv:
  *
  */
 
+ __device__ inline ushort round8(ushort v) {
+     return (v >> 8) + ((v >> 7) & 0x1);  // Note: Make no PSNR difference
+     //return v >> 8;
+ }
+
  // Video is assumed to be 10bit encoded, returning ushort instead of uchar.
 __global__ void vuya_to_depth_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda::PtrStepSz<ushort4> rgba, float maxdepth) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -71,9 +78,9 @@ __global__ void vuya_to_depth_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda:
 		ushort4 in = rgba(y,x);
 
 		// Only the top 8 bits contain any data
-        float L = float(in.z >> 8) / 255.0f;
-        float Ha = float(in.y >> 8) / 255.0f;
-		float Hb = float(in.x >> 8) / 255.0f;
+        float L = float(round8(in.z)) / 255.0f;
+        float Ha = float(round8(in.y)) / 255.0f;
+		float Hb = float(round8(in.x)) / 255.0f;
 
         const float p = P;
         
@@ -95,5 +102,110 @@ void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv:
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	vuya_to_depth_kernel<<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, rgba, maxdepth);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// ==== Decode filters =========================================================
+
+ // Video is assumed to be 10bit encoded, returning ushort instead of uchar.
+ template <int RADIUS>
+ __global__ void discon_y_kernel(cv::cuda::PtrStepSz<ushort4> vuya) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x >= RADIUS && x < vuya.cols-RADIUS && y >= RADIUS && y < vuya.rows-RADIUS) {
+        ushort4 in = vuya(y,x);
+        ushort inY = round8(in.z);
+        bool isdiscon = false;
+
+        #pragma unroll
+        for (int v=-1; v<=1; ++v) {
+            #pragma unroll
+            for (int u=-1; u<=1; ++u) {
+                ushort inn = round8(vuya(y+v,x+u).z);
+                isdiscon |= (abs(int(inY)-int(inn)) > 1);
+            }
+        }
+
+		if (isdiscon) vuya(y,x).w = 1;
+		/*if (isdiscon) {
+			#pragma unroll
+			for (int v=-RADIUS; v<=RADIUS; ++v) {
+				#pragma unroll
+				for (int u=-RADIUS; u<=RADIUS; ++u) {
+					vuya(y+v,x+u).w = 1;
+				}
+			}
+		}*/
+	}
+}
+
+ // Video is assumed to be 10bit encoded, returning ushort instead of uchar.
+ template <int RADIUS>
+ __global__ void smooth_y_kernel(cv::cuda::PtrStepSz<ushort4> vuya) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x >= RADIUS && y >= RADIUS && x < vuya.cols-RADIUS-1 && y < vuya.rows-RADIUS-1) {
+        ushort4 in = vuya(y,x);
+        bool isdiscon = false;
+		//int minerr = 65000;
+		ushort best = in.z;
+		//ushort miny = 65000;
+
+		//float sumY = 0.0f;
+		//float weights = 0.0f;
+		float mcost = 1.e10f;
+
+		// 1) In small radius, is there a discontinuity?
+		
+		if (in.w == 1) {
+			//vuya(y,x).z = 30000;
+			//return;
+
+			#pragma unroll
+			for (int v=-RADIUS; v<=RADIUS; ++v) {
+				#pragma unroll
+				for (int u=-RADIUS; u<=RADIUS; ++u) {
+					ushort4 inn = vuya(y+v,x+u);
+					if (inn.w == 0) {
+						float err = fabsf(float(in.z) - float(inn.z));
+						float dist = v*v + u*u;
+						float cost = err*err; //err*err*dist;
+						if (mcost > cost) {
+							mcost = cost;
+							best = inn.z;
+						}
+						//minerr = min(minerr, err);
+						//if (err == minerr) best = inn.z;
+						//miny = min(miny, inn.z);
+						//sumY += float(in.z);
+						//weights += 1.0f;
+					}
+				}
+			}
+
+			//printf("Min error: %d\n",minerr);
+		
+			vuya(y,x).z = best; //ushort(sumY / weights);
+		}
+        
+		// 2) If yes, use minimum Y value
+		// This acts only to remove discon values... instead a correction is needed
+		// Weight based on distance from discon and difference from current value
+		//     - points further from discon are more reliable
+		//     - most similar Y is likely to be correct depth.
+		//     - either use Y with strongest weight or do weighted average.
+        //if (isdiscon) in.z = maxy;
+        //if (isdiscon) vuya(y,x) = in;
+	}
+}
+
+void ftl::cuda::smooth_y(const cv::cuda::PtrStepSz<ushort4> &rgba, cv::cuda::Stream stream) {
+	const dim3 gridSize((rgba.cols + T_PER_BLOCK - 1)/T_PER_BLOCK, (rgba.rows + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    discon_y_kernel<1><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(rgba);
+	smooth_y_kernel<6><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(rgba);
 	cudaSafeCall( cudaGetLastError() );
 }
