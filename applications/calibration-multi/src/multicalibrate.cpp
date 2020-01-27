@@ -700,7 +700,7 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 	double err;
 	cvsba::Sba sba;
 	{
-		sba.setParams(cvsba::Sba::Params(cvsba::Sba::TYPE::MOTIONSTRUCTURE, 200, 1.0e-24, fix_intrinsics_, 5, false));
+		sba.setParams(cvsba::Sba::Params(cvsba::Sba::TYPE::MOTIONSTRUCTURE, 200, 1.0e-24, fix_intrinsics_, fix_intrinsics_, false));
 
 		vector<Mat> rvecs(R_.size());
 		vector<vector<int>> visible(R_.size());

@@ -132,7 +132,6 @@ bool setRectifyRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, bool enab
 }
 
 bool setIntrinsicsRPC(ftl::net::Universe* net, ftl::stream::Net* nstream, Size size, vector<Mat> K, vector<Mat> D) {
-	return true;
 	return net->call<bool>(nstream->getPeer(), "set_intrinsics",
 							size, K[0], D[0], K[1], D[1] );
 }
@@ -206,31 +205,22 @@ void calibrateRPC(	ftl::net::Universe* net,
 		LOG(INFO) << K2;
 		LOG(INFO) << R_c1c2;
 		LOG(INFO) << T_c1c2;
-		LOG(INFO) << "R.isContinuous(): " << R_c1c2.isContinuous ();
-		LOG(INFO) << "R.step: " << R_c1c2.step;
-		LOG(INFO) << "R.cols: " << R_c1c2.cols;
-		LOG(INFO) << "T.isContinuous(): " << T_c1c2.isContinuous ();
-		LOG(INFO) << "T.step: " << T_c1c2.step;
-		LOG(INFO) << "T.cols: " << T_c1c2.cols;
+
 		LOG(INFO) << "--------------------------------------------------------";
 
 		auto *nstream = nstreams[c/2];
 		while(true) {
 			try {
 				if (params.optimize_intrinsic) {
-					setIntrinsicsRPC(net, nstream,
-						params.size,
-						vector<Mat>{calib.getCameraMat(c), calib.getCameraMat(c+1)},
-						vector<Mat>{calib.getDistCoeffs(c), calib.getDistCoeffs(c+1)}
-					);
+					setIntrinsicsRPC(net, nstream, params.size, {K1, K2}, {D1, D2});
 				}
 				setExtrinsicsRPC(net, nstream, R_c1c2, T_c1c2);
 				setPoseRPC(net, nstream, Rt_out[c]);
 				saveCalibrationRPC(net, nstream);
 				LOG(INFO) << "CALIBRATION SENT";
 				break;
-			}
-			catch (std::exception &ex) {
+
+			} catch (std::exception &ex) {
 				LOG(ERROR) << "RPC failed: " << ex.what();
 				sleep(1);
 			}
