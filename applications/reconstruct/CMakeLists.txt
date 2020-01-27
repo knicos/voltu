@@ -8,7 +8,6 @@ set(REPSRC
 	#src/ray_cast_sdf.cu
 	src/camera_util.cu
 	#src/ray_cast_sdf.cpp
-	src/registration.cpp
 	#src/virtual_source.cpp
 	#src/splat_render.cpp
 	#src/dibr.cu

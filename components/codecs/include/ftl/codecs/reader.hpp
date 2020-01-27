@@ -2,10 +2,10 @@
 #define _FTL_CODECS_READER_HPP_
 
 #include <iostream>
-#include <msgpack.hpp>
 #include <inttypes.h>
 #include <functional>
 
+#include <ftl/utility/msgpack.hpp>
 #include <ftl/codecs/packet.hpp>
 #include <ftl/threads.hpp>
 

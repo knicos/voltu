@@ -2,7 +2,7 @@
 #define _FTL_CODECS_BITRATES_HPP_
 
 #include <cstdint>
-#include <msgpack.hpp>
+#include <ftl/utility/msgpack.hpp>
 
 namespace ftl {
 namespace codecs {

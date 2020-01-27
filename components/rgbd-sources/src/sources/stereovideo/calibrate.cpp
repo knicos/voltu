@@ -58,10 +58,10 @@ static bool isValidRotationMatrix(const Mat M) {
 	if (M.channels() != 1) 				{ return false; }
 	if (M.size() != Size(3, 3))			{ return false; }
 
-	if (abs(cv::determinant(M) - 1.0) > 0.00001)
-										{ return false; } 
+	double det = cv::determinant(M);
+	if (abs(abs(det)-1.0) > 0.00001)	{ return false; }
 
-	// accuracy problems 
+	// TODO: take floating point errors into account
 	// rotation matrix is orthogonal: M.T * M == M * M.T == I
 	//if (cv::countNonZero((M.t() * M) != Mat::eye(Size(3, 3), CV_64FC1)) != 0)
 	//									{ return false; }
@@ -71,15 +71,25 @@ static bool isValidRotationMatrix(const Mat M) {
 
 static bool isValidPose(const Mat M) {
 	if (M.size() != Size(4, 4))			{ return false; }
-	// check last row: 0 0 0 1
-	return isValidRotationMatrix(M(cv::Rect(0 , 0, 3, 3)));
+	if (!isValidRotationMatrix(M(cv::Rect(0 , 0, 3, 3))))
+										{ return false; }
+	if (!(	(M.at<double>(3, 0) == 0.0) && 
+			(M.at<double>(3, 1) == 0.0) && 
+			(M.at<double>(3, 2) == 0.0) && 
+			(M.at<double>(3, 3) == 1.0))) { return false; }
+
+	return true;
 }
 
 static bool isValidCamera(const Mat M) {
 	if (M.type() != CV_64F)				{ return false; }
 	if (M.channels() != 1)				{ return false; }
 	if (M.size() != Size(3, 3))			{ return false; }
-	// TODO: last row should be (0 0 0 1) ...
+	
+	if (!(	(M.at<double>(2, 0) == 0.0) && 
+			(M.at<double>(2, 1) == 0.0) && 
+			(M.at<double>(2, 2) == 1.0))) { return false; }
+	
 	return true;
 }
 
@@ -91,7 +101,7 @@ static Mat scaleCameraIntrinsics(Mat K, Size size_new, Size size_old) {
 	S.at<double>(0, 0) = scale_x;
 	S.at<double>(1, 1) = scale_y;
 	S.at<double>(2, 2) = 1.0;
-	return S * K;
+	return S*K;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,20 +136,30 @@ Mat Calibrate::_getK(size_t idx) {
 	return _getK(idx, img_size_);
 }
 
-cv::Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
+Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
 	if (rectify_) {
 		return Mat(P1_, cv::Rect(0, 0, 3, 3));
 	} else {
-		return scaleCameraIntrinsics(K_[0], res, img_size_);
+		return scaleCameraIntrinsics(K_[0], res, calib_size_);
 	}
 }
 
-cv::Mat Calibrate::getCameraMatrixRight(const cv::Size res) {
+Mat Calibrate::getCameraMatrixRight(const cv::Size res) {
 	if (rectify_) {
 		return Mat(P2_, cv::Rect(0, 0, 3, 3));
 	} else {
-		return scaleCameraIntrinsics(K_[1], res, img_size_);
+		return scaleCameraIntrinsics(K_[1], res, calib_size_);
 	}
+}
+
+Mat Calibrate::getCameraDistortionLeft() {
+	if (rectify_) {	return Mat::zeros(Size(5, 1), CV_64FC1); }
+	else { return D_[0]; }
+}
+
+Mat Calibrate::getCameraDistortionRight() {
+	if (rectify_) {	return Mat::zeros(Size(5, 1), CV_64FC1); }
+	else { return D_[1]; }
 }
 
 bool Calibrate::setRectify(bool enabled) {
@@ -153,17 +173,22 @@ bool Calibrate::setRectify(bool enabled) {
 	return rectify_;
 }
 
-bool Calibrate::setIntrinsics(const Size size, const vector<Mat> K, const vector<Mat> D) {
-	if (size.empty() || size.width <= 0 || size.height <= 0) { return false; }
-	if ((K.size() != 2) || (D.size() != 2)) { return false; }
-	for (const auto k : K) { if (!isValidCamera(k)) { return false; }}
+bool Calibrate::setDistortion(const vector<Mat> D) {
+	if (D.size() != 2) { return false; }
 	for (const auto d : D) { if (d.size() != Size(5, 1)) { return false; }}
+	D[0].copyTo(D_[0]);
+	D[1].copyTo(D_[1]);
+	return true;
+}
+
+bool Calibrate::setIntrinsics(const Size size, const vector<Mat> K) {
+	if (K.size() != 2) { return false; }
+	if (size.empty() || size.width <= 0 || size.height <= 0) { return false; }
+	for (const auto k : K) { if (!isValidCamera(k)) { return false; }}
 
 	calib_size_ = size;
 	K[0].copyTo(K_[0]);
 	K[1].copyTo(K_[1]);
-	D[0].copyTo(D_[0]);
-	D[1].copyTo(D_[1]);
 	return true;
 }
 
@@ -206,25 +231,30 @@ bool Calibrate::loadCalibration(const string fname) {
 	fs["P"] >> pose;
 	fs.release();
 
+	bool retval = true;
 	if (calib_size.empty()) {
 		LOG(ERROR) << "calibration resolution missing in calibration file";
-		return false;
+		retval = false;
 	}
-	if (!setIntrinsics(calib_size, K, D)) {
+	if (!setIntrinsics(calib_size, K)) {
 		LOG(ERROR) << "invalid intrinsics in calibration file";
-		return false;
+		retval = false;
+	}
+	if (!setDistortion(D)) {
+		LOG(ERROR) << "invalid distortion parameters in calibration file";
+		retval = false;
 	}
 	if (!setExtrinsics(R, t)) {
 		LOG(ERROR) << "invalid extrinsics in calibration file";
-		return false;
+		retval = false;
 	}
 	if (!setPose(pose)) {
 		LOG(ERROR) << "invalid pose in calibration file";
-		return false; // TODO: allow missing pose? (config option)
+		retval = false;
 	}
 
 	LOG(INFO) << "calibration loaded from: " << fname;
-	return true;
+	return retval;
 }
 
 bool Calibrate::writeCalibration(	const string fname, const Size size,
@@ -267,17 +297,25 @@ bool Calibrate::calculateRectificationParameters() {
 		// TODO use fixed point maps for CPU (gpu remap() requires floating point)
 		initUndistortRectifyMap(K1, D1, R1_, P1_, img_size_, CV_32FC1, map1_.first, map2_.first);
 		initUndistortRectifyMap(K2, D2, R2_, P2_, img_size_, CV_32FC1, map1_.second, map2_.second);
+		
+		// CHECK Is this thread safe!!!!
+		map1_gpu_.first.upload(map1_.first);
+		map1_gpu_.second.upload(map1_.second);
+		map2_gpu_.first.upload(map2_.first);
+		map2_gpu_.second.upload(map2_.second);
+
+		Mat map0 = map1_.first.clone();
+		Mat map1 = map2_.first.clone();
+		cv::convertMaps(map0, map1, map1_.first, map2_.first, CV_16SC2);
+
+		map0 = map1_.second.clone();
+		map1 = map2_.second.clone();
+		cv::convertMaps(map0, map1, map1_.second, map2_.second, CV_16SC2);
 	}
 	catch (cv::Exception ex) {
 		LOG(ERROR) << ex.what();
 		return false;
 	}
-
-	// CHECK Is this thread safe!!!!
-	map1_gpu_.first.upload(map1_.first);
-	map1_gpu_.second.upload(map1_.second);
-	map2_gpu_.first.upload(map2_.first);
-	map2_gpu_.second.upload(map2_.second);
 
 	return true;
 }

@@ -3,11 +3,8 @@
 
 #include <ftl/net/func_traits.hpp>
 
-#ifdef _MSC_VER
-#include <msgpack_optional.hpp>
-#endif
+#include <ftl/utility/msgpack.hpp>
 
-#include <msgpack.hpp>
 #include <memory>
 #include <tuple>
 #include <functional>

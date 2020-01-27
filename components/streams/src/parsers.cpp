@@ -15,22 +15,24 @@ ftl::rgbd::Camera ftl::stream::parseCalibration(const ftl::codecs::Packet &pkt) 
 			  << ", fx: " << std::get<0>(params).fx
 			  << ", cx: " << std::get<0>(params).cx
 			  << ", cy: " << std::get<0>(params).cy;
+	
 	return std::get<0>(params);
 }
 
 Eigen::Matrix4d ftl::stream::parsePose(const ftl::codecs::Packet &pkt) {
-    Eigen::Matrix4d p;
+	Eigen::Matrix4d p;
 
 	if (pkt.codec == ftl::codecs::codec_t::POSE) {
 		p = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
 	} else if (pkt.codec == ftl::codecs::codec_t::MSGPACK) {
+
 		auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
 		std::vector<double> posevec;
 		unpacked.get().convert(posevec);
 		p = Eigen::Matrix4d(posevec.data());
+		
 	}
-
-    return p;
+	return p;
 }
 
 std::string ftl::stream::parseConfig(const ftl::codecs::Packet &pkt) {

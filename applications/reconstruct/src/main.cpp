@@ -42,7 +42,6 @@
 #include <ftl/operators/clipping.hpp>
 
 #include <ftl/cuda/normals.hpp>
-#include <ftl/registration.hpp>
 
 #include <ftl/codecs/h264.hpp>
 #include <ftl/codecs/hevc.hpp>
@@ -71,40 +70,10 @@ using json = nlohmann::json;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 
-using ftl::registration::loadTransformations;
-using ftl::registration::saveTransformations;
 
 /* Build a generator using a deprecated list of source objects. */
 static ftl::rgbd::Generator *createSourceGenerator(const std::vector<ftl::rgbd::Source*> &srcs) {
-	// Must find pose for each source...
-	if (srcs.size() > 1) {
-		std::map<std::string, Eigen::Matrix4d> transformations;
-
-		if (loadTransformations(string(FTL_LOCAL_CONFIG_ROOT) + "/registration.json", transformations)) {
-			LOG(INFO) << "Loaded camera trasformations from file";
-		}
-		else {
-			LOG(ERROR) << "Error loading camera transformations from file";
-		}
-
-		for (auto &input : srcs) {
-			string uri = input->getURI();
-
-			auto T = transformations.find(uri);
-			if (T == transformations.end()) {
-				LOG(WARNING) << "Camera pose for " + uri + " not found in transformations";
-				//LOG(WARNING) << "Using only first configured source";
-				// TODO: use target source if configured and found
-				//sources = { sources[0] };
-				//sources[0]->setPose(Eigen::Matrix4d::Identity());
-				//break;
-				input->setPose(input->getPose());
-				continue;
-			}
-			input->setPose(T->second);
-		}
-	}
-
+	
 	auto *grp = new ftl::rgbd::Group();
 	for (auto s : srcs) {
 		s->setChannel(Channel::Depth);

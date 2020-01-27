@@ -10,7 +10,8 @@
 #include <memory>
 #include <string>
 #include <functional>
-#include <msgpack.hpp>
+
+#include <ftl/utility/msgpack.hpp>
 
 namespace ftl {
 	/**

@@ -5,6 +5,8 @@
 #define NOMINMAX
 #endif
 
+
+#include <ftl/utility/msgpack.hpp>
 #include <ftl/net/common.hpp>
 #include <ftl/exception.hpp>
 

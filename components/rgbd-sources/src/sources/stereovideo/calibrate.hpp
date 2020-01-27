@@ -53,11 +53,23 @@ class Calibrate : public ftl::Configurable {
 	 */
 	const cv::Mat &getQ() const { return Q_; }
 
-	/* @brief	Get intrinsic paramters for rectified camera
-	 * @param	Camera resolution
+	/**
+	 * @brief	Get intrinsic paramters. If rectification is enabled, returns
+	 *			rectified intrinsic parameters, otherwise returns values from
+	 *			calibration. Parameters are scaled for given resolution.
+	 * @param	res		camera resolution
 	 */
 	cv::Mat getCameraMatrixLeft(const cv::Size res);
+	/** @brief	Same as getCameraMatrixLeft() for right camera */
 	cv::Mat getCameraMatrixRight(const cv::Size res);
+
+	/** @brief	Get camera distortion parameters. If rectification is enabled,
+	 * 			returns zeros. Otherwise returns calibrated distortion 
+	 * 			parameters values.
+	 */
+	cv::Mat getCameraDistortionLeft();
+	/** @brief	Same as getCameraDistortionLeft() for right camera */
+	cv::Mat getCameraDistortionRight();
 
 	/**
 	 * @brief	Get camera pose from calibration
@@ -80,10 +92,15 @@ class Calibrate : public ftl::Configurable {
 	 * 
 	 * @param	size	calibration size
 	 * @param	K		2 camera matricies (3x3)
-	 * @param	D 		2 distortion parameters (5x1)
 	 * @returns	true if valid parameters
 	 */
-	bool setIntrinsics(const cv::Size size, const std::vector<cv::Mat> K, const std::vector<cv::Mat> D);
+	bool setIntrinsics(const cv::Size size, const std::vector<cv::Mat> K);
+
+	/**
+	 * @brief	Set lens distortion parameters
+	 * @param	D 		2 distortion parameters (5x1)
+	 */
+	bool setDistortion(const std::vector<cv::Mat> D);
 
 	/**
 	 * @brief	Set extrinsic parameters.
@@ -143,7 +160,7 @@ class Calibrate : public ftl::Configurable {
 
 private:
 	// rectification enabled/disabled
-	bool rectify_;
+	volatile bool rectify_;
 
 	/**
 	 * @brief	Get intrinsic matrix saved in calibration.
@@ -153,9 +170,9 @@ private:
 	cv::Mat _getK(size_t idx, cv::Size size);
 	cv::Mat _getK(size_t idx);
 
-	// calibration resolution (loaded from file by _loadCalibration)
+	// calibration resolution (loaded from file by loadCalibration)
 	cv::Size calib_size_;
-	// camera resolution (set by _calculateRecitificationParameters)
+	// camera resolution
 	cv::Size img_size_;
 
 	// rectification maps
