@@ -58,6 +58,7 @@ webserver-deploy:
     - mkdir "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - 'copy "applications\vision\Release\ftl-vision.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
     - 'copy "applications\calibration\Release\ftl-calibrate.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
+    - 'copy "applications\gui\Release\ftl-gui.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
 
 windows-vision:
   except:
