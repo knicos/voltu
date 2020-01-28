@@ -492,7 +492,7 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 	// vector<Point3d> points3d_triangulated;
 	// points3d_triangulated.insert(points3d_triangulated.begin(), points3d.begin(), points3d.end());
 	
-	double err;
+	double err = INFINITY;
 	cvsba::Sba sba;
 	{
 		sba.setParams(cvsba::Sba::Params(cvsba::Sba::TYPE::MOTIONSTRUCTURE, 200, 1.0e-30, 5, 5, false));

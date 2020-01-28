@@ -56,12 +56,10 @@ void Visibility::deleteEdge(int camera1, int camera2)
 }
 
 int Visibility::getMinVisibility() {
-	int min_i;
 	int min_count = INT_MAX;
 
 	for (int i = 0; i < n_cameras_; i++) {
 		if (count_[i] < min_count) {
-			min_i = i;
 			min_count = count_[i];
 		}
 	}

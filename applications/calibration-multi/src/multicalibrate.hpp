@@ -17,10 +17,11 @@ using std::pair;
 
 class CalibrationTarget {
 public:
-	CalibrationTarget(double length) :
+	explicit CalibrationTarget(double length):
 		n_points(2),
 		calibration_bar_length_(length)
 	{}
+	
 	/* @brief	Estimate scale factor.
 	 * @param	3D points (can pass n views)
 	 */

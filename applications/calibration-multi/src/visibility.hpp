@@ -8,14 +8,16 @@ using std::pair;
 
 class Visibility {
 public:
-	Visibility(int n_cameras);
+	explicit Visibility(int n_cameras);
 
-	/* @breif	Update visibility graph.
+	/**
+	 * @breif	Update visibility graph.
 	 * @param	Which cameras see the feature(s) in this iteration
 	 */
 	void update(vector<int> &visible);
 
-	/* @brief	For all cameras, find shortest (optimal) paths to reference
+	/**
+	 * @brief	For all cameras, find shortest (optimal) paths to reference
 	 * 			camera
 	 * @param	Id of reference camera
 	 * 
@@ -28,12 +30,20 @@ public:
 
 	vector<int> getClosestCameras(int c);
 	void deleteEdge(int camera1, int camera2);
+
 	int getOptimalCamera();
+	
+	/** @brief Returns the smallest visibility count (any camera)
+	 */
 	int getMinVisibility();
+	
+	/** @brief Returns the visibility camera's value
+	 */
 	int getViewsCount(int camera);
 
 protected:
-	/* @brief	Find shortest path between nodes
+	/**
+	 * @brief	Find shortest path between nodes
 	 * @param	Source node id
 	 * @param	Destination node id
 	 */
