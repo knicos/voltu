@@ -74,9 +74,9 @@ bool CBSegmentation::Codeword::colordiff(CBSegmentation::Pixel &px, float epsilo
 //
 bool CBSegmentation::Codeword::brightness(CBSegmentation::Pixel &px, float alpha, float beta) {
 	return true;
-	float i_low = alpha * i_max;
+	/*float i_low = alpha * i_max;
 	float i_hi = min(beta * i_max, i_min / alpha);
-	return (i_low <= px.i) && (px.i <= i_hi);
+	return (i_low <= px.i) && (px.i <= i_hi);*/
 }
 
 CBSegmentation::CBSegmentation(
@@ -169,7 +169,7 @@ bool CBSegmentation::processPixel(CBSegmentation::Pixel &px, CBSegmentation::Cod
 	// TODO: Should not prefer H codewords over M codewords?
 	if ((size_t)size < (size_ - 1)) {
 		entry = start + size;
-		size++;
+		// size++;  FIXME: This doesn't do anything (nick)
 		entry->type = H;
 		entry->cw.set(px);
 	}
@@ -195,7 +195,7 @@ void CBSegmentation::apply(Mat &in, Mat &out) {
 	}
 	
 	// TODO: thread pool, queue N rows
-	#pragma omp parallel for
+	// #pragma omp parallel for   -  FIXME: Use thread pool. (nick)
 	for (size_t y = 0; y < height_; ++y) {
 		size_t idx = y * width_;
 		uchar *ptr_in = in.ptr<uchar>(y);

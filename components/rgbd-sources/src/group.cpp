@@ -78,7 +78,7 @@ void Group::_computeJob(ftl::rgbd::Source *src) {
 }
 
 int Group::streamID(const ftl::rgbd::Source *s) const {
-	for (int i=0; i<sources_.size(); ++i) {
+	for (size_t i=0; i<sources_.size(); ++i) {
 		if (sources_[i] == s) return i;
 	}
 	return -1;

@@ -14,7 +14,7 @@ using std::optional;
 
 static constexpr int kTallyScale = 10;
 
-Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), net_(net), active_(false) {
+Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net) {
 	// TODO: Install "find_stream" binding if not installed...
 	if (!net_->isBound("find_stream")) {
 		net_->bind("find_stream", [this](const std::string &uri) -> optional<ftl::UUID> {
@@ -190,7 +190,7 @@ bool Net::begin() {
 		if (host_ && pkt.data.size() == 0) {
 			// FIXME: Allow unselecting ...?
 			if (spkt.frameSetID() == 255) {
-				for (int i=0; i<size(); ++i) {
+				for (size_t i=0; i<size(); ++i) {
 					select(i, selected(i) + spkt.channel);
 				}
 				reqtally_[static_cast<int>(spkt.channel)] = static_cast<int>(pkt.frame_count)*kTallyScale;

@@ -40,10 +40,11 @@ if (WITH_OPTFLOW)
 	set(HAVE_OPTFLOW true)
 endif()
 
-find_package( LibArchive )
-if (LibArchive_FOUND)
-	set(HAVE_LIBARCHIVE true)
-endif()
+# Enable if the old snapshot is still needed
+#find_package( LibArchive )
+#if (LibArchive_FOUND)
+#	set(HAVE_LIBARCHIVE true)
+#endif()
 
 if (WITH_OPENVR)
 	## OpenVR API path

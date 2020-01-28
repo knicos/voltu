@@ -555,7 +555,11 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 		lk.unlock();
 
 		// Call the callback with unpacked return value
-		(*cb)(res);
+		try {
+			(*cb)(res);
+		} catch(std::exception &e) {
+			LOG(ERROR) << "Exception in RPC response: " << e.what();
+		}
 	} else {
 		LOG(WARNING) << "Missing RPC callback for result - discarding";
 	}

@@ -289,8 +289,8 @@ TEST_CASE( "NvPipeDecoder::decode() - A colour test image" ) {
 
 		REQUIRE( r );
 		REQUIRE( decoder.decode(pkt, out) );
-		REQUIRE( out.cols == 1920 );
-		REQUIRE( out.type() == CV_8UC4 );
+		REQUIRE( (out.cols == 1920) );
+		REQUIRE( (out.type() == CV_8UC4) );
 	//}
 
 	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0,0,0)) );
@@ -317,9 +317,9 @@ TEST_CASE( "NvPipeDecoder::decode() - A tiled colour image" ) {
 
 		REQUIRE( r );
 		REQUIRE( decoder.decode(pkt, out) );
-		REQUIRE( out.cols == 2560 );
-		REQUIRE( out.type() == CV_8UC4 );
-		REQUIRE( pkt.definition == definition_t::HD720 );
+		REQUIRE( (out.cols == 2560) );
+		REQUIRE( (out.type() == CV_8UC4) );
+		REQUIRE( (pkt.definition == definition_t::HD720) );
 	//}
 
 	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0,0,0)) );
@@ -346,9 +346,9 @@ TEST_CASE( "NvPipeDecoder::decode() - A lossless depth image" ) {
 
 		REQUIRE( r );
 		REQUIRE( decoder.decode(pkt, out) );
-		REQUIRE( out.cols == 1280 );
-		REQUIRE( out.type() == CV_16U );
-		REQUIRE( pkt.definition == definition_t::HD720 );
+		REQUIRE( (out.cols == 1280) );
+		REQUIRE( (out.type() == CV_16U) );
+		REQUIRE( (pkt.definition == definition_t::HD720) );
 	//}
 
 	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0)) );
@@ -375,9 +375,9 @@ TEST_CASE( "NvPipeDecoder::decode() - A lossy depth image" ) {
 
 		REQUIRE( r );
 		REQUIRE( decoder.decode(pkt, out) );
-		REQUIRE( out.cols == 1280 );
-		REQUIRE( out.type() == CV_16UC4 );
-		REQUIRE( pkt.definition == definition_t::HD720 );
+		REQUIRE( (out.cols == 1280) );
+		REQUIRE( (out.type() == CV_16UC4) );
+		REQUIRE( (pkt.definition == definition_t::HD720) );
 	//}
 
 	REQUIRE( (cv::cuda::sum(out) != cv::Scalar(0)) );

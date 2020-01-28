@@ -34,7 +34,7 @@ class Reconstruction : public ftl::Configurable, public ftl::rgbd::Generator {
 	 * Get the persistent state object for a frame. An exception is thrown
 	 * for a bad index.
 	 */
-	ftl::rgbd::FrameState &state(int ix) override;
+	ftl::rgbd::FrameState &state(size_t ix) override;
 
 	/** Register a callback to receive new frame sets. */
 	void onFrameSet(const ftl::rgbd::VideoCallback &) override;

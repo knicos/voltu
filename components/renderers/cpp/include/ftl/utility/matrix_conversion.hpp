@@ -98,11 +98,11 @@ namespace MatrixConversion
 	static float4x4 toCUDA(const mat4f& m) {
 		return float4x4(m.ptr());
 	}*/
-	static float4x4 toCUDA(const Eigen::Matrix4f& mat) {
+	inline float4x4 toCUDA(const Eigen::Matrix4f& mat) {
 		return float4x4(mat.data()).getTranspose();
 	}
 
-	static Eigen::Matrix4f toEigen(const float4x4& m) {
+	inline Eigen::Matrix4f toEigen(const float4x4& m) {
 		return Eigen::Matrix4f(m.ptr()).transpose();
 	}
 

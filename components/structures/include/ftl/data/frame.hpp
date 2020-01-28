@@ -331,6 +331,7 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::copyTo(ftl::codecs::Channels<BASE> cha
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
+// cppcheck-suppress *
 template <typename T>
 T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) {
 	if (channel == ftl::codecs::Channel::None) {
@@ -346,6 +347,7 @@ T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) {
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
+// cppcheck-suppress *
 template <typename T>
 const T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) const {
 	if (channel == ftl::codecs::Channel::None) {
@@ -370,6 +372,7 @@ const T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) 
 
 // Default data channel implementation
 template <int BASE, int N, typename STATE, typename DATA>
+// cppcheck-suppress *
 template <typename T>
 void ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel, T &params) const {
 	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Cannot use generic type with non data channel");
@@ -383,6 +386,7 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel, T &p
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
+// cppcheck-suppress *
 template <typename T>
 T &ftl::data::Frame<BASE,N,STATE,DATA>::create(ftl::codecs::Channel c) {
 	if (c == ftl::codecs::Channel::None) {
@@ -395,6 +399,7 @@ T &ftl::data::Frame<BASE,N,STATE,DATA>::create(ftl::codecs::Channel c) {
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
+// cppcheck-suppress *
 template <typename T>
 void ftl::data::Frame<BASE,N,STATE,DATA>::create(ftl::codecs::Channel channel, const T &value) {
 	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Cannot use generic type with non data channel");

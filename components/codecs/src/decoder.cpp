@@ -22,9 +22,8 @@ Decoder *ftl::codecs::allocateDecoder(const ftl::codecs::Packet &pkt) {
 	case codec_t::H264_LOSSLESS:
 	case codec_t::H264		:
 	case codec_t::HEVC		: return new ftl::codecs::NvPipeDecoder;
+	default					: return nullptr;
 	}
-
-	return nullptr;
 }
 
 /**

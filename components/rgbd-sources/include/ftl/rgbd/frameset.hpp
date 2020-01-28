@@ -78,7 +78,7 @@ class Generator {
 	 * Get the persistent state object for a frame. An exception is thrown
 	 * for a bad index.
 	 */
-	virtual ftl::rgbd::FrameState &state(int ix)=0;
+	virtual ftl::rgbd::FrameState &state(size_t ix)=0;
 
 	inline ftl::rgbd::FrameState &operator[](int ix) { return state(ix); }
 
@@ -103,14 +103,14 @@ class Builder : public Generator {
 
 	size_t size() override;
 
-	ftl::rgbd::FrameState &state(int ix) override;
+	ftl::rgbd::FrameState &state(size_t ix) override;
 
 	void onFrameSet(const ftl::rgbd::VideoCallback &) override;
 
 	/**
 	 * Add a new frame at a given timestamp.
 	 */
-	void push(int64_t timestamp, int ix, ftl::rgbd::Frame &f);
+	void push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &f);
 
 	void setName(const std::string &name);
 

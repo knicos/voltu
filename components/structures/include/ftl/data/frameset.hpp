@@ -82,7 +82,7 @@ class Generator {
 	 * Get the persistent state object for a frame. An exception is thrown
 	 * for a bad index.
 	 */
-	virtual typename FRAMESET::Frame::State &state(int ix)=0;
+	virtual typename FRAMESET::Frame::State &state(size_t ix)=0;
 
 	inline typename FRAMESET::Frame::State &operator[](int ix) { return state(ix); }
 

@@ -175,8 +175,8 @@ size_t Source::size() {
     return 1;
 }
 
-ftl::audio::FrameState &Source::state(int ix) {
-    if (ix < 0 || ix > 1) throw ftl::exception("State index out-of-bounds");
+ftl::audio::FrameState &Source::state(size_t ix) {
+    if (ix >= 1) throw ftl::exception("State index out-of-bounds");
     return state_;
 }
 

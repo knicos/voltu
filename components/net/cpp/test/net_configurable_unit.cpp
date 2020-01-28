@@ -33,6 +33,8 @@ SCENARIO( "NetConfigurable::set()" ) {
         NetConfigurable nc(peer, suri, *controller, jsonTest);
         nc.set("test_value", 5);
         REQUIRE( nc.get<int>("test_value") == 5 );
+
+        delete controller;
     }
 
     // invalid peer UUID

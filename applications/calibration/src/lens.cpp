@@ -79,7 +79,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 		Size tmp_size;
 		
 		loadIntrinsics(filename_intrinsics, camera_matrix, tmp, tmp_size);
-		CHECK(camera_matrix.size() == n_cameras); // (camera_matrix.size() == dist_coeffs.size())
+		CHECK(camera_matrix.size() == static_cast<unsigned int>(n_cameras)); // (camera_matrix.size() == dist_coeffs.size())
 		if ((tmp_size != image_size) && (!tmp_size.empty()))
 		{
 			Mat scale = Mat::eye(Size(3, 3), CV_64FC1);

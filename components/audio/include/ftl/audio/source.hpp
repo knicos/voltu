@@ -29,7 +29,7 @@ class Source : public ftl::Configurable, public ftl::audio::Generator {
 	 * Get the persistent state object for a frame. An exception is thrown
 	 * for a bad index.
 	 */
-	ftl::audio::FrameState &state(int ix) override;
+	ftl::audio::FrameState &state(size_t ix) override;
 
 	/** Register a callback to receive new frame sets. */
 	void onFrameSet(const ftl::audio::FrameSet::Callback &) override;

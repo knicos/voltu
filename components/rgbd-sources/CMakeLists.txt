@@ -10,7 +10,7 @@ set(RGBDSRC
 	src/colour.cpp
 	src/group.cpp
 	src/cb_segmentation.cpp
-	src/abr.cpp
+	#src/abr.cpp
 	#src/sources/virtual/virtual.cpp
 	#src/sources/ftlfile/file_source.cpp
 	#src/sources/ftlfile/player.cpp

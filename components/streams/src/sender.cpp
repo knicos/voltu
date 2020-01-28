@@ -58,7 +58,7 @@ void Sender::post(const ftl::audio::FrameSet &fs) {
 	//if (fs.stale) return;
 	//fs.stale = true;
 
-	for (int i=0; i<fs.frames.size(); ++i) {
+	for (size_t i=0; i<fs.frames.size(); ++i) {
 		if (!fs.frames[i].hasChannel(Channel::Audio)) continue;
 
 		auto &data = fs.frames[i].get<ftl::audio::Audio>(Channel::Audio);
@@ -125,7 +125,7 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
 
 	bool do_inject = !do_inject_.test_and_set();
 
-    for (int i=0; i<fs.frames.size(); ++i) {
+    for (size_t i=0; i<fs.frames.size(); ++i) {
         const auto &frame = fs.frames[i];
 
 		if (do_inject) {
@@ -224,10 +224,10 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
 void Sender::_encodeChannel(const ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 	bool lossless = value("lossless", false);
 	int max_bitrate = std::max(0, std::min(255, value("max_bitrate", 255)));
-	int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));
+	//int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));  // TODO: Use this
 	codec_t codec = value("codec", codec_t::Any);
 
-	int offset = 0;
+	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {
 		StreamPacket spkt;
 		spkt.version = 4;
@@ -347,7 +347,7 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 	int width = tx * rwidth;
 	int height = ty * rheight;
 	int tilecount = tx*ty;
-	int count = 0;
+	uint32_t count = 0;
 
 	surface.surface.create(height, width, (lossless && m.type() == CV_32F) ? CV_16U : CV_8UC4);
 

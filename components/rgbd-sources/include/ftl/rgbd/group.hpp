@@ -91,7 +91,7 @@ class Group : public ftl::rgbd::Generator {
 
 	size_t size() override { return builder_.size(); }
 
-	ftl::rgbd::FrameState &state(int ix) override { return builder_.state(ix); }
+	ftl::rgbd::FrameState &state(size_t ix) override { return builder_.state(ix); }
 
 	void stop() {}
 

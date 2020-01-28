@@ -284,7 +284,6 @@ void StereoVideoSource::swap() {
 bool StereoVideoSource::compute(int n, int b) {
 	auto &frame = frames_[1];
 	
-	const ftl::codecs::Channel chan = host_->getChannel();
 	if (!frame.hasChannel(Channel::Left) || !frame.hasChannel(Channel::Right)) {
 		return false;
 	}

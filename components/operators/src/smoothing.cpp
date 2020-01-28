@@ -23,7 +23,7 @@ HFSmoother::~HFSmoother() {
 
 bool HFSmoother::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
     float var_thresh = config()->value("variance_threshold", 0.0002f);
-    int levels = max(0, min(config()->value("levels",0), 4));
+    //int levels = max(0, min(config()->value("levels",0), 4));
     int iters = config()->value("iterations",5);
 
 	// FIXME: in and out are assumed to be the same

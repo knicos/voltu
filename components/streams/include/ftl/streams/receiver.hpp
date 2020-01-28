@@ -30,7 +30,7 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 
 	size_t size() override;
 
-	ftl::rgbd::FrameState &state(int ix) override;
+	ftl::rgbd::FrameState &state(size_t ix) override;
 
 	/**
 	 * Register a callback for received framesets. Sources are automatically

@@ -79,8 +79,8 @@ class FixedBuffer {
 
 template <typename T, int CHAN>
 static T fracIndex(const std::vector<T> &in, float ix, int c) {
-	const int i1 = static_cast<int>(ix);
-	const int i2 = static_cast<int>(ix+1.0f);
+	const auto i1 = static_cast<unsigned int>(ix);
+	const auto i2 = static_cast<unsigned int>(ix+1.0f);
 	const float alpha = ix - static_cast<float>(i1);
 	return (i2*CHAN+CHAN >= in.size()) ? in[i1*CHAN+c] : in[i1*CHAN+c]*(1.0f-alpha) + in[i2*CHAN+c]*alpha;
 }

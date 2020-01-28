@@ -62,7 +62,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 				i.instances.push_back(i.maker->make());
 			}
 
-			for (int j=0; j<in.frames.size(); ++j) {
+			for (size_t j=0; j<in.frames.size(); ++j) {
 				auto *instance = i.instances[j&0x1];
 
 				if (instance->enabled()) {

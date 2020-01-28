@@ -60,7 +60,7 @@ class NetSource : public detail::Source {
 	ftl::codecs::Channel prev_chan_;
 	ftl::rgbd::Camera params_right_;
 
-	ftl::rgbd::detail::ABRController abr_;
+	//ftl::rgbd::detail::ABRController abr_;
 	int last_bitrate_;
 
 	static int64_t last_msg_;

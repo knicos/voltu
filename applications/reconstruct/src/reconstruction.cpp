@@ -61,9 +61,9 @@ size_t Reconstruction::size() {
 }
 
 
-ftl::rgbd::FrameState &Reconstruction::state(int ix) {
+ftl::rgbd::FrameState &Reconstruction::state(size_t ix) {
 	UNIQUE_LOCK(exchange_mtx_, lk);
-	if (ix >= 0 && ix < fs_align_.frames.size()) {
+	if (ix < fs_align_.frames.size()) {
 		return *fs_align_.frames[ix].origin();
 	}
 	throw ftl::exception("State index out-of-bounds");
@@ -154,7 +154,7 @@ bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out)
 	//	transform.setIdentity();
 	//}
 
-	Eigen::Affine3d sm = Eigen::Affine3d(Eigen::Scaling(double(value("scale", 1.0f))));
+	//Eigen::Affine3d sm = Eigen::Affine3d(Eigen::Scaling(double(value("scale", 1.0f))));
 	bool res = false; //renderer_->render(vs, out, sm.matrix() * transform);
 	//fs_render_.resetFull();
 	return res;

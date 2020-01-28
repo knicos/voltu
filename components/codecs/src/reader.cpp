@@ -71,7 +71,7 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 	bool partial = false;
 	int64_t extended_ts = ts + 200;  // Buffer 200ms ahead
 
-	while (playing_ && stream_->good() || buffer_.nonparsed_size() > 0) {
+	while ((playing_ && stream_->good()) || buffer_.nonparsed_size() > 0) {
 		if (buffer_.nonparsed_size() == 0 || (partial && buffer_.nonparsed_size() < 10000000)) {
 			buffer_.reserve_buffer(10000000);
 			stream_->read(buffer_.buffer(), buffer_.buffer_capacity());
@@ -143,7 +143,7 @@ bool Reader::read(int64_t ts) {
 }
 
 void Reader::onPacket(int streamID, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &f) {
-	if (streamID >= handlers_.size()) handlers_.resize(streamID+1);
+	if (static_cast<unsigned int>(streamID) >= handlers_.size()) handlers_.resize(streamID+1);
 	handlers_[streamID] = f;
 }
 

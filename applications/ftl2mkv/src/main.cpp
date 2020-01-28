@@ -18,7 +18,7 @@ using ftl::codecs::Channel;
 
 static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet &pkt)
 {
-    AVCodecContext *c;
+    //AVCodecContext *c;
     AVStream *st;
 
     st = avformat_new_stream(oc, 0);
@@ -29,7 +29,11 @@ static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet
 
 	AVCodecID codec_id;
 	switch (pkt.codec) {
+	case codec_t::HEVC_LOSSLESS:
 	case codec_t::HEVC : codec_id = AV_CODEC_ID_HEVC; break;
+	case codec_t::H264_LOSSLESS:
+	case codec_t::H264 : codec_id = AV_CODEC_ID_H264; break;
+	default: LOG(FATAL) << "Codec in FTL file must be HEVC or H264";
 	}
 
     //c = st->codec;

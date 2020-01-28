@@ -99,7 +99,7 @@ bool File::tick(int64_t ts) {
 	bool partial = false;
 	int64_t extended_ts = timestamp_ + 200;  // Buffer 200ms ahead
 
-	while (active_ && istream_->good() || buffer_in_.nonparsed_size() > 0) {
+	while ((active_ && istream_->good()) || buffer_in_.nonparsed_size() > 0u) {
 		if (buffer_in_.nonparsed_size() == 0 || (partial && buffer_in_.nonparsed_size() < 10000000)) {
 			buffer_in_.reserve_buffer(10000000);
 			istream_->read(buffer_in_.buffer(), buffer_in_.buffer_capacity());

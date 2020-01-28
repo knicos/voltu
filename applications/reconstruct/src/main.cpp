@@ -116,9 +116,6 @@ static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Master ctrl(root, net);
 
-	// Controls
-	auto *controls = ftl::create<ftl::Configurable>(root, "controls");
-
 	net->start();
 	net->waitConnections();
 

@@ -65,7 +65,7 @@ Receiver::InternalVideoStates::InternalVideoStates() {
 }
 
 Receiver::InternalVideoStates &Receiver::_getVideoFrame(const StreamPacket &spkt, int ix) {
-	int fn = spkt.frameNumber()+ix;
+	uint32_t fn = spkt.frameNumber()+ix;
 
 	UNIQUE_LOCK(mutex_, lk);
 	while (video_frames_.size() <= fn) {
@@ -83,7 +83,7 @@ Receiver::InternalAudioStates::InternalAudioStates() {
 }
 
 Receiver::InternalAudioStates &Receiver::_getAudioFrame(const StreamPacket &spkt, int ix) {
-	int fn = spkt.frameNumber()+ix;
+	uint32_t fn = spkt.frameNumber()+ix;
 
 	UNIQUE_LOCK(mutex_, lk);
 	while (audio_frames_.size() <= fn) {
@@ -125,7 +125,7 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 	size_t size = pkt.data.size()/sizeof(short);
 	audio.data().resize(size);
 	auto *ptr = (short*)pkt.data.data();
-	for (int i=0; i<size; i++) audio.data()[i] = ptr[i];
+	for (size_t i=0; i<size; i++) audio.data()[i] = ptr[i];
 
 	if (audio_cb_) {
 		// Create an audio frameset wrapper.
@@ -289,8 +289,6 @@ void Receiver::setStream(ftl::stream::Stream *s) {
 	stream_ = s;
 
 	s->onPacket([this](const StreamPacket &spkt, const Packet &pkt) {	
-		//const ftl::codecs::Channel chan = second_channel_;
-		const ftl::codecs::Channel rchan = spkt.channel;
 		const unsigned int channum = (unsigned int)spkt.channel;
 
 		//LOG(INFO) << "PACKET: " << spkt.timestamp << ", " << (int)spkt.channel << ", " << (int)pkt.codec << ", " << (int)pkt.definition;
@@ -321,7 +319,7 @@ size_t Receiver::size() {
 	return builder_.size();
 }
 
-ftl::rgbd::FrameState &Receiver::state(int ix) {
+ftl::rgbd::FrameState &Receiver::state(size_t ix) {
 	return builder_.state(ix);
 }
 

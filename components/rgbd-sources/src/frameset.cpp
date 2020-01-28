@@ -49,9 +49,9 @@ void FrameSet::swapTo(ftl::rgbd::FrameSet &fs) {
 void FrameSet::resetFull() {
 	//count = 0;
 	//stale = false;
-	for (auto &f : frames) {
+	//for (auto &f : frames) {
 		//f.resetFull();
-	}
+	//}
 }
 
 // =============================================================================
@@ -81,8 +81,8 @@ Builder::~Builder() {
 }
 
 
-void Builder::push(int64_t timestamp, int ix, ftl::rgbd::Frame &frame) {
-	if (timestamp <= 0 || ix < 0 || ix >= kMaxFramesInSet) return;
+void Builder::push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &frame) {
+	if (timestamp <= 0 || ix >= kMaxFramesInSet) return;
 
 	UNIQUE_LOCK(mutex_, lk);
 
@@ -185,9 +185,9 @@ void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
 	});
 }
 
-ftl::rgbd::FrameState &Builder::state(int ix) {
+ftl::rgbd::FrameState &Builder::state(size_t ix) {
 	UNIQUE_LOCK(mutex_, lk);
-	if (ix < 0 || ix >= states_.size()) {
+	if (ix >= states_.size()) {
 		throw ftl::exception("Frame state out-of-bounds");
 	}
 	if (!states_[ix]) throw ftl::exception("Missing framestate");
@@ -196,7 +196,7 @@ ftl::rgbd::FrameState &Builder::state(int ix) {
 
 static void mergeFrameset(ftl::rgbd::FrameSet &f1, ftl::rgbd::FrameSet &f2) {
 	// Prepend all frame encodings in f2 into corresponding frame in f1.
-	for (int i=0; i<f1.frames.size(); ++i) {
+	for (size_t i=0; i<f1.frames.size(); ++i) {
 		if (f2.frames.size() <= i) break;
 		f1.frames[i].mergeEncoding(f2.frames[i]);
 	}
@@ -239,7 +239,7 @@ ftl::rgbd::FrameSet *Builder::_getFrameset() {
 	for (auto i=framesets_.begin(); i!=framesets_.end(); i++) {
 		auto *f = *i;
 		//LOG(INFO) << "GET: " << f->count << " of " << size_;
-		if (!f->stale && f->count >= size_) {
+		if (!f->stale && static_cast<unsigned int>(f->count) >= size_) {
 			//LOG(INFO) << "GET FRAMESET and remove: " << f->timestamp;
 			auto j = framesets_.erase(i);
 			

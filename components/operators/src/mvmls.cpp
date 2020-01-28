@@ -272,9 +272,9 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                     if (d1.dot(d2) <= 0.0) continue;
 
                     auto pose1 = MatrixConversion::toCUDA(f1.getPose().cast<float>());
-					auto pose1_inv = MatrixConversion::toCUDA(f1.getPose().cast<float>().inverse());
+					//auto pose1_inv = MatrixConversion::toCUDA(f1.getPose().cast<float>().inverse());
 					auto pose2 = MatrixConversion::toCUDA(f2.getPose().cast<float>().inverse());
-					auto pose2_inv = MatrixConversion::toCUDA(f2.getPose().cast<float>());
+					//auto pose2_inv = MatrixConversion::toCUDA(f2.getPose().cast<float>());
 
 					auto transform = pose2 * pose1;
 

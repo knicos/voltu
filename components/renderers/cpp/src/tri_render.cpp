@@ -508,7 +508,7 @@ void Triangular::_preprocessColours() {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
 
 	// Display mask values or otherwise alter colour image
-	for (int i=0; i<scene_->frames.size(); ++i) {
+	for (size_t i=0; i<scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
 
 		if (colour_sources) {

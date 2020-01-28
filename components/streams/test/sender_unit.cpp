@@ -31,7 +31,7 @@ class TestStream : public ftl::stream::Stream {
 		available(spkt.streamID) += spkt.channel;
 		if (pkt.data.size() == 0) {
 			if (spkt.frameSetID() == 255) {
-				for (int i=0; i<size(); ++i) {
+				for (size_t i=0; i<size(); ++i) {
 					select(i, selected(i) + spkt.channel);
 				}
 			} else {

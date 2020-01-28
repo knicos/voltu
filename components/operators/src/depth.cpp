@@ -153,7 +153,7 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
 	rbuf_.resize(in.frames.size());
 
-	for (int i=0; i<in.frames.size(); ++i) {
+	for (size_t i=0; i<in.frames.size(); ++i) {
 		auto &f = in.frames[i];
 		if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
 			_createPipeline();

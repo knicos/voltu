@@ -168,8 +168,8 @@ NetSource::NetSource(ftl::rgbd::Source *host)
 		default_quality_ = host->value("quality", 0);
 	});
 
-	abr_.setMaximumBitrate(host->value("max_bitrate", -1));
-	abr_.setMinimumBitrate(host->value("min_bitrate", -1));
+	//abr_.setMaximumBitrate(host->value("max_bitrate", -1));
+	//abr_.setMinimumBitrate(host->value("min_bitrate", -1));
 
 	_updateURI();
 
@@ -390,7 +390,7 @@ void NetSource::_completeFrame(NetFrame &frame, int64_t latency) {
 		frame.tx_latency = latency;
 
 		// Note: Not used currently
-		adaptive_ = abr_.selectBitrate(frame);
+		//adaptive_ = abr_.selectBitrate(frame);
 
 		frame_.reset();
 		frame_.setOrigin(&state_);
@@ -492,7 +492,7 @@ bool NetSource::compute(int n, int b) {
 			active_ = false;
 		}
 
-		abr_.notifyChanged();
+		//abr_.notifyChanged();
 
 		maxN_ = 1;  // Reset to single frame
 		minB_ = 9;  // Reset to worst quality
