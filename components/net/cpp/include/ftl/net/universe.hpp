@@ -262,7 +262,7 @@ void Universe::bind(const std::string &name, F func) {
 	UNIQUE_LOCK(net_mutex_,lk);
 	disp_.bind(name, func,
 		typename ftl::internal::func_kind_info<F>::result_kind(),
-	    typename ftl::internal::func_kind_info<F>::args_kind(),
+		typename ftl::internal::func_kind_info<F>::args_kind(),
 		typename ftl::internal::func_kind_info<F>::has_peer());
 }
 
@@ -290,11 +290,11 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	bool hasreturned = false;
 	std::mutex m;
 	std::condition_variable cv;
-	
+	std::atomic<int> count = 0;
 	std::optional<R> result;
 
 	auto handler = [&](const std::optional<R> &r) {
-		//UNIQUE_LOCK(m,lk);
+		count--;
 		std::unique_lock<std::mutex> lk(m);
 		if (hasreturned || !r) return;
 		hasreturned = true;
@@ -307,14 +307,17 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	SHARED_LOCK(net_mutex_,lk);
 
 	for (auto p : peers_) {
+		count++;
 		if (p->isConnected()) record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
 	}
 	lk.unlock();
 	
-	{  // Block thread until async callback notifies us
-		//UNIQUE_LOCK(m,llk);
+	{	// Block thread until async callback notifies us
 		std::unique_lock<std::mutex> llk(m);
-		cv.wait_for(llk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
+		// FIXME: what happens if one clients does not return (count != 0)?
+		cv.wait_for(llk, std::chrono::seconds(1), [&hasreturned, &count] {
+			return hasreturned && count == 0;
+		});
 
 		// Cancel any further results
 		lk.lock();
