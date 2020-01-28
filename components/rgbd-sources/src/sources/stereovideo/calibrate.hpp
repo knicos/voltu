@@ -94,13 +94,13 @@ class Calibrate : public ftl::Configurable {
 	 * @param	K		2 camera matricies (3x3)
 	 * @returns	true if valid parameters
 	 */
-	bool setIntrinsics(const cv::Size size, const std::vector<cv::Mat> K);
+	bool setIntrinsics(const cv::Size &size, const std::vector<cv::Mat> &K);
 
 	/**
 	 * @brief	Set lens distortion parameters
 	 * @param	D 		2 distortion parameters (5x1)
 	 */
-	bool setDistortion(const std::vector<cv::Mat> D);
+	bool setDistortion(const std::vector<cv::Mat> &D);
 
 	/**
 	 * @brief	Set extrinsic parameters.
@@ -109,14 +109,14 @@ class Calibrate : public ftl::Configurable {
 	 * @param	t	Translation vector (1x3) from left to right camera
 	 * @returns	true if valid parameters
 	 */
-	bool setExtrinsics(const cv::Mat R, const cv::Mat t);
+	bool setExtrinsics(const cv::Mat &R, const cv::Mat &t);
 
 	/**
 	 * @brief	Set pose
 	 * @param	pose	Pose for left camera
 	 * @returns	true if valid pose
 	 */
-	bool setPose(const cv::Mat P);
+	bool setPose(const cv::Mat &P);
 
 	/**
 	 * @brief	Calculate rectification parameters and maps. Can fail if
@@ -129,7 +129,7 @@ class Calibrate : public ftl::Configurable {
 	 * @brief	Load calibration from file
 	 * @param	fname	File name
 	 */
-	bool loadCalibration(const std::string fname);
+	bool loadCalibration(const std::string &fname);
 
 	/**
 	 * @brief	Write calibration parameters to file
@@ -147,16 +147,17 @@ class Calibrate : public ftl::Configurable {
 	 * @param	t translation from first camera to second
 	 * @param	pose first camera's pose 
 	 */
-	static bool writeCalibration(std::string fname,
-								cv::Size size,
-								std::vector<cv::Mat> K, std::vector<cv::Mat> D, 
-								cv::Mat R, cv::Mat t,
-								cv::Mat pose);
+	static bool writeCalibration(const std::string &fname,
+								const cv::Size &size,
+								const std::vector<cv::Mat> &K,
+								const std::vector<cv::Mat> &D,
+								const cv::Mat &R, const cv::Mat &t,
+								const cv::Mat &pose);
 
 	/*	@brief	Save current calibration to file
 	 *	@param	File name
 	 */
-	bool saveCalibration(const std::string fname);
+	bool saveCalibration(const std::string &fname);
 
 private:
 	// rectification enabled/disabled

@@ -45,7 +45,7 @@ using std::vector;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool isValidTranslationForRectification(const Mat t) {
+static bool isValidTranslationForRectification(const Mat &t) {
 	if (t.type() != CV_64F)				{ return false; }
 	if (t.channels() != 1) 				{ return false; }
 	if (t.size() != Size(1, 3))			{ return false; }
@@ -53,7 +53,7 @@ static bool isValidTranslationForRectification(const Mat t) {
 	return true;
 }
 
-static bool isValidRotationMatrix(const Mat M) {
+static bool isValidRotationMatrix(const Mat &M) {
 	if (M.type() != CV_64F)				{ return false; }
 	if (M.channels() != 1) 				{ return false; }
 	if (M.size() != Size(3, 3))			{ return false; }
@@ -61,7 +61,7 @@ static bool isValidRotationMatrix(const Mat M) {
 	double det = cv::determinant(M);
 	if (abs(abs(det)-1.0) > 0.00001)	{ return false; }
 
-	// TODO: take floating point errors into account
+	// TODO: floating point errors (result not exactly identity matrix)
 	// rotation matrix is orthogonal: M.T * M == M * M.T == I
 	//if (cv::countNonZero((M.t() * M) != Mat::eye(Size(3, 3), CV_64FC1)) != 0)
 	//									{ return false; }
@@ -69,7 +69,7 @@ static bool isValidRotationMatrix(const Mat M) {
 	return true;
 }
 
-static bool isValidPose(const Mat M) {
+static bool isValidPose(const Mat &M) {
 	if (M.size() != Size(4, 4))			{ return false; }
 	if (!isValidRotationMatrix(M(cv::Rect(0 , 0, 3, 3))))
 										{ return false; }
@@ -81,7 +81,7 @@ static bool isValidPose(const Mat M) {
 	return true;
 }
 
-static bool isValidCamera(const Mat M) {
+static bool isValidCamera(const Mat &M) {
 	if (M.type() != CV_64F)				{ return false; }
 	if (M.channels() != 1)				{ return false; }
 	if (M.size() != Size(3, 3))			{ return false; }
@@ -93,7 +93,7 @@ static bool isValidCamera(const Mat M) {
 	return true;
 }
 
-static Mat scaleCameraIntrinsics(Mat K, Size size_new, Size size_old) {
+static Mat scaleCameraIntrinsics(const Mat &K, const Size &size_new, const Size &size_old) {
 	Mat S(cv::Size(3, 3), CV_64F, 0.0);
 	double scale_x = ((double) size_new.width) / ((double) size_old.width);
 	double scale_y = ((double) size_new.height) / ((double) size_old.height);
@@ -101,7 +101,7 @@ static Mat scaleCameraIntrinsics(Mat K, Size size_new, Size size_old) {
 	S.at<double>(0, 0) = scale_x;
 	S.at<double>(1, 1) = scale_y;
 	S.at<double>(2, 2) = 1.0;
-	return S*K;
+	return (S*K);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +173,7 @@ bool Calibrate::setRectify(bool enabled) {
 	return rectify_;
 }
 
-bool Calibrate::setDistortion(const vector<Mat> D) {
+bool Calibrate::setDistortion(const vector<Mat> &D) {
 	if (D.size() != 2) { return false; }
 	for (const auto d : D) { if (d.size() != Size(5, 1)) { return false; }}
 	D[0].copyTo(D_[0]);
@@ -181,18 +181,18 @@ bool Calibrate::setDistortion(const vector<Mat> D) {
 	return true;
 }
 
-bool Calibrate::setIntrinsics(const Size size, const vector<Mat> K) {
+bool Calibrate::setIntrinsics(const Size &size, const vector<Mat> &K) {
 	if (K.size() != 2) { return false; }
 	if (size.empty() || size.width <= 0 || size.height <= 0) { return false; }
 	for (const auto k : K) { if (!isValidCamera(k)) { return false; }}
 
-	calib_size_ = size;
+	calib_size_ = Size(size);
 	K[0].copyTo(K_[0]);
 	K[1].copyTo(K_[1]);
 	return true;
 }
 
-bool Calibrate::setExtrinsics(const Mat R, const Mat t) {
+bool Calibrate::setExtrinsics(const Mat &R, const Mat &t) {
 	if (!isValidRotationMatrix(R) ||
 		!isValidTranslationForRectification(t)) { return false; }
 	
@@ -201,13 +201,13 @@ bool Calibrate::setExtrinsics(const Mat R, const Mat t) {
 	return true;
 }
 
-bool Calibrate::setPose(const Mat P) {
+bool Calibrate::setPose(const Mat &P) {
 	if (!isValidPose(P)) { return false; }
 	P.copyTo(pose_);
 	return true;
 }
 
-bool Calibrate::loadCalibration(const string fname) {
+bool Calibrate::loadCalibration(const string &fname) {
 	FileStorage fs;
 
 	fs.open((fname).c_str(), FileStorage::READ);
@@ -257,9 +257,9 @@ bool Calibrate::loadCalibration(const string fname) {
 	return retval;
 }
 
-bool Calibrate::writeCalibration(	const string fname, const Size size,
-									const vector<Mat> K, const vector<Mat> D, 
-									const Mat R, const Mat t, const Mat pose) {
+bool Calibrate::writeCalibration(	const string &fname, const Size &size,
+									const vector<Mat> &K, const vector<Mat> &D, 
+									const Mat &R, const Mat &t, const Mat &pose) {
 	
 	cv::FileStorage fs(fname, cv::FileStorage::WRITE);
 	if (!fs.isOpened()) { return false; }
@@ -276,7 +276,7 @@ bool Calibrate::writeCalibration(	const string fname, const Size size,
 	return true;
 }
 
-bool Calibrate::saveCalibration(const string fname) {
+bool Calibrate::saveCalibration(const string &fname) {
 	// note: never write rectified parameters!
 	return writeCalibration(fname, calib_size_, K_, D_, R_, t_, pose_);
 }
@@ -312,7 +312,7 @@ bool Calibrate::calculateRectificationParameters() {
 		map1 = map2_.second.clone();
 		cv::convertMaps(map0, map1, map1_.second, map2_.second, CV_16SC2);
 	}
-	catch (cv::Exception ex) {
+	catch (cv::Exception &ex) {
 		LOG(ERROR) << ex.what();
 		return false;
 	}

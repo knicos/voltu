@@ -71,7 +71,7 @@ protected:
 		bool brightness(CBSegmentation::Pixel &pixel, float alpha, float beta);
 		bool depthdiff(CBSegmentation::Pixel &pixel, float sigma);
 
-        inline int freq() { return f; }
+		inline int freq() { return f; }
 		inline long getLambda() { return lambda; }
 		inline long ctime() { return p; }
 		inline long atime() { return q; }
@@ -96,22 +96,22 @@ protected:
 
 	bool processPixel(Pixel &px, Codeword *codeword=nullptr);
 	
+	size_t size_;
 	size_t width_;
 	size_t height_;
-	size_t size_;
-
-	int T_h_;
-	int T_add_;
-	int T_del_;
 
 	float alpha_;
 	float beta_;
 	float epsilon_;
 	float sigma_;
 
+	int T_add_;
+	int T_del_;
+	int T_h_;
+
 private:
 	long t_ = 1;
-    std::vector<Entry> cb_;
+	std::vector<Entry> cb_;
 };
 
 }

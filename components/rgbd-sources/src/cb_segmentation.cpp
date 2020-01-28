@@ -82,10 +82,10 @@ bool CBSegmentation::Codeword::brightness(CBSegmentation::Pixel &px, float alpha
 CBSegmentation::CBSegmentation(
 		char codebook_size, size_t width, size_t height,
 		float alpha, float beta, float epsilon, float sigma,
-		int T_h, int T_add, int T_del) :
+		int T_add, int T_del, int T_h) :
 		width_(width), height_(height), size_(codebook_size + 1),
-		T_h_(T_h), T_add_(T_add), T_del_(T_del),
-		alpha_(alpha), beta_(beta), epsilon_(epsilon), sigma_(sigma) {
+		alpha_(alpha), beta_(beta), epsilon_(epsilon), sigma_(sigma),
+		T_add_(T_add), T_del_(T_del), T_h_(T_h) {
 	
 	cb_ = vector<Entry>(width * height * size_);
 	for (size_t i = 0; i < cb_.size(); i += size_) {
