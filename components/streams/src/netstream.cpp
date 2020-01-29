@@ -320,7 +320,7 @@ bool Net::_processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt) {
 	}
 
 	// Sync clocks!
-	if (p.id() == time_peer_) {
+	if (ftl::timer::isClockSlave() && p.id() == time_peer_) {
 		auto start = std::chrono::high_resolution_clock::now();
 		int64_t mastertime;
 

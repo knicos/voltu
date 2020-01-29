@@ -350,7 +350,7 @@ __global__ void fix_colour_kernel(
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	if (x < out.width() && y < out.height()) {
+	if (x >= RADIUS && y >= RADIUS && x < out.width()-RADIUS && y < out.height()-RADIUS) {
 		const float contrib = contribs.tex2D((int)x,(int)y);
 		const float d = depth.tex2D(x,y);
 

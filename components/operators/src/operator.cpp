@@ -87,7 +87,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 	}
 
 	if (stream == 0) {
-		cudaStreamSynchronize(stream_actual);
+		cudaSafeCall(cudaStreamSynchronize(stream_actual));
 		cudaSafeCall( cudaGetLastError() );
 	}
 

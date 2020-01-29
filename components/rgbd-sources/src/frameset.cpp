@@ -84,7 +84,7 @@ Builder::~Builder() {
 }
 
 
-void Builder::push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &frame) {
+/*void Builder::push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &frame) {
 	if (timestamp <= 0 || ix >= kMaxFramesInSet) return;
 
 	UNIQUE_LOCK(mutex_, lk);
@@ -120,6 +120,54 @@ void Builder::push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &frame) {
 		LOG(ERROR) << "Too many frames received for given timestamp: " << timestamp << " (source " << ix << ")";
 	}
 	fs->mask |= (1 << ix);
+}*/
+
+ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
+	if (timestamp <= 0 || ix >= kMaxFramesInSet) throw ftl::exception("Invalid frame timestamp or index");
+
+	UNIQUE_LOCK(mutex_, lk);
+
+	//LOG(INFO) << "BUILDER PUSH: " << timestamp << ", " << ix << ", " << size_;
+
+	// Size is determined by largest frame index received... note that size
+	// cannot therefore reduce.
+	if (ix >= size_) {
+		size_ = ix+1;
+		states_.resize(size_);
+	}
+	//states_[ix] = frame.origin();
+
+	auto *fs = _findFrameset(timestamp);
+
+	if (!fs) {
+		// Add new frameset
+		fs = _addFrameset(timestamp);
+		if (!fs) throw ftl::exception("Could not add frameset");
+	}
+
+	if (fs->frames.size() < size_) fs->frames.resize(size_);
+
+	//lk.unlock();
+	//SHARED_LOCK(fs->mtx, lk2);
+
+	//frame.swapTo(ftl::codecs::kAllChannels, fs->frames[ix]);
+
+	return fs->frames[ix];
+}
+
+void Builder::completed(int64_t ts, size_t ix) {
+	auto *fs = _findFrameset(ts);
+	if (fs && ix < fs->frames.size()) {
+		if (fs->mask & (1 << ix)) {
+			LOG(WARNING) << "Frame completed multiple times: " << ts << " (source " << ix << ")";
+			return;
+		}
+		states_[ix] = fs->frames[ix].origin();
+		fs->mask |= (1 << ix);
+		++fs->count;
+	} else {
+		LOG(ERROR) << "Completing frame that does not exist: " << ts << ":" << ix;
+	}
 }
 
 size_t Builder::size() {
@@ -141,6 +189,7 @@ void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
 	main_id_ = ftl::timer::add(ftl::timer::kTimerMain, [this,cb](int64_t ts) {
 		//if (jobs_ > 0) LOG(ERROR) << "SKIPPING TIMER JOB " << ts;
 		if (jobs_ > 0) return true;
+		if (size_ == 0) return true;
 		jobs_++;
 
 		// Find a previous frameset and specified latency and do the sync

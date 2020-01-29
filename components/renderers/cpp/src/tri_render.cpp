@@ -232,6 +232,11 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
 		}*/
 
+		if (!f.hasChannel(in)) {
+			LOG(ERROR) << "Reprojecting unavailable channel";
+			return;
+		}
+
 		auto transform = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse() * t.cast<float>().inverse()) * params_.m_viewMatrixInverse;
 		auto transformR = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse()).getFloat3x3();
 
@@ -555,7 +560,7 @@ void Triangular::_postprocessColours(ftl::rgbd::Frame &out) {
 			params_.camera,
 			stream_
 		);
-	} else {
+	} else if (out.hasChannel(Channel::Depth) && out.hasChannel(Channel::Colour) && temp_.hasChannel(Channel::Contribution)) {
 		ftl::cuda::fix_bad_colour(
 			out.getTexture<float>(Channel::Depth),
 			out.getTexture<uchar4>(Channel::Colour),
@@ -625,10 +630,7 @@ void Triangular::_renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan,
 	_renderChannel(out, chan, chan, t, stream_);
 }
 
-bool Triangular::render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel chan, const Eigen::Matrix4d &t) {
-	scene_ = &in;
-	if (scene_->frames.size() == 0) return false;
-
+void Triangular::_render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel chan, const Eigen::Matrix4d &t) {
 	const auto &camera = out.getLeftCamera();
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
 	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
@@ -649,8 +651,12 @@ bool Triangular::render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel 
 			camera, pose, stream_);
 	}
 
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+
 	// Render source specific debug info into colour channels
 	_preprocessColours();
+
+	cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	if (mesh_) {
 		// Render depth channel using triangles
@@ -660,12 +666,18 @@ bool Triangular::render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel 
 		_dibr(out, t, stream_);
 	}
 
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+
 	// Reprojection of colours onto surface
 	auto main_channel = (scene_->frames[0].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
 	_renderChannel(out, main_channel, Channel::Colour, t, stream_);
 
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+
 	// Debug colour info relating to the rendering process
 	_postprocessColours(out);
+
+	cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	// Support rendering of a second channel without redoing all the work
 	switch(chan) {
@@ -677,8 +689,30 @@ bool Triangular::render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel 
 	case Channel::Right			: _renderRight(out, t); break;
 	default						: _renderSecond(out, chan, t);
 	}
+}
 
-	cudaSafeCall(cudaStreamSynchronize(stream_));
+bool Triangular::render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel chan, const Eigen::Matrix4d &t) {
+	if (scene_) {
+		LOG(WARNING) << "Already rendering...";
+		return false;
+	}
+	scene_ = &in;
+	if (scene_->frames.size() == 0) {
+		scene_ = nullptr;
+		return false;
+	}
+
+	bool success = true;
+
+	try {
+		_render(in, out, chan, t);
+		cudaSafeCall(cudaStreamSynchronize(stream_));
+	} catch (std::exception &e) {
+		LOG(ERROR) << "Exception in render: " << e.what();
+		success = false;
+	}
+
 	last_frame_ = scene_->timestamp;
-	return true;
+	scene_ = nullptr;
+	return success;
 }

@@ -60,6 +60,8 @@ Speaker::Speaker(nlohmann::json &config) : ftl::Configurable(config), buffer_(48
 		return;
 	}
 
+	LOG(INFO) << "Speaker ready.";
+
 	#else  // No portaudio
 
 	active_ = false;

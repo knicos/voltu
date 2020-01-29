@@ -65,6 +65,7 @@ class Triangular : public ftl::render::Renderer {
 	void _renderDensity(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
 	void _renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
 	void _renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan, const Eigen::Matrix4d &t);
+	void _render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, ftl::codecs::Channel, const Eigen::Matrix4d &t);
 
 	bool _alreadySeen() const { return last_frame_ == scene_->timestamp; }
 };

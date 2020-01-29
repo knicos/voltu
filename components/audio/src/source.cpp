@@ -141,6 +141,8 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(4800
         return true;
     }); 
 
+	LOG(INFO) << "Microphone ready.";
+
 	#else  // No portaudio
 
 	active_ = false;

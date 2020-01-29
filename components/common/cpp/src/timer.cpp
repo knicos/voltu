@@ -25,6 +25,7 @@ static bool active = false;
 static std::atomic<int> active_jobs = 0;
 static MUTEX mtx;
 static int last_id = 0;
+static bool clock_slave = true;
 
 struct TimerJob {
 	int id;
@@ -103,6 +104,14 @@ int ftl::timer::getInterval() {
 
 void ftl::timer::setClockAdjustment(int64_t ms) {
 	clock_adjust += ms;
+}
+
+void ftl::timer::setClockSlave(bool s) {
+	clock_slave = s;
+}
+
+bool ftl::timer::isClockSlave() {
+	return clock_slave;
 }
 
 const TimerHandle ftl::timer::add(timerlevel_t l, const std::function<bool(int64_t ts)> &f) {
