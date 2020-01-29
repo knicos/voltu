@@ -1,6 +1,8 @@
 #include <ftl/streams/receiver.hpp>
 #include <ftl/codecs/depth_convert_cuda.hpp>
 
+#include <opencv2/cudaimgproc.hpp>
+
 #include "parsers.hpp"
 #include "injectors.hpp"
 

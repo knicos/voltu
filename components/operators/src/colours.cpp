@@ -1,5 +1,8 @@
 #include <ftl/operators/colours.hpp>
 
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudawarping.hpp>
+
 using ftl::operators::ColourChannels;
 using ftl::codecs::Channel;
 

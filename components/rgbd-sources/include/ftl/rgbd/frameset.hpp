@@ -5,7 +5,7 @@
 #include <ftl/timer.hpp>
 #include <ftl/rgbd/frame.hpp>
 
-#include <opencv2/opencv.hpp>
+//#include <opencv2/core.hpp>
 #include <vector>
 
 namespace ftl {

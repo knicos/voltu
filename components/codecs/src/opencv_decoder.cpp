@@ -1,5 +1,7 @@
 #include <ftl/codecs/opencv_decoder.hpp>
 
+#include <opencv2/opencv.hpp>
+
 #include <loguru.hpp>
 
 using ftl::codecs::OpenCVDecoder;

@@ -28,7 +28,7 @@
 #include <thread>
 #include <chrono>
 
-#include <opencv2/opencv.hpp>
+//#include <opencv2/opencv.hpp>
 #include <ftl/net/universe.hpp>
 
 #include <ftl/operators/smoothing.hpp>

@@ -3,6 +3,9 @@
 #include "screen.hpp"
 #include <nanogui/glutil.h>
 
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+
 #include <ftl/operators/antialiasing.hpp>
 
 #define LOGURU_REPLACE_GLOG 1

@@ -1,7 +1,7 @@
 #ifndef _FTL_RGBD_COLOUR_HPP_
 #define _FTL_RGBD_COLOUR_HPP_
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core/mat.hpp>
 
 namespace ftl {
 namespace rgbd {

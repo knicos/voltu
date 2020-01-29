@@ -6,6 +6,8 @@
 
 #include <ftl/cuda/normals.hpp>
 
+#include <opencv2/cudawarping.hpp>
+
 using ftl::operators::HFSmoother;
 using ftl::operators::SimpleMLS;
 using ftl::operators::ColourMLS;
