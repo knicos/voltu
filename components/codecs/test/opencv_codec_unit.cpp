@@ -3,6 +3,8 @@
 #include <ftl/codecs/opencv_decoder.hpp>
 #include <ftl/threads.hpp>
 
+#include <opencv2/cudaarithm.hpp>
+
 using ftl::codecs::format_t;
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;

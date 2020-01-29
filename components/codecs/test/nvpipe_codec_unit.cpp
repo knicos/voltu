@@ -4,6 +4,8 @@
 #include <ftl/codecs/hevc.hpp>
 #include <ftl/threads.hpp>
 
+#include <opencv2/cudaarithm.hpp>
+
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 using ftl::codecs::format_t;

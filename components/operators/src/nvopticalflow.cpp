@@ -1,5 +1,7 @@
 #include <ftl/operators/opticalflow.hpp>
 
+#include <opencv2/cudaimgproc.hpp>
+
 using ftl::rgbd::Frame;
 using ftl::rgbd::Source;
 using ftl::codecs::Channel;

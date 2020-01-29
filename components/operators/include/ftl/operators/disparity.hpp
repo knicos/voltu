@@ -7,6 +7,8 @@
 #include <opencv2/cudaoptflow.hpp>
 #endif
 
+#include <opencv2/cudastereo.hpp>
+
 #ifdef HAVE_LIBSGM
 #include <libsgm.h>
 #endif

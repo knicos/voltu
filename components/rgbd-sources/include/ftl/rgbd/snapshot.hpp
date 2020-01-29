@@ -5,7 +5,7 @@
 #include <loguru.hpp>
 #include <thread>
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core/mat.hpp>
 
 #include <Eigen/Eigen>
 #include <opencv2/core/eigen.hpp>

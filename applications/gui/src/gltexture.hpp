@@ -1,7 +1,7 @@
 #ifndef _FTL_GUI_GLTEXTURE_HPP_
 #define _FTL_GUI_GLTEXTURE_HPP_
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core/mat.hpp>
 
 namespace ftl {
 namespace gui {

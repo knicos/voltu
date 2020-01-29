@@ -8,7 +8,7 @@
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/codecs/packet.hpp>
 
-#include <opencv2/opencv.hpp>
+//#include <opencv2/opencv.hpp>
 #include <vector>
 
 namespace ftl {

@@ -8,6 +8,8 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
 //#include <ftl/filters/smoothing.hpp>

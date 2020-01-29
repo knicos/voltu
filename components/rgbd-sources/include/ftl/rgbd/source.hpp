@@ -9,7 +9,7 @@
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/rgbd/detail/source.hpp>
 #include <ftl/codecs/packet.hpp>
-#include <opencv2/opencv.hpp>
+#include <opencv2/core/mat.hpp>
 #include <Eigen/Eigen>
 #include <string>
 #include <map>

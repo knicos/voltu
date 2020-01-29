@@ -1,6 +1,8 @@
 #include <ftl/streams/sender.hpp>
 #include <ftl/codecs/depth_convert_cuda.hpp>
 
+#include <opencv2/cudaimgproc.hpp>
+
 #include "injectors.hpp"
 
 #define LOGURU_REPLACE_GLOG 1

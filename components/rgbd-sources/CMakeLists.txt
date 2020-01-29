@@ -7,7 +7,7 @@ set(RGBDSRC
 	src/sources/stereovideo/stereovideo.cpp
 	#src/sources/net/net.cpp
 	#src/streamer.cpp
-	src/colour.cpp
+	#src/colour.cpp
 	src/group.cpp
 	src/cb_segmentation.cpp
 	#src/abr.cpp

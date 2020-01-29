@@ -3,7 +3,7 @@
 
 #include <Eigen/Eigen>
 #include <ftl/cuda_util.hpp>
-#include <opencv2/opencv.hpp>
+//#include <opencv2/opencv.hpp>
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/rgbd/frame.hpp>
 

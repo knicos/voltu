@@ -2,6 +2,9 @@
 
 #include "ftl/operators/disparity.hpp"
 
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudaarithm.hpp>
+
 using cv::Size;
 using cv::cuda::GpuMat;
 
