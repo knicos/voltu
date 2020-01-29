@@ -2,6 +2,9 @@
 #include <ftl/audio/audio.hpp>
 #include <ftl/audio/portaudio.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::audio::Source;
 using ftl::audio::Frame;
 using ftl::audio::FrameSet;
@@ -176,7 +179,7 @@ size_t Source::size() {
 }
 
 ftl::audio::FrameState &Source::state(size_t ix) {
-    if (ix >= 1) throw ftl::exception("State index out-of-bounds");
+    if (ix >= 1) throw FTL_Error("State index out-of-bounds");
     return state_;
 }
 

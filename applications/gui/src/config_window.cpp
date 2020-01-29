@@ -132,7 +132,7 @@ ConfigWindow::ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		itembutton->setTooltip(c);
 		itembutton->setBackgroundColor(nanogui::Color(0.9f,0.9f,0.9f,0.9f));
 		itembutton->setCallback([this,c]() {
-			LOG(INFO) << "Change configurable: " << c;
+			//LOG(INFO) << "Change configurable: " << c;
 			_buildForm(c);
 			setVisible(false);
 			//this->parent()->removeChild(this);
@@ -160,7 +160,7 @@ void ConfigWindow::_addElements(nanogui::FormHelper *form, const std::string &su
 		if (i.key() == "$id") continue;
 
 		if (i.key() == "$ref" && i.value().is_string()) {
-			LOG(INFO) << "Follow $ref: " << i.value();
+			//LOG(INFO) << "Follow $ref: " << i.value();
 			const std::string suri = std::string(i.value().get<string>());
 			_addElements(form, suri);
 			continue;

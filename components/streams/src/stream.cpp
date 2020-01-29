@@ -7,26 +7,26 @@ using ftl::stream::Stream;
 
 const ftl::codecs::Channels<0> &Stream::available(int fs) const {
 	SHARED_LOCK(mtx_, lk);
-	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) throw ftl::exception("Frameset index out-of-bounds");
+	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	return state_[fs].available;
 }
 
 const ftl::codecs::Channels<0> &Stream::selected(int fs) const {
 	SHARED_LOCK(mtx_, lk);
-	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) throw ftl::exception("Frameset index out-of-bounds");
+	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	return state_[fs].selected;
 }
 
 void Stream::select(int fs, const ftl::codecs::Channels<0> &s, bool make) {
 	UNIQUE_LOCK(mtx_, lk);
-	if (fs < 0 || (!make && static_cast<uint32_t>(fs) >= state_.size())) throw ftl::exception("Frameset index out-of-bounds");
+	if (fs < 0 || (!make && static_cast<uint32_t>(fs) >= state_.size())) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	if (static_cast<uint32_t>(fs) >= state_.size()) state_.resize(fs+1);
 	state_[fs].selected = s;
 }
 
 ftl::codecs::Channels<0> &Stream::available(int fs) {
 	UNIQUE_LOCK(mtx_, lk);
-	if (fs < 0) throw ftl::exception("Frameset index out-of-bounds");
+	if (fs < 0) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	if (static_cast<uint32_t>(fs) >= state_.size()) state_.resize(fs+1);
 	return state_[fs].available;
 }

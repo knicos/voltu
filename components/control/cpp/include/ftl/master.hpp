@@ -74,7 +74,7 @@ class Master {
 	/**
 	 * Do not call! Automatically called from logging subsystem.
 	 */
-	void sendLog(const loguru::Message& message);
+	//void sendLog(const loguru::Message& message);
 
 	bool isPaused() const { return state_.paused; }
 

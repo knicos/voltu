@@ -2,8 +2,8 @@
 #ifndef _FTL_COMMON_CONFIGURATION_HPP_
 #define _FTL_COMMON_CONFIGURATION_HPP_
 
-#define LOGURU_REPLACE_GLOG 1
-#include <loguru.hpp>
+//#define LOGURU_REPLACE_GLOG 1
+//#include <loguru.hpp>
 #include <nlohmann/json.hpp>
 //#include <ftl/configurable.hpp>
 #include <string>
@@ -139,21 +139,20 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 	//auto &r = link; // = ftl::config::resolve(link);
 
 	if (!link["$id"].is_string()) {
-		LOG(FATAL) << "Entity does not have $id or parent: " << link;
-		return nullptr;
+		throw FTL_Error("Entity does not have $id or parent: " << link);
 	}
 
 	ftl::Configurable *cfg = ftl::config::find(link["$id"].get<std::string>());
 	if (!cfg) {
-		try {
+		//try {
 			cfg = new T(link, args...);
-		} catch (std::exception &ex) {	
-			LOG(ERROR) << ex.what();
-			LOG(FATAL) << "Could not construct " << link;
-		} catch(...) {
-			LOG(ERROR) << "Unknown exception";
-			LOG(FATAL) << "Could not construct " << link;
-		}
+		//} catch (std::exception &ex) {	
+		//	LOG(ERROR) << ex.what();
+		//	LOG(FATAL) << "Could not construct " << link;
+		//} catch(...) {
+		//	LOG(ERROR) << "Unknown exception";
+		//	LOG(FATAL) << "Could not construct " << link;
+		//}
 	} else {
 		// Make sure configurable has newest object pointer
 		cfg->patchPtr(link);
@@ -162,8 +161,8 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 	try {
 		return dynamic_cast<T*>(cfg);
 	} catch(...) {
-		LOG(FATAL) << "Configuration URI object is of wrong type: " << link;
-		return nullptr;
+		throw FTL_Error("Configuration URI object is of wrong type: " << link.dump());
+		//return nullptr;
 	}
 }
 
@@ -201,8 +200,8 @@ T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS 
 		return create<T>(entity2, args...);
 	}
 
-	LOG(ERROR) << "Unable to create Configurable entity '" << name << "'";
-	return nullptr;
+	throw FTL_Error("Unable to create Configurable entity '" << name << "'");
+	//return nullptr;
 }
 
 template <typename T, typename... ARGS>
@@ -246,7 +245,7 @@ std::vector<T*> ftl::config::createArray(ftl::Configurable *parent, const std::s
 			i++;
 		}
 	} else {
-		LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();
+		//LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();
 	}
 
 	return result;

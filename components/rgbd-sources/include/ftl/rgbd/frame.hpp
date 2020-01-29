@@ -39,17 +39,17 @@ struct VideoData {
 
 	template <typename T>
 	T &as() {
-		throw ftl::exception("Unsupported type for Video data channel");
+		throw FTL_Error("Unsupported type for Video data channel");
 	};
 
 	template <typename T>
 	const T &as() const {
-		throw ftl::exception("Unsupported type for Video data channel");
+		throw FTL_Error("Unsupported type for Video data channel");
 	};
 
 	template <typename T>
 	T &make() {
-		throw ftl::exception("Unsupported type for Video data channel");
+		throw FTL_Error("Unsupported type for Video data channel");
 	};
 
 	inline void reset() {
@@ -194,14 +194,13 @@ template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::r
 
 template <typename T>
 ftl::cuda::TextureObject<T> &Frame::getTexture(ftl::codecs::Channel c) {
-	if (!hasChannel(c)) throw ftl::exception(ftl::Formatter() << "Texture channel does not exist: " << (int)c);
+	if (!hasChannel(c)) throw FTL_Error("Texture channel does not exist: " << (int)c);
 
 	auto &m = getData(c);
-	if (!m.isgpu) throw ftl::exception("Texture channel is not on GPU");
+	if (!m.isgpu) throw FTL_Error("Texture channel is not on GPU");
 
 	if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.gpu.type() != m.tex.cvType()) {
-		LOG(ERROR) << "Texture has not been created for channel = " << (int)c;
-		throw ftl::exception("Texture has not been created properly for this channel");
+		throw FTL_Error("Texture has not been created properly for this channel: " << (int)c);
 	}
 
 	return ftl::cuda::TextureObject<T>::cast(m.tex);
@@ -216,14 +215,13 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const 
 	auto &m = getData(c);
 
 	if (f.empty()) {
-		throw ftl::exception("createTexture needs a non-empty format");
+		throw FTL_Error("createTexture needs a non-empty format");
 	} else {
 		m.gpu.create(f.size(), f.cvType);
 	}
 
 	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
-		LOG(ERROR) << "Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value;
-		throw ftl::exception("Texture type does not match underlying data type");
+		throw FTL_Error("Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value);
 	}
 
 	// TODO: Check tex cvType
@@ -242,7 +240,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const 
 
 template <typename T>
 ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, bool interpolated) {
-	if (!hasChannel(c)) throw ftl::exception(ftl::Formatter() << "createTexture needs a format if the channel does not exist: " << (int)c);
+	if (!hasChannel(c)) throw FTL_Error("createTexture needs a format if the channel does not exist: " << (int)c);
 
 	auto &m = getData(c);
 
@@ -251,12 +249,11 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, bool i
 		// TODO: Should this upload to GPU or not?
 		//gpu_ += c;
 	} else if (!m.isgpu || (m.isgpu && m.gpu.empty())) {
-		throw ftl::exception("createTexture needs a format if no memory is allocated");
+		throw FTL_Error("createTexture needs a format if no memory is allocated");
 	}
 
 	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
-		LOG(ERROR) << "Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value;
-		throw ftl::exception("Texture type does not match underlying data type");
+		throw FTL_Error("Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value);
 	}
 
 	// TODO: Check tex cvType

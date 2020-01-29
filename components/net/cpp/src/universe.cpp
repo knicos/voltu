@@ -1,6 +1,8 @@
 #include <ftl/net/universe.hpp>
 #include <ftl/timer.hpp>
 #include <chrono>
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
 
 #ifdef WIN32
 #include <Ws2tcpip.h>

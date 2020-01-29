@@ -1,6 +1,6 @@
 ### Stream Unit ################################################################
 add_executable(stream_unit
-	./tests.cpp
+	$<TARGET_OBJECTS:CatchTest>
 	./stream_unit.cpp
 	../src/stream.cpp
 )
@@ -12,7 +12,7 @@ add_test(StreamUnitTest stream_unit)
 
 ### File Stream Unit ###########################################################
 add_executable(filestream_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	./filestream_unit.cpp
 	../src/filestream.cpp
 	../src/stream.cpp
@@ -37,7 +37,7 @@ add_test(FileStreamUnitTest filestream_unit)
 
 ### Sender Unit ################################################################
 add_executable(sender_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	./sender_unit.cpp
 	../src/sender.cpp
 	../src/stream.cpp
@@ -52,7 +52,7 @@ add_test(SenderUnitTest sender_unit)
 
 ### Receiver Unit ##############################################################
 add_executable(receiver_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	./receiver_unit.cpp
 	../src/receiver.cpp
 	../src/stream.cpp

@@ -4,6 +4,9 @@
 #include "parsers.hpp"
 #include "injectors.hpp"
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::stream::Receiver;
 using ftl::stream::Stream;
 using ftl::codecs::StreamPacket;

@@ -1,6 +1,9 @@
 #include <fstream>
 #include <ftl/streams/filestream.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::stream::File;
 using ftl::codecs::StreamPacket;
 using ftl::codecs::Packet;

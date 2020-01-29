@@ -43,5 +43,7 @@ endif()
 
 target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen ${REALSENSE_LIBRARY} ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators ftldata)
 
+if (BUILD_TESTS)
 add_subdirectory(test)
+endif()
 

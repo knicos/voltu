@@ -2,8 +2,8 @@
 #define _FTL_NET_INTERNAL_HPP_
 
 #if defined _DEBUG && DEBUG_NET
-#include <loguru.hpp>
-#include <chrono>
+//#include <loguru.hpp>
+//#include <chrono>
 #endif
 
 namespace ftl { namespace net { namespace internal {
@@ -27,9 +27,9 @@ namespace ftl { namespace net { namespace internal {
 	inline ssize_t writev(int sd, const struct iovec *v, int cnt) {
 		auto start = std::chrono::high_resolution_clock::now();
 		return ::writev(sd,v,cnt);
-		std::chrono::duration<double> elapsed =
+		/*std::chrono::duration<double> elapsed =
 				std::chrono::high_resolution_clock::now() - start;
-		LOG(INFO) << "WRITEV in " << elapsed.count() << "s";
+		LOG(INFO) << "WRITEV in " << elapsed.count() << "s";*/
 	}
 #else
 	inline ssize_t recv(int sd, void *buf, size_t n, int f) { return ::recv(sd,buf,n,f); }

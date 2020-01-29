@@ -59,12 +59,10 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
         contributions_[i].create(size.width, size.height);
 
         if (!f.hasChannel(Channel::Normals)) {
-            LOG(ERROR) << "Required normals channel missing for MLS";
-            return false;
+            throw FTL_Error("Required normals channel missing for MLS");
         }
         if (!f.hasChannel(Channel::Support2)) {
-            LOG(ERROR) << "Required cross support channel missing for MLS";
-            return false;
+            throw FTL_Error("Required cross support channel missing for MLS");
         }
 
         // Create required channels

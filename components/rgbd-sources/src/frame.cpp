@@ -12,25 +12,25 @@ static cv::cuda::GpuMat noneGPU;
 
 template <>
 cv::Mat &VideoData::as<cv::Mat>() {
-	if (isgpu) throw ftl::exception("Host request for GPU data without download");
+	if (isgpu) throw FTL_Error("Host request for GPU data without download");
 	return host;
 }
 
 template <>
 const cv::Mat &VideoData::as<cv::Mat>() const {
-	if (isgpu) throw ftl::exception("Host request for GPU data without download");
+	if (isgpu) throw FTL_Error("Host request for GPU data without download");
 	return host;
 }
 
 template <>
 cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>() {
-	if (!isgpu) throw ftl::exception("GPU request for Host data without upload");
+	if (!isgpu) throw FTL_Error("GPU request for Host data without upload");
 	return gpu;
 }
 
 template <>
 const cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>() const {
-	if (!isgpu) throw ftl::exception("GPU request for Host data without upload");
+	if (!isgpu) throw FTL_Error("GPU request for Host data without upload");
 	return gpu;
 }
 
@@ -102,13 +102,13 @@ void Frame::pushPacket(ftl::codecs::Channel c, ftl::codecs::Packet &pkt) {
 		auto &m1 = getData(c);
 		m1.encoded.emplace_back() = std::move(pkt);
 	} else {
-		LOG(ERROR) << "Channel " << (int)c << " doesn't exist for packet push";
+		throw FTL_Error("Channel " << (int)c << " doesn't exist for packet push");
 	}
 }
 
 const std::list<ftl::codecs::Packet> &Frame::getPackets(ftl::codecs::Channel c) const {
 	if (!hasChannel(c)) {
-		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)c);
+		throw FTL_Error("Frame channel does not exist: " << (int)c);
 	}
 
 	auto &m1 = getData(c);
@@ -135,184 +135,9 @@ bool Frame::empty(ftl::codecs::Channels<0> channels) {
 	return false;
 }
 
-/*void Frame::swapTo(ftl::codecs::Channels<0> channels, Frame &f) {
-	f.reset();
-	f.origin_ = origin_;
-	f.state_ = state_;
-
-	// For all channels in this frame object
-	for (auto c : channels_) {
-		// Should we swap this channel?
-		if (channels.has(c)) {
-			// Does 'f' have this channel?
-			//if (!f.hasChannel(c)) {
-				// No, so create it first
-				// FIXME: Allocate the memory as well?
-				if (isCPU(c)) f.create<cv::Mat>(c);
-				else f.create<cv::cuda::GpuMat>(c);
-			//}
-
-			auto &m1 = _get(c);
-			auto &m2 = f._get(c);
-
-			cv::swap(m1.host, m2.host);
-			cv::cuda::swap(m1.gpu, m2.gpu);
-
-			auto temptex = std::move(m2.tex);
-			m2.tex = std::move(m1.tex);
-			m1.tex = std::move(temptex);
-
-			if (m2.encoded.size() > 0 || m1.encoded.size() > 0) {
-				auto tempenc = std::move(m2.encoded);
-				m2.encoded = std::move(m1.encoded);
-				m1.encoded = std::move(tempenc);
-			}
-		}
-	}
-
-	f.data_data_ = std::move(data_data_);
-	f.data_channels_ = data_channels_;
-	data_channels_.clear();
-}
-
-void Frame::swapChannels(ftl::codecs::Channel a, ftl::codecs::Channel b) {
-	auto &m1 = _get(a);
-	auto &m2 = _get(b);
-	cv::swap(m1.host, m2.host);
-	cv::cuda::swap(m1.gpu, m2.gpu);
-
-	auto temptex = std::move(m2.tex);
-	m2.tex = std::move(m1.tex);
-	m1.tex = std::move(temptex);
-
-	if (m2.encoded.size() > 0 || m1.encoded.size() > 0) {
-		auto tempenc = std::move(m2.encoded);
-		m2.encoded = std::move(m1.encoded);
-		m1.encoded = std::move(tempenc);
-	}
-}
-
-void Frame::copyTo(ftl::codecs::Channels<0> channels, Frame &f) {
-	f.reset();
-	f.origin_ = origin_;
-	f.state_ = state_;
-
-	// For all channels in this frame object
-	for (auto c : channels_) {
-		// Should we copy this channel?
-		if (channels.has(c)) {
-			if (isCPU(c)) get<cv::Mat>(c).copyTo(f.create<cv::Mat>(c));
-			else get<cv::cuda::GpuMat>(c).copyTo(f.create<cv::cuda::GpuMat>(c));
-			auto &m1 = _get(c);
-			auto &m2 = f._get(c);
-			m2.encoded = m1.encoded; //std::move(m1.encoded);  // TODO: Copy?
-		}
-	}
-
-	f.data_data_ = data_data_;
-	f.data_channels_ = data_channels_;
-}
-
-template<> cv::Mat& Frame::get(ftl::codecs::Channel channel) {
-	if (channel == Channel::None) {
-		DLOG(WARNING) << "Cannot get the None channel from a Frame";
-		none.release();
-		return none;
-	}
-
-	if (isGPU(channel)) {
-		download(Channels(channel));
-		LOG(WARNING) << "Getting GPU channel on CPU without explicit 'download'";
-	}
-
-	// Add channel if not already there
-	if (!channels_.has(channel)) {
-		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
-	}
-
-	return _get(channel).host;
-}
-
-template<> cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) {
-	if (channel == Channel::None) {
-		DLOG(WARNING) << "Cannot get the None channel from a Frame";
-		noneGPU.release();
-		return noneGPU;
-	}
-
-	if (isCPU(channel)) {
-		upload(Channels(channel));
-		LOG(WARNING) << "Getting CPU channel on GPU without explicit 'upload'";
-	}
-
-	// Add channel if not already there
-	if (!channels_.has(channel)) {
-		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
-	}
-
-	return _get(channel).gpu;
-}
-
-template<> const cv::Mat& Frame::get(ftl::codecs::Channel channel) const {
-	if (channel == Channel::None) {
-		LOG(FATAL) << "Cannot get the None channel from a Frame";
-	}
-
-	if (isGPU(channel)) {
-		LOG(FATAL) << "Getting GPU channel on CPU without explicit 'download'";
-	}
-
-	if (!channels_.has(channel)) throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
-
-	return _get(channel).host;
-}
-
-template<> const cv::cuda::GpuMat& Frame::get(ftl::codecs::Channel channel) const {
-	if (channel == Channel::None) {
-		LOG(FATAL) << "Cannot get the None channel from a Frame";
-	}
-
-	if (isCPU(channel)) {
-		LOG(FATAL) << "Getting CPU channel on GPU without explicit 'upload'";
-	}
-
-	// Add channel if not already there
-	if (!channels_.has(channel)) {
-		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
-	}
-
-	return _get(channel).gpu;
-}
-
-template<> const Eigen::Matrix4d& Frame::get(ftl::codecs::Channel channel) const {
-	if (channel == Channel::Pose) {
-		return state_.getPose();
-	}
-
-	throw ftl::exception(ftl::Formatter() << "Invalid pose channel: " << (int)channel);
-}
-
-template<> const ftl::rgbd::Camera& Frame::get(ftl::codecs::Channel channel) const {
-	if (channel == Channel::Calibration) {
-		return state_.getLeft();
-	} else if (channel == Channel::Calibration2) {
-		return state_.getRight();
-	}
-
-	throw ftl::exception(ftl::Formatter() << "Invalid calibration channel: " << (int)channel);
-}
-
-template<> const nlohmann::json& Frame::get(ftl::codecs::Channel channel) const {
-	if (channel == Channel::Configuration) {
-		return state_.getConfig();
-	}
-
-	throw ftl::exception(ftl::Formatter() << "Invalid configuration channel: " << (int)channel);
-}*/
-
 template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
 	if (c == Channel::None) {
-		throw ftl::exception("Cannot create a None channel");
+		throw FTL_Error("Cannot create a None channel");
 	}
 	
 	create<cv::Mat>(c);
@@ -329,7 +154,7 @@ template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::Form
 
 template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
 	if (c == Channel::None) {
-		throw ftl::exception("Cannot create a None channel");
+		throw FTL_Error("Cannot create a None channel");
 	}
 
 	create<cv::cuda::GpuMat>(c);
@@ -349,85 +174,7 @@ void Frame::clearPackets(ftl::codecs::Channel c) {
 	m.encoded.clear();
 }
 
-/*template <> cv::Mat &Frame::create(ftl::codecs::Channel c) {
-	if (c == Channel::None) {
-		throw ftl::exception("Cannot create a None channel");
-	}
-	channels_ += c;
-	gpu_ -= c;
-
-	auto &m = _get(c);
-
-	m.encoded.clear();  // Remove all old encoded data
-
-	return m.host;
-}
-
-template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c) {
-	if (c == Channel::None) {
-		throw ftl::exception("Cannot create a None channel");
-	}
-	channels_ += c;
-	gpu_ += c;
-
-	auto &m = _get(c);
-
-	m.encoded.clear();  // Remove all old encoded data
-
-	return m.gpu;
-}*/
-
 void Frame::resetTexture(ftl::codecs::Channel c) {
 	auto &m = getData(c);
 	m.tex.free();
 }
-
-/*void Frame::setOrigin(ftl::rgbd::FrameState *state) {
-	if (origin_ != nullptr) {
-		throw ftl::exception("Can only set origin once after reset");
-	}
-
-	origin_ = state;
-	state_ = *state;
-}
-
-const Eigen::Matrix4d &Frame::getPose() const {
-	return get<Eigen::Matrix4d>(ftl::codecs::Channel::Pose);
-}
-
-const ftl::rgbd::Camera &Frame::getLeftCamera() const {
-	return get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration);
-}
-
-const ftl::rgbd::Camera &Frame::getRightCamera() const {
-	return get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration2);
-}
-
-void ftl::rgbd::Frame::setPose(const Eigen::Matrix4d &pose) {
-	if (origin_) origin_->setPose(pose);
-}
-
-void ftl::rgbd::Frame::setLeftCamera(const ftl::rgbd::Camera &c) {
-	if (origin_) origin_->setLeft(c);
-}
-
-void ftl::rgbd::Frame::setRightCamera(const ftl::rgbd::Camera &c) {
-	if (origin_) origin_->setRight(c);
-}
-
-std::string ftl::rgbd::Frame::getConfigString() const {
-	return get<nlohmann::json>(ftl::codecs::Channel::Configuration).dump();
-}
-
-const std::vector<unsigned char> &ftl::rgbd::Frame::getRawData(ftl::codecs::Channel channel) const {
-	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Non data channel");
-	if (!hasChannel(channel)) throw ftl::exception("Data channel does not exist");
-
-	return data_data_.at(static_cast<int>(channel));
-}
-
-void ftl::rgbd::Frame::createRawData(ftl::codecs::Channel c, const std::vector<unsigned char> &v) {
-	data_data_.insert({static_cast<int>(c), v});
-	data_channels_ += c;
-}
-*/

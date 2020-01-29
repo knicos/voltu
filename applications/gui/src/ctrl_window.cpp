@@ -51,7 +51,7 @@ ControlWindow::ControlWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	new Label(this, "Select Node","sans-bold");
 	auto select = new ComboBox(this, node_titles_);
 	select->setCallback([this](int ix) {
-		LOG(INFO) << "Change node: " << ix;
+		//LOG(INFO) << "Change node: " << ix;
 		_changeActive(ix);
 	});
 

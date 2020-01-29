@@ -42,7 +42,7 @@ struct Format : public ftl::rgbd::FormatBase {
 			a.cols,
 			a.rows,
 			ftl::traits::OpenCVType<T>::value) {
-		CHECK(cvType == a.type());
+		if (cvType != a.type()) throw FTL_Error("Type mismatch");
 	}
 };
 

@@ -147,16 +147,14 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_t found,
                                    std::size_t expected) {
     if (found != expected) {
-    	LOG(FATAL) << "RPC argument missmatch for '" << func << "' - " << found << " != " << expected;
-        throw ftl::exception("RPC argument missmatch");
+    	throw FTL_Error("RPC argument missmatch for '" << func << "' - " << found << " != " << expected);
     }
 }
 
 void ftl::net::Dispatcher::enforce_unique_name(std::string const &func) {
     auto pos = funcs_.find(func);
     if (pos != end(funcs_)) {
-    	LOG(FATAL) << "RPC non unique binding for '" << func << "'";
-        throw ftl::exception("RPC binding not unique");
+    	throw FTL_Error("RPC non unique binding for '" << func << "'");
     }
 }
 

@@ -97,11 +97,9 @@ bool DepthBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
 									 cudaStream_t stream) {
 
 	if (!in.hasChannel(Channel::Colour)) {
-		LOG(ERROR) << "Joint Bilateral Filter is missing Colour";
-		return false;
+		throw FTL_Error("Joint Bilateral Filter is missing Colour");
 	} else if (!in.hasChannel(Channel::Depth)) {
-		LOG(ERROR) << "Joint Bilateral Filter is missing Depth";
-		return false;
+		throw FTL_Error("Joint Bilateral Filter is missing Depth");
 	}
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);

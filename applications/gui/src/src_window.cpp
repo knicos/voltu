@@ -15,6 +15,9 @@
 #include <nanogui/layout.h>
 #include <nanogui/vscrollpanel.h>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 #include <ftl/streams/netstream.hpp>
 
 #include "ftl/operators/colours.hpp"

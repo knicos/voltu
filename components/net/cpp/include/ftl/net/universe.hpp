@@ -383,9 +383,8 @@ template <typename R, typename... ARGS>
 R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
 	if (p == nullptr || !p->isConnected()) {
-		if (p == nullptr) DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
-		else DLOG(WARNING) << "Attempting to call an disconnected peer : " << pid.to_string();
-		throw ftl::exception("Calling disconnected peer");
+		if (p == nullptr) throw FTL_Error("Attempting to call an unknown peer : " << pid.to_string());
+		else throw FTL_Error("Attempting to call an disconnected peer : " << pid.to_string());
 	}
 	return p->call<R>(name, args...);
 }
@@ -394,7 +393,7 @@ template <typename... ARGS>
 bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
 	if (p == nullptr) {
-		DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
+		//DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
 		return false;
 	}
 #ifdef WIN32
@@ -409,7 +408,7 @@ template <typename... ARGS>
 int Universe::try_send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 	Peer *p = getPeer(pid);
 	if (p == nullptr) {
-		DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
+		//DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
 		return false;
 	}
 

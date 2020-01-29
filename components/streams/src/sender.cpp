@@ -3,6 +3,9 @@
 
 #include "injectors.hpp"
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::stream::Sender;
 using ftl::codecs::StreamPacket;
 using ftl::codecs::Packet;
@@ -27,11 +30,6 @@ Sender::~Sender() {
 		if (c.second.encoder[1]) ftl::codecs::free(c.second.encoder[1]);
 	}
 }
-
-/*void Sender::onStateChange(const std::function<void(ftl::codecs::Channel,const ftl::rgbd::FrameState&)> &cb) {
-	if (cb && state_cb_) throw ftl::exception("State change callback already set");
-	state_cb_ = cb;
-}*/
 
 void Sender::setStream(ftl::stream::Stream*s) {
 	if (stream_) stream_->onPacket(nullptr);

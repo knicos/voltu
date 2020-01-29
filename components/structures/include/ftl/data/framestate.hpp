@@ -128,11 +128,11 @@ class FrameState {
 	 */
 	template <typename T, ftl::codecs::Channel C, typename S, int N> struct As {
 		static const T &func(const ftl::data::FrameState<S,N> &t) {
-			throw ftl::exception("Type not supported for state channel");
+			throw FTL_Error("Type not supported for state channel");
 		}
 
 		static T &func(ftl::data::FrameState<S,N> &t) {
-			throw ftl::exception("Type not supported for state channel");
+			throw FTL_Error("Type not supported for state channel");
 		}
 	};
 

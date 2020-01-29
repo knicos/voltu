@@ -335,12 +335,12 @@ template <int BASE, int N, typename STATE, typename DATA>
 template <typename T>
 T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) {
 	if (channel == ftl::codecs::Channel::None) {
-		throw ftl::exception("Attempting to get channel 'None'");
+		throw FTL_Error("Attempting to get channel 'None'");
 	}
 
 	// Add channel if not already there
 	if (!channels_.has(channel)) {
-		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
+		throw FTL_Error("Frame channel does not exist: " << (int)channel);
 	}
 
 	return getData(channel).template as<T>();
@@ -351,7 +351,7 @@ template <int BASE, int N, typename STATE, typename DATA>
 template <typename T>
 const T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) const {
 	if (channel == ftl::codecs::Channel::None) {
-		throw ftl::exception("Attempting to get channel 'None'");
+		throw FTL_Error("Attempting to get channel 'None'");
 	} else if (channel == ftl::codecs::Channel::Pose) {
 		return state_.template as<T,ftl::codecs::Channel::Pose>();
 	} else if (channel == ftl::codecs::Channel::Calibration) {
@@ -364,7 +364,7 @@ const T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) 
 
 	// Add channel if not already there
 	if (!channels_.has(channel)) {
-		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
+		throw FTL_Error("Frame channel does not exist: " << (int)channel);
 	}
 
 	return getData(channel).template as<T>();
@@ -375,11 +375,11 @@ template <int BASE, int N, typename STATE, typename DATA>
 // cppcheck-suppress *
 template <typename T>
 void ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel, T &params) const {
-	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Cannot use generic type with non data channel");
-	if (!hasChannel(channel)) throw ftl::exception("Data channel does not exist");
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw FTL_Error("Cannot use generic type with non data channel");
+	if (!hasChannel(channel)) throw FTL_Error("Data channel does not exist");
 
 	const auto &i = data_data_.find(static_cast<int>(channel));
-	if (i == data_data_.end()) throw ftl::exception("Data channel does not exist");
+	if (i == data_data_.end()) throw FTL_Error("Data channel does not exist");
 
 	auto unpacked = msgpack::unpack((const char*)(*i).second.data(), (*i).second.size());
 	unpacked.get().convert(params);
@@ -390,7 +390,7 @@ template <int BASE, int N, typename STATE, typename DATA>
 template <typename T>
 T &ftl::data::Frame<BASE,N,STATE,DATA>::create(ftl::codecs::Channel c) {
 	if (c == ftl::codecs::Channel::None) {
-		throw ftl::exception("Cannot create a None channel");
+		throw FTL_Error("Cannot create a None channel");
 	}
 	channels_ += c;
 
@@ -402,7 +402,7 @@ template <int BASE, int N, typename STATE, typename DATA>
 // cppcheck-suppress *
 template <typename T>
 void ftl::data::Frame<BASE,N,STATE,DATA>::create(ftl::codecs::Channel channel, const T &value) {
-	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Cannot use generic type with non data channel");
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw FTL_Error("Cannot use generic type with non data channel");
 
 	data_channels_ += channel;
 
@@ -415,7 +415,7 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::create(ftl::codecs::Channel channel, c
 template <int BASE, int N, typename STATE, typename DATA>
 void ftl::data::Frame<BASE,N,STATE,DATA>::setOrigin(STATE *state) {
 	if (origin_ != nullptr) {
-		throw ftl::exception("Can only set origin once after reset");
+		throw FTL_Error("Can only set origin once after reset");
 	}
 
 	origin_ = state;
@@ -459,8 +459,8 @@ std::string ftl::data::Frame<BASE,N,STATE,DATA>::getConfigString() const {
 
 template <int BASE, int N, typename STATE, typename DATA>
 const std::vector<unsigned char> &ftl::data::Frame<BASE,N,STATE,DATA>::getRawData(ftl::codecs::Channel channel) const {
-	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw ftl::exception("Non data channel");
-	if (!hasChannel(channel)) throw ftl::exception("Data channel does not exist");
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw FTL_Error("Non data channel");
+	if (!hasChannel(channel)) throw FTL_Error("Data channel does not exist");
 
 	return data_data_.at(static_cast<int>(channel));
 }

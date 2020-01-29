@@ -1,6 +1,9 @@
 #include <ftl/operators/smoothing.hpp>
 #include "smoothing_cuda.hpp"
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 #include <ftl/cuda/normals.hpp>
 
 using ftl::operators::HFSmoother;

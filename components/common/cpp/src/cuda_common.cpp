@@ -1,3 +1,5 @@
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
 #include <ftl/cuda_common.hpp>
 
 using ftl::cuda::TextureObjectBase;
