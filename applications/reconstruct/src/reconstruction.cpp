@@ -66,7 +66,7 @@ ftl::rgbd::FrameState &Reconstruction::state(size_t ix) {
 	if (ix < fs_align_.frames.size()) {
 		return *fs_align_.frames[ix].origin();
 	}
-	throw ftl::exception("State index out-of-bounds");
+	throw FTL_Error("State index out-of-bounds");
 }
 
 void Reconstruction::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
@@ -78,7 +78,7 @@ bool Reconstruction::post(ftl::rgbd::FrameSet &fs) {
 		
 	{
 		UNIQUE_LOCK(exchange_mtx_, lk);
-		if (new_frame_ == true) LOG(WARNING) << "Frame lost";
+		//if (new_frame_ == true) LOG(WARNING) << "Frame lost";
 		fs.swapTo(fs_align_);
 		new_frame_ = true;
 	}
@@ -102,7 +102,7 @@ bool Reconstruction::post(ftl::rgbd::FrameSet &fs) {
 
 void Reconstruction::setGenerator(ftl::rgbd::Generator *gen) {
 	if (gen_) {
-		throw ftl::exception("Reconstruction already has generator");
+		throw FTL_Error("Reconstruction already has generator");
 	}
 
 	gen_ = gen;

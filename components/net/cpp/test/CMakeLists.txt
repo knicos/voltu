@@ -1,6 +1,6 @@
 ### Socket Unit ################################################################
 add_executable(peer_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	../src/ws_internal.cpp
 	../src/dispatcher.cpp
 	./peer_unit.cpp
@@ -15,7 +15,7 @@ target_link_libraries(peer_unit
 
 ### Net Integration ############################################################
 add_executable(net_integration
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	../../../common/cpp/src/config.cpp
 	./net_integration.cpp)
 add_dependencies(net_integration ftlnet)
@@ -29,7 +29,7 @@ target_link_libraries(net_integration
 
 ### NetConfigurable Unit #######################################################
 add_executable(net_configurable_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	./net_configurable_unit.cpp)
 target_link_libraries(net_configurable_unit
 	ftlnet)

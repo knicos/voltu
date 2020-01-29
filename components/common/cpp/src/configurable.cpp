@@ -1,3 +1,5 @@
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
 #include <ftl/configurable.hpp>
 
 using ftl::Configurable;

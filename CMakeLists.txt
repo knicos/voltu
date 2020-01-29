@@ -21,6 +21,7 @@ option(BUILD_RENDERER "Enable the renderer component" ON)
 option(BUILD_GUI "Enable the GUI" ON)
 option(BUILD_CALIBRATION "Enable the calibration component" OFF)
 option(BUILD_TOOLS "Compile developer and research tools" ON)
+option(BUILD_TESTS "Compile all unit and integration tests" ON)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
@@ -32,6 +33,12 @@ find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
+
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+	set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+	message(STATUS "Found ccache: ${CCACHE_PROGRAM}")
+endif()
 
 # find_package( ffmpeg )
 

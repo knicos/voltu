@@ -134,7 +134,7 @@ class Source : public ftl::Configurable {
 	 */
 	const Camera &parameters() const {
 		if (impl_) return impl_->params_;
-		else throw ftl::exception("Cannot get parameters for bad source");
+		else throw FTL_Error("Cannot get parameters for bad source");
 	}
 
 	/**

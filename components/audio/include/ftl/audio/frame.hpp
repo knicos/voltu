@@ -17,17 +17,17 @@ struct AudioSettings {
 struct AudioData {
 	template <typename T>
 	const T &as() const {
-		throw ftl::exception("Type not valid for audio channel");
+		throw FTL_Error("Type not valid for audio channel");
 	}
 
 	template <typename T>
 	T &as() {
-		throw ftl::exception("Type not valid for audio channel");
+		throw FTL_Error("Type not valid for audio channel");
 	}
 
 	template <typename T>
 	T &make() {
-		throw ftl::exception("Type not valid for audio channel");
+		throw FTL_Error("Type not valid for audio channel");
 	}
 
 	inline void reset() {}

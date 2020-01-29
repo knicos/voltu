@@ -1,5 +1,8 @@
 #include <ftl/operators/operator.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::operators::Operator;
 using ftl::operators::Graph;
 using ftl::rgbd::Frame;
@@ -17,18 +20,15 @@ Operator::Operator(ftl::Configurable *config) : config_(config) {
 Operator::~Operator() {}
 
 bool Operator::apply(Frame &in, Frame &out, cudaStream_t stream) {
-	LOG(ERROR) << "Operation application to frame not supported";
-	return false;
+	throw FTL_Error("Operation application to frame not supported");
 }
 
 bool Operator::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
-	LOG(ERROR) << "Operation application to frameset not supported";
-	return false;
+	throw FTL_Error("Operation application to frameset not supported");
 }
 
 bool Operator::apply(FrameSet &in, Frame &out, cudaStream_t stream) {
-	LOG(ERROR) << "Operation application as a reduction not supported";
-	return false;
+	throw FTL_Error("Operation application as a reduction not supported");
 }
 
 

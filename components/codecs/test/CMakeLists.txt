@@ -1,6 +1,6 @@
 ### OpenCV Codec Unit ################################################################
 add_executable(opencv_codec_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	../src/bitrates.cpp
 	../src/encoder.cpp
 	../src/opencv_encoder.cpp
@@ -17,7 +17,7 @@ add_test(OpenCVCodecUnitTest opencv_codec_unit)
 
 ### NvPipe Codec Unit ################################################################
 add_executable(nvpipe_codec_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	../src/bitrates.cpp
 	../src/encoder.cpp
 	../src/nvpipe_encoder.cpp
@@ -48,7 +48,7 @@ add_test(NvPipeCodecUnitTest nvpipe_codec_unit)
 
 ### Channel Unit ###############################################################
 add_executable(channel_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	./channel_unit.cpp
 )
 target_include_directories(channel_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")

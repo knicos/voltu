@@ -11,7 +11,6 @@
 #include <ftl/exception.hpp>
 
 //#define GLOG_NO_ABBREVIATED_SEVERITIES
-#include <loguru.hpp>
 #include <ftl/net/protocol.hpp>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/uri.hpp>
@@ -347,8 +346,7 @@ R Peer::call(const std::string &name, ARGS... args) {
 	
 	if (!hasreturned) {
 		cancelCall(id);
-		LOG(ERROR) << "RPC Timeout: " << name;
-		throw ftl::exception("RPC failed with timeout");
+		throw FTL_Error("RPC failed with timeout: " << name);
 	}
 	
 	return result;
@@ -371,7 +369,7 @@ int Peer::asyncCall(
 		callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
 	}
 
-	DLOG(INFO) << "RPC " << name << "(" << rpcid << ") -> " << uri_;
+	//DLOG(INFO) << "RPC " << name << "(" << rpcid << ") -> " << uri_;
 
 	auto call_obj = std::make_tuple(0,rpcid,name,args_obj);
 	

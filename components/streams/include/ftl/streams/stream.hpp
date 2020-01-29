@@ -1,7 +1,6 @@
 #ifndef _FTL_STREAM_STREAM_HPP_
 #define _FTL_STREAM_STREAM_HPP_
 
-#include <loguru.hpp>
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/rgbd/source.hpp>

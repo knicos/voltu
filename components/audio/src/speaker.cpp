@@ -2,6 +2,9 @@
 #include <ftl/audio/audio.hpp>
 #include <ftl/audio/portaudio.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::audio::Speaker;
 using ftl::audio::Frame;
 using ftl::audio::FrameSet;

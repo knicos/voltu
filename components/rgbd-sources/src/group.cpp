@@ -5,6 +5,9 @@
 
 #include <chrono>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::rgbd::Group;
 using ftl::rgbd::Source;
 using ftl::rgbd::kMaxFramesets;

@@ -4,11 +4,11 @@
 #include <ftl/timer.hpp>
 #include <ftl/threads.hpp>
 
-ctpl::thread_pool ftl::pool(4);
+//ctpl::thread_pool ftl::pool(4);
 
-namespace ftl {
+/*namespace ftl {
 	bool running = true;
-}
+}*/
 
 TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 	SECTION( "An instantly returning callback" ) {

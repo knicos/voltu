@@ -1,6 +1,6 @@
 ### Source Unit ################################################################
 add_executable(source_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	../src/frame.cpp
 	./source_unit.cpp
 )
@@ -12,7 +12,7 @@ add_test(SourceUnitTest source_unit)
 
 ### Frame Unit #################################################################
 add_executable(frame_unit
-	./tests.cpp
+$<TARGET_OBJECTS:CatchTest>
 	./frame_unit.cpp
 	../src/frame.cpp
 )

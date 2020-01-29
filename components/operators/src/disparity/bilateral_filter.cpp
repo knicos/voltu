@@ -23,7 +23,7 @@ bool DisparityBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out
 									 cudaStream_t stream) {
 
 	if (!in.hasChannel(Channel::Colour)) {
-		LOG(ERROR) << "Joint Bilateral Filter is missing Colour";
+		throw FTL_Error("Joint Bilateral Filter is missing Colour");
 		return false;
 	} else if (!in.hasChannel(Channel::Disparity)) {
 		// Have depth, so calculate disparity...
@@ -35,11 +35,11 @@ bool DisparityBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out
 			GpuMat &disp = out.create<GpuMat>(Channel::Disparity);
 			disp.create(depth.size(), CV_32FC1);
 
-			LOG(ERROR) << "Calculated disparity from depth";
+			//LOG(ERROR) << "Calculated disparity from depth";
 
 			ftl::cuda::depth_to_disparity(disp, depth, params, stream);
 		} else {
-			LOG(ERROR) << "Joint Bilateral Filter is missing Disparity and Depth";
+			throw FTL_Error("Joint Bilateral Filter is missing Disparity and Depth");
 			return false;
 		}
 	}

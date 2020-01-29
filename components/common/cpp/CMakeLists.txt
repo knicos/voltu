@@ -1,9 +1,12 @@
+add_library(Loguru OBJECT src/loguru.cpp)
+target_include_directories(Loguru PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 set(COMMONSRC
 	src/config.cpp
 	src/uri.cpp
 	src/configuration.cpp
 	src/configurable.cpp
-	src/loguru.cpp
+	$<TARGET_OBJECTS:Loguru>
 	src/cuda_common.cpp
 	src/ctpl_stl.cpp
 	src/timer.cpp
@@ -21,5 +24,7 @@ target_include_directories(ftlcommon PUBLIC
 	PRIVATE src)
 target_link_libraries(ftlcommon Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${URIPARSER_LIBRARIES} ${CUDA_LIBRARIES})
 
+if (BUILD_TESTS)
 add_subdirectory(test)
+endif()
 

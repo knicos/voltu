@@ -1,5 +1,7 @@
 #include <ftl/master.hpp>
 #include <ftl/net_configurable.hpp>
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
 
 using ftl::ctrl::Master;
 using ftl::net::Universe;
@@ -217,7 +219,7 @@ void Master::stop() {
 	net_->unbind("log");
 }
 
-void Master::sendLog(const loguru::Message& message) {
+/*void Master::sendLog(const loguru::Message& message) {
 	UNIQUE_LOCK(mutex_, lk);
 	if (in_log_) return;
 	in_log_ = true;
@@ -233,4 +235,4 @@ void Master::sendLog(const loguru::Message& message) {
 	}
 
 	in_log_ = false;
-}
+}*/

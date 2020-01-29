@@ -2,8 +2,9 @@
 #ifndef _FTL_CONFIGURABLE_HPP_
 #define _FTL_CONFIGURABLE_HPP_
 
-#define LOGURU_REPLACE_GLOG 1
-#include <loguru.hpp>
+//#define LOGURU_REPLACE_GLOG 1
+//#include <loguru.hpp>
+#include <ftl/exception.hpp>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <tuple>
@@ -131,7 +132,7 @@ void Configurable::set<const std::string&>(const std::string &name, const std::s
 
 template <typename T>
 std::optional<T> ftl::Configurable::get(const std::string &name) {
-	if (!config_->is_object() && !config_->is_null()) LOG(FATAL) << "Config is not an object";
+	if (!config_->is_object() && !config_->is_null()) throw FTL_Error("Config is not an object");
 	if (!(*config_)[name].is_null()) {
 		try {
 			return (*config_)[name].get<T>();
@@ -144,13 +145,12 @@ std::optional<T> ftl::Configurable::get(const std::string &name) {
 		std::string res_uri = (*config_)["$ref"].get<std::string>()+"/"+name;
 		auto &r = ftl::config::resolve(res_uri);
 
-		DLOG(2) << "GET: " << res_uri << " = " << r;
+		//DLOG(2) << "GET: " << res_uri << " = " << r;
 
 		try {
 			return r.get<T>();
 		} catch (...) {
-			LOG(ERROR) << "Missing: " << (*config_)["$id"].get<std::string>()+"/"+name;
-			return {};
+			throw FTL_Error("Missing: " << (*config_)["$id"].get<std::string>()+"/"+name);
 		}
 	} else {
 		return {};

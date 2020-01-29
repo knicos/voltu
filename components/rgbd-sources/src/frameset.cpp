@@ -1,6 +1,9 @@
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/timer.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 #include <chrono>
 
 using ftl::rgbd::Builder;
@@ -188,9 +191,9 @@ void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
 ftl::rgbd::FrameState &Builder::state(size_t ix) {
 	UNIQUE_LOCK(mutex_, lk);
 	if (ix >= states_.size()) {
-		throw ftl::exception("Frame state out-of-bounds");
+		throw FTL_Error("Frame state out-of-bounds: " << ix);
 	}
-	if (!states_[ix]) throw ftl::exception("Missing framestate");
+	if (!states_[ix]) throw FTL_Error("Missing framestate");
 	return *states_[ix];
 }
 

@@ -1,48 +1,37 @@
+add_library(CatchTest OBJECT ./tests.cpp)
+
 ### Configurable Unit ################################################################
 add_executable(configurable_unit
-	./tests.cpp
-	../src/configurable.cpp
-	../src/uri.cpp
-	../src/config.cpp
-	../src/configuration.cpp
-	../src/loguru.cpp
-	../src/ctpl_stl.cpp
-	../src/cuda_common.cpp
+	$<TARGET_OBJECTS:CatchTest>
 	./configurable_unit.cpp
 )
 target_include_directories(configurable_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(configurable_unit
+target_link_libraries(configurable_unit ftlcommon
 	${URIPARSER_LIBRARIES}
 	Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${CUDA_LIBRARIES})
 
 ### URI ########################################################################
 add_executable(uri_unit
-	./tests.cpp
-	../src/uri.cpp
-	../src/loguru.cpp
+	$<TARGET_OBJECTS:CatchTest>
 	./uri_unit.cpp)
 target_include_directories(uri_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(uri_unit
+target_link_libraries(uri_unit ftlcommon
 	Threads::Threads ${OS_LIBS}
 	${URIPARSER_LIBRARIES})
 
 ### Timer Unit ################################################################
 add_executable(timer_unit
-	./tests.cpp
-	../src/timer.cpp
-	../src/config.cpp
-	../src/loguru.cpp
-	../src/ctpl_stl.cpp
+	$<TARGET_OBJECTS:CatchTest>
 	./timer_unit.cpp
 )
 target_include_directories(timer_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(timer_unit
+target_link_libraries(timer_unit ftlcommon
 	Threads::Threads ${OS_LIBS})
 
 ### URI ########################################################################
 add_executable(msgpack_unit
-	./tests.cpp
-	../src/loguru.cpp
+	$<TARGET_OBJECTS:CatchTest>
+	$<TARGET_OBJECTS:Loguru>
 	./msgpack_unit.cpp)
 target_include_directories(msgpack_unit PUBLIC ${OpenCV_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(msgpack_unit Threads::Threads ${OS_LIBS} ${OpenCV_LIBS})

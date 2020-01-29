@@ -24,8 +24,7 @@ install(TARGETS ftlnet EXPORT ftlnet-config
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_executable(net-cli src/main.cpp)
-target_link_libraries(net-cli ftlnet ftlcommon glog::glog Threads::Threads ${READLINE_LIBRARY} ${UUID_LIBRARIES})
-add_dependencies(net-cli ftlnet)
 
-ADD_SUBDIRECTORY(test)
+if (BUILD_TESTS)
+add_subdirectory(test)
+endif()

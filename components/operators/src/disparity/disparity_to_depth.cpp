@@ -10,8 +10,7 @@ bool DisparityToDepth::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
 							cudaStream_t stream) {
 	
 	if (!in.hasChannel(Channel::Disparity)) {
-		LOG(ERROR) << "Missing disparity before convert to depth";
-		return false;
+		throw FTL_Error("Missing disparity before convert to depth");
 	}
 
 	const auto params = in.getLeftCamera();

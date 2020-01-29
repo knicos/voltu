@@ -5,6 +5,9 @@
 #include <ftl/cuda/normals.hpp>
 #include <ftl/cuda/mask.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
 //#include <ftl/filters/smoothing.hpp>

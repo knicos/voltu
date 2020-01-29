@@ -17,8 +17,7 @@ Normals::~Normals() {
 
 bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(Channel::Depth)) {
-		LOG(ERROR) << "Missing depth channel in Normals operator";
-		return false;
+		throw FTL_Error("Missing depth channel in Normals operator");
 	}
 
 	if (out.hasChannel(Channel::Normals)) {
@@ -49,8 +48,7 @@ bool SmoothNormals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
     int radius = max(0, min(config()->value("radius",1), 5));
 
 	if (!in.hasChannel(Channel::Depth)) {
-		LOG(ERROR) << "Missing depth channel in SmoothNormals operator";
-		return false;
+		throw FTL_Error("Missing depth channel in SmoothNormals operator");
 	}
 
 	if (out.hasChannel(Channel::Normals)) {

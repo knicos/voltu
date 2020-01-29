@@ -11,7 +11,6 @@
 #include <opencv2/core/cuda/common.hpp>
 
 #ifndef __CUDACC__
-#include <loguru.hpp>
 #include <exception>
 #endif
 
@@ -150,7 +149,7 @@ class TextureObject : public TextureObjectBase {
 template <typename T>
 TextureObject<T> &TextureObject<T>::cast(TextureObjectBase &b) {
 	if (b.cvType() != ftl::traits::OpenCVType<T>::value) {
-		LOG(ERROR) << "Bad cast of texture object";
+		//LOG(ERROR) << "Bad cast of texture object";
 		throw std::bad_cast();
 	}
 	return reinterpret_cast<TextureObject<T>&>(b);
@@ -162,7 +161,7 @@ TextureObject<T> &TextureObject<T>::cast(TextureObjectBase &b) {
 template <typename T>
 TextureObject<T>::TextureObject(const cv::cuda::GpuMat &d, bool interpolated) {
 	// GpuMat must have correct data type
-	CHECK(d.type() == ftl::traits::OpenCVType<T>::value);
+	//CHECK(d.type() == ftl::traits::OpenCVType<T>::value);
 
 	cudaResourceDesc resDesc;
 	memset(&resDesc, 0, sizeof(resDesc));

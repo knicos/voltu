@@ -1,5 +1,8 @@
 #include <ftl/streams/netstream.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::stream::Net;
 using ftl::codecs::StreamPacket;
 using ftl::codecs::Packet;
