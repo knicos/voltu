@@ -653,12 +653,12 @@ void Triangular::_render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel
 			camera, pose, stream_);
 	}
 
-	cudaSafeCall(cudaStreamSynchronize(stream_));
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	// Render source specific debug info into colour channels
 	_preprocessColours();
 
-	cudaSafeCall(cudaStreamSynchronize(stream_));
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	if (mesh_) {
 		// Render depth channel using triangles
@@ -668,18 +668,18 @@ void Triangular::_render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel
 		_dibr(out, t, stream_);
 	}
 
-	cudaSafeCall(cudaStreamSynchronize(stream_));
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	// Reprojection of colours onto surface
 	auto main_channel = (scene_->frames[0].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
 	_renderChannel(out, main_channel, Channel::Colour, t, stream_);
 
-	cudaSafeCall(cudaStreamSynchronize(stream_));
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	// Debug colour info relating to the rendering process
 	_postprocessColours(out);
 
-	cudaSafeCall(cudaStreamSynchronize(stream_));
+	//cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	// Support rendering of a second channel without redoing all the work
 	switch(chan) {
