@@ -65,9 +65,12 @@ bool File::tick(int64_t ts) {
 		return false;
 	}
 
-	//UNIQUE_LOCK(mtx_, lk);
+	#ifdef DEBUG_MUTEX
+	UNIQUE_LOCK(mutex_, lk);
+	#else
 	std::unique_lock<std::mutex> lk(mutex_, std::defer_lock);
 	if (!lk.try_lock()) return true;
+	#endif
 
 	if (jobs_ > 0) {
 		//LOG(ERROR) << "STILL HAS JOBS";

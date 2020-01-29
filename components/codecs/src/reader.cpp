@@ -54,9 +54,12 @@ bool Reader::begin() {
 }*/
 
 bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &f) {
-	//UNIQUE_LOCK(mtx_, lk);
+	#ifdef DEBUG_MUTEX
+	UNIQUE_LOCK(mtx_, lk);
+	#else
 	std::unique_lock<std::mutex> lk(mtx_, std::defer_lock);
 	if (!lk.try_lock()) return true;
+	#endif
 
 	// Check buffer first for frames already read
 	for (auto i = data_.begin(); i != data_.end();) {
