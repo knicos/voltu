@@ -161,13 +161,29 @@ public:
 	template <typename T> void get(ftl::codecs::Channel channel, T &params) const;
 
 	/**
-	 * Method to get reference to the channel content.
+	 * Method to get reference to the channel content. The channel must already
+	 * have been created of this will throw an exception. See `getBuffer` to
+	 * get access before creation.
+	 * 
 	 * @param	Channel type
 	 * @return	Reference to channel data
 	 * 
 	 * Result is valid only if hasChannel() is true.
 	 */
 	template <typename T> T& get(ftl::codecs::Channel channel);
+
+	/**
+	 * Method to get reference to the channel content. Unlike `get`, the channel
+	 * must not already exist as this is intended as a pre-create step that
+	 * allocates memory and populates the buffer. `create` must then be called
+	 * to make the channel available.
+	 * 
+	 * @param	Channel type
+	 * @return	Reference to channel data
+	 * 
+	 * Result is valid only if hasChannel() is true.
+	 */
+	template <typename T> T& getBuffer(ftl::codecs::Channel channel);
 
 	/**
 	 * Wrapper accessor function to get frame pose.
@@ -239,6 +255,8 @@ public:
 	 * changes must be done on this origin, either directly or via wrappers.
 	 */
 	STATE *origin() const { return origin_; }
+
+	//ftl::codecs::Channels<BASE> completed;
 
 	typedef STATE State;
 
@@ -344,6 +362,25 @@ T& ftl::data::Frame<BASE,N,STATE,DATA>::get(ftl::codecs::Channel channel) {
 	}
 
 	return getData(channel).template as<T>();
+}
+
+template <int BASE, int N, typename STATE, typename DATA>
+// cppcheck-suppress *
+template <typename T>
+T& ftl::data::Frame<BASE,N,STATE,DATA>::getBuffer(ftl::codecs::Channel channel) {
+	if (channel == ftl::codecs::Channel::None) {
+		throw ftl::exception("Attempting to get channel 'None'");
+	}
+
+	if (channels_.has(channel)) {
+		throw ftl::exception(ftl::Formatter() << "Cannot getBuffer on existing channel: " << (int)channel);
+	}
+
+	if (static_cast<int>(channel) < BASE || static_cast<int>(channel) >= BASE+32) {
+		throw ftl::exception(ftl::Formatter() << "Frame channel does not exist: " << (int)channel);
+	}
+
+	return getData(channel).template make<T>();
 }
 
 template <int BASE, int N, typename STATE, typename DATA>

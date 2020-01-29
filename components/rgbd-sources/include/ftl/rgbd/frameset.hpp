@@ -110,7 +110,17 @@ class Builder : public Generator {
 	/**
 	 * Add a new frame at a given timestamp.
 	 */
-	void push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &f);
+	//void push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &f);
+
+	/**
+	 * Instead of pushing a frame, find or create a direct reference to one.
+	 */
+	ftl::rgbd::Frame &get(int64_t timestamp, size_t ix);
+
+	/**
+	 * Mark a frame as completed.
+	 */
+	void completed(int64_t ts, size_t ix);
 
 	void setName(const std::string &name);
 

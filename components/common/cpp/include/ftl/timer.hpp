@@ -81,6 +81,18 @@ int64_t get_time();
 void setClockAdjustment(int64_t ms);
 
 /**
+ * Whether or not this machine should sync its clocks to someone else. Should
+ * be true on capture / vision nodes and false on a reconstruction node.
+ */
+bool isClockSlave();
+
+/**
+ * Change clock slave mode. If set to true then this machine will attempt to
+ * adjust its clock to another machines.
+ */
+void setClockSlave(bool);
+
+/**
  * Add a timer callback with a given precision and ordering. The highest
  * precision callbacks occur within 1ms of required time and should return
  * almost immediately to prevent delays to other callbacks. Other precisions

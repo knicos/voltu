@@ -222,6 +222,8 @@ ftl::gui::Camera::~Camera() {
 }
 
 void ftl::gui::Camera::draw(ftl::rgbd::FrameSet &fs) {
+	if (fid_ != 255) return;
+	
 	UNIQUE_LOCK(mutex_, lk);
 	_draw(fs);
 }

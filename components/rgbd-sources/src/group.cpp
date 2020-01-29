@@ -15,6 +15,7 @@ using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 
 Group::Group() : pipeline_(nullptr) {
 	jobs_ = 0;
@@ -48,7 +49,10 @@ void Group::addSource(ftl::rgbd::Source *src) {
 		if (pipeline_) {
 			pipeline_->apply(frame, frame, 0);
 		}
-		builder_.push(timestamp, ix, frame);
+
+		frame.swapTo(Channels<0>::All(), builder_.get(timestamp,ix));
+		builder_.completed(timestamp, ix);
+		//builder_.push(timestamp, ix, frame);
 	});
 }
 

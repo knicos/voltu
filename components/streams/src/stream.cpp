@@ -1,5 +1,8 @@
 #include <ftl/streams/stream.hpp>
 
+#define LOGURU_WITH_STREAMS 1
+#include <loguru.hpp>
+
 using ftl::stream::Muxer;
 using ftl::stream::Broadcast;
 using ftl::stream::Intercept;
@@ -153,7 +156,12 @@ int Muxer::_lookup(int sid, int ssid) {
 void Muxer::_notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	SHARED_LOCK(mutex_, lk);
 	available(spkt.frameSetID()) += spkt.channel;
-	if (cb_) cb_(spkt, pkt);  // spkt.frame_number < 255 && 
+
+	try {
+		if (cb_) cb_(spkt, pkt);  // spkt.frame_number < 255 && 
+	} catch (std::exception &e) {
+		LOG(ERROR) << "Exception in packet handler: " << e.what();
+	}
 }
 
 // ==== Broadcaster ============================================================

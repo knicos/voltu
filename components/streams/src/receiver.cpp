@@ -146,7 +146,7 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	const ftl::codecs::Channel rchan = spkt.channel;
 	const unsigned int channum = (unsigned int)spkt.channel;
-	InternalVideoStates &iframe = _getVideoFrame(spkt);
+	InternalVideoStates &ividstate = _getVideoFrame(spkt);
 
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
 	int width = ftl::codecs::getWidth(pkt.definition);
@@ -155,14 +155,14 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	//LOG(INFO) << " CODEC = " << (int)pkt.codec << " " << (int)pkt.flags << " " << (int)spkt.channel;
 	//LOG(INFO) << "Decode surface: " << (width*tx) << "x" << (height*ty);
 
-	auto &surface = iframe.surface[static_cast<int>(spkt.channel)];
+	auto &surface = ividstate.surface[static_cast<int>(spkt.channel)];
 
 	// Allocate a decode surface, this is a tiled image to be split later
 	surface.create(height*ty, width*tx, ((isFloatChannel(spkt.channel)) ? ((pkt.flags & 0x2) ? CV_16UC4 : CV_16U) : CV_8UC4));
 
 	// Find or create the decoder
-	_createDecoder(iframe, channum, pkt);
-	auto *decoder = iframe.decoders[channum];
+	_createDecoder(ividstate, channum, pkt);
+	auto *decoder = ividstate.decoders[channum];
 	if (!decoder) {
 		LOG(ERROR) << "No frame decoder available";
 		return;
@@ -193,29 +193,32 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	// Now split the tiles from surface into frames, doing colour conversions
 	// at the same time.
 	for (int i=0; i<pkt.frame_count; ++i) {
-		InternalVideoStates &frame = _getVideoFrame(spkt,i);
+		InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
+		auto &frame = builder_.get(spkt.timestamp, spkt.frame_number+i);
 
-		if (frame.frame.hasChannel(spkt.channel)) {
+		if (!frame.origin()) frame.setOrigin(&vidstate.state);
+
+		if (frame.hasChannel(spkt.channel)) {
 			// FIXME: Is this a corruption in recording or in playback?
 			// Seems to occur in same place in ftl file, one channel is missing
-			LOG(WARNING) << "Previous frame not complete: " << frame.timestamp;
+			LOG(WARNING) << "Previous frame not complete: " << spkt.timestamp;
 		}
 
 		{
 			// This ensures that if previous frames are unfinished then they
 			// are discarded.
-			UNIQUE_LOCK(frame.mutex, lk);
+			/*UNIQUE_LOCK(vidstate.mutex, lk);
 			if (frame.timestamp != spkt.timestamp && frame.timestamp != -1) {
 				frame.frame.reset();
 				frame.completed.clear();
 				LOG(WARNING) << "Frames out-of-phase by: " << spkt.timestamp - frame.timestamp;
 			}
-			frame.timestamp = spkt.timestamp;
+			frame.timestamp = spkt.timestamp;*/
 		}
 
 		// Add channel to frame and allocate memory if required
 		const cv::Size size = cv::Size(width, height);
-		frame.frame.create<cv::cuda::GpuMat>(spkt.channel).create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
+		frame.getBuffer<cv::cuda::GpuMat>(spkt.channel).create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
 
 		cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
 		cv::cuda::GpuMat sroi = surface(roi);
@@ -233,54 +236,61 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 			}
 
 			if (apply_Y_filter) ftl::cuda::smooth_y(sroi, cvstream);
-			ftl::cuda::vuya_to_depth(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), sroi, 16.0f, cvstream);
+			ftl::cuda::vuya_to_depth(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), sroi, 16.0f, cvstream);
 		} else if (isFloatChannel(rchan)) {
-			sroi.convertTo(frame.frame.get<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, cvstream);
+			sroi.convertTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, cvstream);
 		} else {
-			cv::cuda::cvtColor(sroi, frame.frame.get<cv::cuda::GpuMat>(spkt.channel), cv::COLOR_RGBA2BGRA, 0, cvstream);
+			cv::cuda::cvtColor(sroi, frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cv::COLOR_RGBA2BGRA, 0, cvstream);
 		}
 	}
-
-	Packet tmppkt = pkt;
-	iframe.frame.pushPacket(spkt.channel, tmppkt);
 
 	// Must ensure all processing is finished before completing a frame.
 	cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
 
 	for (int i=0; i<pkt.frame_count; ++i) {
-		InternalVideoStates &frame = _getVideoFrame(spkt,i);
+		InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
+		auto &frame = builder_.get(spkt.timestamp, spkt.frame_number+i);
 
 		auto sel = stream_->selected(spkt.frameSetID());
+
+		frame.create<cv::cuda::GpuMat>(spkt.channel);
+
+		if (i == 0) {
+			Packet tmppkt = pkt;
+			frame.pushPacket(spkt.channel, tmppkt);
+		}
 		
-		UNIQUE_LOCK(frame.mutex, lk);
-		if (frame.timestamp == spkt.timestamp) {
-			frame.completed += spkt.channel;
+		UNIQUE_LOCK(vidstate.mutex, lk);
+		//if (frame.timestamp == spkt.timestamp) {
+			//frame.completed += spkt.channel;
 			
 			// Complete if all requested channels are found
-			if ((frame.completed & sel) == sel) {
-				timestamp_ = frame.timestamp;
+			if ((frame.getChannels() & sel) == sel) {
+				timestamp_ = spkt.timestamp;
+				//frame.reset.clear();
 
 				//LOG(INFO) << "BUILDER PUSH: " << timestamp_ << ", " << spkt.frameNumber() << ", " << (int)pkt.frame_count;
 
-				if (frame.state.getLeft().width == 0) {
+				if (vidstate.state.getLeft().width == 0) {
 					LOG(WARNING) << "Missing calibration for frame";
 				}
 
 				// TODO: Have multiple builders for different framesets.
-				builder_.push(frame.timestamp, spkt.frameNumber()+i, frame.frame);
+				//builder_.push(frame.timestamp, spkt.frameNumber()+i, frame.frame);
+				builder_.completed(spkt.timestamp, spkt.frame_number+i);
 
 				// Check for any state changes and send them back
-				if (frame.state.hasChanged(Channel::Pose)) injectPose(stream_, frame.frame, frame.timestamp, spkt.frameNumber()+i);
-				if (frame.state.hasChanged(Channel::Calibration)) injectCalibration(stream_, frame.frame, frame.timestamp, spkt.frameNumber()+i);
-				if (frame.state.hasChanged(Channel::Calibration2)) injectCalibration(stream_, frame.frame, frame.timestamp, spkt.frameNumber()+i, true);
+				if (vidstate.state.hasChanged(Channel::Pose)) injectPose(stream_, frame, spkt.timestamp, spkt.frameNumber()+i);
+				if (vidstate.state.hasChanged(Channel::Calibration)) injectCalibration(stream_, frame, spkt.timestamp, spkt.frameNumber()+i);
+				if (vidstate.state.hasChanged(Channel::Calibration2)) injectCalibration(stream_, frame, spkt.timestamp, spkt.frameNumber()+i, true);
 
-				frame.frame.reset();
-				frame.completed.clear();
-				frame.timestamp = -1;
+				//frame.reset();
+				//frame.completed.clear();
+				//frame.timestamp = -1;
 			}
-		} else {
-			LOG(ERROR) << "Frame timestamps mistmatch";
-		}
+		//} else {
+		//	LOG(ERROR) << "Frame timestamps mistmatch";
+		//}
 	}
 }
 

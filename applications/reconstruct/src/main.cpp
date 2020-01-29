@@ -111,6 +111,7 @@ static void run(ftl::Configurable *root) {
 	// Use other GPU if available.
 	ftl::cuda::setDevice(ftl::cuda::deviceCount()-1);
 	threadSetCUDADevice();
+	ftl::timer::setClockSlave(false);  // don't sync clocks.
 	
 
 	Universe *net = ftl::create<Universe>(root, "net");
