@@ -150,7 +150,8 @@ std::optional<T> ftl::Configurable::get(const std::string &name) {
 		try {
 			return r.get<T>();
 		} catch (...) {
-			throw FTL_Error("Missing: " << (*config_)["$id"].get<std::string>()+"/"+name);
+			//throw FTL_Error("Missing: " << (*config_)["$id"].get<std::string>()+"/"+name);
+			return {};
 		}
 	} else {
 		return {};
