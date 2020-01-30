@@ -23,8 +23,8 @@ set(OPERSRC
 	src/correspondence.cu
 	src/clipping.cpp
 	src/depth.cpp
+	src/detectandtrack.cpp
 )
-
 
 if (LIBSGM_FOUND)
 	list(APPEND OPERSRC src/disparity/fixstars_sgm.cpp)

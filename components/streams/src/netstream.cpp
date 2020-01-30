@@ -196,7 +196,9 @@ bool Net::begin() {
 				for (size_t i=0; i<size(); ++i) {
 					select(i, selected(i) + spkt.channel);
 				}
-				reqtally_[static_cast<int>(spkt.channel)] = static_cast<int>(pkt.frame_count)*kTallyScale;
+				if (static_cast<int>(spkt.channel) < 32) {
+					reqtally_[static_cast<int>(spkt.channel)] = static_cast<int>(pkt.frame_count)*kTallyScale;
+				}
 			} else {
 				select(spkt.frameSetID(), selected(spkt.frameSetID()) + spkt.channel);
 			}
