@@ -80,9 +80,9 @@ bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet 
 
 				// Quality filter the packets
 				if (pkt.bitrate > 0 && pkt.bitrate != client.quality) {
-					++c;
+					//++c;
 					LOG(INFO) << "Incorrect quality: " << (int)pkt.bitrate << " but requested " << (int)client.quality;
-					continue;
+					//continue;
 				}
 
 				try {

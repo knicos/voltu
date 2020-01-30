@@ -83,45 +83,6 @@ Builder::~Builder() {
 	}
 }
 
-
-/*void Builder::push(int64_t timestamp, size_t ix, ftl::rgbd::Frame &frame) {
-	if (timestamp <= 0 || ix >= kMaxFramesInSet) return;
-
-	UNIQUE_LOCK(mutex_, lk);
-
-	//LOG(INFO) << "BUILDER PUSH: " << timestamp << ", " << ix << ", " << size_;
-
-	// Size is determined by largest frame index received... note that size
-	// cannot therefore reduce.
-	if (ix >= size_) {
-		size_ = ix+1;
-		states_.resize(size_);
-	}
-	states_[ix] = frame.origin();
-
-	auto *fs = _findFrameset(timestamp);
-
-	if (!fs) {
-		// Add new frameset
-		fs = _addFrameset(timestamp);
-		if (!fs) return;
-	}
-
-	if (fs->frames.size() < size_) fs->frames.resize(size_);
-
-	lk.unlock();
-	SHARED_LOCK(fs->mtx, lk2);
-
-	frame.swapTo(ftl::codecs::kAllChannels, fs->frames[ix]);
-
-	++fs->count;
-
-	if (fs->mask & (1 << ix)) {
-		LOG(ERROR) << "Too many frames received for given timestamp: " << timestamp << " (source " << ix << ")";
-	}
-	fs->mask |= (1 << ix);
-}*/
-
 ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
 	if (timestamp <= 0 || ix >= kMaxFramesInSet) throw ftl::exception("Invalid frame timestamp or index");
 
@@ -156,18 +117,71 @@ ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
 }
 
 void Builder::completed(int64_t ts, size_t ix) {
-	auto *fs = _findFrameset(ts);
+	ftl::rgbd::FrameSet *fs = nullptr;
+
+	{
+		UNIQUE_LOCK(mutex_, lk);
+		fs = _findFrameset(ts);
+	}
+	
 	if (fs && ix < fs->frames.size()) {
-		if (fs->mask & (1 << ix)) {
-			LOG(WARNING) << "Frame completed multiple times: " << ts << " (source " << ix << ")";
-			return;
+		{
+			UNIQUE_LOCK(fs->mtx, lk2);
+
+			// If already completed for given frame, then skip
+			if (fs->mask & (1 << ix)) return;
+
+			states_[ix] = fs->frames[ix].origin();
+			fs->mask |= (1 << ix);
+			++fs->count;
 		}
-		states_[ix] = fs->frames[ix].origin();
-		fs->mask |= (1 << ix);
-		++fs->count;
+
+		if (!fs->stale && static_cast<unsigned int>(fs->count) >= size_) {
+			//LOG(INFO) << "Frameset ready... " << fs->timestamp;
+			UNIQUE_LOCK(mutex_, lk);
+			_schedule();
+		}
 	} else {
 		LOG(ERROR) << "Completing frame that does not exist: " << ts << ":" << ix;
 	}
+}
+
+void Builder::_schedule() {
+	if (size_ == 0) return;
+	ftl::rgbd::FrameSet *fs = nullptr;
+
+	//UNIQUE_LOCK(mutex_, lk);
+	if (jobs_ > 0) return;
+	fs = _getFrameset();
+
+	//LOG(INFO) << "Latency for " << name_ << " = " << (latency_*ftl::timer::getInterval()) << "ms";
+
+	if (fs) {
+		//UNIQUE_LOCK(fs->mtx, lk2);
+		// The buffers are invalid after callback so mark stale
+		fs->stale = true;
+		jobs_++;
+		//lk.unlock();
+
+		ftl::pool.push([this,fs](int) {
+			UNIQUE_LOCK(fs->mtx, lk2);
+			try {
+				if (cb_) cb_(*fs);
+				//LOG(INFO) << "Frameset processed (" << name_ << "): " << fs->timestamp;
+			} catch(std::exception &e) {
+				LOG(ERROR) << "Exception in frameset builder: " << e.what();
+			}
+
+			//fs->resetFull();
+
+			UNIQUE_LOCK(mutex_, lk);
+			_freeFrameset(fs);
+
+			jobs_--;
+			_schedule();
+		});
+	}
+
 }
 
 size_t Builder::size() {
@@ -175,18 +189,20 @@ size_t Builder::size() {
 }
 
 void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
-	if (!cb) {
+	/*if (!cb) {
 		main_id_.cancel();
 		return;
-	}
+	}*/
 
-	if (main_id_.id() != -1) {
+	cb_ = cb;
+
+	/*if (main_id_.id() != -1) {
 		main_id_.cancel();
-	}
+	}*/
 
 	// 3. Issue IO retrieve ad compute jobs before finding a valid
 	// frame at required latency to pass to callback.
-	main_id_ = ftl::timer::add(ftl::timer::kTimerMain, [this,cb](int64_t ts) {
+	/*main_id_ = ftl::timer::add(ftl::timer::kTimerMain, [this,cb](int64_t ts) {
 		//if (jobs_ > 0) LOG(ERROR) << "SKIPPING TIMER JOB " << ts;
 		if (jobs_ > 0) return true;
 		if (size_ == 0) return true;
@@ -234,7 +250,7 @@ void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
 
 		//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Main";
 		return true;
-	});
+	});*/
 }
 
 ftl::rgbd::FrameState &Builder::state(size_t ix) {
@@ -297,10 +313,11 @@ ftl::rgbd::FrameSet *Builder::_getFrameset() {
 			
 			int count = 0;
 			// Merge all previous frames
-			for (; j!=framesets_.end(); j++) {
+			while (j!=framesets_.end()) {
 				++count;
 
 				auto *f2 = *j;
+				//LOG(INFO) << "MERGE: " << f2->count;
 				j = framesets_.erase(j);
 				mergeFrameset(*f,*f2);
 				_freeFrameset(f2);

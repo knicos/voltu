@@ -46,7 +46,7 @@ __global__ void depth_to_vuya_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda:
 	}
 }
 
-void ftl::cuda::depth_to_vuya(const cv::cuda::PtrStepSz<float> &depth, const cv::cuda::PtrStepSz<uchar4> &rgba, float maxdepth, cv::cuda::Stream stream) {
+void ftl::cuda::depth_to_vuya(const cv::cuda::PtrStepSz<float> &depth, const cv::cuda::PtrStepSz<uchar4> &rgba, float maxdepth, cv::cuda::Stream &stream) {
 	const dim3 gridSize((depth.cols + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.rows + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
@@ -97,7 +97,7 @@ __global__ void vuya_to_depth_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda:
 	}
 }
 
-void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv::cuda::PtrStepSz<ushort4> &rgba, float maxdepth, cv::cuda::Stream stream) {
+void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv::cuda::PtrStepSz<ushort4> &rgba, float maxdepth, cv::cuda::Stream &stream) {
 	const dim3 gridSize((depth.cols + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.rows + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
@@ -201,7 +201,7 @@ void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv:
 	}
 }
 
-void ftl::cuda::smooth_y(const cv::cuda::PtrStepSz<ushort4> &rgba, cv::cuda::Stream stream) {
+void ftl::cuda::smooth_y(const cv::cuda::PtrStepSz<ushort4> &rgba, cv::cuda::Stream &stream) {
 	const dim3 gridSize((rgba.cols + T_PER_BLOCK - 1)/T_PER_BLOCK, (rgba.rows + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 

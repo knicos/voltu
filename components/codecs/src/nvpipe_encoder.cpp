@@ -77,14 +77,14 @@ static ftl::codecs::format_t formatFromPacket(const ftl::codecs::Packet &pkt) {
 static uint64_t calculateBitrate(definition_t def, float ratescale) {
 	float bitrate = 1.0f;  // Megabits
 	switch (def) {
-	case definition_t::UHD4k	: bitrate = 32.0f; break;
-	case definition_t::HTC_VIVE	: bitrate = 16.0f; break;
-	case definition_t::HD1080	: bitrate = 6.0f; break;
-	case definition_t::HD720	: bitrate = 4.0f; break;
+	case definition_t::UHD4k	: bitrate = 40.0f; break;
+	case definition_t::HTC_VIVE	: bitrate = 32.0f; break;
+	case definition_t::HD1080	: bitrate = 12.0f; break;
+	case definition_t::HD720	: bitrate = 8.0f; break;
 	case definition_t::SD576	:
-	case definition_t::SD480	: bitrate = 2.0f; break;
-	case definition_t::LD360	: bitrate = 1.0f; break;
-	default						: bitrate = 8.0f;
+	case definition_t::SD480	: bitrate = 4.0f; break;
+	case definition_t::LD360	: bitrate = 2.0f; break;
+	default						: bitrate = 16.0f;
 	}
 
 	bitrate *= 1000.0f*1000.0f;

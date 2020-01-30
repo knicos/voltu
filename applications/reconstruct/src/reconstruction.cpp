@@ -75,9 +75,13 @@ void Reconstruction::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 
 bool Reconstruction::post(ftl::rgbd::FrameSet &fs) {
 	pipeline_->apply(fs, fs, 0);
+
+	/*for (size_t i=0; i<fs.frames.size(); ++i) {
+		fs.frames[i].create<cv::cuda::GpuMat>(Channel::Depth);
+	}*/
 		
 	{
-		UNIQUE_LOCK(exchange_mtx_, lk);
+		//UNIQUE_LOCK(exchange_mtx_, lk);
 		//if (new_frame_ == true) LOG(WARNING) << "Frame lost";
 		fs.swapTo(fs_align_);
 		new_frame_ = true;
@@ -85,12 +89,16 @@ bool Reconstruction::post(ftl::rgbd::FrameSet &fs) {
 
 	if (cb_) {
 		ftl::pool.push([this](int id) {
+			UNIQUE_LOCK(fs_align_.mtx, lk);
 			if (new_frame_) {
-				{
-					UNIQUE_LOCK(exchange_mtx_, lk);
+				//{
+					//UNIQUE_LOCK(exchange_mtx_, lk);
 					new_frame_ = false;
 					fs_align_.swapTo(fs_render_);
-				}
+				//}
+
+				UNIQUE_LOCK(fs_render_.mtx, lk2);
+				lk.unlock();
 
 				if (cb_) cb_(fs_render_);
 			}

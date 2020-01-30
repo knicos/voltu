@@ -129,7 +129,7 @@ class Builder : public Generator {
 	std::list<FrameSet*> allocated_;  // Keep memory allocations
 
 	size_t head_;
-	ftl::rgbd::VideoCallback callback_;
+	ftl::rgbd::VideoCallback cb_;
 	MUTEX mutex_;
 	int mspf_;
 	float latency_;
@@ -155,6 +155,8 @@ class Builder : public Generator {
 	/* Search for a matching frameset. */
 	ftl::rgbd::FrameSet *_findFrameset(int64_t ts);
 	void _freeFrameset(ftl::rgbd::FrameSet *);
+
+	void _schedule();
 
 	void _recordStats(float fps, float latency);
 };

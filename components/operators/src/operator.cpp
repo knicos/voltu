@@ -67,7 +67,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 
 				if (instance->enabled()) {
 					try {
-						if (!instance->apply(in.frames[j], out.frames[j], stream_actual)) return false;
+						instance->apply(in.frames[j], out.frames[j], stream_actual);
 					} catch (const std::exception &e) {
 						LOG(ERROR) << "Operator exception: " << e.what();
 					}
@@ -78,7 +78,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 
 			if (instance->enabled()) {
 				try {
-					if (!instance->apply(in, out, stream_actual)) return false;
+					instance->apply(in, out, stream_actual);
 				} catch (const std::exception &e) {
 					LOG(ERROR) << "Operator exception: " << e.what();
 				}
@@ -108,7 +108,11 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		auto *instance = i.instances[0];
 
 		if (instance->enabled()) {
-			if (!instance->apply(in, out, stream_actual)) return false;
+			try {
+				instance->apply(in, out, stream_actual);
+			} catch (const std::exception &e) {
+				LOG(ERROR) << "Operator exception: " << e.what();
+			}
 		}
 	}
 
