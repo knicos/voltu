@@ -16,10 +16,10 @@ class MultiViewMLS : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 
 	private:
-	std::vector<ftl::cuda::TextureObject<float4>> centroid_horiz_;
-	std::vector<ftl::cuda::TextureObject<float4>> centroid_vert_;
-	std::vector<ftl::cuda::TextureObject<float4>> normals_horiz_;
-    std::vector<ftl::cuda::TextureObject<float>> contributions_;
+	std::vector<ftl::cuda::TextureObject<float4>*> centroid_horiz_;
+	std::vector<ftl::cuda::TextureObject<float4>*> centroid_vert_;
+	std::vector<ftl::cuda::TextureObject<float4>*> normals_horiz_;
+    std::vector<ftl::cuda::TextureObject<float>*> contributions_;
 };
 
 }

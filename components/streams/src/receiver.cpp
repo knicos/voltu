@@ -194,7 +194,8 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	// Now split the tiles from surface into frames, doing colour conversions
 	// at the same time.
-	for (int i=0; i<pkt.frame_count; ++i) {
+	// Note: Done in reverse to allocate correct number of frames first time round
+	for (int i=pkt.frame_count-1; i>=0; --i) {
 		InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
 		auto &frame = builder_.get(spkt.timestamp, spkt.frame_number+i);
 

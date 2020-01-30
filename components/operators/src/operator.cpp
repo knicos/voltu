@@ -69,7 +69,9 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 					try {
 						instance->apply(in.frames[j], out.frames[j], stream_actual);
 					} catch (const std::exception &e) {
-						LOG(ERROR) << "Operator exception: " << e.what();
+						LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
+						cudaSafeCall(cudaStreamSynchronize(stream_actual));
+						return false;
 					}
 				}
 			}
@@ -80,7 +82,9 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 				try {
 					instance->apply(in, out, stream_actual);
 				} catch (const std::exception &e) {
-					LOG(ERROR) << "Operator exception: " << e.what();
+					LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
+					cudaSafeCall(cudaStreamSynchronize(stream_actual));
+					return false;
 				}
 			}
 		}
@@ -88,7 +92,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 
 	if (stream == 0) {
 		cudaSafeCall(cudaStreamSynchronize(stream_actual));
-		cudaSafeCall( cudaGetLastError() );
+		//cudaSafeCall( cudaGetLastError() );
 	}
 
 	return true;
@@ -111,7 +115,9 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 			try {
 				instance->apply(in, out, stream_actual);
 			} catch (const std::exception &e) {
-				LOG(ERROR) << "Operator exception: " << e.what();
+				LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
+				cudaSafeCall(cudaStreamSynchronize(stream_actual));
+				return false;
 			}
 		}
 	}
