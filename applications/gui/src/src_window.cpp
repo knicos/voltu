@@ -246,7 +246,9 @@ void SourceWindow::_updateCameras(const vector<string> &netcams) {
 
 	for (int i=0; i<strms.size(); ++i) {
 		auto *stream = strms[i];
-		stream_->add(stream);
+		bool isspecial = (stream->get<std::string>("uri") == screen_->root()->value("data_stream",std::string("")));
+		if (isspecial) LOG(INFO) << "Adding special stream";
+		stream_->add(stream, (isspecial) ? 1 : 0);
 
 		LOG(INFO) << "Add Stream: " << stream->value("uri", std::string("NONE"));
 
