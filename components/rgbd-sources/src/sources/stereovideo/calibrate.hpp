@@ -36,8 +36,6 @@ class Calibrate : public ftl::Configurable {
 
 	/**
 	 * @brief	Rectify and undistort stereo pair images (CPU)
-	 * @todo	Uses same rectification maps as GPU version, according to OpenCV
-	 * 			documentation for remap(), fixed point versions faster for CPU
 	 */
 	void rectifyStereo(cv::Mat &l, cv::Mat &r);
 

@@ -19,17 +19,18 @@ std::string msgpack_pack(T v) {
 	return std::string(buffer.str());
 }
 
-Mat msgpack_unpack_mat(std::string str) {
+template<typename T>
+T msgpack_unpack(std::string str) {
 	msgpack::object_handle oh = msgpack::unpack(str.data(), str.size());
 	msgpack::object obj = oh.get();
-	Mat M;
-	return obj.convert<Mat>(M);
+	T res;
+	return obj.convert<T>(res);
 }
 
 TEST_CASE( "msgpack cv::Mat" ) {
 	SECTION( "Mat::ones(Size(5, 5), CV_64FC1)" ) {
 		Mat A = Mat::ones(Size(5, 5), CV_64FC1);
-		Mat B = msgpack_unpack_mat(msgpack_pack(A));
+		Mat B = msgpack_unpack<Mat>(msgpack_pack(A));
 
 		REQUIRE(A.size() == B.size());
 		REQUIRE(A.type() == B.type());
@@ -38,7 +39,7 @@ TEST_CASE( "msgpack cv::Mat" ) {
 
 	SECTION( "Mat::ones(Size(1, 5), CV_8UC3)" ) {
 		Mat A = Mat::ones(Size(1, 5), CV_8UC3);
-		Mat B = msgpack_unpack_mat(msgpack_pack(A));
+		Mat B = msgpack_unpack<Mat>(msgpack_pack(A));
 		
 		REQUIRE(A.size() == B.size());
 		REQUIRE(A.type() == B.type());
@@ -48,7 +49,7 @@ TEST_CASE( "msgpack cv::Mat" ) {
 	SECTION ( "Mat 10x10 CV_64FC1 with random values [-1000, 1000]" ) {
 		Mat A(Size(10, 10), CV_64FC1);
 		cv::randu(A, -1000, 1000);
-		Mat B = msgpack_unpack_mat(msgpack_pack(A));
+		Mat B = msgpack_unpack<Mat>(msgpack_pack(A));
 		
 		REQUIRE(A.size() == B.size());
 		REQUIRE(A.type() == B.type());
@@ -62,7 +63,7 @@ TEST_CASE( "msgpack cv::Mat" ) {
 		msgpack::zone z;
 		auto obj = msgpack::object(A, z);
 		
-		Mat B = msgpack_unpack_mat(msgpack_pack(obj));
+		Mat B = msgpack_unpack<Mat>(msgpack_pack(obj));
 		
 		REQUIRE(A.size() == B.size());
 		REQUIRE(A.type() == B.type());
@@ -75,7 +76,7 @@ TEST_CASE( "msgpack cv::Mat" ) {
 			A = A(Rect(2, 2, 3,3));
 			A.setTo(0);
 
-			Mat B = msgpack_unpack_mat(msgpack_pack(A));
+			Mat B = msgpack_unpack<Mat>(msgpack_pack(A));
 		
 			REQUIRE(A.size() == B.size());
 			REQUIRE(A.type() == B.type());
@@ -84,5 +85,10 @@ TEST_CASE( "msgpack cv::Mat" ) {
 		catch (msgpack::type_error) {
 			// if not supported, throws exception
 		}
+	}
+
+	SECTION( "Rect_<T>" ) {
+		auto res = msgpack_unpack<cv::Rect2d>(msgpack_pack(cv::Rect2d(1,2,3,4)));
+		REQUIRE(res == cv::Rect2d(1,2,3,4));
 	}
 }

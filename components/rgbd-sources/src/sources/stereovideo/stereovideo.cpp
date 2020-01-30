@@ -18,6 +18,7 @@
 #include "ftl/operators/segmentation.hpp"
 #include "ftl/operators/disparity.hpp"
 #include "ftl/operators/mask.hpp"
+#include "ftl/operators/detectandtrack.hpp"
 
 #include "ftl/threads.hpp"
 #include "calibrate.hpp"
@@ -44,25 +45,6 @@ StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file
 StereoVideoSource::~StereoVideoSource() {
 	delete calib_;
 	delete lsrc_;
-}
-
-template<typename T>
-static std::pair<std::vector<int>, std::vector<T>> MatToVec(cv::Mat M) {
-	std::pair<std::vector<int>, std::vector<T>> res;
-	res.first = std::vector<int>(3);
-	res.first[0] = M.type();
-	res.first[1] = M.size().width;
-	res.first[2] = M.size().height;
-	res.second = std::vector<T>(M.begin<T>(), M.end<T>());
-	return res;
-}
-
-template<typename T>
-static cv::Mat VecToMat(std::pair<std::vector<int>, std::vector<T>> data) {
-	return cv::Mat(	data.first[1],
-					data.first[2],
-					data.first[0],
-					data.second.data());
 }
 
 void StereoVideoSource::init(const string &file) {
@@ -97,6 +79,7 @@ void StereoVideoSource::init(const string &file) {
 	#ifdef HAVE_OPTFLOW
 	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
 	#endif
+	pipeline_input_->append<ftl::operators::DetectAndTrack>("facedetection")->set("enabled", false);
 
 	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
 
