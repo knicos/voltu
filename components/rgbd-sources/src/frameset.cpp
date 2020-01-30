@@ -64,6 +64,7 @@ Builder::Builder() : head_(0) {
 	skip_ = false;
 	//setFPS(20);
 	size_ = 0;
+	last_frame_ = 0;
 
 	mspf_ = ftl::timer::getInterval();
 	name_ = "NoName";
@@ -71,6 +72,8 @@ Builder::Builder() : head_(0) {
 	latency_ = 0.0f;;
 	stats_count_ = 0;
 	fps_ = 0.0f;
+
+	if (size_ > 0) states_.resize(size_);
 }
 
 Builder::~Builder() {
@@ -84,7 +87,7 @@ Builder::~Builder() {
 }
 
 ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
-	if (timestamp <= 0 || ix >= kMaxFramesInSet) throw ftl::exception("Invalid frame timestamp or index");
+	if (timestamp <= 0 || ix >= kMaxFramesInSet) throw FTL_Error("Invalid frame timestamp or index");
 
 	UNIQUE_LOCK(mutex_, lk);
 
@@ -98,15 +101,27 @@ ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
 	}
 	//states_[ix] = frame.origin();
 
+	if (timestamp <= last_frame_) {
+		throw FTL_Error("Frameset already completed");
+	}
+
 	auto *fs = _findFrameset(timestamp);
 
 	if (!fs) {
 		// Add new frameset
 		fs = _addFrameset(timestamp);
-		if (!fs) throw ftl::exception("Could not add frameset");
+		if (!fs) throw FTL_Error("Could not add frameset");
 	}
 
-	if (fs->frames.size() < size_) fs->frames.resize(size_);
+	if (fs->stale) {
+		throw FTL_Error("Frameset already completed");
+	}
+
+	if (ix >= fs->frames.size()) {
+		throw FTL_Error("Frame index out-of-bounds");
+	}
+
+	//if (fs->frames.size() < size_) fs->frames.resize(size_);
 
 	//lk.unlock();
 	//SHARED_LOCK(fs->mtx, lk2);
@@ -159,7 +174,7 @@ void Builder::_schedule() {
 	if (fs) {
 		//UNIQUE_LOCK(fs->mtx, lk2);
 		// The buffers are invalid after callback so mark stale
-		fs->stale = true;
+		//fs->stale = true;
 		jobs_++;
 		//lk.unlock();
 
@@ -310,6 +325,9 @@ ftl::rgbd::FrameSet *Builder::_getFrameset() {
 		if (!f->stale && static_cast<unsigned int>(f->count) >= size_) {
 			//LOG(INFO) << "GET FRAMESET and remove: " << f->timestamp;
 			auto j = framesets_.erase(i);
+
+			last_frame_ = f->timestamp;
+			f->stale = true;
 			
 			int count = 0;
 			// Merge all previous frames

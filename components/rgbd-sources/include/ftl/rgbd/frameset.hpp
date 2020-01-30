@@ -136,6 +136,7 @@ class Builder : public Generator {
 	float fps_;
 	int stats_count_;
 	int64_t last_ts_;
+	int64_t last_frame_;
 	std::atomic<int> jobs_;
 	volatile bool skip_;
 	ftl::timer::TimerHandle main_id_;
