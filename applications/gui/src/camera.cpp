@@ -8,6 +8,8 @@
 
 #include <ftl/operators/antialiasing.hpp>
 
+#include "overlay.hpp"
+
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 
@@ -250,6 +252,22 @@ void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
 	post_pipe_->apply(frame_, frame_, 0);
 
 	_downloadFrames(&frame_);
+
+	if (screen_->root()->value("show_poses", false)) {
+		cv::Mat over_col, over_depth;
+		over_col.create(im1_.size(), CV_8UC4);
+		over_depth.create(im1_.size(), CV_32F);
+
+		for (int i=0; i<fs.frames.size(); ++i) {
+			auto pose = fs.frames[i].getPose().inverse() * state_.getPose();
+			Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+			pos /= pos[3];
+
+			auto name = fs.frames[i].get<std::string>("name");
+			ftl::overlay::drawPoseCone(state_.getLeft(), im1_, over_depth, pose, cv::Scalar(0,0,255,255), 0.2);
+			if (name) ftl::overlay::drawText(state_.getLeft(), im1_, over_depth, *name, pos, 0.5, cv::Scalar(0,0,255,255));
+		}
+	}
 
 	if (record_stream_ && record_stream_->active()) {
 		// TODO: Allow custom channel selection
