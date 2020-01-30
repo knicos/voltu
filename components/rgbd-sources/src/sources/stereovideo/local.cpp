@@ -56,20 +56,23 @@ LocalSource::LocalSource(nlohmann::json &config)
 		camera_b_ = nullptr;
 		stereo_ = false;
 		LOG(WARNING) << "Not able to find second camera for stereo";
-	} else {
-		camera_a_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
-		camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
+	}
+	else {
 		camera_b_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
 		camera_b_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
 
-		Mat frame;
-		camera_a_->grab();
-		camera_a_->retrieve(frame);
-		LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
-		width_ = frame.cols;
-		height_ = frame.rows;
 		stereo_ = true;
 	}
+
+	camera_a_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
+	camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
+	
+	Mat frame;
+	camera_a_->grab();
+	camera_a_->retrieve(frame);
+	LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
+	width_ = frame.cols;
+	height_ = frame.rows;
 
 	dwidth_ = value("depth_width", width_);
 	dheight_ = value("depth_height", height_);
@@ -248,66 +251,30 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 
 	if (!camera_a_) return false;
 
-	if (camera_b_ || !stereo_) {
-		// TODO: Use threads here?
-		if (!camera_a_->retrieve(lfull)) {
-			LOG(ERROR) << "Unable to read frame from camera A";
-			return false;
-		}
-		if (camera_b_ && !camera_b_->retrieve(rfull)) {
-			LOG(ERROR) << "Unable to read frame from camera B";
-			return false;
-		}
-	} else {
-		LOG(FATAL) << "Stereo video no longer supported";
-		/*Mat frame;
-		if (!camera_a_->retrieve(frame)) {
-			LOG(ERROR) << "Unable to read frame from video";
-			return false;
-		}
-
-		int resx = frame.cols / 2;
-		//if (flip_) {
-		//	r = Mat(frame, Rect(0, 0, resx, frame.rows));
-		//	l = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
-		//} else {
-			l = Mat(frame, Rect(0, 0, resx, frame.rows));
-			r = Mat(frame, Rect(resx, 0, frame.cols-resx, frame.rows));
-		//}*/
+	// TODO: Use threads here?
+	if (!camera_a_->retrieve(lfull)) {
+		LOG(ERROR) << "Unable to read frame from camera A";
+		return false;
 	}
 
-	/*if (downsize_ != 1.0f) {
-		// cv::cuda::resize()
+	if (camera_b_ && !camera_b_->retrieve(rfull)) {
+		LOG(ERROR) << "Unable to read frame from camera B";
+		return false;
+	}
 
-		cv::resize(left_, left_, cv::Size((int)(left_.cols * downsize_), (int)(left_.rows * downsize_)),
-				0, 0, cv::INTER_LINEAR);
-		cv::resize(r, r, cv::Size((int)(r.cols * downsize_), (int)(r.rows * downsize_)),
-				0, 0, cv::INTER_LINEAR);
-	}*/
+	if (stereo_) {
+		c->rectifyStereo(lfull, rfull);
+		
+		// Need to resize
+		if (hasHigherRes()) {
+			// TODO: Use threads?
+			cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
+		}
+	}
 
-	// Note: this seems to be too slow on CPU...
-	/*cv::Ptr<cv::xphoto::WhiteBalancer> wb;
-	wb = cv::xphoto::createSimpleWB();
-	wb->balanceWhite(l, l);
-	wb->balanceWhite(r, r);*/
-
-	/*if (flip_v_) {
-		Mat tl, tr;
-		cv::flip(left_, tl, 0);
-		cv::flip(r, tr, 0);
-		left_ = tl;
-		r = tr;
-	}*/
-
-	c->rectifyStereo(lfull, rfull);
-
-	// Need to resize
 	if (hasHigherRes()) {
-		// TODO: Use threads?
 		cv::resize(lfull, l, l.size(), 0.0, 0.0, cv::INTER_CUBIC);
-		cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
 		hres_out.upload(hres, stream);
-		//LOG(INFO) << "Early Resize: " << l.size() << " from " << lfull.size();
 	} else {
 		hres_out = cv::cuda::GpuMat();
 	}
