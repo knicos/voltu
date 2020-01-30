@@ -158,7 +158,7 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
 				const auto &packets = frame.getPackets(cc);
 				if (packets.size() > 0) {
 					if (packets.size() > 1) {
-						LOG(WARNING) << "Multi-packet send";
+						LOG(WARNING) << "Multi-packet send: " << (int)cc;
 						ftl::codecs::Packet pkt;
 						mergeNALUnits(packets, pkt);
 						stream_->post(spkt, pkt);
@@ -256,6 +256,9 @@ void Sender::_encodeChannel(const ftl::rgbd::FrameSet &fs, Channel c, bool reset
 			break;
 		}
 
+		//cudaSafeCall(cudaStreamSynchronize(enc->stream()));
+		enc->stream().waitForCompletion();
+
 		if (enc) {
 			// FIXME: Timestamps may not always be aligned to interval.
 			//if (do_inject || fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
@@ -266,7 +269,7 @@ void Sender::_encodeChannel(const ftl::rgbd::FrameSet &fs, Channel c, bool reset
 				pkt.frame_count = count;
 				pkt.codec = codec;
 				pkt.definition = definition_t::Any;
-				pkt.bitrate = max_bitrate;
+				pkt.bitrate = (!lossless && ftl::codecs::isFloatChannel(c)) ? max_bitrate : max_bitrate/2;
 				pkt.flags = 0;
 
 				if (!lossless && ftl::codecs::isFloatChannel(c)) pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;

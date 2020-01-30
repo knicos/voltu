@@ -37,12 +37,14 @@ const cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>() const {
 template <>
 cv::Mat &VideoData::make<cv::Mat>() {
 	isgpu = false;
+	encoded.clear();
 	return host;
 }
 
 template <>
 cv::cuda::GpuMat &VideoData::make<cv::cuda::GpuMat>() {
 	isgpu = true;
+	encoded.clear();
 	return gpu;
 }
 
