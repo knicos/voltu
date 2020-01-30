@@ -49,8 +49,8 @@ bool DetectAndTrack::init() {
 	
 	min_size_[0] = max(min(1.0, min_size_[0]), 0.0);
 	min_size_[1] = max(min(1.0, min_size_[1]), 0.0);
-	min_size_[0] = max(min(1.0, max_size_[0]), 0.0);
-	min_size_[1] = max(min(1.0, max_size_[1]), 0.0);
+	max_size_[0] = max(min(1.0, max_size_[0]), 0.0);
+	max_size_[1] = max(min(1.0, max_size_[1]), 0.0);
 	if (min_size_[0] > max_size_[0]) { min_size_[0] = max_size_[0]; }
 	if (min_size_[1] > max_size_[1]) { min_size_[1] = max_size_[1]; }
 
