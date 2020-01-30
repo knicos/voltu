@@ -49,18 +49,18 @@ Muxer::~Muxer() {
 }
 
 
-void Muxer::add(Stream *s) {
+void Muxer::add(Stream *s, int fsid) {
 	UNIQUE_LOCK(mutex_,lk);
 
 	auto &se = streams_.emplace_back();
 	int i = streams_.size()-1;
 	se.stream = s;
 
-	s->onPacket([this,s,i](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	s->onPacket([this,s,i,fsid](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		//SHARED_LOCK(mutex_, lk);
 	
 		ftl::codecs::StreamPacket spkt2 = spkt;
-		spkt2.streamID = 0;
+		spkt2.streamID = fsid;
 
 		if (spkt2.frame_number < 255) {
 			int id = _lookup(i, spkt.frame_number);

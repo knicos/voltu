@@ -310,6 +310,7 @@ void Receiver::setStream(ftl::stream::Stream *s) {
 		//LOG(INFO) << "PACKET: " << spkt.timestamp << ", " << (int)spkt.channel << ", " << (int)pkt.codec << ", " << (int)pkt.definition;
 
 		// TODO: Allow for multiple framesets
+		if (spkt.frameSetID() > 0) LOG(INFO) << "Frameset " << spkt.frameSetID() << " received";
 		if (spkt.frameSetID() > 0) return;
 
 		// Too many frames, so ignore.

@@ -112,7 +112,7 @@ class Muxer : public Stream {
 	explicit Muxer(nlohmann::json &config);
 	virtual ~Muxer();
 
-	void add(Stream *);
+	void add(Stream *, int fsid=0);
 
 	bool onPacket(const StreamCallback &) override;
 
