@@ -4,7 +4,7 @@
 
 //#define LOGURU_REPLACE_GLOG 1
 //#include <loguru.hpp>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 //#include <ftl/configurable.hpp>
 #include <string>
 #include <vector>
@@ -108,6 +108,23 @@ T *create(json_t &link, ARGS ...args);
 template <typename T, typename... ARGS>
 T *create(ftl::Configurable *parent, const std::string &name, ARGS ...args);
 
+nlohmann::json &_create(ftl::Configurable *parent, const std::string &name);
+std::vector<nlohmann::json*> _createArray(ftl::Configurable *parent, const std::string &name);
+
+std::string _getID(nlohmann::json &);
+
+nlohmann::json *createJSON();
+void destroyJSON(nlohmann::json*);
+void copyJSON(nlohmann::json *dst, nlohmann::json *src);
+void parseJSON(nlohmann::json &dst, const std::string &src);
+std::string dumpJSON(const nlohmann::json &json);
+
+template <typename T>
+std::optional<T> getJSON(nlohmann::json *config, const std::string &name);
+
+template <typename T>
+void setJSON(nlohmann::json *config, const std::string &name, T value);
+
 /**
  * Create a configurable rooted on a parent but with a specific object
  * that is not directly a child of the parent. Used by RGB-D Factory.
@@ -134,25 +151,21 @@ using config::configure;
 
 #include <ftl/configurable.hpp>
 
+extern template std::optional<float> ftl::config::getJSON<float>(nlohmann::json *config, const std::string &name);
+extern template std::optional<int> ftl::config::getJSON<int>(nlohmann::json *config, const std::string &name);
+extern template std::optional<std::string> ftl::config::getJSON<std::string>(nlohmann::json *config, const std::string &name);
+
+extern template void ftl::config::setJSON<float>(nlohmann::json *config, const std::string &name, float value);
+extern template void ftl::config::setJSON<int>(nlohmann::json *config, const std::string &name, int value);
+extern template void ftl::config::setJSON<std::string>(nlohmann::json *config, const std::string &name, std::string value);
+
 template <typename T, typename... ARGS>
 T *ftl::config::create(json_t &link, ARGS ...args) {
-	//auto &r = link; // = ftl::config::resolve(link);
+	std::string id = _getID(link);
 
-	if (!link["$id"].is_string()) {
-		throw FTL_Error("Entity does not have $id or parent: " << link);
-	}
-
-	ftl::Configurable *cfg = ftl::config::find(link["$id"].get<std::string>());
+	ftl::Configurable *cfg = ftl::config::find(id);
 	if (!cfg) {
-		//try {
-			cfg = new T(link, args...);
-		//} catch (std::exception &ex) {	
-		//	LOG(ERROR) << ex.what();
-		//	LOG(FATAL) << "Could not construct " << link;
-		//} catch(...) {
-		//	LOG(ERROR) << "Unknown exception";
-		//	LOG(FATAL) << "Could not construct " << link;
-		//}
+		cfg = new T(link, args...);
 	} else {
 		// Make sure configurable has newest object pointer
 		cfg->patchPtr(link);
@@ -161,91 +174,23 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 	try {
 		return dynamic_cast<T*>(cfg);
 	} catch(...) {
-		throw FTL_Error("Configuration URI object is of wrong type: " << link.dump());
+		throw FTL_Error("Configuration URI object is of wrong type: " << id);
 		//return nullptr;
 	}
 }
 
 template <typename T, typename... ARGS>
 T *ftl::config::create(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
-	nlohmann::json &entity = (!parent->getConfig()[name].is_null())
-			? parent->getConfig()[name]
-			: ftl::config::resolve(parent->getConfig())[name];
-
-	if (entity.is_object()) {
-		if (!entity["$id"].is_string()) {
-			std::string id_str = *parent->get<std::string>("$id");
-			if (id_str.find('#') != std::string::npos) {
-				entity["$id"] = id_str + std::string("/") + name;
-			} else {
-				entity["$id"] = id_str + std::string("#") + name;
-			}
-		}
-
-		return create<T>(entity, args...);
-	} else if (entity.is_null()) {
-		// Must create the object from scratch...
-		std::string id_str = *parent->get<std::string>("$id");
-		if (id_str.find('#') != std::string::npos) {
-			id_str = id_str + std::string("/") + name;
-		} else {
-			id_str = id_str + std::string("#") + name;
-		}
-		parent->getConfig()[name] = {
-			// cppcheck-suppress constStatement
-			{"$id", id_str}
-		};
-
-		nlohmann::json &entity2 = parent->getConfig()[name];
-		return create<T>(entity2, args...);
-	}
-
-	throw FTL_Error("Unable to create Configurable entity '" << name << "'");
-	//return nullptr;
+	return create<T>(_create(parent, name), args...);
 }
 
 template <typename T, typename... ARGS>
 std::vector<T*> ftl::config::createArray(ftl::Configurable *parent, const std::string &name, ARGS ...args) {
-	nlohmann::json &base = (!parent->getConfig()[name].is_null())
-			? parent->getConfig()[name]
-			: ftl::config::resolve(parent->getConfig())[name];
-
 	std::vector<T*> result;
+	std::vector<nlohmann::json*> entities = _createArray(parent, name);
 
-	if (base.is_array()) {
-		int i=0;
-		for (auto &entity : base) {
-			if (entity.is_object()) {
-				if (!entity["$id"].is_string()) {
-					std::string id_str = *parent->get<std::string>("$id");
-					if (id_str.find('#') != std::string::npos) {
-						entity["$id"] = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
-					} else {
-						entity["$id"] = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
-					}
-				}
-
-				result.push_back(create<T>(entity, args...));
-			} else if (entity.is_null()) {
-				// Must create the object from scratch...
-				std::string id_str = *parent->get<std::string>("$id");
-				if (id_str.find('#') != std::string::npos) {
-					id_str = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
-				} else {
-					id_str = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
-				}
-				parent->getConfig()[name] = {
-					// cppcheck-suppress constStatement
-					{"$id", id_str}
-				};
-
-				nlohmann::json &entity2 = parent->getConfig()[name];
-				result.push_back(create<T>(entity2, args...));
-			}
-			i++;
-		}
-	} else {
-		//LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();
+	for (auto *e: entities) {
+		result.push_back(create<T>(*e, args...));
 	}
 
 	return result;

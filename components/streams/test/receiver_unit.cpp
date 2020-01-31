@@ -4,6 +4,8 @@
 #include <ftl/codecs/nvpipe_encoder.hpp>
 #include "../src/injectors.hpp"
 
+#include <nlohmann/json.hpp>
+
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 using ftl::stream::Receiver;

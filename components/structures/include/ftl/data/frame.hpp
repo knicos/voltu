@@ -491,7 +491,7 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::setRight(const typename STATE::Setting
 
 template <int BASE, int N, typename STATE, typename DATA>
 std::string ftl::data::Frame<BASE,N,STATE,DATA>::getConfigString() const {
-	return get<nlohmann::json>(ftl::codecs::Channel::Configuration).dump();
+	return ftl::config::dumpJSON(get<nlohmann::json>(ftl::codecs::Channel::Configuration));
 }
 
 template <int BASE, int N, typename STATE, typename DATA>

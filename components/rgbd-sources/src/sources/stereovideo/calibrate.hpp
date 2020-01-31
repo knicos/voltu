@@ -5,11 +5,11 @@
 #ifndef _FTL_CALIBRATION_HPP_
 #define _FTL_CALIBRATION_HPP_
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/core/cuda.hpp>
 #include "local.hpp"
 #include <string>
 #include <vector>
-#include <nlohmann/json.hpp>
 #include <ftl/rgbd/camera.hpp>
 
 namespace cv {

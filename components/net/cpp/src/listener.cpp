@@ -5,7 +5,7 @@
 #include <ftl/net/listener.hpp>
 #include <ftl/net/peer.hpp>
 #include <ftl/net/protocol.hpp>
-#include <iostream>
+//#include <iostream>
 
 #ifndef WIN32
 #include <unistd.h>

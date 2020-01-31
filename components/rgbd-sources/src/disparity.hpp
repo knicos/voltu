@@ -6,7 +6,6 @@
 #define _FTL_DISPARITY_HPP_
 
 #include <opencv2/core.hpp>
-#include <nlohmann/json.hpp>
 #include <ftl/configurable.hpp>
 #include <ftl/rgbd/frame.hpp>
 

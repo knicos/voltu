@@ -26,6 +26,8 @@
 #include "ftl/operators/antialiasing.hpp"
 #include <ftl/operators/smoothing.hpp>
 
+#include <nlohmann/json.hpp>
+
 #ifdef HAVE_LIBARCHIVE
 #include "ftl/rgbd/snapshot.hpp"
 #endif

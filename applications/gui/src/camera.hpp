@@ -73,7 +73,7 @@ class Camera {
 
 	void stopVideoRecording();
 
-	nlohmann::json getMetaData();
+	//nlohmann::json getMetaData();
 
 	const std::string &name() const { return name_; }
 
@@ -102,7 +102,7 @@ class Camera {
 	GLTexture texture2_; // second channel ("right")
 
 	ftl::gui::PoseWindow *posewin_;
-	nlohmann::json meta_;
+	//nlohmann::json meta_;
 	Eigen::Vector4d neye_;
 	Eigen::Vector3d eye_;
 	//Eigen::Vector3f orientation_;

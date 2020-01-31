@@ -9,7 +9,7 @@
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/uuid.hpp>
 #include <ftl/threads.hpp>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <vector>
 #include <list>
 #include <string>
@@ -28,6 +28,8 @@ struct ReconnectInfo {
 	float delay;
 	Peer *peer;
 };
+
+struct NetImplDetail;
 
 typedef unsigned int callback_t;
 
@@ -214,8 +216,9 @@ class Universe : public ftl::Configurable {
 	ftl::UUID this_peer;
 	mutable SHARED_MUTEX net_mutex_;
 	RECURSIVE_MUTEX handler_mutex_;
-	fd_set sfderror_;
-	fd_set sfdread_;
+	
+	NetImplDetail *impl_;
+	
 	std::vector<ftl::net::Listener*> listeners_;
 	std::vector<ftl::net::Peer*> peers_;
 	//std::map<std::string, std::vector<ftl::UUID>> subscribers_;

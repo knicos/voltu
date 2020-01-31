@@ -4,7 +4,7 @@
 
 set(GUISRC
 	src/main.cpp
-	src/ctrl_window.cpp
+	#src/ctrl_window.cpp
 	src/src_window.cpp
 	src/config_window.cpp
 	src/pose_window.cpp

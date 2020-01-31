@@ -705,6 +705,3 @@ void ftl::gui::Camera::stopVideoRecording() {
 	if (record_stream_ && record_stream_->active()) record_stream_->end();
 }
 
-nlohmann::json ftl::gui::Camera::getMetaData() {
-	return nlohmann::json();
-}

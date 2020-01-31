@@ -8,6 +8,8 @@
 #include <nanogui/vscrollpanel.h>
 #include <nanogui/opengl.h>
 
+#include <nlohmann/json.hpp>
+
 #include <vector>
 #include <string>
 

@@ -1,7 +1,7 @@
 #ifndef _FTL_NET_LISTENER_HPP_
 #define _FTL_NET_LISTENER_HPP_
 
-#include <ftl/net/common.hpp>
+#include <ftl/net/common_fwd.hpp>
 
 #include <ftl/net/handlers.hpp>
 #include <ftl/net/peer.hpp>
@@ -31,7 +31,7 @@ class Listener {
 	private:
 	SOCKET descriptor_;
 	Protocol *default_proto_;
-	sockaddr_in slocalAddr;
+	//sockaddr_in slocalAddr;
 	std::vector<connecthandler_t> handler_connect_;
 };
 
