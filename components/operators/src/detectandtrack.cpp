@@ -107,7 +107,8 @@ bool DetectAndTrack::detect(const Mat &im) {
 		}
 
 		if (!found && (tracked_.size() < max_tracked_)) {
-			cv::Ptr<cv::Tracker> tracker = cv::TrackerCSRT::create();
+			//cv::Ptr<cv::Tracker> tracker = cv::TrackerCSRT::create();
+			cv::Ptr<cv::Tracker> tracker = cv::TrackerKCF::create();
 			tracker->init(im, obj);
 			tracked_.push_back({ id_max_++, obj, tracker, 0 });
 		}
