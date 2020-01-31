@@ -45,6 +45,8 @@ CullDiscontinuity::~CullDiscontinuity() {
 }
 
 bool CullDiscontinuity::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
+	if (!in.hasChannel(Channel::Depth) || !in.hasChannel(Channel::Mask)) return false;
+	
 	out.clearPackets(Channel::Depth);  // Force reset
 	ftl::cuda::cull_discontinuity(
 		in.createTexture<int>(Channel::Mask),
