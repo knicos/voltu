@@ -46,6 +46,7 @@ callback_t ftl::net::Universe::cbid__ = 0;
 Universe::Universe() :
 		Configurable(),
 		active_(true),
+		impl_(new ftl::net::NetImplDetail),
 		this_peer(ftl::net::this_peer),
 		phase_(0),
 		send_size_(TCP_SEND_BUFFER_SIZE),
@@ -53,8 +54,6 @@ Universe::Universe() :
 		periodic_time_(1.0),
 		reconnect_attempts_(50),
 		thread_(Universe::__start, this) {
-	
-	impl_ = new ftl::net::NetImplDetail;
 	_installBindings();
 
 	LOG(WARNING) << "Deprecated Universe constructor";
@@ -63,6 +62,7 @@ Universe::Universe() :
 Universe::Universe(nlohmann::json &config) :
 		Configurable(config),
 		active_(true),
+		impl_(new ftl::net::NetImplDetail),
 		this_peer(ftl::net::this_peer),
 		phase_(0),
 		send_size_(value("tcp_send_buffer",TCP_SEND_BUFFER_SIZE)),
@@ -71,7 +71,6 @@ Universe::Universe(nlohmann::json &config) :
 		reconnect_attempts_(value("reconnect_attempts",50)),
 		thread_(Universe::__start, this) {
 
-	impl_ = new ftl::net::NetImplDetail;
 	_installBindings();
 
 	// Add an idle timer job to garbage collect peer objects
