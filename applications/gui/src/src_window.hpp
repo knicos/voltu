@@ -69,17 +69,18 @@ class SourceWindow : public nanogui::Window {
 	bool refresh_thumbs_;
 	nanogui::Widget *ipanel_;
 	int cycle_;
-	ftl::operators::Graph *pre_pipeline_;
+	std::vector<ftl::operators::Graph*> pre_pipelines_;
 	MUTEX mutex_;
 
 	ftl::audio::Speaker *speaker_;
 
-	ftl::rgbd::FrameSet frameset_;
+	std::vector<ftl::rgbd::FrameSet*> framesets_;
 	bool paused_;
 
 	void _updateCameras(const std::vector<std::string> &netcams);
 	void _createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtual);
 	ftl::codecs::Channels<0> _aggregateChannels();
+	void _checkFrameSets(int id);
 
 };
 

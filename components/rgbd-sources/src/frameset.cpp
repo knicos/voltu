@@ -59,7 +59,7 @@ void FrameSet::resetFull() {
 
 // =============================================================================
 
-Builder::Builder() : head_(0) {
+Builder::Builder() : head_(0), id_(0) {
 	jobs_ = 0;
 	skip_ = false;
 	//setFPS(20);
@@ -102,7 +102,7 @@ ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
 	//states_[ix] = frame.origin();
 
 	if (timestamp <= last_frame_) {
-		throw FTL_Error("Frameset already completed");
+		throw FTL_Error("Frameset already completed: " << timestamp);
 	}
 
 	auto *fs = _findFrameset(timestamp);
@@ -374,7 +374,7 @@ ftl::rgbd::FrameSet *Builder::_addFrameset(int64_t timestamp) {
 	allocated_.pop_front();
 
 	newf->timestamp = timestamp;
-	newf->id = 0;
+	newf->id = id_;
 	newf->count = 0;
 	newf->mask = 0;
 	newf->stale = false;
