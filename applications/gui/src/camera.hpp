@@ -33,6 +33,8 @@ class Camera {
 	int width() const { return width_; }
 	int height() const { return height_; }
 
+	int getFramesetId() const { return fsid_; }
+
 	void setPose(const Eigen::Matrix4d &p);
 
 	void mouseMovement(int rx, int ry, int button);

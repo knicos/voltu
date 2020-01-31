@@ -81,7 +81,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	cycle_ = 0;
 	receiver_->onFrameSet([this](ftl::rgbd::FrameSet &fs) {
 		// Request the channels required by current camera configuration
-		interceptor_->select(fs.id, _aggregateChannels());
+		interceptor_->select(fs.id, _aggregateChannels(fs.id));
 
 		/*if (fs.id > 0) {
 			LOG(INFO) << "Got frameset: " << fs.id;
@@ -201,14 +201,16 @@ void SourceWindow::stopRecordingVideo() {
 	}
 }
 
-ftl::codecs::Channels<0> SourceWindow::_aggregateChannels() {
+ftl::codecs::Channels<0> SourceWindow::_aggregateChannels(int id) {
 	ftl::codecs::Channels<0> cs = ftl::codecs::Channels<0>(Channel::Colour);
 	for (auto cam : cameras_) {
-		if (cam.second.camera->isVirtual()) {
-			cs += Channel::Depth;
-		} else {
-			if (cam.second.camera->getChannel() != Channel::None) {
-				cs += cam.second.camera->getChannel();
+		if (cam.second.camera->getFramesetId() == id) {
+			if (cam.second.camera->isVirtual()) {
+				cs += Channel::Depth;
+			} else {
+				if (cam.second.camera->getChannel() != Channel::None) {
+					cs += cam.second.camera->getChannel();
+				}
 			}
 		}
 	}

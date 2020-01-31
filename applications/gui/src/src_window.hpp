@@ -79,7 +79,7 @@ class SourceWindow : public nanogui::Window {
 
 	void _updateCameras(const std::vector<std::string> &netcams);
 	void _createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtual);
-	ftl::codecs::Channels<0> _aggregateChannels();
+	ftl::codecs::Channels<0> _aggregateChannels(int id);
 	void _checkFrameSets(int id);
 
 };
