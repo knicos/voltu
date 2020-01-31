@@ -226,10 +226,14 @@ ftl::gui::Camera::~Camera() {
 	//delete fileout_;
 }
 
-void ftl::gui::Camera::draw(ftl::rgbd::FrameSet &fs) {
+void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	if (fid_ != 255) return;
+	if (fsid_ >= fss.size()) return;
+
+	auto &fs = *fss[fsid_];
 	
-	UNIQUE_LOCK(mutex_, lk);
+	UNIQUE_LOCK(fs.mtx,lk);
+	UNIQUE_LOCK(mutex_, lk2);
 	_draw(fs);
 }
 
@@ -307,8 +311,11 @@ void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
 	}
 }
 
-void ftl::gui::Camera::update(ftl::rgbd::FrameSet &fs) {
+void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	UNIQUE_LOCK(mutex_, lk);
+
+	if (fss.size() <= fsid_) return;
+	auto &fs = *fss[fsid_];
 
 	ftl::rgbd::Frame *frame = nullptr;
 

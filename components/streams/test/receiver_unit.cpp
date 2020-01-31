@@ -85,7 +85,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	state.getLeft().width = 1280;
 	state.getLeft().height = 720;
 	dummy.setOrigin(&state);
-	ftl::stream::injectCalibration(&stream, dummy, 0, 0);
+	ftl::stream::injectCalibration(&stream, dummy, 0, 0, 0);
 
 	ftl::timer::start(false);
 
@@ -116,9 +116,33 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		REQUIRE( count == 1 );
 	}
 
+	SECTION("multi-frameset") {
+		cv::cuda::GpuMat m(cv::Size(1280,720), CV_8UC4, cv::Scalar(0));
+		ftl::stream::injectCalibration(&stream, dummy, 1, 0, 0);
+
+		bool r = encoder.encode(m, pkt);
+		REQUIRE( r );
+
+		stream.post(spkt, pkt);
+
+		std::atomic<int> mask = 0;
+		receiver->onFrameSet([&mask](ftl::rgbd::FrameSet &fs) {
+			mask |= 1 << fs.id;
+			return true;
+		});
+
+		spkt.streamID = 1;
+		stream.post(spkt, pkt);
+
+		int i=10;
+		while (i-- > 0 && mask != 3) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+		REQUIRE( mask == 3 );
+	}
+
 	SECTION("a tiled colour frame") {
 		cv::cuda::GpuMat m(cv::Size(2560,720), CV_8UC4, cv::Scalar(0));
-		ftl::stream::injectCalibration(&stream, dummy, 0, 1);
+		ftl::stream::injectCalibration(&stream, dummy, 0, 0, 1);
 
 		pkt.frame_count = 2;
 		bool r = encoder.encode(m, pkt);
@@ -150,7 +174,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 
 	SECTION("a tiled lossy depth frame") {
 		cv::cuda::GpuMat m(cv::Size(2560,720), CV_8UC4, cv::Scalar(0));
-		ftl::stream::injectCalibration(&stream, dummy, 0, 1);
+		ftl::stream::injectCalibration(&stream, dummy, 0, 0, 1);
 
 		spkt.channel = Channel::Depth;
 		pkt.frame_count = 2;
@@ -184,7 +208,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 
 	SECTION("a tiled lossless depth frame") {
 		cv::cuda::GpuMat m(cv::Size(2560,720), CV_16U, cv::Scalar(0));
-		ftl::stream::injectCalibration(&stream, dummy, 0, 1);
+		ftl::stream::injectCalibration(&stream, dummy, 0, 0, 1);
 
 		spkt.channel = Channel::Depth;
 		pkt.frame_count = 2;
@@ -258,7 +282,7 @@ TEST_CASE( "Receiver sync bugs" ) {
 	state.getLeft().width = 1280;
 	state.getLeft().height = 720;
 	dummy.setOrigin(&state);
-	ftl::stream::injectCalibration(&stream, dummy, 0, 0);
+	ftl::stream::injectCalibration(&stream, dummy, 0, 0, 0);
 
 	ftl::timer::start(false);
 

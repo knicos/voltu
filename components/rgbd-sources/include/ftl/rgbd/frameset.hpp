@@ -105,6 +105,8 @@ class Builder : public Generator {
 
 	ftl::rgbd::FrameState &state(size_t ix) override;
 
+	inline void setID(int id) { id_ = id; }
+
 	void onFrameSet(const ftl::rgbd::VideoCallback &) override;
 
 	/**
@@ -137,6 +139,7 @@ class Builder : public Generator {
 	int stats_count_;
 	int64_t last_ts_;
 	int64_t last_frame_;
+	int id_;
 	std::atomic<int> jobs_;
 	volatile bool skip_;
 	ftl::timer::TimerHandle main_id_;

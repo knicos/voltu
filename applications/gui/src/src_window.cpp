@@ -77,30 +77,30 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		if (recorder_->active() && pkt.data.size() > 0) recorder_->post(spkt, pkt);
 	});
 
-	pre_pipeline_ = ftl::config::create<ftl::operators::Graph>(screen->root(), "pre_filters");
-	//pre_pipeline_->append<ftl::operators::HFSmoother>("hfnoise");
-	//pre_pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
-	pre_pipeline_->append<ftl::operators::CrossSupport>("cross");
-	pre_pipeline_->append<ftl::operators::DiscontinuityMask>("discontinuity");
-	pre_pipeline_->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
-	pre_pipeline_->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
-
 	paused_ = false;
 	cycle_ = 0;
 	receiver_->onFrameSet([this](ftl::rgbd::FrameSet &fs) {
+		// Request the channels required by current camera configuration
+		interceptor_->select(fs.id, _aggregateChannels());
+
+		/*if (fs.id > 0) {
+			LOG(INFO) << "Got frameset: " << fs.id;
+			return true;
+		}*/
+
+		// Make sure there are enough framesets allocated
+		_checkFrameSets(fs.id);
+
 		if (!paused_) {
 			// Enforce interpolated colour
 			for (int i=0; i<fs.frames.size(); ++i) {
 				fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
 			}
 
-			pre_pipeline_->apply(fs, fs, 0);
+			pre_pipelines_[fs.id]->apply(fs, fs, 0);
 
-			fs.swapTo(frameset_);
+			fs.swapTo(*framesets_[fs.id]);
 		}
-
-		// Request the channels required by current camera configuration
-		interceptor_->select(frameset_.id, _aggregateChannels());
 
 		/*if (fs.frames[0].hasChannel(Channel::Data)) {
 			int data = 0;
@@ -109,7 +109,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		}*/
 
 		const auto *cstream = interceptor_;
-		_createDefaultCameras(frameset_, cstream->available(fs.id).has(Channel::Depth));
+		_createDefaultCameras(*framesets_[fs.id], cstream->available(fs.id).has(Channel::Depth));
 
 		//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
 
@@ -117,9 +117,9 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		for (auto cam : cameras_) {
 			// Only update the camera periodically unless the active camera
 			if (screen_->activeCamera() == cam.second.camera ||
-				(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(frameset_);
+				(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(framesets_);
 
-			cam.second.camera->update(cstream->available(frameset_.id));
+			cam.second.camera->update(cstream->available(fs.id));
 		}
 		++cycle_;
 
@@ -129,8 +129,9 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	speaker_ = ftl::create<ftl::audio::Speaker>(screen_->root(), "speaker_test");
 
 	receiver_->onAudio([this](ftl::audio::FrameSet &fs) {
+		if (framesets_.size() == 0) return true;
 		//LOG(INFO) << "Audio delay required = " << (ts - frameset_.timestamp) << "ms";
-		speaker_->setDelay(fs.timestamp - frameset_.timestamp + ftl::timer::getInterval());  // Add Xms for local render time
+		speaker_->setDelay(fs.timestamp - framesets_[0]->timestamp + ftl::timer::getInterval());  // Add Xms for local render time
 		speaker_->queue(fs.timestamp, fs.frames[0]);
 		return true;
 	});
@@ -139,8 +140,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		auto *c = screen_->activeCamera();
 		// Only offer full framerate render on active camera.
 		if (c) {
-			UNIQUE_LOCK(frameset_.mtx,lk);
-			c->draw(frameset_);
+			c->draw(framesets_);
 		}
 		return true;
 	});
@@ -151,6 +151,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	// Check paths for FTL files to load.
 	auto paths = (*screen->root()->get<nlohmann::json>("paths"));
 
+	int ftl_count = 0;
 	for (auto &x : paths.items()) {
 		std::string path = x.value().get<std::string>();
 		auto eix = path.find_last_of('.');
@@ -159,13 +160,28 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		// Command line path is ftl file
 		if (ext == "ftl") {
 			LOG(INFO) << "Found FTL file: " << path;
-			auto *fstream = ftl::create<ftl::stream::File>(screen->root(), "ftlfile");
+			auto *fstream = ftl::create<ftl::stream::File>(screen->root(), std::string("ftlfile-")+std::to_string(ftl_count+1));
 			fstream->set("filename", path);
-			stream_->add(fstream);
+			stream_->add(fstream, ftl_count++);
 		}
 	}
 
 	stream_->begin();
+}
+
+void SourceWindow::_checkFrameSets(int id) {
+	while (framesets_.size() <= id) {
+		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), "pre_filters");
+		//pre_pipeline_->append<ftl::operators::HFSmoother>("hfnoise");
+		//pre_pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+		p->append<ftl::operators::CrossSupport>("cross");
+		p->append<ftl::operators::DiscontinuityMask>("discontinuity");
+		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
+		p->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
+
+		pre_pipelines_.push_back(p);
+		framesets_.push_back(new ftl::rgbd::FrameSet);
+	}
 }
 
 void SourceWindow::recordVideo(const std::string &filename) {
@@ -201,9 +217,9 @@ ftl::codecs::Channels<0> SourceWindow::_aggregateChannels() {
 
 void SourceWindow::_createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtual) {
 	for (int i=0; i<fs.frames.size(); ++i) {
-		int id = i;  // TODO: Include frameset id
+		int id = (fs.id << 8) + i;
 		if (cameras_.find(id) == cameras_.end()) {
-			auto *cam = new ftl::gui::Camera(screen_, 0, i);
+			auto *cam = new ftl::gui::Camera(screen_, fs.id, i);
 			cameras_[id] = {
 				cam,
 				nullptr
@@ -211,9 +227,9 @@ void SourceWindow::_createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtu
 		}
 	}
 
-	if (makevirtual && cameras_.find(-1) == cameras_.end()) {
-		auto *cam = new ftl::gui::Camera(screen_, 0, 255);
-		cameras_[-1] = {
+	if (makevirtual && cameras_.find((fs.id << 8) + 255) == cameras_.end()) {
+		auto *cam = new ftl::gui::Camera(screen_, fs.id, 255);
+		cameras_[(fs.id << 8) + 255] = {
 			cam,
 			nullptr
 		};

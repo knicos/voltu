@@ -52,14 +52,14 @@ class Camera {
 	/**
 	 * Main function to obtain latest frames.
 	 */
-	void update(ftl::rgbd::FrameSet &fs);
+	void update(std::vector<ftl::rgbd::FrameSet *> &fss);
 
 	/**
 	 * Update the available channels.
 	 */
 	void update(const ftl::codecs::Channels<0> &c) { channels_ = (isVirtual()) ? c + ftl::codecs::Channel::Right : c; }
 
-	void draw(ftl::rgbd::FrameSet &fs);
+	void draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 
 	const GLTexture &captureFrame();
 	const GLTexture &getLeft() const { return texture1_; }
