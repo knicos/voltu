@@ -191,6 +191,7 @@ void SourceWindow::recordVideo(const std::string &filename) {
 		LOG(INFO) << "Recording started: " << filename;
 
 		// TODO: Inject pose and calibrations
+		stream_->reset();
 	}
 }
 
