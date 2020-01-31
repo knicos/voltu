@@ -24,6 +24,10 @@ using ftl::stream::injectPose;
 Receiver::Receiver(nlohmann::json &config) : ftl::Configurable(config), stream_(nullptr) {
 	timestamp_ = 0;
 	second_channel_ = Channel::Depth;
+
+	for (int i=0; i<ftl::stream::kMaxStreams; ++i) {
+		builder_[i].setID(i);
+	}
 }
 
 Receiver::~Receiver() {
@@ -31,7 +35,7 @@ Receiver::~Receiver() {
 	//	stream_->onPacket(nullptr);
 	//}
 
-	builder_.onFrameSet(nullptr);
+	builder_[0].onFrameSet(nullptr);
 }
 
 void Receiver::onAudio(const ftl::audio::FrameSet::Callback &cb) {
@@ -49,7 +53,7 @@ void Receiver::onAudio(const ftl::audio::FrameSet::Callback &cb) {
 }*/
 
 void Receiver::_createDecoder(InternalVideoStates &frame, int chan, const ftl::codecs::Packet &pkt) {
-	//UNIQUE_LOCK(mutex_,lk);
+	UNIQUE_LOCK(frame.mutex,lk);
 	auto *decoder = frame.decoders[chan];
 	if (decoder) {
 		if (!decoder->accepts(pkt)) {
@@ -73,12 +77,12 @@ Receiver::InternalVideoStates &Receiver::_getVideoFrame(const StreamPacket &spkt
 	uint32_t fn = spkt.frameNumber()+ix;
 
 	UNIQUE_LOCK(mutex_, lk);
-	while (video_frames_.size() <= fn) {
+	while (video_frames_[spkt.streamID].size() <= fn) {
 		//frames_.resize(spkt.frameNumber()+1);
-		video_frames_.push_back(new InternalVideoStates);
-		video_frames_[video_frames_.size()-1]->state.set("name",std::string("Source ")+std::to_string(fn+1));
+		video_frames_[spkt.streamID].push_back(new InternalVideoStates);
+		video_frames_[spkt.streamID][video_frames_[spkt.streamID].size()-1]->state.set("name",std::string("Source ")+std::to_string(fn+1));
 	}
-	auto &f = *video_frames_[fn];
+	auto &f = *video_frames_[spkt.streamID][fn];
 	if (!f.frame.origin()) f.frame.setOrigin(&f.state);
 	return f;
 }
@@ -91,12 +95,12 @@ Receiver::InternalAudioStates &Receiver::_getAudioFrame(const StreamPacket &spkt
 	uint32_t fn = spkt.frameNumber()+ix;
 
 	UNIQUE_LOCK(mutex_, lk);
-	while (audio_frames_.size() <= fn) {
+	while (audio_frames_[spkt.streamID].size() <= fn) {
 		//frames_.resize(spkt.frameNumber()+1);
-		audio_frames_.push_back(new InternalAudioStates);
-		audio_frames_[audio_frames_.size()-1]->state.set("name",std::string("Source ")+std::to_string(fn+1));
+		audio_frames_[spkt.streamID].push_back(new InternalAudioStates);
+		audio_frames_[spkt.streamID][audio_frames_[spkt.streamID].size()-1]->state.set("name",std::string("Source ")+std::to_string(fn+1));
 	}
-	auto &f = *audio_frames_[fn];
+	auto &f = *audio_frames_[spkt.streamID][fn];
 	if (!f.frame.origin()) f.frame.setOrigin(&f.state);
 	return f;
 }
@@ -173,7 +177,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	// Do the actual decode into the surface buffer
 	try {
 		if (!decoder->decode(pkt, surface)) {
-			LOG(ERROR) << "Decode failed";
+			LOG(ERROR) << "Decode failed on channel " << (int)spkt.channel;
 			return;
 		}
 	} catch (std::exception &e) {
@@ -197,7 +201,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	// Note: Done in reverse to allocate correct number of frames first time round
 	for (int i=pkt.frame_count-1; i>=0; --i) {
 		InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
-		auto &frame = builder_.get(spkt.timestamp, spkt.frame_number+i);
+		auto &frame = builder_[spkt.streamID].get(spkt.timestamp, spkt.frame_number+i);
 
 		if (!frame.origin()) frame.setOrigin(&vidstate.state);
 
@@ -252,7 +256,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	for (int i=0; i<pkt.frame_count; ++i) {
 		InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
-		auto &frame = builder_.get(spkt.timestamp, spkt.frame_number+i);
+		auto &frame = builder_[spkt.streamID].get(spkt.timestamp, spkt.frame_number+i);
 
 		auto sel = stream_->selected(spkt.frameSetID());
 
@@ -280,12 +284,12 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 				// TODO: Have multiple builders for different framesets.
 				//builder_.push(frame.timestamp, spkt.frameNumber()+i, frame.frame);
-				builder_.completed(spkt.timestamp, spkt.frame_number+i);
+				builder_[spkt.streamID].completed(spkt.timestamp, spkt.frame_number+i);
 
 				// Check for any state changes and send them back
 				if (vidstate.state.hasChanged(Channel::Pose)) injectPose(stream_, frame, spkt.timestamp, spkt.frameNumber()+i);
-				if (vidstate.state.hasChanged(Channel::Calibration)) injectCalibration(stream_, frame, spkt.timestamp, spkt.frameNumber()+i);
-				if (vidstate.state.hasChanged(Channel::Calibration2)) injectCalibration(stream_, frame, spkt.timestamp, spkt.frameNumber()+i, true);
+				if (vidstate.state.hasChanged(Channel::Calibration)) injectCalibration(stream_, frame, spkt.timestamp, spkt.streamID, spkt.frameNumber()+i);
+				if (vidstate.state.hasChanged(Channel::Calibration2)) injectCalibration(stream_, frame, spkt.timestamp, spkt.streamID, spkt.frameNumber()+i, true);
 
 				//frame.reset();
 				//frame.completed.clear();
@@ -310,8 +314,8 @@ void Receiver::setStream(ftl::stream::Stream *s) {
 		//LOG(INFO) << "PACKET: " << spkt.timestamp << ", " << (int)spkt.channel << ", " << (int)pkt.codec << ", " << (int)pkt.definition;
 
 		// TODO: Allow for multiple framesets
-		if (spkt.frameSetID() > 0) LOG(INFO) << "Frameset " << spkt.frameSetID() << " received: " << (int)spkt.channel;
-		if (spkt.frameSetID() > 0) return;
+		//if (spkt.frameSetID() > 0) LOG(INFO) << "Frameset " << spkt.frameSetID() << " received: " << (int)spkt.channel;
+		if (spkt.frameSetID() >= ftl::stream::kMaxStreams) return;
 
 		// Too many frames, so ignore.
 		if (spkt.frameNumber() >= value("max_frames",32)) return;
@@ -333,13 +337,19 @@ void Receiver::setStream(ftl::stream::Stream *s) {
 }
 
 size_t Receiver::size() {
-	return builder_.size();
+	return builder_[0].size();
 }
 
 ftl::rgbd::FrameState &Receiver::state(size_t ix) {
-	return builder_.state(ix);
+	return builder_[0].state(ix);
 }
 
 void Receiver::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
-	builder_.onFrameSet(cb);
+	for (int i=0; i<ftl::stream::kMaxStreams; ++i)
+		builder_[i].onFrameSet(cb);
+}
+
+void Receiver::onFrameSet(int s, const ftl::rgbd::VideoCallback &cb) {
+	if (s >= 0 && s < ftl::stream::kMaxStreams)
+		builder_[s].onFrameSet(cb);
 }

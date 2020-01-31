@@ -40,7 +40,7 @@ void Stream::reset() {
 
 // ==== Muxer ==================================================================
 
-Muxer::Muxer(nlohmann::json &config) : Stream(config), nid_(0) {
+Muxer::Muxer(nlohmann::json &config) : Stream(config), nid_{0} {
 
 }
 
@@ -51,24 +51,26 @@ Muxer::~Muxer() {
 
 void Muxer::add(Stream *s, int fsid) {
 	UNIQUE_LOCK(mutex_,lk);
+	if (fsid < 0 || fsid >= ftl::stream::kMaxStreams) return;
 
 	auto &se = streams_.emplace_back();
 	int i = streams_.size()-1;
 	se.stream = s;
 
 	s->onPacket([this,s,i,fsid](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		//SHARED_LOCK(mutex_, lk);
+		//TODO: Allow input streams to have other streamIDs
+		// Same fsid means same streamIDs map together in the end
 	
 		ftl::codecs::StreamPacket spkt2 = spkt;
 		spkt2.streamID = fsid;
 
 		if (spkt2.frame_number < 255) {
-			int id = _lookup(i, spkt.frame_number);
+			int id = _lookup(fsid, i, spkt.frame_number);
 			spkt2.frame_number = id;
 		}
 
 		_notify(spkt2, pkt);
-		s->select(spkt.streamID, selected(0));
+		s->select(spkt.streamID, selected(fsid));
 	});
 }
 
@@ -79,8 +81,8 @@ bool Muxer::onPacket(const std::function<void(const ftl::codecs::StreamPacket &,
 }
 
 int Muxer::originStream(int fsid, int fid) {
-	if (static_cast<uint32_t>(fid) < revmap_.size()) {
-		return std::get<0>(revmap_[fid]);
+	if (fsid < ftl::stream::kMaxStreams && static_cast<uint32_t>(fid) < revmap_[fsid].size()) {
+		return std::get<0>(revmap_[fsid][fid]);
 	}
 	return -1;
 }
@@ -89,8 +91,8 @@ bool Muxer::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packe
 	SHARED_LOCK(mutex_, lk);
 	available(spkt.frameSetID()) += spkt.channel;
 	
-	if (spkt.frame_number < revmap_.size()) {
-		auto [sid, ssid] = revmap_[spkt.frame_number];
+	if (spkt.streamID < ftl::stream::kMaxStreams && spkt.frame_number < revmap_[spkt.streamID].size()) {
+		auto [sid, ssid] = revmap_[spkt.streamID][spkt.frame_number];
 		auto &se = streams_[sid];
 
 		//LOG(INFO) << "POST " << spkt.frame_number;
@@ -135,7 +137,7 @@ void Muxer::reset() {
 	}
 }
 
-int Muxer::_lookup(int sid, int ssid) {
+int Muxer::_lookup(int fsid, int sid, int ssid) {
 	SHARED_LOCK(mutex_, lk);
 	auto &se = streams_[sid];
 	if (static_cast<uint32_t>(ssid) >= se.maps.size()) {
@@ -143,9 +145,9 @@ int Muxer::_lookup(int sid, int ssid) {
 		{
 			UNIQUE_LOCK(mutex_, lk2);
 			if (static_cast<uint32_t>(ssid) >= se.maps.size()) {
-				int nid = nid_++;
+				int nid = nid_[fsid]++;
 				se.maps.push_back(nid);
-				revmap_.push_back({sid,ssid});
+				revmap_[fsid].push_back({sid,ssid});
 			}
 		}
 		lk.lock();

@@ -11,7 +11,7 @@ void injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd::FrameSet &f
 void injectConfig(ftl::stream::Stream *stream, const ftl::rgbd::FrameSet &fs, int ix);
 
 void injectPose(ftl::stream::Stream *stream, const ftl::rgbd::Frame &fs, int64_t ts, int ix);
-void injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd::Frame &fs, int64_t ts, int ix, bool right=false);
+void injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd::Frame &fs, int64_t ts, int fsid, int ix, bool right=false);
 
 }
 }

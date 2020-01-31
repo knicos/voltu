@@ -133,7 +133,7 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		//LOG(WARNING) << "Decode of multiple frames: " << count;
 	} else {
 		if (!_checkIFrame(pkt.codec, pkt.data.data(), pkt.data.size())) {
-			LOG(WARNING) << "P-Frame without I-Frame in decoder";
+			LOG(WARNING) << "P-Frame without I-Frame in decoder: " << pkt.data.size();
 			return false;
 		}
 		rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), out.data, out.cols, out.rows, out.step);

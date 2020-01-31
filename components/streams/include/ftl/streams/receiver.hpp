@@ -38,13 +38,18 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 	 */
 	void onFrameSet(const ftl::rgbd::VideoCallback &cb) override;
 
+	/**
+	 * Add a frameset handler to a specific stream ID.
+	 */
+	void onFrameSet(int s, const ftl::rgbd::VideoCallback &cb);
+
 	void onAudio(const ftl::audio::FrameSet::Callback &cb);
 
 	private:
 	ftl::stream::Stream *stream_;
 	ftl::rgbd::VideoCallback fs_callback_;
 	ftl::audio::FrameSet::Callback audio_cb_;
-	ftl::rgbd::Builder builder_;
+	ftl::rgbd::Builder builder_[ftl::stream::kMaxStreams];
 	ftl::codecs::Channel second_channel_;
 	int64_t timestamp_;
 	SHARED_MUTEX mutex_;
@@ -71,8 +76,8 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 		ftl::codecs::Channels<0> completed;
 	};
 
-	std::vector<InternalVideoStates*> video_frames_;
-	std::vector<InternalAudioStates*> audio_frames_;
+	std::vector<InternalVideoStates*> video_frames_[ftl::stream::kMaxStreams];
+	std::vector<InternalAudioStates*> audio_frames_[ftl::stream::kMaxStreams];
 
 	void _processConfig(InternalVideoStates &frame, const ftl::codecs::Packet &pkt);
 	void _processState(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);

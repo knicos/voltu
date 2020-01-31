@@ -5,7 +5,7 @@ using ftl::codecs::Channel;
 using ftl::util::FTLVectorBuffer;
 
 void ftl::stream::injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd::FrameSet &fs, int ix, bool right) {
-	ftl::stream::injectCalibration(stream, fs.frames[ix], fs.timestamp, ix, right);
+	ftl::stream::injectCalibration(stream, fs.frames[ix], fs.timestamp, fs.id, ix, right);
 }
 
 void ftl::stream::injectPose(ftl::stream::Stream *stream, const ftl::rgbd::FrameSet &fs, int ix) {
@@ -58,11 +58,11 @@ void ftl::stream::injectPose(ftl::stream::Stream *stream, const ftl::rgbd::Frame
 	stream->post(spkt, pkt);
 }
 
-void ftl::stream::injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd::Frame &f, int64_t ts, int ix, bool right) {
+void ftl::stream::injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd::Frame &f, int64_t ts, int fsid, int ix, bool right) {
     ftl::codecs::StreamPacket spkt = {
 		4,
 		ts,
-		0,
+		fsid,
 		static_cast<uint8_t>(ix),
 		(right) ? Channel::Calibration2 : Channel::Calibration
 	};

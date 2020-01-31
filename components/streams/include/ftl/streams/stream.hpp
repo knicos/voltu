@@ -101,6 +101,8 @@ class Stream : public ftl::Configurable {
 	mutable SHARED_MUTEX mtx_;
 };
 
+static constexpr size_t kMaxStreams = 5;
+
 /**
  * Combine multiple streams into a single stream. StreamPackets are modified
  * by mapping the stream identifiers consistently to new values. Both reading
@@ -133,13 +135,13 @@ class Muxer : public Stream {
 	};
 
 	std::vector<StreamEntry> streams_;
-	std::vector<std::pair<int,int>> revmap_;
-	int nid_;
+	std::vector<std::pair<int,int>> revmap_[kMaxStreams];
+	int nid_[kMaxStreams];
 	StreamCallback cb_;
 	SHARED_MUTEX mutex_;
 
 	void _notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
-	int _lookup(int sid, int ssid);
+	int _lookup(int fsid, int sid, int ssid);
 };
 
 /**
