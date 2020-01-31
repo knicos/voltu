@@ -228,7 +228,7 @@ void calibrateRPC(	ftl::net::Universe* net,
 
 			} catch (std::exception &ex) {
 				LOG(ERROR) << "RPC failed: " << ex.what();
-				sleep(1);
+				std::this_thread::sleep_for(std::chrono::seconds(1));
 			}
 		}
 
@@ -353,7 +353,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 			LOG(INFO) << "Camera resolution: " << params.size;
 			break;
 		}
-		sleep(1);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 	}
 
 	for (auto *nstream: nstreams) {
@@ -384,7 +384,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 	vector<vector<Point2d>> points(n_cameras);
 
 	vector<Mat> rgb(n_cameras);
-	sleep(3); // rectification disabled, has some delay
+	std::this_thread::sleep_for(std::chrono::seconds(3)); // rectification disabled, has some delay
 
 	while(calib.getMinVisibility() < n_views) {
 		loop:

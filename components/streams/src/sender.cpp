@@ -225,7 +225,7 @@ void Sender::_encodeChannel(const ftl::rgbd::FrameSet &fs, Channel c, bool reset
 	bool lossless = value("lossless", false);
 	int max_bitrate = std::max(0, std::min(255, value("max_bitrate", 255)));
 	//int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));  // TODO: Use this
-	codec_t codec = value("codec", codec_t::Any);
+	codec_t codec = static_cast<codec_t>(value("codec", static_cast<int>(codec_t::Any)));
 
 	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {

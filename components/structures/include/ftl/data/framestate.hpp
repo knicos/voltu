@@ -1,7 +1,7 @@
 #ifndef _FTL_DATA_FRAMESTATE_HPP_
 #define _FTL_DATA_FRAMESTATE_HPP_
 
-#include <nlohmann/json.hpp>
+#include <ftl/configuration.hpp>
 #include <ftl/exception.hpp>
 #include <ftl/codecs/channels.hpp>
 #include <Eigen/Eigen>
@@ -34,6 +34,7 @@ class FrameState {
 	FrameState();
 	FrameState(FrameState &);
 	FrameState(FrameState &&);
+	~FrameState();
 
 	/**
 	 * Update the pose and mark as changed.
@@ -115,11 +116,7 @@ class FrameState {
 	 */
 	template <typename T>
 	std::optional<T> get(const std::string &name) {
-		try {
-			return config_[name].get<T>();
-		} catch (...) {
-			return {};
-		}
+		return ftl::config::getJSON<T>(config_, name);
 	}
 
 	/**
@@ -176,11 +173,11 @@ class FrameState {
 	template <typename S, int N>
 	struct As<nlohmann::json,ftl::codecs::Channel::Configuration,S,N> {
 		static const nlohmann::json &func(const ftl::data::FrameState<S,N> &t) {
-			return t.config_;
+			return *t.config_;
 		}
 
 		static nlohmann::json &func(ftl::data::FrameState<S,N> &t) {
-			return t.config_;
+			return *t.config_;
 		}
 	};
 
@@ -209,13 +206,13 @@ class FrameState {
 	 */
 	template <typename T>
 	void set(const std::string &name, T value) {
-		config_[name] = value;
+		ftl::config::setJSON<T>(config_, name, value);
 		changed_ += ftl::codecs::Channel::Configuration;
 	}
 
-	inline const nlohmann::json &getConfig() const { return config_; }
+	inline const nlohmann::json &getConfig() const { return *config_; }
 
-	inline nlohmann::json &getConfig() { return config_; }
+	inline nlohmann::json &getConfig() { return *config_; }
 
 	/**
 	 * Check if pose or settings have been modified and not yet forwarded.
@@ -238,7 +235,7 @@ class FrameState {
 	private:
 	Eigen::Matrix4d pose_;
 	std::array<SETTINGS,COUNT> settings_;
-	nlohmann::json config_;
+	nlohmann::json *config_;
 	ftl::codecs::Channels<64> changed_;  // Have the state channels changed?
 
 	static inline ftl::codecs::Channel __idToChannel(int id) {
@@ -253,8 +250,13 @@ class FrameState {
 
 
 template <typename SETTINGS, int COUNT>
-ftl::data::FrameState<SETTINGS,COUNT>::FrameState() : settings_({{0}}), config_(nlohmann::json::value_t::object) {
+ftl::data::FrameState<SETTINGS,COUNT>::FrameState() : settings_({{0}}), config_(ftl::config::createJSON()) {
 	pose_ = Eigen::Matrix4d::Identity();
+}
+
+template <typename SETTINGS, int COUNT>
+ftl::data::FrameState<SETTINGS,COUNT>::~FrameState() {
+	ftl::config::destroyJSON(config_);
 }
 
 template <typename SETTINGS, int COUNT>
@@ -262,7 +264,7 @@ ftl::data::FrameState<SETTINGS,COUNT>::FrameState(ftl::data::FrameState<SETTINGS
 	pose_ = f.pose_;
 	settings_ = f.settings_;
 	changed_ = f.changed_;
-	config_ = f.config_;
+	ftl::config::copyJSON(config_, f.config_);
 	f.changed_.clear();
 }
 
@@ -271,7 +273,8 @@ ftl::data::FrameState<SETTINGS,COUNT>::FrameState(ftl::data::FrameState<SETTINGS
 	pose_ = f.pose_;
 	settings_ = f.settings_;
 	changed_ = f.changed_;
-	config_ = std::move(f.config_);
+	config_ = f.config_;
+	f.config_ = nullptr;
 	f.changed_.clear();
 }
 
@@ -280,7 +283,7 @@ ftl::data::FrameState<SETTINGS,COUNT> &ftl::data::FrameState<SETTINGS,COUNT>::op
 	pose_ = f.pose_;
 	settings_ = f.settings_;
 	changed_ = f.changed_;
-	config_ = f.config_;
+	ftl::config::copyJSON(config_, f.config_);
 	f.changed_.clear();
 	return *this;
 }
@@ -290,8 +293,9 @@ ftl::data::FrameState<SETTINGS,COUNT> &ftl::data::FrameState<SETTINGS,COUNT>::op
 	pose_ = f.pose_;
 	settings_ = f.settings_;
 	changed_ = f.changed_;
-	config_ = std::move(f.config_);
+	config_ = f.config_;
 	f.changed_.clear();
+	f.config_ = nullptr;
 	return *this;
 }
 

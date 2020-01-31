@@ -3,6 +3,8 @@
 #include <loguru.hpp>
 #include <ftl/configurable.hpp>
 
+#include <nlohmann/json.hpp>
+
 using ftl::Configurable;
 using std::string;
 

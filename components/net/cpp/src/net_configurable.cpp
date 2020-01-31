@@ -12,5 +12,6 @@ void ftl::NetConfigurable::inject(const std::string &name, nlohmann::json &value
 }
 
 void ftl::NetConfigurable::refresh() {
-    (*config_) = ctrl.getConfigurable(peer, suri);
+    //(*config_) = ctrl.getConfigurable(peer, suri);
+	ctrl.getConfigurable(*config_, peer, suri);
 }

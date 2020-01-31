@@ -7,6 +7,8 @@
 
 #include "ftl/configuration.hpp"
 
+#include <nlohmann/json.hpp>
+
 #ifdef HAVE_OPTFLOW
 #include "ftl/operators/opticalflow.hpp"
 #endif

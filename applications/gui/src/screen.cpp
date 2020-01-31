@@ -10,7 +10,7 @@
 #include <nanogui/toolbutton.h>
 #include <nanogui/popupbutton.h>
 
-#include <opencv2/opencv.hpp>
+#include <nlohmann/json.hpp>
 
 #include <loguru.hpp>
 
@@ -267,18 +267,18 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	*/
 
 	//configwindow_ = new ConfigWindow(parent, ctrl_);
-	cwindow_ = new ftl::gui::ControlWindow(this, controller);
+	//cwindow_ = new ftl::gui::ControlWindow(this, controller);
 	swindow_ = new ftl::gui::SourceWindow(this);
 	mwindow_ = new ftl::gui::MediaPanel(this, swindow_);
 	mwindow_->setVisible(false);
 	mwindow_->setTheme(mediatheme);
 
-	cwindow_->setPosition(Eigen::Vector2i(80, 20));
+	//cwindow_->setPosition(Eigen::Vector2i(80, 20));
 	//swindow_->setPosition(Eigen::Vector2i(80, 400));
-	cwindow_->setVisible(false);
+	//cwindow_->setVisible(false);
 	swindow_->setVisible(true);
 	swindow_->center();
-	cwindow_->setTheme(windowtheme);
+	//cwindow_->setTheme(windowtheme);
 	swindow_->setTheme(mediatheme);
 
 	mShader.init("RGBDShader", defaultImageViewVertexShader,
@@ -468,7 +468,7 @@ bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modi
 			return true;
 		} else if (action == 1 && key == 'H') {
 			swindow_->setVisible(false);
-			cwindow_->setVisible(false);
+			//cwindow_->setVisible(false);
 		} else if (action == 1) {
 			std::string combo = generateKeyComboStr(key, modifiers);
 

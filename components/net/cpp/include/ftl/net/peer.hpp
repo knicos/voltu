@@ -7,7 +7,7 @@
 
 
 #include <ftl/utility/msgpack.hpp>
-#include <ftl/net/common.hpp>
+#include <ftl/net/common_fwd.hpp>
 #include <ftl/exception.hpp>
 
 //#define GLOG_NO_ABBREVIATED_SEVERITIES
@@ -282,7 +282,7 @@ int Peer::send(const std::string &s, ARGS... args) {
 	return rc;
 }
 
-template <typename... ARGS>
+/*template <typename... ARGS>
 int Peer::try_send(const std::string &s, ARGS... args) {
 #ifdef WIN32
 	WSAPOLLFD fds;
@@ -306,7 +306,7 @@ int Peer::try_send(const std::string &s, ARGS... args) {
 	msgpack::pack(send_buf_, call_obj);
 	rc = _send();
 	return (rc < 0) ? -1 : 1;
-}
+}*/
 
 template <typename F>
 void Peer::bind(const std::string &name, F func) {

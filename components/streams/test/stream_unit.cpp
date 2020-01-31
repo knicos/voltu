@@ -1,6 +1,7 @@
 #include "catch.hpp"
 
 #include <ftl/streams/stream.hpp>
+#include <nlohmann/json.hpp>
 
 using ftl::stream::Muxer;
 using ftl::stream::Broadcast;

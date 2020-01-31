@@ -4,7 +4,6 @@
 #include <ftl/configurable.hpp>
 #include <ftl/cuda_common.hpp>
 #include <string>
-#include <nlohmann/json.hpp>
 
 namespace cv {
 	class Mat;

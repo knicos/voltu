@@ -3,6 +3,8 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 
+#include <nlohmann/json.hpp>
+
 using ftl::ctrl::Master;
 using ftl::net::Universe;
 using ftl::Configurable;
@@ -174,6 +176,10 @@ json_t Master::get(const ftl::UUID &peer, const string &uri) {
 
 json_t Master::getConfigurable(const ftl::UUID &peer, const string &uri) {
 	return json_t::parse(net_->call<string>(peer, "get_configurable", uri));
+}
+
+void Master::getConfigurable(json_t &cfg, const ftl::UUID &peer, const string &uri) {
+	cfg = json_t::parse(net_->call<string>(peer, "get_configurable", uri));
 }
 
 void Master::watch(const string &uri, function<void()> f) {

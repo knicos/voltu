@@ -2,6 +2,8 @@
 #include <ftl/net_configurable.hpp>
 #include <ftl/master.hpp>
 
+#include <nlohmann/json.hpp>
+
 using ftl::NetConfigurable;
 
 SCENARIO( "NetConfigurable::set()" ) {

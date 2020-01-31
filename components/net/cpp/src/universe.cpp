@@ -4,6 +4,8 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 
+#include <nlohmann/json.hpp>
+
 #ifdef WIN32
 #include <Ws2tcpip.h>
 #pragma comment(lib, "Rpcrt4.lib")
@@ -25,6 +27,17 @@ using std::optional;
 using ftl::config::json_t;
 using ftl::net::callback_t;
 
+namespace ftl {
+namespace net {
+
+struct NetImplDetail {
+	fd_set sfderror_;
+	fd_set sfdread_;
+};
+
+}
+}
+
 #define TCP_SEND_BUFFER_SIZE	(512*1024)
 #define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
 
@@ -40,6 +53,8 @@ Universe::Universe() :
 		periodic_time_(1.0),
 		reconnect_attempts_(50),
 		thread_(Universe::__start, this) {
+	
+	impl_ = new ftl::net::NetImplDetail;
 	_installBindings();
 
 	LOG(WARNING) << "Deprecated Universe constructor";
@@ -56,6 +71,7 @@ Universe::Universe(nlohmann::json &config) :
 		reconnect_attempts_(value("reconnect_attempts",50)),
 		thread_(Universe::__start, this) {
 
+	impl_ = new ftl::net::NetImplDetail;
 	_installBindings();
 
 	// Add an idle timer job to garbage collect peer objects
@@ -78,6 +94,7 @@ Universe::Universe(nlohmann::json &config) :
 
 Universe::~Universe() {
 	shutdown();
+	delete impl_;
 }
 
 void Universe::start() {
@@ -160,8 +177,8 @@ int Universe::waitConnections() {
 
 int Universe::_setDescriptors() {
 	//Reset all file descriptors
-	FD_ZERO(&sfdread_);
-	FD_ZERO(&sfderror_);
+	FD_ZERO(&impl_->sfdread_);
+	FD_ZERO(&impl_->sfderror_);
 
 	SOCKET n = 0;
 
@@ -171,8 +188,8 @@ int Universe::_setDescriptors() {
 	//Set file descriptor for the listening sockets.
 	for (auto l : listeners_) {
 		if (l != nullptr && l->isListening()) {
-			FD_SET(l->_socket(), &sfdread_);
-			FD_SET(l->_socket(), &sfderror_);
+			FD_SET(l->_socket(), &impl_->sfdread_);
+			FD_SET(l->_socket(), &impl_->sfderror_);
 			if (l->_socket() > n) n = l->_socket();
 		}
 	}
@@ -185,8 +202,8 @@ int Universe::_setDescriptors() {
 				n = s->_socket();
 			}
 
-			FD_SET(s->_socket(), &sfdread_);
-			FD_SET(s->_socket(), &sfderror_);
+			FD_SET(s->_socket(), &impl_->sfdread_);
+			FD_SET(s->_socket(), &impl_->sfderror_);
 		}
 	}
 	_cleanupPeers();
@@ -296,7 +313,7 @@ void Universe::_run() {
 		//Wait for a network event or timeout in 3 seconds
 		block.tv_sec = 0;
 		block.tv_usec = 100000;
-		selres = select(n+1, &sfdread_, 0, &sfderror_, &block);
+		selres = select(n+1, &impl_->sfdread_, 0, &impl_->sfderror_, &block);
 
 		// NOTE Nick: Is it possible that not all the recvs have been called before I
 		// again reach a select call!? What are the consequences of this? A double recv attempt?
@@ -321,7 +338,7 @@ void Universe::_run() {
 			//If connection request is waiting
 			for (auto l : listeners_) {
 				if (l && l->isListening()) {
-					if (FD_ISSET(l->_socket(), &sfdread_)) {
+					if (FD_ISSET(l->_socket(), &impl_->sfdread_)) {
 						int rsize = sizeof(sockaddr_storage);
 						sockaddr_storage addr;
 
@@ -351,13 +368,13 @@ void Universe::_run() {
 					SOCKET sock = s->_socket();
 					if (sock == INVALID_SOCKET) continue;
 
-					if (FD_ISSET(sock, &sfderror_)) {
+					if (FD_ISSET(sock, &impl_->sfderror_)) {
 						s->socketError();
 						s->close();
 						continue;  // No point in reading data...
 					}
 					//If message received from this client then deal with it
-					if (FD_ISSET(sock, &sfdread_)) {
+					if (FD_ISSET(sock, &impl_->sfdread_)) {
 						s->data();
 					}
 				}

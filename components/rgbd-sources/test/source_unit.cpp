@@ -5,6 +5,8 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/config.h>
 
+#include <nlohmann/json.hpp>
+
 static std::string last_type = "";
 
 namespace ftl {

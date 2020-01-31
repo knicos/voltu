@@ -578,6 +578,136 @@ void ftl::config::removeConfigurable(Configurable *cfg) {
 	}
 }
 
+std::string ftl::config::_getID(nlohmann::json &link) {
+	if (!link["$id"].is_string()) {
+		throw FTL_Error("Entity does not have $id or parent: " << link);
+	}
+	return link["$id"].get<std::string>();
+}
+
+std::vector<nlohmann::json*> ftl::config::_createArray(ftl::Configurable *parent, const std::string &name) {
+	nlohmann::json &base = (!parent->getConfig()[name].is_null())
+			? parent->getConfig()[name]
+			: ftl::config::resolve(parent->getConfig())[name];
+
+	std::vector<nlohmann::json*> result;
+
+	if (base.is_array()) {
+		int i=0;
+		for (auto &entity : base) {
+			if (entity.is_object()) {
+				if (!entity["$id"].is_string()) {
+					std::string id_str = *parent->get<std::string>("$id");
+					if (id_str.find('#') != std::string::npos) {
+						entity["$id"] = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
+					} else {
+						entity["$id"] = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
+					}
+				}
+
+				result.push_back(&entity);
+			} else if (entity.is_null()) {
+				// Must create the object from scratch...
+				std::string id_str = *parent->get<std::string>("$id");
+				if (id_str.find('#') != std::string::npos) {
+					id_str = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
+				} else {
+					id_str = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
+				}
+				parent->getConfig()[name] = {
+					// cppcheck-suppress constStatement
+					{"$id", id_str}
+				};
+
+				nlohmann::json &entity2 = parent->getConfig()[name];
+				result.push_back(&entity2);
+			}
+			i++;
+		}
+	} else {
+		//LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();
+	}
+
+	return std::move(result);
+}
+
+nlohmann::json &ftl::config::_create(ftl::Configurable *parent, const std::string &name) {
+	nlohmann::json &entity = (!parent->getConfig()[name].is_null())
+			? parent->getConfig()[name]
+			: ftl::config::resolve(parent->getConfig())[name];
+
+	if (entity.is_object()) {
+		if (!entity["$id"].is_string()) {
+			std::string id_str = *parent->get<std::string>("$id");
+			if (id_str.find('#') != std::string::npos) {
+				entity["$id"] = id_str + std::string("/") + name;
+			} else {
+				entity["$id"] = id_str + std::string("#") + name;
+			}
+		}
+
+		return entity;
+	} else if (entity.is_null()) {
+		// Must create the object from scratch...
+		std::string id_str = *parent->get<std::string>("$id");
+		if (id_str.find('#') != std::string::npos) {
+			id_str = id_str + std::string("/") + name;
+		} else {
+			id_str = id_str + std::string("#") + name;
+		}
+		parent->getConfig()[name] = {
+			// cppcheck-suppress constStatement
+			{"$id", id_str}
+		};
+
+		nlohmann::json &entity2 = parent->getConfig()[name];
+		return entity2;
+	}
+
+	throw FTL_Error("Unable to create Configurable entity '" << name << "'");
+}
+
+nlohmann::json *ftl::config::createJSON() {
+	return new nlohmann::json;
+}
+
+void ftl::config::destroyJSON(nlohmann::json *j) {
+	delete j;
+}
+
+void ftl::config::copyJSON(nlohmann::json *dst, nlohmann::json *src) {
+	*dst = *src;
+}
+
+void ftl::config::parseJSON(nlohmann::json &dst, const std::string &src) {
+	dst = nlohmann::json::parse(src);
+}
+
+std::string ftl::config::dumpJSON(const nlohmann::json &json) {
+	return json.dump();
+}
+
+template <typename T>
+std::optional<T> ftl::config::getJSON(nlohmann::json *config, const std::string &name) {
+	try {
+		return (*config)[name].get<T>();
+	} catch (...) {
+		return {};
+	}
+}
+
+template <typename T>
+void ftl::config::setJSON(nlohmann::json *config, const std::string &name, T value) {
+	(*config)[name] = value;
+}
+
+template std::optional<float> ftl::config::getJSON<float>(nlohmann::json *config, const std::string &name);
+template std::optional<int> ftl::config::getJSON<int>(nlohmann::json *config, const std::string &name);
+template std::optional<std::string> ftl::config::getJSON<std::string>(nlohmann::json *config, const std::string &name);
+
+template void ftl::config::setJSON<float>(nlohmann::json *config, const std::string &name, float value);
+template void ftl::config::setJSON<int>(nlohmann::json *config, const std::string &name, int value);
+template void ftl::config::setJSON<std::string>(nlohmann::json *config, const std::string &name, std::string value);
 
 Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
 	loguru::g_preamble_date = false;

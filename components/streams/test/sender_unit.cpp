@@ -3,6 +3,8 @@
 #include <ftl/streams/sender.hpp>
 #include <ftl/codecs/hevc.hpp>
 
+#include <nlohmann/json.hpp>
+
 using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 using ftl::stream::Sender;

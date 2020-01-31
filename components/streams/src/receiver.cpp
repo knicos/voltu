@@ -107,7 +107,7 @@ void Receiver::_processState(const StreamPacket &spkt, const Packet &pkt) {
 
 		// Deal with the special channels...
 		switch (spkt.channel) {
-		case Channel::Configuration		: frame.state.getConfig() = nlohmann::json::parse(parseConfig(pkt)); break;
+		case Channel::Configuration		: ftl::config::parseJSON(frame.state.getConfig(), parseConfig(pkt)); break;
 		case Channel::Calibration		: frame.state.getLeft() = parseCalibration(pkt); break;
 		case Channel::Calibration2		: frame.state.getRight() = parseCalibration(pkt); break;
 		case Channel::Pose				: frame.state.getPose() = parsePose(pkt); break;

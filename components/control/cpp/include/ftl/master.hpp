@@ -60,6 +60,8 @@ class Master {
 
 	ftl::config::json_t getConfigurable(const ftl::UUID &peer, const std::string &uri);
 
+	void getConfigurable(ftl::config::json_t &cfg, const ftl::UUID &peer, const std::string &uri);
+
 	void watch(const std::string &uri, std::function<void()> f);
 
 	Eigen::Matrix4d getPose(const std::string &uri);

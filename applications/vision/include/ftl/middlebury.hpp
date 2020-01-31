@@ -1,9 +1,9 @@
 #ifndef _FTL_MIDDLEBURY_HPP_
 #define _FTL_MIDDLEBURY_HPP_
 
-#include <opencv2/opencv.hpp>
-#include <nlohmann/json.hpp>
+#include <opencv2/core/mat.hpp>
 #include <string>
+#include <nlohmann/json_fwd.hpp>
 
 namespace ftl {
 namespace middlebury {

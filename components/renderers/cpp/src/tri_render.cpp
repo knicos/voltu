@@ -73,7 +73,7 @@ static uchar4 parseCUDAColour(const std::string &colour) {
 }
 
 Triangular::Triangular(nlohmann::json &config) : ftl::render::Renderer(config), scene_(nullptr) {
-	if (config["clipping"].is_object()) {
+	/*if (config["clipping"].is_object()) {
 		auto &c = config["clipping"];
 		float rx = c.value("pitch", 0.0f);
 		float ry = c.value("yaw", 0.0f);
@@ -92,9 +92,9 @@ Triangular::Triangular(nlohmann::json &config) : ftl::render::Renderer(config), 
 		clip_.origin = MatrixConversion::toCUDA(r.matrix() * t.matrix());
 		clip_.size = make_float3(width, height, depth);
 		clipping_ = value("clipping_enabled", true);
-	} else {
+	} else {*/
 		clipping_ = false;
-	}
+	//}
 
 	on("clipping_enabled", [this](const ftl::config::Event &e) {
 		clipping_ = value("clipping_enabled", true);

@@ -5,6 +5,11 @@
 #include <string>
 #include <algorithm>
 
+#include <nlohmann/json.hpp>
+
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
 using cv::Mat;
 using cv::Size;
 using std::string;

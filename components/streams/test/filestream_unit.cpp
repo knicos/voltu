@@ -1,6 +1,7 @@
 #include "catch.hpp"
 
 #include <ftl/streams/filestream.hpp>
+#include <nlohmann/json.hpp>
 
 using ftl::stream::File;
 using ftl::stream::Stream;

@@ -55,6 +55,8 @@
 
 #include <cuda_profiler_api.h>
 
+#include <nlohmann/json.hpp>
+
 #ifdef WIN32
 #pragma comment(lib, "Rpcrt4.lib")
 #endif

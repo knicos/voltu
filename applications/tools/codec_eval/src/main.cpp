@@ -13,6 +13,8 @@
 #include <ftl/codecs/channels.hpp>
 #include <ftl/codecs/depth_convert_cuda.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include <fstream>
 #include <string>
 #include <vector>
