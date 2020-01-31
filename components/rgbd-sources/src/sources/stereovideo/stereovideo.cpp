@@ -81,7 +81,8 @@ void StereoVideoSource::init(const string &file) {
 	#ifdef HAVE_OPTFLOW
 	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
 	#endif
-	pipeline_input_->append<ftl::operators::DetectAndTrack>("facedetection")->set("enabled", false);
+	pipeline_input_->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+	pipeline_input_->append<ftl::operators::ColourChannels>("colour");
 
 	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
 
@@ -192,7 +193,7 @@ void StereoVideoSource::updateParameters() {
 	
 	// same for left and right
 	double baseline = 1.0 / calib_->getQ().at<double>(3,2);
-	double doff =  -calib_->getQ().at<double>(3,3) * baseline;
+	double doff = -calib_->getQ().at<double>(3,3) * baseline;
 	double min_depth = this->host_->getConfig().value<double>("min_depth", 0.0);
 	double max_depth = this->host_->getConfig().value<double>("max_depth", 15.0);
 
@@ -245,12 +246,20 @@ bool StereoVideoSource::retrieve() {
 	auto &frame = frames_[0];
 	frame.reset();
 	frame.setOrigin(&state_);
-	auto &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
-	auto &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
-	cv::cuda::GpuMat dummy;
-	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : dummy;
 
-	lsrc_->get(left, right, hres, calib_, stream2_);
+	cv::cuda::GpuMat dummy;
+	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : dummy;	
+
+	if (lsrc_->isStereo()) {
+		cv::cuda::GpuMat &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
+		cv::cuda::GpuMat &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
+		lsrc_->get(left, right, hres, calib_, stream2_);
+	}
+	else {
+		cv::cuda::GpuMat &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
+		cv::cuda::GpuMat right;
+		lsrc_->get(left, right, hres, calib_, stream2_);
+	}
 
 	//LOG(INFO) << "Channel size: " << hres.size();
 
@@ -269,20 +278,25 @@ void StereoVideoSource::swap() {
 bool StereoVideoSource::compute(int n, int b) {
 	auto &frame = frames_[1];
 	
-	if (!frame.hasChannel(Channel::Left) || !frame.hasChannel(Channel::Right)) {
-		return false;
+	if (lsrc_->isStereo()) {
+		if (!frame.hasChannel(Channel::Left) ||
+			!frame.hasChannel(Channel::Right)) {
+			
+			return false;
+		}
+
+		cv::cuda::GpuMat& left = frame.get<cv::cuda::GpuMat>(Channel::Left);
+		cv::cuda::GpuMat& right = frame.get<cv::cuda::GpuMat>(Channel::Right);
+
+		if (left.empty() || right.empty()) { return false; }
+		//stream_.waitForCompletion();
+
 	}
-
-	cv::cuda::GpuMat& left = frame.get<cv::cuda::GpuMat>(Channel::Left);
-	cv::cuda::GpuMat& right = frame.get<cv::cuda::GpuMat>(Channel::Right);
-
-	if (left.empty() || right.empty()) {
-		return false;
+	else {
+		if (!frame.hasChannel(Channel::Left)) { return false; }
 	}
-
-	//stream_.waitForCompletion();
+	
 	host_->notify(timestamp_, frame);
-
 	return true;
 }
 

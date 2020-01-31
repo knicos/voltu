@@ -23,7 +23,8 @@ DetectAndTrack::DetectAndTrack(ftl::Configurable *cfg) : ftl::operators::Operato
 
 bool DetectAndTrack::init() {
 	fname_ = config()->value<string>("filename", "");
-	
+	debug_ = config()->value<bool>("debug", false);
+
 	detect_n_frames_ = config()->value<int>("n_frames", 10);
 	detect_n_frames_ = detect_n_frames_ < 0.0 ? 0.0 : detect_n_frames_;
 
@@ -55,6 +56,8 @@ bool DetectAndTrack::init() {
 	if (min_size_[1] > max_size_[1]) { min_size_[1] = max_size_[1]; }
 
 	channel_in_ = ftl::codecs::Channel::Colour;
+	channel_out_ = ftl::codecs::Channel::Data;
+	id_max_ = 0;
 
 	bool retval = false;
 
@@ -73,12 +76,6 @@ bool DetectAndTrack::init() {
 	}
 
 	return true;
-}
-
-static double distance(Point2i p, Point2i q) {
-	double a = (p.x-q.x);
-	double b = (p.y-q.y);
-	return sqrt(a*a+b*b);
 }
 
 static Point2d center(Rect2d obj) {
@@ -101,7 +98,7 @@ bool DetectAndTrack::detect(const Mat &im) {
 
 		bool found = false;
 		for (auto &tracker : tracked_) {
-			if (distance(center(tracker.object), c) < max_distance_) {
+			if (cv::norm(center(tracker.object)-c) < max_distance_) {
 				// update? (bounding box can be quite different)
 				// tracker.object = obj;
 				found = true;
@@ -112,7 +109,7 @@ bool DetectAndTrack::detect(const Mat &im) {
 		if (!found && (tracked_.size() < max_tracked_)) {
 			cv::Ptr<cv::Tracker> tracker = cv::TrackerKCF::create();
 			tracker->init(im, obj);
-			tracked_.push_back({ tracker, obj, 0 });
+			tracked_.push_back({ id_max_++, obj, tracker, 0 });
 		}
 	}
 
@@ -171,11 +168,20 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		detect(gray_);
 	}
 
-	// TODO: save results somewhere
 	std::vector<Rect2d> result;
 	result.reserve(tracked_.size());
-	for (auto const &tracked : tracked_) { result.push_back(tracked.object); }
-	in.create(ftl::codecs::Channel::Data, result);
+	for (auto const &tracked : tracked_) {
+		result.push_back(tracked.object);
+
+		if (debug_) {
+			cv::putText(im, "#" + std::to_string(tracked.id),
+						Point2i(tracked.object.x+5, tracked.object.y+tracked.object.height-5),
+						cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, cv::Scalar(0,0,255));
+			
+			cv::rectangle(im, tracked.object, cv::Scalar(0, 0, 255), 1);
+		}
+	}
+	in.create(channel_out_, result);
 
 	// TODO: should be uploaded by operator which requires data on GPU
 	in.upload(channel_in_);

@@ -34,12 +34,17 @@ class DetectAndTrack : public ftl::operators::Operator {
 	bool track(const cv::Mat &im);
 
 	private:
+
 	ftl::codecs::Channel channel_in_;
 	ftl::codecs::Channel channel_out_;
 
+	bool debug_;
+	int id_max_;
+	
 	struct Object {
-		cv::Ptr<cv::Tracker> tracker;
+		int id;
 		cv::Rect2d object;
+		cv::Ptr<cv::Tracker> tracker;
 		int fail_count;
 	};
 	std::vector<Object> tracked_;
