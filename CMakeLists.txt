@@ -92,13 +92,23 @@ else()
 endif()
 endif()
 
-find_library( REALSENSE_LIBRARY NAMES realsense2 librealsense2)
+find_library( REALSENSE_LIBRARY NAMES realsense2 librealsense2 PATHS ${REALSENSE_DIR} PATH_SUFFIXES lib/x64)
 if (REALSENSE_LIBRARY)
 	set(HAVE_REALSENSE TRUE)
 	add_library(realsense UNKNOWN IMPORTED)
 	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
 	set_property(TARGET realsense PROPERTY IMPORTED_LOCATION ${REALSENSE_LIBRARY})
-    message(STATUS "Found Realsense SDK: ${REALSENSE_LIBRARY}")
+	message(STATUS "Found Realsense SDK: ${REALSENSE_LIBRARY}")
+	
+	if(WIN32)
+		# Find include
+		find_path(REALSENSE_INCLUDE_DIRS
+		    NAMES librealsense2/rs.hpp
+		    PATHS "C:/Program Files/Intel RealSense SDK 2.0" "C:/Program Files (x86)/Intel RealSense SDK 2.0" ${REALSENSE_DIR}
+		    PATH_SUFFIXES include
+		)
+		set_property(TARGET realsense PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${REALSENSE_INCLUDE_DIRS})
+	endif()
 else()
 	set(REALSENSE_LIBRARY "")
 endif()
