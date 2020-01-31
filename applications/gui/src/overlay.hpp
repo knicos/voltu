@@ -3,7 +3,7 @@
 
 #include <opencv2/core/mat.hpp>
 #include <Eigen/Eigen>
-#include <ftl/rgbd/camera.hpp>
+#include <ftl/rgbd/frame.hpp>
 
 namespace ftl {
 namespace overlay {
@@ -43,6 +43,15 @@ void drawPoseCone(
     const Eigen::Matrix4d &pose,
     const cv::Scalar &linecolour,
     double size);
+
+void drawCamera(
+    const ftl::rgbd::Camera &cam,
+    cv::Mat &colour,
+    cv::Mat &depth,
+    const ftl::rgbd::Camera &camera,
+    const Eigen::Matrix4d &pose,
+    const cv::Scalar &linecolour,
+    double scale);
 
 }
 }
