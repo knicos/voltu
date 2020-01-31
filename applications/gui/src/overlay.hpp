@@ -51,7 +51,8 @@ void drawCamera(
     const ftl::rgbd::Camera &camera,
     const Eigen::Matrix4d &pose,
     const cv::Scalar &linecolour,
-    double scale);
+    double scale=1.0,
+    bool frustrum=false);
 
 }
 }

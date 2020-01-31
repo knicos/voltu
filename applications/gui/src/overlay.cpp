@@ -117,7 +117,7 @@ void ftl::overlay::drawCamera(
         const ftl::rgbd::Camera &camera,
         const Eigen::Matrix4d &pose,
         const cv::Scalar &linecolour,
-        double scale) {
+        double scale, bool frustrum) {
 
     //double size2 = size;
 
@@ -155,6 +155,23 @@ void ftl::overlay::drawCamera(
     draw3DLine(vcam, colour, depth, p100, p110, linecolour);
 
     draw3DLine(vcam, colour, depth, p110, origin, linecolour);
+
+    if (frustrum) {
+        const double fscale = 16.0;
+        Eigen::Vector4d f110 = pose.inverse() * Eigen::Vector4d(-width2*fscale,-height2*fscale,scale*fscale,1);
+        Eigen::Vector4d f100 = pose.inverse() * Eigen::Vector4d(-width2*fscale,height2*fscale,scale*fscale,1);
+        Eigen::Vector4d f010 = pose.inverse() * Eigen::Vector4d(width2*fscale,-height2*fscale,scale*fscale,1);
+        Eigen::Vector4d f000 = pose.inverse() * Eigen::Vector4d(width2*fscale,height2*fscale,scale*fscale,1);
+        draw3DLine(vcam, colour, depth, f000, p000, cv::Scalar(0,255,0,0));
+        draw3DLine(vcam, colour, depth, f010, p010, cv::Scalar(0,255,0,0));
+        draw3DLine(vcam, colour, depth, f100, p100, cv::Scalar(0,255,0,0));
+        draw3DLine(vcam, colour, depth, f110, p110, cv::Scalar(0,255,0,0));
+
+        draw3DLine(vcam, colour, depth, f000, f010, cv::Scalar(0,255,0,0));
+        draw3DLine(vcam, colour, depth, f000, f100, cv::Scalar(0,255,0,0));
+        draw3DLine(vcam, colour, depth, f010, f110, cv::Scalar(0,255,0,0));
+        draw3DLine(vcam, colour, depth, f100, f110, cv::Scalar(0,255,0,0));
+    }
 }
 
 void ftl::overlay::drawText(
