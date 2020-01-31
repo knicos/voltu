@@ -121,8 +121,9 @@ void Receiver::_processState(const StreamPacket &spkt, const Packet &pkt) {
 }
 
 void Receiver::_processData(const StreamPacket &spkt, const Packet &pkt) {
-	InternalVideoStates &frame = _getVideoFrame(spkt);
-	frame.frame.createRawData(spkt.channel, pkt.data);
+	//InternalVideoStates &frame = _getVideoFrame(spkt);
+	auto &frame = builder_[spkt.streamID].get(spkt.timestamp, spkt.frame_number);
+	frame.createRawData(spkt.channel, pkt.data);
 }
 
 void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
