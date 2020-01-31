@@ -268,7 +268,7 @@ void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
 			pos /= pos[3];
 
 			auto name = fs.frames[i].get<std::string>("name");
-			ftl::overlay::drawPoseCone(state_.getLeft(), im1_, over_depth, pose, cv::Scalar(0,0,255,255), 0.2);
+			ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fs.frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,screen_->root()->value("show_frustrum", false));
 			if (name) ftl::overlay::drawText(state_.getLeft(), im1_, over_depth, *name, pos, 0.5, cv::Scalar(0,0,255,255));
 		}
 	}
