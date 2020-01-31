@@ -235,6 +235,33 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	UNIQUE_LOCK(fs.mtx,lk);
 	UNIQUE_LOCK(mutex_, lk2);
 	_draw(fs);
+
+	for (auto *fset : fss) {
+		for (const auto &f : fset->frames) {
+			if (f.hasChannel(Channel::Data)) {
+				std::vector<cv::Rect2d> data;
+				f.get(Channel::Data, data);
+
+				for (auto &d : data) {
+					cv::Mat over_depth;
+					over_depth.create(im1_.size(), CV_32F);
+
+					Eigen::Matrix4d fakepose = Eigen::Matrix4d::Identity().inverse() * state_.getPose();
+					ftl::rgbd::Camera fakecam;
+					fakecam.width = 1280;
+					fakecam.height = 720;
+					fakecam.fx = 700.0;
+					fakecam.cx = -d.x;
+					fakecam.cy = -(720.0-d.y);
+
+					state_.getLeft().cx = -d.x;
+					state_.getLeft().cy = -(state_.getLeft().height-d.y);
+
+					ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fakecam, fakepose, cv::Scalar(0,0,255,255), 0.2,screen_->root()->value("show_frustrum", false));
+				}
+			}
+		}
+	}
 }
 
 void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
