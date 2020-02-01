@@ -2,7 +2,7 @@
 #define _FTL_GUI_CAMERA_HPP_
 
 #include <ftl/rgbd/frameset.hpp>
-#include <ftl/render/tri_render.hpp>
+#include <ftl/render/CUDARender.hpp>
 #include <ftl/codecs/writer.hpp>
 #include "gltexture.hpp"
 
@@ -10,6 +10,7 @@
 #include <ftl/streams/sender.hpp>
 
 #include <string>
+#include <array>
 
 #ifdef HAVE_OPENVR
 #include <openvr/openvr.h>
@@ -25,7 +26,7 @@ class PoseWindow;
 
 class Camera {
 	public:
-	Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codecs::Channel chan=ftl::codecs::Channel::Colour);
+	Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::codecs::Channel chan=ftl::codecs::Channel::Colour);
 	~Camera();
 
 	Camera(const Camera &)=delete;
@@ -33,7 +34,9 @@ class Camera {
 	int width() const { return width_; }
 	int height() const { return height_; }
 
-	int getFramesetId() const { return fsid_; }
+	int getFramesetMask() const { return fsmask_; }
+
+	bool usesFrameset(int id) const { return fsmask_ & (1 << id); }
 
 	void setPose(const Eigen::Matrix4d &p);
 
@@ -93,7 +96,7 @@ class Camera {
 	cv::Mat visualizeActiveChannel();
 
 	Screen *screen_;
-	int fsid_;
+	unsigned int fsmask_;  // Frameset Mask
 	int fid_;
 
 	int width_;
@@ -119,7 +122,8 @@ class Camera {
 	cv::Mat im1_; // first channel (left)
 	cv::Mat im2_; // second channel ("right")
 
-	ftl::render::Triangular *renderer_;
+	ftl::render::CUDARender *renderer_;
+	ftl::Configurable *intrinsics_;
 	ftl::operators::Graph *post_pipe_;
 	ftl::rgbd::Frame frame_;
 	ftl::rgbd::FrameState state_;
@@ -127,6 +131,9 @@ class Camera {
 	ftl::stream::Sender *record_sender_;
 
 	std::string name_;
+
+	int transform_ix_;
+	std::array<Eigen::Matrix4d,ftl::stream::kMaxStreams> transforms_;  // Frameset transforms for virtual cam
 
 	MUTEX mutex_;
 
@@ -137,7 +144,7 @@ class Camera {
 	#endif
 
 	void _downloadFrames(ftl::rgbd::Frame *frame);
-	void _draw(ftl::rgbd::FrameSet &fs);
+	void _draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 };
 
 }

@@ -463,7 +463,7 @@ bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modi
 	} else {
 		//LOG(INFO) << "Key press " << key << " - " << action << " - " << modifiers;
 
-		if (key >= 262 && key <= 267) {
+		if ((key >= 262 && key <= 267) || (key >= '0' && key <= '9')) {
 			if (camera_) camera_->keyMovement(key, modifiers);
 			return true;
 		} else if (action == 1 && key == 'H') {

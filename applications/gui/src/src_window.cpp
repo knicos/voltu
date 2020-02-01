@@ -109,7 +109,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		}*/
 
 		const auto *cstream = interceptor_;
-		_createDefaultCameras(*framesets_[fs.id], cstream->available(fs.id).has(Channel::Depth));
+		_createDefaultCameras(*framesets_[fs.id], true);  // cstream->available(fs.id).has(Channel::Depth)
 
 		//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
 
@@ -151,7 +151,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	// Check paths for FTL files to load.
 	auto paths = (*screen->root()->get<nlohmann::json>("paths"));
 
-	int ftl_count = 0;
+	int ftl_count = available_.size();
 	for (auto &x : paths.items()) {
 		std::string path = x.value().get<std::string>();
 		auto eix = path.find_last_of('.');
@@ -205,7 +205,7 @@ void SourceWindow::stopRecordingVideo() {
 ftl::codecs::Channels<0> SourceWindow::_aggregateChannels(int id) {
 	ftl::codecs::Channels<0> cs = ftl::codecs::Channels<0>(Channel::Colour);
 	for (auto cam : cameras_) {
-		if (cam.second.camera->getFramesetId() == id) {
+		if (cam.second.camera->usesFrameset(id)) {
 			if (cam.second.camera->isVirtual()) {
 				cs += Channel::Depth;
 			} else {
@@ -215,6 +215,7 @@ ftl::codecs::Channels<0> SourceWindow::_aggregateChannels(int id) {
 			}
 		}
 	}
+
 	return cs;
 }
 
@@ -222,7 +223,7 @@ void SourceWindow::_createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtu
 	for (int i=0; i<fs.frames.size(); ++i) {
 		int id = (fs.id << 8) + i;
 		if (cameras_.find(id) == cameras_.end()) {
-			auto *cam = new ftl::gui::Camera(screen_, fs.id, i);
+			auto *cam = new ftl::gui::Camera(screen_, 1 << fs.id, i);
 			cameras_[id] = {
 				cam,
 				nullptr
@@ -231,7 +232,7 @@ void SourceWindow::_createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtu
 	}
 
 	if (makevirtual && cameras_.find((fs.id << 8) + 255) == cameras_.end()) {
-		auto *cam = new ftl::gui::Camera(screen_, fs.id, 255);
+		auto *cam = new ftl::gui::Camera(screen_, 1 << fs.id, 255);
 		cameras_[(fs.id << 8) + 255] = {
 			cam,
 			nullptr

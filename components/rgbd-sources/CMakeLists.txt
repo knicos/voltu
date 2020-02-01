@@ -14,6 +14,8 @@ set(RGBDSRC
 	#src/sources/virtual/virtual.cpp
 	#src/sources/ftlfile/file_source.cpp
 	#src/sources/ftlfile/player.cpp
+	src/sources/screencapture/screencapture.cpp
+	src/camera.cpp
 )
 
 if (HAVE_REALSENSE)
@@ -41,7 +43,7 @@ if (CUDA_FOUND)
 set_property(TARGET ftlrgbd PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
-target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen realsense ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators ftldata)
+target_link_libraries(ftlrgbd ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen realsense ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators ftldata ${X11_X11_LIB} ${X11_Xext_LIB})
 
 if (BUILD_TESTS)
 add_subdirectory(test)

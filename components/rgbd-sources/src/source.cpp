@@ -6,6 +6,7 @@
 #include "sources/stereovideo/stereovideo.hpp"
 #include "sources/image/image.hpp"
 #include "sources/middlebury/middlebury_source.hpp"
+#include "sources/screencapture/screencapture.hpp"
 
 #ifdef HAVE_LIBARCHIVE
 #include <ftl/rgbd/snapshot.hpp>
@@ -28,6 +29,7 @@ using ftl::rgbd::detail::StereoVideoSource;
 //using ftl::rgbd::detail::NetSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
+using ftl::rgbd::detail::ScreenCapture;
 using ftl::rgbd::capability_t;
 using ftl::codecs::Channel;
 //using ftl::rgbd::detail::FileSource;
@@ -177,6 +179,8 @@ ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 #else
 		LOG(ERROR) << "You do not have 'librealsense2' installed";
 #endif
+	} else if (uri.getPathSegment(0) == "screen") {
+		return new ScreenCapture(this);
 	} else {
 		/*params_.width = value("width", 1280);
 		params_.height = value("height", 720);

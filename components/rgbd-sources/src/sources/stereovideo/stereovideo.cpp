@@ -192,19 +192,19 @@ void StereoVideoSource::updateParameters() {
 	cv::Mat K;
 	
 	// same for left and right
-	double baseline = 1.0 / calib_->getQ().at<double>(3,2);
-	double doff = -calib_->getQ().at<double>(3,3) * baseline;
-	double min_depth = this->host_->getConfig().value<double>("min_depth", 0.0);
-	double max_depth = this->host_->getConfig().value<double>("max_depth", 15.0);
+	float baseline = static_cast<float>(1.0 / calib_->getQ().at<double>(3,2));
+	float doff = static_cast<float>(-calib_->getQ().at<double>(3,3) * baseline);
+	float min_depth = this->host_->getConfig().value<double>("min_depth", 0.0);
+	float max_depth = this->host_->getConfig().value<double>("max_depth", 15.0);
 
 	// left
 
 	K = calib_->getCameraMatrixLeft(color_size_);
 	state_.getLeft() = {
-		K.at<double>(0,0),	// Fx
-		K.at<double>(1,1),	// Fy
-		-K.at<double>(0,2),	// Cx
-		-K.at<double>(1,2),	// Cy
+		static_cast<float>(K.at<double>(0,0)),	// Fx
+		static_cast<float>(K.at<double>(1,1)),	// Fy
+		static_cast<float>(-K.at<double>(0,2)),	// Cx
+		static_cast<float>(-K.at<double>(1,2)),	// Cy
 		(unsigned int) color_size_.width,
 		(unsigned int) color_size_.height,
 		min_depth,
@@ -223,10 +223,10 @@ void StereoVideoSource::updateParameters() {
 
 	K = calib_->getCameraMatrixRight(color_size_);
 	state_.getRight() = {
-		K.at<double>(0,0),	// Fx
-		K.at<double>(1,1),	// Fy
-		-K.at<double>(0,2),	// Cx
-		-K.at<double>(1,2),	// Cy
+		static_cast<float>(K.at<double>(0,0)),	// Fx
+		static_cast<float>(K.at<double>(1,1)),	// Fy
+		static_cast<float>(-K.at<double>(0,2)),	// Cx
+		static_cast<float>(-K.at<double>(1,2)),	// Cy
 		(unsigned int) color_size_.width,
 		(unsigned int) color_size_.height,
 		min_depth,

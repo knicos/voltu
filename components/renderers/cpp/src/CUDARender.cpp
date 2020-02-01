@@ -1,4 +1,4 @@
-#include <ftl/render/tri_render.hpp>
+#include <ftl/render/CUDARender.hpp>
 #include <ftl/utility/matrix_conversion.hpp>
 #include "splatter_cuda.hpp"
 #include <ftl/cuda/points.hpp>
@@ -16,7 +16,7 @@
 
 #include <string>
 
-using ftl::render::Triangular;
+using ftl::render::CUDARender;
 using ftl::codecs::Channel;
 using ftl::codecs::Channels;
 using ftl::rgbd::Format;
@@ -72,7 +72,7 @@ static uchar4 parseCUDAColour(const std::string &colour) {
 	return make_uchar4(0,0,0,0);
 }
 
-Triangular::Triangular(nlohmann::json &config) : ftl::render::Renderer(config), scene_(nullptr) {
+CUDARender::CUDARender(nlohmann::json &config) : ftl::render::Renderer(config), scene_(nullptr) {
 	/*if (config["clipping"].is_object()) {
 		auto &c = config["clipping"];
 		float rx = c.value("pitch", 0.0f);
@@ -155,7 +155,7 @@ Triangular::Triangular(nlohmann::json &config) : ftl::render::Renderer(config), 
 	last_frame_ = -1;
 }
 
-Triangular::~Triangular() {
+CUDARender::~CUDARender() {
 
 }
 
@@ -173,66 +173,12 @@ struct AccumSelector<float> {
 	//static constexpr cv::Scalar value = cv::Scalar(0.0f);
 };
 
-/*template <typename T>
-void Triangular::__blendChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t stream) {
-	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-	temp_.create<GpuMat>(
-		AccumSelector<T>::channel,
-		Format<typename AccumSelector<T>::type>(params_.camera.width, params_.camera.height)
-	).setTo(cv::Scalar(0.0f), cvstream);
-	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
-
-	temp_.createTexture<float>(Channel::Contribution);
-
-	for (auto &f : scene_->frames) {
-		if (f.get<GpuMat>(in).type() == CV_8UC3) {
-			// Convert to 4 channel colour
-			auto &col = f.get<GpuMat>(in);
-			GpuMat tmp(col.size(), CV_8UC4);
-			cv::cuda::swap(col, tmp);
-			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
-		}
-
-		ftl::cuda::dibr_attribute(
-			f.createTexture<T>(in),
-			f.createTexture<float4>(Channel::Points),
-			temp_.getTexture<int>(Channel::Depth2),
-			temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-			temp_.getTexture<float>(Channel::Contribution),
-			params_, stream
-		);
-	}
-
-	ftl::cuda::dibr_normalise(
-		temp_.getTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-		output.createTexture<T>(out),
-		temp_.getTexture<float>(Channel::Contribution),
-		stream
-	);
-}*/
-
 template <typename T>
-void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t stream) {
+void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-	temp_.create<GpuMat>(
-		AccumSelector<T>::channel,
-		Format<typename AccumSelector<T>::type>(params_.camera.width, params_.camera.height)
-	).setTo(cv::Scalar(0.0f), cvstream);
-	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
-
-	temp_.createTexture<float>(Channel::Contribution);
 
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
 		auto &f = scene_->frames[i];
-		//auto *s = scene_->sources[i];
-		
-		/*if (f.get<GpuMat>(in).type() == CV_8UC3) {
-			// Convert to 4 channel colour
-			auto &col = f.get<GpuMat>(in);
-			GpuMat tmp(col.size(), CV_8UC4);
-			cv::cuda::swap(col, tmp);
-			cv::cuda::cvtColor(tmp,col, cv::COLOR_BGR2BGRA);
-		}*/
 
 		if (!f.hasChannel(in)) {
 			LOG(ERROR) << "Reprojecting unavailable channel";
@@ -243,52 +189,59 @@ void Triangular::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 		auto transformR = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse()).getFloat3x3();
 
 		if (mesh_) {
-			ftl::cuda::reproject(
-				f.createTexture<T>(in),
-				f.createTexture<float>(Channel::Depth),
-				output.getTexture<float>(Channel::Depth),
-				output.getTexture<float4>(Channel::Normals),
-				temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-				temp_.getTexture<float>(Channel::Contribution),
-				params_,
-				f.getLeftCamera(),
-				transform, transformR, stream
-			);
+			if (f.hasChannel(Channel::Depth)) {
+				ftl::cuda::reproject(
+					f.createTexture<T>(in),
+					f.createTexture<float>(Channel::Depth),
+					output.getTexture<float>(Channel::Depth),
+					output.getTexture<float4>(Channel::Normals),
+					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
+					temp_.getTexture<float>(Channel::Contribution),
+					params_,
+					f.getLeftCamera(),
+					transform, transformR, stream
+				);
+			} else {
+				// Reproject without depth channel or normals
+				ftl::cuda::reproject(
+					f.createTexture<T>(in),
+					output.getTexture<float>(Channel::Depth),
+					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
+					temp_.getTexture<float>(Channel::Contribution),
+					params_,
+					f.getLeftCamera(),
+					transform, stream
+				);
+			}
 		} else {
 			// Can't use normals with point cloud version
-			ftl::cuda::reproject(
-				f.createTexture<T>(in),
-				f.createTexture<float>(Channel::Depth),
-				output.getTexture<float>(Channel::Depth),
-				temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-				temp_.getTexture<float>(Channel::Contribution),
-				params_,
-				f.getLeftCamera(),
-				transform, stream
-			);
+			if (f.hasChannel(Channel::Depth)) {
+				ftl::cuda::reproject(
+					f.createTexture<T>(in),
+					f.createTexture<float>(Channel::Depth),
+					output.getTexture<float>(Channel::Depth),
+					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
+					temp_.getTexture<float>(Channel::Contribution),
+					params_,
+					f.getLeftCamera(),
+					transform, stream
+				);
+			} else {
+				ftl::cuda::reproject(
+					f.createTexture<T>(in),
+					output.getTexture<float>(Channel::Depth),
+					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
+					temp_.getTexture<float>(Channel::Contribution),
+					params_,
+					f.getLeftCamera(),
+					transform, stream
+				);
+			}
 		}
 	}
-
-	ftl::cuda::dibr_normalise(
-		temp_.getTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-		output.createTexture<T>(out),
-		temp_.getTexture<float>(Channel::Contribution),
-		stream
-	);
 }
 
-/*void Triangular::_blendChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, cudaStream_t stream) {
-	int type = output.get<GpuMat>(out).type(); // == CV_32F; //ftl::rgbd::isFloatChannel(channel);
-	
-	switch (type) {
-	case CV_32F		: __blendChannel<float>(output, in, out, stream); break;
-	case CV_32FC4	: __blendChannel<float4>(output, in, out, stream); break;
-	case CV_8UC4	: __blendChannel<uchar4>(output, in, out, stream); break;
-	default			: LOG(ERROR) << "Invalid output channel format";
-	}
-}*/
-
-void Triangular::_reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t stream) {
+void CUDARender::_reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t stream) {
 	int type = output.get<GpuMat>(out).type(); // == CV_32F; //ftl::rgbd::isFloatChannel(channel);
 	
 	switch (type) {
@@ -299,7 +252,7 @@ void Triangular::_reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Channe
 	}
 }
 
-void Triangular::_dibr(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStream_t stream) {
+void CUDARender::_dibr(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 
@@ -307,27 +260,36 @@ void Triangular::_dibr(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		auto &f = scene_->frames[i];
 		//auto *s = scene_->sources[i];
 
-		if (f.empty(Channel::Depth + Channel::Colour)) {
+		if (f.empty(Channel::Colour)) {
 			LOG(ERROR) << "Missing required channel";
 			continue;
 		}
 
 		auto transform = params_.m_viewMatrix * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
 
-		ftl::cuda::dibr_merge(
-			f.createTexture<float>(Channel::Depth),
-			temp_.createTexture<int>(Channel::Depth2),
-			transform,
-			f.getLeftCamera(),
-			params_, stream
-		);
+		if (f.hasChannel(Channel::Depth)) {
+			ftl::cuda::dibr_merge(
+				f.createTexture<float>(Channel::Depth),
+				temp_.createTexture<int>(Channel::Depth2),
+				transform,
+				f.getLeftCamera(),
+				params_, stream
+			);
+		} else {
+			ftl::cuda::dibr_merge(
+				temp_.createTexture<int>(Channel::Depth2),
+				transform,
+				f.getLeftCamera(),
+				params_, stream
+			);
+		}
 	}
 
 	// Convert from int depth to float depth
 	temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 }
 
-void Triangular::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStream_t stream) {
+void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
 	bool do_blend = value("mesh_blend", true);
@@ -344,7 +306,7 @@ void Triangular::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		auto &f = scene_->frames[i];
 		//auto *s = scene_->sources[i];
 
-		if (f.empty(Channel::Depth + Channel::Colour)) {
+		if (f.empty(Channel::Colour)) {
 			LOG(ERROR) << "Missing required channel";
 			continue;
 		}
@@ -353,12 +315,21 @@ void Triangular::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		auto transform = params_.m_viewMatrix * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
 
 		// Calculate and save virtual view screen position of each source pixel
-		ftl::cuda::screen_coord(
-			f.createTexture<float>(Channel::Depth),
-			f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Depth).size())),
-			f.createTexture<short2>(Channel::Screen, Format<short2>(f.get<GpuMat>(Channel::Depth).size())),
-			params_, transform, f.getLeftCamera(), stream
-		);
+		if (f.hasChannel(Channel::Depth)) {
+			ftl::cuda::screen_coord(
+				f.createTexture<float>(Channel::Depth),
+				f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Depth).size())),
+				f.createTexture<short2>(Channel::Screen, Format<short2>(f.get<GpuMat>(Channel::Depth).size())),
+				params_, transform, f.getLeftCamera(), stream
+			);
+		} else {
+			// Constant depth version
+			ftl::cuda::screen_coord(
+				f.createTexture<float>(Channel::Depth2, Format<float>(f.get<GpuMat>(Channel::Colour).size())),
+				f.createTexture<short2>(Channel::Screen, Format<short2>(f.get<GpuMat>(Channel::Colour).size())),
+				params_, transform, f.getLeftCamera(), stream
+			);
+		}
 
 		// Must reset depth channel if blending
 		if (do_blend) {
@@ -399,7 +370,7 @@ void Triangular::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 				params_.camera, params_.m_viewMatrix.getFloat3x3(), params_.m_viewMatrixInverse.getFloat3x3(), stream_);
 }
 
-void Triangular::_renderChannel(
+void CUDARender::_renderChannel(
 		ftl::rgbd::Frame &out,
 		Channel channel_in, Channel channel_out, const Eigen::Matrix4d &t, cudaStream_t stream)
 {
@@ -476,7 +447,7 @@ static cv::Scalar HSVtoRGB(int H, double S, double V) {
 	return cv::Scalar((Bs + m) * 255, (Gs + m) * 255, (Rs + m) * 255, 0);
 }
 
-void Triangular::_allocateChannels(ftl::rgbd::Frame &out) {
+void CUDARender::_allocateChannels(ftl::rgbd::Frame &out) {
 	const auto &camera = out.getLeftCamera();
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
 
@@ -497,7 +468,7 @@ void Triangular::_allocateChannels(ftl::rgbd::Frame &out) {
 	temp_.createTexture<int>(Channel::Depth);
 }
 
-void Triangular::_updateParameters(ftl::rgbd::Frame &out) {
+void CUDARender::_updateParameters(ftl::rgbd::Frame &out) {
 	const auto &camera = out.getLeftCamera();
 
 	// Parameters object to pass to CUDA describing the camera
@@ -510,7 +481,7 @@ void Triangular::_updateParameters(ftl::rgbd::Frame &out) {
 	params_.camera = camera;
 }
 
-void Triangular::_preprocessColours() {
+void CUDARender::_preprocessColours() {
 	bool show_discon = value("show_discontinuity_mask", false);
 	bool show_fill = value("show_filled", false);
 	bool colour_sources = value("colour_sources", false);
@@ -540,7 +511,7 @@ void Triangular::_preprocessColours() {
 	}
 }
 
-void Triangular::_postprocessColours(ftl::rgbd::Frame &out) {
+void CUDARender::_postprocessColours(ftl::rgbd::Frame &out) {
 	if (value("cool_effect", false)) {
 		auto pose = params_.m_viewMatrixInverse.getFloat3x3();
 		auto col = parseCUDAColour(value("cool_effect_colour", std::string("#2222ff")));
@@ -574,7 +545,7 @@ void Triangular::_postprocessColours(ftl::rgbd::Frame &out) {
 	}
 }
 
-void Triangular::_renderNormals(ftl::rgbd::Frame &out) {
+void CUDARender::_renderNormals(ftl::rgbd::Frame &out) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
 
 	// Visualise normals to RGBA
@@ -586,14 +557,14 @@ void Triangular::_renderNormals(ftl::rgbd::Frame &out) {
 			light_ambient_, stream_);
 }
 
-void Triangular::_renderDensity(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) {
+void CUDARender::_renderDensity(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
 	out.create<GpuMat>(Channel::Density, Format<float>(params_.camera.width, params_.camera.height));
 	out.get<GpuMat>(Channel::Density).setTo(cv::Scalar(0.0f), cvstream);
 	_renderChannel(out, Channel::Depth, Channel::Density, t, stream_);
 }
 
-void Triangular::_renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) {
+void CUDARender::_renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
 
 	float baseline = params_.camera.baseline;
@@ -619,7 +590,7 @@ void Triangular::_renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) {
 	_renderChannel(out, Channel::Left, Channel::Right, t, stream_);
 }
 
-void Triangular::_renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan, const Eigen::Matrix4d &t) {
+void CUDARender::_renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan, const Eigen::Matrix4d &t) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
 
 	if (ftl::codecs::isFloatChannel(chan)) {
@@ -632,10 +603,49 @@ void Triangular::_renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan,
 	_renderChannel(out, chan, chan, t, stream_);
 }
 
-void Triangular::_render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel chan, const Eigen::Matrix4d &t) {
+void CUDARender::_renderPass1(const Eigen::Matrix4d &t) {
+	const auto &camera = out_->getLeftCamera();
+	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
+
+	// Render source specific debug info into colour channels
+	_preprocessColours();
+
+	if (mesh_) {
+		// Render depth channel using triangles
+		_mesh(*out_, t, stream_);
+	} else {
+		// Render depth channel as a point cloud
+		_dibr(*out_, t, stream_);
+	}
+}
+
+void CUDARender::_renderPass2(Channels<0> chans, const Eigen::Matrix4d &t) {
+	const auto &camera = out_->getLeftCamera();
+	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
+
+	// Reprojection of colours onto surface
+	auto main_channel = (scene_->frames[0].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
+	_renderChannel(*out_, main_channel, Channel::Colour, t, stream_);
+
+
+	// Support rendering of a second channel without redoing all the work
+	for (auto chan : chans) {
+		switch(chan) {
+		case Channel::None			:
+		case Channel::Left			:
+		case Channel::Depth			: break;
+		case Channel::ColourNormals	: _renderNormals(*out_); break;
+		case Channel::Density		: _renderDensity(*out_, t); break;
+		case Channel::Right			: _renderRight(*out_, t); break;
+		default						: _renderSecond(*out_, chan, t);
+		}
+	}
+}
+
+void CUDARender::begin(ftl::rgbd::Frame &out) {
+	out_ = &out;
 	const auto &camera = out.getLeftCamera();
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
-	//cudaSafeCall(cudaSetDevice(scene_->getCUDADevice()));
 
 	_updateParameters(out);
 
@@ -653,52 +663,54 @@ void Triangular::_render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel
 			camera, pose, stream_);
 	}
 
-	//cudaSafeCall(cudaStreamSynchronize(stream_));
+	temp_.create<GpuMat>(
+		AccumSelector<uchar4>::channel,
+		Format<typename AccumSelector<uchar4>::type>(params_.camera.width, params_.camera.height)
+	).setTo(cv::Scalar(0.0f), cvstream);
+	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
 
-	// Render source specific debug info into colour channels
-	_preprocessColours();
+	temp_.createTexture<float>(Channel::Contribution);
 
-	//cudaSafeCall(cudaStreamSynchronize(stream_));
-
-	if (mesh_) {
-		// Render depth channel using triangles
-		_mesh(out, t, stream_);
-	} else {
-		// Render depth channel as a point cloud
-		_dibr(out, t, stream_);
-	}
-
-	//cudaSafeCall(cudaStreamSynchronize(stream_));
-
-	// Reprojection of colours onto surface
-	auto main_channel = (scene_->frames[0].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
-	_renderChannel(out, main_channel, Channel::Colour, t, stream_);
-
-	//cudaSafeCall(cudaStreamSynchronize(stream_));
-
-	// Debug colour info relating to the rendering process
-	_postprocessColours(out);
-
-	//cudaSafeCall(cudaStreamSynchronize(stream_));
-
-	// Support rendering of a second channel without redoing all the work
-	switch(chan) {
-	case Channel::None			:
-	case Channel::Left			:
-	case Channel::Depth			: break;
-	case Channel::ColourNormals	: _renderNormals(out); break;
-	case Channel::Density		: _renderDensity(out, t); break;
-	case Channel::Right			: _renderRight(out, t); break;
-	default						: _renderSecond(out, chan, t);
-	}
+	sets_.clear();
 }
 
-bool Triangular::render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel chan, const Eigen::Matrix4d &t) {
+void CUDARender::end() {
+	/*ftl::cuda::dibr_normalise(
+		temp_.getTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
+		output.createTexture<T>(out),
+		temp_.getTexture<float>(Channel::Contribution),
+		stream
+	);*/
+
+	for (auto &s : sets_) {
+		scene_ = s.fs;
+		try {
+			_renderPass2(s.channels, s.transform);
+		} catch(std::exception &e) {
+			LOG(ERROR) << "Exception in render: " << e.what();
+		}
+	}
+	scene_ = nullptr;
+
+	// FIXME: Allow for other channel accumulations
+	ftl::cuda::dibr_normalise(
+		temp_.getTexture<typename AccumSelector<uchar4>::type>(AccumSelector<uchar4>::channel),
+		out_->createTexture<uchar4>(Channel::Colour),
+		temp_.getTexture<float>(Channel::Contribution),
+		stream_
+	);
+
+	_postprocessColours(*out_);
+
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+}
+
+bool CUDARender::submit(ftl::rgbd::FrameSet *in, Channels<0> chans, const Eigen::Matrix4d &t) {
 	if (scene_) {
 		LOG(WARNING) << "Already rendering...";
 		return false;
 	}
-	scene_ = &in;
+	scene_ = in;
 	if (scene_->frames.size() == 0) {
 		scene_ = nullptr;
 		return false;
@@ -707,12 +719,17 @@ bool Triangular::render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, Channel 
 	bool success = true;
 
 	try {
-		_render(in, out, chan, t);
-		cudaSafeCall(cudaStreamSynchronize(stream_));
+		_renderPass1(t);
+		//cudaSafeCall(cudaStreamSynchronize(stream_));
 	} catch (std::exception &e) {
 		LOG(ERROR) << "Exception in render: " << e.what();
 		success = false;
 	}
+
+	auto &s = sets_.emplace_back();
+	s.fs = in;
+	s.channels = chans;
+	s.transform = t;
 
 	last_frame_ = scene_->timestamp;
 	scene_ = nullptr;

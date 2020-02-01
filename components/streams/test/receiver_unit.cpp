@@ -306,21 +306,21 @@ TEST_CASE( "Receiver sync bugs" ) {
 			return true;
 		});
 
-		stream.post(spkt, pkt);
+		try { stream.post(spkt, pkt); } catch(...) {}
 		spkt.timestamp = 10;
 		spkt.channel = Channel::ColourHighRes;
-		stream.post(spkt, pkt);
+		try { stream.post(spkt, pkt); } catch(...) {}
 		spkt.timestamp = 20;
 		spkt.channel = Channel::Colour2;
-		stream.post(spkt, pkt);
+		try { stream.post(spkt, pkt); } catch(...) {}
 		spkt.timestamp = 20;
 		spkt.channel = Channel::Colour;
-		stream.post(spkt, pkt);
+		try { stream.post(spkt, pkt); } catch(...) {}
 
 		int i=10;
-		while (i-- > 0 && count < 1) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		while (i-- > 0 && count < 2) std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-		REQUIRE( count == 1 );
+		REQUIRE( count == 2 );
 		REQUIRE( ts == 20 );
 		REQUIRE( !haswrongchan );
 	}
