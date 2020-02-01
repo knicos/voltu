@@ -1,10 +1,11 @@
-#ifndef _FTL_RECONSTRUCTION_TRI_HPP_
-#define _FTL_RECONSTRUCTION_TRI_HPP_
+#ifndef _FTL_RENDER_CUDA_HPP_
+#define _FTL_RENDER_CUDA_HPP_
 
 #include <ftl/render/renderer.hpp>
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/render/splat_params.hpp>
 #include <ftl/cuda/points.hpp>
+#include <ftl/codecs/channels.hpp>
 //#include <ftl/filters/filter.hpp>
 
 namespace ftl {
@@ -14,12 +15,15 @@ namespace render {
  * Generate triangles between connected points and render those. Colour is done
  * by weighted reprojection to the original source images.
  */
-class Triangular : public ftl::render::Renderer {
+class CUDARender : public ftl::render::Renderer {
 	public:
-	explicit Triangular(nlohmann::json &config);
-	~Triangular();
+	explicit CUDARender(nlohmann::json &config);
+	~CUDARender();
 
-	bool render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, ftl::codecs::Channel, const Eigen::Matrix4d &t) override;
+	void begin(ftl::rgbd::Frame &) override;
+	void end() override;
+
+	bool submit(ftl::rgbd::FrameSet *in, ftl::codecs::Channels<0>, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
 
 	protected:
@@ -29,6 +33,7 @@ class Triangular : public ftl::render::Renderer {
 	int device_;
 	ftl::rgbd::Frame temp_;
 	ftl::rgbd::Frame accum_;
+	ftl::rgbd::Frame *out_;
 	ftl::rgbd::FrameSet *scene_;
 	ftl::cuda::ClipSpace clip_;
 	bool clipping_;
@@ -51,6 +56,14 @@ class Triangular : public ftl::render::Renderer {
 
 	//ftl::Filters *filters_;
 
+	struct SubmitState {
+		ftl::rgbd::FrameSet *fs;
+		ftl::codecs::Channels<0> channels;
+		Eigen::Matrix4d transform;
+	};
+
+	std::vector<SubmitState> sets_;
+
 	template <typename T>
 	void __reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
 	void _reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
@@ -65,7 +78,8 @@ class Triangular : public ftl::render::Renderer {
 	void _renderDensity(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
 	void _renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
 	void _renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan, const Eigen::Matrix4d &t);
-	void _render(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, ftl::codecs::Channel, const Eigen::Matrix4d &t);
+	void _renderPass1(const Eigen::Matrix4d &t);
+	void _renderPass2(ftl::codecs::Channels<0>, const Eigen::Matrix4d &t);
 
 	bool _alreadySeen() const { return last_frame_ == scene_->timestamp; }
 };
@@ -73,4 +87,4 @@ class Triangular : public ftl::render::Renderer {
 }
 }
 
-#endif  // _FTL_RECONSTRUCTION_TRI_HPP_
+#endif  // _FTL_RENDER_CUDA_HPP_

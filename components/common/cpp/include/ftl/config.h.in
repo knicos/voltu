@@ -25,6 +25,7 @@
 #cmakedefine HAVE_OPENVR
 #cmakedefine HAVE_NVPIPE
 #cmakedefine HAVE_PORTAUDIO
+#cmakedefine HAVE_X11
 
 extern const char *FTL_BRANCH;
 extern const char *FTL_VERSION_LONG;

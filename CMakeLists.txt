@@ -225,6 +225,23 @@ find_library(UUID_LIBRARIES NAMES uuid libuuid)
 else()
 endif()
 
+# For screen capture
+if (WIN32)
+	message(STATUS "Screen capture not supported")
+else()
+	find_package(X11)
+	if (X11_FOUND)
+		if (X11_XShm_FOUND)
+			message(STATUS "Using X11 for screen capture")
+			set(HAVE_X11 TRUE)
+		else()
+			message(STATUS "No X11 Shared memory extension")
+		endif()
+	else()
+		message(STATUS "No X11, screen capture disabled")
+	endif()
+endif()
+
 # For ftl2mkv
 check_include_file("libavformat/avformat.h" HAVE_AVFORMAT)
 

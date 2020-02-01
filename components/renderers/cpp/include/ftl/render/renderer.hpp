@@ -21,11 +21,26 @@ class Renderer : public ftl::Configurable {
     explicit Renderer(nlohmann::json &config) : Configurable(config) {};
     virtual ~Renderer() {};
 
+	/**
+	 * Begin a new render. This clears memory, allocates buffers etc. The RGBD
+	 * frame given as parameter is where the output channels are rendered to.
+	 */
+	virtual void begin(ftl::rgbd::Frame &)=0;
+
+	/**
+	 * Finish a render. Post process the output as required, or finish
+	 * generating it from internal buffers. The output frame is only valid
+	 * after this is called.
+	 */
+	virtual void end()=0;
+
     /**
-     * Generate a single virtual frame. The frame takes its pose and calibration
-	 * from the output frame pose and calibration channels.
+     * Render all frames of a frameset into the output frame. This can be called
+	 * multiple times between `begin` and `end` to combine multiple framesets.
+	 * Note that the frameset pointer must remain valid until `end` is called,
+	 * and ideally should not be swapped between
      */
-    virtual bool render(ftl::rgbd::FrameSet &, ftl::rgbd::Frame &, ftl::codecs::Channel, const Eigen::Matrix4d &)=0;
+    virtual bool submit(ftl::rgbd::FrameSet *, ftl::codecs::Channels<0>, const Eigen::Matrix4d &)=0;
 };
 
 }

@@ -62,7 +62,7 @@ void ftl::stream::injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd
     ftl::codecs::StreamPacket spkt = {
 		4,
 		ts,
-		fsid,
+		static_cast<uint8_t>(fsid),
 		static_cast<uint8_t>(ix),
 		(right) ? Channel::Calibration2 : Channel::Calibration
 	};

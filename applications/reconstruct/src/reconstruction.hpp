@@ -7,7 +7,6 @@
 #include "ftl/rgbd/group.hpp"
 #include "ftl/rgbd/frameset.hpp"
 #include "ftl/operators/operator.hpp"
-#include "ftl/render/tri_render.hpp"
 
 namespace ftl {
 
@@ -21,11 +20,6 @@ class Reconstruction : public ftl::Configurable, public ftl::rgbd::Generator {
 	//void addRawCallback(const std::function<void(ftl::rgbd::Source *src, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &cb);
 
 	void setGenerator(ftl::rgbd::Generator *);
-
-	/**
-	 * Do the render for a specified virtual camera.
-	 */
-	bool render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out);
 
 	/** Number of frames in last frameset. This can change over time. */
 	size_t size() override;
@@ -51,7 +45,6 @@ class Reconstruction : public ftl::Configurable, public ftl::rgbd::Generator {
 	ftl::rgbd::FrameSet fs_align_;
 	ftl::rgbd::Generator *gen_;
 	ftl::operators::Graph *pipeline_;
-	ftl::render::Triangular *renderer_;
 
 	ftl::rgbd::VideoCallback cb_;
 

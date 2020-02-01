@@ -8,6 +8,7 @@
 
 #ifndef __CUDACC__
 #include <ftl/utility/msgpack.hpp>
+#include <ftl/configurable.hpp>
 #endif
 
 namespace ftl{
@@ -18,16 +19,16 @@ namespace rgbd {
  * operate on CPU and GPU.
  */
 struct __align__(16) Camera {
-	double fx;				// Focal length X
-	double fy;				// Focal length Y (usually same as fx)
-	double cx;				// Principle point Y
-	double cy;				// Principle point Y
+	float fx;				// Focal length X
+	float fy;				// Focal length Y (usually same as fx)
+	float cx;				// Principle point Y
+	float cy;				// Principle point Y
 	unsigned int width;		// Pixel width
 	unsigned int height;	// Pixel height
-	double minDepth;		// Near clip in meters
-	double maxDepth;		// Far clip in meters
-	double baseline;		// For stereo pair
-	double doffs;			// Disparity offset
+	float minDepth;			// Near clip in meters
+	float maxDepth;			// Far clip in meters
+	float baseline;			// For stereo pair
+	float doffs;			// Disparity offset
 
 	Camera scaled(int width, int height) const;
 
@@ -43,6 +44,11 @@ struct __align__(16) Camera {
 
 	#ifndef __CUDACC__
 	MSGPACK_DEFINE(fx,fy,cx,cy,width,height,minDepth,maxDepth,baseline,doffs);
+
+	/**
+	 * Make a camera struct from a configurable.
+	 */
+	static Camera from(ftl::Configurable*);
 	#endif
 };
 

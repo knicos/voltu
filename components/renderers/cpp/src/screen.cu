@@ -47,3 +47,42 @@ void ftl::cuda::screen_coord(TextureObject<float> &depth, TextureObject<float> &
 	screen_coord_kernel<<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params.camera, pose, camera);
     cudaSafeCall( cudaGetLastError() );
 }
+
+
+// ==== Constant depth version =================================================
+
+/*
+ * Convert source screen position to output screen coordinates. Assumes a
+ * constant depth of 1m instead of using a depth channel input.
+ */
+ __global__ void screen_coord_kernel(TextureObject<float> depth_out,
+		TextureObject<short2> screen_out, Camera vcamera, float4x4 pose, Camera camera) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x >= 0 && y >= 0 && x < depth_out.width() && y < depth_out.height()) {
+		uint2 screenPos = make_uint2(30000,30000);
+		const float d = camera.maxDepth;
+
+		// Find the virtual screen position of current point
+		const float3 camPos = pose * camera.screenToCam(x,y,d);
+		screenPos = vcamera.camToScreen<uint2>(camPos);
+
+		if (	camPos.z < vcamera.minDepth ||
+				camPos.z > vcamera.maxDepth ||
+				screenPos.x >= vcamera.width ||
+				screenPos.y >= vcamera.height)
+			screenPos = make_uint2(30000,30000);
+
+		screen_out(x,y) = make_short2(screenPos.x, screenPos.y);
+		depth_out(x,y) = camPos.z;
+	}
+}
+
+void ftl::cuda::screen_coord(TextureObject<float> &depth_out, TextureObject<short2> &screen_out, const SplatParams &params, const float4x4 &pose, const Camera &camera, cudaStream_t stream) {
+	const dim3 gridSize((screen_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (screen_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	screen_coord_kernel<<<gridSize, blockSize, 0, stream>>>(depth_out, screen_out, params.camera, pose, camera);
+	cudaSafeCall( cudaGetLastError() );
+}

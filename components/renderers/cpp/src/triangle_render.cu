@@ -145,8 +145,9 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
 	// Remove really large triangles
 	if ((maxX - minX) * (maxY - minY) > params.triangle_limit) return;
 
-	for (int sy=minY; sy <= maxY; ++sy) {
-		for (int sx=minX; sx <= maxX; ++sx) {
+	// TODO: Verify that < is correct, was <= before but < is faster.
+	for (int sy=minY; sy < maxY; ++sy) {
+		for (int sx=minX; sx < maxX; ++sx) {
 			if (sx >= params.camera.width || sx < 0 || sy >= params.camera.height || sy < 0) continue;
 
 			float3 baryCentricCoordinate = calculateBarycentricCoordinate(v, make_short2(sx, sy));
@@ -154,6 +155,7 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
 			if (isBarycentricCoordInBounds(baryCentricCoordinate)) {
 				float new_depth = getZAtCoordinate(baryCentricCoordinate, d);
 				atomicMin(&depth_out(sx,sy), int(new_depth*100000.0f));
+				//depth_out(sx,sy) = int(new_depth*100000.0f);
 			}
 		}
 	}

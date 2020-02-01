@@ -45,6 +45,18 @@ class ImageSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
+class ScreenCapture : public ftl::rgbd::detail::Source {
+	public:
+	explicit ScreenCapture(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+		last_type = "screen";
+	}
+
+	bool capture(int64_t ts) { return true; }
+	bool retrieve() { return true; }
+	bool compute(int n, int b) { return true; };
+	bool isReady() { return true; };
+};
+
 class StereoVideoSource : public ftl::rgbd::detail::Source {
 	public:
 	explicit StereoVideoSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
@@ -133,6 +145,7 @@ class MiddleburySource : public ftl::rgbd::detail::Source {
 #define _FTL_RGBD_SNAPSHOT_SOURCE_HPP_
 #define _FTL_RGBD_IMAGE_HPP_
 #define _FTL_RGBD_REALSENSE_HPP_
+#define _FTL_RGBD_SCREENCAPTURE_HPP_
 #define _FTL_RGBD_MIDDLEBURY_SOURCE_HPP_
 #define _FTL_RGBD_FILE_SOURCE_HPP_
 

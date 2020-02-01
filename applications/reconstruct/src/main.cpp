@@ -19,9 +19,6 @@
 
 #include "reconstruction.hpp"
 
-#include "ilw/ilw.hpp"
-#include <ftl/render/tri_render.hpp>
-
 #include <fstream>
 #include <string>
 #include <vector>

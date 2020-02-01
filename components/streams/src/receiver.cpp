@@ -259,7 +259,8 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
 		auto &frame = builder_[spkt.streamID].get(spkt.timestamp, spkt.frame_number+i);
 
-		auto sel = stream_->selected(spkt.frameSetID());
+		const auto *cs = stream_;
+		auto sel = stream_->selected(spkt.frameSetID()) & cs->available(spkt.frameSetID());
 
 		frame.create<cv::cuda::GpuMat>(spkt.channel);
 

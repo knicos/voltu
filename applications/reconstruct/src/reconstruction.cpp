@@ -128,7 +128,7 @@ void Reconstruction::addRawCallback(const std::function<void(ftl::rgbd::Source *
 	group_->addRawCallback(cb);
 }*/
 
-bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out) {
+/*bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out) {
 	{
 		UNIQUE_LOCK(exchange_mtx_, lk);
 		if (new_frame_) {
@@ -136,11 +136,7 @@ bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out)
 			fs_align_.swapTo(fs_render_);
 		}
 	}
-	/*if (fs_render_.stale || fs_render_.timestamp <= 0) {
-		LOG(ERROR) << "STALE FRAME TO RENDER";
-		return false;
-	}
-	fs_render_.stale = true;*/
+
 
 	// Create scene transform, intended for axis aligning the walls and floor
 	Eigen::Matrix4d transform;
@@ -166,4 +162,4 @@ bool Reconstruction::render(ftl::rgbd::VirtualSource *vs, ftl::rgbd::Frame &out)
 	bool res = false; //renderer_->render(vs, out, sm.matrix() * transform);
 	//fs_render_.resetFull();
 	return res;
-}
+}*/

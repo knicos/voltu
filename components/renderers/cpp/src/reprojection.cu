@@ -286,6 +286,103 @@ template void ftl::cuda::reproject(
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
+//==============================================================================
+//  Without normals or depth
+//==============================================================================
+
+/*
+ * Pass 2: Accumulate attribute contributions if the points pass a visibility test.
+ */
+ template <typename A, typename B>
+__global__ void reprojection_kernel(
+        TextureObject<A> in,				// Attribute input
+		TextureObject<float> depth_in,        // Virtual depth map
+		TextureObject<B> out,			// Accumulated output
+		TextureObject<float> contrib,
+		SplatParams params,
+		Camera camera, float4x4 poseInv) {
+        
+	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const float d = depth_in.tex2D((int)x, (int)y);
+	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
+
+	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
+	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
+
+	const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
+	//if (camPos.z < camera.minDepth) return;
+	//if (camPos.z > camera.maxDepth) return;
+	const float2 screenPos = camera.camToScreen<float2>(camPos);
+
+	// Not on screen so stop now...
+	if (screenPos.x >= in.width() || screenPos.y >= in.height()) return;
+    
+	const float d2 = camera.maxDepth;
+
+	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+
+	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
+	const B weighted = make<B>(input) * weight;
+
+	if (weight > 0.0f) {
+		accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
+		//out(screenPos.x, screenPos.y) = input;
+	}
+}
+
+
+template <typename A, typename B>
+void ftl::cuda::reproject(
+        TextureObject<A> &in,
+		TextureObject<float> &depth_in,        // Virtual depth map
+		TextureObject<B> &out,   // Accumulated output
+		TextureObject<float> &contrib,
+		const SplatParams &params,
+		const Camera &camera, const float4x4 &poseInv, cudaStream_t stream) {
+	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+    reprojection_kernel<<<gridSize, blockSize, 0, stream>>>(
+        in,
+		depth_in,
+		out,
+		contrib,
+		params,
+		camera,
+		poseInv
+    );
+    cudaSafeCall( cudaGetLastError() );
+}
+
+template void ftl::cuda::reproject(
+	ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
+	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
+	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
+	ftl::cuda::TextureObject<float> &contrib,
+	const ftl::render::SplatParams &params,
+	const ftl::rgbd::Camera &camera,
+	const float4x4 &poseInv, cudaStream_t stream);
+
+template void ftl::cuda::reproject(
+		ftl::cuda::TextureObject<float> &in,	// Original colour image
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float> &out,	// Accumulated output
+		ftl::cuda::TextureObject<float> &contrib,
+		const ftl::render::SplatParams &params,
+		const ftl::rgbd::Camera &camera,
+		const float4x4 &poseInv, cudaStream_t stream);
+
+template void ftl::cuda::reproject(
+		ftl::cuda::TextureObject<float4> &in,	// Original colour image
+		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
+		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
+		ftl::cuda::TextureObject<float> &contrib,
+		const ftl::render::SplatParams &params,
+		const ftl::rgbd::Camera &camera,
+		const float4x4 &poseInv, cudaStream_t stream);
+
 
 // ===== Equirectangular Reprojection ==========================================
 

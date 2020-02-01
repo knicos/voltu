@@ -141,7 +141,9 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 	return rz * rx * ry;
 }
 
-ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codecs::Channel c) : screen_(screen), fsid_(fsid), fid_(fid), channel_(c),channels_(0u) {
+static int vcamcount = 0;
+
+ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::codecs::Channel c) : screen_(screen), fsmask_(fsmask), fid_(fid), channel_(c),channels_(0u) {
 	eye_ = Eigen::Vector3d(0.0f, 0.0f, 0.0f);
 	neye_ = Eigen::Vector4d(0.0f, 0.0f, 0.0f, 0.0f);
 	rotmat_.setIdentity();
@@ -170,6 +172,7 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codec
 	renderer_ = nullptr;
 	post_pipe_ = nullptr;
 	record_stream_ = nullptr;
+	transform_ix_ = -1;
 
 	/*src->setCallback([this](int64_t ts, ftl::rgbd::Frame &frame) {
 		UNIQUE_LOCK(mutex_, lk);
@@ -189,35 +192,29 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsid, int fid, ftl::codec
 		}
 	});*/
 
-	auto *host = screen->root();
+	//auto *host = screen->root();
 
 	// Is virtual camera?
 	if (fid == 255) {
-		state_.getLeft().width = host->value("width", 1280);
-		state_.getLeft().height = host->value("height", 720);
-		state_.getLeft().fx = host->value("focal", 700.0f);
-		state_.getLeft().fy = state_.getLeft().fx;
-		state_.getLeft().cx = -(double)state_.getLeft().width / 2.0;
-		state_.getLeft().cy = -(double)state_.getLeft().height / 2.0;
-		state_.getLeft().minDepth = host->value("minDepth", 0.1f);
-		state_.getLeft().maxDepth = host->value("maxDepth", 15.0f);
-		state_.getLeft().doffs = 0;
-		state_.getLeft().baseline = host->value("baseline", 0.05f);
+		renderer_ = ftl::create<ftl::render::CUDARender>(screen_->root(), std::string("vcam")+std::to_string(vcamcount++));
+		// Allow mask to be changed
+		fsmask_ = renderer_->value("fsmask", fsmask_);
+		renderer_->on("fsmask", [this](const ftl::config::Event &e) {
+			fsmask_ = renderer_->value("fsmask", fsmask_);
+		});
 
-		state_.getRight().width = host->value("width", 1280);
-		state_.getRight().height = host->value("height", 720);
-		state_.getRight().fx = host->value("focal_right", 700.0f);
-		state_.getRight().fy = state_.getRight().fx;
-		state_.getRight().cx = host->value("centre_x_right", -(double)state_.getLeft().width / 2.0);
-		state_.getRight().cy = host->value("centre_y_right", -(double)state_.getLeft().height / 2.0);
-		state_.getRight().minDepth = host->value("minDepth", 0.1f);
-		state_.getRight().maxDepth = host->value("maxDepth", 15.0f);
-		state_.getRight().doffs = 0;
-		state_.getRight().baseline = host->value("baseline", 0.05f);
+		intrinsics_ = ftl::create<ftl::Configurable>(renderer_, "intrinsics");
+	
+		state_.getLeft() = ftl::rgbd::Camera::from(intrinsics_);
+		state_.getRight() = state_.getLeft();
 
 		Eigen::Matrix4d pose;
 		pose.setIdentity();
 		state_.setPose(pose);
+
+		for (auto &t : transforms_) {
+			t.setIdentity();
+		}
 	}
 }
 
@@ -228,13 +225,14 @@ ftl::gui::Camera::~Camera() {
 
 void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	if (fid_ != 255) return;
-	if (fsid_ >= fss.size()) return;
+	//if (fsid_ >= fss.size()) return;
 
-	auto &fs = *fss[fsid_];
-	
-	UNIQUE_LOCK(fs.mtx,lk);
+	//auto &fs = *fss[fsid_];
+
 	UNIQUE_LOCK(mutex_, lk2);
-	_draw(fs);
+	//state_.getLeft().fx = intrinsics_->value("focal", 700.0f);
+	//state_.getLeft().fy = state_.getLeft().fx;
+	_draw(fss);
 
 	for (auto *fset : fss) {
 		for (const auto &f : fset->frames) {
@@ -264,16 +262,19 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	}
 }
 
-void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
+void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	frame_.reset();
 	frame_.setOrigin(&state_);
-	if (!renderer_) renderer_ = ftl::create<ftl::render::Triangular>(screen_->root(), "vcam1");
-	Eigen::Matrix4d t;
-	t.setIdentity();
-	renderer_->render(fs, frame_, channel_, t);
 
-	// TODO: Insert post-render pipeline.
-	// FXAA + Bad colour removal
+	renderer_->begin(frame_);
+	for (auto *fs : fss) {
+		if (!usesFrameset(fs->id)) continue;
+
+		// FIXME: Should perhaps remain locked until after end is called?
+		UNIQUE_LOCK(fs->mtx,lk);
+		renderer_->submit(fs, Channels<0>(channel_), transforms_[fs->id]);
+	}
+	renderer_->end();
 
 	if (!post_pipe_) {
 		post_pipe_ = ftl::config::create<ftl::operators::Graph>(screen_->root(), "post_filters");
@@ -289,14 +290,17 @@ void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
 		over_col.create(im1_.size(), CV_8UC4);
 		over_depth.create(im1_.size(), CV_32F);
 
-		for (int i=0; i<fs.frames.size(); ++i) {
-			auto pose = fs.frames[i].getPose().inverse() * state_.getPose();
-			Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
-			pos /= pos[3];
+		for (auto *fs : fss) {
+			if (!usesFrameset(fs->id)) continue;
+			for (int i=0; i<fs->frames.size(); ++i) {
+				auto pose = fs->frames[i].getPose().inverse() * state_.getPose();
+				Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+				pos /= pos[3];
 
-			auto name = fs.frames[i].get<std::string>("name");
-			ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fs.frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,screen_->root()->value("show_frustrum", false));
-			if (name) ftl::overlay::drawText(state_.getLeft(), im1_, over_depth, *name, pos, 0.5, cv::Scalar(0,0,255,255));
+				auto name = fs->frames[i].get<std::string>("name");
+				ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fs->frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,screen_->root()->value("show_frustrum", false));
+				if (name) ftl::overlay::drawText(state_.getLeft(), im1_, over_depth, *name, pos, 0.5, cv::Scalar(0,0,255,255));
+			}
 		}
 	}
 
@@ -308,7 +312,7 @@ void ftl::gui::Camera::_draw(ftl::rgbd::FrameSet &fs) {
 		fs2.mask = 1;
 		fs2.stale = false;
 		frame_.swapTo(Channels<0>(Channel::Colour), f);  // Channel::Colour + Channel::Depth
-		fs2.timestamp = fs.timestamp;
+		fs2.timestamp = ftl::timer::get_time();
 		fs2.id = 0;
 		record_sender_->post(fs2);
 		record_stream_->select(0, Channels<0>(Channel::Colour));
@@ -341,27 +345,30 @@ void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
 void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	UNIQUE_LOCK(mutex_, lk);
 
-	if (fss.size() <= fsid_) return;
-	auto &fs = *fss[fsid_];
-
-	ftl::rgbd::Frame *frame = nullptr;
-
+	//if (fss.size() <= fsid_) return;
 	if (fid_ == 255) {
 		name_ = "Virtual Camera";
 		// Do a draw if not active. If active the draw function will be called
 		// directly.
 		if (screen_->activeCamera() != this) {
-			_draw(fs);
+			_draw(fss);
 		}
 	} else {
-		if (fid_ >= fs.frames.size()) return;
-		frame = &fs.frames[fid_];
-		_downloadFrames(frame);
-		auto n = frame->get<std::string>("name");
-		if (n) {
-			name_ = *n;
-		} else {
-			name_ = "No name";
+		for (auto *fs : fss) {
+			if (!usesFrameset(fs->id)) continue;
+
+			ftl::rgbd::Frame *frame = nullptr;
+
+			if (fid_ >= fs->frames.size()) return;
+			frame = &fs->frames[fid_];
+			_downloadFrames(frame);
+			auto n = frame->get<std::string>("name");
+			if (n) {
+				name_ = *n;
+			} else {
+				name_ = "No name";
+			}
+			return;
 		}
 	}
 }
@@ -423,6 +430,10 @@ void ftl::gui::Camera::keyMovement(int key, int modifiers) {
 		float mag = (modifiers & 0x1) ? 0.01f : 0.1f;
 		float scalar = (key == 266) ? -mag : mag;
 		neye_ += rotmat_*Eigen::Vector4d(0.0,scalar,0.0,1.0);
+		return;
+	} else if (key >= '0' && key <= '5') {
+		int ix = key - (int)('0');
+		transform_ix_ = ix-1;
 		return;
 	}
 }
@@ -623,7 +634,13 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		Eigen::Affine3d t(trans);
 		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
 
-		if (isVirtual()) state_.setPose(viewPose);
+		if (isVirtual()) {
+			if (transform_ix_ < 0) {
+				state_.setPose(viewPose);
+			} else {
+				transforms_[transform_ix_] = viewPose;
+			}
+		}
 	
 		//src_->grab();
 
