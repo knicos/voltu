@@ -576,6 +576,16 @@ bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
 	return true;
 }
 
+void ftl::gui::Camera::active(bool a) {
+	if (a) {
+
+	} else {
+		neye_[0] = eye_[0];
+		neye_[1] = eye_[1];
+		neye_[2] = eye_[2];
+	}
+}
+
 const GLTexture &ftl::gui::Camera::captureFrame() {
 	float now = (float)glfwGetTime();
 	delta_ = now - ftime_;
