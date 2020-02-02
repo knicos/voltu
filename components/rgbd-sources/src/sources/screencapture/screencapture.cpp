@@ -134,8 +134,8 @@ bool ScreenCapture::compute(int n, int b) {
     img = cv::Mat(params_.height, params_.width, CV_8UC4, impl_state_->ximg->data);
 	#endif
 
-	sframe_.reset();
-	sframe_.setOrigin(&state_);
+	frame_.reset();
+	frame_.setOrigin(&state_);
 
 	if (!img.empty()) {
 		frame_.create<cv::Mat>(Channel::Colour) = img;
