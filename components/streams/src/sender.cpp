@@ -114,7 +114,7 @@ static void mergeNALUnits(const std::list<ftl::codecs::Packet> &pkts, ftl::codec
 	}
 }
 
-void Sender::post(const ftl::rgbd::FrameSet &fs) {
+void Sender::post(ftl::rgbd::FrameSet &fs) {
     if (!stream_) return;
 
     Channels selected;
@@ -222,7 +222,7 @@ void Sender::post(const ftl::rgbd::FrameSet &fs) {
 	//do_inject_ = false;
 }
 
-void Sender::_encodeChannel(const ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
+void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 	bool lossless = value("lossless", false);
 	int max_bitrate = std::max(0, std::min(255, value("max_bitrate", 255)));
 	//int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));  // TODO: Use this
@@ -249,6 +249,13 @@ void Sender::_encodeChannel(const ftl::rgbd::FrameSet &fs, Channel c, bool reset
 		if (!enc) {
 			LOG(ERROR) << "No encoder";
 			return;
+		}
+
+		// Upload if in host memory
+		for (auto &f : fs.frames) {
+			if (f.isCPU(c)) {
+				f.upload(Channels<0>(c), cv::cuda::StreamAccessor::getStream(enc->stream()));
+			}
 		}
 
 		int count = _generateTiles(fs, offset, c, enc->stream(), lossless);
