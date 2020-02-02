@@ -360,6 +360,7 @@ ftl::gui::Screen::~Screen() {
 }
 
 void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
+	if (camera_) camera_->active(false);
 	camera_ = cam;
 
 	if (cam) {
@@ -367,6 +368,7 @@ void ftl::gui::Screen::setActiveCamera(ftl::gui::Camera *cam) {
 		mwindow_->setVisible(true);
 		mwindow_->cameraChanged();
 		swindow_->setVisible(false);
+		cam->active(true);
 	} else {
 		mwindow_->setVisible(false);
 		swindow_->setVisible(true);

@@ -66,6 +66,11 @@ class Camera {
 
 	void draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 
+	/**
+	 * @internal. Used to inform the camera if it is the active camera or not.
+	 */
+	void active(bool);
+
 	const GLTexture &captureFrame();
 	const GLTexture &getLeft() const { return texture1_; }
 	const GLTexture &getRight() const { return texture2_; }
