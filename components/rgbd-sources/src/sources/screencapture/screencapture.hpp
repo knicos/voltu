@@ -23,12 +23,16 @@ class ScreenCapture : public ftl::rgbd::detail::Source {
 	~ScreenCapture();
 
 	bool capture(int64_t ts) { timestamp_ = ts; return true; };
+	void swap() override;
 	bool retrieve();
 	bool compute(int n=-1, int b=-1);
 	bool isReady();
 
 	private:
 	bool ready_;
+	int64_t cap_ts_;
+	int64_t cur_ts_;
+	ftl::rgbd::Frame sframe_;
 
 	ImplState *impl_state_;
 };

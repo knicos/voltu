@@ -109,6 +109,11 @@ ScreenCapture::~ScreenCapture() {
 	#endif
 }
 
+void ScreenCapture::swap() {
+	cur_ts_ = cap_ts_;
+	sframe_.swapTo(frame_);
+}
+
 bool ScreenCapture::retrieve() {
 	if (!ready_) return false;
 	cv::Mat img;
@@ -118,19 +123,21 @@ bool ScreenCapture::retrieve() {
     img = cv::Mat(params_.height, params_.width, CV_8UC4, impl_state_->ximg->data);
 	#endif
 
-	frame_.reset();
-	frame_.setOrigin(&state_);
+	sframe_.reset();
+	sframe_.setOrigin(&state_);
 
 	if (!img.empty()) {
-		frame_.create<cv::cuda::GpuMat>(Channel::Colour).upload(img);
+		sframe_.create<cv::cuda::GpuMat>(Channel::Colour).upload(img);
 	}
+
+	cap_ts_ = timestamp_;
 
 	return true;
 }
 
 bool ScreenCapture::compute(int n, int b) {
 	if (!ready_) return false;
-	host_->notify(timestamp_, frame_);
+	host_->notify(cur_ts_, frame_);
     return true;
 }
 
