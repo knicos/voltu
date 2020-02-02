@@ -87,6 +87,9 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 		return;
 	}
 
+	// Page lock the shared memory...
+	cudaSafeCall(cudaHostRegister(s.shminfo.shmaddr, s.ximg->bytes_per_line * s.ximg->height, cudaHostRegisterDefault));
+
 	ready_ = true;
 
 	#endif
@@ -101,6 +104,11 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 
 	state_.getLeft() = params_;
 
+	host_->on("depth", [this](const ftl::config::Event &e) {
+		params_.maxDepth = host_->value("depth", 1.0f);
+		state_.getLeft() = params_;
+	});
+
 }
 
 ScreenCapture::~ScreenCapture() {
@@ -109,7 +117,15 @@ ScreenCapture::~ScreenCapture() {
 	#endif
 }
 
+void ScreenCapture::swap() {
+
+}
+
 bool ScreenCapture::retrieve() {
+	return true;
+}
+
+bool ScreenCapture::compute(int n, int b) {
 	if (!ready_) return false;
 	cv::Mat img;
 
@@ -122,14 +138,9 @@ bool ScreenCapture::retrieve() {
 	frame_.setOrigin(&state_);
 
 	if (!img.empty()) {
-		frame_.create<cv::cuda::GpuMat>(Channel::Colour).upload(img);
+		frame_.create<cv::Mat>(Channel::Colour) = img;
 	}
 
-	return true;
-}
-
-bool ScreenCapture::compute(int n, int b) {
-	if (!ready_) return false;
 	host_->notify(timestamp_, frame_);
     return true;
 }

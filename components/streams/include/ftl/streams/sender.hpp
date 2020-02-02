@@ -26,7 +26,7 @@ class Sender : public ftl::Configurable {
 	 * Encode and transmit an entire frame set. Frames may already contain
 	 * an encoded form, in which case that is used instead.
 	 */
-	void post(const ftl::rgbd::FrameSet &fs);
+	void post(ftl::rgbd::FrameSet &fs);
 
 	/**
 	 * Encode and transmit a set of audio channels.
@@ -55,7 +55,7 @@ class Sender : public ftl::Configurable {
 	std::unordered_map<int, EncodingState> state_;
 
 	//ftl::codecs::Encoder *_getEncoder(int fsid, int fid, ftl::codecs::Channel c);
-	void _encodeChannel(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
+	void _encodeChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
 	int _generateTiles(const ftl::rgbd::FrameSet &fs, int offset, ftl::codecs::Channel c, cv::cuda::Stream &stream, bool);
 	EncodingState &_getTile(int fsid, ftl::codecs::Channel c);
 	cv::Rect _generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset);
