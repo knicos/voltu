@@ -48,7 +48,9 @@ enum struct Channel : int {
 	Control			= 69,	// For stream and encoder control
 	Settings3		= 70,
 
-	Data			= 2048	// Custom data, any codec.
+	Data			= 2048,	// Custom data, any codec.
+	Faces			= 2049, // Data about detected faces
+	Transforms		= 2050	// Transformation matrices for framesets
 };
 
 inline bool isVideo(Channel c) { return (int)c < 32; };
