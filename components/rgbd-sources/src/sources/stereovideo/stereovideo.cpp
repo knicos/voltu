@@ -51,6 +51,7 @@ StereoVideoSource::~StereoVideoSource() {
 
 void StereoVideoSource::init(const string &file) {
 	capabilities_ = kCapVideo | kCapStereo;
+	calibrated_ = false;
 
 	if (ftl::is_video(file)) {
 		// Load video file
@@ -95,6 +96,7 @@ void StereoVideoSource::init(const string &file) {
 		if (calib_->loadCalibration(fname)) {
 			calib_->calculateRectificationParameters();
 			calib_->setRectify(true);
+			calibrated_ = true;
 		}
 	}
 	else {
@@ -134,6 +136,8 @@ void StereoVideoSource::init(const string &file) {
 					return false;
 				}
 			}
+
+			calibrated_ = true;  // Means we have intrinsics
 
 			return true;
 	});
@@ -199,25 +203,41 @@ void StereoVideoSource::updateParameters() {
 
 	// left
 
-	K = calib_->getCameraMatrixLeft(color_size_);
-	state_.getLeft() = {
-		static_cast<float>(K.at<double>(0,0)),	// Fx
-		static_cast<float>(K.at<double>(1,1)),	// Fy
-		static_cast<float>(-K.at<double>(0,2)),	// Cx
-		static_cast<float>(-K.at<double>(1,2)),	// Cy
-		(unsigned int) color_size_.width,
-		(unsigned int) color_size_.height,
-		min_depth,
-		max_depth,
-		baseline,
-		doff
-	};
-	
-	host_->getConfig()["focal"] = params_.fx;
-	host_->getConfig()["centre_x"] = params_.cx;
-	host_->getConfig()["centre_y"] = params_.cy;
-	host_->getConfig()["baseline"] = params_.baseline;
-	host_->getConfig()["doffs"] = params_.doffs;
+	// FIXME: Check this change doesn't break anything (adding of calibrated_)
+	if (calibrated_) {
+		K = calib_->getCameraMatrixLeft(color_size_);
+		state_.getLeft() = {
+			static_cast<float>(K.at<double>(0,0)),	// Fx
+			static_cast<float>(K.at<double>(1,1)),	// Fy
+			static_cast<float>(-K.at<double>(0,2)),	// Cx
+			static_cast<float>(-K.at<double>(1,2)),	// Cy
+			(unsigned int) color_size_.width,
+			(unsigned int) color_size_.height,
+			min_depth,
+			max_depth,
+			baseline,
+			doff
+		};
+		
+		host_->getConfig()["focal"] = params_.fx;
+		host_->getConfig()["centre_x"] = params_.cx;
+		host_->getConfig()["centre_y"] = params_.cy;
+		host_->getConfig()["baseline"] = params_.baseline;
+		host_->getConfig()["doffs"] = params_.doffs;
+	} else {
+		state_.getLeft() = {
+			host_->value("focal", 500.0f),	// Fx
+			host_->value("focal", 500.0f),	// Fy
+			host_->value("centre_x", -color_size_.width/2.0f),	// Cx
+			host_->value("centre_y", -color_size_.height/2.0f),	// Cy
+			(unsigned int) color_size_.width,
+			(unsigned int) color_size_.height,
+			min_depth,
+			max_depth,
+			baseline,
+			doff
+		};
+	}
 
 	// right
 

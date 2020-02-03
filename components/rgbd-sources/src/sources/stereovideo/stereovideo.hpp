@@ -38,6 +38,7 @@ class StereoVideoSource : public detail::Source {
 
 	LocalSource *lsrc_;
 	Calibrate *calib_;
+	bool calibrated_;
 
 	cv::Size color_size_;
 	cv::Size depth_size_;

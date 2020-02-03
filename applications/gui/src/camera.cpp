@@ -271,6 +271,7 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		if (!usesFrameset(fs->id)) continue;
 
 		// FIXME: Should perhaps remain locked until after end is called?
+		// Definitely: causes flashing if not.
 		UNIQUE_LOCK(fs->mtx,lk);
 		renderer_->submit(fs, Channels<0>(channel_), transforms_[fs->id]);
 	}

@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include <ftl/uri.hpp>
+#include <nlohmann/json.hpp>
 
 using ftl::URI;
 using std::string;
@@ -121,6 +122,36 @@ SCENARIO( "URI::to_string() from a valid URI" ) {
 	GIVEN( "an unsorted set of query components" ) {
 		URI uri("http://localhost:1000/hello?z=5&y=4&x=2");
 		REQUIRE( uri.to_string() == "http://localhost:1000/hello?x=2&y=4&z=5" );
+	}
+}
+
+SCENARIO( "URI::to_json() from a valid URI" ) {
+	GIVEN( "no query component" ) {
+		URI uri("http://localhost:1000/hello");
+
+		nlohmann::json object;
+		uri.to_json(object);
+
+		REQUIRE( object["uri"].get<std::string>() == "http://localhost:1000/hello" );
+	}
+
+	GIVEN( "one numeric query item" ) {
+		URI uri("http://localhost:1000/hello?a=45");
+
+		nlohmann::json object;
+		uri.to_json(object);
+
+		REQUIRE( object["a"].get<int>() == 45 );
+	}
+
+	GIVEN( "multiple query items" ) {
+		URI uri("http://localhost:1000/hello?a=45&b=world");
+
+		nlohmann::json object;
+		uri.to_json(object);
+
+		REQUIRE( object["a"].get<int>() == 45 );
+		REQUIRE( object["b"].get<std::string>() == "world" );
 	}
 }
 

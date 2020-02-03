@@ -1,7 +1,8 @@
 #include <ftl/uri.hpp>
+#include <nlohmann/json.hpp>
 // #include <filesystem>  TODO When available
 #include <cstdlib>
-#include <loguru.hpp>
+//#include <loguru.hpp>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -175,4 +176,27 @@ void URI::setAttribute(const string &key, const string &value) {
 
 void URI::setAttribute(const string &key, int value) {
     m_qmap[key] = std::to_string(value);
+}
+
+void URI::to_json(nlohmann::json &json) {
+	std::string uri = getBaseURI();
+	if (m_frag.size() > 0) uri += std::string("#") + getFragment();
+
+	json["uri"] = uri;
+	for (auto i : m_qmap) {
+		auto *current = &json;
+
+		size_t pos = 0;
+		size_t lpos = 0;
+		while ((pos = i.first.find('/', lpos)) != std::string::npos) {
+			current = &((*current)[i.first.substr(lpos, pos-lpos)]);
+			lpos = pos+1;
+		}
+		auto p = nlohmann::json::parse(i.second, nullptr, false);
+		if (!p.is_discarded()) {
+			(*current)[i.first.substr(lpos)] = p;
+		} else {
+			(*current)[i.first.substr(lpos)] = i.second;
+		}
+	}
 }
