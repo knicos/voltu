@@ -1,6 +1,7 @@
 #ifndef _FTL_URI_HPP_
 #define _FTL_URI_HPP_
 
+#include <nlohmann/json_fwd.hpp>
 #include <uriparser/Uri.h>
 #include <string>
 #include <vector>
@@ -61,6 +62,8 @@ namespace ftl {
 		}
 
 		std::string to_string() const;
+
+		void to_json(nlohmann::json &);
 
 		private:
 		void _parse(uri_t puri);

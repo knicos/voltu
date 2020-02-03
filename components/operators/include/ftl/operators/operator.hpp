@@ -113,6 +113,8 @@ class Graph : public ftl::Configurable {
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream=0);
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, cudaStream_t stream=0);
 
+	cudaStream_t getStream() const { return stream_; }
+
 	private:
 	std::list<ftl::operators::detail::OperatorNode> operators_;
 	std::map<std::string, ftl::Configurable*> configs_;

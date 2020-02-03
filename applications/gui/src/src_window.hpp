@@ -81,6 +81,7 @@ class SourceWindow : public nanogui::Window {
 	void _createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtual);
 	ftl::codecs::Channels<0> _aggregateChannels(int id);
 	void _checkFrameSets(int id);
+	bool _processFrameset(ftl::rgbd::FrameSet &fs, bool);
 
 };
 

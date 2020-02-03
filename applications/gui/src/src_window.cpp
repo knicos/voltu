@@ -39,9 +39,20 @@ using ftl::gui::Screen;
 using ftl::gui::Scene;
 using ftl::rgbd::Source;
 using ftl::codecs::Channel;
+using ftl::codecs::Channels;
 using std::string;
 using std::vector;
 using ftl::config::json_t;
+
+static ftl::rgbd::Generator *createSourceGenerator(const std::vector<ftl::rgbd::Source*> &srcs) {
+	
+	auto *grp = new ftl::rgbd::Group();
+	for (auto s : srcs) {
+		s->setChannel(Channel::Depth);
+		grp->addSource(s);
+	}
+	return grp;
+}
 
 SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		: nanogui::Window(screen, ""), screen_(screen) {
@@ -80,50 +91,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	paused_ = false;
 	cycle_ = 0;
 	receiver_->onFrameSet([this](ftl::rgbd::FrameSet &fs) {
-		// Request the channels required by current camera configuration
-		interceptor_->select(fs.id, _aggregateChannels(fs.id));
-
-		/*if (fs.id > 0) {
-			LOG(INFO) << "Got frameset: " << fs.id;
-			return true;
-		}*/
-
-		// Make sure there are enough framesets allocated
-		_checkFrameSets(fs.id);
-
-		if (!paused_) {
-			// Enforce interpolated colour
-			for (int i=0; i<fs.frames.size(); ++i) {
-				fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
-			}
-
-			pre_pipelines_[fs.id]->apply(fs, fs, 0);
-
-			fs.swapTo(*framesets_[fs.id]);
-		}
-
-		/*if (fs.frames[0].hasChannel(Channel::Data)) {
-			int data = 0;
-			fs.frames[0].get(Channel::Data, data);
-			LOG(INFO) << "GOT DATA : " << data;
-		}*/
-
-		const auto *cstream = interceptor_;
-		_createDefaultCameras(*framesets_[fs.id], true);  // cstream->available(fs.id).has(Channel::Depth)
-
-		//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
-
-		int i=0;
-		for (auto cam : cameras_) {
-			// Only update the camera periodically unless the active camera
-			if (screen_->activeCamera() == cam.second.camera ||
-				(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(framesets_);
-
-			cam.second.camera->update(cstream->available(fs.id));
-		}
-		++cycle_;
-
-		return true;
+		return _processFrameset(fs, true);
 	});
 
 	speaker_ = ftl::create<ftl::audio::Speaker>(screen_->root(), "speaker_test");
@@ -145,6 +113,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		return true;
 	});
 
+	// Add network sources
 	_updateCameras(screen_->control()->getNet()->findAll<string>("list_streams"));
 
 	// Also check for a file on command line.
@@ -163,10 +132,76 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 			auto *fstream = ftl::create<ftl::stream::File>(screen->root(), std::string("ftlfile-")+std::to_string(ftl_count+1));
 			fstream->set("filename", path);
 			stream_->add(fstream, ftl_count++);
+		} else if (path.rfind("device:", 0) == 0) {
+			ftl::URI uri(path);
+			uri.to_json(screen->root()->getConfig()["sources"].emplace_back());
 		}
 	}
 
+	// Finally, check for any device sources configured
+	std::vector<Source*> devices;
+	// Create a vector of all input RGB-Depth sources
+	if (screen->root()->getConfig()["sources"].size() > 0) {
+		devices = ftl::createArray<Source>(screen->root(), "sources", screen->control()->getNet());
+		auto *gen = createSourceGenerator(devices);
+		gen->onFrameSet([this, ftl_count](ftl::rgbd::FrameSet &fs) {
+			fs.id = ftl_count;  // Set a frameset id to something unique.
+			return _processFrameset(fs, false);
+		});
+	}
+
 	stream_->begin();
+}
+
+bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
+	// Request the channels required by current camera configuration
+	if (fromstream) interceptor_->select(fs.id, _aggregateChannels(fs.id));
+
+	/*if (fs.id > 0) {
+		LOG(INFO) << "Got frameset: " << fs.id;
+		return true;
+	}*/
+
+	// Make sure there are enough framesets allocated
+	_checkFrameSets(fs.id);
+
+	if (!paused_) {
+		// Enforce interpolated colour and GPU upload
+		for (int i=0; i<fs.frames.size(); ++i) {
+			fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
+
+			// TODO: Do all channels. This is a fix for screen capture sources.
+			if (!fs.frames[i].isGPU(Channel::Colour)) fs.frames[i].upload(Channels<0>(Channel::Colour), pre_pipelines_[fs.id]->getStream());
+		}
+
+		pre_pipelines_[fs.id]->apply(fs, fs, 0);
+
+		fs.swapTo(*framesets_[fs.id]);
+	}
+
+	/*if (fs.frames[0].hasChannel(Channel::Data)) {
+		int data = 0;
+		fs.frames[0].get(Channel::Data, data);
+		LOG(INFO) << "GOT DATA : " << data;
+	}*/
+
+	const auto *cstream = interceptor_;
+	_createDefaultCameras(*framesets_[fs.id], true);  // cstream->available(fs.id).has(Channel::Depth)
+
+	//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
+
+	int i=0;
+	for (auto cam : cameras_) {
+		// Only update the camera periodically unless the active camera
+		if (screen_->activeCamera() == cam.second.camera ||
+			(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(framesets_);
+
+		if (fromstream) cam.second.camera->update(cstream->available(fs.id));
+		else if (fs.frames.size() > 0) cam.second.camera->update(fs.frames[0].getChannels());
+	}
+	++cycle_;
+
+	return true;
 }
 
 void SourceWindow::_checkFrameSets(int id) {

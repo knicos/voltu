@@ -66,6 +66,8 @@ LocalSource::LocalSource(nlohmann::json &config)
 
 	camera_a_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
 	camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
+	//TODO: CAP_PROP_FPS
+	// CAP_PROP_BUFFERSIZE
 	
 	Mat frame;
 	camera_a_->grab();
@@ -223,17 +225,6 @@ bool LocalSource::grab() {
 		LOG(ERROR) << "Unable to grab from camera B";
 		return false;
 	}
-
-	// Record timestamp
-	double timestamp = duration_cast<duration<double>>(
-			high_resolution_clock::now().time_since_epoch()).count();
-	
-	// Limit max framerate
-	//if (timestamp - timestamp_ < tps_) {
-	//	sleep_for(milliseconds((int)std::round((tps_ - (timestamp - timestamp_))*1000)));
-	//}
-
-	timestamp_ = timestamp;
 
 	return true;
 }
