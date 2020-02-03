@@ -102,62 +102,79 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
 		+ barycentricCoord.z * tri[2]);
 }
 
+/**
+ * Loop over rectangular region covering the triangle and test each pixel for
+ * being inside or outside (using bary centric coordinate method). If inside
+ * then atomically write to the depth map.
+ */
+__device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const SplatParams &params, TextureObject<int> &depth_out) {
+	const int minX = min(v[0].x, min(v[1].x, v[2].x));
+	const int minY = min(v[0].y, min(v[1].y, v[2].y));
+	const int maxX = max(v[0].x, max(v[1].x, v[2].x));
+	const int maxY = max(v[0].y, max(v[1].y, v[2].y));
+
+	// Remove really large triangles
+	if ((maxX - minX) * (maxY - minY) <= params.triangle_limit) {
+		// TODO: Verify that < is correct, was <= before but < is faster.
+		for (int sy=minY; sy < maxY; ++sy) {
+			for (int sx=minX; sx < maxX; ++sx) {
+				//if () continue;
+
+				float3 baryCentricCoordinate = calculateBarycentricCoordinate(v, make_short2(sx, sy));
+
+				if (sx < params.camera.width && sx >= 0 && sy < params.camera.height && sy >= 0 && isBarycentricCoordInBounds(baryCentricCoordinate)) {
+					float new_depth = getZAtCoordinate(baryCentricCoordinate, d);
+					atomicMin(&depth_out(sx,sy), int(new_depth*100000.0f));
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Depth differences above threshold are used to determine a discontinuity and
+ * hence that a triangle should not be draw between said verticies.
+ * TODO: Use discontinuity mask or some better test here.
+ */
+__device__ inline bool isValidTriangle(const float (&d)[3], const SplatParams &params) {
+	return !(fabs(d[0] - d[1]) > params.depthThreshold || fabs(d[0] - d[2]) > params.depthThreshold || d[0] < params.camera.minDepth || d[0] > params.camera.maxDepth);
+}
+
+/**
+ * Read the other two verticies into memory. The template parameters determine
+ * which verticies to load.
+ */
+template <int A, int B>
+__device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const SplatParams &params, const TextureObject<float> &depth_in, const TextureObject<short2> &screen) {
+    d[1] = depth_in.tex2D(x+A,y);
+    d[2] = depth_in.tex2D(x,y+B);
+    v[1] = screen.tex2D(x+A,y);
+	v[2] = screen.tex2D(x,y+B);
+	return isValidTriangle(d, params);
+}
+
 /*
  * Convert source screen position to output screen coordinates.
  */
- template <int A, int B>
- __global__ void triangle_render_1_kernel(
+ __global__ void triangle_render_kernel(
         TextureObject<float> depth_in,
         TextureObject<int> depth_out,
 		TextureObject<short2> screen, SplatParams params) {
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if (x < 1 || x >= depth_in.width()-1 || y < 1 || y >= depth_in.height()-1) return;
+    if (x >= 1 && x < depth_in.width()-1 && y >= 1 && y < depth_in.height()-1) {
+		float d[3];
+		d[0] = depth_in.tex2D(x,y);
 
-    float d[3];
-    d[0] = depth_in.tex2D(x,y);
-    d[1] = depth_in.tex2D(x+A,y);
-    d[2] = depth_in.tex2D(x,y+B);
+		short2 v[3];
+		v[0] = screen.tex2D(x,y);
 
-    // Is this triangle valid
-	if (fabs(d[0] - d[1]) > params.depthThreshold || fabs(d[0] - d[2]) > params.depthThreshold) return;
-	if (d[0] < params.camera.minDepth || d[0] > params.camera.maxDepth) return;
-
-    short2 v[3];
-    v[0] = screen.tex2D(x,y);
-    v[1] = screen.tex2D(x+A,y);
-	v[2] = screen.tex2D(x,y+B);
-
-	// Attempt to back face cull, but not great
-	//if ((v[1].x - v[0].x) * A < 0 || (v[2].y - v[0].y) * B < 0) return;
-
-	const int minX = min(v[0].x, min(v[1].x, v[2].x));
-	const int minY = min(v[0].y, min(v[1].y, v[2].y));
-	const int maxX = max(v[0].x, max(v[1].x, v[2].x));
-	const int maxY = max(v[0].y, max(v[1].y, v[2].y));
-
-	// Ensure the points themselves are drawn
-	//atomicMin(&depth_out(v[0].x,v[0].y), int(d[0]*100000.0f));
-	//atomicMin(&depth_out(v[1].x,v[1].y), int(d[1]*100000.0f));
-	//atomicMin(&depth_out(v[2].x,v[2].y), int(d[2]*100000.0f));
-
-	// Remove really large triangles
-	if ((maxX - minX) * (maxY - minY) > params.triangle_limit) return;
-
-	// TODO: Verify that < is correct, was <= before but < is faster.
-	for (int sy=minY; sy < maxY; ++sy) {
-		for (int sx=minX; sx < maxX; ++sx) {
-			if (sx >= params.camera.width || sx < 0 || sy >= params.camera.height || sy < 0) continue;
-
-			float3 baryCentricCoordinate = calculateBarycentricCoordinate(v, make_short2(sx, sy));
-
-			if (isBarycentricCoordInBounds(baryCentricCoordinate)) {
-				float new_depth = getZAtCoordinate(baryCentricCoordinate, d);
-				atomicMin(&depth_out(sx,sy), int(new_depth*100000.0f));
-				//depth_out(sx,sy) = int(new_depth*100000.0f);
-			}
-		}
+		// Draw (optionally) 4 triangles as a diamond pattern around the central point.
+		if (loadTriangle<1,1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+		if (loadTriangle<1,-1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+		if (loadTriangle<-1,1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+		if (loadTriangle<-1,-1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
 	}
 }
 
@@ -165,10 +182,7 @@ void ftl::cuda::triangle_render1(TextureObject<float> &depth_in, TextureObject<i
     const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	triangle_render_1_kernel<1,1><<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
-	triangle_render_1_kernel<1,-1><<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
-	triangle_render_1_kernel<-1,1><<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
-	triangle_render_1_kernel<-1,-1><<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
+	triangle_render_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
     cudaSafeCall( cudaGetLastError() );
 }
 
