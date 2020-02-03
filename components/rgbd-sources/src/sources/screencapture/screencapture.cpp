@@ -61,8 +61,16 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 	}
 
     s.screen = s.window_attributes.screen;
-	params_.width = s.window_attributes.width;
-	params_.height = s.window_attributes.height;
+	full_width_ = s.window_attributes.width;
+	full_height_ = s.window_attributes.height;
+	offset_x_ = host_->value("offset_x",0);
+	offset_y_ = host_->value("offset_y",0);
+
+	// Choose a correct aspect ratio
+	int awidth = ftl::codecs::getWidth(ftl::codecs::findDefinition(full_height_));
+	params_.width = awidth;
+	params_.height = full_height_;
+
 
     s.ximg = XShmCreateImage(s.display, DefaultVisualOfScreen(s.screen),
 			DefaultDepthOfScreen(s.screen), ZPixmap, NULL, &s.shminfo,
@@ -110,6 +118,13 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 		state_.getLeft() = params_;
 	});
 
+	host_->on("offset_x", [this](const ftl::config::Event &e) {
+		offset_x_ = host_->value("offset_x", 0);
+	});
+
+	host_->on("offset_y", [this](const ftl::config::Event &e) {
+		offset_y_ = host_->value("offset_y", 0);
+	});
 }
 
 ScreenCapture::~ScreenCapture() {
@@ -130,7 +145,7 @@ bool ScreenCapture::compute(int n, int b) {
 	cv::Mat img;
 
 	#ifdef HAVE_X11
-	XShmGetImage(impl_state_->display, impl_state_->root, impl_state_->ximg, 0, 0, 0x00ffffff);
+	XShmGetImage(impl_state_->display, impl_state_->root, impl_state_->ximg, getOffsetX(), getOffsetY(), 0x00ffffff);
     img = cv::Mat(params_.height, params_.width, CV_8UC4, impl_state_->ximg->data);
 	#endif
 

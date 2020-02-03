@@ -65,7 +65,15 @@ enum struct definition_t : uint8_t {
 	Invalid
 };
 
+/**
+ * Find exact match definition.
+ */
 definition_t findDefinition(int width, int height);
+
+/**
+ * Find a definition that matches the requested height.
+ */
+definition_t findDefinition(int height);
 
 /**
  * Get width in pixels of definition.

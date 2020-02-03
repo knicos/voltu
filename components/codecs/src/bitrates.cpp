@@ -47,3 +47,16 @@ definition_t ftl::codecs::findDefinition(int width, int height) {
 	return definition_t::Invalid;
 }
 
+definition_t ftl::codecs::findDefinition(int height) {
+	int best = 0;
+
+	for(const Resolution res : resolutions) {
+		if (res.height == height) {
+			return static_cast<definition_t>(best);
+		}
+		best++;
+	}
+
+	return definition_t::Invalid;
+}
+
