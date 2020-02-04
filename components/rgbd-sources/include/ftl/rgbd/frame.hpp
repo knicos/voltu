@@ -35,6 +35,7 @@ struct VideoData {
 	cv::cuda::GpuMat gpu;
 	cv::Mat host;
 	bool isgpu;
+	bool validhost;
 	std::list<ftl::codecs::Packet> encoded;
 
 	template <typename T>
@@ -53,6 +54,7 @@ struct VideoData {
 	};
 
 	inline void reset() {
+		validhost = false;
 		encoded.clear();
 	}
 };
@@ -89,6 +91,15 @@ public:
 	inline void upload(ftl::codecs::Channel c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
 	inline void download(const ftl::codecs::Channels<0> &c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
 	inline void upload(const ftl::codecs::Channels<0> &c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
+
+	/**
+	 * Special case optional download. If a host memory version still exists,
+	 * use that. Only download if no host version exists. This assumes that
+	 * the GPU version has not been modified since the host version was created,
+	 * in otherwords that both version are still the same. It also does not
+	 * actually mark the channel as downloaded.
+	 */
+	cv::Mat &fastDownload(ftl::codecs::Channel c, cv::cuda::Stream stream);
 
 	/**
 	 * Get an existing CUDA texture object.

@@ -22,6 +22,7 @@
 #include <ftl/master.hpp>
 #include <nlohmann/json.hpp>
 #include <ftl/operators/disparity.hpp>
+#include <ftl/operators/detectandtrack.hpp>
 
 #include <ftl/streams/netstream.hpp>
 #include <ftl/streams/sender.hpp>
@@ -86,6 +87,8 @@ static void run(ftl::Configurable *root) {
 	});
 	
 	auto pipeline = ftl::config::create<ftl::operators::Graph>(root, "pipeline");
+	pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+	pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	pipeline->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
 	grp->addPipeline(pipeline);
 	

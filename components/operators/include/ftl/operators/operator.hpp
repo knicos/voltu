@@ -46,6 +46,14 @@ class Operator {
 	inline bool enabled() const { return enabled_; }
 	inline void enabled(bool e) { enabled_ = e; }
 
+	/**
+	 * In case this operator operates async, force a wait for complete when
+	 * this is called. Useful for CPU processing in parallel to GPU. A CUDA
+	 * stream is passed that corresponds to the pipeline that called wait,
+	 * allowing any GPU parallel streams to insert a wait event.
+	 */
+	virtual void wait(cudaStream_t) {}
+
 	inline ftl::Configurable *config() const { return config_; }
 
 	private:
@@ -114,6 +122,15 @@ class Graph : public ftl::Configurable {
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, cudaStream_t stream=0);
 
 	cudaStream_t getStream() const { return stream_; }
+
+	/**
+	 * Make sure all async operators have also completed. This is automatically
+	 * called by `apply` so should not be needed unless an `applyAsync` is
+	 * added in the future. The stream passed is the primary pipeline stream,
+	 * which may be either `getStream()` or the stream argument passed to the
+	 * `apply` method called.
+	 */
+	bool waitAll(cudaStream_t);
 
 	private:
 	std::list<ftl::operators::detail::OperatorNode> operators_;

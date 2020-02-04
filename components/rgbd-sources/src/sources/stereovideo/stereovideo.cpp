@@ -20,7 +20,6 @@
 #include "ftl/operators/segmentation.hpp"
 #include "ftl/operators/disparity.hpp"
 #include "ftl/operators/mask.hpp"
-#include "ftl/operators/detectandtrack.hpp"
 
 #include "ftl/threads.hpp"
 #include "calibrate.hpp"
@@ -82,8 +81,6 @@ void StereoVideoSource::init(const string &file) {
 	#ifdef HAVE_OPTFLOW
 	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
 	#endif
-	pipeline_input_->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
-	pipeline_input_->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	pipeline_input_->append<ftl::operators::ColourChannels>("colour");
 
 	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
