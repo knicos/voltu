@@ -16,3 +16,12 @@ Camera Camera::from(ftl::Configurable *cfg) {
 	r.baseline = cfg->value("baseline", 0.05f);
 	return r;
 }
+
+cv::Mat Camera::getCameraMatrix() const {
+	cv::Mat K = cv::Mat::eye(cv::Size(3, 3), CV_64FC1);
+	K.at<double>(0,0) = fx;
+	K.at<double>(0,2) = -cx;
+	K.at<double>(1,1) = fy;
+	K.at<double>(1,2) = -cy;
+	return K;
+}

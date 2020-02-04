@@ -106,6 +106,48 @@ struct object_with_zone<cv::Rect_<T>> {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// cv::Vec
+
+template<typename T, int SIZE>
+struct pack<cv::Vec<T, SIZE>> {
+	template <typename Stream>
+	packer<Stream>& operator()(msgpack::packer<Stream>& o, cv::Vec<T, SIZE> const& v) const {
+
+		o.pack_array(SIZE);
+		for (int i = 0; i < SIZE; i++) { o.pack(v[i]); }
+
+		return o;
+	}
+};
+
+template<typename T, int SIZE>
+struct convert<cv::Vec<T, SIZE>> {
+	msgpack::object const& operator()(msgpack::object const& o, cv::Vec<T, SIZE> &v) const {
+		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+		if (o.via.array.size != SIZE) { throw msgpack::type_error(); }
+		
+		for (int i = 0; i < SIZE; i++) { v[i] = o.via.array.ptr[i].as<T>(); }
+
+		return o;
+	}
+};
+
+template <typename T, int SIZE>
+struct object_with_zone<cv::Vec<T, SIZE>> {
+	void operator()(msgpack::object::with_zone& o, cv::Vec<T, SIZE> const& v) const {
+		o.type = type::ARRAY;
+		o.via.array.size = SIZE;
+		o.via.array.ptr = static_cast<msgpack::object*>(
+			o.zone.allocate_align(	sizeof(msgpack::object) * o.via.array.size,
+									MSGPACK_ZONE_ALIGNOF(msgpack::object)));
+
+		for (int i = 0; i < SIZE; i++) {
+			o.via.array.ptr[i] = msgpack::object(v[i], o.zone);
+		}
+	}
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // cv::Mat
 
 template<>

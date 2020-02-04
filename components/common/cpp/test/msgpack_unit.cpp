@@ -91,4 +91,9 @@ TEST_CASE( "msgpack cv::Mat" ) {
 		auto res = msgpack_unpack<cv::Rect2d>(msgpack_pack(cv::Rect2d(1,2,3,4)));
 		REQUIRE(res == cv::Rect2d(1,2,3,4));
 	}
+	
+	SECTION( "Vec<T, SIZE>" ) {
+		auto res = msgpack_unpack<cv::Vec4d>(msgpack_pack(cv::Vec4d(1,2,3,4)));
+		REQUIRE(res == cv::Vec4d(1,2,3,4));
+	}
 }
