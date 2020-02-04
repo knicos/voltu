@@ -34,45 +34,73 @@ ArUco::ArUco(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
 
 bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(channel_in_)) { return false; }
-	in.download(channel_in_);
 
-	Mat im = in.get<Mat>(channel_in_);
-	Mat K = in.getLeftCamera().getCameraMatrix();
-	Mat dist = cv::Mat::zeros(cv::Size(5, 1), CV_64FC1);
+	Frame *inptr = &in;
+	Frame *outptr = &out;
 
-	std::vector<std::vector<cv::Point2f>> corners;
-	std::vector<int> ids;
+	job_ = std::move(ftl::pool.push([this,inptr,outptr,stream](int id) {
+		Frame &in = *inptr;
+		Frame &out = *outptr;
 
-	cv::aruco::detectMarkers(	im, dictionary_,
-								corners, ids, params_, cv::noArray(), K);
+		auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+		//in.download(channel_in_);
 
-	std::vector<Vec3d> rvecs;
-	std::vector<Vec3d> tvecs;
+		//Mat im = in.get<Mat>(channel_in_);
+		// FIXME: Use internal stream here.
+		Mat im; // = in.fastDownload(channel_in_, cv::cuda::Stream::Null());
+		cv::cvtColor(in.fastDownload(channel_in_, cv::cuda::Stream::Null()), im, cv::COLOR_BGRA2BGR);
 
-	if (estimate_pose_) {
-		cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, K, dist, rvecs, tvecs);
-	}
+		Mat K = in.getLeftCamera().getCameraMatrix();
+		Mat dist = cv::Mat::zeros(cv::Size(5, 1), CV_64FC1);
 
-	vector<Transformation> result;
-	for (size_t i = 0; i < rvecs.size(); i++) {
+		std::vector<std::vector<cv::Point2f>> corners;
+		std::vector<int> ids;
+
+		cv::aruco::detectMarkers(	im, dictionary_,
+									corners, ids, params_, cv::noArray(), K);
+
+		std::vector<Vec3d> rvecs;
+		std::vector<Vec3d> tvecs;
+
 		if (estimate_pose_) {
-			result.push_back(ftl::codecs::Transformation(ids[i], rvecs[i], tvecs[i]));
+			cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, K, dist, rvecs, tvecs);
 		}
-	}
 
-	out.create(channel_out_, result);
-
-	if (debug_) {
-		cv::aruco::drawDetectedMarkers(im, corners, ids);
-		if (estimate_pose_) {
-			for (size_t i = 0; i < rvecs.size(); i++) {
-					cv::aruco::drawAxis(im, K, dist, rvecs[i], tvecs[i], marker_size_);
+		vector<Transformation> result;
+		for (size_t i = 0; i < rvecs.size(); i++) {
+			if (estimate_pose_) {
+				result.push_back(ftl::codecs::Transformation(ids[i], rvecs[i], tvecs[i]));
 			}
 		}
-	}
 
-	// TODO: should be uploaded by operator which requires data on GPU
-	in.upload(channel_in_);
+		out.create(channel_out_, result);
+
+		if (debug_) {
+			cv::aruco::drawDetectedMarkers(im, corners, ids);
+			if (estimate_pose_) {
+				for (size_t i = 0; i < rvecs.size(); i++) {
+						cv::aruco::drawAxis(im, K, dist, rvecs[i], tvecs[i], marker_size_);
+				}
+			}
+		}
+
+		// TODO: should be uploaded by operator which requires data on GPU
+		//in.upload(channel_in_);
+		if (debug_) {
+			if (in.isGPU(channel_in_)) {
+				cv::cvtColor(im, im, cv::COLOR_BGR2BGRA);
+				out.get<cv::cuda::GpuMat>(channel_in_).upload(im);
+			} else cv::cvtColor(im, in.get<cv::Mat>(channel_in_), cv::COLOR_BGR2BGRA);
+		}
+		return true;
+	}));
 
 	return true;
+}
+
+void ArUco::wait(cudaStream_t s) {
+	if (job_.valid()) {
+		job_.wait();
+		job_.get();
+	}
 }

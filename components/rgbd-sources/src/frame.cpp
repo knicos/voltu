@@ -36,6 +36,7 @@ const cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>() const {
 
 template <>
 cv::Mat &VideoData::make<cv::Mat>() {
+	validhost = true;
 	isgpu = false;
 	encoded.clear();
 	return host;
@@ -83,6 +84,7 @@ void Frame::download(Channels<0> c, cv::cuda::Stream stream) {
 	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
 		if (c.has(i) && hasChannel(static_cast<Channel>(i)) && isGPU(static_cast<Channel>(i))) {
 			auto &data = getData(static_cast<Channel>(i));
+			data.validhost = true;
 			data.gpu.download(data.host, stream);
 			data.isgpu = false;
 		}
@@ -97,6 +99,21 @@ void Frame::upload(Channels<0> c, cv::cuda::Stream stream) {
 			data.isgpu = true;
 		}
 	}
+}
+
+cv::Mat &Frame::fastDownload(ftl::codecs::Channel c, cv::cuda::Stream stream) {
+	if (hasChannel(c)) {
+		auto &data = getData(static_cast<Channel>(c));
+		if (!data.isgpu) return data.host;
+
+		if (data.validhost && !data.host.empty()) return data.host;
+
+		// TODO: Perhaps allocated page locked here?
+		data.gpu.download(data.host, stream);
+		data.validhost = true;
+		return data.host;
+	}
+	throw FTL_Error("Fast download channel does not exist: " << (int)c);
 }
 
 void Frame::pushPacket(ftl::codecs::Channel c, ftl::codecs::Packet &pkt) {

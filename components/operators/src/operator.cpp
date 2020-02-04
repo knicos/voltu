@@ -45,6 +45,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 	if (!value("enabled", true)) return false;
 
 	auto stream_actual = (stream == 0) ? stream_ : stream;
+	bool success = true;
 
 	if (in.frames.size() != out.frames.size()) return false;
 
@@ -70,11 +71,12 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 						instance->apply(in.frames[j], out.frames[j], stream_actual);
 					} catch (const std::exception &e) {
 						LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
-						cudaSafeCall(cudaStreamSynchronize(stream_actual));
-						return false;
+						success = false;
+						break;
 					}
 				}
 			}
+			if (!success) break;
 		} else if (i.instances[0]->type() == Operator::Type::ManyToMany) {
 			auto *instance = i.instances[0];
 
@@ -83,18 +85,33 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 					instance->apply(in, out, stream_actual);
 				} catch (const std::exception &e) {
 					LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
-					cudaSafeCall(cudaStreamSynchronize(stream_actual));
-					return false;
+					success = false;
+					break;
 				}
 			}
 		}
 	}
 
+	success = waitAll(stream_actual) && success;
+
 	if (stream == 0) {
 		cudaSafeCall(cudaStreamSynchronize(stream_actual));
-		//cudaSafeCall( cudaGetLastError() );
 	}
 
+	return success;
+}
+
+bool Graph::waitAll(cudaStream_t stream) {
+	for (auto &i : operators_) {
+		for (auto *j : i.instances) {
+			try {
+				j->wait(stream);
+			} catch (std::exception &e) {
+				LOG(ERROR) << "Operator exception for '" << j->config()->getID() << "': " << e.what();
+				return false;
+			}
+		}
+	}
 	return true;
 }
 
@@ -102,6 +119,7 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	if (!value("enabled", true)) return false;
 
 	auto stream_actual = (stream == 0) ? stream_ : stream;
+	bool success = true;
 
 	for (auto &i : operators_) {
 		// Make sure there are enough instances
@@ -116,18 +134,19 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 				instance->apply(in, out, stream_actual);
 			} catch (const std::exception &e) {
 				LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
-				cudaSafeCall(cudaStreamSynchronize(stream_actual));
-				return false;
+				success = false;
+				break;
 			}
 		}
 	}
 
+	success = waitAll(stream_actual) && success;
+
 	if (stream == 0) {
-		cudaStreamSynchronize(stream_actual);
-		cudaSafeCall( cudaGetLastError() );
+		cudaSafeCall(cudaStreamSynchronize(stream_actual));
 	}
 
-	return true;
+	return success;
 }
 
 ftl::Configurable *Graph::_append(ftl::operators::detail::ConstructionHelperBase *m) {

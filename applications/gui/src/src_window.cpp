@@ -25,6 +25,8 @@
 #include "ftl/operators/mask.hpp"
 #include "ftl/operators/antialiasing.hpp"
 #include <ftl/operators/smoothing.hpp>
+#include <ftl/operators/disparity.hpp>
+#include <ftl/operators/detectandtrack.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -44,9 +46,15 @@ using std::string;
 using std::vector;
 using ftl::config::json_t;
 
-static ftl::rgbd::Generator *createSourceGenerator(const std::vector<ftl::rgbd::Source*> &srcs) {
+static ftl::rgbd::Generator *createSourceGenerator(ftl::Configurable *root, const std::vector<ftl::rgbd::Source*> &srcs) {
 	
 	auto *grp = new ftl::rgbd::Group();
+	/*auto pipeline = ftl::config::create<ftl::operators::Graph>(root, "pipeline");
+	pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+	pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
+	pipeline->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
+	grp->addPipeline(pipeline);*/
+
 	for (auto s : srcs) {
 		s->setChannel(Channel::Depth);
 		grp->addSource(s);
@@ -143,7 +151,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	// Create a vector of all input RGB-Depth sources
 	if (screen->root()->getConfig()["sources"].size() > 0) {
 		devices = ftl::createArray<Source>(screen->root(), "sources", screen->control()->getNet());
-		auto *gen = createSourceGenerator(devices);
+		auto *gen = createSourceGenerator(screen->root(), devices);
 		gen->onFrameSet([this, ftl_count](ftl::rgbd::FrameSet &fs) {
 			fs.id = ftl_count;  // Set a frameset id to something unique.
 			return _processFrameset(fs, false);
@@ -209,6 +217,8 @@ void SourceWindow::_checkFrameSets(int id) {
 		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), "pre_filters");
 		//pre_pipeline_->append<ftl::operators::HFSmoother>("hfnoise");
 		//pre_pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+		p->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+		p->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 		p->append<ftl::operators::CrossSupport>("cross");
 		p->append<ftl::operators::DiscontinuityMask>("discontinuity");
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");

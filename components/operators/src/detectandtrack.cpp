@@ -2,6 +2,7 @@
 
 #include "loguru.hpp"
 #include "ftl/operators/detectandtrack.hpp"
+#include <ftl/exception.hpp>
 
 using std::string;
 using std::vector;
@@ -22,8 +23,12 @@ DetectAndTrack::DetectAndTrack(ftl::Configurable *cfg) : ftl::operators::Operato
 }
 
 bool DetectAndTrack::init() {
-	fname_ = config()->value<string>("filename", "");
+	fname_ = config()->value<string>("filename", FTL_LOCAL_DATA_ROOT "/haarcascades/haarcascade_frontalface_default.xml");
 	debug_ = config()->value<bool>("debug", false);
+
+	config()->on("debug", [this](const ftl::config::Event &e) {
+		debug_ = config()->value<bool>("debug", false);
+	});
 
 	detect_n_frames_ = config()->value<int>("n_frames", 10);
 	detect_n_frames_ = detect_n_frames_ < 0.0 ? 0.0 : detect_n_frames_;
@@ -69,7 +74,7 @@ bool DetectAndTrack::init() {
 	}
 
 	channel_in_ = ftl::codecs::Channel::Colour;
-	channel_out_ = ftl::codecs::Channel::Data;
+	channel_out_ = ftl::codecs::Channel::Faces;
 	id_max_ = 0;
 
 	bool retval = false;
@@ -175,46 +180,81 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		return false;
 	}
 
-	in.download(channel_in_);
-	Mat im = in.get<Mat>(channel_in_);
+	Frame *inptr = &in;
+	Frame *outptr = &out;
 
-	track(im);
+	job_ = std::move(ftl::pool.push([this,inptr,outptr,stream](int id) {
+		Frame &in = *inptr;
+		Frame &out = *outptr;
 
-	if ((n_frame_++ % detect_n_frames_ == 0) && (tracked_.size() < max_tracked_)) {
-		if (im.channels() == 1) {
-			gray_ = im;
+		auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+		//in.download(channel_in_);
+		//Mat im = in.get<Mat>(channel_in_);
+		Mat im;  // TODO: Keep this as an internal buffer? Perhaps page locked.
+
+		// FIXME: Use internal stream here.
+		cv::cvtColor(in.fastDownload(channel_in_, cv::cuda::Stream::Null()), im, cv::COLOR_BGRA2BGR);
+
+		if (im.empty()) {
+			throw FTL_Error("Empty image in face detection");
 		}
-		else if (im.channels() == 4) {
-			cv::cvtColor(im, gray_, cv::COLOR_BGRA2GRAY);
-		}
-		else if (im.channels() == 3) {
-			cv::cvtColor(im, gray_, cv::COLOR_BGR2GRAY);
-		}
-		else {
-			LOG(ERROR) << "unsupported number of channels in input image";
-			return false;
+
+		//cv::cvtColor(im, im, cv::COLOR_BGRA2BGR);
+
+		track(im);
+
+		if ((n_frame_++ % detect_n_frames_ == 0) && (tracked_.size() < max_tracked_)) {
+			if (im.channels() == 1) {
+				gray_ = im;
+			}
+			else if (im.channels() == 4) {
+				cv::cvtColor(im, gray_, cv::COLOR_BGRA2GRAY);
+			}
+			else if (im.channels() == 3) {
+				cv::cvtColor(im, gray_, cv::COLOR_BGR2GRAY);
+			}
+			else {
+				LOG(ERROR) << "unsupported number of channels in input image";
+				return false;
+			}
+
+			detect(gray_);
 		}
 
-		detect(gray_);
-	}
+		std::vector<Rect2d> result;
+		result.reserve(tracked_.size());
+		for (auto const &tracked : tracked_) {
+			result.push_back(tracked.object);
 
-	std::vector<Rect2d> result;
-	result.reserve(tracked_.size());
-	for (auto const &tracked : tracked_) {
-		result.push_back(tracked.object);
+			if (debug_) {
+				cv::putText(im, "#" + std::to_string(tracked.id),
+							Point2i(tracked.object.x+5, tracked.object.y+tracked.object.height-5),
+							cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, cv::Scalar(0,0,255));
+				
+				cv::rectangle(im, tracked.object, cv::Scalar(0, 0, 255), 1);
+			}
+		}
+		out.create(channel_out_, result);
 
+		//in.upload(channel_in_);
+		// FIXME: This is a bad idea.
 		if (debug_) {
-			cv::putText(im, "#" + std::to_string(tracked.id),
-						Point2i(tracked.object.x+5, tracked.object.y+tracked.object.height-5),
-						cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, cv::Scalar(0,0,255));
-			
-			cv::rectangle(im, tracked.object, cv::Scalar(0, 0, 255), 1);
+			if (in.isGPU(channel_in_)) {
+				cv::cvtColor(im, im, cv::COLOR_BGR2BGRA);
+				out.get<cv::cuda::GpuMat>(channel_in_).upload(im);
+			} else cv::cvtColor(im, in.get<cv::Mat>(channel_in_), cv::COLOR_BGR2BGRA);
 		}
-	}
-	out.create(channel_out_, result);
 
-	// TODO: should be uploaded by operator which requires data on GPU
-	in.upload(channel_in_);
+		return true;
+	}));
 
 	return true;
+}
+
+void DetectAndTrack::wait(cudaStream_t s) {
+	if (job_.valid()) {
+		job_.wait();
+		job_.get();
+	}
 }

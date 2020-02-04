@@ -44,6 +44,8 @@ class DetectAndTrack : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	void wait(cudaStream_t) override;
+
 	protected:
 	bool init();
 
@@ -51,6 +53,7 @@ class DetectAndTrack : public ftl::operators::Operator {
 	bool track(const cv::Mat &im);
 
 	private:
+	std::future<bool> job_;
 
 	int createTracker(const cv::Mat &im, const cv::Rect2d &obj);
 
@@ -114,10 +117,13 @@ class ArUco : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	void wait(cudaStream_t) override;
+
 	ftl::codecs::Channel channel_in_;
 	ftl::codecs::Channel channel_out_;
 
 	private:
+	std::future<bool> job_;
 	bool debug_;
 	bool estimate_pose_;
 	float marker_size_;
