@@ -74,7 +74,7 @@ void StereoVideoSource::init(const string &file) {
 		LOG(INFO) << "Using cameras...";
 		lsrc_ = ftl::create<LocalSource>(host_, "feed");
 	}
-	
+
 	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());
 	frames_ = std::vector<Frame>(2);
 
@@ -83,6 +83,7 @@ void StereoVideoSource::init(const string &file) {
 	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
 	#endif
 	pipeline_input_->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+	pipeline_input_->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	pipeline_input_->append<ftl::operators::ColourChannels>("colour");
 
 	calib_ = ftl::create<Calibrate>(host_, "calibration", cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight()), stream_);
@@ -100,10 +101,10 @@ void StereoVideoSource::init(const string &file) {
 		}
 	}
 	else {
-		fname = fname_config ? *fname_config : 
+		fname = fname_config ? *fname_config :
 								string(FTL_LOCAL_CONFIG_ROOT) + "/"
 								+ std::string("calibration.yml");
-		
+
 		LOG(ERROR) << "No calibration, default path set to " + fname;
 	}
 
@@ -111,7 +112,7 @@ void StereoVideoSource::init(const string &file) {
 	// RPC callbacks to update calibration
 	// Should only be used by calibration app (interface may change)
 	// Tries to follow interface of ftl::Calibrate
-	
+
 	host_->getNet()->bind("set_pose",
 		[this](cv::Mat pose){
 			if (!calib_->setPose(pose)) {
@@ -121,10 +122,10 @@ void StereoVideoSource::init(const string &file) {
 
 			return true;
 	});
-	
+
 	host_->getNet()->bind("set_intrinsics",
 		[this](cv::Size size, cv::Mat K_l, cv::Mat D_l, cv::Mat K_r, cv::Mat D_r) {
-			
+
 			if (!calib_->setIntrinsics(size, {K_l, K_r})) {
 				LOG(ERROR) << "bad intrinsic parameters (bad values)";
 				return false;
@@ -151,12 +152,12 @@ void StereoVideoSource::init(const string &file) {
 			return true;
 	});
 
-	host_->getNet()->bind("save_calibration", 
+	host_->getNet()->bind("save_calibration",
 		[this, fname](){
 			return calib_->saveCalibration(fname);
 	});
 
-	host_->getNet()->bind("set_rectify", 
+	host_->getNet()->bind("set_rectify",
 		[this](bool enable){
 			bool retval = calib_->setRectify(enable);
 			updateParameters();
@@ -168,12 +169,12 @@ void StereoVideoSource::init(const string &file) {
 			cv::Mat(calib_->getCameraDistortionLeft()),
 			cv::Mat(calib_->getCameraDistortionRight()) };
 	});
-	
+
 	////////////////////////////////////////////////////////////////////////////
 
 	// Generate camera parameters from camera matrix
 	updateParameters();
-	
+
 	LOG(INFO) << "StereoVideo source ready...";
 	ready_ = true;
 
@@ -194,7 +195,7 @@ void StereoVideoSource::updateParameters() {
 	setPose(pose);
 
 	cv::Mat K;
-	
+
 	// same for left and right
 	float baseline = static_cast<float>(1.0 / calib_->getQ().at<double>(3,2));
 	float doff = static_cast<float>(-calib_->getQ().at<double>(3,3) * baseline);
@@ -268,7 +269,7 @@ bool StereoVideoSource::retrieve() {
 	frame.setOrigin(&state_);
 
 	cv::cuda::GpuMat dummy;
-	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : dummy;	
+	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : dummy;
 
 	if (lsrc_->isStereo()) {
 		cv::cuda::GpuMat &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
@@ -285,7 +286,7 @@ bool StereoVideoSource::retrieve() {
 
 	pipeline_input_->apply(frame, frame, cv::cuda::StreamAccessor::getStream(stream2_));
 	stream2_.waitForCompletion();
-	
+
 	return true;
 }
 
@@ -297,11 +298,11 @@ void StereoVideoSource::swap() {
 
 bool StereoVideoSource::compute(int n, int b) {
 	auto &frame = frames_[1];
-	
+
 	if (lsrc_->isStereo()) {
 		if (!frame.hasChannel(Channel::Left) ||
 			!frame.hasChannel(Channel::Right)) {
-			
+
 			return false;
 		}
 
@@ -315,7 +316,7 @@ bool StereoVideoSource::compute(int n, int b) {
 	else {
 		if (!frame.hasChannel(Channel::Left)) { return false; }
 	}
-	
+
 	host_->notify(timestamp_, frame);
 	return true;
 }

@@ -47,13 +47,26 @@ bool DetectAndTrack::init() {
 	else { min_size_ = {0.0, 0.0}; }
 	if (max_size && max_size->size() == 2) { max_size_ = *max_size; }
 	else { max_size_ = {1.0, 1.0}; }
-	
+
 	min_size_[0] = max(min(1.0, min_size_[0]), 0.0);
 	min_size_[1] = max(min(1.0, min_size_[1]), 0.0);
 	max_size_[0] = max(min(1.0, max_size_[0]), 0.0);
 	max_size_[1] = max(min(1.0, max_size_[1]), 0.0);
 	if (min_size_[0] > max_size_[0]) { min_size_[0] = max_size_[0]; }
 	if (min_size_[1] > max_size_[1]) { min_size_[1] = max_size_[1]; }
+
+	update_bounding_box_ = config()->value("update_bounding_box", false);
+	std::string tracker_type = config()->value("tracker_type", std::string("KCF"));
+	if (tracker_type == "CSRT") {
+		tracker_type_ = 1;
+	}
+	else if (tracker_type == "KCF") {
+		tracker_type_ = 0;
+	}
+	else {
+		LOG(WARNING) << "unknown tracker type " << tracker_type << ", using KCF";
+		tracker_type_ = 0;
+	}
 
 	channel_in_ = ftl::codecs::Channel::Colour;
 	channel_out_ = ftl::codecs::Channel::Data;
@@ -82,6 +95,22 @@ static Point2d center(Rect2d obj) {
 	return Point2d(obj.x+obj.width/2.0, obj.y+obj.height/2.0);
 }
 
+int DetectAndTrack::createTracker(const Mat &im, const Rect2d &obj) {
+	cv::Ptr<cv::Tracker> tracker;
+	if (tracker_type_ == 1) {
+		// cv::TrackerCSRT::Params params; /// defaults (???)
+		tracker = cv::TrackerCSRT::create();
+	}
+	else {
+		tracker = cv::TrackerKCF::create();
+	}
+	
+	int id = id_max_++;
+	tracker->init(im, obj);
+	tracked_.push_back({ id, obj, tracker, 0 });
+	return id;
+}
+
 bool DetectAndTrack::detect(const Mat &im) {
 	Size min_size(im.size().width*min_size_[0], im.size().height*min_size_[1]);
 	Size max_size(im.size().width*max_size_[0], im.size().height*max_size_[1]);
@@ -99,18 +128,18 @@ bool DetectAndTrack::detect(const Mat &im) {
 		bool found = false;
 		for (auto &tracker : tracked_) {
 			if (cv::norm(center(tracker.object)-c) < max_distance_) {
-				// update? (bounding box can be quite different)
-				// tracker.object = obj;
+				if (update_bounding_box_) {
+					tracker.object = obj;
+					tracker.tracker->init(im, obj);
+				}
+				
 				found = true;
 				break;
 			}
 		}
 
 		if (!found && (tracked_.size() < max_tracked_)) {
-			cv::Ptr<cv::Tracker> tracker = cv::TrackerCSRT::create();
-			//cv::Ptr<cv::Tracker> tracker = cv::TrackerKCF::create();
-			tracker->init(im, obj);
-			tracked_.push_back({ id_max_++, obj, tracker, 0 });
+			createTracker(im, obj);
 		}
 	}
 
@@ -182,7 +211,7 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 			cv::rectangle(im, tracked.object, cv::Scalar(0, 0, 255), 1);
 		}
 	}
-	in.create(channel_out_, result);
+	out.create(channel_out_, result);
 
 	// TODO: should be uploaded by operator which requires data on GPU
 	in.upload(channel_in_);

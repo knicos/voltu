@@ -43,12 +43,15 @@ struct __align__(16) Camera {
 	__device__ float3 screenToCam(uint ux, uint uy, float depth) const; 
 
 	#ifndef __CUDACC__
+
 	MSGPACK_DEFINE(fx,fy,cx,cy,width,height,minDepth,maxDepth,baseline,doffs);
 
 	/**
 	 * Make a camera struct from a configurable.
 	 */
 	static Camera from(ftl::Configurable*);
+	
+	cv::Mat getCameraMatrix() const;
 	#endif
 };
 

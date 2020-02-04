@@ -24,6 +24,7 @@ set(OPERSRC
 	src/clipping.cpp
 	src/depth.cpp
 	src/detectandtrack.cpp
+	src/aruco.cpp
 )
 
 if (LIBSGM_FOUND)

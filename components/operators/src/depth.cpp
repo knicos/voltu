@@ -49,7 +49,7 @@ static void calc_space_weighted_filter(GpuMat& table_space, int win_size, float 
 
 DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
 		ftl::operators::Operator(cfg) {
-	
+
 	scale_ = 16.0;
 	radius_ = cfg->value("radius", 7);
 	iter_ = cfg->value("iter", 2);
@@ -64,7 +64,7 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
 	cfg->on("max_discontinuity", [this](const ftl::config::Event &e) {
 		max_disc_ = config()->value("max_discontinuity", 0.1f);
 	});
-	
+
 
 	calc_color_weighted_table(table_color_, sigma_range_, 255);
     calc_space_weighted_filter(table_space_, radius_ * 2 + 1, radius_ + 1.0f);
@@ -72,7 +72,7 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
 
 DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg, const std::tuple<ftl::codecs::Channel> &p) :
 		ftl::operators::Operator(cfg) {
-	
+
 	scale_ = 16.0;
 	radius_ = cfg->value("radius", 7);
 	iter_ = cfg->value("iter", 2);
@@ -87,7 +87,7 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg, const std::tu
 	cfg->on("max_discontinuity", [this](const ftl::config::Event &e) {
 		max_disc_ = config()->value("max_discontinuity", 0.1f);
 	});
-	
+
 
 	calc_color_weighted_table(table_color_, sigma_range_, 255);
     calc_space_weighted_filter(table_space_, radius_ * 2 + 1, radius_ + 1.0f);
@@ -134,7 +134,9 @@ void DepthChannel::_createPipeline() {
 							config()->value("height", 720));
 
 	pipe_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	#ifdef HAVE_LIBSGM
 	pipe_->append<ftl::operators::FixstarsSGM>("algorithm");
+	#endif
 	#ifdef HAVE_OPTFLOW
 	pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter");
 	#endif

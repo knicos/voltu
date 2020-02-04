@@ -111,6 +111,7 @@ if (REALSENSE_LIBRARY)
 	endif()
 else()
 	set(REALSENSE_LIBRARY "")
+	add_library(realsense INTERFACE)
 endif()
 
 if (BUILD_GUI)
