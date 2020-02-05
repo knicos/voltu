@@ -14,6 +14,8 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/xphoto.hpp>
 
+#include <ftl/timer.hpp>
+
 using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::Calibrate;
 using cv::Mat;
@@ -60,14 +62,16 @@ LocalSource::LocalSource(nlohmann::json &config)
 	else {
 		camera_b_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
 		camera_b_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
+		camera_b_->set(cv::CAP_PROP_FPS, 1000 / ftl::timer::getInterval());
+		//camera_b_->set(cv::CAP_PROP_BUFFERSIZE, 0);  // Has no effect
 
 		stereo_ = true;
 	}
 
 	camera_a_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
 	camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
-	//TODO: CAP_PROP_FPS
-	// CAP_PROP_BUFFERSIZE
+	camera_a_->set(cv::CAP_PROP_FPS, 1000 / ftl::timer::getInterval());
+	//camera_a_->set(cv::CAP_PROP_BUFFERSIZE, 0);  // Has no effect
 	
 	Mat frame;
 	camera_a_->grab();
