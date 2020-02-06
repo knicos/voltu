@@ -6,6 +6,8 @@
 #include <opencv2/tracking.hpp>
 #include <opencv2/aruco.hpp>
 
+#include <ftl/threads.hpp>
+
 namespace ftl {
 namespace operators {
 
@@ -54,6 +56,9 @@ class DetectAndTrack : public ftl::operators::Operator {
 
 	private:
 	std::future<bool> job_;
+	std::future<bool> detect_job_;
+	bool detecting_;
+	MUTEX mtx_;
 
 	int createTracker(const cv::Mat &im, const cv::Rect2d &obj);
 
@@ -69,7 +74,7 @@ class DetectAndTrack : public ftl::operators::Operator {
 		cv::Ptr<cv::Tracker> tracker;
 		int fail_count;
 	};
-	std::vector<Object> tracked_;
+	std::list<Object> tracked_;
 
 	// 0: KCF, 1: CSRT
 	int tracker_type_;

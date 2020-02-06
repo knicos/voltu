@@ -10,8 +10,8 @@
 namespace ftl {
 namespace codecs {
 struct Transformation {
-	explicit Transformation() {};
-	explicit Transformation(const int &id, const cv::Vec3d &rvec, const cv::Vec3d &tvec) :
+	Transformation() {};
+	Transformation(const int &id, const cv::Vec3d &rvec, const cv::Vec3d &tvec) :
 		id(id), rvec(rvec), tvec(tvec) {}
 
 	int id;

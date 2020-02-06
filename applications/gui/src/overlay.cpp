@@ -73,6 +73,35 @@ void ftl::overlay::drawPoseBox(
     draw3DLine(cam, colour, depth, p011, p111, linecolour);
 }
 
+void ftl::overlay::drawRectangle(
+        const ftl::rgbd::Camera &cam,
+        cv::Mat &colour,
+        cv::Mat &depth,
+        const Eigen::Matrix4d &pose,
+        const cv::Scalar &linecolour,
+        double width, double height) {
+
+    double width2 = width/2.0;
+    double height2 = height/2.0;
+
+    Eigen::Vector4d p001 = pose.inverse() * Eigen::Vector4d(width2,height2,0,1);
+    Eigen::Vector4d p011 = pose.inverse() * Eigen::Vector4d(width2,-height2,0,1);
+    Eigen::Vector4d p111 = pose.inverse() * Eigen::Vector4d(-width2,-height2,0,1);
+    Eigen::Vector4d p101 = pose.inverse() * Eigen::Vector4d(-width2,height2,0,1);
+
+    p001 /= p001[3];
+    p011 /= p011[3];
+    p111 /= p111[3];
+    p101 /= p101[3];
+
+    if (p001[2] < 0.1 || p011[2] < 0.1 || p111[2] < 0.1 || p101[2] < 0.1) return;
+
+    draw3DLine(cam, colour, depth, p001, p011, linecolour);
+    draw3DLine(cam, colour, depth, p001, p101, linecolour);
+    draw3DLine(cam, colour, depth, p101, p111, linecolour);
+    draw3DLine(cam, colour, depth, p011, p111, linecolour);
+}
+
 void ftl::overlay::drawPoseCone(
         const ftl::rgbd::Camera &cam,
         cv::Mat &colour,
@@ -130,11 +159,15 @@ void ftl::overlay::drawCamera(
     double principx = (((static_cast<double>(params.width) / 2.0) + params.cx) / static_cast<double>(params.fx)) * scale;
     double principy = (((static_cast<double>(params.height) / 2.0) + params.cy) / static_cast<double>(params.fx)) * scale;
 
-    Eigen::Vector4d p110 = pose.inverse() * Eigen::Vector4d(-width2,-height2,scale,1);
-    Eigen::Vector4d p100 = pose.inverse() * Eigen::Vector4d(-width2,height2,scale,1);
-    Eigen::Vector4d p010 = pose.inverse() * Eigen::Vector4d(width2,-height2,scale,1);
-    Eigen::Vector4d p000 = pose.inverse() * Eigen::Vector4d(width2,height2,scale,1);
-    Eigen::Vector4d origin = pose.inverse() * Eigen::Vector4d(principx,principy,0,1);
+    auto ptcoord = params.screenToCam(0,0,scale);
+    Eigen::Vector4d p110 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+    ptcoord = params.screenToCam(0,params.height,scale);
+    Eigen::Vector4d p100 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+    ptcoord = params.screenToCam(params.width,0,scale);
+    Eigen::Vector4d p010 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+    ptcoord = params.screenToCam(params.width,params.height,scale);
+    Eigen::Vector4d p000 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+    Eigen::Vector4d origin = pose.inverse() * Eigen::Vector4d(0,0,0,1);
 
     p110 /= p110[3];
     p100 /= p100[3];
@@ -158,10 +191,22 @@ void ftl::overlay::drawCamera(
 
     if (frustrum) {
         const double fscale = 16.0;
-        Eigen::Vector4d f110 = pose.inverse() * Eigen::Vector4d(-width2*fscale,-height2*fscale,scale*fscale,1);
-        Eigen::Vector4d f100 = pose.inverse() * Eigen::Vector4d(-width2*fscale,height2*fscale,scale*fscale,1);
-        Eigen::Vector4d f010 = pose.inverse() * Eigen::Vector4d(width2*fscale,-height2*fscale,scale*fscale,1);
-        Eigen::Vector4d f000 = pose.inverse() * Eigen::Vector4d(width2*fscale,height2*fscale,scale*fscale,1);
+        ptcoord = params.screenToCam(0,0,fscale);
+        Eigen::Vector4d f110 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+        ptcoord = params.screenToCam(0,params.height,fscale);
+        Eigen::Vector4d f100 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+        ptcoord = params.screenToCam(params.width,0,fscale);
+        Eigen::Vector4d f010 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+        ptcoord = params.screenToCam(params.width,params.height,fscale);
+        Eigen::Vector4d f000 = pose.inverse() * Eigen::Vector4d(ptcoord.x,ptcoord.y,ptcoord.z,1);
+
+        f110 /= f110[3];
+        f100 /= f100[3];
+        f010 /= f010[3];
+        f000 /= f000[3];
+
+        if (f110[2] < 0.1 || f100[2] < 0.1 || f010[2] < 0.1 || f000[2] < 0.1) return;
+
         draw3DLine(vcam, colour, depth, f000, p000, cv::Scalar(0,255,0,0));
         draw3DLine(vcam, colour, depth, f010, p010, cv::Scalar(0,255,0,0));
         draw3DLine(vcam, colour, depth, f100, p100, cv::Scalar(0,255,0,0));

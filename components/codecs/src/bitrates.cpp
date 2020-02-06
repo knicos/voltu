@@ -23,6 +23,7 @@ static const Resolution resolutions[] = {
 	640, 360,		// LD360
 	0, 0,			// ANY
 	1852, 2056,		// HTC_VIVE
+	640, 480,		// Old school 4:3
 	0, 0
 };
 
