@@ -139,7 +139,7 @@ Mat Calibrate::_getK(size_t idx) {
 
 Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
 	if (rectify_) {
-		return Mat(P1_, cv::Rect(0, 0, 3, 3));
+		return scaleCameraIntrinsics(Mat(P1_, cv::Rect(0, 0, 3, 3)), res, img_size_);
 	} else {
 		return scaleCameraIntrinsics(K_[0], res, calib_size_);
 	}
@@ -147,7 +147,7 @@ Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
 
 Mat Calibrate::getCameraMatrixRight(const cv::Size res) {
 	if (rectify_) {
-		return Mat(P2_, cv::Rect(0, 0, 3, 3));
+		return scaleCameraIntrinsics(Mat(P2_, cv::Rect(0, 0, 3, 3)), res, img_size_);
 	} else {
 		return scaleCameraIntrinsics(K_[1], res, calib_size_);
 	}

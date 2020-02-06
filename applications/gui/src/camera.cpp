@@ -352,7 +352,10 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
 	if (!frame) return;
 
-	auto &channel1 = frame->get<GpuMat>(Channel::Colour);
+	// Use high res colour if available..
+	auto &channel1 = (frame->hasChannel(Channel::ColourHighRes)) ? 
+			frame->get<GpuMat>(Channel::ColourHighRes) :
+			frame->get<GpuMat>(Channel::Colour);
 	im1_.create(channel1.size(), channel1.type());
 	channel1.download(im1_);
 
