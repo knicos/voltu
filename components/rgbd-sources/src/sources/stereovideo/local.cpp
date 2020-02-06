@@ -68,13 +68,16 @@ LocalSource::LocalSource(nlohmann::json &config)
 		stereo_ = true;
 	}
 
+	LOG(INFO) << "Video backend: " << camera_a_->getBackendName();
+	LOG(INFO) << "Video defaults: " << camera_a_->get(cv::CAP_PROP_FRAME_WIDTH) << "x" << camera_a_->get(cv::CAP_PROP_FRAME_HEIGHT) << " @ " << camera_a_->get(cv::CAP_PROP_FPS);
+
 	camera_a_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
 	camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
 	camera_a_->set(cv::CAP_PROP_FPS, 1000 / ftl::timer::getInterval());
 	//camera_a_->set(cv::CAP_PROP_BUFFERSIZE, 0);  // Has no effect
 	
 	Mat frame;
-	camera_a_->grab();
+	if (!camera_a_->grab()) LOG(ERROR) << "Could not grab a video frame";
 	camera_a_->retrieve(frame);
 	LOG(INFO) << "Video size : " << frame.cols << "x" << frame.rows;
 	width_ = frame.cols;
@@ -221,13 +224,15 @@ LocalSource::LocalSource(nlohmann::json &config, const string &vid)
 bool LocalSource::grab() {
 	if (!camera_a_) return false;
 
-	if (!camera_a_->grab()) {
-		LOG(ERROR) << "Unable to grab from camera A";
-		return false;
-	}
-	if (camera_b_ && !camera_b_->grab()) {
-		LOG(ERROR) << "Unable to grab from camera B";
-		return false;
+	if (camera_b_) {
+		if (!camera_a_->grab()) {
+			LOG(ERROR) << "Unable to grab from camera A";
+			return false;
+		}
+		if (camera_b_ && !camera_b_->grab()) {
+			LOG(ERROR) << "Unable to grab from camera B";
+			return false;
+		}
 	}
 
 	return true;
@@ -246,15 +251,22 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 
 	if (!camera_a_) return false;
 
-	// TODO: Use threads here?
-	if (!camera_a_->retrieve(lfull)) {
-		LOG(ERROR) << "Unable to read frame from camera A";
-		return false;
-	}
+	if (camera_b_) {
+		// TODO: Use threads here?
+		if (!camera_a_->retrieve(lfull)) {
+			LOG(ERROR) << "Unable to read frame from camera A";
+			return false;
+		}
 
-	if (camera_b_ && !camera_b_->retrieve(rfull)) {
-		LOG(ERROR) << "Unable to read frame from camera B";
-		return false;
+		if (camera_b_ && !camera_b_->retrieve(rfull)) {
+			LOG(ERROR) << "Unable to read frame from camera B";
+			return false;
+		}
+	} else {
+		if (!camera_a_->read(lfull)) {
+			LOG(ERROR) << "Unable to read frame from camera A";
+			return false;
+		}
 	}
 
 	if (stereo_) {

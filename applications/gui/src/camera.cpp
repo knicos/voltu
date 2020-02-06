@@ -8,7 +8,10 @@
 
 #include <ftl/operators/antialiasing.hpp>
 
+#include <ftl/codecs/faces.hpp>
+
 #include "overlay.hpp"
+#include "statsimage.hpp"
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -26,110 +29,8 @@ using ftl::codecs::Channel;
 using ftl::codecs::Channels;
 using cv::cuda::GpuMat;
 
-// TODO(Nick) MOVE
-class StatisticsImage {
-private:
-	cv::Mat data_;	// CV_32FC3, channels: m, s, f
-	cv::Size size_;	// image size
-	float n_;		// total number of samples
 
-public:
-	explicit StatisticsImage(cv::Size size);
-	StatisticsImage(cv::Size size, float max_f);
-
-	/* @brief reset all statistics to 0
-	 */
-	void reset();
-
-	/* @brief update statistics with new values
-	 */
-	void update(const cv::Mat &in);
-	
-	/* @brief variance (depth)
-	 */
-	void getVariance(cv::Mat &out);
-
-	/* @brief standard deviation (depth)
-	 */
-	void getStdDev(cv::Mat &out);
-	
-	/* @brief mean value (depth)
-	 */
-	void getMean(cv::Mat &out);
-
-	/* @brief percent of samples having valid depth value
-	 */
-	void getValidRatio(cv::Mat &out);
-};
-
-StatisticsImage::StatisticsImage(cv::Size size) :
-	StatisticsImage(size, std::numeric_limits<float>::infinity()) {}
-
-StatisticsImage::StatisticsImage(cv::Size size, float max_f) {
-	size_ = size;
-	n_ = 0.0f;
-	data_ = cv::Mat(size, CV_32FC3, cv::Scalar(0.0, 0.0, 0.0));
-
-	// TODO
-	if (!std::isinf(max_f)) {
-		LOG(WARNING) << "TODO: max_f_ not used. Values calculated for all samples";
-	}
-}
-
-void StatisticsImage::reset() {
-	n_ = 0.0f;
-	data_ = cv::Scalar(0.0, 0.0, 0.0);
-}
-
-void StatisticsImage::update(const cv::Mat &in) {
-	DCHECK(in.type() == CV_32F);
-	DCHECK(in.size() == size_);
-	
-	n_ = n_ + 1.0f;
-
-	// Welford's Method
-	for (int row = 0; row < in.rows; row++) {
-		float* ptr_data = data_.ptr<float>(row);
-		const float* ptr_in = in.ptr<float>(row);
-
-		for (int col = 0; col < in.cols; col++, ptr_in++) {
-			float x = *ptr_in;
-			float &m = *ptr_data++;
-			float &s = *ptr_data++;
-			float &f = *ptr_data++;
-			float m_prev = m;
-
-			if (!ftl::rgbd::isValidDepth(x)) continue;
-
-			f = f + 1.0f;
-			m = m + (x - m) / f;
-			s = s + (x - m) * (x - m_prev);
-		}
-	}
-}
-
-void StatisticsImage::getVariance(cv::Mat &out) {
-	std::vector<cv::Mat> channels(3);
-	cv::split(data_, channels);
-	cv::divide(channels[1], channels[2], out);
-}
-
-void StatisticsImage::getStdDev(cv::Mat &out) {
-	getVariance(out);
-	cv::sqrt(out, out);
-}
-
-void StatisticsImage::getMean(cv::Mat &out) {
-	std::vector<cv::Mat> channels(3);
-	cv::split(data_, channels);
-	out = channels[0];
-}
-
-void StatisticsImage::getValidRatio(cv::Mat &out) {
-	std::vector<cv::Mat> channels(3);
-	cv::split(data_, channels);
-	cv::divide(channels[2], n_, out);
-}
+static int vcamcount = 0;
 
 static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 	Eigen::Affine3d rx =
@@ -140,8 +41,6 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 		Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
 	return rz * rx * ry;
 }
-
-static int vcamcount = 0;
 
 ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::codecs::Channel c) : screen_(screen), fsmask_(fsmask), fid_(fid), channel_(c),channels_(0u) {
 	eye_ = Eigen::Vector3d(0.0f, 0.0f, 0.0f);
@@ -218,9 +117,101 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 	}
 }
 
+/*template<class T>
+static Eigen::Matrix<T,4,4> lookAt
+(
+    Eigen::Matrix<T,3,1> const & eye,
+    Eigen::Matrix<T,3,1> const & center,
+    Eigen::Matrix<T,3,1> const & up
+)
+{
+    typedef Eigen::Matrix<T,4,4> Matrix4;
+    typedef Eigen::Matrix<T,3,1> Vector3;
+
+    Vector3 f = (center - eye).normalized();
+    Vector3 u = up.normalized();
+    Vector3 s = f.cross(u).normalized();
+    u = s.cross(f);
+
+    Matrix4 res;
+    res <<  s.x(),s.y(),s.z(),-s.dot(eye),
+            u.x(),u.y(),u.z(),-u.dot(eye),
+            -f.x(),-f.y(),-f.z(),f.dot(eye),
+            0,0,0,1;
+
+    return res;
+}*/
+
+/*static float4 screenProjection(
+		const Eigen::Vector3f &pa,  // Screen corner 1
+		const Eigen::Vector3f &pb,  // Screen corner 2
+		const Eigen::Vector3f &pc,  // Screen corner 3
+		const Eigen::Vector3f &pe  // Eye position
+		) {
+
+    Eigen::Vector3f va, vb, vc;
+    Eigen::Vector3f vr, vu, vn;
+
+    float l, r, b, t, d;
+
+    // Compute an orthonormal basis for the screen.
+
+    //subtract(vr, pb, pa);
+    //subtract(vu, pc, pa);
+	vr = pb - pa;
+	vu = pc - pa;
+
+    //normalize(vr);
+    //normalize(vu);
+    //cross_product(vn, vr, vu);
+    //normalize(vn);
+	vr.normalize();
+	vu.normalize();
+	vn = vr.cross(vu);
+	vn.normalize();
+
+    // Compute the screen corner vectors.
+
+    //subtract(va, pa, pe);
+    //subtract(vb, pb, pe);
+    //subtract(vc, pc, pe);
+	va = pa - pe;
+	vb = pb - pe;
+	vc = pc - pe;
+
+    // Find the distance from the eye to screen plane.
+
+    //d = -dot_product(va, vn);
+	d = -va.dot(vn);
+
+    // Find the extent of the perpendicular projection.
+
+    //l = dot_product(vr, va) * n / d;
+    //r = dot_product(vr, vb) * n / d;
+    //b = dot_product(vu, va) * n / d;
+    //t = dot_product(vu, vc) * n / d;
+
+	float n = d;
+	l = vr.dot(va) * n / d;
+	r = vr.dot(vb) * n / d;
+	b = vu.dot(va) * n / d;
+	t = vu.dot(vc) * n / d;
+
+	//return nanogui::frustum(l,r,b,t,n,f);
+	return make_float4(l,r,b,t);
+}*/
+
 ftl::gui::Camera::~Camera() {
 	//delete writer_;
 	//delete fileout_;
+}
+
+static Eigen::Vector3f cudaToEigen(const float3 &v) {
+	Eigen::Vector3f e;
+	e[0] = v.x;
+	e[1] = v.y;
+	e[2] = v.z;
+	return e;
 }
 
 void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
@@ -234,28 +225,65 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	//state_.getLeft().fy = state_.getLeft().fx;
 	_draw(fss);
 
-	for (auto *fset : fss) {
-		for (const auto &f : fset->frames) {
-			if (f.hasChannel(Channel::Data)) {
-				std::vector<cv::Rect2d> data;
-				f.get(Channel::Data, data);
+	if (renderer_->value("window_effect", false)) {
+		for (auto *fset : fss) {
+			for (const auto &f : fset->frames) {
+				if (f.hasChannel(Channel::Faces)) {
+					std::vector<ftl::codecs::Face> data;
+					f.get(Channel::Faces, data);
 
-				for (auto &d : data) {
-					cv::Mat over_depth;
-					over_depth.create(im1_.size(), CV_32F);
+					if (data.size() > 0) {
+						auto &d = *data.rbegin();
+						
+						//cv::Mat over_depth;
+						//over_depth.create(im1_.size(), CV_32F);
 
-					Eigen::Matrix4d fakepose = Eigen::Matrix4d::Identity().inverse() * state_.getPose();
-					ftl::rgbd::Camera fakecam;
-					fakecam.width = 1280;
-					fakecam.height = 720;
-					fakecam.fx = 700.0;
-					fakecam.cx = -d.x;
-					fakecam.cy = -(720.0-d.y);
+						auto cam = ftl::rgbd::Camera::from(intrinsics_);
 
-					state_.getLeft().cx = -d.x;
-					state_.getLeft().cy = -(state_.getLeft().height-d.y);
+						float screenWidth = intrinsics_->value("screen_size", 1.2f);  // In meters
+						float screenHeight = (9.0f/16.0f) * screenWidth;
 
-					ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fakecam, fakepose, cv::Scalar(0,0,255,255), 0.2,screen_->root()->value("show_frustrum", false));
+						//Eigen::Vector3f pc(-screenWidth/2.0f,-screenHeight/2.0f,0.0);
+						Eigen::Vector3f pa(-screenWidth/2.0f,screenHeight/2.0f,0.0);
+						//Eigen::Vector3f pb(screenWidth/2.0f,screenHeight/2.0f,0.0);
+
+						float screenDistance = (d.depth > cam.minDepth && d.depth < cam.maxDepth) ? d.depth : intrinsics_->value("screen_dist_default", 1.2f);  // Face distance from screen in meters
+
+						auto pos = f.getLeft().screenToCam(d.box.x+(d.box.width/2), d.box.y+(d.box.height/2), -screenDistance);
+						Eigen::Vector3f eye;
+						eye[0] = pos.x;
+						eye[1] = -pos.y;
+						eye[2] = pos.z;
+
+						Eigen::Translation3f trans(eye);
+						Eigen::Affine3f t(trans);
+						Eigen::Matrix4f viewPose = t.matrix();
+
+						// Top Left norm dist
+						Eigen::Vector3f tl = (pa - eye);
+						Eigen::Vector3f princ = tl;
+
+						Eigen::Matrix4d windowPose;
+						windowPose.setIdentity();
+
+						Eigen::Matrix4d fakepose = viewPose.cast<double>().inverse() * state_.getPose();
+						ftl::rgbd::Camera fakecam = cam;
+						fakecam.fx = screenDistance; //eye.norm();
+						fakecam.fy = fakecam.fx;
+						fakecam.cx = (princ[0]) * fakecam.fx / princ[2] / screenWidth * cam.width;
+						fakecam.cy = ((princ[1]) * fakecam.fy / princ[2] / screenHeight * cam.height) - cam.height;
+						fakecam.fx = fakecam.fx / screenWidth * cam.width;
+						fakecam.fy = fakecam.fy / screenHeight * cam.height;
+
+						// Use face tracked window pose for virtual camera
+						state_.getLeft() = fakecam;
+						transform_ix_ = fset->id;  // Disable keyboard/mouse pose setting
+						state_.setPose(transforms_[transform_ix_] * viewPose.cast<double>());
+
+						//ftl::overlay::draw3DLine(state_.getLeft(), im1_, over_depth, state_.getPose().inverse() * Eigen::Vector4d(eye[0],eye[1],eye[2],1), state_.getPose().inverse() * Eigen::Vector4d(0,0,0,1), cv::Scalar(0,0,255,0));
+						//ftl::overlay::drawRectangle(state_.getLeft(), im1_, over_depth, windowPose.inverse() * state_.getPose(), cv::Scalar(255,0,0,0), screenWidth, screenHeight);
+						//ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fakecam, fakepose, cv::Scalar(255,0,255,255), 1.0,screen_->root()->value("show_frustrum", false));
+					}
 				}
 			}
 		}
@@ -646,9 +674,9 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
 
 		if (isVirtual()) {
-			if (transform_ix_ < 0) {
+			if (transform_ix_ == -1) {
 				state_.setPose(viewPose);
-			} else {
+			} else if (transform_ix_ >= 0) {
 				transforms_[transform_ix_] = viewPose;
 			}
 		}

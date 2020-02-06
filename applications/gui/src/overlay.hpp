@@ -36,6 +36,14 @@ void drawPoseBox(
     const cv::Scalar &linecolour,
     double size);
 
+void drawRectangle(
+        const ftl::rgbd::Camera &cam,
+        cv::Mat &colour,
+        cv::Mat &depth,
+        const Eigen::Matrix4d &pose,
+        const cv::Scalar &linecolour,
+        double width, double height);
+
 void drawPoseCone(
     const ftl::rgbd::Camera &cam,
     cv::Mat &colour,

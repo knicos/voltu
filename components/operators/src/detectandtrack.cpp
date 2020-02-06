@@ -3,6 +3,7 @@
 #include "loguru.hpp"
 #include "ftl/operators/detectandtrack.hpp"
 #include <ftl/exception.hpp>
+#include <ftl/codecs/faces.hpp>
 
 using std::string;
 using std::vector;
@@ -15,10 +16,11 @@ using cv::Rect2d;
 using cv::Point2i;
 using cv::Point2d;
 
+using ftl::codecs::Channel;
 using ftl::rgbd::Frame;
 using ftl::operators::DetectAndTrack;
 
-DetectAndTrack::DetectAndTrack(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+DetectAndTrack::DetectAndTrack(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), detecting_(false) {
 	init();
 }
 
@@ -61,7 +63,7 @@ bool DetectAndTrack::init() {
 	if (min_size_[1] > max_size_[1]) { min_size_[1] = max_size_[1]; }
 
 	update_bounding_box_ = config()->value("update_bounding_box", false);
-	std::string tracker_type = config()->value("tracker_type", std::string("KCF"));
+	std::string tracker_type = config()->value("tracker_type", std::string("CSRT"));
 	if (tracker_type == "CSRT") {
 		tracker_type_ = 1;
 	}
@@ -112,6 +114,7 @@ int DetectAndTrack::createTracker(const Mat &im, const Rect2d &obj) {
 	
 	int id = id_max_++;
 	tracker->init(im, obj);
+	
 	tracked_.push_back({ id, obj, tracker, 0 });
 	return id;
 }
@@ -121,13 +124,33 @@ bool DetectAndTrack::detect(const Mat &im) {
 	Size max_size(im.size().width*max_size_[0], im.size().height*max_size_[1]);
 
 	vector<Rect> objects;
+	vector<int> rejectLevels;
+	vector<double> levelWeights;
 
-	classifier_.detectMultiScale(im, objects,
-								 scalef_, min_neighbors_, 0, min_size, max_size);
+	classifier_.detectMultiScale(im, objects, rejectLevels, levelWeights,
+								 scalef_, min_neighbors_, 0, min_size, max_size, true);
 	
-	LOG(INFO) << "Cascade classifier found " << objects.size() << " objects";
+	if (objects.size() > 0) LOG(INFO) << "Cascade classifier found " << objects.size() << " objects";
 
-	for (const Rect2d &obj : objects) {
+	double best = -100.0;
+	int best_ix = -1;
+	for (size_t i=0; i<levelWeights.size(); ++i) {
+		if (levelWeights[i] > best) {
+			best = levelWeights[i];
+			best_ix = i;
+		}
+	}
+
+	UNIQUE_LOCK(mtx_, lk);
+
+	// Assume failure unless matched
+	for (auto &tracker : tracked_) {
+		tracker.fail_count++;
+	}
+
+	//for (int i=0; i<objects.size(); ++i) {
+	if (best_ix >= 0) {
+		const Rect2d &obj = objects[best_ix];
 		Point2d c = center(obj);
 
 		bool found = false;
@@ -137,11 +160,16 @@ bool DetectAndTrack::detect(const Mat &im) {
 					tracker.object = obj;
 					tracker.tracker->init(im, obj);
 				}
+
+				// Matched so didn't fail really.
+				tracker.fail_count = 0;
 				
 				found = true;
 				break;
 			}
 		}
+
+		//LOG(INFO) << "Face confidence: " << levelWeights[best_ix];
 
 		if (!found && (tracked_.size() < max_tracked_)) {
 			createTracker(im, obj);
@@ -152,8 +180,9 @@ bool DetectAndTrack::detect(const Mat &im) {
 }
 
 bool DetectAndTrack::track(const Mat &im) {
+	UNIQUE_LOCK(mtx_, lk);
 	for (auto it = tracked_.begin(); it != tracked_.end();) {
-		if (!it->tracker->update(im, it->object)) {
+		/*if (!it->tracker->update(im, it->object)) {
 			it->fail_count++;
 		}
 		else {
@@ -161,9 +190,15 @@ bool DetectAndTrack::track(const Mat &im) {
 		}
 
 		if (it->fail_count > max_fail_) {
-			tracked_.erase(it);
+			it = tracked_.erase(it);
 		}
-		else { it++; }
+		else { it++; }*/
+
+		if (it->fail_count >= max_fail_ || !it->tracker->update(im, it->object)) {
+			it = tracked_.erase(it);
+		} else {
+			++it;
+		}
 	}
 
 	return true;
@@ -204,9 +239,13 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 		track(im);
 
-		if ((n_frame_++ % detect_n_frames_ == 0) && (tracked_.size() < max_tracked_)) {
+		if (!detecting_) {  // && tracked_.size() < max_tracked_) {
+			//if (detect_job_.valid()) detect_job_.get();  // To throw any exceptions
+			detecting_ = true;
+
+		//if ((n_frame_++ % detect_n_frames_ == 0) && (tracked_.size() < max_tracked_)) {
 			if (im.channels() == 1) {
-				gray_ = im;
+				gray_ = im;  // FIXME: Needs to be a copy
 			}
 			else if (im.channels() == 4) {
 				cv::cvtColor(im, gray_, cv::COLOR_BGRA2GRAY);
@@ -219,13 +258,31 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 				return false;
 			}
 
-			detect(gray_);
+			ftl::pool.push([this](int id) {
+				try {
+					detect(gray_);
+				} catch (std::exception &e) {
+					LOG(ERROR) << "Exception in face detection: " << e.what();
+				}
+				detecting_ = false;
+				return true;
+			});
+		//}
 		}
 
-		std::vector<Rect2d> result;
+		cv::Mat depth;
+		if (in.hasChannel(Channel::Depth)) {
+			depth = in.fastDownload(Channel::Depth, cv::cuda::Stream::Null());
+		}
+
+		std::vector<ftl::codecs::Face> result;
 		result.reserve(tracked_.size());
 		for (auto const &tracked : tracked_) {
-			result.push_back(tracked.object);
+			auto &face = result.emplace_back();
+			face.box = tracked.object;
+			face.id = tracked.id;
+			if (depth.empty()) face.depth = 0.0f;
+			else face.depth = depth.at<float>(cv::Point(face.box.x+face.box.width/2, face.box.y+face.box.height/2));
 
 			if (debug_) {
 				cv::putText(im, "#" + std::to_string(tracked.id),
