@@ -20,6 +20,7 @@ using namespace ftl::timer;
 
 static int64_t last_frame = 0;
 static int64_t mspf = 50;
+static bool hprec_ = false;
 static int64_t clock_adjust = 0;
 static bool active = false;
 static std::atomic<int> active_jobs = 0;
@@ -59,7 +60,7 @@ static void waitTimePoint() {
 	int64_t msdelay = mspf - (now % mspf);
 	int64_t sincelast = now - last_frame*mspf;
 
-	if (sincelast > mspf) LOG(WARNING) << "Frame " << "(" << (target-last_frame) << ") dropped by " << sincelast << "ms";
+	if (hprec_ && sincelast > mspf) LOG(WARNING) << "Frame " << "(" << (target-last_frame) << ") dropped by " << (sincelast-mspf) << "ms";
 
 	// Use sleep_for for larger delays
 	
@@ -89,21 +90,31 @@ static void waitTimePoint() {
 		}
 	}
 
-	// Spin loop until exact grab time
-	//LOG(INFO) << "Spin Delay: " << (now / 40) << " = " << (40 - (now%40));
-
-	if (sincelast != mspf) {
-		target = now / mspf;
-		while ((now/mspf) == target) {
-			_mm_pause();  // SSE2 nano pause intrinsic
-			now = get_time();
-		};
+	if (hprec_) {
+		// Spin loop until exact grab time
+		// Accurate to around 4 micro seconds.
+		if (sincelast != mspf) {
+			// TODO: Try using sleep_for for msdelay-1
+			target = now / mspf;
+			while ((now/mspf) == target) {
+				_mm_pause();  // SSE2 nano pause intrinsic
+				now = get_time();
+			};
+		}
+	} else {
+		// Accurate to just under 1 millisecond usually
+		if (sincelast != mspf) sleep_for(milliseconds(msdelay));
+		now = get_time();
 	}
 	last_frame = now/mspf;
 }
 
 void ftl::timer::setInterval(int ms) {
 	mspf = ms;
+}
+
+void ftl::timer::setHighPrecision(bool hp) {
+	hprec_ = hp;
 }
 
 int ftl::timer::getInterval() {

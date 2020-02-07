@@ -29,7 +29,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 include(Findglog)
 
-find_package( OpenCV REQUIRED )
+find_package( OpenCV REQUIRED COMPONENTS core imgproc highgui cudaimgproc calib3d imgcodecs videoio aruco cudaarithm cudastereo cudaoptflow face tracking quality)
 find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )

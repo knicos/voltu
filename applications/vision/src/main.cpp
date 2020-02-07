@@ -55,6 +55,8 @@ static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
 	ftl::ctrl::Master ctrl(root, net);
 
+	ftl::timer::setHighPrecision(true);
+
 	auto paths = root->get<vector<string>>("paths");
 	string file = "";
 	if (paths && (*paths).size() > 0) file = (*paths)[(*paths).size()-1];
