@@ -4,6 +4,8 @@
 #include "camera.hpp"
 #include "scene.hpp"
 
+#include <ftl/profiler.hpp>
+
 #include <nanogui/imageview.h>
 #include <nanogui/textbox.h>
 #include <nanogui/slider.h>
@@ -182,7 +184,10 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 			if (!fs.frames[i].isGPU(Channel::Colour)) fs.frames[i].upload(Channels<0>(Channel::Colour), pre_pipelines_[fs.id]->getStream());
 		}
 
-		pre_pipelines_[fs.id]->apply(fs, fs, 0);
+		{
+			FTL_Profile("Prepipe",0.020);
+			pre_pipelines_[fs.id]->apply(fs, fs, 0);
+		}
 
 		fs.swapTo(*framesets_[fs.id]);
 	}

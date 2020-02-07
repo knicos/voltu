@@ -46,7 +46,7 @@ bool NVOpticalFlow::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	auto &flow = out.create<GpuMat>(channel_out_);
 
-	cv::cuda::cvtColor(in.get<GpuMat>(channel_in_), left_gray_, cv::COLOR_BGR2GRAY, 0, cvstream);
+	cv::cuda::cvtColor(in.get<GpuMat>(channel_in_), left_gray_, cv::COLOR_BGRA2GRAY, 0, cvstream);
 
 	nvof_->calc(left_gray_, left_gray_prev_, flow, cvstream);
 	std::swap(left_gray_, left_gray_prev_);

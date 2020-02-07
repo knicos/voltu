@@ -346,3 +346,13 @@ void Calibrate::rectifyStereo(cv::Mat &l, cv::Mat &r) {
 	cv::remap(l, l, map1_.first, map2_.first, cv::INTER_LINEAR, 0, cv::Scalar());
 	cv::remap(r, r, map1_.second, map2_.second, cv::INTER_LINEAR, 0, cv::Scalar());
 }
+
+void Calibrate::rectifyLeft(cv::Mat &l) {
+	if (!rectify_) { return; }
+	cv::remap(l, l, map1_.first, map2_.first, cv::INTER_LINEAR, 0, cv::Scalar());
+}
+
+void Calibrate::rectifyRight(cv::Mat &r) {
+	if (!rectify_) { return; }
+	cv::remap(r, r, map1_.second, map2_.second, cv::INTER_LINEAR, 0, cv::Scalar());
+}

@@ -1,5 +1,6 @@
 #include <ftl/streams/sender.hpp>
 #include <ftl/codecs/depth_convert_cuda.hpp>
+#include <ftl/profiler.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 
@@ -124,6 +125,8 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 	if (stream_->size() > 0) selected = stream_->selected(0);
 
 	bool do_inject = !do_inject_.test_and_set();
+
+	FTL_Profile("SenderPost", 0.02);
 
     for (size_t i=0; i<fs.frames.size(); ++i) {
         const auto &frame = fs.frames[i];
@@ -289,6 +292,8 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 				// Choose correct region of interest into the surface.
 				cv::Rect roi = _generateROI(fs, cc, offset);
 				cv::cuda::GpuMat sroi = tile.surface(roi);
+
+				FTL_Profile("Encoder",0.02);
 
 				if (enc->encode(sroi, pkt)) {
 					stream_->post(spkt, pkt);

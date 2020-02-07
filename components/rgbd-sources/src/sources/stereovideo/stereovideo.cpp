@@ -5,7 +5,8 @@
 
 #include "stereovideo.hpp"
 
-#include "ftl/configuration.hpp"
+#include <ftl/configuration.hpp>
+#include <ftl/profiler.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -204,8 +205,8 @@ void StereoVideoSource::updateParameters() {
 	float doff = static_cast<float>(-calib_->getQ().at<double>(3,3) * baseline);
 
 	double d_resolution = this->host_->getConfig().value<double>("depth_resolution", 0.0);
-	float min_depth = this->host_->getConfig().value<double>("min_depth", 0.0);
-	float max_depth = this->host_->getConfig().value<double>("max_depth", 15.0);
+	float min_depth = this->host_->getConfig().value<double>("min_depth", 0.45);
+	float max_depth = this->host_->getConfig().value<double>("max_depth", 12.0);
 
 	// left
 	
@@ -261,6 +262,8 @@ bool StereoVideoSource::capture(int64_t ts) {
 }
 
 bool StereoVideoSource::retrieve() {
+	FTL_Profile("Stereo Retrieve", 0.03);
+	
 	auto &frame = frames_[0];
 	frame.reset();
 	frame.setOrigin(&state_);

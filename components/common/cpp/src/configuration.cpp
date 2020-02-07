@@ -22,6 +22,8 @@
 #include <ftl/timer.hpp>
 #include <ftl/cuda_common.hpp>
 
+#include <ftl/profiler.hpp>
+
 #include <fstream>
 #include <string>
 #include <map>
@@ -749,6 +751,10 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	rootCFG = rootcfg;
 	rootcfg->set("paths", paths);
 	process_options(rootcfg, options);
+
+	if (rootcfg->get<int>("profiler")) {
+		ftl::Profiler::verbosity(*rootcfg->get<int>("profiler"));
+	}
 
 	if (rootcfg->get<std::string>("branch")) {
 		ftl::branch_name = *rootcfg->get<std::string>("branch");

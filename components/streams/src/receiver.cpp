@@ -1,5 +1,6 @@
 #include <ftl/streams/receiver.hpp>
 #include <ftl/codecs/depth_convert_cuda.hpp>
+#include <ftl/profiler.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 
@@ -151,6 +152,8 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 }
 
 void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
+	FTL_Profile("VideoPacket", 0.02);
+
 	const ftl::codecs::Channel rchan = spkt.channel;
 	const unsigned int channum = (unsigned int)spkt.channel;
 	InternalVideoStates &ividstate = _getVideoFrame(spkt);
@@ -177,6 +180,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	// Do the actual decode into the surface buffer
 	try {
+		FTL_Profile("Decode", 0.015);
 		if (!decoder->decode(pkt, surface)) {
 			LOG(ERROR) << "Decode failed on channel " << (int)spkt.channel;
 			return;
