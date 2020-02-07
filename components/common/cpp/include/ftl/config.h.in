@@ -27,6 +27,8 @@
 #cmakedefine HAVE_PORTAUDIO
 #cmakedefine HAVE_X11
 
+#cmakedefine ENABLE_PROFILER
+
 extern const char *FTL_BRANCH;
 extern const char *FTL_VERSION_LONG;
 extern const char *FTL_VERSION;

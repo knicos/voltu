@@ -2,6 +2,7 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/operators/operator.hpp>
+#include <ftl/profiler.hpp>
 
 #include <chrono>
 
@@ -47,6 +48,7 @@ void Group::addSource(ftl::rgbd::Source *src) {
 	src->setCallback([this,ix,src](int64_t timestamp, ftl::rgbd::Frame &frame) {
 		// FIXME: Not safe for multiple sources
 		if (pipeline_) {
+			FTL_Profile("GroupPipe", 0.03);
 			pipeline_->apply(frame, frame, 0);
 		}
 

@@ -61,6 +61,9 @@ class LocalSource : public Configurable {
 	cv::cuda::HostMem right_hm_;
 	cv::cuda::HostMem hres_hm_;
 	cv::Mat rtmp_;
+
+	cv::Mat frame_l_;
+	cv::Mat frame_r_;
 };
 
 }

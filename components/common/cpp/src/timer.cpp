@@ -44,6 +44,14 @@ int64_t ftl::timer::get_time() {
 	return time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count()+clock_adjust;
 }
 
+int64_t ftl::timer::get_time_micro() {
+	return time_point_cast<std::chrono::microseconds>(high_resolution_clock::now()).time_since_epoch().count()+(clock_adjust*1000);
+}
+
+double ftl::timer::get_time_seconds() {
+	return time_point_cast<std::chrono::microseconds>(high_resolution_clock::now()).time_since_epoch().count() / 1000000.0 + (static_cast<double>(clock_adjust) / 1000.0);
+}
+
 static void waitTimePoint() {
 	auto start = high_resolution_clock::now();
 	int64_t now = get_time();

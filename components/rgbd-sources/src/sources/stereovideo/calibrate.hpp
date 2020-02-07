@@ -39,6 +39,16 @@ class Calibrate : public ftl::Configurable {
 	 */
 	void rectifyStereo(cv::Mat &l, cv::Mat &r);
 
+	/**
+	 * @brief	Rectify and undistort left image (CPU)
+	 */
+	void rectifyLeft(cv::Mat &l);
+
+	/**
+	 * @brief	Rectify and undistort right image (CPU)
+	 */
+	void rectifyRight(cv::Mat &r);
+
 	void updateCalibration(const ftl::rgbd::Camera &p);
 	
 	/**

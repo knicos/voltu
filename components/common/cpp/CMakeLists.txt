@@ -10,6 +10,7 @@ set(COMMONSRC
 	src/cuda_common.cpp
 	src/ctpl_stl.cpp
 	src/timer.cpp
+	src/profiler.cpp
 )
 
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)

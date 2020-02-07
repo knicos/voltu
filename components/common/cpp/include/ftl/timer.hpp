@@ -72,6 +72,8 @@ void setInterval(int ms);
 int getInterval();
 
 int64_t get_time();
+int64_t get_time_micro();
+double get_time_seconds();
 
 /**
  * Add the specified number of milliseconds to the clock when generating

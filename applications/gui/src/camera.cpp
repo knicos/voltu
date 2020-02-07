@@ -3,6 +3,8 @@
 #include "screen.hpp"
 #include <nanogui/glutil.h>
 
+#include <ftl/profiler.hpp>
+
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 
@@ -294,16 +296,19 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	frame_.reset();
 	frame_.setOrigin(&state_);
 
-	renderer_->begin(frame_);
-	for (auto *fs : fss) {
-		if (!usesFrameset(fs->id)) continue;
+	{
+		FTL_Profile("Render",0.034);
+		renderer_->begin(frame_);
+		for (auto *fs : fss) {
+			if (!usesFrameset(fs->id)) continue;
 
-		// FIXME: Should perhaps remain locked until after end is called?
-		// Definitely: causes flashing if not.
-		UNIQUE_LOCK(fs->mtx,lk);
-		renderer_->submit(fs, Channels<0>(channel_), transforms_[fs->id]);
+			// FIXME: Should perhaps remain locked until after end is called?
+			// Definitely: causes flashing if not.
+			UNIQUE_LOCK(fs->mtx,lk);
+			renderer_->submit(fs, Channels<0>(channel_), transforms_[fs->id]);
+		}
+		renderer_->end();
 	}
-	renderer_->end();
 
 	if (!post_pipe_) {
 		post_pipe_ = ftl::config::create<ftl::operators::Graph>(screen_->root(), "post_filters");

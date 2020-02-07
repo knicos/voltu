@@ -22,6 +22,7 @@ option(BUILD_GUI "Enable the GUI" ON)
 option(BUILD_CALIBRATION "Enable the calibration component" OFF)
 option(BUILD_TOOLS "Compile developer and research tools" ON)
 option(BUILD_TESTS "Compile all unit and integration tests" ON)
+option(ENABLE_PROFILER "Enable builtin performance profiling" OFF)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
