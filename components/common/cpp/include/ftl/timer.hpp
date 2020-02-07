@@ -69,9 +69,20 @@ int64_t get_time();
  */
 void setInterval(int ms);
 
+/**
+ * The highprec parameter sets whether or not this
+ * timer should be high precision on the calling interval. A high precision
+ * timer involves spinning the cpu to achieve millisecond accuracy.
+ */
+void setHighPrecision(bool hp);
+
 int getInterval();
 
+/**
+ * Get current (monotonic) time in milliseconds.
+ */
 int64_t get_time();
+
 int64_t get_time_micro();
 double get_time_seconds();
 
