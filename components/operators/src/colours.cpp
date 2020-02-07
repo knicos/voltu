@@ -15,7 +15,7 @@ ColourChannels::~ColourChannels() {
 }
 
 bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
-	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+	//auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
 	auto &col = in.get<cv::cuda::GpuMat>(Channel::Colour);
 
@@ -23,9 +23,11 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 	if (col.type() == CV_8UC3) {
 		//cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 		// Convert to 4 channel colour
-		temp_.create(col.size(), CV_8UC4);
+		/*temp_.create(col.size(), CV_8UC4);
 		cv::cuda::swap(col, temp_);
-		cv::cuda::cvtColor(temp_,col, cv::COLOR_BGR2BGRA, 0, cvstream);
+		cv::cuda::cvtColor(temp_,col, cv::COLOR_BGR2BGRA, 0, cvstream);*/
+
+		throw FTL_Error("Left colour must be 4 channels");
 	}
 
 	if (in.hasChannel(Channel::Right)) {
@@ -35,9 +37,11 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 		if (col.type() == CV_8UC3) {
 			//cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 			// Convert to 4 channel colour
-			temp_.create(col.size(), CV_8UC4);
+			/*temp_.create(col.size(), CV_8UC4);
 			cv::cuda::swap(col, temp_);
-			cv::cuda::cvtColor(temp_,col, cv::COLOR_BGR2BGRA, 0, cvstream);
+			cv::cuda::cvtColor(temp_,col, cv::COLOR_BGR2BGRA, 0, cvstream);*/
+
+			throw FTL_Error("Right colour must be 4 channels");
 		}
 	}
 
@@ -47,18 +51,22 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 	if (in.hasChannel(Channel::Depth)) {
 		auto &depth = in.get<cv::cuda::GpuMat>(Channel::Depth);
 		if (depth.size() != col.size()) {
-			auto &col2 = in.create<cv::cuda::GpuMat>(Channel::ColourHighRes);
+			/*auto &col2 = in.create<cv::cuda::GpuMat>(Channel::ColourHighRes);
 			cv::cuda::resize(col, col2, depth.size(), 0.0, 0.0, cv::INTER_LINEAR, cvstream);
 			in.createTexture<uchar4>(Channel::ColourHighRes, true);
-			in.swapChannels(Channel::Colour, Channel::ColourHighRes);
+			in.swapChannels(Channel::Colour, Channel::ColourHighRes);*/
+
+			throw FTL_Error("Depth and colour channels and different resolutions: " << depth.rows << " vs " << col.rows);
 		}
 
 		// Ensure right channel is also downsized
 		if (in.hasChannel(Channel::Right)) {
 			auto &right = in.get<cv::cuda::GpuMat>(Channel::Right);
 			if (depth.size() != right.size()) {
-				cv::cuda::resize(right, rbuf_, depth.size(), 0.0, 0.0, cv::INTER_LINEAR, cvstream);
-				cv::cuda::swap(right, rbuf_);
+				//cv::cuda::resize(right, rbuf_, depth.size(), 0.0, 0.0, cv::INTER_LINEAR, cvstream);
+				//cv::cuda::swap(right, rbuf_);
+
+				throw FTL_Error("Depth and colour channels and different resolutions: " << depth.rows << " vs " << col.rows);
 			}
 		}
 	}
