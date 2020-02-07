@@ -45,6 +45,10 @@ bool File::post(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet &p
 
 	available(s.streamID) += s.channel;
 
+	// Discard all data channel packets for now
+	// TODO: Allow saving of data channels once formats have solidified.
+	if (static_cast<int>(s.channel) >= static_cast<int>(ftl::codecs::Channel::Data)) return true;
+
 	ftl::codecs::StreamPacket s2 = s;
 	// Adjust timestamp relative to start of file.
 	s2.timestamp -= timestart_;

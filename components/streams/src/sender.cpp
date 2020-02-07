@@ -163,8 +163,8 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 		for (auto c : frame.getChannels()) {
 			if (selected.has(c)) {
 				// FIXME: Sends high res colour, but receive end currently broken
-				//auto cc = (c == Channel::Colour && frame.hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
-				auto cc = c;
+				auto cc = (c == Channel::Colour && frame.hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : c;
+				//auto cc = c;
 
 				StreamPacket spkt;
 				spkt.version = 4;
@@ -230,6 +230,8 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 
 	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {
+		auto cc = (c == Channel::Colour && fs.frames[offset].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : c;
+
 		StreamPacket spkt;
 		spkt.version = 4;
 		spkt.timestamp = fs.timestamp;
@@ -237,7 +239,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 		spkt.frame_number = offset;
 		spkt.channel = c;
 
-		auto &tile = _getTile(fs.id, c);
+		auto &tile = _getTile(fs.id, cc);
 
 		ftl::codecs::Encoder *enc = tile.encoder[(offset==0)?0:1];
 		if (!enc) {
@@ -254,11 +256,11 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 		// Upload if in host memory
 		for (auto &f : fs.frames) {
 			if (f.isCPU(c)) {
-				f.upload(Channels<0>(c), cv::cuda::StreamAccessor::getStream(enc->stream()));
+				f.upload(Channels<0>(cc), cv::cuda::StreamAccessor::getStream(enc->stream()));
 			}
 		}
 
-		int count = _generateTiles(fs, offset, c, enc->stream(), lossless);
+		int count = _generateTiles(fs, offset, cc, enc->stream(), lossless);
 		if (count <= 0) {
 			LOG(ERROR) << "Could not generate tiles.";
 			break;
@@ -277,15 +279,15 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 				pkt.frame_count = count;
 				pkt.codec = codec;
 				pkt.definition = definition_t::Any;
-				pkt.bitrate = (!lossless && ftl::codecs::isFloatChannel(c)) ? max_bitrate : max_bitrate/2;
+				pkt.bitrate = (!lossless && ftl::codecs::isFloatChannel(cc)) ? max_bitrate : max_bitrate/2;
 				pkt.flags = 0;
 
-				if (!lossless && ftl::codecs::isFloatChannel(c)) pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
-				else if (lossless && ftl::codecs::isFloatChannel(c)) pkt.flags = ftl::codecs::kFlagFloat;
+				if (!lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
+				else if (lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat;
 				else pkt.flags = ftl::codecs::kFlagFlipRGB;
 
 				// Choose correct region of interest into the surface.
-				cv::Rect roi = _generateROI(fs, c, offset);
+				cv::Rect roi = _generateROI(fs, cc, offset);
 				cv::cuda::GpuMat sroi = tile.surface(roi);
 
 				if (enc->encode(sroi, pkt)) {
@@ -376,8 +378,10 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 			}
 		} else if (m.type() == CV_8UC4) {
 			cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
+		} else if (m.type() == CV_8UC3) {
+			cv::cuda::cvtColor(m, sroi, cv::COLOR_BGR2RGBA, 0, stream);
 		} else {
-			LOG(ERROR) << "Unsupported colour format";
+			LOG(ERROR) << "Unsupported colour format: " << m.type();
 			return 0;
 		}
 
