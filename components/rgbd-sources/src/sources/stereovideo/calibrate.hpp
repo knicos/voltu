@@ -52,6 +52,11 @@ class Calibrate : public ftl::Configurable {
 	const cv::Mat &getQ() const { return Q_; }
 
 	/**
+	 * @brief Get camera pair baseline
+	 */
+	double getBaseline() const;
+
+	/**
 	 * @brief	Get intrinsic paramters. If rectification is enabled, returns
 	 *			rectified intrinsic parameters, otherwise returns values from
 	 *			calibration. Parameters are scaled for given resolution.

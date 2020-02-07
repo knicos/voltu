@@ -200,16 +200,26 @@ void StereoVideoSource::updateParameters() {
 	cv::Mat K;
 
 	// same for left and right
-	float baseline = static_cast<float>(1.0 / calib_->getQ().at<double>(3,2));
+	float baseline = static_cast<float>(calib_->getBaseline());
 	float doff = static_cast<float>(-calib_->getQ().at<double>(3,3) * baseline);
+
+	double d_resolution = this->host_->getConfig().value<double>("depth_resolution", 0.0);
 	float min_depth = this->host_->getConfig().value<double>("min_depth", 0.0);
 	float max_depth = this->host_->getConfig().value<double>("max_depth", 15.0);
 
 	// left
 	
 	K = calib_->getCameraMatrixLeft(color_size_);
+	float fx = static_cast<float>(K.at<double>(0,0));
+	
+	if (d_resolution > 0.0) {
+		// Learning OpenCV p. 442
+		float max_depth_new = sqrt(d_resolution * fx * baseline);
+		max_depth = (max_depth_new > max_depth) ? max_depth : max_depth_new;
+	}
+
 	state_.getLeft() = {
-		static_cast<float>(K.at<double>(0,0)),	// Fx
+		fx,
 		static_cast<float>(K.at<double>(1,1)),	// Fy
 		static_cast<float>(-K.at<double>(0,2)),	// Cx
 		static_cast<float>(-K.at<double>(1,2)),	// Cy
