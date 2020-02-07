@@ -7,11 +7,6 @@
 #include <ftl/configuration.hpp>
 #include <ftl/threads.hpp>
 
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <ctime>
-
 #include "calibrate.hpp"
 #include "ftl/exception.hpp"
 
@@ -135,6 +130,11 @@ Mat Calibrate::_getK(size_t idx, Size size) {
 
 Mat Calibrate::_getK(size_t idx) {
 	return _getK(idx, img_size_);
+}
+
+double Calibrate::getBaseline() const {
+	if (t_.empty()) { return 0.0; }
+	return cv::norm(t_);
 }
 
 Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
@@ -279,6 +279,12 @@ bool Calibrate::writeCalibration(	const string &fname, const Size &size,
 
 bool Calibrate::saveCalibration(const string &fname) {
 	// note: never write rectified parameters!
+
+	// TODO: make a backup of old file
+	//if (std::filesystem::is_regular_file(fname)) {
+	//	// copy to fname + ".bak"
+	//}
+
 	return writeCalibration(fname, calib_size_, K_, D_, R_, t_, pose_);
 }
 
