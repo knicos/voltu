@@ -237,52 +237,94 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 					if (data.size() > 0) {
 						auto &d = *data.rbegin();
 						
-						//cv::Mat over_depth;
-						//over_depth.create(im1_.size(), CV_32F);
+						cv::Mat over_depth;
+						over_depth.create(im1_.size(), CV_32F);
 
 						auto cam = ftl::rgbd::Camera::from(intrinsics_);
 
-						float screenWidth = intrinsics_->value("screen_size", 1.2f);  // In meters
+						float screenWidth = intrinsics_->value("screen_size", 0.6f);  // In meters
 						float screenHeight = (9.0f/16.0f) * screenWidth;
 
-						//Eigen::Vector3f pc(-screenWidth/2.0f,-screenHeight/2.0f,0.0);
-						Eigen::Vector3f pa(-screenWidth/2.0f,screenHeight/2.0f,0.0);
-						//Eigen::Vector3f pb(screenWidth/2.0f,screenHeight/2.0f,0.0);
+						float screenDistance = (d.depth > cam.minDepth && d.depth < cam.maxDepth) ? d.depth : intrinsics_->value("screen_dist_default", 0.5f);  // Face distance from screen in meters
 
-						float screenDistance = (d.depth > cam.minDepth && d.depth < cam.maxDepth) ? d.depth : intrinsics_->value("screen_dist_default", 1.2f);  // Face distance from screen in meters
-
-						auto pos = f.getLeft().screenToCam(d.box.x+(d.box.width/2), d.box.y+(d.box.height/2), -screenDistance);
+						auto pos = f.getLeft().screenToCam(d.box.x+(d.box.width/2), d.box.y+(d.box.height/2), screenDistance);
 						Eigen::Vector3f eye;
-						eye[0] = pos.x;
-						eye[1] = -pos.y;
-						eye[2] = pos.z;
+						eye[0] = -pos.x;
+						eye[1] = pos.y;
+						eye[2] = -pos.z;
+						//eye[3] = 0;
 
 						Eigen::Translation3f trans(eye);
 						Eigen::Affine3f t(trans);
 						Eigen::Matrix4f viewPose = t.matrix();
 
-						// Top Left norm dist
-						Eigen::Vector3f tl = (pa - eye);
-						Eigen::Vector3f princ = tl;
+						// Calculate where the screen is within current camera space
+						Eigen::Vector4f p1 = viewPose.cast<float>() * (Eigen::Vector4f(screenWidth/2.0, screenHeight/2.0, 0, 1));
+						Eigen::Vector4f p2 = viewPose.cast<float>() * (Eigen::Vector4f(screenWidth/2.0, -screenHeight/2.0, 0, 1));
+						Eigen::Vector4f p3 = viewPose.cast<float>() * (Eigen::Vector4f(-screenWidth/2.0, screenHeight/2.0, 0, 1));
+						Eigen::Vector4f p4 = viewPose.cast<float>() * (Eigen::Vector4f(-screenWidth/2.0, -screenHeight/2.0, 0, 1));
+						p1 = p1 / p1[3];
+						p2 = p2 / p2[3];
+						p3 = p3 / p3[3];
+						p4 = p4 / p4[3];
+						float2 p1screen = cam.camToScreen<float2>(make_float3(p1[0],p1[1],p1[2]));
+						float2 p2screen = cam.camToScreen<float2>(make_float3(p2[0],p2[1],p2[2]));
+						float2 p3screen = cam.camToScreen<float2>(make_float3(p3[0],p3[1],p3[2]));
+						float2 p4screen = cam.camToScreen<float2>(make_float3(p4[0],p4[1],p4[2]));
 
-						Eigen::Matrix4d windowPose;
-						windowPose.setIdentity();
+						//cv::line(im1_, cv::Point2f(p1screen.x, p1screen.y), cv::Point2f(p2screen.x, p2screen.y), cv::Scalar(255,0,255,0));
+						//cv::line(im1_, cv::Point2f(p4screen.x, p4screen.y), cv::Point2f(p2screen.x, p2screen.y), cv::Scalar(255,0,255,0));
+						//cv::line(im1_, cv::Point2f(p1screen.x, p1screen.y), cv::Point2f(p3screen.x, p3screen.y), cv::Scalar(255,0,255,0));
+						//cv::line(im1_, cv::Point2f(p3screen.x, p3screen.y), cv::Point2f(p4screen.x, p4screen.y), cv::Scalar(255,0,255,0));
+						//LOG(INFO) << "DRAW LINE: " << p1screen.x << "," << p1screen.y << " -> " << p2screen.x << "," << p2screen.y;
 
-						Eigen::Matrix4d fakepose = viewPose.cast<double>().inverse() * state_.getPose();
-						ftl::rgbd::Camera fakecam = cam;
-						fakecam.fx = screenDistance; //eye.norm();
-						fakecam.fy = fakecam.fx;
-						fakecam.cx = (princ[0]) * fakecam.fx / princ[2] / screenWidth * cam.width;
-						fakecam.cy = ((princ[1]) * fakecam.fy / princ[2] / screenHeight * cam.height) - cam.height;
-						fakecam.fx = fakecam.fx / screenWidth * cam.width;
-						fakecam.fy = fakecam.fy / screenHeight * cam.height;
+						std::vector<cv::Point2f> quad_pts;
+						std::vector<cv::Point2f> squre_pts;
+						quad_pts.push_back(cv::Point2f(p1screen.x,p1screen.y));
+						quad_pts.push_back(cv::Point2f(p2screen.x,p2screen.y));
+						quad_pts.push_back(cv::Point2f(p3screen.x,p3screen.y));
+						quad_pts.push_back(cv::Point2f(p4screen.x,p4screen.y));
+						squre_pts.push_back(cv::Point2f(0,0));
+						squre_pts.push_back(cv::Point2f(0,cam.height));
+						squre_pts.push_back(cv::Point2f(cam.width,0));
+						squre_pts.push_back(cv::Point2f(cam.width,cam.height));
+
+						cv::Mat transmtx = cv::getPerspectiveTransform(quad_pts,squre_pts);
+						cv::Mat transformed = cv::Mat::zeros(im1_.rows, im1_.cols, CV_8UC4);
+						//cv::warpPerspective(im1_, im1_, transmtx, im1_.size());
+
+						ftl::render::ViewPort vp;
+						vp.x = std::min(p4screen.x, std::min(p3screen.x, std::min(p1screen.x,p2screen.x)));
+						vp.y = std::min(p4screen.y, std::min(p3screen.y, std::min(p1screen.y,p2screen.y)));
+						vp.width = std::max(p4screen.x, std::max(p3screen.x, std::max(p1screen.x,p2screen.x))) - vp.x;
+						vp.height = std::max(p4screen.y, std::max(p3screen.y, std::max(p1screen.y,p2screen.y))) - vp.y;
+						renderer_->setViewPort(ftl::render::ViewPortMode::Warping, vp);
+
+						//Eigen::Matrix4d windowPose;
+						//windowPose.setIdentity();
+
+						//Eigen::Matrix4d fakepose = (viewPose.cast<double>()).inverse() * state_.getPose();
+						//ftl::rgbd::Camera fakecam = cam;
+
+						//eye[1] = -eye[1];
+						//eye[2] = -eye[2];
+						//Eigen::Translation3f trans2(eye);
+						//Eigen::Affine3f t2(trans2);
+						//Eigen::Matrix4f viewPose2 = t2.matrix();
 
 						// Use face tracked window pose for virtual camera
-						state_.getLeft() = fakecam;
+						//state_.getLeft() = fakecam;
 						transform_ix_ = fset->id;  // Disable keyboard/mouse pose setting
+
 						state_.setPose(transforms_[transform_ix_] * viewPose.cast<double>());
 
-						//ftl::overlay::draw3DLine(state_.getLeft(), im1_, over_depth, state_.getPose().inverse() * Eigen::Vector4d(eye[0],eye[1],eye[2],1), state_.getPose().inverse() * Eigen::Vector4d(0,0,0,1), cv::Scalar(0,0,255,0));
+						//Eigen::Vector4d pt1 = state_.getPose().inverse() * Eigen::Vector4d(eye[0],eye[1],eye[2],1);
+						//pt1 /= pt1[3];
+						//Eigen::Vector4d pt2 = state_.getPose().inverse() * Eigen::Vector4d(0,0,0,1);
+						//pt2 /= pt2[3];
+
+
+						//ftl::overlay::draw3DLine(state_.getLeft(), im1_, over_depth, pt1, pt2, cv::Scalar(0,0,255,0));
 						//ftl::overlay::drawRectangle(state_.getLeft(), im1_, over_depth, windowPose.inverse() * state_.getPose(), cv::Scalar(255,0,0,0), screenWidth, screenHeight);
 						//ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fakecam, fakepose, cv::Scalar(255,0,255,255), 1.0,screen_->root()->value("show_frustrum", false));
 					}
@@ -326,7 +368,7 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 		for (auto *fs : fss) {
 			if (!usesFrameset(fs->id)) continue;
-			for (int i=0; i<fs->frames.size(); ++i) {
+			for (size_t i=0; i<fs->frames.size(); ++i) {
 				auto pose = fs->frames[i].getPose().inverse() * state_.getPose();
 				Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
 				pos /= pos[3];
@@ -396,7 +438,7 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 			ftl::rgbd::Frame *frame = nullptr;
 
-			if (fid_ >= fs->frames.size()) return;
+			if ((size_t)fid_ >= fs->frames.size()) return;
 			frame = &fs->frames[fid_];
 			_downloadFrames(frame);
 			auto n = frame->get<std::string>("name");
@@ -599,6 +641,8 @@ cv::Mat ftl::gui::Camera::visualizeActiveChannel() {
 			break;
 		case Channel::Right:
 			result = im2_;
+			break;
+		default: break;
 	}
 	return result;
 }

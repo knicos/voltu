@@ -99,6 +99,7 @@ Master::Master(Configurable *root, Universe *net)
 			delete nc;
 			delete configuration;
 		}
+		peerConfigurables_[peer].clear();
 	});
 }
 

@@ -304,6 +304,7 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::swapTo(ftl::codecs::Channels<BASE> cha
 		// Should we swap this channel?
 		if (channels.has(c)) {
 			f.channels_ += c;
+			// TODO: Make sure this does a move not copy
 			std::swap(f.getData(c),getData(c));
 		}
 	}

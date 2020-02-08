@@ -2,7 +2,7 @@
 #define _FTL_RECONSTRUCTION_SPLAT_CUDA_HPP_
 
 #include <ftl/cuda_common.hpp>
-#include <ftl/render/splat_params.hpp>
+#include <ftl/render/render_params.hpp>
 
 namespace ftl {
 namespace cuda {
@@ -10,7 +10,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &depth,
 		ftl::cuda::TextureObject<float> &depth_out,
 		ftl::cuda::TextureObject<short2> &screen_out,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const float4x4 &pose,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
@@ -18,7 +18,7 @@ namespace cuda {
 	void screen_coord(
 		ftl::cuda::TextureObject<float> &depth_out,
 		ftl::cuda::TextureObject<short2> &screen_out,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const float4x4 &pose,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
@@ -27,7 +27,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<int> &depth_out,
 		ftl::cuda::TextureObject<short2> &screen,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		cudaStream_t stream);
 
 	void mesh_blender(
@@ -41,14 +41,14 @@ namespace cuda {
 		ftl::cuda::TextureObject<float4> &points,
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<int> &depth,
-		ftl::render::SplatParams params,
+		ftl::render::Parameters params,
 		bool culling,
 		cudaStream_t stream);
 
 	void dibr_merge(
 		ftl::cuda::TextureObject<float4> &points,
 		ftl::cuda::TextureObject<int> &depth,
-		ftl::render::SplatParams params,
+		ftl::render::Parameters params,
 		cudaStream_t stream);
 
 	void dibr_merge(
@@ -56,14 +56,14 @@ namespace cuda {
 		ftl::cuda::TextureObject<int> &depth_out,
 		const float4x4 &transform,
 		const ftl::rgbd::Camera &cam,
-		ftl::render::SplatParams params,
+		ftl::render::Parameters params,
 		cudaStream_t stream);
 
 	void dibr_merge(
 		ftl::cuda::TextureObject<int> &depth_out,
 		const float4x4 &transform,
 		const ftl::rgbd::Camera &cam,
-		ftl::render::SplatParams params,
+		ftl::render::Parameters params,
 		cudaStream_t stream);
 
 	template <typename T>
@@ -74,7 +74,7 @@ namespace cuda {
         ftl::cuda::TextureObject<int> &depth_in,        // Virtual depth map
         ftl::cuda::TextureObject<float> &depth_out,
 		ftl::cuda::TextureObject<T> &colour_out,
-        const ftl::render::SplatParams &params, cudaStream_t stream);
+        const ftl::render::Parameters &params, cudaStream_t stream);
 
 	template <typename A, typename B>
 	void dibr_attribute(
@@ -83,7 +83,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<int> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		ftl::render::SplatParams &params, cudaStream_t stream);
+		ftl::render::Parameters &params, cudaStream_t stream);
 
 	template <typename A, typename B>
 	void reproject(
@@ -93,9 +93,10 @@ namespace cuda {
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR,
+		cudaStream_t stream);
 
 	template <typename A, typename B>
 	void reproject(
@@ -104,7 +105,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
@@ -114,7 +115,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 

@@ -4,21 +4,7 @@
 
 set(REPSRC
 	src/main.cpp
-	#src/voxel_scene.cpp
-	#src/ray_cast_sdf.cu
 	src/camera_util.cu
-	#src/ray_cast_sdf.cpp
-	#src/virtual_source.cpp
-	#src/splat_render.cpp
-	#src/dibr.cu
-	#src/mls.cu
-	#src/depth_camera.cu
-	#src/depth_camera.cpp
-	#src/ilw/ilw.cpp
-	#src/ilw/ilw.cu
-	#src/ilw/fill.cu
-	#src/ilw/discontinuity.cu
-	#src/ilw/correspondence.cu
 	src/reconstruction.cpp
 )
 
