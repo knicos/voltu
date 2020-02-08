@@ -1,9 +1,9 @@
 add_library(ftlrender
-	src/splatter.cu
-	src/points.cu
 	src/normals.cu
 	src/mask.cu
 	src/screen.cu
+	src/clipping.cu
+	src/dibr.cu
 	src/triangle_render.cu
 	src/reprojection.cu
 	src/CUDARender.cpp

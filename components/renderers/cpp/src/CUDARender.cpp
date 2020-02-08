@@ -96,6 +96,8 @@ CUDARender::CUDARender(nlohmann::json &config) : ftl::render::Renderer(config), 
 		clipping_ = false;
 	//}
 
+	params_.viewPortMode = ftl::render::ViewPortMode::Disabled;
+
 	on("clipping_enabled", [this](const ftl::config::Event &e) {
 		clipping_ = value("clipping_enabled", true);
 	});
@@ -185,7 +187,7 @@ void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 			return;
 		}
 
-		auto transform = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse() * t.cast<float>().inverse()) * params_.m_viewMatrixInverse;
+		auto transform = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse() * t.cast<float>().inverse()) * poseInverse_;
 		auto transformR = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse()).getFloat3x3();
 
 		if (mesh_) {
@@ -265,7 +267,7 @@ void CUDARender::_dibr(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 			continue;
 		}
 
-		auto transform = params_.m_viewMatrix * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
+		auto transform = pose_ * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
 
 		if (f.hasChannel(Channel::Depth)) {
 			ftl::cuda::dibr_merge(
@@ -312,7 +314,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		}
 
 		//auto pose = MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
-		auto transform = params_.m_viewMatrix * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
+		auto transform = pose_ * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
 
 		// Calculate and save virtual view screen position of each source pixel
 		if (f.hasChannel(Channel::Depth)) {
@@ -367,7 +369,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 				temp_.createTexture<float4>(Channel::Normals),
 				out.createTexture<float>(Channel::Depth),
 				value("normal_radius", 1), value("normal_smoothing", 0.02f),
-				params_.camera, params_.m_viewMatrix.getFloat3x3(), params_.m_viewMatrixInverse.getFloat3x3(), stream_);
+				params_.camera, pose_.getFloat3x3(), poseInverse_.getFloat3x3(), stream_);
 }
 
 void CUDARender::_renderChannel(
@@ -476,9 +478,10 @@ void CUDARender::_updateParameters(ftl::rgbd::Frame &out) {
 	params_.depthThreshold = value("depth_threshold", 0.04f);
 	params_.m_flags = 0;
 	if (value("normal_weight_colours", true)) params_.m_flags |= ftl::render::kNormalWeightColours;
-	params_.m_viewMatrix = MatrixConversion::toCUDA(out.getPose().cast<float>().inverse());
-	params_.m_viewMatrixInverse = MatrixConversion::toCUDA(out.getPose().cast<float>());
 	params_.camera = camera;
+
+	poseInverse_ = MatrixConversion::toCUDA(out.getPose().cast<float>());
+	pose_ = MatrixConversion::toCUDA(out.getPose().cast<float>().inverse());
 }
 
 void CUDARender::_preprocessColours() {
@@ -513,7 +516,7 @@ void CUDARender::_preprocessColours() {
 
 void CUDARender::_postprocessColours(ftl::rgbd::Frame &out) {
 	if (value("cool_effect", false)) {
-		auto pose = params_.m_viewMatrixInverse.getFloat3x3();
+		auto pose = poseInverse_.getFloat3x3();
 		auto col = parseCUDAColour(value("cool_effect_colour", std::string("#2222ff")));
 
 		ftl::cuda::cool_blue(
@@ -573,8 +576,8 @@ void CUDARender::_renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t) {
 	transform(0, 3) = baseline;
 	Eigen::Matrix4f matrix = out.getPose().cast<float>() * transform.inverse();
 	
-	params_.m_viewMatrix = MatrixConversion::toCUDA(matrix.inverse());
-	params_.m_viewMatrixInverse = MatrixConversion::toCUDA(matrix);
+	pose_ = MatrixConversion::toCUDA(matrix.inverse());
+	poseInverse_ = MatrixConversion::toCUDA(matrix);
 	params_.camera = out.getRightCamera();
 	
 	out.create<GpuMat>(Channel::Right, Format<uchar4>(params_.camera.width, params_.camera.height));
@@ -656,7 +659,7 @@ void CUDARender::begin(ftl::rgbd::Frame &out) {
 	if (env_image_.empty() || !value("environment_enabled", false)) {
 		out.get<GpuMat>(Channel::Colour).setTo(background_, cvstream);
 	} else {
-		auto pose = params_.m_viewMatrixInverse.getFloat3x3();
+		auto pose = poseInverse_.getFloat3x3();
 		ftl::cuda::equirectangular_reproject(
 			env_tex_,
 			out.createTexture<uchar4>(Channel::Colour, true),

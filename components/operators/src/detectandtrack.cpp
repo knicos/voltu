@@ -32,7 +32,7 @@ bool DetectAndTrack::init() {
 		debug_ = config()->value<bool>("debug", false);
 	});
 
-	detect_n_frames_ = config()->value<int>("n_frames", 10);
+	detect_n_frames_ = config()->value<int>("n_frames", 20);
 	detect_n_frames_ = detect_n_frames_ < 0.0 ? 0.0 : detect_n_frames_;
 
 	max_distance_ = config()->value<double>("max_distance", 100.0);
@@ -239,7 +239,7 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 		track(im);
 
-		if (!detecting_) {  // && tracked_.size() < max_tracked_) {
+		if ((n_frame_++ % detect_n_frames_ == 0) && !detecting_) {  // && tracked_.size() < max_tracked_) {
 			//if (detect_job_.valid()) detect_job_.get();  // To throw any exceptions
 			detecting_ = true;
 

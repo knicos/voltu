@@ -1,4 +1,4 @@
-#include <ftl/render/splat_params.hpp>
+#include <ftl/render/render_params.hpp>
 #include "splatter_cuda.hpp"
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
@@ -10,8 +10,9 @@
 #define ACCUM_DIAMETER 8
 
 using ftl::cuda::TextureObject;
-using ftl::render::SplatParams;
+using ftl::render::Parameters;
 using ftl::rgbd::Camera;
+using ftl::render::ViewPortMode;
 
 /*template <typename T>
 __device__ inline T generateInput(const T &in, const SplatParams &params, const float4 &worldPos) {
@@ -54,10 +55,20 @@ __device__ inline void accumulateOutput(TextureObject<float4> &out, TextureObjec
 	atomicAdd(&contrib(pos.x, pos.y), w);
 } 
 
+template <ViewPortMode VPMODE>
+__device__ inline uint2 convertScreen(const Parameters &params, int x, int y) {
+	return make_uint2(x,y);
+}
+
+template <>
+__device__ inline uint2 convertScreen<ViewPortMode::Warping>(const Parameters &params, int x, int y) {
+	return params.viewport.reverseMap(params.camera, make_float2(x,y));
+}
+
 /*
- * Pass 2: Accumulate attribute contributions if the points pass a visibility test.
+ * Full reprojection with normals and depth
  */
- template <typename A, typename B>
+ template <typename A, typename B, ViewPortMode VPMODE>
 __global__ void reprojection_kernel(
         TextureObject<A> in,				// Attribute input
         TextureObject<float> depth_src,
@@ -65,7 +76,7 @@ __global__ void reprojection_kernel(
 		TextureObject<float4> normals,
 		TextureObject<B> out,			// Accumulated output
 		TextureObject<float> contrib,
-		SplatParams params,
+		Parameters params,
 		Camera camera, float4x4 transform, float3x3 transformR) {
         
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
@@ -77,7 +88,9 @@ __global__ void reprojection_kernel(
 	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
 	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
 
-	const float3 camPos = transform * params.camera.screenToCam(x, y, d);
+	//const uint2 rpt = make_uint2(x,y);
+	const uint2 rpt = convertScreen<VPMODE>(params, x, y);
+	const float3 camPos = transform * params.camera.screenToCam(rpt.x, rpt.y, d);
 	if (camPos.z < camera.minDepth) return;
 	if (camPos.z > camera.maxDepth) return;
 	const float2 screenPos = camera.camToScreen<float2>(camPos);
@@ -101,6 +114,7 @@ __global__ void reprojection_kernel(
 
 	// TODO: Z checks need to interpolate between neighbors if large triangles are used
 	//float weight = ftl::cuda::weighting(fabs(camPos.z - d2), params.depthThreshold);
+	// TODO: Depth threshold should relate to pixel size
 	float weight = (fabs(camPos.z - d2) <= params.depthThreshold) ? 1.0f : 0.0f;
 
 	/* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
@@ -128,24 +142,18 @@ void ftl::cuda::reproject(
 		TextureObject<float4> &normals,
 		TextureObject<B> &out,   // Accumulated output
 		TextureObject<float> &contrib,
-		const SplatParams &params,
-		const Camera &camera, const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream) {
+		const Parameters &params,
+		const Camera &camera, const float4x4 &transform, const float3x3 &transformR,
+		cudaStream_t stream) {
 	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-    reprojection_kernel<<<gridSize, blockSize, 0, stream>>>(
-        in,
-        depth_src,
-		depth_in,
-		normals,
-		out,
-		contrib,
-		params,
-		camera,
-		transform,
-		transformR
-    );
-    cudaSafeCall( cudaGetLastError() );
+	switch (params.viewPortMode) {
+    case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, normals, out, contrib, params, camera, transform, transformR); break;
+	case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, normals, out, contrib, params, camera, transform, transformR); break;
+	case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, normals, out, contrib, params, camera, transform, transformR); break;
+	}
+	cudaSafeCall( cudaGetLastError() );
 }
 
 template void ftl::cuda::reproject(
@@ -155,9 +163,10 @@ template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<float4> &normals,
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 	ftl::cuda::TextureObject<float> &contrib,
-	const ftl::render::SplatParams &params,
+	const ftl::render::Parameters &params,
 	const ftl::rgbd::Camera &camera,
-	const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
+	const float4x4 &transform, const float3x3 &transformR,
+	cudaStream_t stream);
 
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &in,	// Original colour image
@@ -166,9 +175,10 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<float> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR,
+		cudaStream_t stream);
 
 template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &in,	// Original colour image
@@ -177,9 +187,10 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
-		const float4x4 &transform, const float3x3 &transformR, cudaStream_t stream);
+		const float4x4 &transform, const float3x3 &transformR,
+		cudaStream_t stream);
 
 //==============================================================================
 //  Without normals
@@ -195,7 +206,7 @@ __global__ void reprojection_kernel(
 		TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<B> out,			// Accumulated output
 		TextureObject<float> contrib,
-		SplatParams params,
+		Parameters params,
 		Camera camera, float4x4 poseInv) {
         
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
@@ -238,7 +249,7 @@ void ftl::cuda::reproject(
 		TextureObject<float> &depth_in,        // Virtual depth map
 		TextureObject<B> &out,   // Accumulated output
 		TextureObject<float> &contrib,
-		const SplatParams &params,
+		const Parameters &params,
 		const Camera &camera, const float4x4 &poseInv, cudaStream_t stream) {
 	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
@@ -262,7 +273,7 @@ template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 	ftl::cuda::TextureObject<float> &contrib,
-	const ftl::render::SplatParams &params,
+	const ftl::render::Parameters &params,
 	const ftl::rgbd::Camera &camera,
 	const float4x4 &poseInv, cudaStream_t stream);
 
@@ -272,7 +283,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
@@ -282,7 +293,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
@@ -299,7 +310,7 @@ __global__ void reprojection_kernel(
 		TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<B> out,			// Accumulated output
 		TextureObject<float> contrib,
-		SplatParams params,
+		Parameters params,
 		Camera camera, float4x4 poseInv) {
         
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
@@ -339,7 +350,7 @@ void ftl::cuda::reproject(
 		TextureObject<float> &depth_in,        // Virtual depth map
 		TextureObject<B> &out,   // Accumulated output
 		TextureObject<float> &contrib,
-		const SplatParams &params,
+		const Parameters &params,
 		const Camera &camera, const float4x4 &poseInv, cudaStream_t stream) {
 	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
@@ -361,7 +372,7 @@ template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 	ftl::cuda::TextureObject<float> &contrib,
-	const ftl::render::SplatParams &params,
+	const ftl::render::Parameters &params,
 	const ftl::rgbd::Camera &camera,
 	const float4x4 &poseInv, cudaStream_t stream);
 
@@ -370,7 +381,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
@@ -379,7 +390,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
 		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::SplatParams &params,
+		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
 
@@ -482,5 +493,40 @@ void ftl::cuda::fix_bad_colour(
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	fix_colour_kernel<1><<<gridSize, blockSize, 0, stream>>>(depth, out, contribs, bad_colour, cam);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// ===== Show bad colour normalise =============================================
+
+__global__ void show_missing_colour_kernel(
+		TextureObject<float> depth,
+		TextureObject<uchar4> out,
+		TextureObject<float> contribs,
+		uchar4 bad_colour,
+		ftl::rgbd::Camera cam) {
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < out.width() && y < out.height()) {
+		const float contrib = contribs.tex2D((int)x,(int)y);
+		const float d = depth.tex2D(x,y);
+
+		if (contrib < 0.0000001f && d > cam.minDepth && d < cam.maxDepth) {
+			out(x,y) = bad_colour;
+		}
+	}
+}
+
+void ftl::cuda::show_missing_colour(
+		TextureObject<float> &depth,
+		TextureObject<uchar4> &out,
+		TextureObject<float> &contribs,
+		uchar4 bad_colour,
+		const ftl::rgbd::Camera &cam,
+		cudaStream_t stream) {
+	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	show_missing_colour_kernel<<<gridSize, blockSize, 0, stream>>>(depth, out, contribs, bad_colour, cam);
 	cudaSafeCall( cudaGetLastError() );
 }

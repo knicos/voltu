@@ -1,4 +1,4 @@
-#include <ftl/render/splat_params.hpp>
+#include <ftl/render/render_params.hpp>
 #include "splatter_cuda.hpp"
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
@@ -7,7 +7,7 @@
 
 using ftl::rgbd::Camera;
 using ftl::cuda::TextureObject;
-using ftl::render::SplatParams;
+using ftl::render::Parameters;
 
 #define T_PER_BLOCK 8
 
@@ -107,7 +107,7 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
  * being inside or outside (using bary centric coordinate method). If inside
  * then atomically write to the depth map.
  */
-__device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const SplatParams &params, TextureObject<int> &depth_out) {
+__device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const Parameters &params, TextureObject<int> &depth_out) {
 	const int minX = min(v[0].x, min(v[1].x, v[2].x));
 	const int minY = min(v[0].y, min(v[1].y, v[2].y));
 	const int maxX = max(v[0].x, max(v[1].x, v[2].x));
@@ -136,7 +136,7 @@ __device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const Sp
  * hence that a triangle should not be draw between said verticies.
  * TODO: Use discontinuity mask or some better test here.
  */
-__device__ inline bool isValidTriangle(const float (&d)[3], const SplatParams &params) {
+__device__ inline bool isValidTriangle(const float (&d)[3], const Parameters &params) {
 	return !(fabs(d[0] - d[1]) > params.depthThreshold || fabs(d[0] - d[2]) > params.depthThreshold || d[0] < params.camera.minDepth || d[0] > params.camera.maxDepth);
 }
 
@@ -145,7 +145,7 @@ __device__ inline bool isValidTriangle(const float (&d)[3], const SplatParams &p
  * which verticies to load.
  */
 template <int A, int B>
-__device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const SplatParams &params, const TextureObject<float> &depth_in, const TextureObject<short2> &screen) {
+__device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const Parameters &params, const TextureObject<float> &depth_in, const TextureObject<short2> &screen) {
     d[1] = depth_in.tex2D(x+A,y);
     d[2] = depth_in.tex2D(x,y+B);
     v[1] = screen.tex2D(x+A,y);
@@ -159,7 +159,7 @@ __device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const 
  __global__ void triangle_render_kernel(
         TextureObject<float> depth_in,
         TextureObject<int> depth_out,
-		TextureObject<short2> screen, SplatParams params) {
+		TextureObject<short2> screen, Parameters params) {
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
@@ -178,7 +178,7 @@ __device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const 
 	}
 }
 
-void ftl::cuda::triangle_render1(TextureObject<float> &depth_in, TextureObject<int> &depth_out, TextureObject<short2> &screen, const SplatParams &params, cudaStream_t stream) {
+void ftl::cuda::triangle_render1(TextureObject<float> &depth_in, TextureObject<int> &depth_out, TextureObject<short2> &screen, const Parameters &params, cudaStream_t stream) {
     const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 

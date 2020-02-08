@@ -106,10 +106,10 @@ void StereoVideoSource::init(const string &file) {
 		// set use config file/set (some) default values
 
 		cv::Mat K = cv::Mat::eye(cv::Size(3, 3), CV_64FC1);
-		K.at<double>(0,0) = host_->value("focal", 500.0);
-		K.at<double>(1,1) = host_->value("focal", 500.0);
-		K.at<double>(0,2) = host_->value("centre_x", -color_size_.width/2.0f);
-		K.at<double>(1,2) = host_->value("centre_y", -color_size_.height/2.0f);
+		K.at<double>(0,0) = host_->value("focal", 800.0);
+		K.at<double>(1,1) = host_->value("focal", 800.0);
+		K.at<double>(0,2) = host_->value("centre_x", color_size_.width/2.0f);
+		K.at<double>(1,2) = host_->value("centre_y", color_size_.height/2.0f);
 
 		calib_->setIntrinsics(color_size_, {K, K});
 	}

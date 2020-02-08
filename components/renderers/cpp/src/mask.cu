@@ -3,7 +3,6 @@
 
 using ftl::cuda::TextureObject;
 using ftl::cuda::Mask;
-using ftl::render::SplatParams;
 
 #define T_PER_BLOCK 16
 
