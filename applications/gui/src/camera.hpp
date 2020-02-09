@@ -62,7 +62,7 @@ class Camera {
 	/**
 	 * Update the available channels.
 	 */
-	void update(const ftl::codecs::Channels<0> &c) { channels_ = (isVirtual()) ? c + ftl::codecs::Channel::Right : c; }
+	void update(int fsid, const ftl::codecs::Channels<0> &c);
 
 	void draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 

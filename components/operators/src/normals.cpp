@@ -3,6 +3,7 @@
 #include <ftl/utility/matrix_conversion.hpp>
 
 using ftl::operators::Normals;
+using ftl::operators::NormalDot;
 using ftl::operators::SmoothNormals;
 using ftl::codecs::Channel;
 using ftl::rgbd::Format;
@@ -33,6 +34,37 @@ bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t st
 
 	return true;
 }
+
+// =============================================================================
+
+NormalDot::NormalDot(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+
+}
+
+NormalDot::~NormalDot() {
+
+}
+
+bool NormalDot::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
+	if (!in.hasChannel(Channel::Depth)) {
+		throw FTL_Error("Missing depth channel in Normals operator");
+	}
+
+	if (out.hasChannel(Channel::Normals)) {
+		//LOG(WARNING) << "Output already has normals";
+		return true;
+	}
+
+	ftl::cuda::normals_dot(
+		out.createTexture<float>(Channel::Normals, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+		in.createTexture<float>(Channel::Depth),
+		in.getLeftCamera(), stream
+	);
+
+	return true;
+}
+
+// =============================================================================
 
 
 SmoothNormals::SmoothNormals(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {

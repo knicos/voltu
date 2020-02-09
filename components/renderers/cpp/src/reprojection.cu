@@ -65,6 +65,30 @@ __device__ inline uint2 convertScreen<ViewPortMode::Warping>(const Parameters &p
 	return params.viewport.reverseMap(params.camera, make_float2(x,y));
 }
 
+template <typename A>
+__device__ inline auto getInput(TextureObject<A> &in, const float2 &screen, float width, float height) {
+	const float inSX = float(in.width()) / width;
+	const float inSY = float(in.height()) / height;
+	return in.tex2D(screen.x*inSX, screen.y*inSY); 
+}
+
+__device__ float weightByNormal(TextureObject<float4> &normals, int x, int y, const float3x3 &transformR, const float2 &screenPos, const ftl::rgbd::Camera &camera) {
+	// Calculate the dot product of surface normal and camera ray
+	const float3 n = transformR * make_float3(normals.tex2D(x, y));
+	float3 ray = camera.screenToCam(screenPos.x, screenPos.y, 1.0f);
+	ray = ray / length(ray);
+
+	// Allow slightly beyond 90 degrees due to normal estimation errors
+	const float dotproduct = (max(dot(ray,n),-0.1f)+0.1) / 1.1f;
+	return dotproduct;
+}
+
+__device__ float depthMatching(const Parameters &params, float d1, float d2) {
+	// TODO: Consider a slightly different pixel size check
+	const float threshold = (params.depthCoef / ((params.depthCoef / d2) - 1.0f)) - d2;
+	return (fabs(d1 - d2) <= threshold) ? 1.0f : 0.0f;
+}
+
 /*
  * Full reprojection with normals and depth
  */
@@ -83,53 +107,42 @@ __global__ void reprojection_kernel(
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	const float d = depth_in.tex2D((int)x, (int)y);
-	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
+	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
+		const uint2 rpt = convertScreen<VPMODE>(params, x, y);
+		const float3 camPos = transform * params.camera.screenToCam(rpt.x, rpt.y, d);
+		if (camPos.z > camera.minDepth && camPos.z < camera.maxDepth) {
+			const float2 screenPos = camera.camToScreen<float2>(camPos);
 
-	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
-	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
+			// Not on screen so stop now...
+			if (screenPos.x < depth_src.width() && screenPos.y < depth_src.height()) {
+				const float d2 = depth_src.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f));
 
-	//const uint2 rpt = make_uint2(x,y);
-	const uint2 rpt = convertScreen<VPMODE>(params, x, y);
-	const float3 camPos = transform * params.camera.screenToCam(rpt.x, rpt.y, d);
-	if (camPos.z < camera.minDepth) return;
-	if (camPos.z > camera.maxDepth) return;
-	const float2 screenPos = camera.camToScreen<float2>(camPos);
+				const auto input = getInput(in, screenPos, depth_src.width(), depth_src.height()); 
 
-	// Not on screen so stop now...
-	if (screenPos.x >= depth_src.width() || screenPos.y >= depth_src.height()) return;
-            
-	// Calculate the dot product of surface normal and camera ray
-	const float3 n = transformR * make_float3(normals.tex2D((int)x, (int)y));
-	float3 ray = camera.screenToCam(screenPos.x, screenPos.y, 1.0f);
-	ray = ray / length(ray);
+				// Boolean match (0 or 1 weight). 1.0 if depths are sufficiently close
+				float weight = depthMatching(params, camPos.z, d2);
 
-	// Allow slightly beyond 90 degrees due to normal estimation errors
-	const float dotproduct = (max(dot(ray,n),-0.1f)+0.1) / 1.1f;
-    
-	const float d2 = depth_src.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f));
+				// TODO: Weight by distance to discontinuity? Perhaps as an alternative to
+				// removing a discontinuity. This would also gradually blend colours from
+				// multiple cameras that otherwise might jump when one cameras input is lost
+				// at an invalid patch.
 
-	const float inSX = float(in.width()) / float(depth_src.width());
-	const float inSY = float(in.height()) / float(depth_src.height());
-	const auto input = in.tex2D(screenPos.x*inSX, screenPos.y*inSY); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
+				/* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
+				/* Orts-Escolano S. et al. 2016. Holoportation: Virtual 3D teleportation in real-time. */
+				// This is the simple naive colour weighting. It might be good
+				// enough for our purposes if the alignment step prevents ghosting
+				// TODO: Use depth and perhaps the neighbourhood consistency in:
+				//     Kuster C. et al. 2011. FreeCam: A hybrid camera system for interactive free-viewpoint video
+				if (params.m_flags & ftl::render::kNormalWeightColours)
+					weight *= weightByNormal(normals, x, y, transformR, screenPos, camera);
 
-	// TODO: Z checks need to interpolate between neighbors if large triangles are used
-	//float weight = ftl::cuda::weighting(fabs(camPos.z - d2), params.depthThreshold);
-	// TODO: Depth threshold should relate to pixel size
-	float weight = (fabs(camPos.z - d2) <= params.depthThreshold) ? 1.0f : 0.0f;
+				const B weighted = make<B>(input) * weight; //weightInput(input, weight);
 
-	/* Buehler C. et al. 2001. Unstructured Lumigraph Rendering. */
-	/* Orts-Escolano S. et al. 2016. Holoportation: Virtual 3D teleportation in real-time. */
-	// This is the simple naive colour weighting. It might be good
-	// enough for our purposes if the alignment step prevents ghosting
-	// TODO: Use depth and perhaps the neighbourhood consistency in:
-	//     Kuster C. et al. 2011. FreeCam: A hybrid camera system for interactive free-viewpoint video
-	if (params.m_flags & ftl::render::kNormalWeightColours) weight *= dotproduct;
-
-	const B weighted = make<B>(input) * weight; //weightInput(input, weight);
-
-	if (weight > 0.0f) {
-		accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
-		//out(screenPos.x, screenPos.y) = input;
+				if (weight > 0.0f) {
+					accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
+				}
+			}
+		}
 	}
 }
 
@@ -196,9 +209,7 @@ template void ftl::cuda::reproject(
 //  Without normals
 //==============================================================================
 
-/*
- * Pass 2: Accumulate attribute contributions if the points pass a visibility test.
- */
+
  template <typename A, typename B>
 __global__ void reprojection_kernel(
         TextureObject<A> in,				// Attribute input
@@ -213,31 +224,22 @@ __global__ void reprojection_kernel(
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	const float d = depth_in.tex2D((int)x, (int)y);
-	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
+	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
+		const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
+		if (camPos.z > camera.minDepth && camPos.z > camera.maxDepth) {
+			const float2 screenPos = camera.camToScreen<float2>(camPos);
 
-	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
-	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
+			if (screenPos.x < depth_src.width() && screenPos.y < depth_src.height()) {
+				const float d2 = depth_src.tex2D((int)(screenPos.x+0.5f), (int)(screenPos.y+0.5f));
+				const auto input = getInput(in, screenPos, depth_src.width(), depth_src.height());
+				float weight = depthMatching(params, camPos.z, d2);
+				const B weighted = make<B>(input) * weight;
 
-	const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
-	if (camPos.z < camera.minDepth) return;
-	if (camPos.z > camera.maxDepth) return;
-	const float2 screenPos = camera.camToScreen<float2>(camPos);
-
-	// Not on screen so stop now...
-	if (screenPos.x >= depth_src.width() || screenPos.y >= depth_src.height()) return;
-    
-	const float d2 = depth_src.tex2D((int)(screenPos.x+0.5f), (int)(screenPos.y+0.5f));
-
-	const float inSX = float(in.width()) / float(depth_src.width());
-	const float inSY = float(in.height()) / float(depth_src.height());
-	const auto input = in.tex2D(screenPos.x*inSX, screenPos.y*inSY); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
-
-	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
-	const B weighted = make<B>(input) * weight;
-
-	if (weight > 0.0f) {
-		accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
-		//out(screenPos.x, screenPos.y) = input;
+				if (weight > 0.0f) {
+					accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
+				}
+			}
+		}
 	}
 }
 
@@ -317,29 +319,19 @@ __global__ void reprojection_kernel(
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	const float d = depth_in.tex2D((int)x, (int)y);
-	if (d < params.camera.minDepth || d > params.camera.maxDepth) return;
+	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
+		const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
+		const float2 screenPos = camera.camToScreen<float2>(camPos);
 
-	//const float3 worldPos = params.m_viewMatrixInverse * params.camera.screenToCam(x, y, d);
-	//if (worldPos.x == MINF || (!(params.m_flags & ftl::render::kShowDisconMask) && worldPos.w < 0.0f)) return;
+		if (screenPos.x < in.width() && screenPos.y < in.height()) {
+			const auto input = in.tex2D(screenPos.x, screenPos.y);
+			float weight = depthMatching(params, camPos.z, camera.maxDepth);
+			const B weighted = make<B>(input) * weight;
 
-	const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
-	//if (camPos.z < camera.minDepth) return;
-	//if (camPos.z > camera.maxDepth) return;
-	const float2 screenPos = camera.camToScreen<float2>(camPos);
-
-	// Not on screen so stop now...
-	if (screenPos.x >= in.width() || screenPos.y >= in.height()) return;
-    
-	const float d2 = camera.maxDepth;
-
-	const auto input = in.tex2D(screenPos.x, screenPos.y); //generateInput(in.tex2D((int)screenPos.x, (int)screenPos.y), params, worldPos);
-
-	float weight = ftl::cuda::weighting(fabs(camPos.z - d2), 0.02f);
-	const B weighted = make<B>(input) * weight;
-
-	if (weight > 0.0f) {
-		accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
-		//out(screenPos.x, screenPos.y) = input;
+			if (weight > 0.0f) {
+				accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
+			}
+		}
 	}
 }
 

@@ -109,6 +109,7 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
     params_.maxDepth = host_->value("depth", 1.0f);
     params_.minDepth = 0.0f;
 	params_.doffs = 0.0;
+	params_.baseline = 0.1f;
 
 	state_.getLeft() = params_;
 	state_.set("name", std::string("[ScreenCapture] ") + host_->value("name", host_->getID()));

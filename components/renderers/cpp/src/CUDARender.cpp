@@ -3,7 +3,7 @@
 #include "splatter_cuda.hpp"
 #include <ftl/cuda/points.hpp>
 #include <ftl/cuda/normals.hpp>
-#include <ftl/cuda/mask.hpp>
+#include <ftl/operators/mask_cuda.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -187,6 +187,8 @@ void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 			return;
 		}
 
+		_adjustDepthThresholds(f.getLeftCamera());
+
 		auto transform = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse() * t.cast<float>().inverse()) * poseInverse_;
 		auto transformR = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse()).getFloat3x3();
 
@@ -291,6 +293,10 @@ void CUDARender::_dibr(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 	temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 }
 
+void CUDARender::_adjustDepthThresholds(const ftl::rgbd::Camera &fcam) {
+	params_.depthCoef = fcam.baseline*fcam.fx;
+}
+
 void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
@@ -315,6 +321,8 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		//auto pose = MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
 		auto transform = pose_ * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
+
+		_adjustDepthThresholds(f.getLeftCamera());
 
 		// Calculate and save virtual view screen position of each source pixel
 		if (f.hasChannel(Channel::Depth)) {
@@ -475,7 +483,9 @@ void CUDARender::_updateParameters(ftl::rgbd::Frame &out) {
 
 	// Parameters object to pass to CUDA describing the camera
 	params_.triangle_limit = value("triangle_limit", 200);
-	params_.depthThreshold = value("depth_threshold", 0.04f);
+	//params_.depthThreshold = value("depth_threshold", 0.004f);
+	//params_.depthThreshScale = value("depth_thresh_scale", 0.166f);  // baseline*focal / disp....
+	params_.disconDisparities = value("discon_disparities", 2.0f);
 	params_.m_flags = 0;
 	if (value("normal_weight_colours", true)) params_.m_flags |= ftl::render::kNormalWeightColours;
 	params_.camera = camera;
@@ -486,6 +496,7 @@ void CUDARender::_updateParameters(ftl::rgbd::Frame &out) {
 
 void CUDARender::_preprocessColours() {
 	bool show_discon = value("show_discontinuity_mask", false);
+	bool show_noise = value("show_noise_mask", false);
 	bool show_fill = value("show_filled", false);
 	bool colour_sources = value("colour_sources", false);
 
@@ -501,11 +512,14 @@ void CUDARender::_preprocessColours() {
 		}
 
 		if (f.hasChannel(Channel::Mask)) {
+			if (show_noise) {
+				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<uint8_t>(Channel::Mask), Mask::kMask_Noise, make_uchar4(0,255,0,255), stream_);
+			}
 			if (show_discon) {
-				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<int>(Channel::Mask), Mask::kMask_Discontinuity, make_uchar4(0,0,255,255), stream_);
+				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<uint8_t>(Channel::Mask), Mask::kMask_Discontinuity, make_uchar4(0,0,255,255), stream_);
 			}
 			if (show_fill) {
-				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<int>(Channel::Mask), Mask::kMask_Filled, make_uchar4(0,255,0,255), stream_);
+				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<uint8_t>(Channel::Mask), Mask::kMask_Filled, make_uchar4(0,255,0,255), stream_);
 			}
 		}
 
@@ -637,6 +651,7 @@ void CUDARender::_renderPass2(Channels<0> chans, const Eigen::Matrix4d &t) {
 		case Channel::None			:
 		case Channel::Left			:
 		case Channel::Depth			: break;
+		case Channel::Normals		: 
 		case Channel::ColourNormals	: _renderNormals(*out_); break;
 		case Channel::Density		: _renderDensity(*out_, t); break;
 		case Channel::Right			: _renderRight(*out_, t); break;

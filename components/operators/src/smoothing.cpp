@@ -31,6 +31,8 @@ bool HFSmoother::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
     //int levels = max(0, min(config()->value("levels",0), 4));
     int iters = config()->value("iterations",5);
 
+	if (!in.hasChannel(Channel::Depth)) return false;
+
 	// FIXME: in and out are assumed to be the same
 
     for (int i=0; i<iters; ++i) {

@@ -89,6 +89,7 @@ class CUDARender : public ftl::render::Renderer {
 	void _renderPass2(ftl::codecs::Channels<0>, const Eigen::Matrix4d &t);
 
 	bool _alreadySeen() const { return last_frame_ == scene_->timestamp; }
+	void _adjustDepthThresholds(const ftl::rgbd::Camera &fcam);
 };
 
 }

@@ -20,7 +20,7 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 	if (use_mask && !in.hasChannel(Channel::Support2)) {
 		if (!in.hasChannel(Channel::Mask)) return false;
 		ftl::cuda::support_region(
-			in.createTexture<int>(Channel::Mask),
+			in.createTexture<uint8_t>(Channel::Mask),
 			out.createTexture<uchar4>(Channel::Support2, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
 			config()->value("v_max", 5),
 			config()->value("h_max", 5),
@@ -30,7 +30,7 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 		ftl::cuda::support_region(
 			in.createTexture<uchar4>(Channel::Colour),
 			out.createTexture<uchar4>(Channel::Support1, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
-			config()->value("tau", 5.0f),
+			config()->value("tau", 10.0f),
 			config()->value("v_max", 5),
 			config()->value("h_max", 5),
 			config()->value("symmetric", true), stream

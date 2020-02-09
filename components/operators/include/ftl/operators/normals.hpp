@@ -22,6 +22,23 @@ class Normals : public ftl::operators::Operator {
 };
 
 /**
+ * Calculate the dot product of the normal and a camera ray. Outputs a single
+ * float value between 1 and -1 with 1 being facing camera, 0 being
+ * perpendicular and -1 facing wrong direction. Useful during rendering where
+ * full normals are not required.
+ */
+class NormalDot : public ftl::operators::Operator {
+	public:
+    explicit NormalDot(ftl::Configurable*);
+    ~NormalDot();
+
+	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
+
+    bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+};
+
+/**
  * Calculate rough normals from local depth gradients and perform a weighted
  * smoothing over the neighbourhood.
  */

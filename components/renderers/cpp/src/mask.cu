@@ -1,5 +1,5 @@
 #include "splatter_cuda.hpp"
-#include <ftl/cuda/mask.hpp>
+#include <ftl/operators/mask_cuda.hpp>
 
 using ftl::cuda::TextureObject;
 using ftl::cuda::Mask;
@@ -8,7 +8,7 @@ using ftl::cuda::Mask;
 
 __global__ void show_mask_kernel(
         TextureObject<uchar4> colour,
-        TextureObject<int> mask,
+        TextureObject<uint8_t> mask,
         int id, uchar4 style) {
         
 	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
@@ -26,7 +26,7 @@ __global__ void show_mask_kernel(
 
 void ftl::cuda::show_mask(
         TextureObject<uchar4> &colour,
-        TextureObject<int> &mask,
+        TextureObject<uint8_t> &mask,
         int id, uchar4 style, cudaStream_t stream) {
 	const dim3 gridSize((colour.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (colour.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
