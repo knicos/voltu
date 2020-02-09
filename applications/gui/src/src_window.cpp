@@ -209,8 +209,8 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 		if (screen_->activeCamera() == cam.second.camera ||
 			(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(framesets_);
 
-		if (fromstream) cam.second.camera->update(cstream->available(fs.id));
-		else if (fs.frames.size() > 0) cam.second.camera->update(fs.frames[0].getChannels());
+		if (fromstream) cam.second.camera->update(fs.id, cstream->available(fs.id));
+		else if (fs.frames.size() > 0) cam.second.camera->update(fs.id, fs.frames[0].getChannels());
 	}
 	++cycle_;
 
@@ -220,10 +220,10 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 void SourceWindow::_checkFrameSets(int id) {
 	while (framesets_.size() <= id) {
 		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), "pre_filters");
-		//pre_pipeline_->append<ftl::operators::HFSmoother>("hfnoise");
 		//pre_pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 		p->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
 		p->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
+		//p->append<ftl::operators::HFSmoother>("hfnoise");
 		p->append<ftl::operators::CrossSupport>("cross");
 		p->append<ftl::operators::DiscontinuityMask>("discontinuity");
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");

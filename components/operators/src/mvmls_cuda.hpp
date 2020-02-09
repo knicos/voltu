@@ -27,7 +27,7 @@ void correspondence(
         ftl::cuda::TextureObject<uchar4> &c2,
         ftl::cuda::TextureObject<short2> &screen,
 		ftl::cuda::TextureObject<float> &conf,
-		ftl::cuda::TextureObject<int> &mask,
+		ftl::cuda::TextureObject<uint8_t> &mask,
         float4x4 &pose,
         const ftl::rgbd::Camera &cam1,
         const ftl::rgbd::Camera &cam2, const ftl::cuda::MvMLSParams &params, int func,

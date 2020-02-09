@@ -40,12 +40,14 @@ template <> struct Float<float> { typedef float type; };
 template <> struct Float<int> { typedef float type; };
 template <> struct Float<float4> { typedef float4 type; };
 template <> struct Float<uchar4> { typedef float4 type; };
+template <> struct Float<uint8_t> { typedef float type; };
 template <> struct Float<short2> { typedef float2 type; };
 
 template <typename T>
 struct ScaleValue;
 
 template <> struct ScaleValue<uchar4> { static constexpr float value = 255.0f; };
+template <> struct ScaleValue<uint8_t> { static constexpr float value = 255.0f; };
 template <> struct ScaleValue<float> { static constexpr float value = 1.0f; };
 template <> struct ScaleValue<float4> { static constexpr float value = 1.0f; };
 

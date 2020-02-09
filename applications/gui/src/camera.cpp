@@ -9,6 +9,7 @@
 #include <opencv2/imgcodecs.hpp>
 
 #include <ftl/operators/antialiasing.hpp>
+#include <ftl/cuda/normals.hpp>
 
 #include <ftl/codecs/faces.hpp>
 
@@ -359,6 +360,7 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	post_pipe_->apply(frame_, frame_, 0);
 
+	channels_ = frame_.getChannels() + Channel::Right + Channel::ColourNormals;
 	_downloadFrames(&frame_);
 
 	if (screen_->root()->value("show_poses", false)) {
@@ -418,6 +420,34 @@ void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
 		channel2.download(im2_);
 		//LOG(INFO) << "Have channel2: " << im2_.type() << ", " << im2_.size();
 		cv::flip(im2_, im2_, 0);
+	} else if (channel_ == Channel::ColourNormals && frame->hasChannel(Channel::Depth)) {
+		// We can calculate normals here.
+		ftl::cuda::normals(
+			frame->createTexture<float4>(Channel::Normals, ftl::rgbd::Format<float4>(frame->get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			frame->createTexture<float>(Channel::Depth),
+			frame->getLeftCamera(), 0
+		);
+
+		frame->create<GpuMat>(Channel::ColourNormals, ftl::rgbd::Format<uchar4>(frame->get<cv::cuda::GpuMat>(Channel::Depth).size())).setTo(cv::Scalar(0,0,0,0), cv::cuda::Stream::Null());
+
+		ftl::cuda::normal_visualise(frame->getTexture<float4>(Channel::Normals), frame->createTexture<uchar4>(Channel::ColourNormals),
+				make_float3(0.3f,0.3f,0.3f),
+				make_uchar4(200,200,200,255),
+				make_uchar4(50,50,50,255), 0);
+
+		auto &channel2 = frame->get<GpuMat>(Channel::ColourNormals);
+		im2_.create(channel2.size(), channel2.type());
+		channel2.download(im2_);
+		cv::flip(im2_, im2_, 0);
+	}
+}
+
+void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
+	if (!isVirtual() && ((1 << fsid) & fsmask_)) {
+		channels_ = c;
+		if (c.has(Channel::Depth)) {
+			channels_ += Channel::ColourNormals;
+		}
 	}
 }
 
@@ -639,6 +669,7 @@ cv::Mat ftl::gui::Camera::visualizeActiveChannel() {
 			visualizeDepthMap(im2_, result, 7.0);
 			if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(im1_, result);
 			break;
+		case Channel::ColourNormals:
 		case Channel::Right:
 			result = im2_;
 			break;

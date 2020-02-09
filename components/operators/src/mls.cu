@@ -423,7 +423,7 @@ void ftl::cuda::colour_mls_smooth_csr(
 		w *= ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
 		// Gauss approx weighting function using point distance
-		w = ftl::cuda::spatialWeighting(X,Xi,smoothing*w);
+		w = ftl::cuda::spatialWeighting(X,Xi,d0*smoothing*w);
 
 		aX += Xi*w;
 		nX += Ni*w;
@@ -501,7 +501,7 @@ template <int RADIUS>
 		w *= ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
 		// Gauss approx weighting function using point distance
-		w = ftl::cuda::spatialWeighting(X,Xi,smoothing*w);
+		w = ftl::cuda::spatialWeighting(X,Xi,d0*smoothing*w);
 
 		aX += Ai*w;
 		nX += Ni*w;

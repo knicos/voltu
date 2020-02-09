@@ -19,7 +19,7 @@ void support_region(
 		cudaStream_t stream);
 
 void support_region(
-		ftl::cuda::TextureObject<int> &mask,
+		ftl::cuda::TextureObject<uint8_t> &mask,
 		ftl::cuda::TextureObject<uchar4> &region,
 		int v_max, int h_max, bool sym,
 		cudaStream_t stream);

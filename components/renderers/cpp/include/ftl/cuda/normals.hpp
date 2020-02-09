@@ -37,6 +37,11 @@ void normals(ftl::cuda::TextureObject<float4> &output,
         const ftl::rgbd::Camera &camera,
         cudaStream_t stream);
 
+void normals_dot(ftl::cuda::TextureObject<float> &output,
+        ftl::cuda::TextureObject<float> &input,
+        const ftl::rgbd::Camera &camera,
+        cudaStream_t stream);
+
 void normal_visualise(ftl::cuda::TextureObject<float4> &norm,
         ftl::cuda::TextureObject<uchar4> &output,
         const float3 &light, const uchar4 &diffuse, const uchar4 &ambient,

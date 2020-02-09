@@ -19,7 +19,9 @@ MultiViewMLS::~MultiViewMLS() {
 bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) {
     cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
-    float thresh = config()->value("mls_threshold", 0.4f);
+   // float thresh = config()->value("mls_threshold", 0.4f);
+	float disconPixels = config()->value("discon_pixels", 100.0f);  // Max before definitely not same surface
+	
 	float col_smooth = config()->value("mls_colour_smoothing", 30.0f);
 	int iters = config()->value("mls_iterations", 3);
 	int radius = config()->value("mls_radius",5);
@@ -37,7 +39,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
     params.fill_threshold = config()->value("fill_threshold", 0.0f);
 	params.match_threshold = config()->value("match_threshold", 0.3f);
     params.colour_smooth = config()->value("colour_smooth", 150.0f);
-    params.spatial_smooth = config()->value("spatial_smooth", 0.04f);
+    //params.spatial_smooth = config()->value("spatial_smooth", 0.04f);
     params.cost_ratio = config()->value("cost_ratio", 0.2f);
 	params.cost_threshold = config()->value("cost_threshold", 1.0f);
 
@@ -120,7 +122,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                         // TODO: Add normals and other things...
                         f1.getTexture<short2>(Channel::Screen),
                         f1.getTexture<float>(Channel::Confidence),
-                        f1.getTexture<int>(Channel::Mask),
+                        f1.getTexture<uint8_t>(Channel::Mask),
                         pose2,
                         f1.getLeftCamera(),
                         f2.getLeftCamera(),
@@ -214,6 +216,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 					stream
 				);
 			}
+
+			float thresh = (1.0f / f.getLeft().fx) * disconPixels;
 
             ftl::cuda::mls_aggr_horiz(
                 f.createTexture<uchar4>(Channel::Support2),

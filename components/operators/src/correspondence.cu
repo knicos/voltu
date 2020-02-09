@@ -1,6 +1,6 @@
 #include "mvmls_cuda.hpp"
 #include <ftl/cuda/weighting.hpp>
-#include <ftl/cuda/mask.hpp>
+#include <ftl/operators/mask_cuda.hpp>
 #include <ftl/cuda/warp.hpp>
 
 using ftl::cuda::TextureObject;
@@ -101,7 +101,7 @@ __global__ void corresponding_point_kernel(
         TextureObject<uchar4> c2,
         TextureObject<short2> screenOut,
 		TextureObject<float> conf,
-		TextureObject<int> mask,
+		TextureObject<uint8_t> mask,
         float4x4 pose,
         Camera cam1,
         Camera cam2, ftl::cuda::MvMLSParams params) {
@@ -148,7 +148,10 @@ __global__ void corresponding_point_kernel(
         linePos.x = lineOrigin.x - ((COR_STEPS/2));
         linePos.y = lineOrigin.y - (((COR_STEPS/2)) * lineM);
 		//float depthPos = depth1 - (float((COR_STEPS/2)) * depthM);
-        float depthPos2 = camPosOrigin.z - (float((COR_STEPS/2)) * depthM2);
+		float depthPos2 = camPosOrigin.z - (float((COR_STEPS/2)) * depthM2);
+		//const float depthCoef = cam1.baseline*cam1.fx;
+
+		const float depthCoef = (1.0f / cam1.fx) * 10.0f;
         
         uint badMask = 0;
         int bestStep = COR_STEPS/2;
@@ -180,7 +183,13 @@ __global__ void corresponding_point_kernel(
 				) ? 1 << i : 0;
 			
 			//if (FUNCTION == 1) {
-			float weight = ftl::cuda::weighting(fabs(depth2 - depthPos2), cweight*params.spatial_smooth);
+			// TODO: Spatial smooth must be disparity discon threshold of largest depth in original camera space.
+			// ie. if depth1 > depth2 then depth1 has the largest error potential and the resolution at that
+			// depth is used to determine the spatial smoothing amount.
+	
+			const float maxdepth = max(depth1, depth2);
+			const float smooth = depthCoef * maxdepth;
+			float weight = ftl::cuda::weighting(fabs(depth2 - depthPos2), cweight*smooth);
 			//weight = ftl::cuda::halfWarpSum(weight);
 			//} else {
 			//	const float dweight = ftl::cuda::weighting(fabs(depth2 - depthPos2), params.spatial_smooth);
@@ -243,7 +252,7 @@ void ftl::cuda::correspondence(
         TextureObject<uchar4> &c2,
         TextureObject<short2> &screen,
 		TextureObject<float> &conf,
-		TextureObject<int> &mask,
+		TextureObject<uint8_t> &mask,
         float4x4 &pose2,
         const Camera &cam1,
         const Camera &cam2, const MvMLSParams &params, int func,

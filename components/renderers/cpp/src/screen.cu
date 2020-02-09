@@ -45,7 +45,7 @@ __device__ inline uint2 convertToScreen<ViewPortMode::Warping>(const Parameters 
 		const float d = depth.tex2D(x, y);
 
 		// Find the virtual screen position of current point
-		const float3 camPos =  (d >= camera.minDepth && d <= camera.maxDepth) ? pose * camera.screenToCam(x,y,d) : make_float3(0.0f,0.0f,0.0f);
+		const float3 camPos =  (d > camera.minDepth && d < camera.maxDepth) ? pose * camera.screenToCam(x,y,d) : make_float3(0.0f,0.0f,0.0f);
 		screenPos = convertToScreen<VPMODE>(params, camPos);
 
 		if (	camPos.z < params.camera.minDepth ||

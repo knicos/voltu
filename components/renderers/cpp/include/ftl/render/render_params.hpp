@@ -50,7 +50,8 @@ enum class ViewPortMode : uint8_t {
 
 struct Parameters {
 	uint m_flags;
-	float depthThreshold;
+	float disconDisparities;
+	float depthCoef;
 	int triangle_limit;
 
 	ftl::rgbd::Camera camera;  // Virtual camera intrinsics

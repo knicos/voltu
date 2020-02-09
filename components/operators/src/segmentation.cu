@@ -1,5 +1,5 @@
 #include "segmentation_cuda.hpp"
-#include "mask_cuda.hpp"
+#include <ftl/operators/mask_cuda.hpp>
 
 #define T_PER_BLOCK 8
 
@@ -91,7 +91,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
     return result;
 }
 
-__device__ uchar4 calculate_support_region(const TextureObject<int> &img, int x, int y, int v_max, int h_max) {
+__device__ uchar4 calculate_support_region(const TextureObject<uint8_t> &img, int x, int y, int v_max, int h_max) {
     int x_min = max(0, x - h_max);
     int x_max = min(img.width()-1, x + h_max);
     int y_min = max(0, y - v_max);
@@ -159,7 +159,7 @@ __global__ void support_region_kernel(TextureObject<T> img, TextureObject<uchar4
     region(x,y) = calculate_support_region<T,SYM>(img, x, y, tau, v_max, h_max);
 }
 
-__global__ void support_region_kernel(TextureObject<int> img, TextureObject<uchar4> region, int v_max, int h_max) {
+__global__ void support_region_kernel(TextureObject<uint8_t> img, TextureObject<uchar4> region, int v_max, int h_max) {
     const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
@@ -212,7 +212,7 @@ void ftl::cuda::support_region(
 }
 
 void ftl::cuda::support_region(
-		ftl::cuda::TextureObject<int> &mask,
+		ftl::cuda::TextureObject<uint8_t> &mask,
 		ftl::cuda::TextureObject<uchar4> &region,
 		int v_max,
 		int h_max,

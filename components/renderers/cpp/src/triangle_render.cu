@@ -132,12 +132,12 @@ __device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const Pa
 }
 
 /**
- * Depth differences above threshold are used to determine a discontinuity and
- * hence that a triangle should not be draw between said verticies.
- * TODO: Use discontinuity mask or some better test here.
+ * This selects which triangles are drawn. It assumes that discontinuities
+ * have already been removed such that the screen coordinate alone acts to
+ * indicate a valid or invalid point.
  */
-__device__ inline bool isValidTriangle(const float (&d)[3], const Parameters &params) {
-	return !(fabs(d[0] - d[1]) > params.depthThreshold || fabs(d[0] - d[2]) > params.depthThreshold || d[0] < params.camera.minDepth || d[0] > params.camera.maxDepth);
+__device__ inline bool isValidTriangle(const short2 (&v)[3]) {
+	return v[1].x < 30000 && v[2].x < 30000;
 }
 
 /**
@@ -145,12 +145,12 @@ __device__ inline bool isValidTriangle(const float (&d)[3], const Parameters &pa
  * which verticies to load.
  */
 template <int A, int B>
-__device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const Parameters &params, const TextureObject<float> &depth_in, const TextureObject<short2> &screen) {
+__device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const TextureObject<float> &depth_in, const TextureObject<short2> &screen) {
     d[1] = depth_in.tex2D(x+A,y);
     d[2] = depth_in.tex2D(x,y+B);
     v[1] = screen.tex2D(x+A,y);
 	v[2] = screen.tex2D(x,y+B);
-	return isValidTriangle(d, params);
+	return isValidTriangle(v);
 }
 
 /*
@@ -170,11 +170,16 @@ __device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const 
 		short2 v[3];
 		v[0] = screen.tex2D(x,y);
 
-		// Draw (optionally) 4 triangles as a diamond pattern around the central point.
-		if (loadTriangle<1,1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
-		if (loadTriangle<1,-1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
-		if (loadTriangle<-1,1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
-		if (loadTriangle<-1,-1>(x, y, d, v, params, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+		if (v[0].x < 30000) {
+			// Calculate discontinuity threshold.
+			//const float threshold = (params.depthCoef / ((params.depthCoef / d[0]) - params.disconDisparities)) - d[0];
+
+			// Draw (optionally) 4 triangles as a diamond pattern around the central point.
+			if (loadTriangle<1,1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+			if (loadTriangle<1,-1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+			if (loadTriangle<-1,1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+			if (loadTriangle<-1,-1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+		}
 	}
 }
 
