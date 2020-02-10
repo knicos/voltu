@@ -84,7 +84,8 @@ __global__ void discontinuity_kernel(ftl::cuda::TextureObject<uint8_t> mask_out,
 			const float g = max(g1,max(g2,(max(g3,g4))));
 
 			// Calculate support window area
-			const uchar4 sup = support.tex2D((int)x, (int)y);
+			//const uchar4 sup = support.tex2D((int)x, (int)y);
+			const uchar4 sup = getScaledTex2D(x, y, support, depth);
 			const float supx = min(sup.x,sup.y);
 			const float supy = min(sup.z,sup.w);
 			const float area = supx * supy;

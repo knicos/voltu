@@ -380,36 +380,17 @@ TextureObject<T>::~TextureObject() {
 	free();
 }
 
-/*template <>
-void TextureObject<uchar4>::upload(const cv::Mat &m, cudaStream_t stream);
-
-template <>
-void TextureObject<float>::upload(const cv::Mat &m, cudaStream_t stream);
-
-template <>
-void TextureObject<float2>::upload(const cv::Mat &m, cudaStream_t stream);
-
-template <>
-void TextureObject<float4>::upload(const cv::Mat &m, cudaStream_t stream);
-
-template <>
-void TextureObject<uchar>::upload(const cv::Mat &m, cudaStream_t stream);
-
-
-template <>
-void TextureObject<uchar4>::download(cv::Mat &m, cudaStream_t stream) const;
-
-template <>
-void TextureObject<float>::download(cv::Mat &m, cudaStream_t stream) const;
-
-template <>
-void TextureObject<float2>::download(cv::Mat &m, cudaStream_t stream) const;
-
-template <>
-void TextureObject<float4>::download(cv::Mat &m, cudaStream_t stream) const;
-
-template <>
-void TextureObject<uchar>::download(cv::Mat &m, cudaStream_t stream) const;*/
+/**
+ * Read a texture value using coordinates in the range of `b`, but from the
+ * texture `a` which may have a different resolution.
+ */
+template <typename A, typename B>
+__device__ inline A getScaledTex2D(int x, int y, ftl::cuda::TextureObject<A> &a, ftl::cuda::TextureObject<B> &b) {
+	return a.tex2D(
+		(int)((float)x * ((float)a.width() / (float)b.width())),
+		(int)((float)y * ((float)a.height() / (float)b.height()))
+	);
+}
 
 }
 }
