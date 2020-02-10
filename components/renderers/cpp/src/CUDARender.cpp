@@ -642,7 +642,6 @@ void CUDARender::_renderPass2(Channels<0> chans, const Eigen::Matrix4d &t) {
 
 	// Reprojection of colours onto surface
 	auto main_channel = (scene_->frames[0].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : Channel::Colour;
-	LOG(INFO) << "USING COLOR: " << (int)main_channel;
 	_renderChannel(*out_, main_channel, Channel::Colour, t, stream_);
 
 
