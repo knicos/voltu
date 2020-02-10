@@ -153,9 +153,6 @@ __global__ void cull_mask_kernel(ftl::cuda::TextureObject<uint8_t> mask, ftl::cu
 
 		if (isdiscon) {
 			depth(x,y) = 0.0f;
-			Mask m(mask.tex2D((int)x,(int)y));
-			m.isDiscontinuity(true);
-			mask(x,y) = m;
 		}
 	}
 }
@@ -164,8 +161,14 @@ void ftl::cuda::cull_mask(ftl::cuda::TextureObject<uint8_t> &mask, ftl::cuda::Te
 	const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	for (unsigned int i=0; i<radius; ++i) {
-		cull_mask_kernel<1><<<gridSize, blockSize, 0, stream>>>(mask, depth, id);
+	switch (radius) {
+	case 0	: cull_mask_kernel<0><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+	case 1	: cull_mask_kernel<1><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+	case 2	: cull_mask_kernel<2><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+	case 3	: cull_mask_kernel<3><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+	case 4	: cull_mask_kernel<4><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+	case 5	: cull_mask_kernel<5><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+	default: break;
 	}
 	cudaSafeCall( cudaGetLastError() );
 
