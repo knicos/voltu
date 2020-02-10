@@ -15,7 +15,10 @@ __global__ void show_mask_kernel(
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x >= 0 && x < colour.width() && y >=0 && y < colour.height()) {
-        Mask m(mask.tex2D(x,y));
+        float xscale = (float)x * ((float)mask.width() / (float)colour.width());
+        float yscale = (float)y * ((float)mask.height() / (float)colour.height());
+
+        Mask m(mask.tex2D((int)xscale,(int)yscale));
 
         if (m.is(id)) {
             colour(x,y) = style;
