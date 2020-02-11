@@ -39,6 +39,12 @@ class File : public Stream {
 	 */
 	bool tick(int64_t);
 
+	/**
+	 * Directly read a packet. Returns false if no more packets exist, true
+	 * otherwise. The callback is called when a packet is read.
+	 */
+	bool readPacket(std::tuple<ftl::codecs::StreamPacket,ftl::codecs::Packet> &);
+
 	enum class Mode {
 		Read,
 		Write,
@@ -52,6 +58,7 @@ class File : public Stream {
 	std::ofstream *ostream_;
 	std::ifstream *istream_;
 
+	bool checked_;
 	Mode mode_;
 	msgpack::sbuffer buffer_out_;
 	msgpack::unpacker buffer_in_;
@@ -67,6 +74,9 @@ class File : public Stream {
 	MUTEX mutex_;
 	MUTEX data_mutex_;
 	std::atomic<int> jobs_;
+
+	bool _open();
+	bool _checkFile();
 };
 
 }
