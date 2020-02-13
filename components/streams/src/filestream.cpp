@@ -41,6 +41,7 @@ bool File::_checkFile() {
 	int count = 10;
 	int64_t ts = -1000;
 	int min_ts_diff = 1000;
+	first_ts_ = 10000000;
 
 	while (count > 0) {
 		std::tuple<ftl::codecs::StreamPacket,ftl::codecs::Packet> data;
@@ -50,6 +51,8 @@ bool File::_checkFile() {
 
 		auto &spkt = std::get<0>(data);
 		auto &pkt = std::get<1>(data);
+
+		if (spkt.timestamp < first_ts_) first_ts_ = spkt.timestamp;
 
 		if (spkt.timestamp > 0 && int(spkt.channel) < 32) {
 			if (spkt.timestamp > ts) {
@@ -219,7 +222,7 @@ bool File::tick(int64_t ts) {
 
 		// Adjust timestamp
 		// FIXME: A potential bug where multiple times are merged into one?
-		std::get<0>(data).timestamp = ((std::get<0>(data).timestamp) / interval_) * interval_ + timestart_;
+		std::get<0>(data).timestamp = (((std::get<0>(data).timestamp) - first_ts_) / interval_) * interval_ + timestart_;
 
 		// Maintain availability of channels.
 		available(0) += std::get<0>(data).channel;

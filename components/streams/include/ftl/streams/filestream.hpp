@@ -66,6 +66,7 @@ class File : public Stream {
 	int64_t timestart_;
 	int64_t timestamp_;
 	int64_t interval_;
+	int64_t first_ts_;
 	bool active_;
 	int version_;
 	ftl::timer::TimerHandle timer_;
