@@ -29,6 +29,7 @@
 #include <ftl/operators/smoothing.hpp>
 #include <ftl/operators/disparity.hpp>
 #include <ftl/operators/detectandtrack.hpp>
+#include <ftl/operators/weighting.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -192,12 +193,6 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 		fs.swapTo(*framesets_[fs.id]);
 	}
 
-	/*if (fs.frames[0].hasChannel(Channel::Data)) {
-		int data = 0;
-		fs.frames[0].get(Channel::Data, data);
-		LOG(INFO) << "GOT DATA : " << data;
-	}*/
-
 	const auto *cstream = interceptor_;
 	_createDefaultCameras(*framesets_[fs.id], true);  // cstream->available(fs.id).has(Channel::Depth)
 
@@ -209,8 +204,10 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 		if (screen_->activeCamera() == cam.second.camera ||
 			(screen_->activeCamera() == nullptr && cycle_ % cameras_.size() == i++))  cam.second.camera->update(framesets_);
 
-		if (fromstream) cam.second.camera->update(fs.id, cstream->available(fs.id));
-		else if (fs.frames.size() > 0) cam.second.camera->update(fs.id, fs.frames[0].getChannels());
+		ftl::codecs::Channels<0> channels;
+		if (fromstream) channels = cstream->available(fs.id);
+		if ((*framesets_[fs.id]).frames.size() > 0) channels += (*framesets_[fs.id]).frames[0].getChannels();
+		cam.second.camera->update(fs.id, channels);
 	}
 	++cycle_;
 
@@ -225,8 +222,10 @@ void SourceWindow::_checkFrameSets(int id) {
 		p->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 		//p->append<ftl::operators::HFSmoother>("hfnoise");
 		p->append<ftl::operators::CrossSupport>("cross");
-		p->append<ftl::operators::DiscontinuityMask>("discontinuity");
+		p->append<ftl::operators::PixelWeights>("weights");
+		p->append<ftl::operators::CullWeight>("remove_weights")->value("enabled", false);
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
+		p->append<ftl::operators::DegradeWeight>("degrade");
 		p->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
 
 		pre_pipelines_.push_back(p);

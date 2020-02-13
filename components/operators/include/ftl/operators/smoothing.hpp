@@ -61,6 +61,7 @@ class SimpleMLS : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
+	ftl::rgbd::Frame temp_;
 };
 
 /**
@@ -77,6 +78,7 @@ class ColourMLS : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
+	ftl::rgbd::Frame temp_;
 };
 
 /**
@@ -122,6 +124,8 @@ class AggreMLS : public ftl::operators::Operator {
 	ftl::cuda::TextureObject<float4> centroid_horiz_;
 	ftl::cuda::TextureObject<float4> centroid_vert_;
 	ftl::cuda::TextureObject<float4> normals_horiz_;
+
+	ftl::rgbd::Frame temp_;
 };
 
 /**
@@ -141,6 +145,7 @@ class AdaptiveMLS : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
+	ftl::rgbd::Frame temp_;
 };
 
 }

@@ -14,7 +14,7 @@ static ChannelInfo info[] = {
     "DepthRight", CV_32F,		// 3
     "Deviation", CV_32F,		// 4
     "Normals", CV_32FC4,		// 5
-    "Points", CV_32FC4,			// 6
+    "Weights", CV_16SC1,		// 6
     "Confidence", CV_32F,		// 7
     "EnergyVector", CV_32FC4,	// 8
     "Flow", CV_32F,				// 9

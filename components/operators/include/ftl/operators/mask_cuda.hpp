@@ -13,14 +13,16 @@ namespace cuda {
  */
 class Mask {
 	public:
+	typedef uint8_t type;
+
 	__device__ inline Mask() : v_(0u) {}
-	__device__ explicit inline Mask(uint8_t v) : v_(v) {}
+	__device__ explicit inline Mask(type v) : v_(v) {}
 	#ifdef __CUDACC__
-	__device__ inline Mask(const ftl::cuda::TextureObject<uint8_t> &m, int x, int y) : v_(m.tex2D(x,y)) {}
+	__device__ inline Mask(const ftl::cuda::TextureObject<type> &m, int x, int y) : v_(m.tex2D(x,y)) {}
 	#endif
 	__device__ inline operator int() const { return v_; }
 
-    __device__ inline bool is(uint8_t m) const { return v_ & m; }
+    __device__ inline bool is(type m) const { return v_ & m; }
 
 	__device__ inline bool isFilled() const { return v_ & kMask_Filled; }
 	__device__ inline bool isDiscontinuity() const { return v_ & kMask_Discontinuity; }
@@ -34,18 +36,18 @@ class Mask {
 	__device__ inline void isBad(bool v) { v_ = (v) ? v_ | kMask_Bad : v_ & (~kMask_Bad); }
 	__device__ inline void isNoise(bool v) { v_ = (v) ? v_ | kMask_Noise : v_ & (~kMask_Noise); }
 
-    static constexpr uint8_t kMask_Filled = 0x01;
-	static constexpr uint8_t kMask_Discontinuity = 0x02;
-	static constexpr uint8_t kMask_Correspondence = 0x04;
-	static constexpr uint8_t kMask_Bad = 0x08;
-	static constexpr uint8_t kMask_Noise = 0x10;
+    static constexpr type kMask_Filled = 0x01;
+	static constexpr type kMask_Discontinuity = 0x02;
+	static constexpr type kMask_Correspondence = 0x04;
+	static constexpr type kMask_Bad = 0x08;
+	static constexpr type kMask_Noise = 0x10;
 
 	private:
-	uint8_t v_;
+	type v_;
 };
 
 void discontinuity(
-		ftl::cuda::TextureObject<uint8_t> &mask,
+		ftl::cuda::TextureObject<ftl::cuda::Mask::type> &mask,
 		ftl::cuda::TextureObject<uchar4> &support,
 		ftl::cuda::TextureObject<float> &depth,
 		const cv::Size size,
@@ -55,7 +57,7 @@ void discontinuity(
 		cudaStream_t stream);
 
 void discontinuity(
-		ftl::cuda::TextureObject<uint8_t> &mask,
+		ftl::cuda::TextureObject<ftl::cuda::Mask::type> &mask,
 		ftl::cuda::TextureObject<uchar4> &support,
 		ftl::cuda::TextureObject<float> &depth,
 		const cv::Size size,
@@ -68,9 +70,9 @@ void discontinuity(
 		cudaStream_t stream);
 
 void cull_mask(
-		ftl::cuda::TextureObject<uint8_t> &mask,
+		ftl::cuda::TextureObject<ftl::cuda::Mask::type> &mask,
 		ftl::cuda::TextureObject<float> &depth,
-		uint8_t id,
+		ftl::cuda::Mask::type id,
 		unsigned int radius,
 		cudaStream_t stream);
 

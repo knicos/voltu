@@ -192,15 +192,16 @@ void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 		auto transform = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse() * t.cast<float>().inverse()) * poseInverse_;
 		auto transformR = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse()).getFloat3x3();
 
-		if (mesh_) {
+		//if (mesh_) {
 			if (f.hasChannel(Channel::Depth)) {
 				ftl::cuda::reproject(
 					f.createTexture<T>(in),
 					f.createTexture<float>(Channel::Depth),
 					output.getTexture<float>(Channel::Depth),
-					output.getTexture<float4>(Channel::Normals),
+					f.createTexture<short>(Channel::Weights),
+					(output.hasChannel(Channel::Normals)) ? &output.createTexture<float4>(Channel::Normals) : nullptr,
 					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-					temp_.getTexture<float>(Channel::Contribution),
+					temp_.getTexture<int>(Channel::Contribution),
 					params_,
 					f.getLeftCamera(),
 					transform, transformR, stream
@@ -211,13 +212,13 @@ void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 					f.createTexture<T>(in),
 					output.getTexture<float>(Channel::Depth),
 					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-					temp_.getTexture<float>(Channel::Contribution),
+					temp_.getTexture<int>(Channel::Contribution),
 					params_,
 					f.getLeftCamera(),
 					transform, stream
 				);
 			}
-		} else {
+		/*} else {
 			// Can't use normals with point cloud version
 			if (f.hasChannel(Channel::Depth)) {
 				ftl::cuda::reproject(
@@ -225,7 +226,7 @@ void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 					f.createTexture<float>(Channel::Depth),
 					output.getTexture<float>(Channel::Depth),
 					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-					temp_.getTexture<float>(Channel::Contribution),
+					temp_.getTexture<int>(Channel::Contribution),
 					params_,
 					f.getLeftCamera(),
 					transform, stream
@@ -235,13 +236,13 @@ void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 					f.createTexture<T>(in),
 					output.getTexture<float>(Channel::Depth),
 					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
-					temp_.getTexture<float>(Channel::Contribution),
+					temp_.getTexture<int>(Channel::Contribution),
 					params_,
 					f.getLeftCamera(),
 					transform, stream
 				);
 			}
-		}
+		}*/
 	}
 }
 
@@ -300,11 +301,13 @@ void CUDARender::_adjustDepthThresholds(const ftl::rgbd::Camera &fcam) {
 void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
-	bool do_blend = value("mesh_blend", true);
+	bool do_blend = value("mesh_blend", false);
 	float blend_alpha = value("blend_alpha", 0.02f);
 	if (do_blend) {
 		temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+		temp_.get<GpuMat>(Channel::Weights).setTo(cv::Scalar(0.0f), cvstream);
+		// FIXME: Doesnt work with multiple compositing
+		out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
 	} else {
 		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	}
@@ -354,12 +357,20 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 			params_, stream
 		);
 
+		// TODO: Reproject here
+		// And merge based upon weight adjusted distances
+
 		if (do_blend) {
 			// Blend this sources mesh with previous meshes
 			ftl::cuda::mesh_blender(
 				temp_.getTexture<int>(Channel::Depth),
-				temp_.createTexture<int>(Channel::Depth2),
-				params_.camera,
+				//temp_.createTexture<int>(Channel::Depth2),
+				out.createTexture<float>(Channel::Depth),
+				f.createTexture<short>(Channel::Weights),
+				temp_.createTexture<float>(Channel::Weights),
+				params_,
+				f.getLeftCamera(),
+				transform.getInverse(),
 				blend_alpha,
 				stream
 			);
@@ -368,7 +379,17 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 	// Convert from int depth to float depth
 	//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
-	ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), out.createTexture<float>(Channel::Depth), 1.0f / 100000.0f, stream_);
+
+	if (do_blend) {
+		ftl::cuda::dibr_normalise(
+			out.getTexture<float>(Channel::Depth),
+			out.getTexture<float>(Channel::Depth),
+			temp_.getTexture<float>(Channel::Weights),
+			stream_
+		);
+	} else {
+		ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), out.createTexture<float>(Channel::Depth), 1.0f / 100000.0f, stream_);
+	}
 
 	//filters_->filter(out, src, stream);
 
@@ -393,7 +414,7 @@ void CUDARender::_renderChannel(
 
 
 	temp_.createTexture<float4>(Channel::Colour);
-	temp_.createTexture<float>(Channel::Contribution);
+	temp_.createTexture<int>(Channel::Contribution);
 
 	// FIXME: Using colour 2 in this way seems broken since it is already used
 	if (is_4chan) {
@@ -471,10 +492,11 @@ void CUDARender::_allocateChannels(ftl::rgbd::Frame &out) {
 	}
 
 	temp_.create<GpuMat>(Channel::Colour, Format<float4>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Contribution, Format<float>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Contribution, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Weights, Format<float>(camera.width, camera.height));
 	temp_.createTexture<int>(Channel::Depth);
 }
 
@@ -486,8 +508,10 @@ void CUDARender::_updateParameters(ftl::rgbd::Frame &out) {
 	//params_.depthThreshold = value("depth_threshold", 0.004f);
 	//params_.depthThreshScale = value("depth_thresh_scale", 0.166f);  // baseline*focal / disp....
 	params_.disconDisparities = value("discon_disparities", 2.0f);
+	params_.accumulationMode = static_cast<ftl::render::AccumulationFunction>(value("accumulation_func", 0));
 	params_.m_flags = 0;
 	if (value("normal_weight_colours", true)) params_.m_flags |= ftl::render::kNormalWeightColours;
+	if (value("channel_weights", false)) params_.m_flags |= ftl::render::kUseWeightsChannel;
 	params_.camera = camera;
 
 	poseInverse_ = MatrixConversion::toCUDA(out.getPose().cast<float>());
@@ -541,11 +565,18 @@ void CUDARender::_postprocessColours(ftl::rgbd::Frame &out) {
 		);
 	}
 
-	if (value("show_bad_colour", false)) {
+	if (value("show_colour_weights", false)) {
+		ftl::cuda::show_colour_weights(
+			out.getTexture<uchar4>(Channel::Colour),
+			temp_.getTexture<int>(Channel::Contribution),
+			make_uchar4(0,0,255,0),
+			stream_
+		);
+	} else if (value("show_bad_colour", false)) {
 		ftl::cuda::show_missing_colour(
 			out.getTexture<float>(Channel::Depth),
 			out.getTexture<uchar4>(Channel::Colour),
-			temp_.getTexture<float>(Channel::Contribution),
+			temp_.getTexture<int>(Channel::Contribution),
 			make_uchar4(255,0,0,0),
 			params_.camera,
 			stream_
@@ -554,7 +585,7 @@ void CUDARender::_postprocessColours(ftl::rgbd::Frame &out) {
 		ftl::cuda::fix_bad_colour(
 			out.getTexture<float>(Channel::Depth),
 			out.getTexture<uchar4>(Channel::Colour),
-			temp_.getTexture<float>(Channel::Contribution),
+			temp_.getTexture<int>(Channel::Contribution),
 			make_uchar4(255,0,0,0),
 			params_.camera,
 			stream_
@@ -685,9 +716,9 @@ void CUDARender::begin(ftl::rgbd::Frame &out) {
 		AccumSelector<uchar4>::channel,
 		Format<typename AccumSelector<uchar4>::type>(params_.camera.width, params_.camera.height)
 	).setTo(cv::Scalar(0.0f), cvstream);
-	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0.0f), cvstream);
+	temp_.get<GpuMat>(Channel::Contribution).setTo(cv::Scalar(0), cvstream);
 
-	temp_.createTexture<float>(Channel::Contribution);
+	temp_.createTexture<int>(Channel::Contribution);
 
 	sets_.clear();
 }
@@ -714,7 +745,7 @@ void CUDARender::end() {
 	ftl::cuda::dibr_normalise(
 		temp_.getTexture<typename AccumSelector<uchar4>::type>(AccumSelector<uchar4>::channel),
 		out_->createTexture<uchar4>(Channel::Colour),
-		temp_.getTexture<float>(Channel::Contribution),
+		temp_.getTexture<int>(Channel::Contribution),
 		stream_
 	);
 

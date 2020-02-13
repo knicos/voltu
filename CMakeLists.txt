@@ -29,11 +29,22 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 include(Findglog)
 
+MACRO( VERSION_STR_TO_INTS major minor patch version )
+
+    STRING( REGEX REPLACE "([0-9]+).[0-9]+.[0-9]+" "\\1" ${major} ${version} )
+    STRING( REGEX REPLACE "[0-9]+.([0-9]+).[0-9]+" "\\1" ${minor} ${version} )
+    STRING( REGEX REPLACE "[0-9]+.[0-9]+.([0-9]+)" "\\1" ${patch} ${version} )
+
+ENDMACRO( VERSION_STR_TO_INTS )
+
 find_package( OpenCV REQUIRED COMPONENTS core imgproc highgui cudaimgproc calib3d imgcodecs videoio aruco cudaarithm cudastereo cudaoptflow face tracking quality)
 find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
+
+VERSION_STR_TO_INTS(OPENCV_MAJOR OPENCV_MINOR OPENCV_PATCH ${OpenCV_VERSION})
+math(EXPR OPENCV_NUMBER "(${OPENCV_MAJOR} * 10000) + (${OPENCV_MINOR} * 100) + ${OPENCV_PATCH}")
 
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)

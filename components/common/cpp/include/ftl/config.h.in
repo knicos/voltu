@@ -29,6 +29,12 @@
 
 #cmakedefine ENABLE_PROFILER
 
+#define OPENCV_MAJOR @OPENCV_MAJOR@
+#define OPENCV_MINOR @OPENCV_MINOR@
+#define OPENCV_PATCH @OPENCV_PATCH@
+
+#define OPENCV_VERSION @OPENCV_NUMBER@
+
 extern const char *FTL_BRANCH;
 extern const char *FTL_VERSION_LONG;
 extern const char *FTL_VERSION;

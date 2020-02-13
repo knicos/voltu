@@ -222,7 +222,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const 
 	//if (!hasChannel(c)) channels_ += c;
 	//using ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>::create;
 
-	ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>::create<cv::cuda::GpuMat>(c);
+	create<cv::cuda::GpuMat>(c);
 	auto &m = getData(c);
 
 	if (f.empty()) {
