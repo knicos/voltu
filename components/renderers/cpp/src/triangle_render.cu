@@ -220,7 +220,7 @@ void ftl::cuda::merge_convert_depth(TextureObject<int> &depth_in, TextureObject<
 /*
  * Merge two depth maps together
  */
- __global__ void mesh_blender_kernel(
+ __global__ void mesh_blender_simple_kernel(
         TextureObject<int> depth_in,
 		TextureObject<int> depth_out,
 		ftl::rgbd::Camera camera,
@@ -243,10 +243,59 @@ void ftl::cuda::merge_convert_depth(TextureObject<int> &depth_in, TextureObject<
 	depth_out(x,y) = (int)(depth * 100000.0f);
 }
 
+__global__ void mesh_blender_kernel(
+		TextureObject<int> depth_in,
+		TextureObject<float> depth_out,
+		TextureObject<short> weights_in,
+		TextureObject<float> weights_out,
+		ftl::render::Parameters params,
+		ftl::rgbd::Camera camera,
+		float4x4 transform,
+		float alpha) {
+
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const float d1 = float(depth_in.tex2D((int)x, (int)y)) / 100000.0f;
+	const float d2 = depth_out.tex2D((int)x, (int)y);
+	const float wout = weights_out.tex2D((int)x, (int)y);
+
+	if (d1 > params.camera.minDepth && d1 < params.camera.maxDepth) {
+		//const uint2 rpt = convertScreen<VPMODE>(params, x, y);
+		const float3 camPos = transform * params.camera.screenToCam(x, y, d1);
+		if (camPos.z > camera.minDepth && camPos.z < camera.maxDepth) {
+			const float2 screenPos = camera.camToScreen<float2>(camPos);
+
+			// Not on screen so stop now...
+			if (screenPos.x < weights_in.width() && screenPos.y < weights_in.height()) {
+				const float win = float(weights_in.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f)));
+
+				if (d1 < d2/wout - alpha || (fabsf(d2/wout - d1) < alpha && win > wout)) {
+					depth_out(x,y) = d1 * win;
+					weights_out(x,y) = win;
+				} //else if (fabsf(d2/wout - d1) < alpha) {
+					//depth_out(x,y) = d2 + d1 * win;
+					//weights_out(x,y) = wout + win;
+					//depth_out(x,y) = (win > wout) ? d1*win : d2;
+					//weights_out(x,y) = (win > wout) ? win : wout;
+				//}
+			}
+		}
+	}
+}
+
 void ftl::cuda::mesh_blender(TextureObject<int> &depth_in, TextureObject<int> &depth_out, const ftl::rgbd::Camera &camera, float alpha, cudaStream_t stream) {
     const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	mesh_blender_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, camera, alpha);
+	mesh_blender_simple_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, camera, alpha);
+    cudaSafeCall( cudaGetLastError() );
+}
+
+void ftl::cuda::mesh_blender(TextureObject<int> &depth_in, TextureObject<float> &depth_out, TextureObject<short> &weights_in, TextureObject<float> &weights_out, const ftl::render::Parameters &params, const ftl::rgbd::Camera &camera, const float4x4 &transform, float alpha, cudaStream_t stream) {
+    const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	mesh_blender_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, weights_in, weights_out, params, camera, transform, alpha);
     cudaSafeCall( cudaGetLastError() );
 }

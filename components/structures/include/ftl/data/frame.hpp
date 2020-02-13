@@ -63,10 +63,18 @@ public:
 	 * Perform a buffer swap of the selected channels. This is intended to be
 	 * a copy from `this` to the passed frame object but by buffer swap
 	 * instead of memory copy, meaning `this` may become invalid afterwards.
+	 * It is a complete frame swap.
 	 */
 	void swapTo(ftl::codecs::Channels<BASE>, Frame &);
 
 	void swapTo(Frame &);
+
+	/**
+	 * Swap only selected channels to another frame, without resetting or swapping
+	 * any other aspect of the frame. Unlike swapTo, this isn't intended to
+	 * be a complete frame swap.
+	 */
+	void swapChannels(ftl::codecs::Channels<BASE> channels, Frame<BASE,N,STATE,DATA> &);
 
 	void swapChannels(ftl::codecs::Channel, ftl::codecs::Channel);
 
@@ -328,6 +336,20 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::swapChannels(ftl::codecs::Channel a, f
 	auto temp = std::move(m2);
 	m2 = std::move(m1);
 	m1 = std::move(temp);
+}
+
+template <int BASE, int N, typename STATE, typename DATA>
+void ftl::data::Frame<BASE,N,STATE,DATA>::swapChannels(ftl::codecs::Channels<BASE> channels, Frame<BASE,N,STATE,DATA> &f) {
+	// For all channels in this frame object
+	for (auto c : channels_) {
+		// Should we swap this channel?
+		if (channels.has(c)) {
+			f.channels_ += c;
+			// TODO: Make sure this does a move not copy
+			std::swap(f.getData(c),getData(c));
+			channels_ -= c;
+		}
+	}
 }
 
 template <int BASE, int N, typename STATE, typename DATA>

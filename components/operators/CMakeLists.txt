@@ -25,6 +25,8 @@ set(OPERSRC
 	src/depth.cpp
 	src/detectandtrack.cpp
 	src/aruco.cpp
+	src/weighting.cpp
+	src/weighting.cu
 )
 
 if (LIBSGM_FOUND)

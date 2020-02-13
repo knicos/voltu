@@ -10,6 +10,7 @@ namespace render {
 
 static const uint kShowDisconMask = 0x00000001;
 static const uint kNormalWeightColours = 0x00000002;
+static const uint kUseWeightsChannel = 0x00000004;
 
 struct ViewPort {
 	short x;
@@ -48,6 +49,14 @@ enum class ViewPortMode : uint8_t {
 	Warping = 2			// Stretch viewport region over entire frame
 };
 
+enum class AccumulationFunction : uint8_t {
+	Simple = 0,
+	BestWeight = 1,
+	CloseWeights = 2,
+	ColourDiscard = 3,
+	ColourDiscardSmooth = 4
+};
+
 struct Parameters {
 	uint m_flags;
 	float disconDisparities;
@@ -57,6 +66,8 @@ struct Parameters {
 	ftl::rgbd::Camera camera;  // Virtual camera intrinsics
 	ftl::render::ViewPort viewport;
 	ftl::render::ViewPortMode viewPortMode;
+
+	ftl::render::AccumulationFunction accumulationMode;
 };
 
 }

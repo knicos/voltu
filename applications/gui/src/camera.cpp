@@ -642,6 +642,21 @@ static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
 	cv::cvtColor(out,out, cv::COLOR_BGR2BGRA);
 }
 
+static void visualizeWeights(const cv::Mat &weights, cv::Mat &out)
+{
+	weights.convertTo(out, CV_8U, 255.0f / 32767.0f);
+	//out = 255 - out;
+	//cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
+	
+#if (OPENCV_VERSION >= 40102)
+	applyColorMap(out, out, cv::COLORMAP_TURBO);
+#else
+	applyColorMap(out, out, cv::COLORMAP_JET);
+#endif
+	//out.setTo(cv::Scalar(255, 255, 255), mask);
+	cv::cvtColor(out,out, cv::COLOR_BGR2BGRA);
+}
+
 static void drawEdges(	const cv::Mat &in, cv::Mat &out,
 						const int ksize = 3, double weight = -1.0, const int threshold = 32,
 						const int threshold_type = cv::THRESH_TOZERO)
@@ -787,6 +802,12 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			case Channel::Confidence:
 				if (im2_.rows == 0) { break; }
 				visualizeEnergy(im2_, tmp, screen_->root()->value("float_image_max", 1.0f));
+				texture2_.update(tmp);
+				break;
+
+			case Channel::Weights:
+				if (im2_.rows == 0) { break; }
+				visualizeWeights(im2_, tmp);
 				texture2_.update(tmp);
 				break;
 			

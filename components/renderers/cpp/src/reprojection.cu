@@ -13,6 +13,7 @@ using ftl::cuda::TextureObject;
 using ftl::render::Parameters;
 using ftl::rgbd::Camera;
 using ftl::render::ViewPortMode;
+using ftl::render::AccumulationFunction;
 
 /*template <typename T>
 __device__ inline T generateInput(const T &in, const SplatParams &params, const float4 &worldPos) {
@@ -41,18 +42,75 @@ __device__ inline float4 weightInput(const uchar4 &in, float weight) {
 }
 
 template <typename T>
-__device__ inline void accumulateOutput(TextureObject<T> &out, TextureObject<float> &contrib, const uint2 &pos, const T &in, float w) {
-	atomicAdd(&out(pos.x, pos.y), in);
-	atomicAdd(&contrib(pos.x, pos.y), w);
-} 
+__device__ inline float colourDifference(const T &a, const T &b);
 
 template <>
-__device__ inline void accumulateOutput(TextureObject<float4> &out, TextureObject<float> &contrib, const uint2 &pos, const float4 &in, float w) {
-	atomicAdd((float*)&out(pos.x, pos.y), in.x);
-	atomicAdd(((float*)&out(pos.x, pos.y))+1, in.y);
-	atomicAdd(((float*)&out(pos.x, pos.y))+2, in.z);
-	atomicAdd(((float*)&out(pos.x, pos.y))+3, in.w);
-	atomicAdd(&contrib(pos.x, pos.y), w);
+__device__ inline float colourDifference<float4>(const float4 &a, const float4 &b) {
+	return max(fabsf(a.x-b.x), max(fabsf(a.y-b.y), fabsf(a.z-b.z)));
+}
+
+template <>
+__device__ inline float colourDifference<float>(const float &a, const float &b) {
+	return fabs(a-b);
+}
+
+template <AccumulationFunction F, typename T>
+__device__ inline void accumulateOutput(TextureObject<T> &out, TextureObject<int> &contrib, const uint2 &pos, const T &in, float w) {
+	// Just weighted average everything
+	if (F == AccumulationFunction::Simple) {
+		const T old = out.tex2D(pos.x, pos.y);
+		const int c = contrib.tex2D(pos.x,pos.y);
+		out(pos.x, pos.y) = old + in*w;
+		contrib(pos.x, pos.y) = int(w * float(0xFFFF)) + (c & 0xFFFFFF);
+	} else {
+		int c = contrib.tex2D(pos.x,pos.y);
+		float weight_sum = float(c & 0xFFFFFF) / float(0xFFFF);
+		float count = c >> 24;
+		const T old = out.tex2D(pos.x, pos.y);
+
+		// Really close weights are weighted averaged together
+		// but substantially stronger weights do a straight replacement
+		if (F == AccumulationFunction::CloseWeights) {
+			if (count == 0 || w*0.95f > weight_sum/count) {
+				out(pos.x, pos.y) = in*w;
+				contrib(pos.x, pos.y) = (1 << 24) + int(w * float(0xFFFF));
+			} else {
+				out(pos.x, pos.y) = old + in*w;
+				contrib(pos.x, pos.y) = (int(count+1.0f) << 24) + int(w * float(0xFFFF)) + (c & 0xFFFFFF);
+			}
+		// The winner takes all in determining colour
+		} else if (F == AccumulationFunction::BestWeight) {
+			if (count == 0 || w > weight_sum/count) {
+				out(pos.x, pos.y) = in*w;
+				contrib(pos.x, pos.y) = (1 << 24) + int(w * float(0xFFFF));
+			}
+		// If colours are close then weighted average, otherwise discard the
+		// lowest weighted colours
+		} else if (F == AccumulationFunction::ColourDiscard) {
+			if (colourDifference(old / weight_sum, in) > 10.0f) {
+				if (count == 0 || w > weight_sum/count) {
+					out(pos.x, pos.y) = in*w;
+					contrib(pos.x, pos.y) = (1 << 24) + int(w * float(0xFFFF));
+				} else {
+					//out(pos.x, pos.y) = old + in*w;
+					//contrib(pos.x, pos.y) = (int(count+1.0f) << 24) + int(w * float(0xFFFF)) + (c & 0xFFFFFF);
+				}
+			} else {
+				out(pos.x, pos.y) = old + in*w;
+				contrib(pos.x, pos.y) = (int(count+1.0f) << 24) + int(w * float(0xFFFF)) + (c & 0xFFFFFF);
+			}
+		} else if (F == AccumulationFunction::ColourDiscardSmooth) {
+			//const float cdiff = 1.0f - min(1.0f, colourDifference(old / weight_sum, in) / 50.0f);
+			// TODO: Determine colour smoothing param from magnitude of weighting difference
+			// Or at least consider the magnitude of weight difference some how.
+			const float cdiff = ftl::cuda::weighting(colourDifference(old / weight_sum, in), 255.0f);
+			const float alpha = (w > weight_sum/count) ? cdiff : 1.0f;
+			const float beta = (count == 0 || w > weight_sum/count) ? 1.0f : cdiff;
+
+			out(pos.x, pos.y) = old*alpha + in*w*beta;
+			contrib(pos.x, pos.y) = (int(count+1.0f) << 24) + int(w*beta * float(0xFFFF)) + int(weight_sum*alpha * float(0xFFFF));
+		}
+	}
 } 
 
 template <ViewPortMode VPMODE>
@@ -92,14 +150,15 @@ __device__ float depthMatching(const Parameters &params, float d1, float d2) {
 /*
  * Full reprojection with normals and depth
  */
- template <typename A, typename B, ViewPortMode VPMODE>
+ template <typename A, typename B, ViewPortMode VPMODE, AccumulationFunction ACCUM>
 __global__ void reprojection_kernel(
         TextureObject<A> in,				// Attribute input
         TextureObject<float> depth_src,
 		TextureObject<float> depth_in,        // Virtual depth map
+		TextureObject<short> weights,
 		TextureObject<float4> normals,
 		TextureObject<B> out,			// Accumulated output
-		TextureObject<float> contrib,
+		TextureObject<int> contrib,
 		Parameters params,
 		Camera camera, float4x4 transform, float3x3 transformR) {
         
@@ -122,6 +181,9 @@ __global__ void reprojection_kernel(
 				// Boolean match (0 or 1 weight). 1.0 if depths are sufficiently close
 				float weight = depthMatching(params, camPos.z, d2);
 
+				if (params.m_flags & ftl::render::kUseWeightsChannel)
+					weight *= float(weights.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f))) / 32767.0f;
+
 				// TODO: Weight by distance to discontinuity? Perhaps as an alternative to
 				// removing a discontinuity. This would also gradually blend colours from
 				// multiple cameras that otherwise might jump when one cameras input is lost
@@ -136,10 +198,53 @@ __global__ void reprojection_kernel(
 				if (params.m_flags & ftl::render::kNormalWeightColours)
 					weight *= weightByNormal(normals, x, y, transformR, screenPos, camera);
 
-				const B weighted = make<B>(input) * weight; //weightInput(input, weight);
+				const B output = make<B>(input);  // * weight; //weightInput(input, weight);
 
 				if (weight > 0.0f) {
-					accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
+					accumulateOutput<ACCUM,B>(out, contrib, make_uint2(x,y), output, weight);
+				}
+			}
+		}
+	}
+}
+
+/*
+ * Full reprojection without normals
+ */
+ template <typename A, typename B, ViewPortMode VPMODE, AccumulationFunction ACCUM>
+__global__ void reprojection_kernel(
+        TextureObject<A> in,				// Attribute input
+        TextureObject<float> depth_src,
+		TextureObject<float> depth_in,        // Virtual depth map
+		TextureObject<short> weights,
+		TextureObject<B> out,			// Accumulated output
+		TextureObject<int> contrib,
+		Parameters params,
+		Camera camera, float4x4 transform, float3x3 transformR) {
+        
+	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
+	const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	const float d = depth_in.tex2D((int)x, (int)y);
+	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
+		const uint2 rpt = convertScreen<VPMODE>(params, x, y);
+		const float3 camPos = transform * params.camera.screenToCam(rpt.x, rpt.y, d);
+		if (camPos.z > camera.minDepth && camPos.z < camera.maxDepth) {
+			const float2 screenPos = camera.camToScreen<float2>(camPos);
+
+			// Not on screen so stop now...
+			if (screenPos.x < depth_src.width() && screenPos.y < depth_src.height()) {
+				const float d2 = depth_src.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f));
+				const auto input = getInput(in, screenPos, depth_src.width(), depth_src.height()); 
+
+				// Boolean match (0 or 1 weight). 1.0 if depths are sufficiently close
+				float weight = depthMatching(params, camPos.z, d2);
+				weight *= float(weights.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f))) / 32767.0f;
+
+				const B output = make<B>(input);  // * weight; //weightInput(input, weight);
+
+				if (weight > 0.0f) {
+					accumulateOutput<ACCUM,B>(out, contrib, make_uint2(x,y), output, weight);
 				}
 			}
 		}
@@ -152,19 +257,80 @@ void ftl::cuda::reproject(
         TextureObject<A> &in,
         TextureObject<float> &depth_src,       // Original 3D points
 		TextureObject<float> &depth_in,        // Virtual depth map
-		TextureObject<float4> &normals,
+		TextureObject<short> &weights,
+		TextureObject<float4> *normals,
 		TextureObject<B> &out,   // Accumulated output
-		TextureObject<float> &contrib,
+		TextureObject<int> &contrib,
 		const Parameters &params,
 		const Camera &camera, const float4x4 &transform, const float3x3 &transformR,
 		cudaStream_t stream) {
 	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	switch (params.viewPortMode) {
-    case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, normals, out, contrib, params, camera, transform, transformR); break;
-	case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, normals, out, contrib, params, camera, transform, transformR); break;
-	case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, normals, out, contrib, params, camera, transform, transformR); break;
+	if (normals) {
+		if (params.accumulationMode == AccumulationFunction::CloseWeights) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::BestWeight) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::Simple) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::ColourDiscard) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::ColourDiscardSmooth) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			}
+		}
+	} else {
+		if (params.accumulationMode == AccumulationFunction::CloseWeights) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::BestWeight) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::Simple) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::ColourDiscard) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			}
+		} else if (params.accumulationMode == AccumulationFunction::ColourDiscardSmooth) {
+			switch (params.viewPortMode) {
+			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			}
+		}
 	}
 	cudaSafeCall( cudaGetLastError() );
 }
@@ -173,9 +339,10 @@ template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
 	ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
 	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
-	ftl::cuda::TextureObject<float4> &normals,
+	ftl::cuda::TextureObject<short> &weights,
+	ftl::cuda::TextureObject<float4> *normals,
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-	ftl::cuda::TextureObject<float> &contrib,
+	ftl::cuda::TextureObject<int> &contrib,
 	const ftl::render::Parameters &params,
 	const ftl::rgbd::Camera &camera,
 	const float4x4 &transform, const float3x3 &transformR,
@@ -185,9 +352,10 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
-		ftl::cuda::TextureObject<float4> &normals,
+		ftl::cuda::TextureObject<short> &weights,
+		ftl::cuda::TextureObject<float4> *normals,
 		ftl::cuda::TextureObject<float> &out,	// Accumulated output
-		ftl::cuda::TextureObject<float> &contrib,
+		ftl::cuda::TextureObject<int> &contrib,
 		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &transform, const float3x3 &transformR,
@@ -197,107 +365,15 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
-		ftl::cuda::TextureObject<float4> &normals,
+		ftl::cuda::TextureObject<short> &weights,
+		ftl::cuda::TextureObject<float4> *normals,
 		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-		ftl::cuda::TextureObject<float> &contrib,
+		ftl::cuda::TextureObject<int> &contrib,
 		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &transform, const float3x3 &transformR,
 		cudaStream_t stream);
 
-//==============================================================================
-//  Without normals
-//==============================================================================
-
-
- template <typename A, typename B>
-__global__ void reprojection_kernel(
-        TextureObject<A> in,				// Attribute input
-        TextureObject<float> depth_src,
-		TextureObject<float> depth_in,        // Virtual depth map
-		TextureObject<B> out,			// Accumulated output
-		TextureObject<float> contrib,
-		Parameters params,
-		Camera camera, float4x4 poseInv) {
-        
-	const int x = (blockIdx.x*blockDim.x + threadIdx.x);
-	const int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-	const float d = depth_in.tex2D((int)x, (int)y);
-	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
-		const float3 camPos = poseInv * params.camera.screenToCam(x, y, d);
-		if (camPos.z > camera.minDepth && camPos.z > camera.maxDepth) {
-			const float2 screenPos = camera.camToScreen<float2>(camPos);
-
-			if (screenPos.x < depth_src.width() && screenPos.y < depth_src.height()) {
-				const float d2 = depth_src.tex2D((int)(screenPos.x+0.5f), (int)(screenPos.y+0.5f));
-				const auto input = getInput(in, screenPos, depth_src.width(), depth_src.height());
-				float weight = depthMatching(params, camPos.z, d2);
-				const B weighted = make<B>(input) * weight;
-
-				if (weight > 0.0f) {
-					accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
-				}
-			}
-		}
-	}
-}
-
-
-template <typename A, typename B>
-void ftl::cuda::reproject(
-        TextureObject<A> &in,
-        TextureObject<float> &depth_src,       // Original 3D points
-		TextureObject<float> &depth_in,        // Virtual depth map
-		TextureObject<B> &out,   // Accumulated output
-		TextureObject<float> &contrib,
-		const Parameters &params,
-		const Camera &camera, const float4x4 &poseInv, cudaStream_t stream) {
-	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
-
-    reprojection_kernel<<<gridSize, blockSize, 0, stream>>>(
-        in,
-        depth_src,
-		depth_in,
-		out,
-		contrib,
-		params,
-		camera,
-		poseInv
-    );
-    cudaSafeCall( cudaGetLastError() );
-}
-
-template void ftl::cuda::reproject(
-	ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
-	ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
-	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-	ftl::cuda::TextureObject<float> &contrib,
-	const ftl::render::Parameters &params,
-	const ftl::rgbd::Camera &camera,
-	const float4x4 &poseInv, cudaStream_t stream);
-
-template void ftl::cuda::reproject(
-		ftl::cuda::TextureObject<float> &in,	// Original colour image
-		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
-		ftl::cuda::TextureObject<float> &out,	// Accumulated output
-		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::Parameters &params,
-		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
-
-template void ftl::cuda::reproject(
-		ftl::cuda::TextureObject<float4> &in,	// Original colour image
-		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
-		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
-		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-		ftl::cuda::TextureObject<float> &contrib,
-		const ftl::render::Parameters &params,
-		const ftl::rgbd::Camera &camera,
-		const float4x4 &poseInv, cudaStream_t stream);
 
 //==============================================================================
 //  Without normals or depth
@@ -311,7 +387,7 @@ __global__ void reprojection_kernel(
         TextureObject<A> in,				// Attribute input
 		TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<B> out,			// Accumulated output
-		TextureObject<float> contrib,
+		TextureObject<int> contrib,
 		Parameters params,
 		Camera camera, float4x4 poseInv) {
         
@@ -329,7 +405,7 @@ __global__ void reprojection_kernel(
 			const B weighted = make<B>(input) * weight;
 
 			if (weight > 0.0f) {
-				accumulateOutput(out, contrib, make_uint2(x,y), weighted, weight);
+				accumulateOutput<AccumulationFunction::Simple>(out, contrib, make_uint2(x,y), weighted, weight);
 			}
 		}
 	}
@@ -341,7 +417,7 @@ void ftl::cuda::reproject(
         TextureObject<A> &in,
 		TextureObject<float> &depth_in,        // Virtual depth map
 		TextureObject<B> &out,   // Accumulated output
-		TextureObject<float> &contrib,
+		TextureObject<int> &contrib,
 		const Parameters &params,
 		const Camera &camera, const float4x4 &poseInv, cudaStream_t stream) {
 	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
@@ -363,7 +439,7 @@ template void ftl::cuda::reproject(
 	ftl::cuda::TextureObject<uchar4> &in,	// Original colour image
 	ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 	ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-	ftl::cuda::TextureObject<float> &contrib,
+	ftl::cuda::TextureObject<int> &contrib,
 	const ftl::render::Parameters &params,
 	const ftl::rgbd::Camera &camera,
 	const float4x4 &poseInv, cudaStream_t stream);
@@ -372,7 +448,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float> &out,	// Accumulated output
-		ftl::cuda::TextureObject<float> &contrib,
+		ftl::cuda::TextureObject<int> &contrib,
 		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
@@ -381,7 +457,7 @@ template void ftl::cuda::reproject(
 		ftl::cuda::TextureObject<float4> &in,	// Original colour image
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<float4> &out,	// Accumulated output
-		ftl::cuda::TextureObject<float> &contrib,
+		ftl::cuda::TextureObject<int> &contrib,
 		const ftl::render::Parameters &params,
 		const ftl::rgbd::Camera &camera,
 		const float4x4 &poseInv, cudaStream_t stream);
@@ -444,7 +520,7 @@ template <int RADIUS>
 __global__ void fix_colour_kernel(
 		TextureObject<float> depth,
 		TextureObject<uchar4> out,
-		TextureObject<float> contribs,
+		TextureObject<int> contribs,
 		uchar4 bad_colour,
 		ftl::rgbd::Camera cam) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -454,15 +530,15 @@ __global__ void fix_colour_kernel(
 		const float contrib = contribs.tex2D((int)x,(int)y);
 		const float d = depth.tex2D(x,y);
 
-		if (contrib < 0.0000001f && d > cam.minDepth && d < cam.maxDepth) {
+		if (contrib == 0 && d > cam.minDepth && d < cam.maxDepth) {
 			float4 sumcol = make_float4(0.0f);
 			float count = 0.0f;
 
 			for (int v=-RADIUS; v<=RADIUS; ++v) {
 				for (int u=-RADIUS; u<=RADIUS; ++u) {
-					const float contrib = contribs.tex2D((int)x+u,(int)y+v);
+					const int contrib = contribs.tex2D((int)x+u,(int)y+v);
 					const float4 c = make_float4(out(int(x)+u,int(y)+v));
-					if (contrib > 0.0000001f) {
+					if (contrib > 0) {
 						sumcol += c;
 						count += 1.0f;
 					}
@@ -477,7 +553,7 @@ __global__ void fix_colour_kernel(
 void ftl::cuda::fix_bad_colour(
 		TextureObject<float> &depth,
 		TextureObject<uchar4> &out,
-		TextureObject<float> &contribs,
+		TextureObject<int> &contribs,
 		uchar4 bad_colour,
 		const ftl::rgbd::Camera &cam,
 		cudaStream_t stream) {
@@ -493,17 +569,17 @@ void ftl::cuda::fix_bad_colour(
 __global__ void show_missing_colour_kernel(
 		TextureObject<float> depth,
 		TextureObject<uchar4> out,
-		TextureObject<float> contribs,
+		TextureObject<int> contribs,
 		uchar4 bad_colour,
 		ftl::rgbd::Camera cam) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x < out.width() && y < out.height()) {
-		const float contrib = contribs.tex2D((int)x,(int)y);
+		const int contrib = contribs.tex2D((int)x,(int)y);
 		const float d = depth.tex2D(x,y);
 
-		if (contrib < 0.0000001f && d > cam.minDepth && d < cam.maxDepth) {
+		if (contrib == 0 && d > cam.minDepth && d < cam.maxDepth) {
 			out(x,y) = bad_colour;
 		}
 	}
@@ -512,7 +588,7 @@ __global__ void show_missing_colour_kernel(
 void ftl::cuda::show_missing_colour(
 		TextureObject<float> &depth,
 		TextureObject<uchar4> &out,
-		TextureObject<float> &contribs,
+		TextureObject<int> &contribs,
 		uchar4 bad_colour,
 		const ftl::rgbd::Camera &cam,
 		cudaStream_t stream) {
@@ -520,5 +596,36 @@ void ftl::cuda::show_missing_colour(
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	show_missing_colour_kernel<<<gridSize, blockSize, 0, stream>>>(depth, out, contribs, bad_colour, cam);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// ===== Show colour weights ===================================================
+
+__global__ void show_colour_weights_kernel(
+		TextureObject<uchar4> out,
+		TextureObject<int> contribs,
+		uchar4 bad_colour) {
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < out.width() && y < out.height()) {
+		const int contrib = contribs.tex2D((int)x,(int)y);
+
+		if (contrib > 0) {
+			float w = float(contrib & 0xFFFFFF) / float(0xFFFF) / float(contrib >> 24);
+			out(x,y) = make_uchar4(float(bad_colour.x) * w, float(bad_colour.y) * w, float(bad_colour.z) * w, 0.0f);
+		}
+	}
+}
+
+void ftl::cuda::show_colour_weights(
+		TextureObject<uchar4> &out,
+		TextureObject<int> &contribs,
+		uchar4 bad_colour,
+		cudaStream_t stream) {
+	const dim3 gridSize((out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	show_colour_weights_kernel<<<gridSize, blockSize, 0, stream>>>(out, contribs, bad_colour);
 	cudaSafeCall( cudaGetLastError() );
 }

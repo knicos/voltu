@@ -18,7 +18,7 @@ enum struct Channel : int {
 	Deviation		= 4,
 	Screen			= 4,
 	Normals			= 5,	// 32FC4
-	Points			= 6,	// 32FC4 (should be deprecated)
+	Weights			= 6,	// short
 	Confidence		= 7,	// 32F
 	Contribution	= 7,	// 32F
 	EnergyVector	= 8,	// 32FC4
@@ -90,6 +90,7 @@ class Channels {
 	inline Channels &operator|=(Channel c) { mask |= (c == Channel::None || static_cast<unsigned int>(c) - BASE >= 32) ? 0 : (0x1 << (static_cast<unsigned int>(c) - BASE)); return *this; }
 	inline Channels &operator+=(Channel c) { mask |= (c == Channel::None || static_cast<unsigned int>(c) - BASE >= 32) ? 0 : (0x1 << (static_cast<unsigned int>(c) - BASE)); return *this; }
 	inline Channels &operator-=(Channel c) { mask &= ~((c == Channel::None || static_cast<unsigned int>(c) - BASE >= 32) ? 0 : (0x1 << (static_cast<unsigned int>(c) - BASE))); return *this; }
+	inline Channels &operator+=(Channels<BASE> cs) { mask |= cs.mask; return *this; }
 	inline Channels &operator+=(unsigned int c) { mask |= (0x1 << (c - BASE)); return *this; }
 	inline Channels &operator-=(unsigned int c) { mask &= ~(0x1 << (c - BASE)); return *this; }
 	inline Channels &operator&=(const Channels<BASE> &c) { mask &= c.mask; return *this; }
