@@ -233,7 +233,15 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 
 	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {
-		auto cc = (c == Channel::Colour && fs.frames[offset].hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : c;
+		Channel cc = c;
+		if ((cc == Channel::Colour) && fs.frames[offset].hasChannel(Channel::ColourHighRes)) {
+			cc = Channel::ColourHighRes;
+		}
+		
+		if ((cc == Channel::Right) && fs.frames[offset].hasChannel(Channel::RightHighRes)) {
+			cc = Channel::RightHighRes;
+			fs.frames[offset].upload(cc);
+		}
 
 		StreamPacket spkt;
 		spkt.version = 4;

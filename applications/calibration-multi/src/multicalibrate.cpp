@@ -1,9 +1,12 @@
 #include "multicalibrate.hpp"
 
+#include "calibration_data.hpp"
+#include "calibration.hpp"
+#include "optimization.hpp"
+
 #include <opencv2/core.hpp>
 #include <opencv2/calib3d.hpp>
 
-#include <cvsba/cvsba.h>
 #include <loguru.hpp>
 
 #include <map>
@@ -143,9 +146,9 @@ Mat MultiCameraCalibrationNew::getDistCoeffs(size_t idx) {
 }
 
 void MultiCameraCalibrationNew::setCameraParameters(size_t idx, const Mat &K, const Mat &distCoeffs) {
-	DCHECK(idx < n_cameras_);
-	DCHECK(K.size() == Size(3, 3));
-	DCHECK(distCoeffs.size() == Size(5, 1));
+	CHECK(idx < n_cameras_);
+	CHECK(K.size() == Size(3, 3));
+	CHECK(distCoeffs.total() == 5);
 	K.convertTo(K_[idx], CV_64FC1);
 	distCoeffs.convertTo(dist_coeffs_[idx], CV_64FC1);
 }
@@ -185,6 +188,7 @@ void MultiCameraCalibrationNew::saveInput(const string &filename) {
 void MultiCameraCalibrationNew::saveInput(cv::FileStorage &fs) {
 	fs << "resolution" << resolution_;
 	fs << "K" << K_;
+	fs << "D" << dist_coeffs_;
 	fs << "points2d" << points2d_;
 	fs << "visible" << visible_;
 }
@@ -195,12 +199,14 @@ void MultiCameraCalibrationNew::loadInput(const std::string &filename, const vec
 	points3d_optimized_.clear();
 	visible_.clear();
 	inlier_.clear();
-
+	K_.clear();
+	dist_coeffs_.clear();
 	cv::FileStorage fs(filename, cv::FileStorage::READ);
 	vector<Mat> K;
 	vector<vector<Point2d>> points2d;
 	vector<vector<int>> visible;
 	fs["K"] >> K;
+	fs["D"] >> dist_coeffs_;
 	fs["points2d"] >> points2d;
 	fs["visible"] >> visible;
 	fs["resolution"] >> resolution_;
@@ -225,6 +231,7 @@ void MultiCameraCalibrationNew::loadInput(const std::string &filename, const vec
 
 	for (auto const &c : cameras) {
 		K_.push_back(K[c]);
+		LOG(INFO) << K[c];
 	}
 	for (size_t c = 0; c < n_cameras_; c++) {
 		points2d_[c].reserve(visible[0].size());
@@ -235,7 +242,6 @@ void MultiCameraCalibrationNew::loadInput(const std::string &filename, const vec
 
 	visibility_graph_ = Visibility(n_cameras_);
 	dist_coeffs_.resize(n_cameras_);
-	for (auto &d : dist_coeffs_ ) { d = Mat(Size(5, 1), CV_64FC1, Scalar(0.0)); }
 
 	vector<vector<Point2d>> points2d_add(n_cameras_, vector<Point2d>());
 	vector<int> visible_add(n_cameras_);
@@ -372,6 +378,7 @@ void MultiCameraCalibrationNew::getVisiblePoints(
 
 double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camera_to, Mat &rmat, Mat &tvec) {
 	
+
 	vector<size_t> idx;
 	vector<Point2d> points1, points2;
 	{
@@ -386,10 +393,10 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 
 	// cameras possibly lack line of sight?
 	DCHECK(points1.size() > 8);
-
+	
 	Mat &K1 = K_[camera_from];
 	Mat &K2 = K_[camera_to];
-
+	/*
 	vector<uchar> inliers;
 	Mat F, E;
 	F = cv::findFundamentalMat(points1, points2, fm_method_, fm_ransac_threshold_, fm_confidence_, inliers);
@@ -467,8 +474,7 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 
 	// Estimate and apply scale factor
 	{
-		double scale = target_.estimateScale(points3d);
-		for (auto &p : points3d) { p = p * scale; }
+		double scale = ftl::calibration::optimizeScale(object_points_, points3d);
 		t1 = t1 * scale;
 		t2 = t2 * scale;
 	}
@@ -489,45 +495,44 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 	}
 	
 	// Bundle Adjustment
-	// vector<Point3d> points3d_triangulated;
-	// points3d_triangulated.insert(points3d_triangulated.begin(), points3d.begin(), points3d.end());
 	
 	double err = INFINITY;
-	cvsba::Sba sba;
 	{
-		sba.setParams(cvsba::Sba::Params(cvsba::Sba::TYPE::MOTIONSTRUCTURE, 200, 1.0e-30, 5, 5, false));
-		
-		Mat rvec1, rvec2;
-		cv::Rodrigues(R1, rvec1);
-		cv::Rodrigues(R2, rvec2);
+		auto cameras = vector<ftl::calibration::Camera> {
+			ftl::calibration::Camera(K1, dist_coeffs_[camera_from], R1, t1),
+			ftl::calibration::Camera(K2, dist_coeffs_[camera_to], R2, t2)
+		};
 
-		auto points2d = vector<vector<Point2d>> { points1, points2 };
-		auto K = vector<Mat> { K1, K2 };
-		auto r = vector<Mat> { rvec1, rvec2 };
-		auto t = vector<Mat> { t1, t2 };
-		auto dcoeffs = vector<Mat> { dist_coeffs_[camera_from], dist_coeffs_[camera_to] };
-		
-		sba.run(points3d,
-				vector<vector<Point2d>> { points1, points2 },
-				vector<vector<int>>(2, vector<int>(points1.size(), 1)),
-				K, r, t, dcoeffs
-		);
-		
-		cv::Rodrigues(r[0], R1);
-		cv::Rodrigues(r[1], R2);
-		t1 = t[0];
-		t2 = t[1];
+		ftl::calibration::BundleAdjustment ba;
+		ba.addCameras(cameras);
+		for (size_t i = 0; i < points3d.size(); i++) {
+			ba.addPoint({points1[i], points2[i]}, points3d[i]);
+		}
 
-		// intrinsic parameters should only be optimized at final BA
-		//K1 = K[0];
-		//K2 = K[1];
+		ftl::calibration::BundleAdjustment::Options options;
+		options.fix_camera_extrinsic = {0};
+		options.optimize_intrinsic = false;
 
-		err = sba.getFinalReprjError();
-		LOG(INFO) << "SBA reprojection error before BA " << sba.getInitialReprjError();
-		LOG(INFO) << "SBA reprojection error after BA " << err;
+		ba.run(options);
+		// TODO: ... 
+		err = sqrt(ba.reprojectionError(0) * ba.reprojectionError(1));
+
+		R2 = cameras[1].rmat();
+		t2 = Mat(cameras[1].tvec());
 	}
 
 	calculateTransform(R2, t2, R1, t1, rmat, tvec);
+	*/
+	
+	Mat R1, R2, t1, t2;
+	R1 = Mat::eye(Size(3, 3), CV_64FC1);
+	t1 = Mat(Size(1, 3), CV_64FC1, Scalar(0.0));
+	
+	vector<Point3d> points3d;
+	
+	double err = ftl::calibration::computeExtrinsicParameters(K1, dist_coeffs_[camera_from], K2, dist_coeffs_[camera_to], points1, points2, object_points_, R2, t2, points3d);
+	calculateTransform(R2, t2, R1, t1, rmat, tvec);
+	
 
 	// Store and average 3D points for both cameras (skip garbage)
 	if (err < 10.0) {
@@ -698,20 +703,20 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 	}
 
 	double err;
-	cvsba::Sba sba;
 	{
-		sba.setParams(cvsba::Sba::Params(cvsba::Sba::TYPE::MOTIONSTRUCTURE, 200, 1.0e-24, fix_intrinsics_, fix_intrinsics_, false));
+		auto cameras = vector<ftl::calibration::Camera>();
+		
+		for (size_t i = 0; i < n_cameras_; i++) {
+			calculateInverse(R_[i], t_[i], R_[i], t_[i]);
+			cameras.push_back(ftl::calibration::Camera(K_[i], dist_coeffs_[i], R_[i], t_[i]));
+		}
 
-		vector<Mat> rvecs(R_.size());
-		vector<vector<int>> visible(R_.size());
-		vector<Point3d> points3d;
-		vector<vector<Point2d>> points2d(R_.size());
-		vector<size_t> idx;
-		idx.reserve(points3d_optimized_.size());
+		ftl::calibration::BundleAdjustment ba;
+		ba.addCameras(cameras);
 
 		for (size_t i = 0; i < points3d_optimized_.size(); i++) {
 			
-			auto p = points3d_optimized_[i];
+			auto &p = points3d_optimized_[i];
 			DCHECK(!isnanl(p.x) && !isnanl(p.y) && !isnanl(p.z));
 
 			int count = 0;
@@ -720,53 +725,36 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 			}
 			
 			if (count < 2) continue;
-
-			points3d.push_back(p);
-			idx.push_back(i);
+			
+			vector<bool> visible(n_cameras_);
+			vector<Point2d> points2d(n_cameras_);
 
 			for (size_t c = 0; c < n_cameras_; c++) {
 				bool good = isVisible(c, i) && isValid(c, i);
-				visible[c].push_back(good ? 1 : 0);
-				points2d[c].push_back(points2d_[c][i]);
+				visible[c] = good;
+				points2d[c] = points2d_[c][i];
 			}
+
+			ba.addPoint(visible, points2d, p);
 		}
 
-		for (size_t i = 0; i < rvecs.size(); i++) {
-			calculateInverse(R_[i], t_[i], R_[i], t_[i]);
-			cv::Rodrigues(R_[i], rvecs[i]);
-		}
+		ftl::calibration::BundleAdjustment::Options options;
+		options.optimize_intrinsic = !fix_intrinsics_;
+		options.fix_distortion = true;
+		options.max_iter = 50;
+		options.fix_camera_extrinsic = {reference_camera};
+		options.verbose = true;
+ 
+		err = ba.reprojectionError();
+		ba.run(options);
 
-		DCHECK(points2d.size() == n_cameras_);
-		DCHECK(visible.size() == n_cameras_);
-		for (size_t c = 0; c < n_cameras_; c++) {
-			DCHECK(points3d.size() == points2d[c].size());
-			DCHECK(points3d.size() == visible[c].size());
-		}
-
-		LOG(INFO) << "number of points used: " << points3d.size();
-		sba.run(points3d, points2d, visible,
-				K_,	rvecs, t_, dist_coeffs_
-		);
-		
-		for (size_t i = 0; i < rvecs.size(); i++) {
-			cv::Rodrigues(rvecs[i], R_[i]);
+		for (size_t i = 0; i < n_cameras_; i++) {
+			R_[i] = cameras[i].rmat();
+			t_[i] = cameras[i].tvec();
+			K_[i] = cameras[i].intrinsicMatrix();
+			//dist_coeffs_[i] = D; // not updated
 			calculateInverse(R_[i], t_[i], R_[i], t_[i]);
 		}
-
-		// save optimized points
-		{
-			size_t l = points3d.size();
-			points3d_optimized_.clear();
-			points3d_optimized_.resize(l, Point3d(NAN, NAN, NAN));
-
-			for (size_t i = 0; i < points3d.size(); i++) {
-				points3d_optimized_[idx[i]] = points3d[i];
-			}
-		}
-
-		err = sba.getFinalReprjError();
-		LOG(INFO) << "SBA reprojection error before final BA " << sba.getInitialReprjError();
-		LOG(INFO) << "SBA reprojection error after final BA " << err;
 	}
 
 	for (size_t c_from = 0; c_from < n_cameras_; c_from++) {

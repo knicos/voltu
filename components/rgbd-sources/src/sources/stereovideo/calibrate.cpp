@@ -6,9 +6,11 @@
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
 #include <ftl/threads.hpp>
+#include <ftl/calibration.hpp>
 
 #include "calibrate.hpp"
 #include "ftl/exception.hpp"
+
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
@@ -39,69 +41,6 @@ using cv::Scalar;
 using std::string;
 using std::vector;
 
-////////////////////////////////////////////////////////////////////////////////
-
-static bool isValidTranslationForRectification(const Mat &t) {
-	if (t.type() != CV_64F)				{ return false; }
-	if (t.channels() != 1) 				{ return false; }
-	if (t.size() != Size(1, 3))			{ return false; }
-	if (cv::norm(t, cv::NORM_L2) == 0)	{ return false; }
-	return true;
-}
-
-static bool isValidRotationMatrix(const Mat &M) {
-	if (M.type() != CV_64F)				{ return false; }
-	if (M.channels() != 1) 				{ return false; }
-	if (M.size() != Size(3, 3))			{ return false; }
-
-	double det = cv::determinant(M);
-	if (abs(abs(det)-1.0) > 0.00001)	{ return false; }
-
-	// TODO: floating point errors (result not exactly identity matrix)
-	// rotation matrix is orthogonal: M.T * M == M * M.T == I
-	//if (cv::countNonZero((M.t() * M) != Mat::eye(Size(3, 3), CV_64FC1)) != 0)
-	//									{ return false; }
-	
-	return true;
-}
-
-static bool isValidPose(const Mat &M) {
-	if (M.size() != Size(4, 4))			{ return false; }
-	if (!isValidRotationMatrix(M(cv::Rect(0 , 0, 3, 3))))
-										{ return false; }
-	if (!(	(M.at<double>(3, 0) == 0.0) && 
-			(M.at<double>(3, 1) == 0.0) && 
-			(M.at<double>(3, 2) == 0.0) && 
-			(M.at<double>(3, 3) == 1.0))) { return false; }
-
-	return true;
-}
-
-static bool isValidCamera(const Mat &M) {
-	if (M.type() != CV_64F)				{ return false; }
-	if (M.channels() != 1)				{ return false; }
-	if (M.size() != Size(3, 3))			{ return false; }
-	
-	if (!(	(M.at<double>(2, 0) == 0.0) && 
-			(M.at<double>(2, 1) == 0.0) && 
-			(M.at<double>(2, 2) == 1.0))) { return false; }
-	
-	return true;
-}
-
-static Mat scaleCameraIntrinsics(const Mat &K, const Size &size_new, const Size &size_old) {
-	Mat S(cv::Size(3, 3), CV_64F, 0.0);
-	double scale_x = ((double) size_new.width) / ((double) size_old.width);
-	double scale_y = ((double) size_new.height) / ((double) size_old.height);
-
-	S.at<double>(0, 0) = scale_x;
-	S.at<double>(1, 1) = scale_y;
-	S.at<double>(2, 2) = 1.0;
-	return (S*K);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 Calibrate::Calibrate(nlohmann::json &config, Size image_size, cv::cuda::Stream &stream) :
 		ftl::Configurable(config) {
 	
@@ -125,7 +64,7 @@ Calibrate::Calibrate(nlohmann::json &config, Size image_size, cv::cuda::Stream &
 Mat Calibrate::_getK(size_t idx, Size size) {
 	CHECK(idx < K_.size());
 	CHECK(!size.empty());
-	return scaleCameraIntrinsics(K_[idx], size, calib_size_);
+	return ftl::calibration::scaleCameraMatrix(K_[idx], size, calib_size_);
 }
 
 Mat Calibrate::_getK(size_t idx) {
@@ -139,17 +78,17 @@ double Calibrate::getBaseline() const {
 
 Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
 	if (rectify_) {
-		return scaleCameraIntrinsics(Mat(P1_, cv::Rect(0, 0, 3, 3)), res, img_size_);
+		return ftl::calibration::scaleCameraMatrix(Mat(P1_, cv::Rect(0, 0, 3, 3)), res, img_size_);
 	} else {
-		return scaleCameraIntrinsics(K_[0], res, calib_size_);
+		return ftl::calibration::scaleCameraMatrix(K_[0], res, calib_size_);
 	}
 }
 
 Mat Calibrate::getCameraMatrixRight(const cv::Size res) {
 	if (rectify_) {
-		return scaleCameraIntrinsics(Mat(P2_, cv::Rect(0, 0, 3, 3)), res, img_size_);
+		return ftl::calibration::scaleCameraMatrix(Mat(P2_, cv::Rect(0, 0, 3, 3)), res, img_size_);
 	} else {
-		return scaleCameraIntrinsics(K_[1], res, calib_size_);
+		return ftl::calibration::scaleCameraMatrix(K_[1], res, calib_size_);
 	}
 }
 
@@ -161,6 +100,19 @@ Mat Calibrate::getCameraDistortionLeft() {
 Mat Calibrate::getCameraDistortionRight() {
 	if (rectify_) {	return Mat::zeros(Size(5, 1), CV_64FC1); }
 	else { return D_[1]; }
+}
+
+Mat Calibrate::getPose() const {
+	Mat T;
+	if (rectify_) {
+		Mat R1 = Mat::eye(4, 4, CV_64FC1);
+		R1_.copyTo(R1(cv::Rect(0, 0, 3, 3)));
+		T = pose_ * R1.inv();
+	}
+	else {
+		pose_.copyTo(T);
+	}
+	return T;
 }
 
 bool Calibrate::setRectify(bool enabled) {
@@ -185,7 +137,11 @@ bool Calibrate::setDistortion(const vector<Mat> &D) {
 bool Calibrate::setIntrinsics(const Size &size, const vector<Mat> &K) {
 	if (K.size() != 2) { return false; }
 	if (size.empty() || size.width <= 0 || size.height <= 0) { return false; }
-	for (const auto k : K) { if (!isValidCamera(k)) { return false; }}
+	for (const auto k : K) {
+		if (!ftl::calibration::validate::cameraMatrix(k)) {
+			return false;
+		}
+	}
 
 	calib_size_ = Size(size);
 	K[0].copyTo(K_[0]);
@@ -194,8 +150,8 @@ bool Calibrate::setIntrinsics(const Size &size, const vector<Mat> &K) {
 }
 
 bool Calibrate::setExtrinsics(const Mat &R, const Mat &t) {
-	if (!isValidRotationMatrix(R) ||
-		!isValidTranslationForRectification(t)) { return false; }
+	if (!ftl::calibration::validate::rotationMatrix(R) ||
+		!ftl::calibration::validate::translationStereo(t)) { return false; }
 	
 	R.copyTo(R_);
 	t.copyTo(t_);
@@ -203,7 +159,7 @@ bool Calibrate::setExtrinsics(const Mat &R, const Mat &t) {
 }
 
 bool Calibrate::setPose(const Mat &P) {
-	if (!isValidPose(P)) { return false; }
+	if (!ftl::calibration::validate::pose(P)) { return false; }
 	P.copyTo(pose_);
 	return true;
 }
@@ -301,7 +257,6 @@ bool Calibrate::calculateRectificationParameters() {
 							img_size_, R_, t_,
 							R1_, R2_, P1_, P2_, Q_, 0, alpha);
 		
-		// TODO use fixed point maps for CPU (gpu remap() requires floating point)
 		initUndistortRectifyMap(K1, D1, R1_, P1_, img_size_, CV_32FC1, map1_.first, map2_.first);
 		initUndistortRectifyMap(K2, D2, R2_, P2_, img_size_, CV_32FC1, map1_.second, map2_.second);
 		

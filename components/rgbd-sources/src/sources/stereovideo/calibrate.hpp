@@ -85,9 +85,10 @@ class Calibrate : public ftl::Configurable {
 	cv::Mat getCameraDistortionRight();
 
 	/**
-	 * @brief	Get camera pose from calibration
+	 * @brief	Get camera pose from calibration. Returns pose to rectified
+	 * 			camera if rectification is enabled.
 	 */
-	const cv::Mat &getPose() const { return pose_; };
+	cv::Mat getPose() const;
 	
 	/**
 	 * @brief	Enable/disable recitification. If disabled, instance returns
