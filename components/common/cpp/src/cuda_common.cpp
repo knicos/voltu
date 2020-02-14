@@ -3,6 +3,7 @@
 #include <ftl/cuda_common.hpp>
 
 using ftl::cuda::TextureObjectBase;
+using ftl::cuda::BufferBase;
 
 static int dev_to_use = 0;
 static int dev_count = 0;
@@ -116,58 +117,54 @@ void TextureObjectBase::download(cv::Mat &m, cudaStream_t stream) const {
 	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * m.elemSize(), m.rows, cudaMemcpyDeviceToHost, stream));
 }
 
-/*template <>
-void TextureObject<uchar4>::upload(const cv::Mat &m, cudaStream_t stream) {
-    cudaSafeCall(cudaMemcpy2DAsync(devicePtr(), pitch(), m.data, m.step, m.cols * sizeof(uchar4), m.rows, cudaMemcpyHostToDevice, stream));
+
+
+BufferBase::~BufferBase() {
+	free();
 }
 
-template <>
-void TextureObject<float>::upload(const cv::Mat &m, cudaStream_t stream) {
-    cudaSafeCall(cudaMemcpy2DAsync(devicePtr(), pitch(), m.data, m.step, m.cols * sizeof(float), m.rows, cudaMemcpyHostToDevice, stream));
+BufferBase::BufferBase(BufferBase &&o) {
+	needsfree_ = o.needsfree_;
+	ptr_ = o.ptr_;
+	cvType_ = o.cvType_;
+	width_ = o.width_;
+	height_ = o.height_;
+	pitch_ = o.pitch_;
+	pitch2_ = o.pitch2_;
+
+	o.ptr_ = nullptr;
+	o.needsfree_ = false;
 }
 
-template <>
-void TextureObject<float2>::upload(const cv::Mat &m, cudaStream_t stream) {
-    cudaSafeCall(cudaMemcpy2DAsync(devicePtr(), pitch(), m.data, m.step, m.cols * sizeof(float2), m.rows, cudaMemcpyHostToDevice, stream));
+BufferBase &BufferBase::operator=(BufferBase &&o) {
+	free();
+
+	needsfree_ = o.needsfree_;
+	ptr_ = o.ptr_;
+	cvType_ = o.cvType_;
+	width_ = o.width_;
+	height_ = o.height_;
+	pitch_ = o.pitch_;
+	pitch2_ = o.pitch2_;
+
+	o.ptr_ = nullptr;
+	o.needsfree_ = false;
+	return *this;
 }
 
-template <>
-void TextureObject<float4>::upload(const cv::Mat &m, cudaStream_t stream) {
-    cudaSafeCall(cudaMemcpy2DAsync(devicePtr(), pitch(), m.data, m.step, m.cols * sizeof(float4), m.rows, cudaMemcpyHostToDevice, stream));
+void BufferBase::free() {
+	if (needsfree_) {
+		if (ptr_) cudaFree(ptr_);
+		ptr_ = nullptr;
+		cvType_ = -1;
+	}
 }
 
-template <>
-void TextureObject<uchar>::upload(const cv::Mat &m, cudaStream_t stream) {
-    cudaSafeCall(cudaMemcpy2DAsync(devicePtr(), pitch(), m.data, m.step, m.cols * sizeof(uchar), m.rows, cudaMemcpyHostToDevice, stream));
+void BufferBase::upload(const cv::Mat &m, cudaStream_t stream) {
+    cudaSafeCall(cudaMemcpy2DAsync(devicePtr(), pitch(), m.data, m.step, m.cols * m.elemSize(), m.rows, cudaMemcpyHostToDevice, stream));
 }
 
-
-template <>
-void TextureObject<uchar4>::download(cv::Mat &m, cudaStream_t stream) const {
-	m.create(height(), width(), CV_8UC4);
-	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * sizeof(uchar4), m.rows, cudaMemcpyDeviceToHost, stream));
+void BufferBase::download(cv::Mat &m, cudaStream_t stream) const {
+	m.create(height(), width(), cvType_);
+	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * m.elemSize(), m.rows, cudaMemcpyDeviceToHost, stream));
 }
-
-template <>
-void TextureObject<float>::download(cv::Mat &m, cudaStream_t stream) const {
-	m.create(height(), width(), CV_32FC1);
-	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * sizeof(float), m.rows, cudaMemcpyDeviceToHost, stream));
-}
-
-template <>
-void TextureObject<float2>::download(cv::Mat &m, cudaStream_t stream) const {
-	m.create(height(), width(), CV_32FC2);
-	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * sizeof(float2), m.rows, cudaMemcpyDeviceToHost, stream));
-}
-
-template <>
-void TextureObject<float4>::download(cv::Mat &m, cudaStream_t stream) const {
-	m.create(height(), width(), CV_32FC4);
-	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * sizeof(float4), m.rows, cudaMemcpyDeviceToHost, stream));
-}
-
-template <>
-void TextureObject<uchar>::download(cv::Mat &m, cudaStream_t stream) const {
-	m.create(height(), width(), CV_8UC1);
-	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * sizeof(uchar), m.rows, cudaMemcpyDeviceToHost, stream));
-}*/

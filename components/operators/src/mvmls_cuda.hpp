@@ -53,8 +53,8 @@ void zero_confidence(
     cudaStream_t stream);*/
 
 void aggregate_sources(
-		ftl::cuda::TextureObject<float4> &n1,
-		ftl::cuda::TextureObject<float4> &n2,
+		ftl::cuda::TextureObject<half4> &n1,
+		ftl::cuda::TextureObject<half4> &n2,
 		ftl::cuda::TextureObject<float4> &c1,
 		ftl::cuda::TextureObject<float4> &c2,
 		ftl::cuda::TextureObject<float> &depth1,
@@ -66,8 +66,8 @@ void aggregate_sources(
 		cudaStream_t stream);
 
 void best_sources(
-        ftl::cuda::TextureObject<float4> &normals1,
-        ftl::cuda::TextureObject<float4> &normals2,
+        ftl::cuda::TextureObject<half4> &normals1,
+        ftl::cuda::TextureObject<half4> &normals2,
         ftl::cuda::TextureObject<uchar4> &support1,
         ftl::cuda::TextureObject<uchar4> &suppor2,
         ftl::cuda::TextureObject<float> &depth1,
@@ -88,7 +88,7 @@ void vis_best_sources(
         cudaStream_t stream);
 
 void normalise_aggregations(
-    ftl::cuda::TextureObject<float4> &norms,
+    ftl::cuda::TextureObject<half4> &norms,
     ftl::cuda::TextureObject<float4> &cents,
     ftl::cuda::TextureObject<float> &contribs,
     cudaStream_t stream);

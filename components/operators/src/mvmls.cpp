@@ -48,7 +48,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
     // Make sure we have enough buffers
     while (normals_horiz_.size() < in.frames.size()) {
-        normals_horiz_.push_back(new ftl::cuda::TextureObject<float4>(size.height, size.width));
+        normals_horiz_.push_back(new ftl::cuda::TextureObject<half4>(size.height, size.width));
         centroid_horiz_.push_back(new ftl::cuda::TextureObject<float4>(size.height, size.width));
         centroid_vert_.push_back(new ftl::cuda::TextureObject<float4>(size.width, size.height));
         contributions_.push_back(new ftl::cuda::TextureObject<float>(size.width, size.height));
@@ -221,7 +221,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
             ftl::cuda::mls_aggr_horiz(
                 f.createTexture<uchar4>(Channel::Support2),
-                f.createTexture<float4>(Channel::Normals),
+                f.createTexture<half4>(Channel::Normals),
                 *normals_horiz_[i],
                 f.createTexture<float>(Channel::Depth),
                 *centroid_horiz_[i],
@@ -236,11 +236,9 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             ftl::cuda::mls_aggr_vert(
                 f.getTexture<uchar4>(Channel::Support2),
                 *normals_horiz_[i],
-                f.getTexture<float4>(Channel::Normals),
+                f.getTexture<half4>(Channel::Normals),
                 *centroid_horiz_[i],
                 *centroid_vert_[i],
-                f.getTexture<uchar4>(Channel::Colour),
-                f.getTexture<float>(Channel::Depth),
                 thresh,
                 col_smooth,
                 radius,
@@ -288,8 +286,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
                     // For the corresponding points, combine normals and centroids
                     ftl::cuda::aggregate_sources(
-                        f1.getTexture<float4>(Channel::Normals),
-                        f2.getTexture<float4>(Channel::Normals),
+                        f1.getTexture<half4>(Channel::Normals),
+                        f2.getTexture<half4>(Channel::Normals),
                         *centroid_vert_[i],
                         *centroid_vert_[j],
 						f1.getTexture<float>(Channel::Depth),
@@ -324,9 +322,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             }*/
 
             ftl::cuda::mls_adjust_depth(
-                f.getTexture<float4>(Channel::Normals),
+                f.getTexture<half4>(Channel::Normals),
                 *centroid_vert_[i],
-                f.getTexture<float>(Channel::Depth),
                 f.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(size)),
                 f.getLeftCamera(),
                 stream

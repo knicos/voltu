@@ -8,7 +8,7 @@
 namespace ftl {
 namespace cuda {
 
-void normals(ftl::cuda::TextureObject<float4> &output,
+/*void normals(ftl::cuda::TextureObject<float4> &output,
         ftl::cuda::TextureObject<float4> &temp,
         ftl::cuda::TextureObject<float4> &input,
 		int radius,
@@ -22,17 +22,17 @@ void normals(ftl::cuda::TextureObject<float4> &output,
 		int radius,
 		float smoothing,
         const ftl::rgbd::Camera &camera,
-        const float3x3 &pose_inv, const float3x3 &pose, cudaStream_t stream);
+        const float3x3 &pose_inv, const float3x3 &pose, cudaStream_t stream);*/
 
-void normals(ftl::cuda::TextureObject<float4> &output,
-        ftl::cuda::TextureObject<float4> &temp,
+void normals(ftl::cuda::TextureObject<half4> &output,
+        ftl::cuda::TextureObject<half4> &temp,
         ftl::cuda::TextureObject<float> &input,
 		int radius,
 		float smoothing,
         const ftl::rgbd::Camera &camera,
         const float3x3 &pose_inv, const float3x3 &pose, cudaStream_t stream);
 
-void normals(ftl::cuda::TextureObject<float4> &output,
+void normals(ftl::cuda::TextureObject<half4> &output,
         ftl::cuda::TextureObject<float> &input,  // Integer depth values
         const ftl::rgbd::Camera &camera,
         cudaStream_t stream);
@@ -42,22 +42,22 @@ void normals_dot(ftl::cuda::TextureObject<float> &output,
         const ftl::rgbd::Camera &camera,
         cudaStream_t stream);
 
-void normal_visualise(ftl::cuda::TextureObject<float4> &norm,
+void normal_visualise(ftl::cuda::TextureObject<half4> &norm,
         ftl::cuda::TextureObject<uchar4> &output,
         const float3 &light, const uchar4 &diffuse, const uchar4 &ambient,
         cudaStream_t stream);
 
-void cool_blue(ftl::cuda::TextureObject<float4> &norm,
+void cool_blue(ftl::cuda::TextureObject<half4> &norm,
         ftl::cuda::TextureObject<uchar4> &output,
         const uchar4 &colouring, const float3x3 &pose,
         cudaStream_t stream);
 
-void normal_filter(ftl::cuda::TextureObject<float4> &norm,
+/*void normal_filter(ftl::cuda::TextureObject<half4> &norm,
         ftl::cuda::TextureObject<float4> &points,
         const ftl::rgbd::Camera &camera, const float4x4 &pose,
-        float thresh, cudaStream_t stream);
+        float thresh, cudaStream_t stream);*/
 
-void transform_normals(ftl::cuda::TextureObject<float4> &norm,
+void transform_normals(ftl::cuda::TextureObject<half4> &norm,
         const float3x3 &pose,
         cudaStream_t stream);
 

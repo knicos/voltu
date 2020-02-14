@@ -14,8 +14,8 @@ using ftl::cuda::TextureObject;
  */
  template <int SEARCH_RADIUS>
  __global__ void mls_smooth_kernel(
-		TextureObject<float4> normals_in,
-		TextureObject<float4> normals_out,
+		TextureObject<half4> normals_in,
+		TextureObject<half4> normals_out,
         TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<float> depth_out,   // Accumulated output
 		float smoothing,
@@ -69,12 +69,12 @@ using ftl::cuda::TextureObject;
     //    depth_out(screen.x,screen.y) = X.z;
 	//}
 	depth_out(x,y) = X.z;
-	normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
+	normals_out(x,y) = make_half4(nX / length(nX), 0.0f);
 }
 
 void ftl::cuda::mls_smooth(
-		ftl::cuda::TextureObject<float4> &normals_in,
-		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<half4> &normals_in,
+		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float> &depth_out,
 		float smoothing,
@@ -112,8 +112,8 @@ void ftl::cuda::mls_smooth(
  */
  template <int SEARCH_RADIUS>
  __global__ void colour_mls_smooth_kernel(
-		TextureObject<float4> normals_in,
-		TextureObject<float4> normals_out,
+		TextureObject<half4> normals_in,
+		TextureObject<half4> normals_out,
         TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<float> depth_out,   // Accumulated output
 		TextureObject<uchar4> colour_in,
@@ -179,12 +179,12 @@ void ftl::cuda::mls_smooth(
     //    depth_out(screen.x,screen.y) = X.z;
 	//}
 	depth_out(x,y) = X.z;
-	normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
+	normals_out(x,y) = make_half4(nX / length(nX), 0.0f);
 }
 
 void ftl::cuda::colour_mls_smooth(
-		ftl::cuda::TextureObject<float4> &normals_in,
-		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<half4> &normals_in,
+		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float> &depth_out,
 		ftl::cuda::TextureObject<uchar4> &colour_in,
@@ -233,8 +233,8 @@ __device__ inline int segmentID(int u, int v) {
  template <bool FILLING, int RADIUS>
  __global__ void colour_mls_smooth_csr_kernel(
 	 	TextureObject<uchar4> region,
-		TextureObject<float4> normals_in,
-		TextureObject<float4> normals_out,
+		TextureObject<half4> normals_in,
+		TextureObject<half4> normals_out,
         TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<float> depth_out,   // Accumulated output
 		TextureObject<uchar4> colour_in,
@@ -325,14 +325,14 @@ __device__ inline int segmentID(int u, int v) {
 		//    depth_out(screen.x,screen.y) = X.z;
 		//}
 		depth_out(x,y) = X.z;
-		normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
+		normals_out(x,y) = make_half4(nX / length(nX), 0.0f);
 	}
 }
 
 void ftl::cuda::colour_mls_smooth_csr(
 		ftl::cuda::TextureObject<uchar4> &region,
-		ftl::cuda::TextureObject<float4> &normals_in,
-		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<half4> &normals_in,
+		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float> &depth_out,
 		ftl::cuda::TextureObject<uchar4> &colour_in,
@@ -362,6 +362,24 @@ void ftl::cuda::colour_mls_smooth_csr(
 
 // ===== Cross Aggregate MLS ===================================================
 
+__device__ inline float colourAsFloat(uchar4 c) {
+	union {
+		uchar4 col;
+		float f;
+	};
+	col = c;
+	return f;
+}
+
+__device__ inline uchar4 floatAsColour(float pf) {
+	union {
+		uchar4 col;
+		float f;
+	};
+	f = pf;
+	return col;
+}
+
 /*
  * Smooth depth map using Moving Least Squares. This version uses colour
  * similarity weights to adjust the spatial smoothing factor. It also uses
@@ -371,12 +389,16 @@ void ftl::cuda::colour_mls_smooth_csr(
  */
  template <int RADIUS>
  __global__ void mls_aggr_horiz_kernel(
-	 	TextureObject<uchar4> region,
-		TextureObject<float4> normals_in,
-		TextureObject<float4> normals_out,
-        TextureObject<float> depth_in,        // Virtual depth map
+		const uchar4* __restrict__ region,
+		size_t region_pitch, 
+		const half4* __restrict__ normals_in,
+		size_t normals_in_pitch,
+		TextureObject<half4> normals_out,
+		const float* __restrict__ depth_in,        // Virtual depth map
+		size_t depth_in_pitch,
 		TextureObject<float4> centroid_out,   // Accumulated output
-		TextureObject<uchar4> colour_in,
+		const uchar4* __restrict__ colour_in,
+		size_t colour_in_pitch,
 		float smoothing,
 		float colour_smoothing,
         ftl::rgbd::Camera camera) {
@@ -384,59 +406,65 @@ void ftl::cuda::colour_mls_smooth_csr(
     const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if (x < 0 || y < 0 || x >= depth_in.width() || y >= depth_in.height()) return;
+    if (x >= RADIUS && y >= RADIUS && x < camera.width-RADIUS && y < camera.height-RADIUS) {
 
-	float3 aX = make_float3(0.0f,0.0f,0.0f);
-	float3 nX = make_float3(0.0f,0.0f,0.0f);
-    float contrib = 0.0f;
+		float3 aX = make_float3(0.0f,0.0f,0.0f);
+		float3 nX = make_float3(0.0f,0.0f,0.0f);
+		float contrib = 0.0f;
 
-	float d0 = depth_in.tex2D(x, y);
+		const float d0 = depth_in[y*depth_in_pitch+x];
+		const uchar4 c0 = colour_in[y*colour_in_pitch+x];
 
-	// Note: x and y flipped as output is rotated.
-	centroid_out(y,x) = make_float4(0.0f);
-	normals_out(y,x) = normals_in(x,y);
+		// Note: x and y flipped as output is rotated.
+		centroid_out(y,x) = make_float4(0.0f,0.0f,0.0f,colourAsFloat(c0));
+		normals_out(y,x) = normals_in[y*normals_in_pitch+x];
 
-	if (d0 <= camera.minDepth || d0 >= camera.maxDepth) return;
-	
-	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
-	float4 c0 = colour_in.tex2D((float)x+0.5f, (float)y+0.5f);
+		if (d0 > camera.minDepth && d0 < camera.maxDepth) {
+		
+			float3 X = camera.screenToCam((int)(x),(int)(y),d0);
 
-    // Cross-Support Neighbourhood
-	uchar4 base = region.tex2D(x,y);
+			// Cross-Support Neighbourhood
+			const uchar4 base = region[y*region_pitch+x];
 
-	#pragma unroll
-	for (int u=-RADIUS; u<=RADIUS; ++u) {
-		const float d = depth_in.tex2D(x+u, y);
+			const half4* __restrict__ nptr = normals_in + y*normals_in_pitch + x - RADIUS;
+			const float* __restrict__ dptr = depth_in + y*depth_in_pitch + x - RADIUS;
+			const uchar4* __restrict__ cptr = colour_in + y*colour_in_pitch + x - RADIUS;
 
-		// If outside of cross support range, set weight to 0 to ignore
-		float w = (d <= camera.minDepth || d >= camera.maxDepth || u < -base.x || u > base.y) ? 0.0f : 1.0f;
+			#pragma unroll
+			for (int u=-RADIUS; u<=RADIUS; ++u) {
+				const float d = *(dptr++);
 
-		// Point and normal of neighbour
-		const float3 Xi = camera.screenToCam((int)(x)+u,(int)(y),d);
-		const float3 Ni = make_float3(normals_in.tex2D((int)(x)+u, (int)(y)));
+				// If outside of cross support range, set weight to 0 to ignore
+				float w = (d <= camera.minDepth || d >= camera.maxDepth || u < -base.x || u > base.y) ? 0.0f : 1.0f;
 
-		// Bad or missing normals should be ignored
-		if (Ni.x+Ni.y+Ni.z == 0.0f) w = 0.0f;
+				// Point and normal of neighbour
+				const float3 Xi = camera.screenToCam(x+u,y,d);
+				const float3 Ni = make_float3(*(nptr++));
 
-		// Gauss approx colour weighting.
-		const float4 c = colour_in.tex2D(float(x+u) + 0.5f, float(y) + 0.5f);
-		w *= ftl::cuda::colourWeighting(c0,c,colour_smoothing);
+				// Bad or missing normals should be ignored
+				if (Ni.x+Ni.y+Ni.z == 0.0f) w = 0.0f;
 
-		// Gauss approx weighting function using point distance
-		w = ftl::cuda::spatialWeighting(X,Xi,d0*smoothing*w);
+				// Gauss approx colour weighting.
+				const uchar4 c = *(cptr++);
+				w *= ftl::cuda::colourWeighting2(c0,c,colour_smoothing);
 
-		aX += Xi*w;
-		nX += Ni*w;
-		contrib += w;
-	}
+				// Gauss approx weighting function using point distance
+				w = ftl::cuda::spatialWeighting(X,Xi,d0*smoothing*w);
 
-	if (contrib > 0.0f) {
-		nX /= contrib;  // Weighted average normal
-		aX /= contrib;  // Weighted average point (centroid)
+				aX += Xi*w;
+				nX += Ni*w;
+				contrib += w;
+			}
 
-		// Note: x and y flipped since output is rotated 90 degrees.
-		centroid_out(y,x) = make_float4(aX, 0.0f);
-		normals_out(y,x) = make_float4(nX / length(nX), 0.0f);
+			if (contrib > 0.0f) {
+				nX /= contrib;  // Weighted average normal
+				aX /= contrib;  // Weighted average point (centroid)
+
+				// Note: x and y flipped since output is rotated 90 degrees.
+				centroid_out(y,x) = make_float4(aX, colourAsFloat(c0));
+				normals_out(y,x) = make_half4(nX / length(nX), 0.0f);
+			}
+		}
 	}
 }
 
@@ -446,13 +474,14 @@ void ftl::cuda::colour_mls_smooth_csr(
  */
 template <int RADIUS>
  __global__ void mls_aggr_vert_kernel(
-	 	TextureObject<uchar4> region,
-		TextureObject<float4> normals_in,
-		TextureObject<float4> normals_out,
-        TextureObject<float4> centroid_in,        // Virtual depth map
+		const uchar4* __restrict__ region,
+		size_t region_pitch, 
+		const half4* __restrict__ normals_in,
+		size_t normals_in_pitch,
+		TextureObject<half4> normals_out,
+		const float4* __restrict__ centroid_in,        // Virtual depth map
+		size_t centroid_in_pitch,
 		TextureObject<float4> centroid_out,   // Accumulated output
-		TextureObject<uchar4> colour_in,
-		TextureObject<float> depth_in,
 		float smoothing,
 		float colour_smoothing,
         ftl::rgbd::Camera camera) {
@@ -460,60 +489,65 @@ template <int RADIUS>
     const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if (x < 0 || y < 0 || x >= depth_in.width() || y >= depth_in.height()) return;
+    if (x >= RADIUS && y >= RADIUS && x < camera.width-RADIUS && y < camera.height-RADIUS) {
+		float3 aX = make_float3(0.0f,0.0f,0.0f);
+		float3 nX = make_float3(0.0f,0.0f,0.0f);
+		float contrib = 0.0f;
+		
+		const float4 cin = centroid_in[x*centroid_in_pitch+y];
+		const float3 A = make_float3(cin);
+		const uchar4 c0 = floatAsColour(cin.w);
 
-	float3 aX = make_float3(0.0f,0.0f,0.0f);
-	float3 nX = make_float3(0.0f,0.0f,0.0f);
-	float contrib = 0.0f;
-	
-	float d0 = depth_in.tex2D(x, y);
-	if (d0 <= camera.minDepth || d0 >= camera.maxDepth) return;
-	
-	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
+		centroid_out(x,y) = make_float4(0.0f);
+		normals_out(x,y) = make_half4(0.0f);
+		
+		if (A.z > camera.minDepth && A.z < camera.maxDepth) {
+			//float3 X = camera.screenToCam((int)(x),(int)(y),d0);
+			
+			//const uchar4 c0 = colour_in[y*colour_in_pitch+x];
 
-	centroid_out(x,y) = make_float4(0.0f);
-	normals_out(x,y) = make_float4(0.0f);
-	
-	float4 c0 = colour_in.tex2D((float)x+0.5f, (float)y+0.5f);
+			// Cross-Support Neighbourhood
+			const uchar4 base = region[y*region_pitch+x];
 
-    // Cross-Support Neighbourhood
-	uchar4 base = region.tex2D(x,y);
+			const half4* __restrict__ nptr = normals_in + x*normals_in_pitch + y - RADIUS;
+			const float4* __restrict__ ceptr = (centroid_in + x*centroid_in_pitch + y - RADIUS);
 
-	#pragma unroll
-	for (int v=-RADIUS; v<=RADIUS; ++v) {
-		const float d = depth_in.tex2D(x, y+v);
-		const float3 Xi = camera.screenToCam(x,y+v,d);
+			#pragma unroll
+			for (int v=-RADIUS; v<=RADIUS; ++v) {
+				// Note: x and y flipped, input image is rotated.
+				const float4 cin = *(ceptr++);
+				const float3 Ai = make_float3(cin);
+				const uchar4 c = floatAsColour(cin.w);
 
-		// Note: x and y flipped, input image is rotated.
-		float3 Ai = make_float3(centroid_in.tex2D(y+v, x));
+				// If outside the cross support range, set weight to 0 to ignore
+				float w = (Ai.z <= camera.minDepth || Ai.z >= camera.maxDepth || v < -base.z || v > base.w) ? 0.0f : 1.0f;
 
-		// If outside the cross support range, set weight to 0 to ignore
-		float w = (Ai.z <= camera.minDepth || Ai.z >= camera.maxDepth || v < -base.z || v > base.w) ? 0.0f : 1.0f;
+				// Note: x and y flipped, input image is rotated.
+				const float3 Ni = make_float3(*(nptr++));
 
-		// Note: x and y flipped, input image is rotated.
-		const float3 Ni = make_float3(normals_in.tex2D(y+v, x));
+				// Bad normals should be ignored.
+				if (Ni.x+Ni.y+Ni.z == 0.0f) w = 0.0f;
 
-		// Bad normals should be ignored.
-		if (Ni.x+Ni.y+Ni.z == 0.0f) w = 0.0f;
+				// Gauss approx colour weighting.
+				//const uchar4 c = *(cptr+v*colour_in_pitch);
+				w *= ftl::cuda::colourWeighting2(c0,c,colour_smoothing);
 
-		// Gauss approx colour weighting.
-		const float4 c = colour_in.tex2D(float(x) + 0.5f, float(y+v) + 0.5f);
-		w *= ftl::cuda::colourWeighting(c0,c,colour_smoothing);
+				// Gauss approx weighting function using point distance
+				w = ftl::cuda::spatialWeighting(A,Ai,A.z*smoothing*w);
 
-		// Gauss approx weighting function using point distance
-		w = ftl::cuda::spatialWeighting(X,Xi,d0*smoothing*w);
+				aX += Ai*w;
+				nX += Ni*w;
+				contrib += w;
+			}
 
-		aX += Ai*w;
-		nX += Ni*w;
-		contrib += w;
-	}
-
-	// Normalise the summed points and normals
-	if (contrib > 0.0f) {
-		nX /= contrib;  // Weighted average normal
-		aX /= contrib;  // Weighted average point (centroid)
-		centroid_out(x,y) = make_float4(aX, 0.0f);
-		normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
+			// Normalise the summed points and normals
+			if (contrib > 0.0f) {
+				nX /= contrib;  // Weighted average normal
+				aX /= contrib;  // Weighted average point (centroid)
+				centroid_out(x,y) = make_float4(aX, 0.0f);
+				normals_out(x,y) = make_half4(nX / length(nX), 0.0f);
+			}
+		}
 	}
 }
 
@@ -522,41 +556,40 @@ template <int RADIUS>
  * field and move the depth value accordingly using the calculated normal.
  */
 __global__ void mls_adjust_depth_kernel(
-		TextureObject<float4> normals_in,
+		TextureObject<half4> normals_in,
 		TextureObject<float4> centroid_in,        // Virtual depth map
-		TextureObject<float> depth_in,
 		TextureObject<float> depth_out,
 		ftl::rgbd::Camera camera) {
 	
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	if (x < 0 || y < 0 || x >= depth_out.width() || y >= depth_out.height()) return;
+	if (x >= 0 && y >= 0 && x < depth_out.width() && y < depth_out.height()) {
+		const float3 aX = make_float3(centroid_in(x,y));
+		const float3 nX = make_float3(normals_in(x,y));
 
-	float3 aX = make_float3(centroid_in(x,y));
-	float3 nX = make_float3(normals_in(x,y));
+		//float d0 = depth_in.tex2D(x, y);
+		depth_out(x,y) = aX.z;
 
-	float d0 = depth_in.tex2D(x, y);
-	depth_out(x,y) = d0;
+		if (aX.z > camera.minDepth && aX.z < camera.maxDepth) {
+			float3 X = camera.screenToCam((int)(x),(int)(y),aX.z);
 
-	if (d0 > camera.minDepth && d0 < camera.maxDepth && aX.z > camera.minDepth && aX.z < camera.maxDepth) {
-		float3 X = camera.screenToCam((int)(x),(int)(y),d0);
+			// Signed-Distance Field function
+			float fX = nX.x * (X.x - aX.x) + nX.y * (X.y - aX.y) + nX.z * (X.z - aX.z);
 
-		// Signed-Distance Field function
-		float fX = nX.x * (X.x - aX.x) + nX.y * (X.y - aX.y) + nX.z * (X.z - aX.z);
-
-		// Calculate new point using SDF function to adjust depth (and position)
-		X = X - nX * fX;
-		
-		depth_out(x,y) = X.z;
+			// Calculate new point using SDF function to adjust depth (and position)
+			X = X - nX * fX;
+			
+			depth_out(x,y) = X.z;
+		}
 	}
 }
 
 
 void ftl::cuda::mls_aggr_horiz(
 		ftl::cuda::TextureObject<uchar4> &region,
-		ftl::cuda::TextureObject<float4> &normals_in,
-		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<half4> &normals_in,
+		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float4> &centroid_out,
 		ftl::cuda::TextureObject<uchar4> &colour_in,
@@ -566,17 +599,20 @@ void ftl::cuda::mls_aggr_horiz(
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream) {
 
-	const dim3 gridSize((normals_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (normals_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	static constexpr int THREADS_X = 16;
+	static constexpr int THREADS_Y = 16;
+
+	const dim3 gridSize((normals_in.width() + THREADS_X - 1)/THREADS_X, (normals_in.height() + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
 
 	switch(radius) {
-	case 1: mls_aggr_horiz_kernel<1><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, centroid_out, colour_in, smoothing, colour_smoothing, camera); break;
-	case 2: mls_aggr_horiz_kernel<2><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, centroid_out, colour_in, smoothing, colour_smoothing, camera); break;
-	case 3: mls_aggr_horiz_kernel<3><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, centroid_out, colour_in, smoothing, colour_smoothing, camera); break;
-	case 5: mls_aggr_horiz_kernel<5><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, centroid_out, colour_in, smoothing, colour_smoothing, camera); break;
-	case 10: mls_aggr_horiz_kernel<10><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, centroid_out, colour_in, smoothing, colour_smoothing, camera); break;
-	case 15: mls_aggr_horiz_kernel<15><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, centroid_out, colour_in, smoothing, colour_smoothing, camera); break;
-	case 20: mls_aggr_horiz_kernel<20><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, centroid_out, colour_in, smoothing, colour_smoothing, camera); break;
+	case 1: mls_aggr_horiz_kernel<1><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
+	case 2: mls_aggr_horiz_kernel<2><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
+	case 3: mls_aggr_horiz_kernel<3><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
+	case 5: mls_aggr_horiz_kernel<5><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
+	case 10: mls_aggr_horiz_kernel<10><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
+	case 15: mls_aggr_horiz_kernel<15><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
+	case 20: mls_aggr_horiz_kernel<20><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
 	default: return;
 	}
 	cudaSafeCall( cudaGetLastError() );
@@ -589,29 +625,30 @@ void ftl::cuda::mls_aggr_horiz(
 
 void ftl::cuda::mls_aggr_vert(
 		ftl::cuda::TextureObject<uchar4> &region,
-		ftl::cuda::TextureObject<float4> &normals_in,
-		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<half4> &normals_in,
+		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float4> &centroid_in,
 		ftl::cuda::TextureObject<float4> &centroid_out,
-		ftl::cuda::TextureObject<uchar4> &colour_in,
-		ftl::cuda::TextureObject<float> &depth_in,
 		float smoothing,
 		float colour_smoothing,
 		int radius,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream) {
 
-	const dim3 gridSize((normals_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (normals_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	static constexpr int THREADS_X = 4;
+	static constexpr int THREADS_Y = 32;
+
+	const dim3 gridSize((normals_out.width() + THREADS_X - 1)/THREADS_X, (normals_out.height() + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
 
 	switch(radius) {
-	case 1: mls_aggr_vert_kernel<1><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, centroid_in, centroid_out, colour_in, depth_in, smoothing, colour_smoothing, camera); break;
-	case 2: mls_aggr_vert_kernel<2><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, centroid_in, centroid_out, colour_in, depth_in, smoothing, colour_smoothing, camera); break;
-	case 3: mls_aggr_vert_kernel<3><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, centroid_in, centroid_out, colour_in, depth_in, smoothing, colour_smoothing, camera); break;
-	case 5: mls_aggr_vert_kernel<5><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, centroid_in, centroid_out, colour_in, depth_in, smoothing, colour_smoothing, camera); break;
-	case 10: mls_aggr_vert_kernel<10><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, centroid_in, centroid_out, colour_in, depth_in, smoothing, colour_smoothing, camera); break;
-	case 15: mls_aggr_vert_kernel<15><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, centroid_in, centroid_out, colour_in, depth_in, smoothing, colour_smoothing, camera); break;
-	case 20: mls_aggr_vert_kernel<20><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, centroid_in, centroid_out, colour_in, depth_in, smoothing, colour_smoothing, camera); break;
+	case 1: mls_aggr_vert_kernel<1><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, centroid_in.devicePtr(), centroid_in.pixelPitch(), centroid_out, smoothing, colour_smoothing, camera); break;
+	case 2: mls_aggr_vert_kernel<2><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, centroid_in.devicePtr(), centroid_in.pixelPitch(), centroid_out, smoothing, colour_smoothing, camera); break;
+	case 3: mls_aggr_vert_kernel<3><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, centroid_in.devicePtr(), centroid_in.pixelPitch(), centroid_out, smoothing, colour_smoothing, camera); break;
+	case 5: mls_aggr_vert_kernel<5><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, centroid_in.devicePtr(), centroid_in.pixelPitch(), centroid_out, smoothing, colour_smoothing, camera); break;
+	case 10: mls_aggr_vert_kernel<10><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, centroid_in.devicePtr(), centroid_in.pixelPitch(), centroid_out, smoothing, colour_smoothing, camera); break;
+	case 15: mls_aggr_vert_kernel<15><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, centroid_in.devicePtr(), centroid_in.pixelPitch(), centroid_out, smoothing, colour_smoothing, camera); break;
+	case 20: mls_aggr_vert_kernel<20><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, centroid_in.devicePtr(), centroid_in.pixelPitch(), centroid_out, smoothing, colour_smoothing, camera); break;
 	default: return;
 	}
 	cudaSafeCall( cudaGetLastError() );
@@ -623,17 +660,19 @@ void ftl::cuda::mls_aggr_vert(
 }
 
 void ftl::cuda::mls_adjust_depth(
-		ftl::cuda::TextureObject<float4> &normals_in,
+		ftl::cuda::TextureObject<half4> &normals_in,
 		ftl::cuda::TextureObject<float4> &centroid_in,
-		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float> &depth_out,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream) {
 
-	const dim3 gridSize((depth_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	static constexpr int THREADS_X = 32;
+	static constexpr int THREADS_Y = 4;
 
-	mls_adjust_depth_kernel<<<gridSize, blockSize, 0, stream>>>(normals_in, centroid_in, depth_in, depth_out, camera);
+	const dim3 gridSize((depth_out.width() + THREADS_X - 1)/THREADS_X, (depth_out.height() + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	mls_adjust_depth_kernel<<<gridSize, blockSize, 0, stream>>>(normals_in, centroid_in, depth_out, camera);
 	cudaSafeCall( cudaGetLastError() );
 
 
@@ -654,8 +693,8 @@ void ftl::cuda::mls_adjust_depth(
  */
  template <int SEARCH_RADIUS>
  __global__ void adaptive_mls_smooth_kernel(
-		TextureObject<float4> normals_in,
-		TextureObject<float4> normals_out,
+		TextureObject<half4> normals_in,
+		TextureObject<half4> normals_out,
         TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<float> depth_out,   // Accumulated output
 		TextureObject<float> smoothing,
@@ -717,12 +756,12 @@ void ftl::cuda::mls_adjust_depth(
     //    depth_out(screen.x,screen.y) = X.z;
 	//}
 	depth_out(x,y) = X.z;
-	normals_out(x,y) = make_float4(nX / length(nX), 0.0f);
+	normals_out(x,y) = make_half4(nX / length(nX), 0.0f);
 }
 
 void ftl::cuda::adaptive_mls_smooth(
-		ftl::cuda::TextureObject<float4> &normals_in,
-		ftl::cuda::TextureObject<float4> &normals_out,
+		ftl::cuda::TextureObject<half4> &normals_in,
+		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float> &depth_out,
 		ftl::cuda::TextureObject<float> &smoothing,

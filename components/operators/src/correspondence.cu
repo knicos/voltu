@@ -346,8 +346,8 @@ __device__ inline int unpackCameraID(short2 p) {
  * Identify which source has the best support region for a given pixel.
  */
 __global__ void best_sources_kernel(
-        TextureObject<float4> normals1,
-        TextureObject<float4> normals2,
+        TextureObject<half4> normals1,
+        TextureObject<half4> normals2,
         TextureObject<uchar4> support1,
         TextureObject<uchar4> support2,
         TextureObject<float> depth1,
@@ -414,8 +414,8 @@ __global__ void best_sources_kernel(
 }
 
 void ftl::cuda::best_sources(
-        ftl::cuda::TextureObject<float4> &normals1,
-        ftl::cuda::TextureObject<float4> &normals2,
+        ftl::cuda::TextureObject<half4> &normals1,
+        ftl::cuda::TextureObject<half4> &normals2,
         ftl::cuda::TextureObject<uchar4> &support1,
         ftl::cuda::TextureObject<uchar4> &support2,
         ftl::cuda::TextureObject<float> &depth1,
@@ -439,8 +439,8 @@ void ftl::cuda::best_sources(
  * Identify which source has the best support region for a given pixel.
  */
  __global__ void aggregate_sources_kernel(
-		TextureObject<float4> n1,
-		TextureObject<float4> n2,
+		TextureObject<half4> n1,
+		TextureObject<half4> n2,
 		TextureObject<float4> c1,
 		TextureObject<float4> c2,
 		TextureObject<float> depth1,
@@ -475,7 +475,7 @@ void ftl::cuda::best_sources(
 				if (cent2.x+cent2.y+cent2.z > 0.0f && norm2.x+norm2.y+norm2.z > 0.0f && length(cent2-cent1) < 0.04f) {
 					norm1 += norm2;
 					norm1 /= 2.0f;
-					n1(x,y) = make_float4(norm1, 0.0f);
+					n1(x,y) = make_half4(norm1, 0.0f);
 					cent1 += cent2;
 					cent1 /= 2.0f;
 					c1(x,y) = make_float4(cent1, 0.0f);
@@ -490,8 +490,8 @@ void ftl::cuda::best_sources(
 }
 
 void ftl::cuda::aggregate_sources(
-		ftl::cuda::TextureObject<float4> &n1,
-		ftl::cuda::TextureObject<float4> &n2,
+		ftl::cuda::TextureObject<half4> &n1,
+		ftl::cuda::TextureObject<half4> &n2,
 		ftl::cuda::TextureObject<float4> &c1,
 		ftl::cuda::TextureObject<float4> &c2,
 		ftl::cuda::TextureObject<float> &depth1,
@@ -608,7 +608,7 @@ void ftl::cuda::vis_best_sources(
 // ==== Normalise aggregations =================================================
 
 __global__ void normalise_aggregations_kernel(
-        TextureObject<float4> norms,
+        TextureObject<half4> norms,
         TextureObject<float4> cents,
         TextureObject<float> contribs) {
 
@@ -618,20 +618,20 @@ __global__ void normalise_aggregations_kernel(
     if (x < norms.width() && y < norms.height()) {
         const float contrib = contribs.tex2D((int)x,(int)y);
 
-        const auto a = norms.tex2D((int)x,(int)y);
+        const auto a = make_float3(norms.tex2D((int)x,(int)y));
         const auto b = cents.tex2D(x,y);
         //const float4 normal = normals.tex2D((int)x,(int)y);
 
 		//out(x,y) = (contrib == 0.0f) ? make<B>(a) : make<B>(a / contrib);
 
         if (contrib > 0.0f) {
-            norms(x,y) = a / (contrib+1.0f);
+            norms(x,y) = make_half4(a / (contrib+1.0f), 1.0f);
             cents(x,y) = b / (contrib+1.0f);
         }
     }
 }
 
-void ftl::cuda::normalise_aggregations(TextureObject<float4> &norms, TextureObject<float4> &cents, TextureObject<float> &contribs, cudaStream_t stream) {
+void ftl::cuda::normalise_aggregations(TextureObject<half4> &norms, TextureObject<float4> &cents, TextureObject<float> &contribs, cudaStream_t stream) {
     const dim3 gridSize((norms.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (norms.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 

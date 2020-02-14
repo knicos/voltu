@@ -52,7 +52,7 @@ class SmoothNormals : public ftl::operators::Operator {
     bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
-	ftl::cuda::TextureObject<float4> temp_;
+	ftl::cuda::TextureObject<half4> temp_;
 
 };
 
