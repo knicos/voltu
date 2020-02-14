@@ -86,7 +86,7 @@ if (WITH_FIXSTARS)
 	endif()
 endif()
 
-if(${CMAKE_VERSION} VERSION_GREATER "3.12.0") 
+if(${CMAKE_VERSION} VERSION_GREATER "3.12.0")
 	cmake_policy(SET CMP0074 NEW)
 endif()
 
@@ -111,13 +111,13 @@ if (REALSENSE_LIBRARY)
 	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
 	set_property(TARGET realsense PROPERTY IMPORTED_LOCATION ${REALSENSE_LIBRARY})
 	message(STATUS "Found Realsense SDK: ${REALSENSE_LIBRARY}")
-	
+
 	if(WIN32)
 		# Find include
 		find_path(REALSENSE_INCLUDE_DIRS
-		    NAMES librealsense2/rs.hpp
-		    PATHS "C:/Program Files/Intel RealSense SDK 2.0" "C:/Program Files (x86)/Intel RealSense SDK 2.0" ${REALSENSE_DIR}
-		    PATH_SUFFIXES include
+			NAMES librealsense2/rs.hpp
+			PATHS "C:/Program Files/Intel RealSense SDK 2.0" "C:/Program Files (x86)/Intel RealSense SDK 2.0" ${REALSENSE_DIR}
+			PATH_SUFFIXES include
 		)
 		set_property(TARGET realsense PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${REALSENSE_INCLUDE_DIRS})
 	endif()
@@ -149,13 +149,13 @@ if (NVPIPE_LIBRARY)
 	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
 	set_property(TARGET nvpipe PROPERTY IMPORTED_LOCATION ${NVPIPE_LIBRARY})
 	message(STATUS "Found NvPipe: ${NVPIPE_LIBRARY}")
-	
+
 	if(WIN32)
 		# Find include
 		find_path(NVPIPE_INCLUDE_DIRS
-		    NAMES NvPipe.h
-		    PATHS "C:/Program Files/NvPipe" "C:/Program Files (x86)/NvPipe" ${NVPIPE_DIR}
-		    PATH_SUFFIXES include
+			NAMES NvPipe.h
+			PATHS "C:/Program Files/NvPipe" "C:/Program Files (x86)/NvPipe" ${NVPIPE_DIR}
+			PATH_SUFFIXES include
 		)
 		set_property(TARGET nvpipe PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NVPIPE_INCLUDE_DIRS})
 	endif()
@@ -172,13 +172,13 @@ if (PORTAUDIO_LIBRARY)
 	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
 	set_property(TARGET portaudio PROPERTY IMPORTED_LOCATION ${PORTAUDIO_LIBRARY})
 	message(STATUS "Found Portaudio: ${PORTAUDIO_LIBRARY}")
-	
+
 	if(WIN32)
 		# Find include
 		find_path(PORTAUDIO_INCLUDE_DIRS
-		    NAMES portaudio.h
-		    PATHS "C:/Program Files/Portaudio" "C:/Program Files (x86)/Portaudio" ${PORTAUDIO_DIR}
-		    PATH_SUFFIXES include
+			NAMES portaudio.h
+			PATHS "C:/Program Files/Portaudio" "C:/Program Files (x86)/Portaudio" ${PORTAUDIO_DIR}
+			PATH_SUFFIXES include
 		)
 		set_property(TARGET portaudio PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${PORTAUDIO_INCLUDE_DIRS})
 	endif()
@@ -204,8 +204,8 @@ include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
 # Some kind of fix for nvcc and -pthread problem on Linux
 set_property(TARGET Threads::Threads
-                 PROPERTY INTERFACE_COMPILE_OPTIONS $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler -pthread>
-                                                    "$<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-pthread>")
+				 PROPERTY INTERFACE_COMPILE_OPTIONS $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler -pthread>
+													"$<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-pthread>")
 
 endif ()
 
@@ -219,9 +219,9 @@ else()
 	if(WIN32)
 		# Find include
 		find_path(MSGPACK_INCLUDE_DIRS
-		    NAMES msgpack.hpp
-		    PATHS "C:/Program Files/msgpack" "C:/Program Files (x86)/msgpack"
-		    PATH_SUFFIXES include
+			NAMES msgpack.hpp
+			PATHS "C:/Program Files/msgpack" "C:/Program Files (x86)/msgpack"
+			PATH_SUFFIXES include
 		)
 	endif()
 	# TODO(nick) Create imported target.
@@ -324,7 +324,8 @@ if (BUILD_VISION)
 endif()
 
 if (BUILD_CALIBRATION)
-	find_package( cvsba REQUIRED )
+	find_package(Ceres REQUIRED)
+	add_subdirectory(applications/calibration-ceres)
 	add_subdirectory(applications/calibration-multi)
 endif()
 
@@ -339,11 +340,11 @@ endif()
 ### Generate Build Configuration Files =========================================
 
 configure_file(${CMAKE_SOURCE_DIR}/components/common/cpp/include/ftl/config.h.in
-               ${CMAKE_SOURCE_DIR}/components/common/cpp/include/ftl/config.h
+			   ${CMAKE_SOURCE_DIR}/components/common/cpp/include/ftl/config.h
 )
 
 configure_file(${CMAKE_SOURCE_DIR}/components/common/cpp/src/config.cpp.in
-               ${CMAKE_SOURCE_DIR}/components/common/cpp/src/config.cpp
+			   ${CMAKE_SOURCE_DIR}/components/common/cpp/src/config.cpp
 )
 
 # For issue #17

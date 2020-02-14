@@ -5,15 +5,10 @@ set(RGBDSRC
 	src/frame.cpp
 	src/frameset.cpp
 	src/sources/stereovideo/stereovideo.cpp
-	#src/sources/net/net.cpp
-	#src/streamer.cpp
 	#src/colour.cpp
 	src/group.cpp
 	src/cb_segmentation.cpp
 	#src/abr.cpp
-	#src/sources/virtual/virtual.cpp
-	#src/sources/ftlfile/file_source.cpp
-	#src/sources/ftlfile/player.cpp
 	src/sources/screencapture/screencapture.cpp
 	src/camera.cpp
 )

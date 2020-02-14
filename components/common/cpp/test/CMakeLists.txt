@@ -40,3 +40,12 @@ add_test(ConfigurableUnitTest configurable_unit)
 add_test(URIUnitTest uri_unit)
 add_test(MsgpackUnitTest msgpack_unit)
 # add_test(TimerUnitTest timer_unit) CI server can't achieve this
+
+### Calibration ################################################################
+add_executable(calibration_common_unit
+	$<TARGET_OBJECTS:CatchTest>
+	./calibration_common_unit.cpp
+)
+target_include_directories(calibration_common_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(calibration_common_unit ftlcommon Threads::Threads ${OS_LIBS} ${OpenCV_LIBS})
+add_test(CalibrationCommonTest calibration_common_unit)

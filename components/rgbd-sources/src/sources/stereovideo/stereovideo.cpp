@@ -268,18 +268,20 @@ bool StereoVideoSource::retrieve() {
 	frame.reset();
 	frame.setOrigin(&state_);
 
-	cv::cuda::GpuMat dummy;
-	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : dummy;
+	cv::cuda::GpuMat gpu_dummy;
+	cv::Mat dummy;
+	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : gpu_dummy;
+	auto &hres_r = (lsrc_->hasHigherRes()) ? frame.create<cv::Mat>(Channel::RightHighRes) : dummy;
 
 	if (lsrc_->isStereo()) {
 		cv::cuda::GpuMat &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
 		cv::cuda::GpuMat &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
-		lsrc_->get(left, right, hres, calib_, stream2_);
+		lsrc_->get(left, right, hres, hres_r, calib_, stream2_);
 	}
 	else {
 		cv::cuda::GpuMat &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
 		cv::cuda::GpuMat right;
-		lsrc_->get(left, right, hres, calib_, stream2_);
+		lsrc_->get(left, right, hres, hres_r, calib_, stream2_);
 	}
 
 	//LOG(INFO) << "Channel size: " << hres.size();

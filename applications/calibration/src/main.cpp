@@ -16,15 +16,7 @@ int main(int argc, char **argv) {
 	// Process Arguments
 	auto options = ftl::config::read_options(&argv, &argc);
 
-	if (options.find("intrinsic") != options.end()) {
-		ftl::calibration::intrinsic(options);
-	} else if (options.find("stereo") != options.end()) {
-		ftl::calibration::stereo(options);
-	} else if (options.find("align") != options.end()) {
-		ftl::calibration::align(options);
-	} else {
-		LOG(ERROR) << "Must have one of: --intrinsic --stereo or --align";
-	}
+	ftl::calibration::intrinsic(options);
 
 	return 0;
 }

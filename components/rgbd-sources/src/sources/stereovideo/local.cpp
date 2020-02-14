@@ -116,7 +116,9 @@ bool LocalSource::grab() {
 	return true;
 }
 
-bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda::GpuMat &hres_out, Calibrate *c, cv::cuda::Stream &stream) {
+bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
+	cv::cuda::GpuMat &l_hres_out, cv::Mat &r_hres_out, Calibrate *c, cv::cuda::Stream &stream) {
+	
 	Mat l, r ,hres;
 
 	// Use page locked memory
@@ -131,7 +133,7 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 
 	std::future<bool> future_b;
 	if (camera_b_) {
-		future_b = std::move(ftl::pool.push([this,&rfull,&r,c,&r_out,&stream](int id) {
+		future_b = std::move(ftl::pool.push([this,&rfull,&r,c,&r_out,&r_hres_out,&stream](int id) {
 			if (!camera_b_->retrieve(frame_r_)) {
 				LOG(ERROR) << "Unable to read frame from camera B";
 				return false;
@@ -145,6 +147,10 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 				if (hasHigherRes()) {
 					// TODO: Use threads?
 					cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
+					r_hres_out = rfull;
+				}
+				else {
+					r_hres_out = Mat();
 				}
 			}
 
@@ -189,9 +195,9 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 	if (hasHigherRes()) {
 		//FTL_Profile("Frame Resize", 0.01);
 		cv::resize(lfull, l, l.size(), 0.0, 0.0, cv::INTER_CUBIC);
-		hres_out.upload(hres, stream);
+		l_hres_out.upload(hres, stream);
 	} else {
-		hres_out = cv::cuda::GpuMat();
+		l_hres_out = cv::cuda::GpuMat();
 	}
 
 	{

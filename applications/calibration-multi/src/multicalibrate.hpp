@@ -69,6 +69,8 @@ public:
 	void projectPointsOriginal(size_t camera_src, size_t camera_dst, size_t idx, vector<Point2d> &points);
 	void projectPointsOptimized(size_t camera_dst, size_t idx, vector<Point2d> &points);
 
+	std::vector<cv::Point3d> object_points_;
+
 protected:
 	bool isVisible(size_t camera, size_t idx);
 	bool isValid(size_t camera, size_t idx);
@@ -127,6 +129,7 @@ protected:
 	/* @brief	Remove old calibration data calculated by calibrateAll */
 	void reset();
 
+	
 private:
 	CalibrationTarget target_;
 	Visibility visibility_graph_; 
