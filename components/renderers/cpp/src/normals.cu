@@ -4,7 +4,7 @@
 #define T_PER_BLOCK 16
 #define MINF __int_as_float(0xff800000)
 
-__global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
+/*__global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
         ftl::cuda::TextureObject<float4> input) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -29,13 +29,13 @@ __global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
 			}
 		}
 	}
-}
+}*/
 
 __device__ inline bool isValid(const ftl::rgbd::Camera &camera, const float3 &d) {
 	return d.z >= camera.minDepth && d.z <= camera.maxDepth;
 }
 
-__global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
+/*__global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
 		ftl::cuda::TextureObject<int> input, ftl::rgbd::Camera camera, float3x3 pose) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -61,16 +61,16 @@ __global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
 			}
 		}
 	}
-}
+}*/
 
-__global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
+__global__ void computeNormals_kernel(ftl::cuda::TextureObject<half4> output,
         ftl::cuda::TextureObject<float> input, ftl::rgbd::Camera camera) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if(x >= input.width() || y >= input.height()) return;
 
-    output(x,y) = make_float4(0, 0, 0, 0);
+    output(x,y) = make_half4(0, 0, 0, 0);
 
     if(x > 0 && x < input.width()-1 && y > 0 && y < input.height()-1) {
         const float3 CC = camera.screenToCam(x+0, y+0, input.tex2D((int)x+0, (int)y+0));
@@ -85,13 +85,13 @@ __global__ void computeNormals_kernel(ftl::cuda::TextureObject<float4> output,
             const float  l = length(n);
 
             if(l > 0.0f) {
-                output(x,y) = make_float4((n/-l), 1.0f);
+                output(x,y) = make_half4((n/-l), 1.0f);
             }
         }
     }
 }
 
-template <int RADIUS>
+/*template <int RADIUS>
 __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
         ftl::cuda::TextureObject<float4> output,
         ftl::cuda::TextureObject<float4> points,
@@ -134,9 +134,9 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
     nsum /= length(nsum);
 
     output(x,y) = (contrib > 0.0f) ? make_float4(nsum, dot(nsum, ray)) : make_float4(0.0f);
-}
+}*/
 
-template <int RADIUS>
+/*template <int RADIUS>
 __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
         ftl::cuda::TextureObject<float4> output,
         ftl::cuda::TextureObject<int> depth,
@@ -179,9 +179,9 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
     nsum /= length(nsum);
 
     output(x,y) = (contrib > 0.0f) ? make_float4(pose*nsum, 1.0f) : make_float4(0.0f);
-}
+}*/
 
-template <>
+/*template <>
 __global__ void smooth_normals_kernel<0>(ftl::cuda::TextureObject<float4> norms,
         ftl::cuda::TextureObject<float4> output,
         ftl::cuda::TextureObject<int> depth,
@@ -206,11 +206,11 @@ __global__ void smooth_normals_kernel<0>(ftl::cuda::TextureObject<float4> norms,
 
     const float4 n = norms.tex2D((int)x,(int)y);
     output(x,y) = n;
-}
+}*/
 
 template <int RADIUS>
-__global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
-        ftl::cuda::TextureObject<float4> output,
+__global__ void smooth_normals_kernel(ftl::cuda::TextureObject<half4> norms,
+        ftl::cuda::TextureObject<half4> output,
         ftl::cuda::TextureObject<float> depth,
         ftl::rgbd::Camera camera, float3x3 pose, float smoothing) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -222,7 +222,7 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
     float3 nsum = make_float3(0.0f);
     float contrib = 0.0f;
 
-    output(x,y) = make_float4(0.0f,0.0f,0.0f,0.0f);
+    output(x,y) = make_half4(0.0f,0.0f,0.0f,0.0f);
 
     if (p0.z < camera.minDepth || p0.z > camera.maxDepth) return;
 
@@ -234,7 +234,7 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
             //const float s = 1.0f;
 
             //if (s > 0.0f) {
-                const float4 n = norms.tex2D((int)x+u,(int)y+v);
+                const float4 n = make_float4(norms.tex2D((int)x+u,(int)y+v));
                 if (n.w > 0.0f) {
                     nsum += make_float3(n) * s;
                     contrib += s;
@@ -250,10 +250,10 @@ __global__ void smooth_normals_kernel(ftl::cuda::TextureObject<float4> norms,
     nsum /= contrib;
     nsum /= length(nsum);
 
-    output(x,y) = (contrib > 0.0f) ? make_float4(pose*nsum, 1.0f) : make_float4(0.0f);
+    output(x,y) = (contrib > 0.0f) ? make_half4(pose*nsum, 1.0f) : make_half4(0.0f);
 }
 
-void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
+/*void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
         ftl::cuda::TextureObject<float4> &temp,
 		ftl::cuda::TextureObject<float4> &input,
 		int radius,
@@ -309,10 +309,10 @@ void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
 	cudaSafeCall(cudaDeviceSynchronize());
 	//cutilCheckMsg(__FUNCTION__);
 	#endif
-}
+}*/
 
-void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
-		ftl::cuda::TextureObject<float4> &temp,
+void ftl::cuda::normals(ftl::cuda::TextureObject<half4> &output,
+		ftl::cuda::TextureObject<half4> &temp,
 		ftl::cuda::TextureObject<float> &input,
 		int radius,
 		float smoothing,
@@ -339,7 +339,7 @@ void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
 	#endif
 }
 
-void ftl::cuda::normals(ftl::cuda::TextureObject<float4> &output,
+void ftl::cuda::normals(ftl::cuda::TextureObject<half4> &output,
         ftl::cuda::TextureObject<float> &input,
         const ftl::rgbd::Camera &camera,
         cudaStream_t stream) {
@@ -409,7 +409,7 @@ void ftl::cuda::normals_dot(ftl::cuda::TextureObject<float> &output,
 
 //==============================================================================
 
-__global__ void vis_normals_kernel(ftl::cuda::TextureObject<float4> norm,
+__global__ void vis_normals_kernel(ftl::cuda::TextureObject<half4> norm,
         ftl::cuda::TextureObject<uchar4> output,
         float3 direction, uchar4 diffuse, uchar4 ambient) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -432,7 +432,7 @@ __global__ void vis_normals_kernel(ftl::cuda::TextureObject<float4> norm,
 		min(255.0f, diffuse.z*d + ambient.z), 255);
 }
 
-void ftl::cuda::normal_visualise(ftl::cuda::TextureObject<float4> &norm,
+void ftl::cuda::normal_visualise(ftl::cuda::TextureObject<half4> &norm,
         ftl::cuda::TextureObject<uchar4> &output,
         const float3 &light, const uchar4 &diffuse, const uchar4 &ambient,
         cudaStream_t stream) {
@@ -451,7 +451,7 @@ void ftl::cuda::normal_visualise(ftl::cuda::TextureObject<float4> &norm,
 
 //==============================================================================
 
-__global__ void cool_blue_kernel(ftl::cuda::TextureObject<float4> norm,
+__global__ void cool_blue_kernel(ftl::cuda::TextureObject<half4> norm,
         ftl::cuda::TextureObject<uchar4> output,
         uchar4 colouring, float3x3 pose) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -476,7 +476,7 @@ __global__ void cool_blue_kernel(ftl::cuda::TextureObject<float4> norm,
         min(255.0f, colouring.z*d + original.z), 255);
 }
 
-void ftl::cuda::cool_blue(ftl::cuda::TextureObject<float4> &norm,
+void ftl::cuda::cool_blue(ftl::cuda::TextureObject<half4> &norm,
         ftl::cuda::TextureObject<uchar4> &output,
         const uchar4 &colouring, const float3x3 &pose,
         cudaStream_t stream) {
@@ -495,7 +495,7 @@ void ftl::cuda::cool_blue(ftl::cuda::TextureObject<float4> &norm,
 
 //==============================================================================
 
-__global__ void filter_normals_kernel(ftl::cuda::TextureObject<float4> norm,
+/*__global__ void filter_normals_kernel(ftl::cuda::TextureObject<float4> norm,
         ftl::cuda::TextureObject<float4> output,
         ftl::rgbd::Camera camera, float4x4 pose, float thresh) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -535,11 +535,11 @@ void ftl::cuda::normal_filter(ftl::cuda::TextureObject<float4> &norm,
     cudaSafeCall(cudaDeviceSynchronize());
     //cutilCheckMsg(__FUNCTION__);
     #endif
-}
+}*/
 
 //==============================================================================
 
-__global__ void transform_normals_kernel(ftl::cuda::TextureObject<float4> norm,
+__global__ void transform_normals_kernel(ftl::cuda::TextureObject<half4> norm,
         float3x3 pose) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -548,10 +548,10 @@ __global__ void transform_normals_kernel(ftl::cuda::TextureObject<float4> norm,
 
     float3 normal = pose * make_float3(norm.tex2D((int)x,(int)y));
     normal /= length(normal);
-    norm(x,y) = make_float4(normal, 0.0f);
+    norm(x,y) = make_half4(normal, 0.0f);
 }
 
-void ftl::cuda::transform_normals(ftl::cuda::TextureObject<float4> &norm,
+void ftl::cuda::transform_normals(ftl::cuda::TextureObject<half4> &norm,
         const float3x3 &pose,
         cudaStream_t stream) {
 

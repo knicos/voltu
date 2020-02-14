@@ -123,7 +123,7 @@ class AggreMLS : public ftl::operators::Operator {
 	private:
 	ftl::cuda::TextureObject<float4> centroid_horiz_;
 	ftl::cuda::TextureObject<float4> centroid_vert_;
-	ftl::cuda::TextureObject<float4> normals_horiz_;
+	ftl::cuda::TextureObject<half4> normals_horiz_;
 
 	ftl::rgbd::Frame temp_;
 };

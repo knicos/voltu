@@ -48,7 +48,7 @@ namespace cuda {
 		float alpha,
 		cudaStream_t stream);
 	
-	void dibr_merge(
+	/*void dibr_merge(
 		ftl::cuda::TextureObject<float4> &points,
 		ftl::cuda::TextureObject<float4> &normals,
 		ftl::cuda::TextureObject<int> &depth,
@@ -60,7 +60,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float4> &points,
 		ftl::cuda::TextureObject<int> &depth,
 		ftl::render::Parameters params,
-		cudaStream_t stream);
+		cudaStream_t stream);*/
 
 	void dibr_merge(
 		ftl::cuda::TextureObject<float> &depth,
@@ -77,15 +77,15 @@ namespace cuda {
 		ftl::render::Parameters params,
 		cudaStream_t stream);
 
-	template <typename T>
+	/*template <typename T>
 	void splat(
-        ftl::cuda::TextureObject<float4> &normals,
+        ftl::cuda::TextureObject<half4> &normals,
 		ftl::cuda::TextureObject<float> &density,
 		ftl::cuda::TextureObject<T> &colour_in,
         ftl::cuda::TextureObject<int> &depth_in,        // Virtual depth map
         ftl::cuda::TextureObject<float> &depth_out,
 		ftl::cuda::TextureObject<T> &colour_out,
-        const ftl::render::Parameters &params, cudaStream_t stream);
+        const ftl::render::Parameters &params, cudaStream_t stream);*/
 
 	template <typename A, typename B>
 	void dibr_attribute(
@@ -102,7 +102,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<float> &depth_src,		// Original 3D points
 		ftl::cuda::TextureObject<float> &depth_in,		// Virtual depth map
 		ftl::cuda::TextureObject<short> &weights,
-		ftl::cuda::TextureObject<float4> *normals,
+		ftl::cuda::TextureObject<half4> *normals,
 		ftl::cuda::TextureObject<B> &out,	// Accumulated output
 		ftl::cuda::TextureObject<int> &contrib,
 		const ftl::render::Parameters &params,

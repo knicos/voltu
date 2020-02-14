@@ -423,14 +423,14 @@ void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
 	} else if (channel_ == Channel::ColourNormals && frame->hasChannel(Channel::Depth)) {
 		// We can calculate normals here.
 		ftl::cuda::normals(
-			frame->createTexture<float4>(Channel::Normals, ftl::rgbd::Format<float4>(frame->get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			frame->createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(frame->get<cv::cuda::GpuMat>(Channel::Depth).size())),
 			frame->createTexture<float>(Channel::Depth),
 			frame->getLeftCamera(), 0
 		);
 
 		frame->create<GpuMat>(Channel::ColourNormals, ftl::rgbd::Format<uchar4>(frame->get<cv::cuda::GpuMat>(Channel::Depth).size())).setTo(cv::Scalar(0,0,0,0), cv::cuda::Stream::Null());
 
-		ftl::cuda::normal_visualise(frame->getTexture<float4>(Channel::Normals), frame->createTexture<uchar4>(Channel::ColourNormals),
+		ftl::cuda::normal_visualise(frame->getTexture<half4>(Channel::Normals), frame->createTexture<uchar4>(Channel::ColourNormals),
 				make_float3(0.3f,0.3f,0.3f),
 				make_uchar4(200,200,200,255),
 				make_uchar4(50,50,50,255), 0);

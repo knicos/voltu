@@ -199,7 +199,7 @@ void CUDARender::__reprojectChannel(ftl::rgbd::Frame &output, ftl::codecs::Chann
 					f.createTexture<float>(Channel::Depth),
 					output.getTexture<float>(Channel::Depth),
 					f.createTexture<short>(Channel::Weights),
-					(output.hasChannel(Channel::Normals)) ? &output.createTexture<float4>(Channel::Normals) : nullptr,
+					(output.hasChannel(Channel::Normals)) ? &output.createTexture<half4>(Channel::Normals) : nullptr,
 					temp_.createTexture<typename AccumSelector<T>::type>(AccumSelector<T>::channel),
 					temp_.getTexture<int>(Channel::Contribution),
 					params_,
@@ -394,8 +394,8 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 	//filters_->filter(out, src, stream);
 
 	// Generate normals for final virtual image
-	ftl::cuda::normals(out.createTexture<float4>(Channel::Normals, Format<float4>(params_.camera.width, params_.camera.height)),
-				temp_.createTexture<float4>(Channel::Normals),
+	ftl::cuda::normals(out.createTexture<half4>(Channel::Normals, Format<half4>(params_.camera.width, params_.camera.height)),
+				temp_.createTexture<half4>(Channel::Normals),
 				out.createTexture<float>(Channel::Depth),
 				value("normal_radius", 1), value("normal_smoothing", 0.02f),
 				params_.camera, pose_.getFloat3x3(), poseInverse_.getFloat3x3(), stream_);
@@ -495,7 +495,7 @@ void CUDARender::_allocateChannels(ftl::rgbd::Frame &out) {
 	temp_.create<GpuMat>(Channel::Contribution, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Normals, Format<float4>(camera.width, camera.height));
+	temp_.create<GpuMat>(Channel::Normals, Format<half4>(camera.width, camera.height));
 	temp_.create<GpuMat>(Channel::Weights, Format<float>(camera.width, camera.height));
 	temp_.createTexture<int>(Channel::Depth);
 }
@@ -558,7 +558,7 @@ void CUDARender::_postprocessColours(ftl::rgbd::Frame &out) {
 		auto col = parseCUDAColour(value("cool_effect_colour", std::string("#2222ff")));
 
 		ftl::cuda::cool_blue(
-			out.getTexture<float4>(Channel::Normals),
+			out.getTexture<half4>(Channel::Normals),
 			out.getTexture<uchar4>(Channel::Colour),
 			col, pose,
 			stream_	
@@ -599,7 +599,7 @@ void CUDARender::_renderNormals(ftl::rgbd::Frame &out) {
 	// Visualise normals to RGBA
 	out.create<GpuMat>(Channel::ColourNormals, Format<uchar4>(params_.camera.width, params_.camera.height)).setTo(cv::Scalar(0,0,0,0), cvstream);
 
-	ftl::cuda::normal_visualise(out.getTexture<float4>(Channel::Normals), out.createTexture<uchar4>(Channel::ColourNormals),
+	ftl::cuda::normal_visualise(out.getTexture<half4>(Channel::Normals), out.createTexture<uchar4>(Channel::ColourNormals),
 			light_pos_,
 			light_diffuse_,
 			light_ambient_, stream_);

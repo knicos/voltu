@@ -27,7 +27,7 @@ bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t st
 	}
 
 	ftl::cuda::normals(
-		out.createTexture<float4>(Channel::Normals, ftl::rgbd::Format<float4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+		out.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 		in.createTexture<float>(Channel::Depth),
 		in.getLeftCamera(), stream
 	);
@@ -93,7 +93,7 @@ bool SmoothNormals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
 	temp_.create(depth.size());
 
     ftl::cuda::normals(
-		out.createTexture<float4>(Channel::Normals, Format<float4>(depth.size())),
+		out.createTexture<half4>(Channel::Normals, Format<half4>(depth.size())),
 		temp_,
 		in.createTexture<float>(Channel::Depth),
 		radius, smoothing,

@@ -45,6 +45,17 @@ __device__ inline float colourDistance(uchar4 a, uchar4 b) {
 }
 
 /*
+ * Alternative colour distance measure
+ */
+ __device__ inline float colourWeighting2(uchar4 a, uchar4 b, float h) {
+	const float c = float(max(abs(int(a.x)-int(b.x)), max(abs(int(a.y)-int(b.y)), abs(int(a.z)-int(b.z)))));
+	if (c >= h) return 0.0f;
+	float ch = c / h;
+	ch = 1.0f - ch*ch;
+	return ch*ch*ch*ch;
+}
+
+/*
  * Colour weighting as suggested in:
  * C. Kuster et al. Spatio-Temporal Geometry Fusion for Multiple Hybrid Cameras using Moving Least Squares Surfaces. 2014.
  * c = colour distance
@@ -69,6 +80,11 @@ __device__ inline float colourDistance(uchar4 a, uchar4 b) {
 	float ch = c / h;
 	ch = 1.0f - ch*ch;
 	return ch*ch*ch*ch;
+}
+
+ __device__ inline float simpleColourWeighting(uchar4 a, uchar4 b, float h) {
+	const float w = max(fabsf(float(a.x)-float(b.x)), max(fabsf(float(a.y)-float(b.y)), fabsf(float(a.z)-float(b.z))));
+	return 1.0f - min(1.0f, w/h);
 }
 
 }
