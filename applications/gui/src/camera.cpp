@@ -540,7 +540,7 @@ void ftl::gui::Camera::keyMovement(int key, int modifiers) {
 		float scalar = (key == 266) ? -mag : mag;
 		neye_ += rotmat_*Eigen::Vector4d(0.0,scalar,0.0,1.0);
 		return;
-	} else if (key >= '0' && key <= '5') {
+	} else if (key >= '0' && key <= '5' && modifiers == 2) {  // Ctrl+NUMBER
 		int ix = key - (int)('0');
 		transform_ix_ = ix-1;
 		return;

@@ -73,6 +73,7 @@ void cull_mask(
 		ftl::cuda::TextureObject<ftl::cuda::Mask::type> &mask,
 		ftl::cuda::TextureObject<float> &depth,
 		ftl::cuda::Mask::type id,
+		bool invert,
 		unsigned int radius,
 		cudaStream_t stream);
 

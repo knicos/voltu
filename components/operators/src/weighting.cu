@@ -14,6 +14,7 @@ __device__ inline float square(float v) { return v*v; }
 __global__ void pixel_weight_kernel(
 		ftl::cuda::TextureObject<short> weight_out,
 		ftl::cuda::TextureObject<uint8_t> mask_out,
+		ftl::cuda::TextureObject<half4> normals_out,
 		ftl::cuda::TextureObject<uchar4> support,
 		ftl::cuda::TextureObject<float> depth, 
 		ftl::rgbd::Camera camera,
@@ -63,6 +64,7 @@ __global__ void pixel_weight_kernel(
 
 					if(l > 0.0f) {
 						n = n / -l;
+						if (normals_out.isValid()) normals_out(x,y) = make_half4(n, 0.0f);
 						float3 ray = camera.screenToCam(x, y, d);
 						ray = ray / length(ray);
 						weight *= min(1.0f, 1.4*dot(ray,n));
@@ -115,7 +117,28 @@ void ftl::cuda::pixel_weighting(
 	const dim3 gridSize((size.width + T_PER_BLOCK - 1)/T_PER_BLOCK, (size.height + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	pixel_weight_kernel<<<gridSize, blockSize, 0, stream>>>(weight_out, mask_out, support, depth, camera, size, params);
+	pixel_weight_kernel<<<gridSize, blockSize, 0, stream>>>(weight_out, mask_out, ftl::cuda::TextureObject<half4>(), support, depth, camera, size, params);
+	cudaSafeCall( cudaGetLastError() );
+
+	#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+	#endif
+}
+
+void ftl::cuda::pixel_weighting(
+		ftl::cuda::TextureObject<short> &weight_out,
+		ftl::cuda::TextureObject<ftl::cuda::Mask::type> &mask_out,
+		ftl::cuda::TextureObject<half4> &normals_out,
+		ftl::cuda::TextureObject<uchar4> &support,
+		ftl::cuda::TextureObject<float> &depth,
+		const ftl::rgbd::Camera &camera,
+		const cv::Size size, const ftl::cuda::PixelWeightingParameters &params,
+		cudaStream_t stream) {
+
+	const dim3 gridSize((size.width + T_PER_BLOCK - 1)/T_PER_BLOCK, (size.height + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	pixel_weight_kernel<<<gridSize, blockSize, 0, stream>>>(weight_out, mask_out, normals_out, support, depth, camera, size, params);
 	cudaSafeCall( cudaGetLastError() );
 
 	#ifdef _DEBUG

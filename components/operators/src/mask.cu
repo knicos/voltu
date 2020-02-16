@@ -68,7 +68,7 @@ void ftl::cuda::discontinuity(	ftl::cuda::TextureObject<uint8_t> &mask_out, ftl:
 
 // =============================================================================
 
-template <int RADIUS>
+template <int RADIUS, bool INVERT>
 __global__ void cull_mask_kernel(ftl::cuda::TextureObject<uint8_t> mask, ftl::cuda::TextureObject<float> depth, uint8_t id) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -85,24 +85,36 @@ __global__ void cull_mask_kernel(ftl::cuda::TextureObject<uint8_t> mask, ftl::cu
 		}
 		}
 
-		if (isdiscon) {
+		if ((!INVERT && isdiscon) || (INVERT && !isdiscon)) {
 			depth(x,y) = 0.0f;
 		}
 	}
 }
 
-void ftl::cuda::cull_mask(ftl::cuda::TextureObject<uint8_t> &mask, ftl::cuda::TextureObject<float> &depth, uint8_t id, unsigned int radius, cudaStream_t stream) {
+void ftl::cuda::cull_mask(ftl::cuda::TextureObject<uint8_t> &mask, ftl::cuda::TextureObject<float> &depth, uint8_t id, bool invert, unsigned int radius, cudaStream_t stream) {
 	const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	switch (radius) {
-	case 0	: cull_mask_kernel<0><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
-	case 1	: cull_mask_kernel<1><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
-	case 2	: cull_mask_kernel<2><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
-	case 3	: cull_mask_kernel<3><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
-	case 4	: cull_mask_kernel<4><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
-	case 5	: cull_mask_kernel<5><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
-	default: break;
+	if (invert) {
+		switch (radius) {
+		case 0	: cull_mask_kernel<0,true><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 1	: cull_mask_kernel<1,true><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 2	: cull_mask_kernel<2,true><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 3	: cull_mask_kernel<3,true><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 4	: cull_mask_kernel<4,true><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 5	: cull_mask_kernel<5,true><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		default: break;
+		}
+	} else {
+		switch (radius) {
+		case 0	: cull_mask_kernel<0,false><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 1	: cull_mask_kernel<1,false><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 2	: cull_mask_kernel<2,false><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 3	: cull_mask_kernel<3,false><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 4	: cull_mask_kernel<4,false><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		case 5	: cull_mask_kernel<5,false><<<gridSize, blockSize, 0, stream>>>(mask, depth, id); break;
+		default: break;
+		}
 	}
 	cudaSafeCall( cudaGetLastError() );
 

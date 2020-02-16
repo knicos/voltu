@@ -61,6 +61,8 @@ class TextureObjectBase {
 	__host__ void free();
 
 	inline int cvType() const { return cvType_; }
+
+	__host__ __device__ inline bool isValid() const { return ptr_ != nullptr; }
 	
 	protected:
 	cudaTextureObject_t texobj_;
