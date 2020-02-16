@@ -519,9 +519,7 @@ void CUDARender::_updateParameters(ftl::rgbd::Frame &out) {
 }
 
 void CUDARender::_preprocessColours() {
-	bool show_discon = value("show_discontinuity_mask", false);
-	bool show_noise = value("show_noise_mask", false);
-	bool show_fill = value("show_filled", false);
+	uint8_t show_mask = value("show_mask", 0);
 	bool colour_sources = value("colour_sources", false);
 
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
@@ -536,14 +534,8 @@ void CUDARender::_preprocessColours() {
 		}
 
 		if (f.hasChannel(Channel::Mask)) {
-			if (show_noise) {
-				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<uint8_t>(Channel::Mask), Mask::kMask_Noise, make_uchar4(0,255,0,255), stream_);
-			}
-			if (show_discon) {
-				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<uint8_t>(Channel::Mask), Mask::kMask_Discontinuity, make_uchar4(0,0,255,255), stream_);
-			}
-			if (show_fill) {
-				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<uint8_t>(Channel::Mask), Mask::kMask_Filled, make_uchar4(0,255,0,255), stream_);
+			if (show_mask > 0) {
+				ftl::cuda::show_mask(f.getTexture<uchar4>(Channel::Colour), f.getTexture<uint8_t>(Channel::Mask), show_mask, make_uchar4(255,0,255,255), stream_);
 			}
 		}
 

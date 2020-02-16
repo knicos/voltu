@@ -62,12 +62,14 @@ bool CullDiscontinuity::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 
 	uint8_t maskID = config()->value("mask_id", (unsigned int)ftl::cuda::Mask::kMask_Discontinuity);
 	unsigned int radius = config()->value("radius", 2);
+	bool inverted = config()->value("invert", false);
 	
 	out.clearPackets(Channel::Depth);  // Force reset
 	ftl::cuda::cull_mask(
 		in.createTexture<uint8_t>(Channel::Mask),
 		out.createTexture<float>(Channel::Depth),
 		maskID,
+		inverted,
 		radius,
 		stream
 	);

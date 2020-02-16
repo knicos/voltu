@@ -30,6 +30,7 @@
 #include <ftl/operators/disparity.hpp>
 #include <ftl/operators/detectandtrack.hpp>
 #include <ftl/operators/weighting.hpp>
+#include <ftl/operators/mvmls.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -224,9 +225,10 @@ void SourceWindow::_checkFrameSets(int id) {
 		p->append<ftl::operators::CrossSupport>("cross");
 		p->append<ftl::operators::PixelWeights>("weights");
 		p->append<ftl::operators::CullWeight>("remove_weights")->value("enabled", false);
-		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::DegradeWeight>("degrade");
 		p->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
+		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
+		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 
 		pre_pipelines_.push_back(p);
 		framesets_.push_back(new ftl::rgbd::FrameSet);

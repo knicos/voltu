@@ -19,8 +19,11 @@ set(OPERSRC
 	src/mask.cpp
 	src/antialiasing.cpp
 	src/antialiasing.cu
-	src/mvmls.cpp
-	src/correspondence.cu
+	src/fusion/mvmls.cpp
+	src/fusion/correspondence.cu
+	src/fusion/correspondence_depth.cu
+	src/fusion/correspondence_util.cu
+	src/fusion/mls_aggr.cu
 	src/clipping.cpp
 	src/depth.cpp
 	src/detectandtrack.cpp

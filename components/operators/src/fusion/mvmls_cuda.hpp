@@ -11,13 +11,6 @@ namespace cuda {
 struct MvMLSParams {
     float spatial_smooth;
     float colour_smooth;
-	float fill_match;
-	float fill_threshold;
-	float match_threshold;
-    float cost_ratio;
-    float cost_threshold;
-	float range;
-    uint flags;
 };
 
 void correspondence(
@@ -25,6 +18,17 @@ void correspondence(
         ftl::cuda::TextureObject<float> &d2,
         ftl::cuda::TextureObject<uchar4> &c1,
         ftl::cuda::TextureObject<uchar4> &c2,
+        ftl::cuda::TextureObject<short2> &screen,
+		ftl::cuda::TextureObject<float> &conf,
+		ftl::cuda::TextureObject<uint8_t> &mask,
+        float4x4 &pose,
+        const ftl::rgbd::Camera &cam1,
+        const ftl::rgbd::Camera &cam2, const ftl::cuda::MvMLSParams &params, int func,
+        cudaStream_t stream);
+
+void correspondence(
+        ftl::cuda::TextureObject<float> &d1,
+        ftl::cuda::TextureObject<float> &d2,
         ftl::cuda::TextureObject<short2> &screen,
 		ftl::cuda::TextureObject<float> &conf,
 		ftl::cuda::TextureObject<uint8_t> &mask,
@@ -92,6 +96,17 @@ void normalise_aggregations(
     ftl::cuda::TextureObject<float4> &cents,
     ftl::cuda::TextureObject<float> &contribs,
     cudaStream_t stream);
+
+void show_cor_error(
+	ftl::cuda::TextureObject<uchar4> &colour,
+	ftl::cuda::TextureObject<short2> &screen1,
+	ftl::cuda::TextureObject<short2> &screen2,
+	cudaStream_t stream);
+
+void show_depth_adjustment(
+	ftl::cuda::TextureObject<uchar4> &colour,
+	ftl::cuda::TextureObject<float> &adjust,
+	cudaStream_t stream);
 
 }
 }
