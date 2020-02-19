@@ -8,6 +8,7 @@
 #include "ftl/operators/disparity.hpp"
 #include "ftl/operators/depth.hpp"
 #include "ftl/operators/mask.hpp"
+#include "ftl/operators/opticalflow.hpp"
 
 #include "./disparity/opencv/disparity_bilateral_filter.hpp"
 
@@ -134,16 +135,21 @@ void DepthChannel::_createPipeline() {
 							config()->value("height", 720));
 
 	pipe_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	pipe_->append<ftl::operators::CrossSupport>("cross");
 	#ifdef HAVE_LIBSGM
 	pipe_->append<ftl::operators::FixstarsSGM>("algorithm");
 	#endif
 	#ifdef HAVE_OPTFLOW
-	pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter");
+	pipe_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
+	pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
 	#endif
 	pipe_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
+	//pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
 	pipe_->append<ftl::operators::DisparityToDepth>("calculate_depth");
+	#ifdef HAVE_OPTFLOW
+	//pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Depth);  // FIXME: Has a history so not with multiple sources!
+	#endif
 	pipe_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
-	pipe_->append<ftl::operators::CrossSupport>("cross");
 	pipe_->append<ftl::operators::DiscontinuityMask>("discontinuity_mask");
 	pipe_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
 }
@@ -161,7 +167,7 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 			cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
 			cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
 			cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
-			depth.create(depth_size_, CV_32FC1);
+			depth.create(left.size(), CV_32FC1);
 
 			if (left.empty() || right.empty()) continue;
 

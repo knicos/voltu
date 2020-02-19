@@ -19,7 +19,7 @@ bool ftl::cuda::initialise() {
 	properties.resize(dev_count);
 	for (int i=0; i<dev_count; i++) {
 		cudaSafeCall(cudaGetDeviceProperties(&properties[i], i));
-		LOG(INFO) << " - " << properties[i].name;
+		LOG(INFO) << " - " << properties[i].name << " - compute " << properties[i].major << "." << properties[i].minor;
 	}
 
 	return true;
@@ -29,7 +29,7 @@ bool ftl::cuda::hasCompute(int major, int minor) {
 	int dev = -1;
 	cudaSafeCall(cudaGetDevice(&dev));
 
-	if (dev > 0) {
+	if (dev >= 0) {
 		return properties[dev].major > major ||
 			(properties[dev].major == major && properties[dev].minor >= minor);
 	}
