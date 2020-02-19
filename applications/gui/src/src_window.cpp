@@ -167,7 +167,16 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 	// Request the channels required by current camera configuration
-	if (fromstream) interceptor_->select(fs.id, _aggregateChannels(fs.id));
+	if (fromstream) {
+		auto cs = _aggregateChannels(fs.id);
+
+		auto avail = static_cast<const ftl::stream::Stream*>(interceptor_)->available(fs.id);
+		if (cs.has(Channel::Depth) && !avail.has(Channel::Depth) && avail.has(Channel::Right)) {
+			cs -= Channel::Depth;
+			cs += Channel::Right;
+		}
+		interceptor_->select(fs.id, cs);
+	}
 
 	/*if (fs.id > 0) {
 		LOG(INFO) << "Got frameset: " << fs.id;
@@ -218,6 +227,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 void SourceWindow::_checkFrameSets(int id) {
 	while (framesets_.size() <= id) {
 		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), "pre_filters");
+		p->append<ftl::operators::DepthChannel>("depth");
 		//p->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 		p->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
 		p->append<ftl::operators::ArUco>("aruco")->value("enabled", false);

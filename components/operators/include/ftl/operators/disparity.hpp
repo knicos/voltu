@@ -109,6 +109,7 @@ class DepthChannel : public ftl::operators::Operator {
 class OpticalFlowTemporalSmoothing : public ftl::operators::Operator {
 	public:
 	explicit OpticalFlowTemporalSmoothing(ftl::Configurable*);
+	OpticalFlowTemporalSmoothing(ftl::Configurable*, const std::tuple<ftl::codecs::Channel> &params);
 	~OpticalFlowTemporalSmoothing();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -116,9 +117,10 @@ class OpticalFlowTemporalSmoothing : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
+	void _init(ftl::Configurable* cfg);
 	bool init();
 
-	const ftl::codecs::Channel channel_ = ftl::codecs::Channel::Disparity;
+	ftl::codecs::Channel channel_ = ftl::codecs::Channel::Depth;
 	cv::cuda::GpuMat history_;
 	cv::Size size_;
 	int n_max_;

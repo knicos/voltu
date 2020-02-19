@@ -11,7 +11,7 @@ void depth_to_disparity(cv::cuda::GpuMat &disparity, const cv::cuda::GpuMat &dep
 
 
 void optflow_filter(cv::cuda::GpuMat &disp, const cv::cuda::GpuMat &optflow,
-					cv::cuda::GpuMat &history, int n_max, float threshold,
+					cv::cuda::GpuMat &history, cv::cuda::GpuMat &support, int n_max, float threshold, bool fill,
 					cv::cuda::Stream &stream);
 
 }

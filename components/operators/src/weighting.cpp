@@ -18,7 +18,7 @@ PixelWeights::~PixelWeights() {
 }
 
 bool PixelWeights::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
-	if (in.hasChannel(Channel::Mask)) return true;
+	//if (in.hasChannel(Channel::Mask)) return true;
 	
 	ftl::cuda::PixelWeightingParameters params;
 	//int radius = config()->value("radius", 2);

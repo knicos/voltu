@@ -1,4 +1,5 @@
 #include <ftl/operators/opticalflow.hpp>
+#include <ftl/exception.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 
@@ -14,6 +15,7 @@ using cv::cuda::GpuMat;
 NVOpticalFlow::NVOpticalFlow(ftl::Configurable* cfg) :
 		ftl::operators::Operator(cfg), channel_in_(ftl::codecs::Channel::Colour), channel_out_(ftl::codecs::Channel::Flow) {
 	size_ = Size(0, 0);
+
 }
 
 NVOpticalFlow::NVOpticalFlow(ftl::Configurable*cfg, const std::tuple<ftl::codecs::Channel,ftl::codecs::Channel> &channels) : ftl::operators::Operator(cfg) {
@@ -25,6 +27,10 @@ NVOpticalFlow::~NVOpticalFlow() {
 }
 
 bool NVOpticalFlow::init() {
+	if (!ftl::cuda::hasCompute(7,5)) {
+		config()->set("enabled", false);
+		throw FTL_Error("GPU does not support optical flow");
+	}
 	nvof_ = cv::cuda::NvidiaOpticalFlow_1_0::create(
 				size_.width, size_.height, 
 				cv::cuda::NvidiaOpticalFlow_1_0::NV_OF_PERF_LEVEL_SLOW,
@@ -36,7 +42,8 @@ bool NVOpticalFlow::init() {
 }
 
 bool NVOpticalFlow::apply(Frame &in, Frame &out, cudaStream_t stream) {
-	if (!in.hasChannel(channel_in_)) { return false; }
+	if (!in.hasChannel(channel_in_)) return false;
+	if (in.hasChannel(channel_out_)) return true;
 
 	if (in.get<GpuMat>(channel_in_).size() != size_) {
 		size_ = in.get<GpuMat>(channel_in_).size();
@@ -48,6 +55,8 @@ bool NVOpticalFlow::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 	cv::cuda::cvtColor(in.get<GpuMat>(channel_in_), left_gray_, cv::COLOR_BGRA2GRAY, 0, cvstream);
 
+	// TODO: Use optical flow confidence output, perhaps combined with a
+	// sensitivity adjustment
 	nvof_->calc(left_gray_, left_gray_prev_, flow, cvstream);
 	std::swap(left_gray_, left_gray_prev_);
 
