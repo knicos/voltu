@@ -17,31 +17,20 @@ using ftl::codecs::Channel;
 //static double ltime = 0.0;
 
 /* Portaudio callback to receive audio data. */
+template <typename BUFFER>
 static int pa_source_callback(const void *input, void *output,
         unsigned long frameCount, const PaStreamCallbackTimeInfo *timeInfo,
         PaStreamCallbackFlags statusFlags, void *userData) {
 
-    auto *buffer = (ftl::audio::StereoBuffer16<100>*)userData;
+    auto *buffer = (BUFFER*)userData;
     short *in = (short*)input;
-
-	//short *out = (short*)output;
-	//buffer->readFrame(out);
-
-	//if (timeInfo->currentTime - ltime < (1.0 / 128.0)) return 0;
-	//ltime = timeInfo->inputBufferAdcTime;
-
-    //int i=0;
-    //while (i < frameCount) {
-	    buffer->writeFrame(in);
-        //i+=2*ftl::audio::kFrameSize;
-    //
-
+	buffer->writeFrame(in);
     return 0;
 }
 
 #endif
 
-Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(48000) {
+Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(nullptr) {
 	if (!value("enabled",true)) {
 		active_ = false;
 		return;
@@ -50,12 +39,51 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(4800
 	#ifdef HAVE_PORTAUDIO
     ftl::audio::pa_init();
 
-	int device = value("audio_device",-1);
-	if (device >= Pa_GetDeviceCount()) device = -1;
+	int device = Pa_GetDefaultInputDevice();
+	int channels = 1;
+
+	if (get<std::string>("audio_device")) {
+		std::string devname = *get<std::string>("audio_device");
+
+        int numDevices = Pa_GetDeviceCount();
+
+        for (int i=0; i<numDevices; ++i) {
+            const   PaDeviceInfo *deviceInfo = Pa_GetDeviceInfo(i);
+            if (std::string(deviceInfo->name).find(devname) != std::string::npos) {
+				device = i;
+				break;
+			}
+        }
+	} else {
+		device = value("audio_device", device);
+		if (device >= Pa_GetDeviceCount()) device = Pa_GetDefaultInputDevice();
+	}
+
+	//if (device >= 0) {
+		const PaDeviceInfo *deviceInfo = Pa_GetDeviceInfo(device);
+		if (deviceInfo) {
+			LOG(INFO) << "Using audio device: " << deviceInfo->name;
+			if (deviceInfo->maxInputChannels == 0) {
+				device = -1;
+				LOG(ERROR) << "Selected audio device has no input channels";
+			} else {
+				channels = (deviceInfo->maxInputChannels >= 2) ? 2 : 1;
+			}
+		} else {
+			LOG(ERROR) << "No selected audio device";
+			return;
+		}
+	//}
+
+	if (channels >= 2) {
+		buffer_ = new ftl::audio::StereoBuffer16<100>(48000);
+	} else {
+		buffer_ = new ftl::audio::MonoBuffer16<100>(48000);
+	}
 
     PaStreamParameters inputParameters;
     //bzero( &inputParameters, sizeof( inputParameters ) );
-    inputParameters.channelCount = 2;
+    inputParameters.channelCount = channels;
     inputParameters.device = device;
     inputParameters.sampleFormat = paInt16;
     inputParameters.suggestedLatency = (device >= 0) ? Pa_GetDeviceInfo(device)->defaultLowInputLatency : 0;
@@ -71,19 +99,19 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(4800
 			48000,  // Sample rate
 			ftl::audio::kFrameSize,    // Size of single frame
 			paNoFlag,
-			pa_source_callback,
-			&this->buffer_
+			(buffer_->channels() == 1) ? pa_source_callback<ftl::audio::MonoBuffer16<100>> : pa_source_callback<ftl::audio::StereoBuffer16<100>>,
+			this->buffer_
 		);
 	} else {
 		err = Pa_OpenDefaultStream(
 			&stream_,
-			2,
+			channels,
 			0,
 			paInt16,
 			48000,  // Sample rate
 			ftl::audio::kFrameSize,    // Size of single frame
-			pa_source_callback,
-			&this->buffer_
+			(buffer_->channels() == 1) ? pa_source_callback<ftl::audio::MonoBuffer16<100>> : pa_source_callback<ftl::audio::StereoBuffer16<100>>,
+			this->buffer_
 		);
 	}
 
@@ -105,8 +133,14 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(4800
 
 	to_read_ = 0;
 
+	ftl::audio::AudioSettings settings;
+	settings.channels = channels;
+	settings.sample_rate = 48000;
+	settings.frame_size = 256;
+	state_.setLeft(settings);
+
     timer_hp_ = ftl::timer::add(ftl::timer::kTimerHighPrecision, [this](int64_t ts) {
-        to_read_ = buffer_.size();
+        if (buffer_) to_read_ = buffer_->size();
         return true;
     });
 
@@ -119,20 +153,23 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(4800
 		frameset_.count = 1;
 		frameset_.stale = false;
 
-        if (to_read_ < 1) return true;
+        if (to_read_ < 1 || !buffer_) return true;
 
 		if (frameset_.frames.size() < 1) frameset_.frames.emplace_back();
 
 		auto &frame = frameset_.frames[0];
 		frame.reset();
-        std::vector<short> &data = frame.create<Audio>(Channel::Audio).data();
+		frame.setOrigin(&state_);
+        std::vector<short> &data = frame.create<Audio>((buffer_->channels() == 2) ? Channel::AudioStereo : Channel::AudioMono).data();
 
-		data.resize(2*ftl::audio::kFrameSize*to_read_);
+		/*data.resize(ftl::audio::kFrameSize*to_read_*channels_);  // For stereo * 2
 		short *ptr = data.data();
 		for (int i=0; i<to_read_; ++i) {
-			buffer_.readFrame(ptr);
-			ptr += 2*ftl::audio::kFrameSize;
-		}
+			if (channels_ == 1) mono_buffer_.readFrame(ptr);
+			else stereo_buffer_.readFrame(ptr);
+			ptr += ftl::audio::kFrameSize*channels_;  // For stereo * 2
+		}*/
+		buffer_->read(data, to_read_);
 
 		// Then do something with the data!
 		//LOG(INFO) << "Audio Frames Sent: " << to_read_ << " - " << ltime;

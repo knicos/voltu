@@ -6,6 +6,38 @@
 namespace ftl {
 namespace audio {
 
+template <typename T>
+class Buffer {
+	public:
+	typedef T type;
+
+	Buffer(int channels, int framesize, int rate) : rate_(rate), cur_delay_(0.0f), req_delay_(0.0f), channels_(channels), frame_size_(framesize) {}
+	virtual ~Buffer() {}
+
+	virtual void write(const std::vector<T> &in)=0;
+	virtual void read(std::vector<T> &out, int)=0;
+
+	inline int channels() const { return channels_; }
+	inline int frameSize() const { return frame_size_; }
+	inline int sampleRate() const { return rate_; }
+
+	void setDelay(float d) {
+		req_delay_ = d  * static_cast<float>(rate_);
+	}
+
+	float delay() const { return cur_delay_ / static_cast<float>(rate_); }
+
+	virtual int size() const=0;
+	virtual int frames() const=0;
+
+	protected:
+	int rate_;
+	float cur_delay_;
+	float req_delay_;
+	int channels_;
+	int frame_size_;
+};
+
 //static constexpr int kBufferCount = 100;
 
 /**
@@ -16,26 +48,14 @@ namespace audio {
  * dilation / shifting, and amplitude control.
  */
 template <typename T, int CHAN, int FRAME, int SIZE>
-class FixedBuffer {
+class FixedBuffer : public ftl::audio::Buffer<T> {
 	public:
-	typedef T type;
+	FixedBuffer() : Buffer<T>(CHAN, FRAME, 44100), write_position_(0), read_position_(-1), offset_(0) {}
+	explicit FixedBuffer(int rate) : Buffer<T>(CHAN, FRAME, rate), write_position_(0), read_position_(-1),
+			offset_(0) {}
 
-	FixedBuffer() : write_position_(0), read_position_(-1), offset_(0), rate_(44100),
-			cur_delay_(0.0f), req_delay_(0.0f) {}
-	explicit FixedBuffer(int rate) : write_position_(0), read_position_(-1),
-			offset_(0), rate_(rate), cur_delay_(0.0f), req_delay_(0.0f) {}
 
-	int sampleRate() const { return rate_; }
-
-	inline int channels() const { return CHAN; }
-	inline int frameSize() const { return FRAME; }
 	inline int maxFrames() const { return SIZE; }
-
-	void setDelay(float d) {
-		req_delay_ = d  * static_cast<float>(rate_);
-	}
-
-	float delay() const { return cur_delay_ / static_cast<float>(rate_); }
 
 	inline void writeFrame(const T *d) {
 		const T *in = d;
@@ -54,25 +74,23 @@ class FixedBuffer {
 		}
 	}
 
-	int size() const { return (read_position_>=0) ? write_position_ - 2 - read_position_ : 0; }
-	int frames() const { return (read_position_>=0) ? write_position_ - 2 - read_position_ : 0; }
+	int size() const override { return (read_position_>=0) ? write_position_ - 2 - read_position_ : 0; }
+	int frames() const override { return (read_position_>=0) ? write_position_ - 2 - read_position_ : 0; }
 
 	/**
 	 * Append sound samples to the end of the buffer. The samples may be over
 	 * or under sampled so as to gradually introduce or remove a requested
 	 * delay and hence change the latency of the audio.
 	 */
-	void write(const std::vector<T> &in);
+	void write(const std::vector<T> &in) override;
+
+	void read(std::vector<T> &out, int frames) override;
 
 	private:
 	int write_position_;
 	int read_position_;
 	int offset_;
 	T data_[SIZE][CHAN*FRAME];
-	int rate_;
-
-	float cur_delay_;
-	float req_delay_;
 };
 
 // ==== Implementations ========================================================
@@ -97,7 +115,7 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 		
 		for (int c=0; c<CHAN; ++c) *ptr++ = fracIndex<T,CHAN>(in, i, c);
 
-		const float d = 0.6f*clamp((req_delay_ - cur_delay_) / static_cast<float>(rate_), 0.5f);
+		const float d = 0.6f*clamp((this->req_delay_ - this->cur_delay_) / static_cast<float>(this->rate_), 0.5f);
 		i += 1.0f - d;  // FIXME: Is this correct? Seems to function but perhaps not ideal
 
 		/*if (d > 0.0f) {	// Increase delay = oversample with increment < 1.0
@@ -107,7 +125,7 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 			//i += 1.0f / (1.0f + d);
 			i += 1.0f - d;
 		}*/
-		cur_delay_ += d;
+		this->cur_delay_ += d;
 
 		offset_+= CHAN;
 		if (offset_ == CHAN*FRAME) {
@@ -116,6 +134,16 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 		}
 	}
 	if (write_position_ > 20 && read_position_ < 0) read_position_ = 0;
+}
+
+template <typename T, int CHAN, int FRAME, int SIZE>
+void FixedBuffer<T,CHAN,FRAME,SIZE>::read(std::vector<T> &out, int count) {
+	out.resize(FRAME*count*CHAN);
+	T *ptr = out.data();
+	for (int i=0; i<count; ++i) {
+		readFrame(ptr);
+		ptr += FRAME*CHAN;
+	}
 }
 
 // ==== Common forms ===========================================================

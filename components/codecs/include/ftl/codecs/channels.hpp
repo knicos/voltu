@@ -37,8 +37,8 @@ enum struct Channel : int {
 	RightHighRes	= 20,	// 8UC3 or 8UC4
 
 	Audio			= 32,
-	AudioLeft		= 32,
-	AudioRight		= 33,
+	AudioMono		= 32,
+	AudioStereo		= 33,
 
 	Configuration	= 64,	// JSON Data
 	Settings1		= 65,

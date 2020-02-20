@@ -23,13 +23,15 @@ class Speaker : public ftl::Configurable {
 	void setDelay(int64_t ms);
 
 	private:
-	ftl::audio::StereoBuffer16<2000> buffer_;
+	ftl::audio::Buffer<short> *buffer_;
 	bool active_;
 	float extra_delay_;
 
 	#ifdef HAVE_PORTAUDIO
 	PaStream *stream_;
 	#endif
+
+	void _open(int fsize, int sample, int channels);
 };
 
 }
