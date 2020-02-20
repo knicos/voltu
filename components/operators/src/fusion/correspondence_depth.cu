@@ -23,17 +23,16 @@ __global__ void corresponding_depth_kernel(
         float4x4 pose,
         Camera cam1,
         Camera cam2, ftl::cuda::MvMLSParams params) {
-	
-	//const int tid = (threadIdx.x + threadIdx.y * blockDim.x);
-	const int x = (blockIdx.x*8 + (threadIdx.x%4) + 4*(threadIdx.x / 16)); // / WARP_SIZE;
-	const int y = blockIdx.y*8 + threadIdx.x/4 + 4*threadIdx.y;
+
+	const int2 pt = block4x4<2>();
+
 
 	// FIXME: Don't return like this due to warp operations
-    if (x >= 0 && y >=0 && x < screenOut.width() && y < screenOut.height()) {
-		screenOut(x,y) = make_short2(-1,-1);
-		conf(x,y) = 0.0f;
+    if (pt.x >= 0 && pt.y >=0 && pt.x < screenOut.width() && pt.y < screenOut.height()) {
+		screenOut(pt) = make_short2(-1,-1);
+		conf(pt) = 0.0f;
     
-		const float depth1 = d1.tex2D(x,y);
+		const float depth1 = d1.tex2D(pt);
 		// TODO: If all depths within a half warp here are bad then can return
 		// early.
 		//if (__ballot_sync(FULL_MASK, depth1 > cam1.minDepth && depth1 < cam1.maxDepth) & ((threadIdx.x/16 == 1) ? 0xFFFF0000 : 0xFFFF) == 0) return;
@@ -41,9 +40,9 @@ __global__ void corresponding_depth_kernel(
         short2 bestScreen = make_short2(-1,-1);
         float bestcost = PINF;
 		
-		const float3 camPosOrigin = pose * cam1.screenToCam(x,y,depth1);
+		const float3 camPosOrigin = pose * cam1.screenToCam(pt.x,pt.y,depth1);
         const float2 lineOrigin = cam2.camToScreen<float2>(camPosOrigin);
-        const float3 camPosDistant = pose * cam1.screenToCam(x,y,depth1 + 0.4f);
+        const float3 camPosDistant = pose * cam1.screenToCam(pt.x,pt.y,depth1 + 0.4f);
         const float2 lineDistant = cam2.camToScreen<float2>(camPosDistant);
         const float lineM = (lineDistant.y - lineOrigin.y) / (lineDistant.x - lineOrigin.x);
 		const float depthM = 0.4f / (lineDistant.x - lineOrigin.x);
@@ -86,7 +85,8 @@ __global__ void corresponding_depth_kernel(
 			// the greater they are from the warp concensus best cost
 
 			// Sum all squared distance errors in a 4x4 pixel neighborhood
-			cost = ftl::cuda::halfWarpSum(cost);
+			float wcost = ftl::cuda::halfWarpSum(cost) / 16.0f;
+			cost = (wcost < 1.0f) ? (wcost + cost) / 2.0f : 1.0f;  // Enables per pixel adjustments
 
 			// Record the best result
             bestStep = (cost < bestcost) ? i : bestStep;
@@ -100,7 +100,11 @@ __global__ void corresponding_depth_kernel(
             linePos.y += lineM;
         }
 
-        float bestadjust = float(bestStep-(COR_STEPS/2))*depthM;
+		float bestadjust = float(bestStep-(COR_STEPS/2))*depthM;
+		
+		//if (bestStep == 0 ||bestStep == COR_STEPS-1) {
+		//	printf("Bad step: %f\n", bestcost);
+		//}
 
         // Detect matches to boundaries, and discard those
         uint stepMask = 1 << bestStep;
@@ -110,11 +114,11 @@ __global__ void corresponding_depth_kernel(
 		bestcost = ftl::cuda::halfWarpMax(bestcost);
 		
 		// If a match was found then record it
-		if (depth1 > cam1.minDepth && depth1 < cam1.maxDepth && bestcost < PINF) {
+		if (depth1 > cam1.minDepth && depth1 < cam1.maxDepth && bestcost < 1.0f) {
 			// Delay making the depth change until later.
-			conf(x,y) = bestadjust;
-			mask(x,y) = mask(x,y) | Mask::kMask_Correspondence;
-			screenOut(x,y) = bestScreen;
+			conf(pt) = bestadjust;
+			mask(pt) = mask(pt) | Mask::kMask_Correspondence;
+			screenOut(pt) = bestScreen;
 		}
     }
 }
@@ -131,7 +135,10 @@ void ftl::cuda::correspondence(
 		cudaStream_t stream) {
 
 	// FIXME: Check the grid size makes sense
-	const dim3 gridSize((d1.width() + 1), (d1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	//const dim3 gridSize((d1.width() + 1), (d1.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	//const dim3 blockSize(WARP_SIZE, 2);
+
+	const dim3 gridSize((d1.width() + 8 - 1)/8, (d1.height() + 8 - 1)/8);
 	const dim3 blockSize(WARP_SIZE, 2);
 
 	switch (func) {

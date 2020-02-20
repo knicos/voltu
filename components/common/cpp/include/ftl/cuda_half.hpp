@@ -15,6 +15,11 @@ __host__ inline cudaChannelFormatDesc cudaCreateChannelDesc<half4>() {
 	return cudaCreateChannelDesc<short4>();
 }
 
+template <>
+__host__ inline cudaChannelFormatDesc cudaCreateChannelDesc<half>() {
+	return cudaCreateChannelDesc<short>();
+}
+
 #ifdef __CUDACC__
 
 // half4 functions
