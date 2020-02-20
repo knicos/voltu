@@ -33,14 +33,16 @@ LocalSource::LocalSource(nlohmann::json &config)
 		: Configurable(config), timestamp_(0.0) {
 
 	nostereo_ = value("nostereo", false);
+	int device_left = value("device_left", 0);
+	int device_right = value("device_right", 1);
 
 	// Use cameras
 	camera_a_ = new VideoCapture;
 	LOG(INFO) << "Cameras check... ";
-	camera_a_->open(0);
+	camera_a_->open(device_left);
 
 	if (!nostereo_) {
-		camera_b_ = new VideoCapture(1);
+		camera_b_ = new VideoCapture(device_right);
 	} else {
 		camera_b_ = nullptr;
 	}
