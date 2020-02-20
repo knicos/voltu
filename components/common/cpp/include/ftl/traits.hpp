@@ -39,6 +39,7 @@ template <> struct OpenCVType<float2> { static constexpr int value = CV_32FC2; }
 template <> struct OpenCVType<float3> { static constexpr int value = CV_32FC3; };
 template <> struct OpenCVType<float4> { static constexpr int value = CV_32FC4; };
 template <> struct OpenCVType<half4> { static constexpr int value = CV_16FC4; };
+template <> struct OpenCVType<half> { static constexpr int value = CV_16F; };
 
 }
 }

@@ -20,6 +20,8 @@ class MultiViewMLS : public ftl::operators::Operator {
 	std::vector<ftl::cuda::TextureObject<float4>*> centroid_vert_;
 	std::vector<ftl::cuda::TextureObject<half4>*> normals_horiz_;
     std::vector<ftl::cuda::TextureObject<float>*> contributions_;
+
+	ftl::cuda::TextureObject<half> costs_[2];
 };
 
 }

@@ -2,6 +2,7 @@
 #include "smoothing_cuda.hpp"
 #include <ftl/utility/matrix_conversion.hpp>
 #include "mvmls_cuda.hpp"
+#include <ftl/cuda/normals.hpp>
 
 #include <opencv2/cudaarithm.hpp>
 
@@ -32,12 +33,16 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
     int win = config()->value("window_size",16);
     bool do_corr = config()->value("merge_corresponding", true);
 	bool do_aggr = config()->value("merge_mls", false);
+    bool do_colour_adjust = config()->value("apply_colour_adjust", false);
 	bool cull_zero = config()->value("cull_no_confidence", false);
     //bool show_best_source = config()->value("show_pixel_source", false);
 
     ftl::cuda::MvMLSParams params;
     params.colour_smooth = config()->value("colour_smooth", 150.0f);
     params.spatial_smooth = config()->value("spatial_smooth", 1.0f);
+	params.sub_pixel = config()->value("sub_pixel", 0.5f);
+	params.P1 = config()->value("P1", 0.1f);
+	params.P2 = config()->value("P2", 0.2f);
 
 	bool show_consistency = config()->value("show_consistency", false);
 	bool show_adjustment = config()->value("show_adjustment", false);
@@ -142,19 +147,143 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                             stream
                         );
 
-						if (show_consistency) {
-							ftl::cuda::show_cor_error(f1.getTexture<uchar4>(Channel::Colour), f1.getTexture<short2>(Channel::Screen), f2.getTexture<short2>(Channel::Screen), stream);
-							ftl::cuda::show_cor_error(f2.getTexture<uchar4>(Channel::Colour), f2.getTexture<short2>(Channel::Screen), f1.getTexture<short2>(Channel::Screen), stream);
-						}
+						/*ftl::cuda::remove_cor_error(
+							f1.getTexture<float>(Channel::Confidence),
+							f1.getTexture<short2>(Channel::Screen),
+							f2.getTexture<short2>(Channel::Screen),
+							2.0f,
+							stream);
 
-						if (show_adjustment) {
-							ftl::cuda::show_depth_adjustment(f1.getTexture<uchar4>(Channel::Colour), f1.getTexture<float>(Channel::Confidence), stream);
-							ftl::cuda::show_depth_adjustment(f2.getTexture<uchar4>(Channel::Colour), f2.getTexture<float>(Channel::Confidence), stream);
-						}
+						ftl::cuda::remove_cor_error(
+							f2.getTexture<float>(Channel::Confidence),
+							f2.getTexture<short2>(Channel::Screen),
+							f1.getTexture<short2>(Channel::Screen),
+							2.0f,
+							stream);*/
 
 						// Actually perform the adjustment
 						cv::cuda::add(f1.get<GpuMat>(Channel::Depth), f1.get<GpuMat>(Channel::Confidence), f1.get<GpuMat>(Channel::Depth), cv::noArray(), -1, cvstream);
 						cv::cuda::add(f2.get<GpuMat>(Channel::Depth), f2.get<GpuMat>(Channel::Confidence), f2.get<GpuMat>(Channel::Depth), cv::noArray(), -1, cvstream);
+
+						/*ftl::cuda::viz_reprojection(
+                            f1.getTexture<uchar4>(Channel::Colour),
+                            f2.getTexture<uchar4>(Channel::Colour),
+							f1.getTexture<float>(Channel::Depth),
+                            f2.getTexture<float>(Channel::Depth),
+                            pose,
+                            f2.getLeftCamera(),
+                            f1.getLeftCamera(),
+                            stream
+                        );
+						ftl::cuda::viz_reprojection(
+                            f2.getTexture<uchar4>(Channel::Colour),
+                            f1.getTexture<uchar4>(Channel::Colour),
+							f2.getTexture<float>(Channel::Depth),
+                            f1.getTexture<float>(Channel::Depth),
+                            pose2,
+                            f1.getLeftCamera(),
+                            f2.getLeftCamera(),
+                            stream
+                        );*/
+						//continue;
+
+                        //auto &g1 = f1.get<GpuMat>(Channel::Depth);
+                        //costs_[0].create(g1.cols/4, (g1.rows/4) * 16);
+                        //auto &g2 = f2.get<GpuMat>(Channel::Depth);
+                        //costs_[1].create(g2.cols/4, (g2.rows/4) * 16);
+
+						/*ftl::cuda::correspondence(
+                            f1.getTexture<uchar4>(Channel::Colour),
+                            f2.getTexture<uchar4>(Channel::Colour),
+                            f1.getTexture<float>(Channel::Depth),
+                            f2.getTexture<float>(Channel::Depth),
+                            f1.getTexture<short2>(Channel::Screen),
+                            f1.getTexture<float>(Channel::Confidence),
+                            //f1.getTexture<uint8_t>(Channel::Mask),
+                            //costs_[0],
+                            pose2,
+                            f1.getLeftCamera(),
+                            f2.getLeftCamera(),
+                            params,
+                            16,
+                            stream
+                        );
+                        ftl::cuda::correspondence(
+                            f2.getTexture<uchar4>(Channel::Colour),
+                            f1.getTexture<uchar4>(Channel::Colour),
+                            f2.getTexture<float>(Channel::Depth),
+                            f1.getTexture<float>(Channel::Depth),
+                            f2.getTexture<short2>(Channel::Screen),
+                            f2.getTexture<float>(Channel::Confidence),
+                            //f2.getTexture<uint8_t>(Channel::Mask),
+                            //costs_[1],
+                            pose,
+                            f2.getLeftCamera(),
+                            f1.getLeftCamera(),
+                            params,
+                            16,
+                            stream
+                        );*/
+
+                        /*ftl::cuda::aggregate_colour_costs(
+                            f1.getTexture<float>(Channel::Depth),
+                            f2.getTexture<float>(Channel::Depth),
+                            costs_[0],
+                            costs_[1],
+                            f1.getTexture<short2>(Channel::Screen),
+                            f1.getTexture<float>(Channel::Confidence),
+                            pose2,
+                            f1.getLeftCamera(),
+                            f2.getLeftCamera(),
+                            params,
+                            16,
+                            stream
+                        );
+
+                        ftl::cuda::aggregate_colour_costs(
+                            f2.getTexture<float>(Channel::Depth),
+                            f1.getTexture<float>(Channel::Depth),
+                            costs_[1],
+                            costs_[0],
+                            f2.getTexture<short2>(Channel::Screen),
+                            f2.getTexture<float>(Channel::Confidence),
+                            pose,
+                            f2.getLeftCamera(),
+                            f1.getLeftCamera(),
+                            params,
+                            16,
+                            stream
+                        );*/
+
+						if (show_consistency) {
+							ftl::cuda::show_cor_error(f1.getTexture<uchar4>(Channel::Colour), f1.getTexture<short2>(Channel::Screen), f2.getTexture<short2>(Channel::Screen), 5.0f, stream);
+							ftl::cuda::show_cor_error(f2.getTexture<uchar4>(Channel::Colour), f2.getTexture<short2>(Channel::Screen), f1.getTexture<short2>(Channel::Screen), 5.0f, stream);
+						}
+
+						/*ftl::cuda::remove_cor_error(
+							f1.getTexture<float>(Channel::Confidence),
+							f1.getTexture<short2>(Channel::Screen),
+							f2.getTexture<short2>(Channel::Screen),
+							5.0f,
+							stream);
+
+						ftl::cuda::remove_cor_error(
+							f2.getTexture<float>(Channel::Confidence),
+							f2.getTexture<short2>(Channel::Screen),
+							f1.getTexture<short2>(Channel::Screen),
+							5.0f,
+							stream);*/
+
+						// Actually perform the colour adjustment
+                        //if (do_colour_adjust) {
+						//    cv::cuda::add(f1.get<GpuMat>(Channel::Depth), f1.get<GpuMat>(Channel::Confidence), f1.get<GpuMat>(Channel::Depth), cv::noArray(), -1, cvstream);
+						//    cv::cuda::add(f2.get<GpuMat>(Channel::Depth), f2.get<GpuMat>(Channel::Confidence), f2.get<GpuMat>(Channel::Depth), cv::noArray(), -1, cvstream);
+                        //}
+
+						if (show_adjustment) {
+							ftl::cuda::show_depth_adjustment(f1.getTexture<uchar4>(Channel::Colour), f1.getTexture<short2>(Channel::Screen), f1.getTexture<float>(Channel::Confidence), 0.04f, stream);
+							ftl::cuda::show_depth_adjustment(f2.getTexture<uchar4>(Channel::Colour), f2.getTexture<short2>(Channel::Screen), f2.getTexture<float>(Channel::Confidence), 0.04f, stream);
+						}
                     //} //else {
                         /*ftl::cuda::correspondence(
                             f1.getTexture<float>(Channel::Depth),
@@ -207,6 +336,16 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
             // Reduce window size for next iteration
             //win = max(win>>1, 4);
+
+            // Redo normals
+            for (size_t i=0; i<in.frames.size(); ++i) {
+                auto &f = in.frames[i];
+                ftl::cuda::normals(
+                    f.getTexture<half4>(Channel::Normals),
+                    f.getTexture<float>(Channel::Depth),
+                    f.getLeftCamera(), stream
+                );
+            }
 		}
 
 	for (int iter=0; iter<iters; ++iter) {	

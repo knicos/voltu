@@ -11,6 +11,9 @@ namespace cuda {
 struct MvMLSParams {
     float spatial_smooth;
     float colour_smooth;
+	float sub_pixel;
+	float P1;
+	float P2;
 };
 
 void correspondence(
@@ -27,6 +30,20 @@ void correspondence(
         cudaStream_t stream);
 
 void correspondence(
+        ftl::cuda::TextureObject<uchar4> &c1,
+        ftl::cuda::TextureObject<uchar4> &c2,
+        ftl::cuda::TextureObject<float> &d1,
+        ftl::cuda::TextureObject<float> &d2,
+        ftl::cuda::TextureObject<short2> &screen,
+		ftl::cuda::TextureObject<float> &conf,
+		//ftl::cuda::TextureObject<uint8_t> &mask,
+        //ftl::cuda::TextureObject<half> &costs,
+        float4x4 &pose,
+        const ftl::rgbd::Camera &cam1,
+        const ftl::rgbd::Camera &cam2, const ftl::cuda::MvMLSParams &params, int radius,
+        cudaStream_t stream);
+
+void correspondence(
         ftl::cuda::TextureObject<float> &d1,
         ftl::cuda::TextureObject<float> &d2,
         ftl::cuda::TextureObject<short2> &screen,
@@ -35,6 +52,18 @@ void correspondence(
         float4x4 &pose,
         const ftl::rgbd::Camera &cam1,
         const ftl::rgbd::Camera &cam2, const ftl::cuda::MvMLSParams &params, int func,
+        cudaStream_t stream);
+
+void aggregate_colour_costs(
+        ftl::cuda::TextureObject<float> &d1,
+        ftl::cuda::TextureObject<float> &d2,
+        ftl::cuda::TextureObject<half> &costs1,
+        ftl::cuda::TextureObject<half> &costs2,
+        ftl::cuda::TextureObject<short2> &screen,
+		ftl::cuda::TextureObject<float> &conf,
+        float4x4 &pose,
+        const ftl::rgbd::Camera &cam1,
+        const ftl::rgbd::Camera &cam2, const ftl::cuda::MvMLSParams &params, int radius,
         cudaStream_t stream);
 
 void zero_confidence(
@@ -101,12 +130,31 @@ void show_cor_error(
 	ftl::cuda::TextureObject<uchar4> &colour,
 	ftl::cuda::TextureObject<short2> &screen1,
 	ftl::cuda::TextureObject<short2> &screen2,
+	float thresh,
+	cudaStream_t stream);
+
+void remove_cor_error(
+	ftl::cuda::TextureObject<float> &adjust,
+	ftl::cuda::TextureObject<short2> &screen1,
+	ftl::cuda::TextureObject<short2> &screen2,
+	float thresh,
 	cudaStream_t stream);
 
 void show_depth_adjustment(
 	ftl::cuda::TextureObject<uchar4> &colour,
+    ftl::cuda::TextureObject<short2> &screen,
 	ftl::cuda::TextureObject<float> &adjust,
+	float scale,
 	cudaStream_t stream);
+
+void viz_reprojection(
+	ftl::cuda::TextureObject<uchar4> &colour_out,
+	ftl::cuda::TextureObject<uchar4> &colour_in,
+	ftl::cuda::TextureObject<float> &depth_out,
+	ftl::cuda::TextureObject<float> &depth_in,
+	const float4x4 &pose,
+	const ftl::rgbd::Camera &cam1,
+	const ftl::rgbd::Camera &cam2, cudaStream_t stream);
 
 }
 }

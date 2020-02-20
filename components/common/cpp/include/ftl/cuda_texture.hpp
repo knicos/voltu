@@ -15,6 +15,7 @@ template <> struct Float<uchar4> { typedef float4 type; };
 template <> struct Float<uint8_t> { typedef float type; };
 template <> struct Float<short2> { typedef float2 type; };
 template <> struct Float<short> { typedef float type; };
+template <> struct Float<half> { typedef float type; };
 
 template <typename T>
 struct ScaleValue;
@@ -25,6 +26,7 @@ template <> struct ScaleValue<float> { static constexpr float value = 1.0f; };
 template <> struct ScaleValue<float4> { static constexpr float value = 1.0f; };
 template <> struct ScaleValue<half4> { static constexpr float value = 1.0f; };
 template <> struct ScaleValue<short> { static constexpr float value = 32000.0f; };
+template <> struct ScaleValue<half> { static constexpr float value = 1.0f; };
 
 /**
  * Represent a CUDA texture object. Instances of this class can be used on both
@@ -110,12 +112,19 @@ class TextureObject : public TextureObjectBase {
 
 	#ifdef __CUDACC__
 	__device__ inline T tex2D(int u, int v) const { return ::tex2D<T>(texobj_, u, v); }
+	__device__ inline T tex2D(const int2 &p) const { return ::tex2D<T>(texobj_, p.x, p.y); }
+	__device__ inline T tex2D(const short2 &p) const { return ::tex2D<T>(texobj_, p.x, p.y); }
 	__device__ inline T tex2D(unsigned int u, unsigned int v) const { return ::tex2D<T>(texobj_, (int)u, (int)v); }
 	__device__ inline typename Float<T>::type tex2D(float u, float v) const { return ::tex2D<typename Float<T>::type>(texobj_, u, v) * ScaleValue<T>::value; }
+	__device__ inline typename Float<T>::type tex2D(const float2 &p) const { return ::tex2D<typename Float<T>::type>(texobj_, p.x, p.y) * ScaleValue<T>::value; }
 	#endif
 
 	__host__ __device__ inline const T &operator()(int u, int v) const { return reinterpret_cast<T*>(ptr_)[u+v*pitch2_]; }
+	__host__ __device__ inline const T &operator()(const int2 &p) const { return reinterpret_cast<T*>(ptr_)[p.x+p.y*pitch2_]; }
+	__host__ __device__ inline const T &operator()(const float2 &p) const { return reinterpret_cast<T*>(ptr_)[int(p.x+0.5f)+int(p.y+0.5f)*pitch2_]; }
 	__host__ __device__ inline T &operator()(int u, int v) { return reinterpret_cast<T*>(ptr_)[u+v*pitch2_]; }
+	__host__ __device__ inline T &operator()(const int2 &p) { return reinterpret_cast<T*>(ptr_)[p.x+p.y*pitch2_]; }
+	__host__ __device__ inline T &operator()(const float2 &p) { return reinterpret_cast<T*>(ptr_)[int(p.x+0.5f)+int(p.y+0.5f)*pitch2_]; }
 
 	/**
 	 * Cast a base texture object to this type of texture object. If the
