@@ -41,7 +41,7 @@ class Source : public ftl::Configurable, public ftl::audio::Generator {
 	ftl::timer::TimerHandle timer_main_;
 	ftl::audio::FrameSet::Callback cb_;
 
-	ftl::audio::StereoBuffer16<100> buffer_;
+	ftl::audio::Buffer<short> *buffer_;
 	int to_read_;
 
 	ftl::audio::FrameSet frameset_;

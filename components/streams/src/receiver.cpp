@@ -21,6 +21,7 @@ using ftl::stream::parsePose;
 using ftl::stream::parseConfig;
 using ftl::stream::injectCalibration;
 using ftl::stream::injectPose;
+using ftl::codecs::definition_t;
 
 Receiver::Receiver(nlohmann::json &config) : ftl::Configurable(config), stream_(nullptr) {
 	timestamp_ = 0;
@@ -102,7 +103,7 @@ Receiver::InternalAudioStates &Receiver::_getAudioFrame(const StreamPacket &spkt
 		audio_frames_[spkt.streamID][audio_frames_[spkt.streamID].size()-1]->state.set("name",std::string("Source ")+std::to_string(fn+1));
 	}
 	auto &f = *audio_frames_[spkt.streamID][fn];
-	if (!f.frame.origin()) f.frame.setOrigin(&f.state);
+	//if (!f.frame.origin()) f.frame.setOrigin(&f.state);
 	return f;
 }
 
@@ -131,12 +132,27 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 	// Audio Data
 	InternalAudioStates &frame = _getAudioFrame(spkt);
 
+	frame.frame.reset();
 	frame.timestamp = spkt.timestamp;
 	auto &audio = frame.frame.create<ftl::audio::Audio>(spkt.channel);
 	size_t size = pkt.data.size()/sizeof(short);
 	audio.data().resize(size);
 	auto *ptr = (short*)pkt.data.data();
 	for (size_t i=0; i<size; i++) audio.data()[i] = ptr[i];
+
+	// Generate settings from packet data
+	ftl::audio::AudioSettings settings;
+	settings.channels = (spkt.channel == Channel::AudioStereo) ? 2 : 1;
+	settings.frame_size = 256;
+	
+	switch (pkt.definition) {
+	case definition_t::hz48000		: settings.sample_rate = 48000; break;
+	case definition_t::hz44100		: settings.sample_rate = 44100; break;
+	default: settings.sample_rate = 48000; break;
+	}
+
+	frame.state.setLeft(settings);
+	frame.frame.setOrigin(&frame.state);
 
 	if (audio_cb_) {
 		// Create an audio frameset wrapper.

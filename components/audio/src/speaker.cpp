@@ -15,11 +15,12 @@ using ftl::codecs::Channel;
 #ifdef HAVE_PORTAUDIO
 
 /* Portaudio callback to receive audio data. */
+template <typename BUFFER>
 static int pa_speaker_callback(const void *input, void *output,
 		unsigned long frameCount, const PaStreamCallbackTimeInfo *timeInfo,
 		PaStreamCallbackFlags statusFlags, void *userData) {
 
-	auto *buffer = (ftl::audio::StereoBuffer16<2000>*)userData;
+	auto *buffer = (BUFFER*)userData;  // ftl::audio::MonoBuffer16<2000>
 	short *out = (short*)output;
 
 	buffer->readFrame(out);
@@ -29,39 +30,9 @@ static int pa_speaker_callback(const void *input, void *output,
 
 #endif
 
-Speaker::Speaker(nlohmann::json &config) : ftl::Configurable(config), buffer_(48000) {
+Speaker::Speaker(nlohmann::json &config) : ftl::Configurable(config), buffer_(nullptr) {
 	#ifdef HAVE_PORTAUDIO
 	ftl::audio::pa_init();
-
-	auto err = Pa_OpenDefaultStream(
-		&stream_,
-		0,
-		2,
-		paInt16,
-		48000,  // Sample rate
-		256,    // Size of single frame
-		pa_speaker_callback,
-		&this->buffer_
-	);
-
-	if (err != paNoError) {
-		LOG(ERROR) << "Portaudio open stream error: " << Pa_GetErrorText(err);
-		active_ = false;
-		return;
-	} else {
-		active_ = true;
-	}
-
-	err = Pa_StartStream(stream_);
-
-	if (err != paNoError) {
-		LOG(ERROR) << "Portaudio start stream error: " << Pa_GetErrorText(err);
-		//active_ = false;
-		return;
-	}
-
-	LOG(INFO) << "Speaker ready.";
-
 	#else  // No portaudio
 
 	active_ = false;
@@ -100,16 +71,63 @@ Speaker::~Speaker() {
 	#endif
 }
 
-void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
-	auto &audio = frame.get<ftl::audio::Audio>(Channel::Audio);
+void Speaker::_open(int fsize, int sample, int channels) {
+	if (buffer_) delete buffer_;
 
-	//LOG(INFO) << "Buffer Fullness (" << ts << "): " << buffer_.size();
-	buffer_.write(audio.data());
+	LOG(INFO) << "Create speaker: " << sample << "," << channels;
+	if (sample == 0 || channels == 0) return;
+
+	if (channels >= 2) {
+		buffer_ = new ftl::audio::StereoBuffer16<2000>(sample);
+	} else {
+		buffer_ = new ftl::audio::MonoBuffer16<2000>(sample);
+	}
+
+	auto err = Pa_OpenDefaultStream(
+		&stream_,
+		0,
+		channels,
+		paInt16,
+		sample,  // Sample rate
+		256,    // Size of single frame
+		(channels == 1) ? pa_speaker_callback<ftl::audio::MonoBuffer16<2000>> : pa_speaker_callback<ftl::audio::StereoBuffer16<2000>>,
+		this->buffer_
+	);
+
+	if (err != paNoError) {
+		LOG(ERROR) << "Portaudio open stream error: " << Pa_GetErrorText(err);
+		active_ = false;
+		return;
+	} else {
+		active_ = true;
+	}
+
+	err = Pa_StartStream(stream_);
+
+	if (err != paNoError) {
+		LOG(ERROR) << "Portaudio start stream error: " << Pa_GetErrorText(err);
+		//active_ = false;
+		return;
+	}
+
+	LOG(INFO) << "Speaker ready.";
+}
+
+void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
+	auto &audio = frame.get<ftl::audio::Audio>((frame.hasChannel(Channel::AudioStereo)) ? Channel::AudioStereo : Channel::AudioMono);
+
+	if (!buffer_) {
+		_open(256, frame.getSettings().sample_rate, frame.getSettings().channels);
+	}
+	if (!buffer_) return;
+
+	//LOG(INFO) << "Buffer Fullness (" << ts << "): " << buffer_->size() << " - " << audio.size();
+	buffer_->write(audio.data());
 	//LOG(INFO) << "Audio delay: " << buffer_.delay() << "s";
 }
 
 void Speaker::setDelay(int64_t ms) {
 	float d = static_cast<float>(ms) / 1000.0f + extra_delay_;
 	if (d < 0.0f) d = 0.0f;  // Clamp to 0 delay (not ideal to be exactly 0)
-	buffer_.setDelay(d);
+	if (buffer_) buffer_->setDelay(d);
 }

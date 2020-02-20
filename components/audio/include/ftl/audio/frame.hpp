@@ -12,6 +12,7 @@ namespace audio {
 struct AudioSettings {
 	int sample_rate;
 	int frame_size;
+	int channels;
 };
 
 struct AudioData {

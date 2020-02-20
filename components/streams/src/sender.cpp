@@ -62,18 +62,29 @@ void Sender::post(const ftl::audio::FrameSet &fs) {
 	for (size_t i=0; i<fs.frames.size(); ++i) {
 		if (!fs.frames[i].hasChannel(Channel::Audio)) continue;
 
-		auto &data = fs.frames[i].get<ftl::audio::Audio>(Channel::Audio);
+		auto &data = (fs.frames[i].hasChannel(Channel::AudioStereo)) ?
+			fs.frames[i].get<ftl::audio::Audio>(Channel::AudioStereo) :
+			fs.frames[i].get<ftl::audio::Audio>(Channel::AudioMono);
+
+		auto &settings = fs.frames[i].getSettings();
 
 		StreamPacket spkt;
 		spkt.version = 4;
 		spkt.timestamp = fs.timestamp;
 		spkt.streamID = fs.id;
 		spkt.frame_number = i;
-		spkt.channel = Channel::Audio;
+		spkt.channel = (fs.frames[i].hasChannel(Channel::AudioStereo)) ? Channel::AudioStereo : Channel::AudioMono;
 
 		ftl::codecs::Packet pkt;
 		pkt.codec = ftl::codecs::codec_t::RAW;
 		pkt.definition = ftl::codecs::definition_t::Any;
+
+		switch (settings.sample_rate) {
+		case 48000		: pkt.definition = ftl::codecs::definition_t::hz48000; break;
+		case 44100		: pkt.definition = ftl::codecs::definition_t::hz44100; break;
+		default: break;
+		}
+
 		pkt.frame_count = 1;
 		pkt.flags = 0;
 		pkt.bitrate = 0;

@@ -493,6 +493,11 @@ const typename STATE::Settings &ftl::data::Frame<BASE,N,STATE,DATA>::getLeft() c
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
+const typename STATE::Settings &ftl::data::Frame<BASE,N,STATE,DATA>::getSettings() const {
+	return get<typename STATE::Settings>(ftl::codecs::Channel::Calibration);
+}
+
+template <int BASE, int N, typename STATE, typename DATA>
 const typename STATE::Settings &ftl::data::Frame<BASE,N,STATE,DATA>::getRight() const {
 	return get<typename STATE::Settings>(ftl::codecs::Channel::Calibration2);
 }

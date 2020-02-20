@@ -61,7 +61,8 @@ enum struct definition_t : uint8_t {
 	HTC_VIVE = 8,
 	OLD_SKOOL = 9,
 
-	// TODO: Add audio definitions
+	hz48000 = 32,
+	hz44100 = 33,
 
 	Invalid
 };
