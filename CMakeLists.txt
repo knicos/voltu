@@ -65,19 +65,50 @@ endif()
 #	set(HAVE_LIBARCHIVE true)
 #endif()
 
-if (WITH_OPENVR)
+#if (WITH_OPENVR)
 	## OpenVR API path
-	find_library(OPENVR_LIBRARIES
-		NAMES
-			openvr_api
-	)
-	set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
+#	find_library(OPENVR_LIBRARIES
+#		NAMES
+#			openvr_api
+#	)
+#	set(OPENVR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../headers)
+#
+#	if (OPENVR_LIBRARIES)
+#		message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
+#		set(HAVE_OPENVR true)
+#	endif()
+#endif()
 
-	if (OPENVR_LIBRARIES)
-		message(STATUS "Found OpenVR: ${OPENVR_LIBRARIES}")
-		set(HAVE_OPENVR true)
+# ============== OPEN VR =======================================================
+
+if (WITH_OPENVR)
+	find_library( OPENVR_LIBRARY NAMES openvr_api libopenvr_api openvr_api64 PATHS ${OPENVR_DIR} PATH_SUFFIXES lib)
+	if (OPENVR_LIBRARY)
+		set(HAVE_OPENVR TRUE)
+		add_library(openvr UNKNOWN IMPORTED)
+		#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+		set_property(TARGET openvr PROPERTY IMPORTED_LOCATION ${OPENVR_LIBRARY})
+		message(STATUS "Found OpenVR: ${OPENVR_LIBRARY}")
+
+		if(WIN32)
+			# Find include
+			find_path(OPENVR_INCLUDE_DIRS
+				NAMES openvr/openvr.h
+				PATHS "C:/Program Files/OpenVRSDK" "C:/Program Files (x86)/OpenVRSDK" ${OPENVR_DIR}
+				PATH_SUFFIXES include
+			)
+			set_property(TARGET openvr PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${OPENVR_INCLUDE_DIRS})
+		endif()
+	else()
+		set(OPENVR_LIBRARY "")
+		add_library(openvr INTERFACE)
 	endif()
+else()
+	set(OPENVR_LIBRARY "")
+	add_library(openvr INTERFACE)
 endif()
+
+# ==============================================================================
 
 if (WITH_FIXSTARS)
 	find_package( LibSGM )
