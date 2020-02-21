@@ -2,7 +2,8 @@
 
 #include "calibration_data.hpp"
 #include "calibration.hpp"
-#include "optimization.hpp"
+
+#include <ftl/calibration/optimize.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/calib3d.hpp>

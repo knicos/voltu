@@ -19,6 +19,7 @@
 #cmakedefine HAVE_OPTFLOW
 #cmakedefine HAVE_RENDER
 #cmakedefine HAVE_LIBSGM
+#cmakedefine HAVE_CERES
 #cmakedefine HAVE_REALSENSE
 #cmakedefine HAVE_NANOGUI
 #cmakedefine HAVE_LIBARCHIVE

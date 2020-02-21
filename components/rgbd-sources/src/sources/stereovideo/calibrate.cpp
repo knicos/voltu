@@ -6,7 +6,7 @@
 #include <ftl/config.h>
 #include <ftl/configuration.hpp>
 #include <ftl/threads.hpp>
-#include <ftl/calibration.hpp>
+#include <ftl/calibration/parameters.hpp>
 
 #include "calibrate.hpp"
 #include "ftl/exception.hpp"

@@ -2,7 +2,7 @@
 #include "lens.hpp"
 
 #include <ftl/config.h>
-#include <ftl/calibration.hpp>
+#include <ftl/calibration/parameters.hpp>
 
 #include <loguru.hpp>
 

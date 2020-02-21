@@ -1,5 +1,5 @@
 #include "calibration.hpp"
-#include "optimization.hpp"
+#include "ftl/calibration/optimize.hpp"
 
 #include "loguru.hpp"
 
@@ -19,27 +19,6 @@ using cv::norm;
 using ftl::calibration::BundleAdjustment;
 
 using namespace ftl::calibration;
-
-double ftl::calibration::reprojectionError(const vector<Point2d>& points_im,
-	const vector<Point3d>& points, const Mat& K, const Mat& D, const Mat& R,
-	const Mat& t) {
-
-	Mat rvec;
-	if (R.size() == Size(3, 3)) { cv::Rodrigues(R, rvec); }
-	else { rvec = R; }
-
-	vector<Point2d> points_reprojected;
-	cv::projectPoints(points, rvec, t, K, D, points_reprojected);
-
-	double err = 0.0;
-	int npoints = points_im.size();
-
-	for (int i = 0; i < npoints; i++) {
-		err += norm(points_im[i] - points_reprojected[i]);
-	}
-
-	return err / ((double) npoints);
-}
 
 int ftl::calibration::recoverPose(const Mat &E, const vector<Point2d> &_points1,
 	const vector<Point2d> &_points2, const Mat &_cameraMatrix1,
