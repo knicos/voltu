@@ -10,6 +10,6 @@ add_executable(ftl-calibrate ${CALIBSRC})
 
 target_include_directories(ftl-calibrate PRIVATE src)
 
-target_link_libraries(ftl-calibrate ftlcommon Threads::Threads ${OpenCV_LIBS})
+target_link_libraries(ftl-calibrate ftlcalibration ftlcommon Threads::Threads ${OpenCV_LIBS})
 
 

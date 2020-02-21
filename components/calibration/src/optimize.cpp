@@ -1,5 +1,5 @@
-#include "optimization.hpp"
-#include "calibration.hpp"
+#include "ftl/calibration/optimize.hpp"
+#include "ftl/calibration/parameters.hpp"
 
 #include "loguru.hpp"
 
@@ -86,12 +86,12 @@ struct ReprojectionError {
 
 	static ceres::CostFunction* Create(	const double observed_x,
 										const double observed_y) {
-		return (new ceres::AutoDiffCostFunction<ReprojectionError, 2, _NCAMERA_PARAMETERS, 3>(
+		return (new ceres::AutoDiffCostFunction<ReprojectionError, 2, Camera::n_parameters, 3>(
 					new ReprojectionError(observed_x, observed_y)));
 	}
 
 	static ceres::CostFunction* Create(	const Point2d &observed) {
-		return (new ceres::AutoDiffCostFunction<ReprojectionError, 2, _NCAMERA_PARAMETERS, 3>(
+		return (new ceres::AutoDiffCostFunction<ReprojectionError, 2, Camera::n_parameters, 3>(
 					new ReprojectionError(observed.x, observed.y)));
 	}
 
@@ -333,14 +333,14 @@ void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, co
 
 			vector<int> params(fixed_parameters.begin(), fixed_parameters.end());
 
-			if (params.size() == _NCAMERA_PARAMETERS) {
+			if (params.size() == Camera::n_parameters) {
 				// Ceres crashes if all parameters are set constant using
 				// SubsetParameterization()
 				problem.SetParameterBlockConstant(getCameraPtr(i));
 			}
 			else if (params.size() > 0) {
 				problem.SetParameterization(getCameraPtr(i),
-					new ceres::SubsetParameterization(_NCAMERA_PARAMETERS, params));
+					new ceres::SubsetParameterization(Camera::n_parameters, params));
 			}
 		}
 	}

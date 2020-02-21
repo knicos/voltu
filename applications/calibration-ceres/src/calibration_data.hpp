@@ -4,64 +4,13 @@
 
 #include <vector>
 #include <opencv2/core/core.hpp>
+#include <ftl/calibration/optimize.hpp>
 
 #define _NDISTORTION_PARAMETERS 3
 #define _NCAMERA_PARAMETERS (9 + _NDISTORTION_PARAMETERS)
 
 namespace ftl {
 namespace calibration {
-
-/**
- * Camera paramters
- */
-struct Camera {
-	Camera() {}
-	Camera(const cv::Mat& K, const cv::Mat& D, const cv::Mat& R, const cv::Mat& tvec);
-
-	void setRotation(const cv::Mat& R);
-	void setTranslation(const cv::Mat& tvec);
-	void setExtrinsic(const cv::Mat& R, const cv::Mat& t) {
-		setRotation(R);
-		setTranslation(t);
-	}
-
-	void setIntrinsic(const cv::Mat& K);
-	void setDistortion(const cv::Mat &D);
-	void setIntrinsic(const cv::Mat& K, const cv::Mat& D) {
-		setIntrinsic(K);
-		setDistortion(D);
-	}
-
-	cv::Mat intrinsicMatrix() const;
-	cv::Mat distortionCoefficients() const;
-
-	cv::Mat rvec() const;
-	cv::Mat tvec() const;
-	cv::Mat rmat() const;
-
-	cv::Mat extrinsicMatrix() const;
-	cv::Mat extrinsicMatrixInverse() const;
-
-	double data[_NCAMERA_PARAMETERS] = {0.0};
-
-	enum Parameter {
-		ROTATION = 0,
-		RX = 0,
-		RY = 1,
-		RZ = 2,
-		TRANSLATION = 3,
-		TX = 3,
-		TY = 4,
-		TZ = 5,
-		F = 6,
-		CX = 7,
-		CY = 8,
-		DISTORTION = 9,
-		K1 = 9,
-		K2 = 10,
-		K3 = 11
-	};
-};
 
 class CalibrationData {
 public:

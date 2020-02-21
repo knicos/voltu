@@ -10,7 +10,9 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 
-#include "optimization.hpp"
+#include <ftl/calibration.hpp>
+
+#include "calibration_data.hpp"
 #include "visibility.hpp"
 #include "calibration.hpp"
 

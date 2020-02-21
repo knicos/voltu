@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "ftl/calibration.hpp"
+#include "ftl/calibration/parameters.hpp"
 
 using cv::Size;
 using cv::Mat;

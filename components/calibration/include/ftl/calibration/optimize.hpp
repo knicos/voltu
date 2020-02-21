@@ -1,12 +1,13 @@
 #pragma once
-#ifndef _FTL_OPTIMIZATION_HPP_
-#define _FTL_OPTIMIZATION_HPP_
-
-#include "optimization.hpp"
-#include "calibration_data.hpp"
+#ifndef _FTL_CALIBRATION_OPTIMIZE_HPP_
+#define _FTL_CALIBRATION_OPTIMIZE_HPP_
 
 #include <vector>
 #include <functional>
+
+#include "parameters.hpp"
+
+#include <ftl/config.h>
 
 #include <ceres/ceres.h>
 #include <opencv2/core/core.hpp>
@@ -20,7 +21,7 @@ static_assert(std::is_standard_layout<cv::Point3d>());
 namespace ftl {
 namespace calibration {
 
-static_assert(std::is_standard_layout<Camera>());
+#ifdef HAVE_CERES
 
 /**
  * @brief Optimize scale.
@@ -164,6 +165,8 @@ private:
 	std::vector<BundleAdjustment::Point> points_;
 	std::vector<BundleAdjustment::ConstraintObject> constraints_object_;
 };
+
+#endif
 
 }
 }
