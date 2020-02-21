@@ -16,6 +16,13 @@ namespace detail {
 
 class Calibrate;
 
+struct DeviceDetails {
+	std::string name;
+	int id;
+	size_t maxwidth;
+	size_t maxheight;
+};
+
 class LocalSource : public Configurable {
 	public:
 	explicit LocalSource(nlohmann::json &config);
@@ -64,6 +71,8 @@ class LocalSource : public Configurable {
 
 	cv::Mat frame_l_;
 	cv::Mat frame_r_;
+
+	std::vector<DeviceDetails> _selectDevices();
 };
 
 }
