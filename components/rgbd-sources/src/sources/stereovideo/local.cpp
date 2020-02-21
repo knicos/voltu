@@ -17,6 +17,19 @@
 
 #include <ftl/timer.hpp>
 
+#ifndef WIN32
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/videodev2.h>
+#else
+#include <mfapi.h>
+#include <mfidl.h>
+#pragma comment(lib, "mf.lib")
+#pragma comment(lib, "mfplat.lib")
+#pragma comment(lib, "mfuuid.lib")
+#endif
+
 using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::Calibrate;
 using cv::Mat;
@@ -32,16 +45,50 @@ using std::this_thread::sleep_for;
 LocalSource::LocalSource(nlohmann::json &config)
 		: Configurable(config), timestamp_(0.0) {
 
+	std::vector<ftl::rgbd::detail::DeviceDetails> devices = _selectDevices();
+
+	int device_left = 0;
+	int device_right = -1;
+
+	LOG(INFO) << "Found " << devices.size() << " cameras";
+
+	if (Configurable::get<std::string>("device_left")) {
+		for (auto &d : devices) {
+			if (d.name.find(*Configurable::get<std::string>("device_left")) != std::string::npos) {
+				device_left = d.id;
+				LOG(INFO) << "Device left = " << device_left;
+				break;
+			}
+		}
+	} else {
+		device_left = value("device_left", (devices.size() > 0) ? devices[0].id : 0);
+	}
+
+	if (Configurable::get<std::string>("device_right")) {
+		for (auto &d : devices) {
+			if (d.name.find(*Configurable::get<std::string>("device_right")) != std::string::npos) {
+				if (d.id == device_left) continue;
+				device_right = d.id;
+				break;
+			}
+		}
+	} else {
+		device_right = value("device_right", (devices.size() > 1) ? devices[1].id : 1);
+	}
+
 	nostereo_ = value("nostereo", false);
-	int device_left = value("device_left", 0);
-	int device_right = value("device_right", 1);
+
+	if (device_left < 0) {
+		LOG(ERROR) << "No available cameras";
+		return;
+	}
 
 	// Use cameras
 	camera_a_ = new VideoCapture;
 	LOG(INFO) << "Cameras check... ";
 	camera_a_->open(device_left);
 
-	if (!nostereo_) {
+	if (!nostereo_ && device_right >= 0) {
 		camera_b_ = new VideoCapture(device_right);
 	} else {
 		camera_b_ = nullptr;
@@ -98,6 +145,153 @@ LocalSource::LocalSource(nlohmann::json &config)
 LocalSource::LocalSource(nlohmann::json &config, const string &vid)
 	:	Configurable(config), timestamp_(0.0) {
 	LOG(FATAL) << "Stereo video file sources no longer supported";
+}
+
+std::vector<ftl::rgbd::detail::DeviceDetails> LocalSource::_selectDevices() {
+	std::vector<ftl::rgbd::detail::DeviceDetails> devices;
+
+#ifdef WIN32
+	UINT32 count = 0;
+
+	IMFAttributes *pConfig = NULL;
+	IMFActivate **ppDevices = NULL;
+
+	// Create an attribute store to hold the search criteria.
+	HRESULT hr = MFCreateAttributes(&pConfig, 1);
+
+	// Request video capture devices.
+	if (SUCCEEDED(hr))
+	{
+		hr = pConfig->SetGUID(
+			MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+			MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID
+		);
+	}
+
+	// Enumerate the devices,
+	if (SUCCEEDED(hr))
+	{
+		hr = MFEnumDeviceSources(pConfig, &ppDevices, &count);
+	}
+
+	// Create a media source for the first device in the list.
+	if (SUCCEEDED(hr))
+	{
+		if (count > 0)
+		{
+			for (int i = 0; i < count; ++i) {
+				HRESULT hr = S_OK;
+				WCHAR *szFriendlyName = NULL;
+
+				// Try to get the display name.
+				UINT32 cchName;
+				hr = ppDevices[i]->GetAllocatedString(
+					MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+					&szFriendlyName, &cchName);
+
+				char temp[100];
+				size_t size;
+				wcstombs_s(&size, temp, 100, szFriendlyName, _TRUNCATE);
+
+				if (SUCCEEDED(hr))
+				{
+					LOG(INFO) << " -- " << temp;
+					devices.push_back({
+						std::string((const char*)temp),
+						i,
+						0,
+						0
+					});
+				}
+				CoTaskMemFree(szFriendlyName);
+			}
+		}
+		else
+		{
+			
+		}
+	}
+
+	for (DWORD i = 0; i < count; i++)
+	{
+		ppDevices[i]->Release();
+	}
+	CoTaskMemFree(ppDevices);
+#else
+
+	int fd;
+    v4l2_capability video_cap;
+	v4l2_frmsizeenum video_fsize;
+
+	LOG(INFO) << "Video Devices:";
+
+	for (int i=0; i<10; ++i) {
+		std::string path = "/dev/video";
+		path += std::to_string(i);
+
+		if ((fd = open(path.c_str(), O_RDONLY)) == -1) {
+			break;
+		}
+
+		if(ioctl(fd, VIDIOC_QUERYCAP, &video_cap) == -1) {
+			LOG(WARNING) << "Can't get video capabilities";
+			continue;
+		}// else {
+
+		// Get some formats
+		v4l2_fmtdesc pixfmt;
+		pixfmt.index = 0;
+		pixfmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		while (ioctl(fd, VIDIOC_ENUM_FMT, &pixfmt) == 0) {
+			LOG(INFO) << " -- -- format = " << pixfmt.description << " code = " << ((char*)&pixfmt.pixelformat)[0] << ((char*)&pixfmt.pixelformat)[1] << ((char*)&pixfmt.pixelformat)[2] << ((char*)&pixfmt.pixelformat)[3];
+			pixfmt.index++;
+		}
+
+		memset(&video_fsize, 0, sizeof(video_fsize));
+		video_fsize.index = 0;
+		video_fsize.pixel_format = v4l2_fourcc('Y','U','Y','V');
+
+		size_t maxwidth = 0;
+		size_t maxheight = 0;
+
+		while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &video_fsize) == 0) {
+			maxwidth = max(maxwidth, (video_fsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) ? video_fsize.discrete.width : video_fsize.stepwise.max_width);
+			maxheight = max(maxheight, (video_fsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) ? video_fsize.discrete.height : video_fsize.stepwise.max_height);
+			video_fsize.index++;
+		}
+
+			//printf("Name:\t\t '%s'\n", video_cap.name);
+			//printf("Minimum size:\t%d x %d\n", video_cap.minwidth, video_cap.minheight);
+			//printf("Maximum size:\t%d x %d\n", video_cap.maxwidth, video_cap.maxheight);
+
+		if (maxwidth > 0 && maxheight > 0) {
+			devices.push_back({
+				std::string((const char*)video_cap.card),
+				i,
+				maxwidth,
+				maxheight
+			});
+		}
+
+		LOG(INFO) << " -- " << video_cap.card << " (" << maxwidth << "x" << maxheight << ")";
+		//}
+
+		/*if(ioctl(fd, VIDIOCGWIN, &video_win) == -1)
+			perror("cam_info: Can't get window information");
+		else
+			printf("Current size:\t%d x %d\n", video_win.width, video_win.height);
+
+		if(ioctl(fd, VIDIOCGPICT, &video_pic) == -1)
+			perror("cam_info: Can't get picture information");
+		else
+			printf("Current depth:\t%d\n", video_pic.depth);*/
+
+		close(fd);
+	}
+
+#endif
+
+	return devices;
 }
 
 
