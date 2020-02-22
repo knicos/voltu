@@ -154,6 +154,20 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 		channel_buttons_[i] = button;
 	}
 
+	auto *stereobut = new Button(popup, "Stereo On");
+	stereobut->setCallback([this,stereobut]() {
+		ftl::gui::Camera *cam = screen_->activeCamera();
+		if (cam) {
+			cam->setStereo(!cam->isStereo());
+			if (cam->isStereo()) {
+				stereobut->setCaption("Stereo Off");
+			} else {
+				stereobut->setCaption("Stereo On");
+			}
+		}
+	});
+	
+
 	auto *popbutton = new PopupButton(popup, "More");
 	popbutton->setSide(Popup::Side::Right);
 	popbutton->setChevronIcon(ENTYPO_ICON_CHEVRON_SMALL_RIGHT);

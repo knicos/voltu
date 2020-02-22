@@ -227,7 +227,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 void SourceWindow::_checkFrameSets(int id) {
 	while (framesets_.size() <= id) {
 		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), "pre_filters");
-		p->append<ftl::operators::DepthChannel>("depth");
+		p->append<ftl::operators::DepthChannel>("depth")->value("enabled", false);
 		//p->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 		p->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
 		p->append<ftl::operators::ArUco>("aruco")->value("enabled", false);

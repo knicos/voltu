@@ -117,6 +117,10 @@ void TextureObjectBase::download(cv::Mat &m, cudaStream_t stream) const {
 	cudaSafeCall(cudaMemcpy2DAsync(m.data, m.step, devicePtr(), pitch(), m.cols * m.elemSize(), m.rows, cudaMemcpyDeviceToHost, stream));
 }
 
+cv::cuda::GpuMat TextureObjectBase::to_gpumat() const {
+	return cv::cuda::GpuMat(height_, width_, cvType_, ptr_, pitch_);
+}
+
 
 
 BufferBase::~BufferBase() {

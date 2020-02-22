@@ -268,6 +268,8 @@ public:
 
 	typedef STATE State;
 
+	int id;
+
 protected:
 	/* Lookup internal state for a given channel. */
 	inline DATA &getData(ftl::codecs::Channel c) { return data_[static_cast<unsigned int>(c)-BASE]; }
