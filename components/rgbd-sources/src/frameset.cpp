@@ -128,6 +128,7 @@ ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
 
 	//frame.swapTo(ftl::codecs::kAllChannels, fs->frames[ix]);
 
+	fs->frames[ix].id = ix;
 	return fs->frames[ix];
 }
 

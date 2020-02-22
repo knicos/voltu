@@ -57,6 +57,8 @@ class TextureObjectBase {
 	__host__ __device__ inline int height() const { return height_; }
 	__host__ __device__ inline cudaTextureObject_t cudaTexture() const { return texobj_; }
 
+	cv::cuda::GpuMat to_gpumat() const;
+
 	void upload(const cv::Mat &, cudaStream_t stream=0);
 	void download(cv::Mat &, cudaStream_t stream=0) const;
 	
@@ -94,7 +96,7 @@ class TextureObject : public TextureObjectBase {
 	explicit TextureObject(const cv::cuda::GpuMat &d, bool interpolated=false);
 	explicit TextureObject(const cv::cuda::PtrStepSz<T> &d);
 	TextureObject(T *ptr, int pitch, int width, int height);
-	TextureObject(size_t width, size_t height);
+	TextureObject(size_t width, size_t height, bool interpolated=false);
 	TextureObject(const TextureObject<T> &t);
 	__host__ __device__ TextureObject(TextureObject<T> &&);
 	~TextureObject();
@@ -249,7 +251,7 @@ TextureObject<T>::TextureObject(T *ptr, int pitch, int width, int height) {
 }
 
 template <typename T>
-TextureObject<T>::TextureObject(size_t width, size_t height) {
+TextureObject<T>::TextureObject(size_t width, size_t height, bool interpolated) {
 	cudaMallocPitch((void**)&ptr_,&pitch_,width*sizeof(T),height);
 	cudaTextureObject_t tex = 0;
 
@@ -267,8 +269,10 @@ TextureObject<T>::TextureObject(size_t width, size_t height) {
 		cudaTextureDesc texDesc;
 		// cppcheck-suppress memsetClassFloat
 		memset(&texDesc, 0, sizeof(texDesc));
-		texDesc.readMode = cudaReadModeElementType;
-		//if (std::is_same<T,uchar4>::value) texDesc.filterMode = cudaFilterModeLinear;
+		//texDesc.readMode = cudaReadModeElementType;
+		texDesc.readMode = (interpolated) ? cudaReadModeNormalizedFloat : cudaReadModeElementType;
+		if (interpolated) texDesc.filterMode = cudaFilterModeLinear;
+
 		cudaSafeCall(cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL));
 	//}
 

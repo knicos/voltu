@@ -53,6 +53,9 @@ class Camera {
 	void isPaused();
 	inline bool isVirtual() const { return fid_ == 255; }
 	const ftl::codecs::Channels<0> &availableChannels() { return channels_; }
+	inline bool isStereo() const { return stereo_; }
+
+	void setStereo(bool v);
 
 	/**
 	 * Main function to obtain latest frames.
@@ -98,7 +101,6 @@ class Camera {
 #endif
 
 	private:
-	cv::Mat visualizeActiveChannel();
 
 	Screen *screen_;
 	unsigned int fsmask_;  // Frameset Mask
@@ -126,8 +128,12 @@ class Camera {
 	ftl::codecs::Channels<0> channels_;
 	cv::Mat im1_; // first channel (left)
 	cv::Mat im2_; // second channel ("right")
+	bool stereo_;
 
 	ftl::render::CUDARender *renderer_;
+	ftl::render::CUDARender *renderer2_;
+	ftl::render::Colouriser *colouriser_;
+
 	ftl::Configurable *intrinsics_;
 	ftl::operators::Graph *post_pipe_;
 	ftl::rgbd::Frame frame_;
@@ -148,7 +154,8 @@ class Camera {
 	float baseline_;
 	#endif
 
-	void _downloadFrames(ftl::rgbd::Frame *frame);
+	void _downloadFrames(ftl::cuda::TextureObject<uchar4> &, ftl::cuda::TextureObject<uchar4> &);
+	void _downloadFrame(ftl::cuda::TextureObject<uchar4> &);
 	void _draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 };
 

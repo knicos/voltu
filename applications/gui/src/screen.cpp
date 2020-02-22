@@ -524,17 +524,20 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		leftEye_ = mImageID;
 		rightEye_ = camera_->getRight().texture();
 
-		if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
+		//if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
 
 		#ifdef HAVE_OPENVR
 		if (isVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
 			
+			glBindTexture(GL_TEXTURE_2D, leftEye_);
 			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
 
 			glBindTexture(GL_TEXTURE_2D, rightEye_);
 			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
+
+			glFlush();
 			
 			mImageID = leftEye_;
 		}
@@ -556,10 +559,10 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, leftEye_);
 			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, (camera_->getRight().isValid()) ? rightEye_ : leftEye_);
+			glBindTexture(GL_TEXTURE_2D, (camera_->isStereo() && camera_->getRight().isValid()) ? rightEye_ : leftEye_);
 			mShader.setUniform("image1", 0);
 			mShader.setUniform("image2", 1);
-			mShader.setUniform("blendAmount", (camera_->getChannel() != ftl::codecs::Channel::Left) ? root_->value("blending", 0.5f) : 1.0f);
+			mShader.setUniform("blendAmount", (camera_->isStereo()) ? root_->value("blending", 0.5f) : 1.0f);
 			mShader.setUniform("scaleFactor", scaleFactor);
 			mShader.setUniform("position", imagePosition);
 			mShader.drawIndexed(GL_TRIANGLES, 0, 2);

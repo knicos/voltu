@@ -415,21 +415,24 @@ __global__ void vis_normals_kernel(ftl::cuda::TextureObject<half4> norm,
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if(x >= norm.width() || y >= norm.height()) return;
+    if(x < norm.width() && y < norm.height()) {
+		output(x,y) = make_uchar4(ambient.x,ambient.y,ambient.z,0);
 
-    output(x,y) = make_uchar4(0,0,0,0);
-    float3 ray = direction;
-    ray = ray / length(ray);
-    float3 n = make_float3(norm.tex2D((int)x,(int)y));
-    float l = length(n);
-    if (l == 0) return;
-    n /= l;
+		float3 ray = direction;
+		ray = ray / length(ray);
+		float3 n = make_float3(norm.tex2D((int)x,(int)y));
+		float l = length(n);
 
-    const float d = max(dot(ray, n), 0.0f);
-    output(x,y) = make_uchar4(
-		min(255.0f, diffuse.x*d + ambient.x),
-		min(255.0f, diffuse.y*d + ambient.y),
-		min(255.0f, diffuse.z*d + ambient.z), 255);
+		if (l != 0) {
+			n /= l;
+
+			const float d = max(dot(ray, n), 0.0f);
+			output(x,y) = make_uchar4(
+				min(255.0f, diffuse.x*d + ambient.x),
+				min(255.0f, diffuse.y*d + ambient.y),
+				min(255.0f, diffuse.z*d + ambient.z), 255);
+		}
+	}
 }
 
 void ftl::cuda::normal_visualise(ftl::cuda::TextureObject<half4> &norm,

@@ -17,7 +17,7 @@ enum struct Channel : int {
 	Depth2			= 3,
 	Deviation		= 4,
 	Screen			= 4,
-	Normals			= 5,	// 32FC4
+	Normals			= 5,	// 16FC4
 	Weights			= 6,	// short
 	Confidence		= 7,	// 32F
 	Contribution	= 7,	// 32F
@@ -29,12 +29,13 @@ enum struct Channel : int {
 	Support1		= 13,	// 8UC4 (currently)
 	Support2		= 14,	// 8UC4 (currently)
 	Segmentation	= 15,	// 32S?
-	ColourNormals	= 16,	// 8UC4
+	Normals2		= 16,	// 16FC4
 	ColourHighRes	= 17,	// 8UC3 or 8UC4
 	LeftHighRes		= 17,	// 8UC3 or 8UC4
 	Disparity		= 18,
 	Smoothing		= 19,	// 32F
 	RightHighRes	= 20,	// 8UC3 or 8UC4
+	Colour2HighRes	= 20,
 
 	Audio			= 32,
 	AudioMono		= 32,

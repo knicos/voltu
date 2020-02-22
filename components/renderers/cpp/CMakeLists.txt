@@ -7,6 +7,8 @@ add_library(ftlrender
 	src/triangle_render.cu
 	src/reprojection.cu
 	src/CUDARender.cpp
+	src/colouriser.cpp
+	src/colour_util.cu
 )
 
 target_include_directories(ftlrender PUBLIC

@@ -11,6 +11,8 @@
 namespace ftl {
 namespace render {
 
+class Colouriser;
+
 /**
  * Generate triangles between connected points and render those. Colour is done
  * by weighted reprojection to the original source images.
@@ -20,11 +22,13 @@ class CUDARender : public ftl::render::Renderer {
 	explicit CUDARender(nlohmann::json &config);
 	~CUDARender();
 
-	void begin(ftl::rgbd::Frame &) override;
+	void begin(ftl::rgbd::Frame &, ftl::codecs::Channel) override;
 	void end() override;
 
 	bool submit(ftl::rgbd::FrameSet *in, ftl::codecs::Channels<0>, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
+
+	void blend(float alpha, ftl::codecs::Channel) override;
 
 	void setViewPort(ftl::render::ViewPortMode mode, const ftl::render::ViewPort &vp) {
 		params_.viewport = vp;
@@ -32,15 +36,23 @@ class CUDARender : public ftl::render::Renderer {
 	}
 
 	protected:
-	void _renderChannel(ftl::rgbd::Frame &out, ftl::codecs::Channel channel_in, ftl::codecs::Channel channel_out, const Eigen::Matrix4d &t, cudaStream_t stream);
+	void _renderChannel(ftl::rgbd::Frame &out, ftl::codecs::Channel channel_in, const Eigen::Matrix4d &t, cudaStream_t stream);
 
 	private:
 	int device_;
 	ftl::rgbd::Frame temp_;
-	ftl::rgbd::Frame accum_;
+	//ftl::rgbd::Frame accum_;
+	ftl::cuda::TextureObject<float4> accum_;		// 2 is number of channels can render together
+	ftl::cuda::TextureObject<int> contrib_;
+	//ftl::cuda::TextureObject<half4> normals_;
+
+	std::list<ftl::cuda::TextureObject<short2>*> screen_buffers_;
+	std::list<ftl::cuda::TextureObject<float>*> depth_buffers_;
+
 	ftl::rgbd::Frame *out_;
 	ftl::rgbd::FrameSet *scene_;
 	ftl::cuda::ClipSpace clip_;
+	ftl::render::Colouriser *colouriser_;
 	bool clipping_;
 	float norm_filter_;
 	bool backcull_;
@@ -57,6 +69,7 @@ class CUDARender : public ftl::render::Renderer {
 	float4x4 poseInverse_;
 	float scale_;
 	int64_t last_frame_;
+	ftl::codecs::Channel out_chan_;
 
 	cv::cuda::GpuMat env_image_;
 	ftl::cuda::TextureObject<uchar4> env_tex_;
@@ -71,25 +84,26 @@ class CUDARender : public ftl::render::Renderer {
 
 	std::vector<SubmitState> sets_;
 
-	template <typename T>
-	void __reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
-	void _reprojectChannel(ftl::rgbd::Frame &, ftl::codecs::Channel in, ftl::codecs::Channel out, const Eigen::Matrix4d &t, cudaStream_t);
 	void _dibr(ftl::rgbd::Frame &, const Eigen::Matrix4d &t, cudaStream_t);
 	void _mesh(ftl::rgbd::Frame &, const Eigen::Matrix4d &t, cudaStream_t);
-	void _preprocessColours();
-	void _updateParameters(ftl::rgbd::Frame &out);
-	void _allocateChannels(ftl::rgbd::Frame &out);
+	void _updateParameters(ftl::rgbd::Frame &out, ftl::codecs::Channel);
+	void _allocateChannels(ftl::rgbd::Frame &out, ftl::codecs::Channel);
 	void _postprocessColours(ftl::rgbd::Frame &out);
 
-	void _renderNormals(ftl::rgbd::Frame &out);
-	void _renderDensity(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
-	void _renderRight(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t);
-	void _renderSecond(ftl::rgbd::Frame &out, ftl::codecs::Channel chan, const Eigen::Matrix4d &t);
 	void _renderPass1(const Eigen::Matrix4d &t);
 	void _renderPass2(ftl::codecs::Channels<0>, const Eigen::Matrix4d &t);
 
+	void _end();
+	void _endSubmit();
+
 	bool _alreadySeen() const { return last_frame_ == scene_->timestamp; }
 	void _adjustDepthThresholds(const ftl::rgbd::Camera &fcam);
+
+	ftl::cuda::TextureObject<float> &_getDepthBuffer(const cv::Size &);
+	ftl::cuda::TextureObject<short2> &_getScreenBuffer(const cv::Size &);
+
+	inline ftl::codecs::Channel _getDepthChannel() const { return (out_chan_ == ftl::codecs::Channel::Colour) ? ftl::codecs::Channel::Depth : ftl::codecs::Channel::Depth2; }
+	inline ftl::codecs::Channel _getNormalsChannel() const { return (out_chan_ == ftl::codecs::Channel::Colour) ? ftl::codecs::Channel::Normals : ftl::codecs::Channel::Normals2; }
 };
 
 }

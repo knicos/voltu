@@ -8,6 +8,12 @@
 namespace ftl {
 namespace render {
 
+enum class Stage {
+	Finished,
+	ReadySubmit,
+	Blending
+};
+
 /**
  * Abstract class for all renderers. A renderer takes some 3D scene and
  * generates a virtual camera perspective of that scene. The scene might be
@@ -18,14 +24,17 @@ namespace render {
  */
 class Renderer : public ftl::Configurable {
     public:
-    explicit Renderer(nlohmann::json &config) : Configurable(config) {};
+    explicit Renderer(nlohmann::json &config) : Configurable(config), stage_(Stage::Finished) {};
     virtual ~Renderer() {};
 
 	/**
 	 * Begin a new render. This clears memory, allocates buffers etc. The RGBD
 	 * frame given as parameter is where the output channels are rendered to.
+	 * The channel parameter is the render output channel which can either be
+	 * Left (Colour) or Right (Colour 2). Using "Right" will also adjust the
+	 * pose to the right eye position and use the right camera intrinsics. 
 	 */
-	virtual void begin(ftl::rgbd::Frame &)=0;
+	virtual void begin(ftl::rgbd::Frame &, ftl::codecs::Channel)=0;
 
 	/**
 	 * Finish a render. Post process the output as required, or finish
@@ -38,9 +47,19 @@ class Renderer : public ftl::Configurable {
      * Render all frames of a frameset into the output frame. This can be called
 	 * multiple times between `begin` and `end` to combine multiple framesets.
 	 * Note that the frameset pointer must remain valid until `end` is called,
-	 * and ideally should not be swapped between
+	 * and ideally should not be swapped between.
+	 * 
+	 * The channels parameter gives all of the source channels that will be
+	 * rendered into the single colour output. These will be blended
+	 * together by some undefined method. Non colour channels will be converted
+	 * to RGB colour appropriately.
      */
     virtual bool submit(ftl::rgbd::FrameSet *, ftl::codecs::Channels<0>, const Eigen::Matrix4d &)=0;
+
+	virtual void blend(float, ftl::codecs::Channel)=0;
+
+	protected:
+	Stage stage_;
 };
 
 }

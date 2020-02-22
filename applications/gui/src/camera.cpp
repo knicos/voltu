@@ -10,6 +10,7 @@
 
 #include <ftl/operators/antialiasing.hpp>
 #include <ftl/cuda/normals.hpp>
+#include <ftl/render/colouriser.hpp>
 
 #include <ftl/codecs/faces.hpp>
 
@@ -72,29 +73,13 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 	//posewin_->setVisible(false);
 	posewin_ = nullptr;
 	renderer_ = nullptr;
+	renderer2_ = nullptr;
 	post_pipe_ = nullptr;
 	record_stream_ = nullptr;
 	transform_ix_ = -1;
+	stereo_ = false;
 
-	/*src->setCallback([this](int64_t ts, ftl::rgbd::Frame &frame) {
-		UNIQUE_LOCK(mutex_, lk);
-
-		auto &channel1 = frame.get<GpuMat>(Channel::Colour);
-		im1_.create(channel1.size(), channel1.type());
-		channel1.download(im1_);
-
-		// OpenGL (0,0) bottom left
-		cv::flip(im1_, im1_, 0);
-
-		if (channel_ != Channel::Colour && channel_ != Channel::None && frame.hasChannel(channel_)) {
-			auto &channel2 = frame.get<GpuMat>(channel_);
-			im2_.create(channel2.size(), channel2.type());
-			channel2.download(im2_);
-			cv::flip(im2_, im2_, 0);
-		}
-	});*/
-
-	//auto *host = screen->root();
+	colouriser_ = ftl::create<ftl::render::Colouriser>(screen->root(), "colouriser");
 
 	// Is virtual camera?
 	if (fid == 255) {
@@ -119,90 +104,6 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 		}
 	}
 }
-
-/*template<class T>
-static Eigen::Matrix<T,4,4> lookAt
-(
-    Eigen::Matrix<T,3,1> const & eye,
-    Eigen::Matrix<T,3,1> const & center,
-    Eigen::Matrix<T,3,1> const & up
-)
-{
-    typedef Eigen::Matrix<T,4,4> Matrix4;
-    typedef Eigen::Matrix<T,3,1> Vector3;
-
-    Vector3 f = (center - eye).normalized();
-    Vector3 u = up.normalized();
-    Vector3 s = f.cross(u).normalized();
-    u = s.cross(f);
-
-    Matrix4 res;
-    res <<  s.x(),s.y(),s.z(),-s.dot(eye),
-            u.x(),u.y(),u.z(),-u.dot(eye),
-            -f.x(),-f.y(),-f.z(),f.dot(eye),
-            0,0,0,1;
-
-    return res;
-}*/
-
-/*static float4 screenProjection(
-		const Eigen::Vector3f &pa,  // Screen corner 1
-		const Eigen::Vector3f &pb,  // Screen corner 2
-		const Eigen::Vector3f &pc,  // Screen corner 3
-		const Eigen::Vector3f &pe  // Eye position
-		) {
-
-    Eigen::Vector3f va, vb, vc;
-    Eigen::Vector3f vr, vu, vn;
-
-    float l, r, b, t, d;
-
-    // Compute an orthonormal basis for the screen.
-
-    //subtract(vr, pb, pa);
-    //subtract(vu, pc, pa);
-	vr = pb - pa;
-	vu = pc - pa;
-
-    //normalize(vr);
-    //normalize(vu);
-    //cross_product(vn, vr, vu);
-    //normalize(vn);
-	vr.normalize();
-	vu.normalize();
-	vn = vr.cross(vu);
-	vn.normalize();
-
-    // Compute the screen corner vectors.
-
-    //subtract(va, pa, pe);
-    //subtract(vb, pb, pe);
-    //subtract(vc, pc, pe);
-	va = pa - pe;
-	vb = pb - pe;
-	vc = pc - pe;
-
-    // Find the distance from the eye to screen plane.
-
-    //d = -dot_product(va, vn);
-	d = -va.dot(vn);
-
-    // Find the extent of the perpendicular projection.
-
-    //l = dot_product(vr, va) * n / d;
-    //r = dot_product(vr, vb) * n / d;
-    //b = dot_product(vu, va) * n / d;
-    //t = dot_product(vu, vc) * n / d;
-
-	float n = d;
-	l = vr.dot(va) * n / d;
-	r = vr.dot(vb) * n / d;
-	b = vu.dot(va) * n / d;
-	t = vu.dot(vc) * n / d;
-
-	//return nanogui::frustum(l,r,b,t,n,f);
-	return make_float4(l,r,b,t);
-}*/
 
 ftl::gui::Camera::~Camera() {
 	//delete writer_;
@@ -335,23 +236,50 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	}
 }
 
+void ftl::gui::Camera::setStereo(bool v) {
+	UNIQUE_LOCK(mutex_, lk);
+
+	if (isVirtual()) {
+		stereo_ = v;
+	} else if (v && availableChannels().has(Channel::Right)) {
+		stereo_ = true;
+	} else {
+		stereo_ = false;
+	}
+}
+
 void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	frame_.reset();
 	frame_.setOrigin(&state_);
 
 	{
 		FTL_Profile("Render",0.034);
-		renderer_->begin(frame_);
-		for (auto *fs : fss) {
-			if (!usesFrameset(fs->id)) continue;
-
-			// FIXME: Should perhaps remain locked until after end is called?
-			// Definitely: causes flashing if not.
-			//UNIQUE_LOCK(fs->mtx,lk);
-			fs->mtx.lock();
-			renderer_->submit(fs, Channels<0>(channel_), transforms_[fs->id]);
+		renderer_->begin(frame_, Channel::Colour);
+		if (isStereo()) {
+			if (!renderer2_) {
+				renderer2_ = ftl::create<ftl::render::CUDARender>(screen_->root(), std::string("vcam")+std::to_string(vcamcount++));
+			}
+			renderer2_->begin(frame_, Channel::Colour2);
 		}
-		renderer_->end();
+
+		try {
+			for (auto *fs : fss) {
+				if (!usesFrameset(fs->id)) continue;
+
+				fs->mtx.lock();
+				renderer_->submit(fs, ftl::codecs::Channels<0>(Channel::Colour), transforms_[fs->id]);
+				if (isStereo()) renderer2_->submit(fs, ftl::codecs::Channels<0>(Channel::Colour), transforms_[fs->id]);
+			}
+
+			if (channel_ != Channel::Left && channel_ != Channel::Right && channel_ != Channel::None) {
+				renderer_->blend(0.5f, channel_);
+			}
+
+			renderer_->end();
+			if (isStereo()) renderer2_->end();
+		} catch(std::exception &e) {
+			LOG(ERROR) << "Exception in render: " << e.what();
+		}
 		for (auto *fs : fss) {
 			fs->mtx.unlock();
 		}
@@ -364,8 +292,13 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	post_pipe_->apply(frame_, frame_, 0);
 
-	channels_ = frame_.getChannels() + Channel::Right + Channel::ColourNormals;
-	_downloadFrames(&frame_);
+	channels_ = frame_.getChannels();
+
+	if (isStereo()) {
+		_downloadFrames(frame_.getTexture<uchar4>(Channel::Colour), frame_.getTexture<uchar4>(Channel::Colour2));
+	} else {
+		_downloadFrame(frame_.getTexture<uchar4>(Channel::Colour));
+	}
 
 	if (screen_->root()->value("show_poses", false)) {
 		cv::Mat over_col, over_depth;
@@ -402,15 +335,9 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	}
 }
 
-void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
-	if (!frame) return;
-
-	// Use high res colour if available..
-	auto &channel1 = (frame->hasChannel(Channel::ColourHighRes)) ? 
-			frame->get<GpuMat>(Channel::ColourHighRes) :
-			frame->get<GpuMat>(Channel::Colour);
-	im1_.create(channel1.size(), channel1.type());
-	channel1.download(im1_);
+void ftl::gui::Camera::_downloadFrames(ftl::cuda::TextureObject<uchar4> &a, ftl::cuda::TextureObject<uchar4> &b) {
+	im1_.create(cv::Size(a.width(), a.height()), CV_8UC4);
+	a.to_gpumat().download(im1_);
 
 	// OpenGL (0,0) bottom left
 	cv::flip(im1_, im1_, 0);
@@ -418,39 +345,33 @@ void ftl::gui::Camera::_downloadFrames(ftl::rgbd::Frame *frame) {
 	width_ = im1_.cols;
 	height_ = im1_.rows;
 
-	if (channel_ != Channel::Colour && channel_ != Channel::None && frame->hasChannel(channel_)) {
-		auto &channel2 = frame->get<GpuMat>(channel_);
-		im2_.create(channel2.size(), channel2.type());
-		channel2.download(im2_);
-		//LOG(INFO) << "Have channel2: " << im2_.type() << ", " << im2_.size();
-		cv::flip(im2_, im2_, 0);
-	} else if (channel_ == Channel::ColourNormals && frame->hasChannel(Channel::Depth)) {
-		// We can calculate normals here.
-		ftl::cuda::normals(
-			frame->createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(frame->get<cv::cuda::GpuMat>(Channel::Depth).size())),
-			frame->createTexture<float>(Channel::Depth),
-			frame->getLeftCamera(), 0
-		);
+	im2_.create(cv::Size(b.width(), b.height()), CV_8UC4);
+	b.to_gpumat().download(im2_);
+	cv::flip(im2_, im2_, 0);
 
-		frame->create<GpuMat>(Channel::ColourNormals, ftl::rgbd::Format<uchar4>(frame->get<cv::cuda::GpuMat>(Channel::Depth).size())).setTo(cv::Scalar(0,0,0,0), cv::cuda::Stream::Null());
-
-		ftl::cuda::normal_visualise(frame->getTexture<half4>(Channel::Normals), frame->createTexture<uchar4>(Channel::ColourNormals),
-				make_float3(0.3f,0.3f,0.3f),
-				make_uchar4(200,200,200,255),
-				make_uchar4(50,50,50,255), 0);
-
-		auto &channel2 = frame->get<GpuMat>(Channel::ColourNormals);
-		im2_.create(channel2.size(), channel2.type());
-		channel2.download(im2_);
-		cv::flip(im2_, im2_, 0);
+	if (im2_.cols != im1_.cols || im2_.rows != im1_.rows) {
+		throw FTL_Error("Left and right images are different sizes");
 	}
+}
+
+void ftl::gui::Camera::_downloadFrame(ftl::cuda::TextureObject<uchar4> &a) {
+	im1_.create(cv::Size(a.width(), a.height()), CV_8UC4);
+	a.to_gpumat().download(im1_);
+
+	// OpenGL (0,0) bottom left
+	cv::flip(im1_, im1_, 0);
+
+	width_ = im1_.cols;
+	height_ = im1_.rows;
+
+	im2_ = cv::Mat();
 }
 
 void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
 	if (!isVirtual() && ((1 << fsid) & fsmask_)) {
 		channels_ = c;
 		if (c.has(Channel::Depth)) {
-			channels_ += Channel::ColourNormals;
+			//channels_ += Channel::ColourNormals;
 		}
 	}
 }
@@ -474,7 +395,14 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 			if ((size_t)fid_ >= fs->frames.size()) return;
 			frame = &fs->frames[fid_];
-			_downloadFrames(frame);
+
+			auto &buf = colouriser_->colourise(*frame, channel_, 0);
+			if (isStereo() && frame->hasChannel(Channel::Right)) {
+				_downloadFrames(buf, frame->createTexture<uchar4>(Channel::Right));
+			} else {
+				_downloadFrame(buf);
+			}
+
 			auto n = frame->get<std::string>("name");
 			if (n) {
 				name_ = *n;
@@ -561,7 +489,6 @@ void ftl::gui::Camera::showSettings() {
 
 #ifdef HAVE_OPENVR
 bool ftl::gui::Camera::setVR(bool on) {
-	
 	if (on == vr_mode_) {
 		LOG(WARNING) << "VR mode already enabled";
 		return on;
@@ -569,17 +496,23 @@ bool ftl::gui::Camera::setVR(bool on) {
 	vr_mode_ = on;
 
 	if (on) {
-		setChannel(Channel::Right);
+		setStereo(true);
+
+		UNIQUE_LOCK(mutex_, lk);
 		//src_->set("baseline", baseline_);
 		state_.getLeft().baseline = baseline_;
 
 		Eigen::Matrix3d intrinsic;
+
+		unsigned int size_x, size_y;
+		screen_->getVR()->GetRecommendedRenderTargetSize(&size_x, &size_y);
+		state_.getLeft().width = size_x;
+		state_.getLeft().height = size_y;
+		state_.getRight().width = size_x;
+		state_.getRight().height = size_y;
 		
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Left);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
-		//src_->set("focal", intrinsic(0, 0));
-		//src_->set("centre_x", intrinsic(0, 2));
-		//src_->set("centre_y", intrinsic(1, 2));
 		state_.getLeft().fx = intrinsic(0,0);
 		state_.getLeft().fy = intrinsic(0,0);
 		state_.getLeft().cx = intrinsic(0,2);
@@ -587,9 +520,6 @@ bool ftl::gui::Camera::setVR(bool on) {
 		
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Right);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
-		//src_->set("focal_right", intrinsic(0, 0));
-		//src_->set("centre_x_right", intrinsic(0, 2));
-		//src_->set("centre_y_right", intrinsic(1, 2));
 		state_.getRight().fx = intrinsic(0,0);
 		state_.getRight().fy = intrinsic(0,0);
 		state_.getRight().cx = intrinsic(0,2);
@@ -599,8 +529,11 @@ bool ftl::gui::Camera::setVR(bool on) {
 	}
 	else {
 		vr_mode_ = false;
-		setChannel(Channel::Left); // reset to left channel
-		// todo restore camera params<
+		setStereo(false);
+
+		UNIQUE_LOCK(mutex_, lk);
+		state_.getLeft() = ftl::rgbd::Camera::from(intrinsics_);
+		state_.getRight() = state_.getLeft();
 	}
 
 	return vr_mode_;
@@ -608,60 +541,11 @@ bool ftl::gui::Camera::setVR(bool on) {
 #endif
 
 void ftl::gui::Camera::setChannel(Channel c) {
-#ifdef HAVE_OPENVR
-	if (isVR() && (c != Channel::Right)) {
-		LOG(ERROR) << "Changing channel in VR mode is not possible.";
-		return;
-	}
-#endif
-
+	UNIQUE_LOCK(mutex_, lk);
 	channel_ = c;
 }
 
-static void visualizeDepthMap(	const cv::Mat &depth, cv::Mat &out,
-								const float max_depth)
-{
-	DCHECK(max_depth > 0.0);
-
-	depth.convertTo(out, CV_8U, 255.0f / max_depth);
-	out = 255 - out;
-	cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
-	
-	applyColorMap(out, out, cv::COLORMAP_JET);
-	out.setTo(cv::Scalar(255, 255, 255), mask);
-	cv::cvtColor(out,out, cv::COLOR_BGR2BGRA);
-}
-
-static void visualizeEnergy(	const cv::Mat &depth, cv::Mat &out,
-								const float max_depth)
-{
-	DCHECK(max_depth > 0.0);
-
-	depth.convertTo(out, CV_8U, 255.0f / max_depth);
-	//out = 255 - out;
-	//cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
-	
-	applyColorMap(out, out, cv::COLORMAP_JET);
-	//out.setTo(cv::Scalar(255, 255, 255), mask);
-	cv::cvtColor(out,out, cv::COLOR_BGR2BGRA);
-}
-
-static void visualizeWeights(const cv::Mat &weights, cv::Mat &out)
-{
-	weights.convertTo(out, CV_8U, 255.0f / 32767.0f);
-	//out = 255 - out;
-	//cv::Mat mask = (depth >= 39.0f); // TODO (mask for invalid pixels)
-	
-#if (OPENCV_VERSION >= 40102)
-	applyColorMap(out, out, cv::COLORMAP_TURBO);
-#else
-	applyColorMap(out, out, cv::COLORMAP_JET);
-#endif
-	//out.setTo(cv::Scalar(255, 255, 255), mask);
-	cv::cvtColor(out,out, cv::COLOR_BGR2BGRA);
-}
-
-static void drawEdges(	const cv::Mat &in, cv::Mat &out,
+/*static void drawEdges(	const cv::Mat &in, cv::Mat &out,
 						const int ksize = 3, double weight = -1.0, const int threshold = 32,
 						const int threshold_type = cv::THRESH_TOZERO)
 {
@@ -671,38 +555,15 @@ static void drawEdges(	const cv::Mat &in, cv::Mat &out,
 
 	cv::Mat edges_color(in.size(), CV_8UC4);
 	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC4);
-}
-
-cv::Mat ftl::gui::Camera::visualizeActiveChannel() {
-	cv::Mat result;
-	switch(channel_) {
-		case Channel::Smoothing:
-		case Channel::Confidence:
-			visualizeEnergy(im2_, result, 1.0);
-			break;
-		case Channel::Density:
-		case Channel::Energy:
-			visualizeEnergy(im2_, result, 10.0);
-			break;
-		case Channel::Depth:
-			visualizeDepthMap(im2_, result, 7.0);
-			if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(im1_, result);
-			break;
-		case Channel::ColourNormals:
-		case Channel::Right:
-			result = im2_;
-			break;
-		default: break;
-	}
-	return result;
-}
+}*/
 
 bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
-	UNIQUE_LOCK(mutex_, lk);
-	/*src_->grab(1,9);*/
-	cv::Mat sel = (channel_ != Channel::None && channel_ != Channel::Colour && !im2_.empty()) ? visualizeActiveChannel() : im1_;
-	if (sel.empty()) return false;
-	cv::resize(sel, thumb, cv::Size(320,180));
+	{
+		UNIQUE_LOCK(mutex_, lk);
+		if (im1_.empty()) return false;
+		// FIXME: Use correct aspect ratio?
+		cv::resize(im1_, thumb, cv::Size(320,180));
+	}
 	cv::flip(thumb, thumb, 0);
 	return true;
 }
@@ -731,7 +592,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 			
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
-			if ((channel_ == Channel::Right) && rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
+			if (isStereo() && rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
 			{
 				Eigen::Matrix4d eye_l = ConvertSteamVRMatrixToMatrix4(
 					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
@@ -745,6 +606,7 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 					baseline_ = baseline_in;
 					//src_->set("baseline", baseline_);
 					state_.getLeft().baseline = baseline_;
+					state_.getRight().baseline = baseline_;
 				}
 				Eigen::Matrix4d pose = ConvertSteamVRMatrixToMatrix4(rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
 				Eigen::Vector3d ea = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
@@ -782,86 +644,14 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				transforms_[transform_ix_] = viewPose;
 			}
 		}
-	
-		//src_->grab();
-
-		// When switching from right to depth, client may still receive
-		// right images from previous batch (depth.channels() == 1 check)
-
-		/* todo: does not work
-		if (channel_ == Channel::Deviation &&
-			depth_.rows > 0 && depth_.channels() == 1)
-		{
-			if (!stats_) {
-				stats_ = new StatisticsImage(depth_.size());
-			}
-			
-			stats_->update(depth_);
-		}*/
 
 		cv::Mat tmp;
 
-		switch(channel_) {
-			case Channel::Smoothing:
-			case Channel::Confidence:
-				if (im2_.rows == 0) { break; }
-				visualizeEnergy(im2_, tmp, screen_->root()->value("float_image_max", 1.0f));
-				texture2_.update(tmp);
-				break;
-
-			case Channel::Weights:
-				if (im2_.rows == 0) { break; }
-				visualizeWeights(im2_, tmp);
-				texture2_.update(tmp);
-				break;
-			
-			case Channel::Density:
-			case Channel::Energy:
-				if (im2_.rows == 0) { break; }
-				visualizeEnergy(im2_, tmp, 10.0);
-				texture2_.update(tmp);
-				break;
-			
-			case Channel::Depth:
-				if (im2_.rows == 0 || im2_.type() != CV_32F) { break; }
-				visualizeDepthMap(im2_, tmp, 7.0);
-				if (screen_->root()->value("showEdgesInDepth", false)) drawEdges(im1_, tmp);
-				texture2_.update(tmp);
-				break;
-			
-			case Channel::Deviation:
-				if (im2_.rows == 0) { break; }/*
-				//imageSize = Vector2f(depth.cols, depth.rows);
-				stats_->getStdDev(tmp);
-				tmp.convertTo(tmp, CV_8U, 1000.0);
-				applyColorMap(tmp, tmp, cv::COLORMAP_HOT);
-				texture2_.update(tmp);*/
-				break;
-
-			//case Channel::Flow:
-			case Channel::ColourNormals:
-			case Channel::Right:
-					if (im2_.rows == 0 || im2_.type() != CV_8UC4) { break; }
-					texture2_.update(im2_);
-					break;
-
-			default:
-				break;
-				/*if (rgb_.rows == 0) { break; }
-				//imageSize = Vector2f(rgb.cols,rgb.rows);
-				texture_.update(rgb_);
-				#ifdef HAVE_OPENVR
-				if (screen_->hasVR() && depth_.channels() >= 3) {
-					LOG(INFO) << "DRAW RIGHT";
-					textureRight_.update(depth_);
-				}
-				#endif
-				*/
-		}
-
 		if (im1_.rows != 0) {
-			//imageSize = Vector2f(rgb.cols,rgb.rows);
 			texture1_.update(im1_);
+		}
+		if (isStereo() && im2_.rows != 0) {
+			texture2_.update(im2_);
 		}
 	}
 
@@ -869,18 +659,12 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 }
 
 void ftl::gui::Camera::snapshot(const std::string &filename) {
-	UNIQUE_LOCK(mutex_, lk);
-	cv::Mat blended;
-	cv::Mat visualized = visualizeActiveChannel();
-
-	if (!visualized.empty()) {
-		double alpha = screen_->root()->value("blending", 0.5);
-		cv::addWeighted(im1_, alpha, visualized, 1.0-alpha, 0, blended);
-	} else {
-		blended = im1_;
-	}
 	cv::Mat flipped;
-	cv::flip(blended, flipped, 0);
+
+	{
+		UNIQUE_LOCK(mutex_, lk);
+		cv::flip(im1_, flipped, 0);
+	}
 	cv::cvtColor(flipped, flipped, cv::COLOR_BGRA2BGR);
 	cv::imwrite(filename, flipped);
 }
