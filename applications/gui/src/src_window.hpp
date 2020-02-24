@@ -48,6 +48,8 @@ class SourceWindow : public nanogui::Window {
 	void recordVideo(const std::string &filename);
 	void stopRecordingVideo();
 
+	inline std::vector<ftl::rgbd::FrameSet*> &getFramesets() { return framesets_; }
+
 	inline void paused(bool p) { paused_ = p; }
 
 	private:

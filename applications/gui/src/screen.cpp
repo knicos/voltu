@@ -520,28 +520,11 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 	if (camera_) {
 		imageSize = {camera_->width(), camera_->height()};
 
-		mImageID = camera_->captureFrame().texture();
+		mImageID = camera_->getLeft().texture();
 		leftEye_ = mImageID;
 		rightEye_ = camera_->getRight().texture();
 
 		//if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
-
-		#ifdef HAVE_OPENVR
-		if (isVR() && imageSize[0] > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
-			
-			glBindTexture(GL_TEXTURE_2D, leftEye_);
-			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
-			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
-
-			glBindTexture(GL_TEXTURE_2D, rightEye_);
-			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
-			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
-
-			glFlush();
-			
-			mImageID = leftEye_;
-		}
-		#endif
 
 		if (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) {
 			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff()) * zoom_;
@@ -576,4 +559,25 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 	/* Draw the user interface */
 	screen()->performLayout(ctx);
 	nanogui::Screen::draw(ctx);
+}
+
+void ftl::gui::Screen::drawFast() {
+	if (camera_) {
+		camera_->captureFrame();
+
+		#ifdef HAVE_OPENVR
+		if (isVR() && camera_->width() > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
+			
+			//glBindTexture(GL_TEXTURE_2D, leftEye_);
+			vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
+
+			//glBindTexture(GL_TEXTURE_2D, rightEye_);
+			vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)rightEye_, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
+
+			glFlush();
+		}
+		#endif
+	}
 }

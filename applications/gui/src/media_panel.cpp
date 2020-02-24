@@ -118,13 +118,13 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 			if (!screen_->isVR()) {
 				if (screen_->switchVR(true) == true) {
 					button_vr->setTextColor(nanogui::Color(0.5f,0.5f,1.0f,1.0f));
-					this->button_channels_->setEnabled(false);
+					//this->button_channels_->setEnabled(false);
 				}
 			}
 			else {
 				if (screen_->switchVR(false) == false) {
 					button_vr->setTextColor(nanogui::Color(1.0f,1.0f,1.0f,1.0f));
-					this->button_channels_->setEnabled(true);
+					//this->button_channels_->setEnabled(true);
 				}
 			}
 		});

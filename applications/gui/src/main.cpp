@@ -40,7 +40,41 @@ int main(int argc, char **argv) {
 			nanogui::ref<ftl::gui::Screen> app = new ftl::gui::Screen(root, net, controller);
 			app->drawAll();
 			app->setVisible(true);
-			nanogui::mainloop();
+			//nanogui::mainloop(20);
+
+			float last_draw_time = 0.0f;
+			float last_vr_time = 0.0f;
+
+			while (ftl::running) {
+				nanogui::Screen *screen = app;
+				if (!app->visible()) {
+					ftl::running = false;
+				} else if (glfwWindowShouldClose(app->glfwWindow())) {
+					app->setVisible(false);
+					ftl::running = false;
+				} else {
+					float now = (float)glfwGetTime();
+					float delta = now - last_draw_time;
+
+					// Generate poses and render and virtual frame here
+					// at full FPS (25 without VR and 90 with VR currently)
+					app->drawFast();
+					last_vr_time = now;
+
+					// Only draw the GUI at 25fps
+					if (delta >= 0.04f) {
+						last_draw_time = now;
+						app->drawAll();
+					}
+				}
+
+				/* Wait for mouse/keyboard or empty refresh events */
+				//glfwWaitEvents();
+				glfwPollEvents();
+			}
+
+        	/* Process events once more */
+        	glfwPollEvents();
 
 			LOG(INFO) << "Stopping...";
 			ftl::timer::stop(false);
