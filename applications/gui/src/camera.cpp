@@ -636,6 +636,11 @@ const void ftl::gui::Camera::captureFrame() {
 				}
 				Eigen::Matrix4d pose = ConvertSteamVRMatrixToMatrix4(rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
 				Eigen::Vector3d ea = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
+
+				//LOG(INFO) << "Pose: " << pose;
+				eye_[0] = pose(0, 3);
+				eye_[1] = -pose(1, 3);
+				eye_[2] = -pose(2, 3);
 				
 				// NOTE: If modified, should be verified with VR headset!
 				Eigen::Matrix3d R;
@@ -666,11 +671,11 @@ const void ftl::gui::Camera::captureFrame() {
 
 			rx_ = 0;
 			ry_ = 0;
-		}
 
-		eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
-		eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
-		eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+			eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+			eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+			eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+		}
 
 		Eigen::Translation3d trans(eye_);
 		Eigen::Affine3d t(trans);
