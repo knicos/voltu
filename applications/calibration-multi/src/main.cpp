@@ -5,6 +5,8 @@
 #include <ftl/rgbd/source.hpp>
 #include <ftl/rgbd/group.hpp>
 
+#include <ftl/calibration.hpp>
+
 #include <ftl/master.hpp>
 #include <ftl/streams/receiver.hpp>
 #include <ftl/streams/netstream.hpp>
@@ -231,14 +233,18 @@ void calibrateRPC(	ftl::net::Universe* net,
 		auto *nstream = nstreams[c/2];
 		while(true) {
 			try {
-				if (params.optimize_intrinsic) {
+				if (params.save_intrinsic && params.optimize_intrinsic) {
 					// never update distortion during extrinsic calibration
 					setIntrinsicsRPC(net, nstream, params.size, {K1, K2}, {Mat(0, 0, CV_64FC1), Mat(0, 0, CV_64FC1)});
 				}
-				setExtrinsicsRPC(net, nstream, R_c1c2, T_c1c2);
-				setPoseRPC(net, nstream, getMat4x4(R[c], t[c]));
-				saveCalibrationRPC(net, nstream);
-				LOG(INFO) << "CALIBRATION SENT";
+				if (params.save_extrinsic) {
+					setExtrinsicsRPC(net, nstream, R_c1c2, T_c1c2);
+					setPoseRPC(net, nstream, getMat4x4(R[c], t[c]));
+				}
+				if (params.save_intrinsic || params.save_extrinsic) {
+					saveCalibrationRPC(net, nstream);
+					LOG(INFO) << "CALIBRATION SENT";
+				}
 				break;
 
 			} catch (std::exception &ex) {
@@ -382,8 +388,11 @@ void runCameraCalibration(	ftl::Configurable* root,
 				cv::cvtColor(left, rgb_new[2*idx], cv::COLOR_BGRA2BGR);
 				cv::cvtColor(right, rgb_new[2*idx+1], cv::COLOR_BGRA2BGR);
 				
-				camera_parameters[2*idx] = createCameraMatrix(fs.frames[i].getLeftCamera());
-				camera_parameters[2*idx+1] = createCameraMatrix(fs.frames[i].getRightCamera());
+				camera_parameters[2*idx] = ftl::calibration::scaleCameraMatrix(createCameraMatrix(fs.frames[i].getLeftCamera()),
+					rgb_new[2*idx].size(), Size(fs.frames[i].getLeftCamera().width, fs.frames[i].getLeftCamera().height));
+				camera_parameters[2*idx+1] = ftl::calibration::scaleCameraMatrix(createCameraMatrix(fs.frames[i].getRightCamera()),
+					rgb_new[2*idx].size(), Size(fs.frames[i].getRightCamera().width, fs.frames[i].getRightCamera().height));
+
 				if (res.empty()) res = rgb_new[2*idx].size();
 			}
 		}
@@ -667,10 +676,13 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 
 				cv::cvtColor(left, rgb_new[2*idx], cv::COLOR_BGRA2BGR);
 				cv::cvtColor(right, rgb_new[2*idx+1], cv::COLOR_BGRA2BGR);
+				/*
+				camera_parameters[2*idx] = ftl::calibration::scaleCameraMatrix(createCameraMatrix(fs.frames[i].getLeftCamera()),
+					rgb_new[2*idx].size(), Size(fs.frames[i].getLeftCamera().width, fs.frames[i].getLeftCamera().height));
+				camera_parameters[2*idx+1] = ftl::calibration::scaleCameraMatrix(createCameraMatrix(fs.frames[i].getRightCamera()),
+					rgb_new[2*idx].size(), Size(fs.frames[i].getRightCamera().width, fs.frames[i].getRightCamera().height));
 				
-				camera_parameters[2*idx] = createCameraMatrix(fs.frames[i].getLeftCamera());
-				camera_parameters[2*idx+1] = createCameraMatrix(fs.frames[i].getRightCamera());
-				if (res.empty()) res = rgb_new[2*idx].size();
+				if (res.empty()) res = rgb_new[2*idx].size();*/
 			}
 		}
 		catch (std::exception ex) {
@@ -687,14 +699,6 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 
 	stream->begin();
 	ftl::timer::start(false);
-	
-	while(true) {
-		if (!res.empty()) {
-			LOG(INFO) << "Camera resolution: " << params.size;
-			break;
-		}
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
 
 	for (auto *nstream: nstreams) {
 		bool res = true;
@@ -724,7 +728,7 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
 	calib.loadInput(path + filename, params.idx_cameras);
 
-	for (size_t i = 0; i < nstreams.size(); i++) {
+	/*for (size_t i = 0; i < nstreams.size(); i++) {
 		while(true) {
 			try {
 				if (camera_parameters[2*i].empty() || camera_parameters[2*i+1].empty()) {
@@ -742,7 +746,7 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 			}
 			catch (...) {}
 		}
-	}
+	}*/
 
 
 	Mat out;

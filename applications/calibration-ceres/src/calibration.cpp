@@ -110,6 +110,8 @@ double ftl::calibration::computeExtrinsicParameters(const Mat &K1, const Mat &D1
 	for (size_t i = 0; i < points_out.size(); i++) {
 		ba.addPoint({points1[i], points2[i]}, points_out[i]);
 	}
+	
+	ba.addObject(object_points);
 
 	double error_before = ba.reprojectionError();
 

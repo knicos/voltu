@@ -108,8 +108,7 @@ public:
 	void addPoint(const std::vector<cv::Point2d>& observations, cv::Point3d& point);
 	void addPoints(const std::vector<std::vector<cv::Point2d>>& observations, std::vector<cv::Point3d>& points);
 
-	void addConstraintPlane(int group_size);
-	void addConstraintObject(const std::vector<cv::Point3d>& object_points);
+	void addObject(const std::vector<cv::Point3d>& object_points);
 
 	/** @brief Perform bundle adjustment with custom options.
 	 */
@@ -119,11 +118,11 @@ public:
 	 */
 	void run();
 
-	/** @brief Calculate RMS error (for one camera)
+	/** @brief Calculate MSE error (for one camera)
 	 */
 	double reprojectionError(const int camera) const;
 
-	/** @brief Calculate RMS error for all cameras
+	/** @brief Calculate MSE error for all cameras
 	 */
 	double reprojectionError() const;
 
@@ -133,6 +132,11 @@ protected:
 	/** @brief Calculate MSE error
 	 */
 	void _reprojectionErrorMSE(const int camera, double &error, double &npoints) const;
+
+	/** @brief Set camera parametrization (fixed parameters/cameras)
+	 */
+	void _setCameraParametrization(ceres::Problem& problem, const BundleAdjustment::Options& options);
+	void _setStructureParametrization(ceres::Problem& problem, const BundleAdjustment::Options& options);
 
 	void _buildProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
 	void _buildBundleAdjustmentProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
@@ -150,24 +154,17 @@ private:
 		double* point;
 	};
 
-	// object shape based constraint for group of points from idx_start to idx_end
-	struct ConstraintObject {
+	// group of points with known structure; from idx_start to idx_end
+	struct Object {
 		int idx_start;
 		int idx_end;
 		std::vector<cv::Point3d> object_points;
 	};
 
-	// planar constraint for group of points from idx_start to idx_end
-	struct ConstraintPlane {
-		int idx_start;
-		int idx_end;
-		int group_size;
-	};
-
 	// camera paramters (as pointers)
 	std::vector<Camera*> cameras_;
 	std::vector<BundleAdjustment::Point> points_;
-	std::vector<BundleAdjustment::ConstraintObject> constraints_object_;
+	std::vector<BundleAdjustment::Object> objects_;
 };
 
 #endif

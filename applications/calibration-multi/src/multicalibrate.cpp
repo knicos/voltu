@@ -700,7 +700,6 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 		calculateInverse(R_[c_from], t_[c_from], R, t);
 		LOG(INFO)	<< "Error before BA, cameras " << reference_camera_ << " and " << c_from << ": "
 					<< getReprojectionErrorOptimized(c_from, K_[c_from], R, t);
-	
 	}
 
 	double err;
@@ -739,13 +738,17 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 			ba.addPoint(visible, points2d, p);
 		}
 
+		ba.addObject(object_points_);
+
 		ftl::calibration::BundleAdjustment::Options options;
+		options.loss = ftl::calibration::BundleAdjustment::Options::Loss::CAUCHY;
 		options.optimize_intrinsic = !fix_intrinsics_;
 		options.fix_distortion = true;
 		options.max_iter = 50;
 		options.fix_camera_extrinsic = {reference_camera};
 		options.verbose = true;
- 
+		options.max_iter = 500;
+		
 		err = ba.reprojectionError();
 		ba.run(options);
 

@@ -237,37 +237,13 @@ void BundleAdjustment::addPoints(const vector<vector<Point2d>>& observations, st
 	}
 }
 
-void BundleAdjustment::addConstraintObject(const vector<Point3d> &object_points) {
+void BundleAdjustment::addObject(const vector<Point3d> &object_points) {
 	if (points_.size() % object_points.size() != 0) { throw std::exception(); }
-	constraints_object_.push_back(BundleAdjustment::ConstraintObject {0, (int) points_.size(), object_points});
+	objects_.push_back(BundleAdjustment::Object {0, (int) points_.size(), object_points});
 }
 
-void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, const BundleAdjustment::Options &options) {
-
-	ceres::LossFunction *loss_function = nullptr;
-
-	if (options.loss == Options::Loss::HUBER) {
-		loss_function = new ceres::HuberLoss(1.0);
-	}
-	else if (options.loss == Options::Loss::CAUCHY) {
-		loss_function = new ceres::CauchyLoss(1.0);
-	}
-
-	for (auto point : points_) {
-		for (size_t i = 0; i < point.observations.size(); i++) {
-			if (!point.visibility[i]) { continue; }
-			ceres::CostFunction* cost_function =
-				ReprojectionError::Create(point.observations[i]);
-
-			problem.AddResidualBlock(cost_function,
-						loss_function,
-						getCameraPtr(i),
-						point.point);
-		}
-	}
-
-	// apply options
-
+void BundleAdjustment::_setCameraParametrization(ceres::Problem &problem, const BundleAdjustment::Options &options) {
+	
 	vector<int> constant_camera_parameters;
 
 	// extrinsic paramters
@@ -336,6 +312,7 @@ void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, co
 			if (params.size() == Camera::n_parameters) {
 				// Ceres crashes if all parameters are set constant using
 				// SubsetParameterization()
+				// https://github.com/ceres-solver/ceres-solver/issues/347
 				problem.SetParameterBlockConstant(getCameraPtr(i));
 			}
 			else if (params.size() > 0) {
@@ -344,6 +321,35 @@ void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, co
 			}
 		}
 	}
+}
+
+void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, const BundleAdjustment::Options &options) {
+
+	ceres::LossFunction *loss_function = nullptr;
+
+	if (options.loss == Options::Loss::HUBER) {
+		loss_function = new ceres::HuberLoss(1.0);
+	}
+	else if (options.loss == Options::Loss::CAUCHY) {
+		loss_function = new ceres::CauchyLoss(1.0);
+	}
+
+	for (auto point : points_) {
+		for (size_t i = 0; i < point.observations.size(); i++) {
+			if (!point.visibility[i]) { continue; }
+			ceres::CostFunction* cost_function =
+				ReprojectionError::Create(point.observations[i]);
+
+			problem.AddResidualBlock(cost_function,
+						loss_function,
+						getCameraPtr(i),
+						point.point);
+		}
+	}
+
+	// apply options
+
+	_setCameraParametrization(problem, options);
 
 	if (!options.optmize_structure) {
 		// do not optimize points
@@ -353,9 +359,23 @@ void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, co
 
 void BundleAdjustment::_buildLengthProblem(ceres::Problem &problem, const BundleAdjustment::Options &options) {
 
-	for (auto &constraint : constraints_object_) {
-		int npoints = constraint.object_points.size();
-		auto &object_points = constraint.object_points;
+	// same idea as in scale optimization
+
+	ceres::LossFunction *loss_function = nullptr;
+
+	// should use separate configuration option
+	/*
+	if (options.loss == Options::Loss::HUBER) {
+		loss_function = new ceres::HuberLoss(1.0);
+	}
+	else if (options.loss == Options::Loss::CAUCHY) {
+		loss_function = new ceres::CauchyLoss(1.0);
+	}
+	*/
+
+	for (auto &object : objects_) {
+		int npoints = object.object_points.size();
+		auto &object_points = object.object_points;
 
 		vector<double> d;
 		for (int i = 0; i < npoints; i++) {
@@ -364,7 +384,7 @@ void BundleAdjustment::_buildLengthProblem(ceres::Problem &problem, const Bundle
 			}
 		}
 
-		for (int p = constraint.idx_start; p < constraint.idx_end; p += npoints) {
+		for (int p = object.idx_start; p < object.idx_end; p += npoints) {
 			size_t i_d = 0;
 			for (size_t i = 0; i < object_points.size(); i++) {
 				for (size_t j = i + 1; j < object_points.size(); j++) {
@@ -373,7 +393,7 @@ void BundleAdjustment::_buildLengthProblem(ceres::Problem &problem, const Bundle
 
 					auto cost_function = LengthError::Create(d[i_d++]);
 
-					problem.AddResidualBlock(cost_function, nullptr, p1, p2);
+					problem.AddResidualBlock(cost_function, loss_function, p1, p2);
 				}
 			}
 		}
@@ -442,7 +462,7 @@ void BundleAdjustment::_reprojectionErrorMSE(const int camera, double &error, do
 double BundleAdjustment::reprojectionError(const int camera) const {
 	double error, ncameras;
 	_reprojectionErrorMSE(camera, ncameras, error);
-	return sqrt(error);
+	return error / ncameras;
 }
 
 double BundleAdjustment::reprojectionError() const {
@@ -454,5 +474,5 @@ double BundleAdjustment::reprojectionError() const {
 		error += e * n;
 		npoints += n;
 	}
-	return sqrt(error / npoints);
+	return error / npoints;
 }
