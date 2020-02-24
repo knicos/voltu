@@ -119,16 +119,20 @@ public:
 	 */
 	void run();
 
-	/** @brief Calculate MSE error (for one camera)
+	/** @brief Calculate RMS error (for one camera)
 	 */
-	double reprojectionError(int camera);
+	double reprojectionError(const int camera) const;
 
-	/** @brief Calculate MSE error for all cameras
+	/** @brief Calculate RMS error for all cameras
 	 */
-	double reprojectionError();
+	double reprojectionError() const;
 
 protected:
 	double* getCameraPtr(int i) { return cameras_[i]->data; }
+
+	/** @brief Calculate MSE error
+	 */
+	void _reprojectionErrorMSE(const int camera, double &error, double &npoints) const;
 
 	void _buildProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
 	void _buildBundleAdjustmentProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);

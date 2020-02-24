@@ -418,7 +418,7 @@ void BundleAdjustment::run() {
 	run(options);
 }
 
-double BundleAdjustment::reprojectionError(int camera) {
+void BundleAdjustment::_reprojectionErrorMSE(const int camera, double &error, double &npoints) const {
 	vector<Point2d>	observations;
 	vector<Point3d>	points;
 
@@ -435,11 +435,24 @@ double BundleAdjustment::reprojectionError(int camera) {
 	auto rvec = cameras_[camera]->rvec();
 	auto tvec = cameras_[camera]->tvec();
 
-	return ftl::calibration::reprojectionError(observations, points, K, Mat::zeros(1, 5, CV_64FC1), rvec, tvec);
+	error = ftl::calibration::reprojectionError(observations, points, K, Mat::zeros(1, 5, CV_64FC1), rvec, tvec);
+	npoints = points.size();
 }
 
-double BundleAdjustment::reprojectionError() {
+double BundleAdjustment::reprojectionError(const int camera) const {
+	double error, ncameras;
+	_reprojectionErrorMSE(camera, ncameras, error);
+	return sqrt(error);
+}
+
+double BundleAdjustment::reprojectionError() const {
 	double error = 0.0;
-	for (size_t i = 0; i < cameras_.size(); i++) { error += reprojectionError(i); }
-	return error * (1.0 / (double) cameras_.size());
+	double npoints = 0.0;
+	for (size_t i = 0; i < cameras_.size(); i++) {
+		double e, n;
+		_reprojectionErrorMSE(i, e, n);
+		error += e * n;
+		npoints += n;
+	}
+	return sqrt(error / npoints);
 }

@@ -83,6 +83,7 @@ void Speaker::_open(int fsize, int sample, int channels) {
 		buffer_ = new ftl::audio::MonoBuffer16<2000>(sample);
 	}
 
+	#ifdef HAVE_PORTAUDIO
 	auto err = Pa_OpenDefaultStream(
 		&stream_,
 		0,
@@ -111,6 +112,10 @@ void Speaker::_open(int fsize, int sample, int channels) {
 	}
 
 	LOG(INFO) << "Speaker ready.";
+	#else
+	LOG(INFO) << "Built without portaudio (no sound)";
+	#endif
+	
 }
 
 void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
