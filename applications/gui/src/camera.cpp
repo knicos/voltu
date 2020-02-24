@@ -608,7 +608,7 @@ const void ftl::gui::Camera::captureFrame() {
 	delta_ = now - ftime_;
 	ftime_ = now;
 
-	LOG(INFO) << "Frame delta: " << delta_;
+	//LOG(INFO) << "Frame delta: " << delta_;
 
 	//if (src_ && src_->isReady()) {
 	if (width_ > 0 && height_ > 0) {
