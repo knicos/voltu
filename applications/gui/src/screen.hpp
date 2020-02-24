@@ -37,6 +37,8 @@ class Screen : public nanogui::Screen {
 
 	virtual void draw(NVGcontext *ctx);
 
+	void drawFast();
+
 	ftl::Configurable *root() { return root_; }
 	ftl::net::Universe *net() { return net_; }
 	ftl::ctrl::Master *control() { return ctrl_; }

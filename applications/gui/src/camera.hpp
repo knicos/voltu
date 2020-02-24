@@ -74,7 +74,7 @@ class Camera {
 	 */
 	void active(bool);
 
-	const GLTexture &captureFrame();
+	const void captureFrame();
 	const GLTexture &getLeft() const { return texture1_; }
 	const GLTexture &getRight() const { return texture2_; }
 
@@ -129,6 +129,10 @@ class Camera {
 	cv::Mat im1_; // first channel (left)
 	cv::Mat im2_; // second channel ("right")
 	bool stereo_;
+	std::atomic_flag new_frame_;
+	int rx_;
+	int ry_;
+	std::vector<ftl::rgbd::FrameSet*> *framesets_;
 
 	ftl::render::CUDARender *renderer_;
 	ftl::render::CUDARender *renderer2_;

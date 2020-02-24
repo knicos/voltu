@@ -78,6 +78,9 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 	record_stream_ = nullptr;
 	transform_ix_ = -1;
 	stereo_ = false;
+	rx_ = 0;
+	ry_ = 0;
+	framesets_ = nullptr;
 
 	colouriser_ = ftl::create<ftl::render::Colouriser>(screen->root(), "colouriser");
 
@@ -248,6 +251,14 @@ void ftl::gui::Camera::setStereo(bool v) {
 	}
 }
 
+static ftl::codecs::Channel mapToSecondChannel(ftl::codecs::Channel c) {
+	switch (c) {
+		case Channel::Depth		: return Channel::Depth2;
+		case Channel::Normals	: return Channel::Normals2;
+		default: return c;
+	}
+}
+
 void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	frame_.reset();
 	frame_.setOrigin(&state_);
@@ -273,6 +284,9 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 			if (channel_ != Channel::Left && channel_ != Channel::Right && channel_ != Channel::None) {
 				renderer_->blend(0.5f, channel_);
+				if (isStereo()) {
+					renderer2_->blend(0.5f, mapToSecondChannel(channel_));
+				}
 			}
 
 			renderer_->end();
@@ -352,6 +366,8 @@ void ftl::gui::Camera::_downloadFrames(ftl::cuda::TextureObject<uchar4> &a, ftl:
 	if (im2_.cols != im1_.cols || im2_.rows != im1_.rows) {
 		throw FTL_Error("Left and right images are different sizes");
 	}
+
+	new_frame_.clear();
 }
 
 void ftl::gui::Camera::_downloadFrame(ftl::cuda::TextureObject<uchar4> &a) {
@@ -365,6 +381,8 @@ void ftl::gui::Camera::_downloadFrame(ftl::cuda::TextureObject<uchar4> &a) {
 	height_ = im1_.rows;
 
 	im2_ = cv::Mat();
+
+	new_frame_.clear();
 }
 
 void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
@@ -378,6 +396,8 @@ void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
 
 void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	UNIQUE_LOCK(mutex_, lk);
+
+	framesets_ = &fss;
 
 	//if (fss.size() <= fsid_) return;
 	if (fid_ == 255) {
@@ -443,14 +463,17 @@ void ftl::gui::Camera::mouseMovement(int rx, int ry, int button) {
 	//if (!src_->hasCapabilities(ftl::rgbd::kCapMovable)) return;
 	if (fid_ < 255) return;
 	if (button == 1) {
-		float rrx = ((float)ry * 0.2f * delta_);
+		rx_ += rx;
+		ry_ += ry;
+
+		/*float rrx = ((float)ry * 0.2f * delta_);
 		//orientation_[2] += std::cos(orientation_[1])*((float)rel[1] * 0.2f * delta_);
 		float rry = (float)rx * 0.2f * delta_;
 		float rrz = 0.0;
 
 
 		Eigen::Affine3d r = create_rotation_matrix(rrx, -rry, rrz);
-		rotmat_ = rotmat_ * r.matrix();
+		rotmat_ = rotmat_ * r.matrix();*/
 	}
 }
 
@@ -578,18 +601,21 @@ void ftl::gui::Camera::active(bool a) {
 	}
 }
 
-const GLTexture &ftl::gui::Camera::captureFrame() {
+const void ftl::gui::Camera::captureFrame() {
 	float now = (float)glfwGetTime();
+	if (!screen_->isVR() && (now - ftime_) < 0.04f) return;
+
 	delta_ = now - ftime_;
 	ftime_ = now;
 
+	LOG(INFO) << "Frame delta: " << delta_;
+
 	//if (src_ && src_->isReady()) {
 	if (width_ > 0 && height_ > 0) {
-		UNIQUE_LOCK(mutex_, lk);
-
 		if (screen_->isVR()) {
 			#ifdef HAVE_OPENVR
 			
+			vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
 			if (isStereo() && rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid )
@@ -627,6 +653,19 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 				//LOG(ERROR) << "No VR Pose";
 			}
 			#endif
+		} else {
+			// Use mouse to move camera
+
+			float rrx = ((float)ry_ * 0.2f * delta_);
+			float rry = (float)rx_ * 0.2f * delta_;
+			float rrz = 0.0;
+
+
+			Eigen::Affine3d r = create_rotation_matrix(rrx, -rry, rrz);
+			rotmat_ = rotmat_ * r.matrix();
+
+			rx_ = 0;
+			ry_ = 0;
 		}
 
 		eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
@@ -637,25 +676,32 @@ const GLTexture &ftl::gui::Camera::captureFrame() {
 		Eigen::Affine3d t(trans);
 		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
 
-		if (isVirtual()) {
-			if (transform_ix_ == -1) {
-				state_.setPose(viewPose);
-			} else if (transform_ix_ >= 0) {
-				transforms_[transform_ix_] = viewPose;
+		{
+			UNIQUE_LOCK(mutex_, lk);
+
+			if (isVirtual()) {
+				if (transform_ix_ == -1) {
+					state_.setPose(viewPose);
+				} else if (transform_ix_ >= 0) {
+					transforms_[transform_ix_] = viewPose;
+				}
 			}
 		}
 
-		cv::Mat tmp;
+		if (framesets_) draw(*framesets_);
 
-		if (im1_.rows != 0) {
-			texture1_.update(im1_);
-		}
-		if (isStereo() && im2_.rows != 0) {
-			texture2_.update(im2_);
+		{
+			//UNIQUE_LOCK(mutex_, lk);
+			if (im1_.rows != 0) {
+				texture1_.update(im1_);
+			}
+			if (isStereo() && im2_.rows != 0) {
+				texture2_.update(im2_);
+			}
 		}
 	}
 
-	return texture1_;
+	//return texture1_;
 }
 
 void ftl::gui::Camera::snapshot(const std::string &filename) {
