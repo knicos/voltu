@@ -43,6 +43,7 @@ class Source : public ftl::Configurable, public ftl::audio::Generator {
 
 	ftl::audio::Buffer<short> *buffer_;
 	int to_read_;
+	int64_t latency_;
 
 	ftl::audio::FrameSet frameset_;
 

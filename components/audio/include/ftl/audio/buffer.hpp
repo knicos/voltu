@@ -2,6 +2,7 @@
 #define _FTL_AUDIO_BUFFER_HPP_
 
 #include <vector>
+#include <cmath>
 
 namespace ftl {
 namespace audio {
@@ -23,9 +24,18 @@ class Buffer {
 
 	void setDelay(float d) {
 		req_delay_ = d  * static_cast<float>(rate_);
+		// Big jumps should be instant
+		if (fabs(req_delay_ - cur_delay_) > 0.5f) {
+			//cur_delay_ = req_delay_;
+			reset();
+		}
 	}
 
 	float delay() const { return cur_delay_ / static_cast<float>(rate_); }
+
+	virtual void reset() {
+		cur_delay_ = req_delay_;
+	}
 
 	virtual int size() const=0;
 	virtual int frames() const=0;
@@ -85,6 +95,12 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 	void write(const std::vector<T> &in) override;
 
 	void read(std::vector<T> &out, int frames) override;
+
+	void reset() override {
+		Buffer<T>::reset();
+		write_position_ = 0;
+		read_position_ = 0;
+	}
 
 	private:
 	int write_position_;

@@ -89,6 +89,8 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
     inputParameters.suggestedLatency = (device >= 0) ? Pa_GetDeviceInfo(device)->defaultLowInputLatency : 0;
     inputParameters.hostApiSpecificStreamInfo = NULL;
 
+	latency_ = int64_t(inputParameters.suggestedLatency * 1000.0);
+
 	PaError err;
 
 	if (inputParameters.device >= 0) { 
@@ -147,7 +149,7 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 	timer_main_ = ftl::timer::add(ftl::timer::kTimerMain, [this](int64_t ts) {
 
         // Remove one interval since the audio starts from the last frame
-		frameset_.timestamp = ts - ftl::timer::getInterval();
+		frameset_.timestamp = ts - ftl::timer::getInterval() + latency_;
 
 		frameset_.id = 0;
 		frameset_.count = 1;
