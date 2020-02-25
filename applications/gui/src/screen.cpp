@@ -551,6 +551,12 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 			mShader.drawIndexed(GL_TRIANGLES, 0, 2);
 			//glDisable(GL_SCISSOR_TEST);
 		}
+	} else {
+		// Must periodically render the cameras here to update any thumbnails.
+		auto cams = swindow_->getCameras();
+		for (auto *c : cams) {
+			c->drawUpdated(swindow_->getFramesets());
+		}
 	}
 
 	nvgTextAlign(ctx, NVG_ALIGN_RIGHT);

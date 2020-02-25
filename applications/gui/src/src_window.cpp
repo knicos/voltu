@@ -74,6 +74,12 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	
 	new Label(this, "Select Camera","sans-bold",20);
 
+	// FIXME: Reallocating the vector may currently causes thread issues since
+	// it might be in use elsewhere. A safer mechanism is needed for sharing
+	// framesets. Temporary solution: preallocate enough slots.
+	pre_pipelines_.reserve(5);
+	framesets_.reserve(5);
+
 	auto vscroll = new VScrollPanel(this);
 	ipanel_ = new Widget(vscroll);
 	ipanel_->setLayout(new GridLayout(nanogui::Orientation::Horizontal, 2,
@@ -178,11 +184,6 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 		}
 		interceptor_->select(fs.id, cs);
 	}
-
-	/*if (fs.id > 0) {
-		LOG(INFO) << "Got frameset: " << fs.id;
-		return true;
-	}*/
 
 	// Make sure there are enough framesets allocated
 	_checkFrameSets(fs.id);
@@ -375,6 +376,7 @@ void SourceWindow::draw(NVGcontext *ctx) {
 			cv::Mat t;
 			auto *cam = camera.second.camera;
 			if (cam) {
+				//cam->draw(framesets_);
 				if (cam->thumbnail(t)) {
 					thumbs_[i].update(t);
 				}

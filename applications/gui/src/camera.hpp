@@ -67,6 +67,12 @@ class Camera {
 	 */
 	void update(int fsid, const ftl::codecs::Channels<0> &c);
 
+	/**
+	 * Draw virtual camera only if the frameset has been updated since last
+	 * draw.
+	 */
+	void drawUpdated(std::vector<ftl::rgbd::FrameSet*> &fss);
+
 	void draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 
 	inline int64_t getFrameTimeMS() const { return int64_t(delta_ * 1000.0f); }
@@ -131,7 +137,7 @@ class Camera {
 	cv::Mat im1_; // first channel (left)
 	cv::Mat im2_; // second channel ("right")
 	bool stereo_;
-	std::atomic_flag new_frame_;
+	std::atomic_flag stale_frame_;
 	int rx_;
 	int ry_;
 	std::vector<ftl::rgbd::FrameSet*> *framesets_;
