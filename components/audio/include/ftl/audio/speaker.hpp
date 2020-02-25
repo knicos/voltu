@@ -26,6 +26,7 @@ class Speaker : public ftl::Configurable {
 	ftl::audio::Buffer<short> *buffer_;
 	bool active_;
 	float extra_delay_;
+	int64_t latency_;
 
 	#ifdef HAVE_PORTAUDIO
 	PaStream *stream_;

@@ -110,8 +110,9 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	receiver_->onAudio([this](ftl::audio::FrameSet &fs) {
 		if (framesets_.size() == 0) return true;
-		//LOG(INFO) << "Audio delay required = " << (ts - frameset_.timestamp) << "ms";
-		speaker_->setDelay(fs.timestamp - framesets_[0]->timestamp + ftl::timer::getInterval());  // Add Xms for local render time
+		auto *c = screen_->activeCamera();
+		int64_t renddelay = (c) ? c->getFrameTimeMS() : 0;
+		speaker_->setDelay(fs.timestamp - framesets_[0]->timestamp + renddelay);  // Add Xms for local render time
 		speaker_->queue(fs.timestamp, fs.frames[0]);
 		return true;
 	});

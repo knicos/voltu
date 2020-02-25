@@ -17,7 +17,7 @@ using std::optional;
 
 static constexpr int kTallyScale = 10;
 
-Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net) {
+Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net), clock_adjust_(0) {
 	// TODO: Install "find_stream" binding if not installed...
 	if (!net_->isBound("find_stream")) {
 		net_->bind("find_stream", [this](const std::string &uri) -> optional<ftl::UUID> {
@@ -146,6 +146,7 @@ bool Net::begin() {
 		if (!active_) return;
 
 		StreamPacket spkt = spkt_raw;
+		spkt.timestamp -= clock_adjust_;
 		spkt.version = 4;
 
 		// Manage recuring requests
@@ -269,6 +270,27 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 
 	net_->send(peer_, uri_, (short)0, spkt, pkt);
 
+	if (true) {  // TODO: Not every time
+		auto start = std::chrono::high_resolution_clock::now();
+		int64_t mastertime;
+
+		try {
+			mastertime = net_->call<int64_t>(peer_, "__ping__");
+		} catch (...) {
+			LOG(ERROR) << "Ping failed";
+			// Reset time peer and remove timer
+			time_peer_ = ftl::UUID(0);
+			return false;
+		}
+
+		auto elapsed = std::chrono::high_resolution_clock::now() - start;
+		int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+		clock_adjust_ = mastertime - (ftl::timer::get_time() + (latency/2));
+
+		if (clock_adjust_ > 0) {
+			LOG(INFO) << "Clock adjustment: " << clock_adjust_;
+		}
+	}
 	return true;
 }
 

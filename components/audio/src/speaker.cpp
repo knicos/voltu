@@ -83,14 +83,25 @@ void Speaker::_open(int fsize, int sample, int channels) {
 		buffer_ = new ftl::audio::MonoBuffer16<2000>(sample);
 	}
 
+	PaStreamParameters outputParameters;
+    //bzero( &inputParameters, sizeof( inputParameters ) );
+    outputParameters.channelCount = channels;
+    outputParameters.device = Pa_GetDefaultOutputDevice();
+    outputParameters.sampleFormat = paInt16;
+    outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
+    outputParameters.hostApiSpecificStreamInfo = NULL;
+
+	//LOG(INFO) << "OUTPUT LATENCY: " << outputParameters.suggestedLatency;
+	latency_ = int64_t(outputParameters.suggestedLatency * 1000.0);
+
 	#ifdef HAVE_PORTAUDIO
-	auto err = Pa_OpenDefaultStream(
+	auto err = Pa_OpenStream(
 		&stream_,
-		0,
-		channels,
-		paInt16,
+		NULL,
+		&outputParameters,
 		sample,  // Sample rate
 		256,    // Size of single frame
+		paNoFlag,
 		(channels == 1) ? pa_speaker_callback<ftl::audio::MonoBuffer16<2000>> : pa_speaker_callback<ftl::audio::StereoBuffer16<2000>>,
 		this->buffer_
 	);
@@ -132,7 +143,11 @@ void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
 }
 
 void Speaker::setDelay(int64_t ms) {
+	ms -= latency_;
 	float d = static_cast<float>(ms) / 1000.0f + extra_delay_;
-	if (d < 0.0f) d = 0.0f;  // Clamp to 0 delay (not ideal to be exactly 0)
-	if (buffer_) buffer_->setDelay(d);
+	if (d < 0.0f) d = 0.001f;  // Clamp to 0 delay (not ideal to be exactly 0)
+	if (buffer_) {
+		buffer_->setDelay(d);
+		//LOG(INFO) << "Audio delay: " << buffer_->delay();
+	}
 }

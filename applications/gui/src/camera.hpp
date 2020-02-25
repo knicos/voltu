@@ -69,6 +69,8 @@ class Camera {
 
 	void draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 
+	inline int64_t getFrameTimeMS() const { return int64_t(delta_ * 1000.0f); }
+
 	/**
 	 * @internal. Used to inform the camera if it is the active camera or not.
 	 */
