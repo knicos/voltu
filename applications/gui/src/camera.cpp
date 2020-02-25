@@ -612,6 +612,8 @@ const void ftl::gui::Camera::captureFrame() {
 
 	//if (src_ && src_->isReady()) {
 	if (width_ > 0 && height_ > 0) {
+		Eigen::Matrix4d viewPose;
+
 		if (screen_->isVR()) {
 			#ifdef HAVE_OPENVR
 			
@@ -637,10 +639,10 @@ const void ftl::gui::Camera::captureFrame() {
 				Eigen::Matrix4d pose = ConvertSteamVRMatrixToMatrix4(rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
 				Eigen::Vector3d ea = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
 
-				//LOG(INFO) << "Pose: " << pose;
-				eye_[0] = pose(0, 3);
-				eye_[1] = -pose(1, 3);
-				eye_[2] = -pose(2, 3);
+				Eigen::Vector3d vreye;
+				vreye[0] = pose(0, 3);
+				vreye[1] = -pose(1, 3);
+				vreye[2] = -pose(2, 3);
 				
 				// NOTE: If modified, should be verified with VR headset!
 				Eigen::Matrix3d R;
@@ -653,6 +655,16 @@ const void ftl::gui::Camera::captureFrame() {
 				// pose.block<3, 3>(0, 0) = R;
 				
 				rotmat_.block(0, 0, 3, 3) = R;
+
+				// TODO: Apply a rotation to orient also
+
+				eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+				eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+				eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+
+				Eigen::Translation3d trans(eye_ + vreye);
+				Eigen::Affine3d t(trans);
+				viewPose = t.matrix() * rotmat_;
 			
 			} else {
 				//LOG(ERROR) << "No VR Pose";
@@ -665,7 +677,6 @@ const void ftl::gui::Camera::captureFrame() {
 			float rry = (float)rx_ * 0.2f * delta_;
 			float rrz = 0.0;
 
-
 			Eigen::Affine3d r = create_rotation_matrix(rrx, -rry, rrz);
 			rotmat_ = rotmat_ * r.matrix();
 
@@ -675,11 +686,11 @@ const void ftl::gui::Camera::captureFrame() {
 			eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
 			eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
 			eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
-		}
 
-		Eigen::Translation3d trans(eye_);
-		Eigen::Affine3d t(trans);
-		Eigen::Matrix4d viewPose = t.matrix() * rotmat_;
+			Eigen::Translation3d trans(eye_);
+			Eigen::Affine3d t(trans);
+			viewPose = t.matrix() * rotmat_;
+		}
 
 		{
 			UNIQUE_LOCK(mutex_, lk);
