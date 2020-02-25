@@ -121,6 +121,13 @@ static Eigen::Vector3f cudaToEigen(const float3 &v) {
 	return e;
 }
 
+void ftl::gui::Camera::drawUpdated(std::vector<ftl::rgbd::FrameSet*> &fss) {
+	// Only draw if frameset updated.
+	if (!stale_frame_.test_and_set()) {
+		draw(fss);
+	}
+}
+
 void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	if (fid_ != 255) return;
 	//if (fsid_ >= fss.size()) return;
@@ -294,7 +301,9 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		} catch(std::exception &e) {
 			LOG(ERROR) << "Exception in render: " << e.what();
 		}
+
 		for (auto *fs : fss) {
+			if (!usesFrameset(fs->id)) continue;
 			fs->mtx.unlock();
 		}
 	}
@@ -366,8 +375,6 @@ void ftl::gui::Camera::_downloadFrames(ftl::cuda::TextureObject<uchar4> &a, ftl:
 	if (im2_.cols != im1_.cols || im2_.rows != im1_.rows) {
 		throw FTL_Error("Left and right images are different sizes");
 	}
-
-	new_frame_.clear();
 }
 
 void ftl::gui::Camera::_downloadFrame(ftl::cuda::TextureObject<uchar4> &a) {
@@ -381,8 +388,6 @@ void ftl::gui::Camera::_downloadFrame(ftl::cuda::TextureObject<uchar4> &a) {
 	height_ = im1_.rows;
 
 	im2_ = cv::Mat();
-
-	new_frame_.clear();
 }
 
 void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
@@ -398,6 +403,7 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	UNIQUE_LOCK(mutex_, lk);
 
 	framesets_ = &fss;
+	stale_frame_.clear();
 
 	//if (fss.size() <= fsid_) return;
 	if (fid_ == 255) {
@@ -405,7 +411,7 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		// Do a draw if not active. If active the draw function will be called
 		// directly.
 		if (screen_->activeCamera() != this) {
-			_draw(fss);
+			//_draw(fss);
 		}
 	} else {
 		for (auto *fs : fss) {
@@ -707,7 +713,7 @@ const void ftl::gui::Camera::captureFrame() {
 		if (framesets_) draw(*framesets_);
 
 		{
-			//UNIQUE_LOCK(mutex_, lk);
+			UNIQUE_LOCK(mutex_, lk);
 			if (im1_.rows != 0) {
 				texture1_.update(im1_);
 			}
