@@ -3,6 +3,10 @@
 
 #include <opencv2/core/mat.hpp>
 
+#include <cuda_runtime.h>
+
+struct cudaGraphicsResource;
+
 namespace ftl {
 namespace gui {
 
@@ -12,11 +16,26 @@ class GLTexture {
 	~GLTexture();
 
 	void update(cv::Mat &m);
-	unsigned int texture() const { return glid_; }
+	void make(int width, int height);
+	unsigned int texture() const;
 	bool isValid() const { return glid_ != std::numeric_limits<unsigned int>::max(); }
+
+	cv::cuda::GpuMat map(cudaStream_t stream);
+	void unmap(cudaStream_t stream);
+
+	void free();
+
+	int width() const { return width_; }
+	int height() const { return height_; }
 
 	private:
 	unsigned int glid_;
+	unsigned int glbuf_;
+	int width_;
+	int height_;
+	bool changed_;
+
+	cudaGraphicsResource *cuda_res_;
 };
 
 }

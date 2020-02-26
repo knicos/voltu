@@ -8,10 +8,16 @@
 
 #include "screen.hpp"
 
+#include <cuda_gl_interop.h>
+
 
 int main(int argc, char **argv) {
 	auto root = ftl::configure(argc, argv, "gui_default");
 	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
+
+	int cuda_device;
+	cudaSafeCall(cudaGetDevice(&cuda_device));
+	//cudaSafeCall(cudaGLSetGLDevice(cuda_device));
 
 	ftl::ctrl::Master *controller = new ftl::ctrl::Master(root, net);
 	controller->onLog([](const ftl::ctrl::LogEvent &e){

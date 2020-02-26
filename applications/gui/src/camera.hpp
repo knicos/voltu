@@ -166,8 +166,6 @@ class Camera {
 	float baseline_;
 	#endif
 
-	void _downloadFrames(ftl::cuda::TextureObject<uchar4> &, ftl::cuda::TextureObject<uchar4> &);
-	void _downloadFrame(ftl::cuda::TextureObject<uchar4> &);
 	void _draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 };
 
