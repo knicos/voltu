@@ -14,7 +14,6 @@ set(GUISRC
 	src/media_panel.cpp
 	src/thumbview.cpp
 	src/record_window.cpp
-	src/overlay.cpp
 )
 
 if (HAVE_OPENVR)

@@ -63,6 +63,10 @@ template void ftl::cuda::lut<short>(TextureObject<short> &in, TextureObject<ucha
 
 // ==== Blending ===============================================================
 
+__device__ inline float clamp(float a, float c) {
+	return (a > c) ? c : a;
+}
+
 __global__ void blend_alpha_kernel(
 		const uchar4* __restrict__ in,
 		int in_pitch, 
@@ -77,12 +81,12 @@ __global__ void blend_alpha_kernel(
 		const uchar4 c2 = out[x+y*out_pitch];
 
 		const float a = alpha*(float(c1.w)/255.0f);
-		const float b = 1.0f - a;
+		const float b = 1.0f - (float(c1.w)/255.0f);
 
 		out[x+y*out_pitch] = make_uchar4(
-			float(c1.x)*a + float(c2.x)*b,
-			float(c1.y)*a + float(c2.y)*b,
-			float(c1.z)*a + float(c2.z)*b,
+			clamp(float(c1.x)*a + float(c2.x)*b, 255.0f),
+			clamp(float(c1.y)*a + float(c2.y)*b, 255.0f),
+			clamp(float(c1.z)*a + float(c2.z)*b, 255.0f),
 			255.0f
 		);
 	}
@@ -105,5 +109,50 @@ void ftl::cuda::blend_alpha(
 		in.devicePtr(), in.pixelPitch(),
 		out.devicePtr(), out.pixelPitch(),
 		out.width(), out.height(), alpha);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// ==== Composite ==============================================================
+
+__global__ void composite_kernel(
+		const uchar4* __restrict__ in,
+		int in_pitch, 
+		uchar4* __restrict__ out,
+		int out_pitch,
+		int width, int height) {
+
+	for (STRIDE_Y(y, height)) {
+	for (STRIDE_X(x, width)) {
+		const uchar4 c1 = in[x+y*in_pitch];
+		const uchar4 c2 = out[x+y*out_pitch];
+
+		const float a = (float(c1.w)/255.0f);
+		const float b = 1.0f - a;
+
+		out[x+y*out_pitch] = make_uchar4(
+			clamp(float(c1.x)*a + float(c2.x)*b, 255.0f),
+			clamp(float(c1.y)*a + float(c2.y)*b, 255.0f),
+			clamp(float(c1.z)*a + float(c2.z)*b, 255.0f),
+			255.0f
+		);
+	}
+	}
+}
+
+void ftl::cuda::composite(
+		TextureObject<uchar4> &in,
+		TextureObject<uchar4> &out,
+		cudaStream_t stream) {
+
+	static constexpr int THREADS_X = 32;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize(6,64);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	composite_kernel<<<gridSize, blockSize, 0, stream>>>(
+		in.devicePtr(), in.pixelPitch(),
+		out.devicePtr(), out.pixelPitch(),
+		out.width(), out.height());
 	cudaSafeCall( cudaGetLastError() );
 }

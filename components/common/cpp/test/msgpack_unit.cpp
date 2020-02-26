@@ -27,6 +27,26 @@ T msgpack_unpack(std::string str) {
 	return obj.convert<T>(res);
 }
 
+TEST_CASE( "msgpack Eigen::Matrix") {
+	SECTION("Matrix4f") {
+		Eigen::Matrix4f a;
+		a.setIdentity();
+
+		Eigen::Matrix4f b = msgpack_unpack<Eigen::Matrix4f>(msgpack_pack(a));
+
+		REQUIRE( (a == b) );
+	}
+
+	SECTION("Vector3f") {
+		Eigen::Vector3f a;
+		a.setIdentity();
+
+		Eigen::Vector3f b = msgpack_unpack<Eigen::Vector3f>(msgpack_pack(a));
+
+		REQUIRE( (a == b) );
+	}
+}
+
 TEST_CASE( "msgpack cv::Mat" ) {
 	SECTION( "Mat::ones(Size(5, 5), CV_64FC1)" ) {
 		Mat A = Mat::ones(Size(5, 5), CV_64FC1);

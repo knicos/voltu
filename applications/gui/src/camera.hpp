@@ -3,6 +3,7 @@
 
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/render/CUDARender.hpp>
+#include <ftl/render/overlay.hpp>
 #include <ftl/codecs/writer.hpp>
 #include "gltexture.hpp"
 
@@ -86,8 +87,6 @@ class Camera {
 	const GLTexture &getLeft() const { return texture1_; }
 	const GLTexture &getRight() const { return texture2_; }
 
-	bool thumbnail(cv::Mat &thumb);
-
 	void snapshot(const std::string &filename);
 
 	void startVideoRecording(const std::string &filename);
@@ -134,8 +133,8 @@ class Camera {
 	bool pause_;
 	ftl::codecs::Channel channel_;
 	ftl::codecs::Channels<0> channels_;
-	cv::Mat im1_; // first channel (left)
-	cv::Mat im2_; // second channel ("right")
+	cv::Mat overlay_; // first channel (left)
+	//cv::Mat im2_; // second channel ("right")
 	bool stereo_;
 	std::atomic_flag stale_frame_;
 	int rx_;
@@ -145,6 +144,7 @@ class Camera {
 	ftl::render::CUDARender *renderer_;
 	ftl::render::CUDARender *renderer2_;
 	ftl::render::Colouriser *colouriser_;
+	ftl::overlay::Overlay *overlayer_;
 
 	ftl::Configurable *intrinsics_;
 	ftl::operators::Graph *post_pipe_;

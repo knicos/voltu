@@ -9,6 +9,7 @@ add_library(ftlrender
 	src/CUDARender.cpp
 	src/colouriser.cpp
 	src/colour_util.cu
+	src/overlay.cpp
 )
 
 target_include_directories(ftlrender PUBLIC

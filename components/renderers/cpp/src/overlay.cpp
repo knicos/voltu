@@ -1,6 +1,72 @@
-#include "overlay.hpp"
+#include <ftl/render/overlay.hpp>
 
 #include <opencv2/imgproc.hpp>
+
+#include <ftl/codecs/shapes.hpp>
+
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
+using ftl::overlay::Overlay;
+using ftl::codecs::Channel;
+
+Overlay::Overlay(nlohmann::json &config) : ftl::Configurable(config) {
+
+}
+
+Overlay::~Overlay() {
+
+}
+
+void Overlay::apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState &state) {
+	over_depth_.create(out.size(), CV_32F);
+
+	if (value("show_poses", false)) {
+		for (size_t i=0; i<fs.frames.size(); ++i) {
+			auto pose = fs.frames[i].getPose().inverse() * state.getPose();
+			Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+			pos /= pos[3];
+
+			auto name = fs.frames[i].get<std::string>("name");
+			ftl::overlay::drawCamera(state.getLeft(), out, over_depth_, fs.frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,value("show_frustrum", false));
+			if (name) ftl::overlay::drawText(state.getLeft(), out, over_depth_, *name, pos, 0.5, cv::Scalar(0,0,255,255));
+		}
+	}
+
+	if (value("show_shapes", false)) {
+		if (fs.hasChannel(Channel::Shapes3D)) {
+			std::vector<ftl::codecs::Shape3D> shapes;
+			fs.get(Channel::Shapes3D, shapes);
+
+			for (auto &s : shapes) {
+				auto pose = s.pose.cast<double>().inverse() * state.getPose();
+				Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+				pos /= pos[3];
+
+				ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
+				ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,255));
+			}
+		}
+
+		for (size_t i=0; i<fs.frames.size(); ++i) {
+			if (fs.frames[i].hasChannel(Channel::Shapes3D)) {
+				std::vector<ftl::codecs::Shape3D> shapes;
+				fs.frames[i].get(Channel::Shapes3D, shapes);
+
+				for (auto &s : shapes) {
+					auto pose = s.pose.cast<double>().inverse() * state.getPose();
+					Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+					pos /= pos[3];
+
+					ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
+					ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,255));
+				}
+			}
+		}
+	}
+
+	cv::flip(out, out, 0);
+}
 
 void ftl::overlay::draw3DLine(
         const ftl::rgbd::Camera &cam,
@@ -43,6 +109,56 @@ void ftl::overlay::drawPoseBox(
     Eigen::Vector4d p100 = pose.inverse() * Eigen::Vector4d(-size2,size2,size2,1);
     Eigen::Vector4d p010 = pose.inverse() * Eigen::Vector4d(size2,-size2,size2,1);
     Eigen::Vector4d p000 = pose.inverse() * Eigen::Vector4d(size2,size2,size2,1);
+
+    p001 /= p001[3];
+    p011 /= p011[3];
+    p111 /= p111[3];
+    p101 /= p101[3];
+    p110 /= p110[3];
+    p100 /= p100[3];
+    p010 /= p010[3];
+    p000 /= p000[3];
+
+    if (p001[2] < 0.1 || p011[2] < 0.1 || p111[2] < 0.1 || p101[2] < 0.1 || p110[2] < 0.1 || p100[2] < 0.1 || p010[2] < 0.1 || p000[2] < 0.1) return;
+
+    draw3DLine(cam, colour, depth, p000, p001, linecolour);
+    draw3DLine(cam, colour, depth, p000, p010, linecolour);
+    draw3DLine(cam, colour, depth, p000, p100, linecolour);
+
+    draw3DLine(cam, colour, depth, p001, p011, linecolour);
+    draw3DLine(cam, colour, depth, p001, p101, linecolour);
+
+    draw3DLine(cam, colour, depth, p010, p011, linecolour);
+    draw3DLine(cam, colour, depth, p010, p110, linecolour);
+
+    draw3DLine(cam, colour, depth, p100, p101, linecolour);
+    draw3DLine(cam, colour, depth, p100, p110, linecolour);
+
+    draw3DLine(cam, colour, depth, p101, p111, linecolour);
+    draw3DLine(cam, colour, depth, p110, p111, linecolour);
+    draw3DLine(cam, colour, depth, p011, p111, linecolour);
+}
+
+void ftl::overlay::drawBox(
+        const ftl::rgbd::Camera &cam,
+        cv::Mat &colour,
+        cv::Mat &depth,
+        const Eigen::Matrix4d &pose,
+        const cv::Scalar &linecolour,
+        const Eigen::Vector3d &size) {
+
+    double size2x = size[0]/2.0;
+	double size2y = size[1]/2.0;
+	double size2z = size[2]/2.0;
+
+    Eigen::Vector4d p001 = pose.inverse() * Eigen::Vector4d(size2x,size2y,-size2z,1);
+    Eigen::Vector4d p011 = pose.inverse() * Eigen::Vector4d(size2x,-size2y,-size2z,1);
+    Eigen::Vector4d p111 = pose.inverse() * Eigen::Vector4d(-size2x,-size2y,-size2z,1);
+    Eigen::Vector4d p101 = pose.inverse() * Eigen::Vector4d(-size2x,size2y,-size2z,1);
+    Eigen::Vector4d p110 = pose.inverse() * Eigen::Vector4d(-size2x,-size2y,size2z,1);
+    Eigen::Vector4d p100 = pose.inverse() * Eigen::Vector4d(-size2x,size2y,size2z,1);
+    Eigen::Vector4d p010 = pose.inverse() * Eigen::Vector4d(size2x,-size2y,size2z,1);
+    Eigen::Vector4d p000 = pose.inverse() * Eigen::Vector4d(size2x,size2y,size2z,1);
 
     p001 /= p001[3];
     p011 /= p011[3];

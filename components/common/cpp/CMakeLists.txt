@@ -23,7 +23,7 @@ target_include_directories(ftlcommon PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlcommon Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${URIPARSER_LIBRARIES} ${CUDA_LIBRARIES})
+target_link_libraries(ftlcommon Threads::Threads Eigen3::Eigen ${OS_LIBS} ${OpenCV_LIBS} ${URIPARSER_LIBRARIES} ${CUDA_LIBRARIES})
 
 if (BUILD_TESTS)
 add_subdirectory(test)

@@ -3,10 +3,21 @@
 
 #include <opencv2/core/mat.hpp>
 #include <Eigen/Eigen>
-#include <ftl/rgbd/frame.hpp>
+#include <ftl/rgbd/frameset.hpp>
 
 namespace ftl {
 namespace overlay {
+
+class Overlay : public ftl::Configurable {
+	public:
+	explicit Overlay(nlohmann::json &config);
+	~Overlay();
+
+	void apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState &state);
+
+	private:
+	cv::Mat over_depth_;
+};
 
 void draw3DLine(
     const ftl::rgbd::Camera &cam,
@@ -35,6 +46,14 @@ void drawPoseBox(
     const Eigen::Matrix4d &pose,
     const cv::Scalar &linecolour,
     double size);
+
+void drawBox(
+    const ftl::rgbd::Camera &cam,
+    cv::Mat &colour,
+    cv::Mat &depth,
+    const Eigen::Matrix4d &pose,
+    const cv::Scalar &linecolour,
+    const Eigen::Vector3d &size);
 
 void drawRectangle(
         const ftl::rgbd::Camera &cam,
