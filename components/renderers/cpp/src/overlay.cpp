@@ -43,8 +43,9 @@ void Overlay::apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState
 				Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
 				pos /= pos[3];
 
-				ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
-				ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,255));
+				ftl::overlay::drawFilledBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
+                ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
+				ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
 			}
 		}
 
@@ -58,14 +59,14 @@ void Overlay::apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState
 					Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
 					pos /= pos[3];
 
-					ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
-					ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,255));
+					ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
+					ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
 				}
 			}
 		}
 	}
 
-	cv::flip(out, out, 0);
+	//cv::flip(out, out, 0);
 }
 
 void ftl::overlay::draw3DLine(
@@ -80,7 +81,7 @@ void ftl::overlay::draw3DLine(
     auto begin_pos = cam.camToScreen<int2>(make_float3(begin[0], begin[1], begin[2]));
     auto end_pos = cam.camToScreen<int2>(make_float3(end[0], end[1], end[2]));
 
-    cv::LineIterator lineit(colour, cv::Point(begin_pos.x, colour.rows-begin_pos.y), cv::Point(end_pos.x, colour.rows-end_pos.y));
+    cv::LineIterator lineit(colour, cv::Point(begin_pos.x, begin_pos.y), cv::Point(end_pos.x, end_pos.y));
     double z_grad = (end[2] - begin[2]) / lineit.count;
     double current_z = begin[2];
 
@@ -187,6 +188,101 @@ void ftl::overlay::drawBox(
     draw3DLine(cam, colour, depth, p101, p111, linecolour);
     draw3DLine(cam, colour, depth, p110, p111, linecolour);
     draw3DLine(cam, colour, depth, p011, p111, linecolour);
+}
+
+void ftl::overlay::drawFilledBox(
+        const ftl::rgbd::Camera &cam,
+        cv::Mat &colour,
+        cv::Mat &depth,
+        const Eigen::Matrix4d &pose,
+        const cv::Scalar &linecolour,
+        const Eigen::Vector3d &size) {
+
+    double size2x = size[0]/2.0;
+	double size2y = size[1]/2.0;
+	double size2z = size[2]/2.0;
+
+    Eigen::Vector4d p001 = pose.inverse() * Eigen::Vector4d(size2x,size2y,-size2z,1);
+    Eigen::Vector4d p011 = pose.inverse() * Eigen::Vector4d(size2x,-size2y,-size2z,1);
+    Eigen::Vector4d p111 = pose.inverse() * Eigen::Vector4d(-size2x,-size2y,-size2z,1);
+    Eigen::Vector4d p101 = pose.inverse() * Eigen::Vector4d(-size2x,size2y,-size2z,1);
+    Eigen::Vector4d p110 = pose.inverse() * Eigen::Vector4d(-size2x,-size2y,size2z,1);
+    Eigen::Vector4d p100 = pose.inverse() * Eigen::Vector4d(-size2x,size2y,size2z,1);
+    Eigen::Vector4d p010 = pose.inverse() * Eigen::Vector4d(size2x,-size2y,size2z,1);
+    Eigen::Vector4d p000 = pose.inverse() * Eigen::Vector4d(size2x,size2y,size2z,1);
+
+    p001 /= p001[3];
+    p011 /= p011[3];
+    p111 /= p111[3];
+    p101 /= p101[3];
+    p110 /= p110[3];
+    p100 /= p100[3];
+    p010 /= p010[3];
+    p000 /= p000[3];
+
+    if (p001[2] < 0.1 || p011[2] < 0.1 || p111[2] < 0.1 || p101[2] < 0.1 || p110[2] < 0.1 || p100[2] < 0.1 || p010[2] < 0.1 || p000[2] < 0.1) return;
+
+    std::array<cv::Point, 4> pts;
+
+    auto p = cam.camToScreen<int2>(make_float3(p000[0], p000[1], p000[2]));
+    pts[0] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p001[0], p001[1], p001[2]));
+    pts[1] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p011[0], p011[1], p011[2]));
+    pts[2] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p010[0], p010[1], p010[2]));
+    pts[3] = cv::Point(p.x, p.y);
+    cv::fillConvexPoly(colour, pts, linecolour);
+
+    p = cam.camToScreen<int2>(make_float3(p100[0], p100[1], p100[2]));
+    pts[0] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p101[0], p101[1], p101[2]));
+    pts[1] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p111[0], p111[1], p111[2]));
+    pts[2] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p110[0], p110[1], p110[2]));
+    pts[3] = cv::Point(p.x, p.y);
+    cv::fillConvexPoly(colour, pts, linecolour);
+
+    p = cam.camToScreen<int2>(make_float3(p000[0], p000[1], p000[2]));
+    pts[0] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p010[0], p010[1], p010[2]));
+    pts[1] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p110[0], p110[1], p110[2]));
+    pts[2] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p100[0], p100[1], p100[2]));
+    pts[3] = cv::Point(p.x, p.y);
+    cv::fillConvexPoly(colour, pts, linecolour);
+
+    p = cam.camToScreen<int2>(make_float3(p001[0], p001[1], p001[2]));
+    pts[0] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p011[0], p011[1], p011[2]));
+    pts[1] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p111[0], p111[1], p111[2]));
+    pts[2] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p101[0], p101[1], p101[2]));
+    pts[3] = cv::Point(p.x, p.y);
+    cv::fillConvexPoly(colour, pts, linecolour);
+
+    p = cam.camToScreen<int2>(make_float3(p000[0], p000[1], p000[2]));
+    pts[0] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p001[0], p001[1], p001[2]));
+    pts[1] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p101[0], p101[1], p101[2]));
+    pts[2] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p100[0], p100[1], p100[2]));
+    pts[3] = cv::Point(p.x, p.y);
+    cv::fillConvexPoly(colour, pts, linecolour);
+
+    p = cam.camToScreen<int2>(make_float3(p010[0], p010[1], p010[2]));
+    pts[0] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p011[0], p011[1], p011[2]));
+    pts[1] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p111[0], p111[1], p111[2]));
+    pts[2] = cv::Point(p.x, p.y);
+    p = cam.camToScreen<int2>(make_float3(p110[0], p110[1], p110[2]));
+    pts[3] = cv::Point(p.x, p.y);
+    cv::fillConvexPoly(colour, pts, linecolour);
 }
 
 void ftl::overlay::drawRectangle(

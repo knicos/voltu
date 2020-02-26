@@ -55,6 +55,14 @@ void drawBox(
     const cv::Scalar &linecolour,
     const Eigen::Vector3d &size);
 
+void drawFilledBox(
+    const ftl::rgbd::Camera &cam,
+    cv::Mat &colour,
+    cv::Mat &depth,
+    const Eigen::Matrix4d &pose,
+    const cv::Scalar &linecolour,
+    const Eigen::Vector3d &size);
+
 void drawRectangle(
         const ftl::rgbd::Camera &cam,
         cv::Mat &colour,
