@@ -229,7 +229,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 
 void SourceWindow::_checkFrameSets(int id) {
 	while (framesets_.size() <= id) {
-		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), "pre_filters");
+		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), std::string("pre_filters") + std::to_string(framesets_.size()));
 		p->append<ftl::operators::DepthChannel>("depth")->value("enabled", false);
 		p->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
 		//p->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
