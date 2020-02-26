@@ -490,7 +490,7 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 	stage_ = Stage::ReadySubmit;
 }
 
-void CUDARender::blend(float alpha, Channel c) {
+void CUDARender::blend(Channel c) {
 	if (stage_ == Stage::Finished) {
 		throw FTL_Error("Cannot call blend at this time");
 	} else if (stage_ == Stage::ReadySubmit) {
@@ -504,11 +504,11 @@ void CUDARender::blend(float alpha, Channel c) {
 	//cv::cuda::addWeighted(buf.to_gpumat(), alpha, out_->get<GpuMat>(out_chan_), 1.0f-alpha, 0.0f,
 	//	out_->get<GpuMat>(out_chan_), -1, cvstream);
 
-	if (alpha < 0.0f) {
+	//if (alpha < 0.0f) {
 		ftl::cuda::composite(buf, out_->getTexture<uchar4>(out_chan_), stream_);
-	} else {
-		ftl::cuda::blend_alpha(buf, out_->getTexture<uchar4>(out_chan_), alpha, 1.0f-alpha, stream_);
-	}
+	//} else {
+	//	ftl::cuda::blend_alpha(buf, out_->getTexture<uchar4>(out_chan_), alpha, 1.0f-alpha, stream_);
+	//}
 }
 
 void CUDARender::end() {

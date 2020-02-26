@@ -333,14 +333,14 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 			}
 
 			if (channel_ != Channel::Left && channel_ != Channel::Right && channel_ != Channel::None) {
-				renderer_->blend(0.5f, channel_);
+				renderer_->blend(channel_);
 				if (isStereo()) {
-					renderer2_->blend(0.5f, mapToSecondChannel(channel_));
+					renderer2_->blend(mapToSecondChannel(channel_));
 				}
 			}
 
 			if (enable_overlay) {
-				renderer_->blend(overlayer_->value("alpha", 0.8f), Channel::Overlay);
+				renderer_->blend(Channel::Overlay);
 			}
 
 			renderer_->end();

@@ -14,12 +14,12 @@ template <typename T, bool INVERT>
 		int out_pitch,
 		int width, int height,
 		const uchar3* __restrict__ lut,
-		float minval, float maxval) {
+		float minval, float maxval, float alpha) {
 
 	__shared__ uchar4 table[256];
 
 	int id = threadIdx.x + blockDim.x*threadIdx.y;
-	table[id] = make_uchar4(lut[id], (id == 0 || id == 255) ? 0 : 255);
+	table[id] = make_uchar4(lut[id], (id == 0 || id == 255) ? 0 : alpha);
 
 	__syncthreads();
 
@@ -36,7 +36,7 @@ template <typename T, bool INVERT>
 template <typename T>
 void ftl::cuda::lut(TextureObject<T> &in, TextureObject<uchar4> &out,
 		const cv::cuda::PtrStepSz<uchar3> &lut, float minval, float maxval,
-		bool invert,
+		float alpha, bool invert,
 		cudaStream_t stream) {
 
 	static constexpr int THREADS_X = 64;  // Must total 256
@@ -46,19 +46,19 @@ void ftl::cuda::lut(TextureObject<T> &in, TextureObject<uchar4> &out,
     const dim3 blockSize(THREADS_X, THREADS_Y);
 
 	if (invert) {
-		lut_kernel<T,true><<<gridSize, blockSize, 0, stream>>>(in.devicePtr(), in.pixelPitch(), out.devicePtr(), out.pixelPitch(), out.width(), out.height(), lut.data, minval, maxval);
+		lut_kernel<T,true><<<gridSize, blockSize, 0, stream>>>(in.devicePtr(), in.pixelPitch(), out.devicePtr(), out.pixelPitch(), out.width(), out.height(), lut.data, minval, maxval, alpha);
 	} else {
-		lut_kernel<T,false><<<gridSize, blockSize, 0, stream>>>(in.devicePtr(), in.pixelPitch(), out.devicePtr(), out.pixelPitch(), out.width(), out.height(), lut.data, minval, maxval);
+		lut_kernel<T,false><<<gridSize, blockSize, 0, stream>>>(in.devicePtr(), in.pixelPitch(), out.devicePtr(), out.pixelPitch(), out.width(), out.height(), lut.data, minval, maxval, alpha);
 	}
 	cudaSafeCall( cudaGetLastError() );
 }
 
 template void ftl::cuda::lut<float>(TextureObject<float> &in, TextureObject<uchar4> &out,
-	const cv::cuda::PtrStepSz<uchar3> &lut, float minval, float maxval, bool invert,
+	const cv::cuda::PtrStepSz<uchar3> &lut, float minval, float maxval, float, bool invert,
 	cudaStream_t stream);
 
 template void ftl::cuda::lut<short>(TextureObject<short> &in, TextureObject<uchar4> &out,
-	const cv::cuda::PtrStepSz<uchar3> &lut, float minval, float maxval, bool invert,
+	const cv::cuda::PtrStepSz<uchar3> &lut, float minval, float maxval, float, bool invert,
 	cudaStream_t stream);
 
 // ==== Blending ===============================================================

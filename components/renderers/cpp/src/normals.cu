@@ -430,7 +430,7 @@ __global__ void vis_normals_kernel(ftl::cuda::TextureObject<half4> norm,
 			output(x,y) = make_uchar4(
 				min(255.0f, diffuse.x*d + ambient.x),
 				min(255.0f, diffuse.y*d + ambient.y),
-				min(255.0f, diffuse.z*d + ambient.z), 255);
+				min(255.0f, diffuse.z*d + ambient.z), ambient.w);
 		}
 	}
 }

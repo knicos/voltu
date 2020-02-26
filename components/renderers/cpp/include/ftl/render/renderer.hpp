@@ -56,7 +56,7 @@ class Renderer : public ftl::Configurable {
      */
     virtual bool submit(ftl::rgbd::FrameSet *, ftl::codecs::Channels<0>, const Eigen::Matrix4d &)=0;
 
-	virtual void blend(float, ftl::codecs::Channel)=0;
+	virtual void blend(ftl::codecs::Channel)=0;
 
 	protected:
 	Stage stage_;

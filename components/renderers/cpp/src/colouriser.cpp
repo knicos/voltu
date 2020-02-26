@@ -133,6 +133,10 @@ TextureObject<uchar4> &Colouriser::_processNormals(ftl::rgbd::Frame &f, Channel 
 
 	auto light_diffuse = parseCUDAColour(value("diffuse", std::string("#e0e0e0")));
 	auto light_ambient = parseCUDAColour(value("ambient", std::string("#0e0e0e")));
+
+	light_diffuse.w = value("alpha", 0.5f)*255.0f;
+	light_ambient.w = light_diffuse.w;
+
 	auto light_pos = make_float3(value("light_x", 0.3f), value("light_y", 0.2f), value("light_z", 1.0f));
 
 	ftl::cuda::normal_visualise(f.createTexture<half4>(c), buf,
@@ -152,7 +156,9 @@ TextureObject<uchar4> &Colouriser::_processSingle(ftl::rgbd::Frame &f, Channel c
 		depth_lut.upload(lut);
 	}
 
-	ftl::cuda::lut(f.createTexture<T>(c), buf, depth_lut, 0, std::numeric_limits<T>::max(), true, stream);
+	float alpha = value("alpha",0.5f)*255.0f;
+
+	ftl::cuda::lut(f.createTexture<T>(c), buf, depth_lut, 0, std::numeric_limits<T>::max(), alpha, true, stream);
 	return buf;
 }
 
@@ -165,7 +171,9 @@ TextureObject<uchar4> &Colouriser::_processFloat(ftl::rgbd::Frame &f, Channel c,
 		depth_lut.upload(lut);
 	}
 
-	ftl::cuda::lut(f.createTexture<float>(c), buf, depth_lut, minval, maxval, false, stream);
+	float alpha = value("alpha",0.5f)*255.0f;
+
+	ftl::cuda::lut(f.createTexture<float>(c), buf, depth_lut, minval, maxval, alpha, false, stream);
 	return buf;
 }
 

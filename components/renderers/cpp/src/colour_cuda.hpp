@@ -9,7 +9,7 @@ namespace cuda {
 template <typename T>
 void lut(ftl::cuda::TextureObject<T> &in, ftl::cuda::TextureObject<uchar4> &out,
 		const cv::cuda::PtrStepSz<uchar3> &lut, float minval, float maxval,
-		bool invert, cudaStream_t stream);
+		float alpha, bool invert, cudaStream_t stream);
 
 void blend_alpha(
 		ftl::cuda::TextureObject<uchar4> &in,

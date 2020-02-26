@@ -28,7 +28,7 @@ class CUDARender : public ftl::render::Renderer {
 	bool submit(ftl::rgbd::FrameSet *in, ftl::codecs::Channels<0>, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
 
-	void blend(float alpha, ftl::codecs::Channel) override;
+	void blend(ftl::codecs::Channel) override;
 
 	void setViewPort(ftl::render::ViewPortMode mode, const ftl::render::ViewPort &vp) {
 		params_.viewport = vp;
