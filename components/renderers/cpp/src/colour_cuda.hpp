@@ -17,6 +17,11 @@ void blend_alpha(
 		float alpha, float beta,
 		cudaStream_t stream);
 
+void composite(
+		ftl::cuda::TextureObject<uchar4> &in,
+		ftl::cuda::TextureObject<uchar4> &out,
+		cudaStream_t stream);
+
 }
 }
 

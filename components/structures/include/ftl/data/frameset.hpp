@@ -22,7 +22,9 @@ static const size_t kMaxFramesInSet = 32;
  * timestamp.
  */
 template <typename FRAME>
-struct FrameSet {
+class FrameSet {
+	public:
+
 	int id=0;
 	int64_t timestamp;				// Millisecond timestamp of all frames
 	std::vector<FRAME> frames;
@@ -31,15 +33,7 @@ struct FrameSet {
 	bool stale;						// True if buffers have been invalidated
 	SHARED_MUTEX mtx;
 
-	/**
-	 * Upload all specified host memory channels to GPU memory.
-	 */
-	//void upload(ftl::codecs::Channels<0>, cudaStream_t stream=0);
-
-	/**
-	 * Download all specified GPU memory channels to host memory.
-	 */
-	//void download(ftl::codecs::Channels<0>, cudaStream_t stream=0);
+	Eigen::Matrix4d pose;  // Set to identity by default.
 
 	/**
 	 * Move the entire frameset to another frameset object. This will
@@ -48,14 +42,50 @@ struct FrameSet {
 	 */
 	void swapTo(ftl::data::FrameSet<FRAME> &);
 
-	/**
-	 * Clear all channels and all memory allocations within those channels.
-	 * This will perform a resetFull on all frames in the frameset.
-	 */
-	//void resetFull();
-
     typedef FRAME Frame;
     typedef std::function<bool(ftl::data::FrameSet<FRAME> &)> Callback;
+
+	/**
+	 * Get the data from a data channel. This only works for the data channels
+	 * and will throw an exception with any others.
+	 */
+	template <typename T> void get(ftl::codecs::Channel channel, T &params) const;
+
+	/**
+	 * Set the value of a channel. Some channels should not be modified via the
+	 * non-const get method, for example the data channels.
+	 */
+	template <typename T> void create(ftl::codecs::Channel channel, const T &value);
+
+	/**
+	 * Access the raw data channel vector object.
+	 */
+	const std::vector<unsigned char> &getRawData(ftl::codecs::Channel c) const;
+
+	/**
+	 * Provide raw data for a data channel.
+	 */
+	void createRawData(ftl::codecs::Channel c, const std::vector<unsigned char> &v);
+
+	/**
+	 * Is there valid data in channel (either host or gpu). This does not
+	 * verify that any memory or data exists for the channel.
+	 */
+	inline bool hasChannel(ftl::codecs::Channel channel) const {
+		int c = static_cast<int>(channel);
+		if (c == 66) return true;
+		else if (c >= 2048) return data_channels_.has(channel);
+		return false;
+	}
+
+	void clearData() {
+		data_.clear();
+		data_channels_.clear();
+	}
+
+	private:
+	std::unordered_map<int, std::vector<unsigned char>> data_;
+	ftl::codecs::Channels<2048> data_channels_;
 };
 
 /**
@@ -91,6 +121,79 @@ class Generator {
 };
 
 }
+}
+
+// === Implementations =========================================================
+
+template <typename FRAME>
+void ftl::data::FrameSet<FRAME>::swapTo(ftl::data::FrameSet<FRAME> &fs) {
+	//UNIQUE_LOCK(fs.mtx, lk);
+	std::unique_lock<std::shared_mutex> lk(fs.mtx);
+
+	//if (fs.frames.size() != frames.size()) {
+		// Assume "this" is correct and "fs" is not.
+		fs.frames.resize(frames.size());
+	//}
+
+	fs.timestamp = timestamp;
+	fs.count = static_cast<int>(count);
+	fs.stale = stale;
+	fs.mask = static_cast<unsigned int>(mask);
+	fs.id = id;
+	fs.pose = pose;
+
+	for (size_t i=0; i<frames.size(); ++i) {
+		frames[i].swapTo(ftl::codecs::Channels<0>::All(), fs.frames[i]);
+	}
+
+	std::swap(fs.data_, data_);
+	fs.data_channels_ = data_channels_;
+	data_channels_.clear();
+
+	stale = true;
+}
+
+// Default data channel implementation
+template <typename FRAME>
+// cppcheck-suppress *
+template <typename T>
+void ftl::data::FrameSet<FRAME>::get(ftl::codecs::Channel channel, T &params) const {
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw FTL_Error("Cannot use generic type with non data channel");
+	if (!hasChannel(channel)) throw FTL_Error("Data channel does not exist");
+
+	const auto &i = data_.find(static_cast<int>(channel));
+	if (i == data_.end()) throw FTL_Error("Data channel does not exist");
+
+	auto unpacked = msgpack::unpack((const char*)(*i).second.data(), (*i).second.size());
+	unpacked.get().convert(params);
+}
+
+template <typename FRAME>
+// cppcheck-suppress *
+template <typename T>
+void ftl::data::FrameSet<FRAME>::create(ftl::codecs::Channel channel, const T &value) {
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw FTL_Error("Cannot use generic type with non data channel");
+
+	data_channels_ += channel;
+
+	auto &v = *std::get<0>(data_.insert({static_cast<int>(channel),{}}));
+	v.second.resize(0);
+	ftl::util::FTLVectorBuffer buf(v.second);
+	msgpack::pack(buf, value);
+}
+
+template <typename FRAME>
+const std::vector<unsigned char> &ftl::data::FrameSet<FRAME>::getRawData(ftl::codecs::Channel channel) const {
+	if (static_cast<int>(channel) < static_cast<int>(ftl::codecs::Channel::Data)) throw FTL_Error("Non data channel");
+	if (!hasChannel(channel)) throw FTL_Error("Data channel does not exist");
+
+	return data_.at(static_cast<int>(channel));
+}
+
+template <typename FRAME>
+void ftl::data::FrameSet<FRAME>::createRawData(ftl::codecs::Channel c, const std::vector<unsigned char> &v) {
+	data_.insert({static_cast<int>(c), v});
+	data_channels_ += c;
 }
 
 #endif  // _FTL_DATA_FRAMESET_HPP_

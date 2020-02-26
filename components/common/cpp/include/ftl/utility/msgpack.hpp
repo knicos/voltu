@@ -7,6 +7,7 @@
 
 #include <msgpack.hpp>
 #include <opencv2/core/mat.hpp>
+#include <Eigen/Eigen>
 
 namespace msgpack {
 MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
@@ -207,6 +208,48 @@ struct object_with_zone<cv::Mat> {
 		o.via.array.ptr[2] = msgpack::object(
 			msgpack::type::raw_ref(reinterpret_cast<char*>(v.data), size),
 			o.zone);
+	}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// Eigen::Matrix<>
+
+template <typename T, int X, int Y>
+struct pack<Eigen::Matrix<T, X, Y>> {
+	template <typename Stream>
+	packer<Stream>& operator()(msgpack::packer<Stream>& o, Eigen::Matrix<T, X, Y> const& v) const {
+
+		o.pack_array(X*Y);
+		for (int i = 0; i < X*Y; i++) { o.pack(v.data()[i]); }
+
+		return o;
+	}
+};
+
+template<typename T, int X, int Y>
+struct convert<Eigen::Matrix<T, X, Y>> {
+	msgpack::object const& operator()(msgpack::object const& o, Eigen::Matrix<T, X, Y> &v) const {
+		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+		if (o.via.array.size != X*Y) { throw msgpack::type_error(); }
+		
+		for (int i = 0; i < X*Y; i++) { v.data()[i] = o.via.array.ptr[i].as<T>(); }
+
+		return o;
+	}
+};
+
+template <typename T, int X, int Y>
+struct object_with_zone<Eigen::Matrix<T, X, Y>> {
+	void operator()(msgpack::object::with_zone& o, Eigen::Matrix<T, X, Y> const& v) const {
+		o.type = type::ARRAY;
+		o.via.array.size = X*Y;
+		o.via.array.ptr = static_cast<msgpack::object*>(
+			o.zone.allocate_align(	sizeof(msgpack::object) * o.via.array.size,
+									MSGPACK_ZONE_ALIGNOF(msgpack::object)));
+
+		for (int i = 0; i < X*Y; i++) {
+			o.via.array.ptr[i] = msgpack::object(v.data()[i], o.zone);
+		}
 	}
 };
 

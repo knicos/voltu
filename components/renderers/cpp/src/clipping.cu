@@ -4,7 +4,7 @@
 
 __device__ bool isClipped(const float4 &p, const ftl::cuda::ClipSpace &clip) {
 	const float3 tp = clip.origin * make_float3(p);
-	return fabs(tp.x) > clip.size.x || fabs(tp.y) > clip.size.y || fabs(tp.z) > clip.size.z;
+	return fabs(tp.x) > clip.size.x/2.0f || fabs(tp.y) > clip.size.y/2.0f || fabs(tp.z) > clip.size.z/2.0f;
 }
 
 __global__ void clipping_kernel(ftl::cuda::TextureObject<float> depth, ftl::rgbd::Camera camera, ftl::cuda::ClipSpace clip)
@@ -17,7 +17,7 @@ __global__ void clipping_kernel(ftl::cuda::TextureObject<float> depth, ftl::rgbd
 		float4 p = make_float4(camera.screenToCam(x,y,d), 0.0f);
 
 		if (isClipped(p, clip)) {
-			depth(x,y) = MINF;
+			depth(x,y) = 0.0f;
 		}
 	}
 }

@@ -14,7 +14,7 @@
 
 #include <ftl/codecs/faces.hpp>
 
-#include "overlay.hpp"
+#include <ftl/render/overlay.hpp>
 #include "statsimage.hpp"
 
 #define LOGURU_REPLACE_GLOG 1
@@ -83,6 +83,7 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 	framesets_ = nullptr;
 
 	colouriser_ = ftl::create<ftl::render::Colouriser>(screen->root(), "colouriser");
+	overlayer_ = ftl::create<ftl::overlay::Overlay>(screen->root(), "overlay");
 
 	// Is virtual camera?
 	if (fid == 255) {
@@ -172,7 +173,7 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 						auto &d = *data.rbegin();
 						
 						cv::Mat over_depth;
-						over_depth.create(im1_.size(), CV_32F);
+						over_depth.create(overlay_.size(), CV_32F);
 
 						auto cam = ftl::rgbd::Camera::from(intrinsics_);
 
@@ -224,7 +225,7 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 						squre_pts.push_back(cv::Point2f(cam.width,cam.height));
 
 						cv::Mat transmtx = cv::getPerspectiveTransform(quad_pts,squre_pts);
-						cv::Mat transformed = cv::Mat::zeros(im1_.rows, im1_.cols, CV_8UC4);
+						cv::Mat transformed = cv::Mat::zeros(overlay_.rows, overlay_.cols, CV_8UC4);
 						//cv::warpPerspective(im1_, im1_, transmtx, im1_.size());
 
 						ftl::render::ViewPort vp;
@@ -300,6 +301,12 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	frame_.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(renderer_->getCUDAStream());
 	if (isStereo()) frame_.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map((renderer2_) ? renderer2_->getCUDAStream() : 0);
 
+	overlay_.create(state_.getLeft().height, state_.getLeft().width, CV_8UC4);
+	frame_.create<cv::Mat>(Channel::Overlay) = overlay_;
+
+	overlay_.setTo(cv::Scalar(0,0,0,0));
+	bool enable_overlay = overlayer_->value("enabled", false);
+
 	{
 		FTL_Profile("Render",0.034);
 		renderer_->begin(frame_, Channel::Colour);
@@ -317,6 +324,12 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 				fs->mtx.lock();
 				renderer_->submit(fs, ftl::codecs::Channels<0>(Channel::Colour), transforms_[fs->id]);
 				if (isStereo()) renderer2_->submit(fs, ftl::codecs::Channels<0>(Channel::Colour), transforms_[fs->id]);
+
+				if (enable_overlay) {
+					// Generate and upload an overlay image.
+					overlayer_->apply(*fs, overlay_, state_);
+					frame_.upload(Channel::Overlay, renderer_->getCUDAStream());
+				}
 			}
 
 			if (channel_ != Channel::Left && channel_ != Channel::Right && channel_ != Channel::None) {
@@ -324,6 +337,10 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 				if (isStereo()) {
 					renderer2_->blend(0.5f, mapToSecondChannel(channel_));
 				}
+			}
+
+			if (enable_overlay) {
+				renderer_->blend(overlayer_->value("alpha", 0.8f), Channel::Overlay);
 			}
 
 			renderer_->end();
@@ -353,31 +370,6 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	width_ = texture1_.width();
 	height_ = texture1_.height();
-
-	if (isStereo()) {
-		//_downloadFrames(frame_.getTexture<uchar4>(Channel::Colour), frame_.getTexture<uchar4>(Channel::Colour2));
-	} else {
-		//_downloadFrame(frame_.getTexture<uchar4>(Channel::Colour));
-	}
-
-	if (screen_->root()->value("show_poses", false)) {
-		cv::Mat over_col, over_depth;
-		over_col.create(im1_.size(), CV_8UC4);
-		over_depth.create(im1_.size(), CV_32F);
-
-		for (auto *fs : fss) {
-			if (!usesFrameset(fs->id)) continue;
-			for (size_t i=0; i<fs->frames.size(); ++i) {
-				auto pose = fs->frames[i].getPose().inverse() * state_.getPose();
-				Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
-				pos /= pos[3];
-
-				auto name = fs->frames[i].get<std::string>("name");
-				ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fs->frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,screen_->root()->value("show_frustrum", false));
-				if (name) ftl::overlay::drawText(state_.getLeft(), im1_, over_depth, *name, pos, 0.5, cv::Scalar(0,0,255,255));
-			}
-		}
-	}
 
 	if (record_stream_ && record_stream_->active()) {
 		// TODO: Allow custom channel selection
@@ -579,16 +571,6 @@ void ftl::gui::Camera::setChannel(Channel c) {
 	cv::addWeighted(edges, weight, out, 1.0, 0.0, out, CV_8UC4);
 }*/
 
-bool ftl::gui::Camera::thumbnail(cv::Mat &thumb) {
-	{
-		UNIQUE_LOCK(mutex_, lk);
-		if (im1_.empty()) return false;
-		// FIXME: Use correct aspect ratio?
-		cv::resize(im1_, thumb, cv::Size(320,180));
-	}
-	cv::flip(thumb, thumb, 0);
-	return true;
-}
 
 void ftl::gui::Camera::active(bool a) {
 	if (a) {
@@ -704,16 +686,6 @@ const void ftl::gui::Camera::captureFrame() {
 		}
 
 		if (framesets_) draw(*framesets_);
-
-		{
-			UNIQUE_LOCK(mutex_, lk);
-			if (im1_.rows != 0) {
-				//texture1_.update(im1_);
-			}
-			if (isStereo() && im2_.rows != 0) {
-				//texture2_.update(im2_);
-			}
-		}
 	}
 
 	//return texture1_;
@@ -724,7 +696,7 @@ void ftl::gui::Camera::snapshot(const std::string &filename) {
 
 	{
 		UNIQUE_LOCK(mutex_, lk);
-		cv::flip(im1_, flipped, 0);
+		//cv::flip(im1_, flipped, 0);
 	}
 	cv::cvtColor(flipped, flipped, cv::COLOR_BGRA2BGR);
 	cv::imwrite(filename, flipped);

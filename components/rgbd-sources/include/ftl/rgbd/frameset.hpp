@@ -4,6 +4,7 @@
 #include <ftl/threads.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/rgbd/frame.hpp>
+#include <ftl/data/frameset.hpp>
 
 //#include <opencv2/core.hpp>
 #include <vector>
@@ -17,43 +18,45 @@ static const size_t kMaxFramesInSet = 32;
 
 class Source;
 
+typedef ftl::data::FrameSet<ftl::rgbd::Frame> FrameSet;
+
 /**
  * Represents a set of synchronised frames, each with two channels. This is
  * used to collect all frames from multiple computers that have the same
  * timestamp.
  */
-struct FrameSet {
-	int id=0;
-	int64_t timestamp;				// Millisecond timestamp of all frames
-	std::vector<ftl::rgbd::Frame> frames;
-	std::atomic<int> count;				// Number of valid frames
-	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
-	bool stale;						// True if buffers have been invalidated
-	SHARED_MUTEX mtx;
+//struct FrameSet {
+//	int id=0;
+//	int64_t timestamp;				// Millisecond timestamp of all frames
+//	std::vector<ftl::rgbd::Frame> frames;
+//	std::atomic<int> count;				// Number of valid frames
+//	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
+//	bool stale;						// True if buffers have been invalidated
+//	SHARED_MUTEX mtx;
 
 	/**
 	 * Upload all specified host memory channels to GPU memory.
 	 */
-	void upload(ftl::codecs::Channels<0>, cudaStream_t stream=0);
+//	void upload(ftl::codecs::Channels<0>, cudaStream_t stream=0);
 
 	/**
 	 * Download all specified GPU memory channels to host memory.
 	 */
-	void download(ftl::codecs::Channels<0>, cudaStream_t stream=0);
+//	void download(ftl::codecs::Channels<0>, cudaStream_t stream=0);
 
 	/**
 	 * Move the entire frameset to another frameset object. This will
 	 * invalidate the current frameset object as all memory buffers will be
 	 * moved.
 	 */
-	void swapTo(ftl::rgbd::FrameSet &);
+//	void swapTo(ftl::rgbd::FrameSet &);
 
 	/**
 	 * Clear all channels and all memory allocations within those channels.
 	 * This will perform a resetFull on all frames in the frameset.
 	 */
-	void resetFull();
-};
+//	void resetFull();
+//};
 
 /**
  * Callback type for receiving video frames.

@@ -504,7 +504,11 @@ void CUDARender::blend(float alpha, Channel c) {
 	//cv::cuda::addWeighted(buf.to_gpumat(), alpha, out_->get<GpuMat>(out_chan_), 1.0f-alpha, 0.0f,
 	//	out_->get<GpuMat>(out_chan_), -1, cvstream);
 
-	ftl::cuda::blend_alpha(buf, out_->getTexture<uchar4>(out_chan_), alpha, 1.0f-alpha, stream_);
+	if (alpha < 0.0f) {
+		ftl::cuda::composite(buf, out_->getTexture<uchar4>(out_chan_), stream_);
+	} else {
+		ftl::cuda::blend_alpha(buf, out_->getTexture<uchar4>(out_chan_), alpha, 1.0f-alpha, stream_);
+	}
 }
 
 void CUDARender::end() {

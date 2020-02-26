@@ -1,6 +1,7 @@
 #include <ftl/operators/clipping.hpp>
 #include <ftl/cuda/points.hpp>
 #include <ftl/utility/matrix_conversion.hpp>
+#include <ftl/codecs/shapes.hpp>
 
 using ftl::operators::ClipScene;
 using ftl::codecs::Channel;
@@ -42,8 +43,22 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 	Eigen::Affine3f t(trans);
 
 	ftl::cuda::ClipSpace clip;
-	clip.origin = MatrixConversion::toCUDA(r.matrix() * t.matrix());
+	clip.origin = MatrixConversion::toCUDA(t.matrix() * r.matrix());
 	clip.size = make_float3(width, height, depth);
+
+	ftl::codecs::Shape3D shape;
+	shape.id = 0;
+	shape.label = "Clipping";
+	shape.pose = t.matrix() * r.matrix();
+	shape.size = Eigen::Vector3f(width, height, depth);
+	shape.type = ftl::codecs::Shape3DType::CLIPPING;
+
+	bool no_clip = config()->value("no_clip", false);
+
+	std::vector<ftl::codecs::Shape3D> shapes;
+	if (in.hasChannel(Channel::Shapes3D)) in.get(Channel::Shapes3D, shapes);
+	shapes.push_back(shape);
+	in.create(Channel::Shapes3D, shapes);
 		
 	for (size_t i=0; i<in.frames.size(); ++i) {	
 		auto &f = in.frames[i];
@@ -52,8 +67,8 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 		auto pose = MatrixConversion::toCUDA(f.getPose().cast<float>());
 
 		auto sclip = clip;
-		sclip.origin = sclip.origin * pose;
-		ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getLeftCamera(), sclip, stream);
+		sclip.origin = sclip.origin.getInverse() * pose;
+		if (!no_clip) ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getLeftCamera(), sclip, stream);
 	}
 
 	return true;

@@ -114,6 +114,7 @@ Colouriser::~Colouriser() {
 
 TextureObject<uchar4> &Colouriser::colourise(ftl::rgbd::Frame &f, Channel c, cudaStream_t stream) {
 	switch (c) {
+	case Channel::Overlay		: return f.createTexture<uchar4>(c);
 	case Channel::ColourHighRes	:
 	case Channel::Colour		:
 	case Channel::Colour2		: return _processColour(f,c,stream);

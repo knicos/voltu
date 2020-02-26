@@ -16,7 +16,7 @@ using ftl::codecs::Channel;
 using ftl::rgbd::FrameSet;
 using ftl::codecs::Channels;
 
-void FrameSet::upload(ftl::codecs::Channels<0> c, cudaStream_t stream) {
+/*void FrameSet::upload(ftl::codecs::Channels<0> c, cudaStream_t stream) {
 	for (auto &f : frames) {
 		f.upload(c, stream);
 	}
@@ -55,7 +55,7 @@ void FrameSet::resetFull() {
 	//for (auto &f : frames) {
 		//f.resetFull();
 	//}
-}
+}*/
 
 // =============================================================================
 
@@ -380,6 +380,8 @@ ftl::rgbd::FrameSet *Builder::_addFrameset(int64_t timestamp) {
 	newf->mask = 0;
 	newf->stale = false;
 	newf->frames.resize(size_);
+	newf->pose.setIdentity();
+	newf->clearData();
 
 	for (auto &f : newf->frames) f.reset();
 
