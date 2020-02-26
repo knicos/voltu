@@ -43,7 +43,7 @@ void Overlay::apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState
 				Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
 				pos /= pos[3];
 
-				ftl::overlay::drawFilledBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
+				ftl::overlay::drawFilledBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,50), s.size.cast<double>());
                 ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
 				ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
 			}
