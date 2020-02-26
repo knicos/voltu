@@ -35,6 +35,8 @@ class CUDARender : public ftl::render::Renderer {
 		params_.viewPortMode = mode;
 	}
 
+	cudaStream_t getCUDAStream() const { return stream_; }
+
 	protected:
 	void _renderChannel(ftl::rgbd::Frame &out, ftl::codecs::Channel channel_in, const Eigen::Matrix4d &t, cudaStream_t stream);
 

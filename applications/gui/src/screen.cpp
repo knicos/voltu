@@ -38,7 +38,7 @@ namespace {
 		in vec2 vertex;
 		out vec2 uv;
 		void main() {
-			uv = vertex;
+			uv = vec2(vertex.x, 1.0 - vertex.y);
 			vec2 scaledVertex = (vertex * scaleFactor) + position;
 			gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
 								2.0*scaledVertex.y - 1.0,
@@ -520,13 +520,14 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 	if (camera_) {
 		imageSize = {camera_->width(), camera_->height()};
 
+		glActiveTexture(GL_TEXTURE0);
 		mImageID = camera_->getLeft().texture();
 		leftEye_ = mImageID;
 		rightEye_ = camera_->getRight().texture();
 
 		//if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
 
-		if (mImageID < std::numeric_limits<unsigned int>::max() && imageSize[0] > 0) {
+		if (camera_->getLeft().isValid() && imageSize[0] > 0) {
 			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff()) * zoom_;
 			Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
 			Vector2f positionInScreen(pos_x_, pos_y_);
@@ -541,8 +542,10 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 			mShader.bind();
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, leftEye_);
+			//camera_->getLeft().texture();
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, (camera_->isStereo() && camera_->getRight().isValid()) ? rightEye_ : leftEye_);
+			//(camera_->isStereo() && camera_->getRight().isValid()) ? camera_->getRight().texture() : camera_->getLeft().texture();
 			mShader.setUniform("image1", 0);
 			mShader.setUniform("image2", 1);
 			mShader.setUniform("blendAmount", (camera_->isStereo()) ? root_->value("blending", 0.5f) : 1.0f);
@@ -550,6 +553,8 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 			mShader.setUniform("position", imagePosition);
 			mShader.drawIndexed(GL_TRIANGLES, 0, 2);
 			//glDisable(GL_SCISSOR_TEST);
+
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 		}
 	} else {
 		// Must periodically render the cameras here to update any thumbnails.

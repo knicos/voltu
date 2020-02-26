@@ -129,7 +129,29 @@ void ftl::gui::Camera::drawUpdated(std::vector<ftl::rgbd::FrameSet*> &fss) {
 }
 
 void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
-	if (fid_ != 255) return;
+	if (fid_ != 255) {
+		for (auto *fs : fss) {
+			if (!usesFrameset(fs->id)) continue;
+
+			ftl::rgbd::Frame *frame = nullptr;
+
+			if ((size_t)fid_ >= fs->frames.size()) return;
+			frame = &fs->frames[fid_];
+
+			auto &buf = colouriser_->colourise(*frame, channel_, 0);
+
+			// For non-virtual cameras, copy the CUDA texture into the opengl
+			// texture device-to-device.
+			texture1_.make(buf.width(), buf.height());
+			auto dst1 = texture1_.map(0);
+			cudaMemcpy2D(dst1.data, dst1.step1(), buf.devicePtr(), buf.pitch(), buf.width()*4, buf.height(), cudaMemcpyDeviceToDevice);
+			texture1_.unmap(0);
+
+			width_ = texture1_.width();
+			height_ = texture1_.height();
+			return;
+		}
+	}
 	//if (fsid_ >= fss.size()) return;
 
 	//auto &fs = *fss[fsid_];
@@ -270,6 +292,14 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	frame_.reset();
 	frame_.setOrigin(&state_);
 
+	// Make sure an OpenGL pixel buffer exists
+	texture1_.make(state_.getLeft().width, state_.getLeft().height);
+	if (isStereo()) texture2_.make(state_.getRight().width, state_.getRight().height);
+
+	// Map the GL pixel buffer to a GpuMat
+	frame_.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(renderer_->getCUDAStream());
+	if (isStereo()) frame_.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map((renderer2_) ? renderer2_->getCUDAStream() : 0);
+
 	{
 		FTL_Profile("Render",0.034);
 		renderer_->begin(frame_, Channel::Colour);
@@ -317,10 +347,17 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	channels_ = frame_.getChannels();
 
+	// Unmap GL buffer from CUDA and finish updating GL texture
+	texture1_.unmap(renderer_->getCUDAStream());
+	if (isStereo()) texture2_.unmap(renderer2_->getCUDAStream());
+
+	width_ = texture1_.width();
+	height_ = texture1_.height();
+
 	if (isStereo()) {
-		_downloadFrames(frame_.getTexture<uchar4>(Channel::Colour), frame_.getTexture<uchar4>(Channel::Colour2));
+		//_downloadFrames(frame_.getTexture<uchar4>(Channel::Colour), frame_.getTexture<uchar4>(Channel::Colour2));
 	} else {
-		_downloadFrame(frame_.getTexture<uchar4>(Channel::Colour));
+		//_downloadFrame(frame_.getTexture<uchar4>(Channel::Colour));
 	}
 
 	if (screen_->root()->value("show_poses", false)) {
@@ -358,38 +395,6 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	}
 }
 
-void ftl::gui::Camera::_downloadFrames(ftl::cuda::TextureObject<uchar4> &a, ftl::cuda::TextureObject<uchar4> &b) {
-	im1_.create(cv::Size(a.width(), a.height()), CV_8UC4);
-	a.to_gpumat().download(im1_);
-
-	// OpenGL (0,0) bottom left
-	cv::flip(im1_, im1_, 0);
-
-	width_ = im1_.cols;
-	height_ = im1_.rows;
-
-	im2_.create(cv::Size(b.width(), b.height()), CV_8UC4);
-	b.to_gpumat().download(im2_);
-	cv::flip(im2_, im2_, 0);
-
-	if (im2_.cols != im1_.cols || im2_.rows != im1_.rows) {
-		throw FTL_Error("Left and right images are different sizes");
-	}
-}
-
-void ftl::gui::Camera::_downloadFrame(ftl::cuda::TextureObject<uchar4> &a) {
-	im1_.create(cv::Size(a.width(), a.height()), CV_8UC4);
-	a.to_gpumat().download(im1_);
-
-	// OpenGL (0,0) bottom left
-	cv::flip(im1_, im1_, 0);
-
-	width_ = im1_.cols;
-	height_ = im1_.rows;
-
-	im2_ = cv::Mat();
-}
-
 void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
 	if (!isVirtual() && ((1 << fsid) & fsmask_)) {
 		channels_ = c;
@@ -408,11 +413,6 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	//if (fss.size() <= fsid_) return;
 	if (fid_ == 255) {
 		name_ = "Virtual Camera";
-		// Do a draw if not active. If active the draw function will be called
-		// directly.
-		if (screen_->activeCamera() != this) {
-			//_draw(fss);
-		}
 	} else {
 		for (auto *fs : fss) {
 			if (!usesFrameset(fs->id)) continue;
@@ -421,13 +421,6 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 			if ((size_t)fid_ >= fs->frames.size()) return;
 			frame = &fs->frames[fid_];
-
-			auto &buf = colouriser_->colourise(*frame, channel_, 0);
-			if (isStereo() && frame->hasChannel(Channel::Right)) {
-				_downloadFrames(buf, frame->createTexture<uchar4>(Channel::Right));
-			} else {
-				_downloadFrame(buf);
-			}
 
 			auto n = frame->get<std::string>("name");
 			if (n) {
@@ -715,10 +708,10 @@ const void ftl::gui::Camera::captureFrame() {
 		{
 			UNIQUE_LOCK(mutex_, lk);
 			if (im1_.rows != 0) {
-				texture1_.update(im1_);
+				//texture1_.update(im1_);
 			}
 			if (isStereo() && im2_.rows != 0) {
-				texture2_.update(im2_);
+				//texture2_.update(im2_);
 			}
 		}
 	}

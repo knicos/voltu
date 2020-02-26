@@ -368,26 +368,28 @@ void SourceWindow::draw(NVGcontext *ctx) {
 		UNIQUE_LOCK(mutex_, lk);
 		//refresh_thumbs_ = false;
 
-		if (thumbs_.size() < cameras_.size()) thumbs_.resize(cameras_.size());
+		//if (thumbs_.size() < cameras_.size()) thumbs_.resize(cameras_.size());
 
 		//for (size_t i=0; i<thumbs_.size(); ++i) {
 		int i = 0;
 		for (auto &camera : cameras_) {
 			cv::Mat t;
 			auto *cam = camera.second.camera;
-			if (cam) {
+			//if (cam) {
 				//cam->draw(framesets_);
-				if (cam->thumbnail(t)) {
-					thumbs_[i].update(t);
-				}
-			}
+			//	if (cam->thumbnail(t)) {
+			//		thumbs_[i].update(t);
+			//	}
+			//}
 
 			if (!camera.second.thumbview) camera.second.thumbview = new ftl::gui::ThumbView(ipanel_, screen_, cam);
+			camera.second.thumbview->setFixedSize(nanogui::Vector2i(320,180));
 
 			/*if ((size_t)ipanel_->childCount() < i+1) {
 				new ftl::gui::ThumbView(ipanel_, screen_, cam);
 			}*/
-			if (thumbs_[i].isValid()) dynamic_cast<nanogui::ImageView*>(camera.second.thumbview)->bindImage(thumbs_[i].texture());
+			//if (thumbs_[i].isValid()) dynamic_cast<nanogui::ImageView*>(camera.second.thumbview)->bindImage(thumbs_[i].texture());
+			if (cam->getLeft().isValid()) dynamic_cast<nanogui::ImageView*>(camera.second.thumbview)->bindImage(cam->getLeft().texture());
 			++i;
 		}
 
