@@ -70,8 +70,13 @@ void Overlay::_createShapes() {
         {-0.5, 0.28, 0.5},
         {-0.5, -0.28, 0.5},
 
+        // Axis lines
+        {1.0, 0.0, 0.0},     // 13
+        {0.0, -1.0, 0.0},
+        {0.0, 0.0, 1.0},
+
         // Plane XZ big
-        {-10.0, 0.0, -10.0},  // 13
+        {-10.0, 0.0, -10.0},  // 16
         {10.0, 0.0, -10.0},
         {10.0, 0.0, 10.0},
         {-10.0, 0.0, 10.0}
@@ -128,12 +133,17 @@ void Overlay::_createShapes() {
         9, 11,
         10, 12,
 
+        // Axis lines
+        8, 13,          // 82
+        8, 14,
+        8, 15,
+
         // Big XZ Plane
-        13, 14, 15,     // 82
-        15, 16, 13
+        16, 17, 18,     // 88
+        18, 19, 16
     };
 
-    int i = 17;
+    int i = 20;
     for (int x=-10; x<=10; ++x) {
         shape_tri_indices_.push_back(i++);
         shape_tri_indices_.push_back(i++);
@@ -143,7 +153,8 @@ void Overlay::_createShapes() {
 
     shapes_[Shape::BOX] = {0,30, 30, 12*2};
     shapes_[Shape::CAMERA] = {54, 4*3, 66, 8*2};
-    shapes_[Shape::XZPLANE] = {82, 2*3, 88, 40*2};
+    shapes_[Shape::XZPLANE] = {88, 2*3, 94, 40*2};
+    shapes_[Shape::AXIS] = {0, 0, 82, 2*3};
 
     oShader.uploadAttrib("vertex", sizeof(float3)*shape_verts_.size(), 3, sizeof(float), GL_FLOAT, false, shape_verts_.data());
     oShader.uploadAttrib ("indices", sizeof(int)*shape_tri_indices_.size(), 1, sizeof(int), GL_UNSIGNED_INT, true, shape_tri_indices_.data());
@@ -175,10 +186,13 @@ void Overlay::_drawOutlinedShape(Shape shape, const Eigen::Matrix4d &pose, const
     auto [offset,count,loffset,lcount] = shapes_[shape];
     oShader.setUniform("scale", scale);
     oShader.setUniform("pose", mv);
-    oShader.setUniform("blockColour", Eigen::Vector4f(float(fill.x)/255.0f,float(fill.y)/255.0f,float(fill.z)/255.0f,float(fill.w)/255.0f));
-	//oShader.drawIndexed(GL_TRIANGLES, offset, count);
-    glDrawElements(GL_TRIANGLES, (GLsizei) count, GL_UNSIGNED_INT,
-                   (const void *)(offset * sizeof(uint32_t)));
+
+    if (count > 0) {
+        oShader.setUniform("blockColour", Eigen::Vector4f(float(fill.x)/255.0f,float(fill.y)/255.0f,float(fill.z)/255.0f,float(fill.w)/255.0f));
+        //oShader.drawIndexed(GL_TRIANGLES, offset, count);
+        glDrawElements(GL_TRIANGLES, (GLsizei) count, GL_UNSIGNED_INT,
+                    (const void *)(offset * sizeof(uint32_t)));
+    }
 
     if (lcount != 0) {
         oShader.setUniform("blockColour", Eigen::Vector4f(float(outline.x)/255.0f,float(outline.y)/255.0f,float(outline.z)/255.0f,float(outline.w)/255.0f));
@@ -186,6 +200,31 @@ void Overlay::_drawOutlinedShape(Shape shape, const Eigen::Matrix4d &pose, const
         glDrawElements(GL_LINES, (GLsizei) lcount, GL_UNSIGNED_INT,
                     (const void *)(loffset * sizeof(uint32_t)));
     }
+}
+
+void Overlay::_drawAxis(const Eigen::Matrix4d &pose, const Eigen::Vector3f &scale) {
+    Eigen::Matrix4f mv = pose.cast<float>();
+
+    auto [offset,count,loffset,lcount] = shapes_[Shape::AXIS];
+    oShader.setUniform("scale", scale);
+    oShader.setUniform("pose", mv);
+
+    oShader.setUniform("blockColour", Eigen::Vector4f(1.0f, 0.0f, 0.0f, 1.0f));
+    //oShader.drawIndexed(GL_LINE_LOOP, offset, count);
+    glDrawElements(GL_LINES, (GLsizei) 2, GL_UNSIGNED_INT,
+                (const void *)(loffset * sizeof(uint32_t)));
+
+    loffset += 2;
+    oShader.setUniform("blockColour", Eigen::Vector4f(0.0f, 1.0f, 0.0f, 1.0f));
+    //oShader.drawIndexed(GL_LINE_LOOP, offset, count);
+    glDrawElements(GL_LINES, (GLsizei) 2, GL_UNSIGNED_INT,
+                (const void *)(loffset * sizeof(uint32_t)));
+
+    loffset += 2;
+    oShader.setUniform("blockColour", Eigen::Vector4f(0.0f, 0.0f, 1.0f, 1.0f));
+    //oShader.drawIndexed(GL_LINE_LOOP, offset, count);
+    glDrawElements(GL_LINES, (GLsizei) 2, GL_UNSIGNED_INT,
+                (const void *)(loffset * sizeof(uint32_t)));
 }
 
 void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const Eigen::Vector2f &screenSize) {
@@ -250,8 +289,12 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 		}
 	}
 
-    if (value("show_xz_plane", true)) {
+    if (value("show_xz_plane", false)) {
         _drawOutlinedShape(Shape::XZPLANE, state.getPose().inverse(), Eigen::Vector3f(1.0f,1.0f,1.0f), make_uchar4(200,200,200,50), make_uchar4(255,255,255,100));
+    }
+
+    if (value("show_axis", true)) {
+        _drawAxis(state.getPose().inverse(), Eigen::Vector3f(0.5f, 0.5f, 0.5f));
     }
 
 	if (value("show_shapes", false)) {

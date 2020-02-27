@@ -13,7 +13,8 @@ enum class Shape {
     BOX,
     CAMERA,
     XZPLANE,
-    GRID
+    GRID,
+    AXIS
 };
 
 class Overlay : public ftl::Configurable {
@@ -36,6 +37,7 @@ class Overlay : public ftl::Configurable {
     void _createShapes();
     void _drawFilledShape(ftl::overlay::Shape shape, const Eigen::Matrix4d &pose, float scale, uchar4 colour);
     void _drawOutlinedShape(Shape shape, const Eigen::Matrix4d &pose, const Eigen::Vector3f &scale, uchar4 fill, uchar4 outline);
+    void _drawAxis(const Eigen::Matrix4d &pose, const Eigen::Vector3f &scale);
 };
 
 void draw3DLine(
