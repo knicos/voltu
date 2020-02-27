@@ -35,15 +35,20 @@ private:
 class exception : public std::exception
 {
 	public:
-	explicit exception(const char *msg) : msg_(msg) {}
-	explicit exception(const Formatter &msg) : msg_(msg.str()) {}
+	explicit exception(const char *msg);
+	explicit exception(const Formatter &msg);
 
 	const char * what () const throw () {
     	return msg_.c_str();
     }
 
+    const char * trace () const throw () {
+        return trace_.c_str();
+    }
+
 	private:
 	std::string msg_;
+    std::string trace_;
 };
 }
 

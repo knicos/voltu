@@ -11,6 +11,7 @@ set(COMMONSRC
 	src/ctpl_stl.cpp
 	src/timer.cpp
 	src/profiler.cpp
+	src/exception.cpp
 )
 
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)

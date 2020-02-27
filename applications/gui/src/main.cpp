@@ -89,12 +89,15 @@ int main(int argc, char **argv) {
 		}
 
 		nanogui::shutdown();
+	} catch (const ftl::exception &e) {
+		LOG(ERROR) << "Fatal error: " << e.what();
+		LOG(ERROR) << e.trace();
 	} catch (const std::runtime_error &e) {
 		std::string error_msg = std::string("Caught a fatal error: ") + std::string(e.what());
 		#if defined(_WIN32)
 			MessageBoxA(nullptr, error_msg.c_str(), NULL, MB_ICONERROR | MB_OK);
 		#else
-			std::cerr << error_msg << std::endl;
+			LOG(ERROR) << error_msg;
 		#endif
 		return -1;
 	}
