@@ -267,7 +267,6 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 
     glDisable(GL_LINE_SMOOTH);
 	glDisable(GL_BLEND);
-	glDisable(GL_DEPTH_TEST);
 
 	//cv::flip(out, out, 0);
 }

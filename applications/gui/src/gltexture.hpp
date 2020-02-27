@@ -39,6 +39,7 @@ class GLTexture {
 	unsigned int glbuf_;
 	int width_;
 	int height_;
+	int stride_;
 	bool changed_;
 	Type type_;
 

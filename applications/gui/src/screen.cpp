@@ -522,11 +522,6 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 	if (camera_) {
 		imageSize = {camera_->width(), camera_->height()};
 
-		glActiveTexture(GL_TEXTURE0);
-		mImageID = camera_->getLeft().texture();
-		leftEye_ = mImageID;
-		rightEye_ = camera_->getRight().texture();
-
 		//if (camera_->getChannel() != ftl::codecs::Channel::Left) { mImageID = rightEye_; }
 
 		if (camera_->getLeft().isValid() && imageSize[0] > 0) {
@@ -565,7 +560,9 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 			//glDisable(GL_SCISSOR_TEST);
 			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-			camera_->drawOverlay(screenSize); 
+			camera_->drawOverlay(screenSize);
+			 
+			glDisable(GL_DEPTH_TEST);
 		}
 	} else {
 		// Must periodically render the cameras here to update any thumbnails.
@@ -586,6 +583,11 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 void ftl::gui::Screen::drawFast() {
 	if (camera_) {
 		camera_->captureFrame();
+
+		glActiveTexture(GL_TEXTURE0);
+		mImageID = camera_->getLeft().texture();
+		leftEye_ = mImageID;
+		rightEye_ = camera_->getRight().texture();
 
 		#ifdef HAVE_OPENVR
 		if (isVR() && camera_->width() > 0 && camera_->getLeft().isValid() && camera_->getRight().isValid()) {
