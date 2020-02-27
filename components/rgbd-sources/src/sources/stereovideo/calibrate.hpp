@@ -53,18 +53,29 @@ class Calibrate : public ftl::Configurable {
 	
 	/**
 	 * @brief Get disparity to depth matrix
-	 *
+	 * @note Disparity offset is in image_size (scale)
+	 * 
 	 * 2020/01/15:	StereoVideoSource creates a Camera object which is used to
 	 * 				calculate depth from disparity (disp2depth.cu). Seems to be
 	 * 				used only in StereoVideoSource to get doff and baseline
 	 * 				parameter values in updateParameters()
 	 */
+	[[deprecated]]
 	const cv::Mat &getQ() const { return Q_; }
 
 	/**
 	 * @brief Get camera pair baseline
 	 */
 	double getBaseline() const;
+
+	/**
+	 * @brief Get camera pair disparity offset
+	 * @param size (optional) scale to given resolution.
+	 * 
+	 * Returns disparity offset for image_size resolution if size not provided.
+	 */
+	double getDoff() const;
+	double getDoff(const cv::Size& size) const;
 
 	/**
 	 * @brief	Get intrinsic paramters. If rectification is enabled, returns

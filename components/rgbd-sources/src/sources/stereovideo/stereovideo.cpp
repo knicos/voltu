@@ -202,7 +202,7 @@ void StereoVideoSource::updateParameters() {
 
 	// same for left and right
 	float baseline = static_cast<float>(calib_->getBaseline());
-	float doff = static_cast<float>(-calib_->getQ().at<double>(3,3) * baseline);
+	float doff = calib_->getDoff(color_size_);
 
 	double d_resolution = this->host_->getConfig().value<double>("depth_resolution", 0.0);
 	float min_depth = this->host_->getConfig().value<double>("min_depth", 0.45);

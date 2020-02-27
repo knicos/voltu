@@ -76,6 +76,14 @@ double Calibrate::getBaseline() const {
 	return cv::norm(t_);
 }
 
+double Calibrate::getDoff() const {
+	return -(Q_.at<double>(3,3) * getBaseline());
+}
+
+double Calibrate::getDoff(const Size& size) const {
+	return getDoff() * ((double) size.width / (double) img_size_.width);
+}
+
 Mat Calibrate::getCameraMatrixLeft(const cv::Size res) {
 	if (rectify_) {
 		return ftl::calibration::scaleCameraMatrix(Mat(P1_, cv::Rect(0, 0, 3, 3)), res, img_size_);
