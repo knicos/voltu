@@ -146,7 +146,8 @@ bool Net::begin() {
 		if (!active_) return;
 
 		StreamPacket spkt = spkt_raw;
-		spkt.timestamp -= clock_adjust_;
+		// FIXME: see #335
+		//spkt.timestamp -= clock_adjust_;
 		spkt.version = 4;
 
 		// Manage recuring requests
