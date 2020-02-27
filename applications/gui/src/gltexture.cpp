@@ -10,13 +10,14 @@
 
 using ftl::gui::GLTexture;
 
-GLTexture::GLTexture() {
+GLTexture::GLTexture(GLTexture::Type type) {
 	glid_ = std::numeric_limits<unsigned int>::max();
 	glbuf_ = std::numeric_limits<unsigned int>::max();
 	cuda_res_ = nullptr;
 	width_ = 0;
 	height_ = 0;
 	changed_ = true;
+	type_ = type;
 }
 
 GLTexture::~GLTexture() {
@@ -30,7 +31,11 @@ void GLTexture::update(cv::Mat &m) {
 		glGenTextures(1, &glid_);
 		glBindTexture(GL_TEXTURE_2D, glid_);
 		//cv::Mat m(cv::Size(100,100), CV_8UC3);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m.cols, m.rows, 0, GL_BGRA, GL_UNSIGNED_BYTE, m.data);
+		if (type_ == Type::BGRA) {
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m.cols, m.rows, 0, GL_BGRA, GL_UNSIGNED_BYTE, m.data);
+		} else if (type_ == Type::Float) {
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, m.cols, m.rows, 0, GL_RED, GL_FLOAT, m.data);
+		}
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -60,13 +65,18 @@ void GLTexture::make(int width, int height) {
 		glGenTextures(1, &glid_);
 		glBindTexture(GL_TEXTURE_2D, glid_);
 		//cv::Mat m(cv::Size(100,100), CV_8UC3);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+		//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+		if (type_ == Type::BGRA) {
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+		} else if (type_ == Type::Float) {
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, nullptr);
+		}
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		//auto err = glGetError();
-		//if (err != 0) LOG(ERROR) << "OpenGL Texture error: " << err;
+		auto err = glGetError();
+		if (err != 0) LOG(ERROR) << "OpenGL Texture error: " << err;
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -100,7 +110,7 @@ cv::cuda::GpuMat GLTexture::map(cudaStream_t stream) {
 	size_t size;
 	cudaSafeCall(cudaGraphicsMapResources(1, &cuda_res_, stream));
 	cudaSafeCall(cudaGraphicsResourceGetMappedPointer(&devptr, &size, cuda_res_));
-	return cv::cuda::GpuMat(height_, width_, CV_8UC4, devptr);
+	return cv::cuda::GpuMat(height_, width_, (type_ == Type::BGRA) ? CV_8UC4 : CV_32F, devptr);
 }
 
 void GLTexture::unmap(cudaStream_t stream) {
@@ -112,7 +122,11 @@ void GLTexture::unmap(cudaStream_t stream) {
 	// Select the appropriate texture
 	glBindTexture( GL_TEXTURE_2D, glid_);
 	// Make a texture from the buffer
-	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width_, height_, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+	if (type_ == Type::BGRA) {
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width_, height_, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+	} else {
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width_, height_, GL_RED, GL_FLOAT, NULL);
+	}
 	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, 0);
 }
 

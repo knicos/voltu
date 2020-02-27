@@ -1,4 +1,5 @@
 #include <ftl/render/overlay.hpp>
+#include <ftl/utility/matrix_conversion.hpp>
 
 #include <opencv2/imgproc.hpp>
 
@@ -9,27 +10,222 @@
 
 using ftl::overlay::Overlay;
 using ftl::codecs::Channel;
+using ftl::overlay::Shape;
+
+namespace {
+	constexpr char const *const overlayVertexShader =
+		R"(#version 330
+		in vec3 vertex;
+		uniform float focal;
+		uniform float width;
+		uniform float height;
+		uniform float far;
+		uniform float near;
+        uniform mat4 pose;
+        uniform vec3 scale;
+
+		void main() {
+            vec4 vert = pose*(vec4(scale*vertex,1.0));
+            vert = vert / vert.w;
+			vec4 pos = vec4(-vert.x*focal / -vert.z / (width/2.0),
+				vert.y*focal / -vert.z / (height/2.0),
+				(vert.z-near) / (far-near) * 2.0 - 1.0, 1.0);
+			gl_Position = pos;
+		})";
+
+	constexpr char const *const overlayFragmentShader =
+		R"(#version 330
+		uniform vec4 blockColour;
+		out vec4 color;
+		
+		void main() {
+			color = blockColour;
+		})";
+}
 
 Overlay::Overlay(nlohmann::json &config) : ftl::Configurable(config) {
-
+	init_ = false;
 }
 
 Overlay::~Overlay() {
 
 }
 
-void Overlay::apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState &state) {
-	over_depth_.create(out.size(), CV_32F);
+void Overlay::_createShapes() {
+    shape_verts_ = {
+        // Box
+        {-1.0, -1.0, -1.0},
+        {1.0, -1.0, -1.0},
+        {1.0, 1.0, -1.0},
+        {-1.0, 1.0, -1.0},
+        {-1.0, -1.0, 1.0},
+        {1.0, -1.0, 1.0},
+        {1.0, 1.0, 1.0},
+        {-1.0, 1.0, 1.0},
+
+        // Camera
+        {0.0, 0.0, 0.0},        // 8
+        {0.5, 0.28, 0.5},
+        {0.5, -0.28, 0.5},
+        {-0.5, 0.28, 0.5},
+        {-0.5, -0.28, 0.5},
+
+        // Plane Y simple
+        {-1.0, 0.0, -1.0},
+        {1.0, 0.0, -1.0},
+        {1.0, 0.0, 1.0},
+        {-1.0, 0.0, 1.0}
+    };
+
+    shape_tri_indices_ = {
+        // Box
+        0, 1, 2,
+        0, 2, 3,
+        1, 5, 6,
+        1, 6, 2,
+        0, 4, 7,
+        0, 7, 3,
+        3, 2, 6,
+        3, 6, 7,
+        0, 1, 5,
+        0, 5, 4,
+
+        // Box Lines
+        0, 1,       // 30
+        1, 5,
+        5, 6,
+        6, 2,
+        2, 1,
+        2, 3,
+        3, 0,
+        3, 7,
+        7, 4,
+        4, 5,
+        6, 7,
+        0, 4,
+
+        // Camera
+        8, 9, 10,      // 54
+        8, 11, 12,
+        8, 9, 11,
+        8, 10, 12,
+
+        // Camera Lines
+        8, 9,           // 66
+        8, 10,
+        8, 11,
+        8, 12,
+        9, 10,
+        11, 12,
+        9, 11,
+        10, 12
+    };
+
+    shapes_[Shape::BOX] = {0,30, 30, 12*2};
+    shapes_[Shape::CAMERA] = {54, 4*3, 66, 8*2};
+
+    oShader.uploadAttrib("vertex", sizeof(float3)*shape_verts_.size(), 3, sizeof(float), GL_FLOAT, false, shape_verts_.data());
+    oShader.uploadAttrib ("indices", sizeof(int)*shape_tri_indices_.size(), 1, sizeof(int), GL_UNSIGNED_INT, true, shape_tri_indices_.data());
+}
+
+void Overlay::_drawFilledShape(Shape shape, const Eigen::Matrix4d &pose, float scale, uchar4 c) {
+    if (shapes_.find(shape) ==shapes_.end()) {
+        return;
+    }
+
+    Eigen::Matrix4f mv = pose.cast<float>();
+
+    auto [offset,count, loffset, lcount] = shapes_[shape];
+    oShader.setUniform("scale", scale);
+    oShader.setUniform("pose", mv);
+    oShader.setUniform("blockColour", Eigen::Vector4f(float(c.x)/255.0f,float(c.y)/255.0f,float(c.z)/255.0f,float(c.w)/255.0f));
+	//oShader.drawIndexed(GL_TRIANGLES, offset, count);
+    glDrawElements(GL_TRIANGLES, (GLsizei) count, GL_UNSIGNED_INT,
+                   (const void *)(offset * sizeof(uint32_t)));
+}
+
+void Overlay::_drawOutlinedShape(Shape shape, const Eigen::Matrix4d &pose, const Eigen::Vector3f &scale, uchar4 fill, uchar4 outline) {
+    if (shapes_.find(shape) ==shapes_.end()) {
+        return;
+    }
+
+    Eigen::Matrix4f mv = pose.cast<float>();
+
+    auto [offset,count,loffset,lcount] = shapes_[shape];
+    oShader.setUniform("scale", scale);
+    oShader.setUniform("pose", mv);
+    oShader.setUniform("blockColour", Eigen::Vector4f(float(fill.x)/255.0f,float(fill.y)/255.0f,float(fill.z)/255.0f,float(fill.w)/255.0f));
+	//oShader.drawIndexed(GL_TRIANGLES, offset, count);
+    glDrawElements(GL_TRIANGLES, (GLsizei) count, GL_UNSIGNED_INT,
+                   (const void *)(offset * sizeof(uint32_t)));
+
+    if (lcount != 0) {
+        oShader.setUniform("blockColour", Eigen::Vector4f(float(outline.x)/255.0f,float(outline.y)/255.0f,float(outline.z)/255.0f,float(outline.w)/255.0f));
+        //oShader.drawIndexed(GL_LINE_LOOP, offset, count);
+        glDrawElements(GL_LINES, (GLsizei) lcount, GL_UNSIGNED_INT,
+                    (const void *)(loffset * sizeof(uint32_t)));
+    }
+}
+
+void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const Eigen::Vector2f &screenSize) {
+	double zfar = 8.0f;
+	auto intrin = state.getLeft();
+	intrin = intrin.scaled(screenSize[0], screenSize[1]);
+
+	if (!init_) {
+		oShader.init("OverlayShader", overlayVertexShader, overlayFragmentShader);
+        oShader.bind();
+        _createShapes();
+		init_ = true;
+	} else {
+	    oShader.bind();
+    }
+
+	float3 tris[] = {
+		{0.5f, -0.7f, 2.0f},
+		{0.2f, -0.5f, 2.0f},
+		{0.8f, -0.4f, 2.0f}
+	};
+
+	auto pose = MatrixConversion::toCUDA(state.getPose().cast<float>().inverse());
+
+	tris[0] = pose * tris[0];
+	tris[1] = pose * tris[1];
+	tris[2] = pose * tris[2];
+
+	glFlush();
+
+	glDepthMask(GL_FALSE);
+	glEnable( GL_BLEND );
+	glBlendEquation( GL_FUNC_ADD );
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_LINE_SMOOTH);
+
+	oShader.setUniform("focal", intrin.fx);
+	oShader.setUniform("width", float(intrin.width));
+	oShader.setUniform("height", float(intrin.height));
+	oShader.setUniform("far", zfar);
+	oShader.setUniform("near", 0.0f);  // TODO: but make sure CUDA depth is also normalised like this
+
+	/*oShader.setUniform("blockColour", Eigen::Vector4f(1.0f,1.0f,0.0f,0.5f));
+	oShader.uploadAttrib("vertex", sizeof(tris), 3, sizeof(float), GL_FLOAT, false, tris);
+	oShader.drawArray(GL_TRIANGLES, 0, 3);
+
+	oShader.setUniform("blockColour", Eigen::Vector4f(1.0f,1.0f,0.0f,1.0f));
+	//oShader.uploadAttrib("vertex", sizeof(tris), 3, sizeof(float), GL_FLOAT, false, tris);
+	oShader.drawArray(GL_LINE_LOOP, 0, 3);*/
+
+	//glFinish();
 
 	if (value("show_poses", false)) {
 		for (size_t i=0; i<fs.frames.size(); ++i) {
-			auto pose = fs.frames[i].getPose().inverse() * state.getPose();
-			Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
-			pos /= pos[3];
+			auto pose = fs.frames[i].getPose(); //.inverse() * state.getPose();
 
 			auto name = fs.frames[i].get<std::string>("name");
-			ftl::overlay::drawCamera(state.getLeft(), out, over_depth_, fs.frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,value("show_frustrum", false));
-			if (name) ftl::overlay::drawText(state.getLeft(), out, over_depth_, *name, pos, 0.5, cv::Scalar(0,0,255,255));
+            _drawOutlinedShape(Shape::CAMERA, state.getPose().inverse() * pose, Eigen::Vector3f(0.2f,0.2f,0.2f), make_uchar4(255,0,0,80), make_uchar4(255,0,0,255));
+
+			//ftl::overlay::drawCamera(state.getLeft(), out, over_depth_, fs.frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,value("show_frustrum", false));
+			//if (name) ftl::overlay::drawText(state.getLeft(), out, over_depth_, *name, pos, 0.5, cv::Scalar(0,0,255,255));
 		}
 	}
 
@@ -39,13 +235,16 @@ void Overlay::apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState
 			fs.get(Channel::Shapes3D, shapes);
 
 			for (auto &s : shapes) {
-				auto pose = s.pose.cast<double>().inverse() * state.getPose();
-				Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
-				pos /= pos[3];
+				auto pose = s.pose.cast<double>();
+				//Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+				//pos /= pos[3];
 
-				ftl::overlay::drawFilledBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,50), s.size.cast<double>());
-                ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
-				ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
+                Eigen::Vector3f scale(s.size[0]/2.0f, s.size[1]/2.0f, s.size[2]/2.0f);
+
+                _drawOutlinedShape(Shape::BOX, state.getPose().inverse() * pose, scale, make_uchar4(255,0,255,80), make_uchar4(255,0,255,255));
+				//ftl::overlay::drawFilledBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,50), s.size.cast<double>());
+                //ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
+				//ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
 			}
 		}
 
@@ -59,12 +258,16 @@ void Overlay::apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState
 					Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
 					pos /= pos[3];
 
-					ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
-					ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
+					//ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
+					//ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
 				}
 			}
 		}
 	}
+
+    glDisable(GL_LINE_SMOOTH);
+	glDisable(GL_BLEND);
+	glDisable(GL_DEPTH_TEST);
 
 	//cv::flip(out, out, 0);
 }

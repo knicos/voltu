@@ -4,19 +4,38 @@
 #include <opencv2/core/mat.hpp>
 #include <Eigen/Eigen>
 #include <ftl/rgbd/frameset.hpp>
+#include <nanogui/glutil.h>
 
 namespace ftl {
 namespace overlay {
+
+enum class Shape {
+    BOX,
+    CAMERA,
+    PLANE,
+    GRID
+};
 
 class Overlay : public ftl::Configurable {
 	public:
 	explicit Overlay(nlohmann::json &config);
 	~Overlay();
 
-	void apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState &state);
+	//void apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState &state);
+
+	void draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const Eigen::Vector2f &);
 
 	private:
-	cv::Mat over_depth_;
+	nanogui::GLShader oShader;
+	bool init_;
+
+    std::vector<float3> shape_verts_;
+    std::vector<unsigned int> shape_tri_indices_;
+    std::unordered_map<ftl::overlay::Shape, std::tuple<int,int,int,int>> shapes_;
+
+    void _createShapes();
+    void _drawFilledShape(ftl::overlay::Shape shape, const Eigen::Matrix4d &pose, float scale, uchar4 colour);
+    void _drawOutlinedShape(Shape shape, const Eigen::Matrix4d &pose, const Eigen::Vector3f &scale, uchar4 fill, uchar4 outline);
 };
 
 void draw3DLine(

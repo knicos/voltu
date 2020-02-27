@@ -49,12 +49,14 @@ namespace {
 		R"(#version 330
 		uniform sampler2D image1;
 		uniform sampler2D image2;
+		uniform sampler2D depthImage;
 		uniform float blendAmount;
 		out vec4 color;
 		in vec2 uv;
 		void main() {
 			color = blendAmount * texture(image1, uv) + (1.0 - blendAmount) * texture(image2, uv);
 			color.w = 1.0f;
+			gl_FragDepth = texture(depthImage, uv).r;
 		})";
 }
 
@@ -545,16 +547,25 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 			//camera_->getLeft().texture();
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, (camera_->isStereo() && camera_->getRight().isValid()) ? rightEye_ : leftEye_);
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, camera_->getDepth().texture());
 			//(camera_->isStereo() && camera_->getRight().isValid()) ? camera_->getRight().texture() : camera_->getLeft().texture();
 			mShader.setUniform("image1", 0);
 			mShader.setUniform("image2", 1);
+			mShader.setUniform("depthImage", 2);
 			mShader.setUniform("blendAmount", (camera_->isStereo()) ? root_->value("blending", 0.5f) : 1.0f);
 			mShader.setUniform("scaleFactor", scaleFactor);
 			mShader.setUniform("position", imagePosition);
+
+			glEnable(GL_DEPTH_TEST); 
+			glDepthMask(GL_TRUE);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 			mShader.drawIndexed(GL_TRIANGLES, 0, 2);
 			//glDisable(GL_SCISSOR_TEST);
-
 			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+			camera_->drawOverlay(screenSize); 
 		}
 	} else {
 		// Must periodically render the cameras here to update any thumbnails.
