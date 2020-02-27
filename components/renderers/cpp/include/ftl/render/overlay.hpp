@@ -12,7 +12,7 @@ namespace overlay {
 enum class Shape {
     BOX,
     CAMERA,
-    PLANE,
+    XZPLANE,
     GRID
 };
 

@@ -70,12 +70,20 @@ void Overlay::_createShapes() {
         {-0.5, 0.28, 0.5},
         {-0.5, -0.28, 0.5},
 
-        // Plane Y simple
-        {-1.0, 0.0, -1.0},
-        {1.0, 0.0, -1.0},
-        {1.0, 0.0, 1.0},
-        {-1.0, 0.0, 1.0}
+        // Plane XZ big
+        {-10.0, 0.0, -10.0},  // 13
+        {10.0, 0.0, -10.0},
+        {10.0, 0.0, 10.0},
+        {-10.0, 0.0, 10.0}
     };
+
+    // Generate a big plane
+    for (int x=-9; x<=9; ++x) {
+        shape_verts_.push_back({float(x), 0.0, -10.0});
+        shape_verts_.push_back({float(x), 0.0, 10.0});
+        shape_verts_.push_back({-10.0, 0.0, float(x)});
+        shape_verts_.push_back({10.0, 0.0, float(x)});
+    }
 
     shape_tri_indices_ = {
         // Box
@@ -118,11 +126,24 @@ void Overlay::_createShapes() {
         9, 10,
         11, 12,
         9, 11,
-        10, 12
+        10, 12,
+
+        // Big XZ Plane
+        13, 14, 15,     // 82
+        15, 16, 13
     };
+
+    int i = 17;
+    for (int x=-10; x<=10; ++x) {
+        shape_tri_indices_.push_back(i++);
+        shape_tri_indices_.push_back(i++);
+        shape_tri_indices_.push_back(i++);
+        shape_tri_indices_.push_back(i++);
+    }
 
     shapes_[Shape::BOX] = {0,30, 30, 12*2};
     shapes_[Shape::CAMERA] = {54, 4*3, 66, 8*2};
+    shapes_[Shape::XZPLANE] = {82, 2*3, 88, 40*2};
 
     oShader.uploadAttrib("vertex", sizeof(float3)*shape_verts_.size(), 3, sizeof(float), GL_FLOAT, false, shape_verts_.data());
     oShader.uploadAttrib ("indices", sizeof(int)*shape_tri_indices_.size(), 1, sizeof(int), GL_UNSIGNED_INT, true, shape_tri_indices_.data());
@@ -228,6 +249,10 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 			//if (name) ftl::overlay::drawText(state.getLeft(), out, over_depth_, *name, pos, 0.5, cv::Scalar(0,0,255,255));
 		}
 	}
+
+    if (value("show_xz_plane", true)) {
+        _drawOutlinedShape(Shape::XZPLANE, state.getPose().inverse(), Eigen::Vector3f(1.0f,1.0f,1.0f), make_uchar4(200,200,200,50), make_uchar4(255,255,255,100));
+    }
 
 	if (value("show_shapes", false)) {
 		if (fs.hasChannel(Channel::Shapes3D)) {
