@@ -27,6 +27,6 @@ exception::exception(const char *msg) : msg_(msg) {
     #endif
 }
 
-exception::exception(const Formatter &msg) : msg_(msg.str()) {
+exception::exception(const ftl::Formatter &msg) : msg_(msg.str()) {
 
 }
