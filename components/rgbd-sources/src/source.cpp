@@ -295,7 +295,7 @@ Camera Camera::scaled(int width, int height) const {
 	float scaleX = (float)width / (float)cam.width;
 	float scaleY = (float)height / (float)cam.height;
 
-	CHECK( abs(scaleX - scaleY) < 0.00000001f );
+	//CHECK( abs(scaleX - scaleY) < 0.00000001f );
 
 	Camera newcam = cam;
 	newcam.width = width;

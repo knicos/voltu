@@ -79,7 +79,7 @@ class Screen : public nanogui::Screen {
 	nanogui::GLShader mShader;
 	GLuint mImageID;
 	//Source *src_;
-	GLTexture texture_;
+	//GLTexture texture_;
 	Eigen::Vector3f eye_;
 	Eigen::Vector4f neye_;
 	Eigen::Vector3f orientation_;

@@ -46,7 +46,8 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 	return rz * rx * ry;
 }
 
-ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::codecs::Channel c) : screen_(screen), fsmask_(fsmask), fid_(fid), channel_(c),channels_(0u) {
+ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::codecs::Channel c)
+		: screen_(screen), fsmask_(fsmask), fid_(fid), texture1_(GLTexture::Type::BGRA), texture2_(GLTexture::Type::BGRA), depth1_(GLTexture::Type::Float), channel_(c),channels_(0u) {
 	eye_ = Eigen::Vector3d(0.0f, 0.0f, 0.0f);
 	neye_ = Eigen::Vector4d(0.0f, 0.0f, 0.0f, 0.0f);
 	rotmat_.setIdentity();
@@ -295,17 +296,21 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	// Make sure an OpenGL pixel buffer exists
 	texture1_.make(state_.getLeft().width, state_.getLeft().height);
+	depth1_.make(state_.getLeft().width, state_.getLeft().height);
 	if (isStereo()) texture2_.make(state_.getRight().width, state_.getRight().height);
 
 	// Map the GL pixel buffer to a GpuMat
 	frame_.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(renderer_->getCUDAStream());
+	frame_.create<cv::cuda::GpuMat>(Channel::Depth) = depth1_.map(renderer_->getCUDAStream());
+	frame_.createTexture<float>(Channel::Depth);
 	if (isStereo()) frame_.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map((renderer2_) ? renderer2_->getCUDAStream() : 0);
 
+	// TODO: Remove;
 	overlay_.create(state_.getLeft().height, state_.getLeft().width, CV_8UC4);
-	frame_.create<cv::Mat>(Channel::Overlay) = overlay_;
+	//frame_.create<cv::Mat>(Channel::Overlay) = overlay_;
 
-	overlay_.setTo(cv::Scalar(0,0,0,0));
-	bool enable_overlay = overlayer_->value("enabled", false);
+	//overlay_.setTo(cv::Scalar(0,0,0,0));
+	//bool enable_overlay = overlayer_->value("enabled", false);
 
 	{
 		FTL_Profile("Render",0.034);
@@ -325,11 +330,11 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 				renderer_->submit(fs, ftl::codecs::Channels<0>(Channel::Colour), transforms_[fs->id]);
 				if (isStereo()) renderer2_->submit(fs, ftl::codecs::Channels<0>(Channel::Colour), transforms_[fs->id]);
 
-				if (enable_overlay) {
+				//if (enable_overlay) {
 					// Generate and upload an overlay image.
-					overlayer_->apply(*fs, overlay_, state_);
-					frame_.upload(Channel::Overlay, renderer_->getCUDAStream());
-				}
+				//	overlayer_->apply(*fs, overlay_, state_);
+				//	frame_.upload(Channel::Overlay, renderer_->getCUDAStream());
+				//}
 			}
 
 			if (channel_ != Channel::Left && channel_ != Channel::Right && channel_ != Channel::None) {
@@ -339,9 +344,9 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 				}
 			}
 
-			if (enable_overlay) {
-				renderer_->blend(Channel::Overlay);
-			}
+			//if (enable_overlay) {
+			//	renderer_->blend(Channel::Overlay);
+			//}
 
 			renderer_->end();
 			if (isStereo()) renderer2_->end();
@@ -364,8 +369,12 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	channels_ = frame_.getChannels();
 
+	// Normalize depth map
+	frame_.get<cv::cuda::GpuMat>(Channel::Depth).convertTo(frame_.get<cv::cuda::GpuMat>(Channel::Depth), CV_32F, 1.0/8.0);
+
 	// Unmap GL buffer from CUDA and finish updating GL texture
 	texture1_.unmap(renderer_->getCUDAStream());
+	depth1_.unmap(renderer_->getCUDAStream());
 	if (isStereo()) texture2_.unmap(renderer2_->getCUDAStream());
 
 	width_ = texture1_.width();
@@ -579,6 +588,17 @@ void ftl::gui::Camera::active(bool a) {
 		neye_[0] = eye_[0];
 		neye_[1] = eye_[1];
 		neye_[2] = eye_[2];
+	}
+}
+
+void ftl::gui::Camera::drawOverlay(const Eigen::Vector2f &s) {
+	if (!framesets_) return;
+	//UNIQUE_LOCK(mutex_,lk);
+	for (auto *fs : *framesets_) {
+		if (!usesFrameset(fs->id)) continue;
+
+		// Generate and upload an overlay image.
+		overlayer_->draw(*fs, state_, s);
 	}
 }
 

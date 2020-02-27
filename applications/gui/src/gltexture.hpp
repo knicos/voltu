@@ -12,7 +12,13 @@ namespace gui {
 
 class GLTexture {
 	public:
-	GLTexture();
+	enum class Type {
+		RGBA,
+		BGRA,
+		Float
+	};
+
+	explicit GLTexture(Type);
 	~GLTexture();
 
 	void update(cv::Mat &m);
@@ -34,6 +40,7 @@ class GLTexture {
 	int width_;
 	int height_;
 	bool changed_;
+	Type type_;
 
 	cudaGraphicsResource *cuda_res_;
 };

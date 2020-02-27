@@ -76,7 +76,12 @@ class Camera {
 
 	void draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 
+	void drawOverlay(const Eigen::Vector2f &);
+
 	inline int64_t getFrameTimeMS() const { return int64_t(delta_ * 1000.0f); }
+
+	const ftl::rgbd::Camera &getIntrinsics() const { return state_.getLeft(); }
+	const Eigen::Matrix4d &getPose() const { return state_.getPose(); }
 
 	/**
 	 * @internal. Used to inform the camera if it is the active camera or not.
@@ -86,6 +91,7 @@ class Camera {
 	const void captureFrame();
 	const GLTexture &getLeft() const { return texture1_; }
 	const GLTexture &getRight() const { return texture2_; }
+	const GLTexture &getDepth() const { return depth1_; }
 
 	void snapshot(const std::string &filename);
 
@@ -116,9 +122,9 @@ class Camera {
 	int width_;
 	int height_;
 
-	GLTexture thumb_;
 	GLTexture texture1_; // first channel (always left at the moment)
 	GLTexture texture2_; // second channel ("right")
+	GLTexture depth1_;
 
 	ftl::gui::PoseWindow *posewin_;
 	//nlohmann::json meta_;

@@ -332,13 +332,13 @@ void CUDARender::_allocateChannels(ftl::rgbd::Frame &out, ftl::codecs::Channel c
 
 	// Allocate left channel buffers and clear them
 	if (chan == Channel::Colour) {
-		if (!out.hasChannel(Channel::Depth)) {
+		//if (!out.hasChannel(Channel::Depth)) {
 			out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
 			out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
 			out.create<GpuMat>(Channel::Normals, Format<half4>(camera.width, camera.height));
 			out.createTexture<uchar4>(Channel::Colour, true);  // Force interpolated colour
 			out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
-		}
+		//}
 	// Allocate right channel buffers and clear them
 	} else {
 		if (!out.hasChannel(Channel::Depth2)) {
