@@ -54,8 +54,11 @@ void GLTexture::make(int width, int height) {
 		free();
 	}
 
+	static constexpr int ALIGNMENT = 128;
+
 	width_ = width;
 	height_ = height;
+	stride_ = ((width*4) % ALIGNMENT != 0) ? ((width*4) + (ALIGNMENT - ((width*4) % ALIGNMENT))) / 4 : width;
 
 	if (width == 0 || height == 0) {
 		throw FTL_Error("Invalid texture size");
@@ -64,6 +67,9 @@ void GLTexture::make(int width, int height) {
 	if (glid_ == std::numeric_limits<unsigned int>::max()) {
 		glGenTextures(1, &glid_);
 		glBindTexture(GL_TEXTURE_2D, glid_);
+
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, stride_);
+
 		//cv::Mat m(cv::Size(100,100), CV_8UC3);
 		//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
 		if (type_ == Type::BGRA) {
@@ -78,13 +84,15 @@ void GLTexture::make(int width, int height) {
 		auto err = glGetError();
 		if (err != 0) LOG(ERROR) << "OpenGL Texture error: " << err;
 
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
 		glBindTexture(GL_TEXTURE_2D, 0);
 
 		glGenBuffers(1, &glbuf_);
 		// Make this the current UNPACK buffer (OpenGL is state-based)
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, glbuf_);
 		// Allocate data for the buffer. 4-channel 8-bit image
-		glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * 4, NULL, GL_DYNAMIC_COPY);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, stride_ * height * 4, NULL, GL_DYNAMIC_COPY);
 
 		cudaSafeCall(cudaGraphicsGLRegisterBuffer(&cuda_res_, glbuf_, cudaGraphicsRegisterFlagsWriteDiscard));
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -110,7 +118,7 @@ cv::cuda::GpuMat GLTexture::map(cudaStream_t stream) {
 	size_t size;
 	cudaSafeCall(cudaGraphicsMapResources(1, &cuda_res_, stream));
 	cudaSafeCall(cudaGraphicsResourceGetMappedPointer(&devptr, &size, cuda_res_));
-	return cv::cuda::GpuMat(height_, width_, (type_ == Type::BGRA) ? CV_8UC4 : CV_32F, devptr);
+	return cv::cuda::GpuMat(height_, width_, (type_ == Type::BGRA) ? CV_8UC4 : CV_32F, devptr, stride_*4);
 }
 
 void GLTexture::unmap(cudaStream_t stream) {
@@ -121,12 +129,14 @@ void GLTexture::unmap(cudaStream_t stream) {
 	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, glbuf_);
 	// Select the appropriate texture
 	glBindTexture( GL_TEXTURE_2D, glid_);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, stride_);
 	// Make a texture from the buffer
 	if (type_ == Type::BGRA) {
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width_, height_, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 	} else {
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width_, height_, GL_RED, GL_FLOAT, NULL);
 	}
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
