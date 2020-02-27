@@ -13,8 +13,8 @@ bool DisparityToDepth::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
 		throw FTL_Error("Missing disparity before convert to depth");
 	}
 
-	const auto params = in.getLeftCamera();
 	const GpuMat &disp = in.get<GpuMat>(Channel::Disparity);
+	const auto params = in.getLeftCamera().scaled(disp.cols, disp.rows);
 
 	GpuMat &depth = out.create<GpuMat>(Channel::Depth);
 	depth.create(disp.size(), CV_32FC1);

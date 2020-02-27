@@ -304,6 +304,7 @@ Camera Camera::scaled(int width, int height) const {
 	newcam.fy *= scaleY;
 	newcam.cx *= scaleX;
 	newcam.cy *= scaleY;
+	newcam.doffs *= scaleX;
 
 	return newcam;
 }
