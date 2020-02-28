@@ -34,7 +34,7 @@ namespace {
 			vec4 pos = vec4(
 				vert.x*focal / (width/2.0),
 				-vert.y*focal / (height/2.0),
-				-vert.z * (-(far+near) / (far-near)) - (2.0 * near * far / (far-near)),
+				-vert.z * ((far+near) / (far-near)) + (2.0 * near * far / (far-near)),
 				//((vert.z - near) / (far - near) * 2.0 - 1.0) * vert.z,
 				vert.z
 			);
