@@ -387,11 +387,13 @@ void SourceWindow::draw(NVGcontext *ctx) {
 			if (!camera.second.thumbview) camera.second.thumbview = new ftl::gui::ThumbView(ipanel_, screen_, cam);
 			camera.second.thumbview->setFixedSize(nanogui::Vector2i(320,180));
 
+			auto *iv = dynamic_cast<nanogui::ImageView*>(camera.second.thumbview);
+
 			/*if ((size_t)ipanel_->childCount() < i+1) {
 				new ftl::gui::ThumbView(ipanel_, screen_, cam);
 			}*/
 			//if (thumbs_[i].isValid()) dynamic_cast<nanogui::ImageView*>(camera.second.thumbview)->bindImage(thumbs_[i].texture());
-			if (cam->getLeft().isValid()) dynamic_cast<nanogui::ImageView*>(camera.second.thumbview)->bindImage(cam->getLeft().texture());
+			if (cam->getLeft().isValid()) iv->bindImage(cam->getLeft().texture());
 			++i;
 		}
 

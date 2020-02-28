@@ -11,6 +11,7 @@
 #include <ftl/operators/antialiasing.hpp>
 #include <ftl/cuda/normals.hpp>
 #include <ftl/render/colouriser.hpp>
+#include <ftl/cuda/transform.hpp>
 
 #include <ftl/codecs/faces.hpp>
 
@@ -134,6 +135,7 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	if (fid_ != 255) {
 		for (auto *fs : fss) {
 			if (!usesFrameset(fs->id)) continue;
+			UNIQUE_LOCK(fs->mtx, lk);
 
 			ftl::rgbd::Frame *frame = nullptr;
 
@@ -147,6 +149,7 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 			texture1_.make(buf.width(), buf.height());
 			auto dst1 = texture1_.map(0);
 			cudaMemcpy2D(dst1.data, dst1.step1(), buf.devicePtr(), buf.pitch(), buf.width()*4, buf.height(), cudaMemcpyDeviceToDevice);
+			ftl::cuda::flip<uchar4>(dst1, 0);
 			texture1_.unmap(0);
 
 			width_ = texture1_.width();

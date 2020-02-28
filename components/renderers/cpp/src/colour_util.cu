@@ -1,4 +1,5 @@
 #include "colour_cuda.hpp"
+#include <ftl/cuda/transform.hpp>
 
 using ftl::cuda::TextureObject;
 
@@ -156,3 +157,63 @@ void ftl::cuda::composite(
 		out.width(), out.height());
 	cudaSafeCall( cudaGetLastError() );
 }
+
+
+// ==== Flipping ===============================================================
+
+template <typename T>
+__global__ void flip_kernel(
+		T* __restrict__ img,
+		int pitch, 
+		int width, int height) {
+
+	for (STRIDE_Y(y, height/2)) {
+	for (STRIDE_X(x, width)) {
+		const T c1 = img[x+y*pitch];
+		const T c2 = img[x+(height-y-2)*pitch];
+
+		img[x+y*pitch] = c2;
+		img[x+(height-y-2)*pitch] = c1;
+	}
+	}
+}
+
+template <typename T>
+void ftl::cuda::flip(
+		TextureObject<T> &img,
+		cudaStream_t stream) {
+
+	static constexpr int THREADS_X = 32;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize(6,64);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	flip_kernel<T><<<gridSize, blockSize, 0, stream>>>(
+		img.devicePtr(), img.pixelPitch(),
+		img.width(), img.height());
+	cudaSafeCall( cudaGetLastError() );
+}
+
+template void ftl::cuda::flip<float>(TextureObject<float> &,cudaStream_t stream);
+template void ftl::cuda::flip<uchar4>(TextureObject<uchar4> &,cudaStream_t stream);
+
+template <typename T>
+void ftl::cuda::flip(
+		cv::cuda::GpuMat &img,
+		cudaStream_t stream) {
+
+	static constexpr int THREADS_X = 32;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize(6,64);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	flip_kernel<T><<<gridSize, blockSize, 0, stream>>>(
+		(T*)img.data, img.step/sizeof(T),
+		img.cols, img.rows);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+template void ftl::cuda::flip<float>(cv::cuda::GpuMat &,cudaStream_t stream);
+template void ftl::cuda::flip<uchar4>(cv::cuda::GpuMat &,cudaStream_t stream);
