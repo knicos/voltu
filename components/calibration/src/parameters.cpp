@@ -103,16 +103,23 @@ Mat Camera::intrinsicMatrix() const {
 
 Mat Camera::distortionCoefficients() const {
 	Mat D;
-	// OpenCV distortion parameter sizes: 4, 5, 8, 12, 14
 	if      (Camera::n_distortion_parameters <= 4)  { D = Mat::zeros(4, 1, CV_64FC1); }
 	else if (Camera::n_distortion_parameters <= 5)  { D = Mat::zeros(5, 1, CV_64FC1); }
 	else if (Camera::n_distortion_parameters <= 8)  { D = Mat::zeros(8, 1, CV_64FC1); }
 	else if (Camera::n_distortion_parameters <= 12) { D = Mat::zeros(12, 1, CV_64FC1); }
 	else if (Camera::n_distortion_parameters <= 14) { D = Mat::zeros(14, 1, CV_64FC1); }
 
-	for (int i = 0; i < Camera::n_distortion_parameters; i++) {
-		D.at<double>(i) = data[Parameter::DISTORTION+i];
+	switch(Camera::n_distortion_parameters) {
+		case 14:
+		case 12:
+		case 8:
+		case 5:
+			D.at<double>(4) = data[Parameter::K3];
+		case 4:
+			D.at<double>(0) = data[Parameter::K1];
+			D.at<double>(1) = data[Parameter::K2];
 	}
+
 	return D;
 }
 
