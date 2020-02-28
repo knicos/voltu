@@ -292,6 +292,7 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 
 			auto name = fs.frames[i].get<std::string>("name");
             _drawOutlinedShape(Shape::CAMERA, state.getPose().inverse() * pose, Eigen::Vector3f(0.2f,0.2f,0.2f), make_uchar4(255,0,0,80), make_uchar4(255,0,0,255));
+            _drawAxis(state.getPose().inverse() * pose, Eigen::Vector3f(0.2f, 0.2f, 0.2f));
 
 			//ftl::overlay::drawCamera(state.getLeft(), out, over_depth_, fs.frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,value("show_frustrum", false));
 			//if (name) ftl::overlay::drawText(state.getLeft(), out, over_depth_, *name, pos, 0.5, cv::Scalar(0,0,255,255));
@@ -299,7 +300,8 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 	}
 
     if (value("show_xz_plane", false)) {
-        _drawOutlinedShape(Shape::XZPLANE, state.getPose().inverse(), Eigen::Vector3f(1.0f,1.0f,1.0f), make_uchar4(200,200,200,50), make_uchar4(255,255,255,100));
+        float gscale = value("grid_scale",0.5f);
+        _drawOutlinedShape(Shape::XZPLANE, state.getPose().inverse(), Eigen::Vector3f(gscale,gscale,gscale), make_uchar4(200,200,200,50), make_uchar4(255,255,255,100));
     }
 
     if (value("show_axis", true)) {
@@ -348,7 +350,7 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 	//cv::flip(out, out, 0);
 }
 
-void ftl::overlay::draw3DLine(
+/*void ftl::overlay::draw3DLine(
         const ftl::rgbd::Camera &cam,
         cv::Mat &colour,
         cv::Mat &depth,
@@ -722,4 +724,4 @@ void ftl::overlay::drawText(
     auto pt = cam.camToScreen<int2>(make_float3(pos[0], pos[1], pos[2]));
     if (pos[2] < 0.1) return;
     cv::putText(colour, text, cv::Point(pt.x, colour.rows-pt.y), 0, size, textcolour, 1, cv::LINE_8, true);
-}
+}*/
