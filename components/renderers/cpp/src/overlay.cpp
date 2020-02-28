@@ -27,9 +27,18 @@ namespace {
 		void main() {
             vec4 vert = pose*(vec4(scale*vertex,1.0));
             vert = vert / vert.w;
-			vec4 pos = vec4(-vert.x*focal / -vert.z / (width/2.0),
-				vert.y*focal / -vert.z / (height/2.0),
-				(vert.z-near) / (far-near) * 2.0 - 1.0, 1.0);
+			//vec4 pos = vec4(-vert.x*focal / -vert.z / (width/2.0),
+			//	vert.y*focal / -vert.z / (height/2.0),
+			//	(vert.z-near) / (far-near) * 2.0 - 1.0, 1.0);
+
+			vec4 pos = vec4(
+				vert.x*focal / (width/2.0),
+				-vert.y*focal / (height/2.0),
+				-vert.z * (-(far+near) / (far-near)) - (2.0 * near * far / (far-near)),
+				//((vert.z - near) / (far - near) * 2.0 - 1.0) * vert.z,
+				vert.z
+			);
+
 			gl_Position = pos;
 		})";
 
@@ -265,7 +274,7 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 	oShader.setUniform("width", float(intrin.width));
 	oShader.setUniform("height", float(intrin.height));
 	oShader.setUniform("far", zfar);
-	oShader.setUniform("near", 0.0f);  // TODO: but make sure CUDA depth is also normalised like this
+	oShader.setUniform("near", 0.1f);  // TODO: but make sure CUDA depth is also normalised like this
 
 	/*oShader.setUniform("blockColour", Eigen::Vector4f(1.0f,1.0f,0.0f,0.5f));
 	oShader.uploadAttrib("vertex", sizeof(tris), 3, sizeof(float), GL_FLOAT, false, tris);
@@ -279,7 +288,7 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 
 	if (value("show_poses", false)) {
 		for (size_t i=0; i<fs.frames.size(); ++i) {
-			auto pose = fs.frames[i].getPose(); //.inverse() * state.getPose();
+			auto pose = fs.frames[i].getPose().inverse(); //.inverse() * state.getPose();
 
 			auto name = fs.frames[i].get<std::string>("name");
             _drawOutlinedShape(Shape::CAMERA, state.getPose().inverse() * pose, Eigen::Vector3f(0.2f,0.2f,0.2f), make_uchar4(255,0,0,80), make_uchar4(255,0,0,255));
