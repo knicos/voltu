@@ -81,7 +81,7 @@ void ftl::cuda::dibr_merge(TextureObject<int> &depth_out, const float4x4 &transf
 
 // ==== Normalize ==============================================================
 
-template <typename A, typename B>
+template <typename A, typename B, bool FLIPY>
 __global__ void dibr_normalise_kernel(
         TextureObject<A> in,
         TextureObject<B> out,
@@ -97,24 +97,29 @@ __global__ void dibr_normalise_kernel(
 		//out(x,y) = (contrib == 0.0f) ? make<B>(a) : make<B>(a / contrib);
 
         if (contrib > 0.0f) {
-            out(x,y) = make<B>(a / contrib);
+            if (FLIPY) out(x,out.height()-y-1) = make<B>(a / contrib);
+            else out(x,y) = make<B>(a / contrib);
             //normals(x,y) = normal / contrib;
         }
     }
 }
 
 template <typename A, typename B>
-void ftl::cuda::dibr_normalise(TextureObject<A> &in, TextureObject<B> &out, TextureObject<int> &contribs, cudaStream_t stream) {
+void ftl::cuda::dibr_normalise(TextureObject<A> &in, TextureObject<B> &out, TextureObject<int> &contribs, bool flip, cudaStream_t stream) {
     const dim3 gridSize((in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-    dibr_normalise_kernel<<<gridSize, blockSize, 0, stream>>>(in, out, contribs);
+    if (flip) {
+        dibr_normalise_kernel<A,B,true><<<gridSize, blockSize, 0, stream>>>(in, out, contribs);
+    } else {
+        dibr_normalise_kernel<A,B,false><<<gridSize, blockSize, 0, stream>>>(in, out, contribs);
+    }
     cudaSafeCall( cudaGetLastError() );
 }
 
-template void ftl::cuda::dibr_normalise<float4,uchar4>(TextureObject<float4> &in, TextureObject<uchar4> &out, TextureObject<int> &contribs, cudaStream_t stream);
-template void ftl::cuda::dibr_normalise<float,float>(TextureObject<float> &in, TextureObject<float> &out, TextureObject<int> &contribs, cudaStream_t stream);
-template void ftl::cuda::dibr_normalise<float4,float4>(TextureObject<float4> &in, TextureObject<float4> &out, TextureObject<int> &contribs, cudaStream_t stream);
+template void ftl::cuda::dibr_normalise<float4,uchar4>(TextureObject<float4> &in, TextureObject<uchar4> &out, TextureObject<int> &contribs, bool, cudaStream_t stream);
+template void ftl::cuda::dibr_normalise<float,float>(TextureObject<float> &in, TextureObject<float> &out, TextureObject<int> &contribs, bool, cudaStream_t stream);
+template void ftl::cuda::dibr_normalise<float4,float4>(TextureObject<float4> &in, TextureObject<float4> &out, TextureObject<int> &contribs, bool, cudaStream_t stream);
 
 // Float version
 

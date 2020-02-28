@@ -141,6 +141,7 @@ namespace cuda {
 		ftl::cuda::TextureObject<A> &in,
 		ftl::cuda::TextureObject<B> &out,
 		ftl::cuda::TextureObject<int> &contribs,
+		bool flipy,
 		cudaStream_t stream);
 
 	template <typename A, typename B>

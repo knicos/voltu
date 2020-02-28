@@ -5,6 +5,7 @@
 #include <ftl/cuda/normals.hpp>
 #include <ftl/operators/mask_cuda.hpp>
 #include <ftl/render/colouriser.hpp>
+#include <ftl/cuda/transform.hpp>
 
 #include "colour_cuda.hpp"
 
@@ -538,12 +539,17 @@ void CUDARender::_endSubmit() {
 		accum_,
 		out_->getTexture<uchar4>(out_chan_),
 		contrib_,
+		false,  // Flip
 		stream_
 	);
 }
 
 void CUDARender::_end() {
 	_postprocessColours(*out_);
+
+	// Final OpenGL flip
+	ftl::cuda::flip(out_->getTexture<uchar4>(out_chan_), stream_);
+	ftl::cuda::flip(out_->getTexture<float>(_getDepthChannel()), stream_);
 
 	cudaSafeCall(cudaStreamSynchronize(stream_));
 }

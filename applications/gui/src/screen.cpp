@@ -38,7 +38,7 @@ namespace {
 		in vec2 vertex;
 		out vec2 uv;
 		void main() {
-			uv = vec2(vertex.x, 1.0 - vertex.y);
+			uv = vec2(vertex.x, vertex.y);
 			vec2 scaledVertex = (vertex * scaleFactor) + position;
 			gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
 								2.0*scaledVertex.y - 1.0,

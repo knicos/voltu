@@ -288,7 +288,7 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 
 	if (value("show_poses", false)) {
 		for (size_t i=0; i<fs.frames.size(); ++i) {
-			auto pose = fs.frames[i].getPose().inverse(); //.inverse() * state.getPose();
+			auto pose = fs.frames[i].getPose(); //.inverse() * state.getPose();
 
 			auto name = fs.frames[i].get<std::string>("name");
             _drawOutlinedShape(Shape::CAMERA, state.getPose().inverse() * pose, Eigen::Vector3f(0.2f,0.2f,0.2f), make_uchar4(255,0,0,80), make_uchar4(255,0,0,255));
