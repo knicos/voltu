@@ -526,6 +526,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 					f.getTexture<half4>(Channel::Normals),
 					*centroid_vert_[i],
 					f.createTexture<float>(Channel::Depth2, ftl::rgbd::Format<float>(size)),
+					f.getTexture<float>(Channel::Depth),
 					f.getLeftCamera(),
 					stream
 				);

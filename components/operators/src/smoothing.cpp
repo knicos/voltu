@@ -307,6 +307,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 				in.createTexture<half4>(Channel::Normals),
 				centroid_vert_,
 				temp_.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(size)),
+				in.getTexture<float>(Channel::Depth),
 				in.getLeftCamera(),
 				stream
 			);

@@ -46,6 +46,7 @@ void mls_adjust_depth(
 		ftl::cuda::TextureObject<half4> &normals_in,
 		ftl::cuda::TextureObject<float4> &centroid_in,
 		ftl::cuda::TextureObject<float> &depth_out,
+		ftl::cuda::TextureObject<float> &depth_in,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
 
