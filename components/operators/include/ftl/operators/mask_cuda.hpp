@@ -69,6 +69,11 @@ void discontinuity(
 		float area_max,
 		cudaStream_t stream);
 
+void border_mask(
+		ftl::cuda::TextureObject<ftl::cuda::Mask::type> &mask,
+		int left, int right, int top, int bottom,
+		cudaStream_t stream);
+
 void cull_mask(
 		ftl::cuda::TextureObject<ftl::cuda::Mask::type> &mask,
 		ftl::cuda::TextureObject<float> &depth,

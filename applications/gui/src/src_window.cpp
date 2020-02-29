@@ -241,6 +241,7 @@ void SourceWindow::_checkFrameSets(int id) {
 		p->append<ftl::operators::CullWeight>("remove_weights")->value("enabled", false);
 		p->append<ftl::operators::DegradeWeight>("degrade");
 		p->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
+		p->append<ftl::operators::BorderMask>("border_mask");
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
 

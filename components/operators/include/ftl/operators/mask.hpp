@@ -24,6 +24,20 @@ class DiscontinuityMask : public ftl::operators::Operator {
 };
 
 /**
+ * Generate a depth border mask.
+ */
+class BorderMask : public ftl::operators::Operator {
+	public:
+	explicit BorderMask(ftl::Configurable*);
+	~BorderMask();
+
+	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
+
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+};
+
+/**
  * Remove depth values marked with the discontinuity mask.
  */
 class CullDiscontinuity : public ftl::operators::Operator {

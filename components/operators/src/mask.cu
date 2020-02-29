@@ -68,12 +68,48 @@ void ftl::cuda::discontinuity(	ftl::cuda::TextureObject<uint8_t> &mask_out, ftl:
 
 // =============================================================================
 
+__global__ void border_mask_kernel(uint8_t* __restrict__ mask_out,
+		int pitch, int width, int height,
+		int left, int right, int top, int bottom) {
+
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < width && y < height) {
+		Mask mask(mask_out[x+y*pitch]);
+		if (x < left || x >= width-right || y < top || y >= height-bottom) {
+			mask.isBad(true);
+			mask_out[x+y*pitch] = (int)mask;
+		}
+	}
+}
+
+void ftl::cuda::border_mask(ftl::cuda::TextureObject<uint8_t> &mask_out,
+		int left, int right, int top, int bottom, cudaStream_t stream) {
+
+	static constexpr int THREADS_X = 128;
+	static constexpr int THREADS_Y = 4;
+
+	const dim3 gridSize((mask_out.width() + THREADS_X - 1)/THREADS_X, (mask_out.height() + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	border_mask_kernel<<<gridSize, blockSize, 0, stream>>>(mask_out.devicePtr(), mask_out.pixelPitch(),
+		mask_out.width(), mask_out.height(), left, right, top, bottom);
+	cudaSafeCall( cudaGetLastError() );
+
+	#ifdef _DEBUG
+	cudaSafeCall(cudaDeviceSynchronize());
+	#endif
+}
+
+// =============================================================================
+
 template <int RADIUS, bool INVERT>
 __global__ void cull_mask_kernel(ftl::cuda::TextureObject<uint8_t> mask, ftl::cuda::TextureObject<float> depth, uint8_t id) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	if (x < depth.width()-RADIUS && y < depth.height()-RADIUS) {
+	if (x < depth.width() && y < depth.height()) {
 		bool isdiscon = false;
 
 		#pragma unroll
