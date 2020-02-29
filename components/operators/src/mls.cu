@@ -559,6 +559,7 @@ __global__ void mls_adjust_depth_kernel(
 		TextureObject<half4> normals_in,
 		TextureObject<float4> centroid_in,        // Virtual depth map
 		TextureObject<float> depth_out,
+		TextureObject<float> depth_in,
 		ftl::rgbd::Camera camera) {
 	
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -568,8 +569,8 @@ __global__ void mls_adjust_depth_kernel(
 		const float3 aX = make_float3(centroid_in(x,y));
 		const float3 nX = make_float3(normals_in(x,y));
 
-		//float d0 = depth_in.tex2D(x, y);
-		depth_out(x,y) = aX.z;
+		float d0 = depth_in.tex2D(x, y);
+		depth_out(x,y) = d0;
 
 		if (aX.z > camera.minDepth && aX.z < camera.maxDepth) {
 			float3 X = camera.screenToCam((int)(x),(int)(y),aX.z);
@@ -663,6 +664,7 @@ void ftl::cuda::mls_adjust_depth(
 		ftl::cuda::TextureObject<half4> &normals_in,
 		ftl::cuda::TextureObject<float4> &centroid_in,
 		ftl::cuda::TextureObject<float> &depth_out,
+		ftl::cuda::TextureObject<float> &depth_in,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream) {
 
@@ -672,7 +674,7 @@ void ftl::cuda::mls_adjust_depth(
 	const dim3 gridSize((depth_out.width() + THREADS_X - 1)/THREADS_X, (depth_out.height() + THREADS_Y - 1)/THREADS_Y);
 	const dim3 blockSize(THREADS_X, THREADS_Y);
 
-	mls_adjust_depth_kernel<<<gridSize, blockSize, 0, stream>>>(normals_in, centroid_in, depth_out, camera);
+	mls_adjust_depth_kernel<<<gridSize, blockSize, 0, stream>>>(normals_in, centroid_in, depth_out, depth_in, camera);
 	cudaSafeCall( cudaGetLastError() );
 
 
