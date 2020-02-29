@@ -9,6 +9,7 @@
 
 #include <ftl/streams/filestream.hpp>
 #include <ftl/streams/sender.hpp>
+#include <ftl/codecs/faces.hpp>
 
 #include <string>
 #include <array>
@@ -173,6 +174,9 @@ class Camera {
 	#endif
 
 	void _draw(std::vector<ftl::rgbd::FrameSet*> &fss);
+	void _applyPoseEffects(std::vector<ftl::rgbd::FrameSet*> &fss);
+	std::pair<const ftl::rgbd::Frame *, const ftl::codecs::Face *> _selectFace(std::vector<ftl::rgbd::FrameSet*> &fss);
+	void _generateWindow(const ftl::rgbd::Frame &, const ftl::codecs::Face &face, Eigen::Matrix4d &pose_adjust, ftl::render::ViewPort &vp);
 };
 
 }

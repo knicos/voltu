@@ -25,19 +25,21 @@ struct ViewPort {
 		return px >= x && px <= x2() && py >= y && py <= y2();
 	}
 
-	__device__ __host__ inline uint2 map(const ftl::rgbd::Camera &cam, const float2 &pt) const {
-		return make_uint2(
+	__device__ __host__ inline float2 map(const ftl::rgbd::Camera &cam, const float2 &pt) const {
+		return make_float2(
 			(pt.x - static_cast<float>(x)) * (static_cast<float>(cam.width) / static_cast<float>(width)),
 			(pt.y - static_cast<float>(y)) * (static_cast<float>(cam.height) / static_cast<float>(height))
 		);
 	}
 
-	__device__ __host__ inline uint2 reverseMap(const ftl::rgbd::Camera &cam, const float2 &pt) const {
-		return make_uint2(
+	__device__ __host__ inline float2 reverseMap(const ftl::rgbd::Camera &cam, const float2 &pt) const {
+		return make_float2(
 			(pt.x * (static_cast<float>(width) / static_cast<float>(cam.width))) + static_cast<float>(x),
 			(pt.y * (static_cast<float>(height) / static_cast<float>(cam.height))) + static_cast<float>(y)
 		);
 	}
+
+	//float3x3 warpMatrix;
 };
 
 /**
@@ -46,7 +48,8 @@ struct ViewPort {
 enum class ViewPortMode : uint8_t {
 	Disabled = 0,		// Do not use the viewport data
 	Clipping = 1,		// Clip the rendering to within the viewport for stencil like effect
-	Warping = 2			// Stretch viewport region over entire frame
+	Warping = 2,		// Stretch and perspective warp the viewport (requires warp matrix)
+	Stretch = 3			// Stretch viewport region over entire frame
 };
 
 enum class AccumulationFunction : uint8_t {

@@ -237,6 +237,8 @@ void Overlay::_drawAxis(const Eigen::Matrix4d &pose, const Eigen::Vector3f &scal
 }
 
 void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const Eigen::Vector2f &screenSize) {
+	if (!value("enabled", false)) return;
+	
 	double zfar = 8.0f;
 	auto intrin = state.getLeft();
 	intrin = intrin.scaled(screenSize[0], screenSize[1]);
