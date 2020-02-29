@@ -114,12 +114,21 @@ __device__ inline void accumulateOutput(TextureObject<T> &out, TextureObject<int
 } 
 
 template <ViewPortMode VPMODE>
-__device__ inline uint2 convertScreen(const Parameters &params, int x, int y) {
-	return make_uint2(x,y);
+__device__ inline float2 convertScreen(const Parameters &params, int x, int y) {
+	return make_float2(x,y);
 }
 
+/*template <>
+__device__ inline float2 convertScreen<ViewPortMode::Warping>(const Parameters &params, int x, int y) {
+	const float coeff = 1.0f / (params.viewport.warpMatrix.entries[6] * x + params.viewport.warpMatrix.entries[7] * y + params.viewport.warpMatrix.entries[8]);
+	const float xcoo = coeff * (params.viewport.warpMatrix.entries[0] * x + params.viewport.warpMatrix.entries[1] * y + params.viewport.warpMatrix.entries[2]);
+	const float ycoo = coeff * (params.viewport.warpMatrix.entries[3] * x + params.viewport.warpMatrix.entries[4] * y + params.viewport.warpMatrix.entries[5]);
+	float2 pt = params.viewport.reverseMap(params.camera, make_float2(xcoo,ycoo));
+	return pt;
+}*/
+
 template <>
-__device__ inline uint2 convertScreen<ViewPortMode::Warping>(const Parameters &params, int x, int y) {
+__device__ inline float2 convertScreen<ViewPortMode::Stretch>(const Parameters &params, int x, int y) {
 	return params.viewport.reverseMap(params.camera, make_float2(x,y));
 }
 
@@ -167,7 +176,7 @@ __global__ void reprojection_kernel(
 
 	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
-		const uint2 rpt = convertScreen<VPMODE>(params, x, y);
+		const float2 rpt = convertScreen<VPMODE>(params, x, y);
 		const float3 camPos = transform * params.camera.screenToCam(rpt.x, rpt.y, d);
 		if (camPos.z > camera.minDepth && camPos.z < camera.maxDepth) {
 			const float2 screenPos = camera.camToScreen<float2>(camPos);
@@ -227,7 +236,7 @@ __global__ void reprojection_kernel(
 
 	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
-		const uint2 rpt = convertScreen<VPMODE>(params, x, y);
+		const float2 rpt = convertScreen<VPMODE>(params, x, y);
 		const float3 camPos = transform * params.camera.screenToCam(rpt.x, rpt.y, d);
 		if (camPos.z > camera.minDepth && camPos.z < camera.maxDepth) {
 			const float2 screenPos = camera.camToScreen<float2>(camPos);
@@ -272,31 +281,31 @@ void ftl::cuda::reproject(
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::BestWeight) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::Simple) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscard) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscardSmooth) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		}
 	} else {
@@ -304,31 +313,31 @@ void ftl::cuda::reproject(
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::BestWeight) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::Simple) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscard) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscardSmooth) {
 			switch (params.viewPortMode) {
 			case ViewPortMode::Disabled: reprojection_kernel<A,B,ViewPortMode::Disabled,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case ViewPortMode::Clipping: reprojection_kernel<A,B,ViewPortMode::Clipping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
-			case ViewPortMode::Warping: reprojection_kernel<A,B,ViewPortMode::Warping,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		}
 	}

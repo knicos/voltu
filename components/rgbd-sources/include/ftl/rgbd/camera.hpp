@@ -40,7 +40,17 @@ struct __align__(16) Camera {
 	/**
 	 * Convert screen plus depth into camera coordinates.
 	 */
+	__device__ float3 screenToCam(int ux, int uy, float depth) const; 
+
+	/**
+	 * Convert screen plus depth into camera coordinates.
+	 */
 	__device__ float3 screenToCam(uint ux, uint uy, float depth) const; 
+
+	/**
+	 * Convert screen plus depth into camera coordinates.
+	 */
+	__device__ float3 screenToCam(float ux, float uy, float depth) const;
 
 	#ifndef __CUDACC__
 
@@ -84,6 +94,20 @@ __device__
 inline float3 ftl::rgbd::Camera::screenToCam(uint ux, uint uy, float depth) const {
 	const float x = static_cast<float>(((float)ux+cx) / fx);
 	const float y = static_cast<float>(((float)uy+cy) / fy);
+	return make_float3(depth*x, depth*y, depth);
+}
+
+__device__
+inline float3 ftl::rgbd::Camera::screenToCam(int ux, int uy, float depth) const {
+	const float x = static_cast<float>(((float)ux+cx) / fx);
+	const float y = static_cast<float>(((float)uy+cy) / fy);
+	return make_float3(depth*x, depth*y, depth);
+}
+
+__device__
+inline float3 ftl::rgbd::Camera::screenToCam(float ux, float uy, float depth) const {
+	const float x = static_cast<float>((ux+cx) / fx);
+	const float y = static_cast<float>((uy+cy) / fy);
 	return make_float3(depth*x, depth*y, depth);
 }
 

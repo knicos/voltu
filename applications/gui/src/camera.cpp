@@ -13,8 +13,6 @@
 #include <ftl/render/colouriser.hpp>
 #include <ftl/cuda/transform.hpp>
 
-#include <ftl/codecs/faces.hpp>
-
 #include <ftl/render/overlay.hpp>
 #include "statsimage.hpp"
 
@@ -161,114 +159,112 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	//auto &fs = *fss[fsid_];
 
+	_applyPoseEffects(fss);
+
 	UNIQUE_LOCK(mutex_, lk2);
 	//state_.getLeft().fx = intrinsics_->value("focal", 700.0f);
 	//state_.getLeft().fy = state_.getLeft().fx;
 	_draw(fss);
+}
 
-	if (renderer_->value("window_effect", false)) {
-		for (auto *fset : fss) {
-			for (const auto &f : fset->frames) {
-				if (f.hasChannel(Channel::Faces)) {
-					std::vector<ftl::codecs::Face> data;
-					f.get(Channel::Faces, data);
+std::pair<const ftl::rgbd::Frame *, const ftl::codecs::Face *> ftl::gui::Camera::_selectFace(std::vector<ftl::rgbd::FrameSet*> &fss) {
+	for (auto *fset : fss) {
+		for (const auto &f : fset->frames) {
+			if (f.hasChannel(Channel::Faces)) {
+				std::vector<ftl::codecs::Face> data;
+				f.get(Channel::Faces, data);
 
-					if (data.size() > 0) {
-						auto &d = *data.rbegin();
-						
-						cv::Mat over_depth;
-						over_depth.create(overlay_.size(), CV_32F);
-
-						auto cam = ftl::rgbd::Camera::from(intrinsics_);
-
-						float screenWidth = intrinsics_->value("screen_size", 0.6f);  // In meters
-						float screenHeight = (9.0f/16.0f) * screenWidth;
-
-						float screenDistance = (d.depth > cam.minDepth && d.depth < cam.maxDepth) ? d.depth : intrinsics_->value("screen_dist_default", 0.5f);  // Face distance from screen in meters
-
-						auto pos = f.getLeft().screenToCam(d.box.x+(d.box.width/2), d.box.y+(d.box.height/2), screenDistance);
-						Eigen::Vector3f eye;
-						eye[0] = -pos.x;
-						eye[1] = pos.y;
-						eye[2] = -pos.z;
-						//eye[3] = 0;
-
-						Eigen::Translation3f trans(eye);
-						Eigen::Affine3f t(trans);
-						Eigen::Matrix4f viewPose = t.matrix();
-
-						// Calculate where the screen is within current camera space
-						Eigen::Vector4f p1 = viewPose.cast<float>() * (Eigen::Vector4f(screenWidth/2.0, screenHeight/2.0, 0, 1));
-						Eigen::Vector4f p2 = viewPose.cast<float>() * (Eigen::Vector4f(screenWidth/2.0, -screenHeight/2.0, 0, 1));
-						Eigen::Vector4f p3 = viewPose.cast<float>() * (Eigen::Vector4f(-screenWidth/2.0, screenHeight/2.0, 0, 1));
-						Eigen::Vector4f p4 = viewPose.cast<float>() * (Eigen::Vector4f(-screenWidth/2.0, -screenHeight/2.0, 0, 1));
-						p1 = p1 / p1[3];
-						p2 = p2 / p2[3];
-						p3 = p3 / p3[3];
-						p4 = p4 / p4[3];
-						float2 p1screen = cam.camToScreen<float2>(make_float3(p1[0],p1[1],p1[2]));
-						float2 p2screen = cam.camToScreen<float2>(make_float3(p2[0],p2[1],p2[2]));
-						float2 p3screen = cam.camToScreen<float2>(make_float3(p3[0],p3[1],p3[2]));
-						float2 p4screen = cam.camToScreen<float2>(make_float3(p4[0],p4[1],p4[2]));
-
-						//cv::line(im1_, cv::Point2f(p1screen.x, p1screen.y), cv::Point2f(p2screen.x, p2screen.y), cv::Scalar(255,0,255,0));
-						//cv::line(im1_, cv::Point2f(p4screen.x, p4screen.y), cv::Point2f(p2screen.x, p2screen.y), cv::Scalar(255,0,255,0));
-						//cv::line(im1_, cv::Point2f(p1screen.x, p1screen.y), cv::Point2f(p3screen.x, p3screen.y), cv::Scalar(255,0,255,0));
-						//cv::line(im1_, cv::Point2f(p3screen.x, p3screen.y), cv::Point2f(p4screen.x, p4screen.y), cv::Scalar(255,0,255,0));
-						//LOG(INFO) << "DRAW LINE: " << p1screen.x << "," << p1screen.y << " -> " << p2screen.x << "," << p2screen.y;
-
-						std::vector<cv::Point2f> quad_pts;
-						std::vector<cv::Point2f> squre_pts;
-						quad_pts.push_back(cv::Point2f(p1screen.x,p1screen.y));
-						quad_pts.push_back(cv::Point2f(p2screen.x,p2screen.y));
-						quad_pts.push_back(cv::Point2f(p3screen.x,p3screen.y));
-						quad_pts.push_back(cv::Point2f(p4screen.x,p4screen.y));
-						squre_pts.push_back(cv::Point2f(0,0));
-						squre_pts.push_back(cv::Point2f(0,cam.height));
-						squre_pts.push_back(cv::Point2f(cam.width,0));
-						squre_pts.push_back(cv::Point2f(cam.width,cam.height));
-
-						cv::Mat transmtx = cv::getPerspectiveTransform(quad_pts,squre_pts);
-						cv::Mat transformed = cv::Mat::zeros(overlay_.rows, overlay_.cols, CV_8UC4);
-						//cv::warpPerspective(im1_, im1_, transmtx, im1_.size());
-
-						ftl::render::ViewPort vp;
-						vp.x = std::min(p4screen.x, std::min(p3screen.x, std::min(p1screen.x,p2screen.x)));
-						vp.y = std::min(p4screen.y, std::min(p3screen.y, std::min(p1screen.y,p2screen.y)));
-						vp.width = std::max(p4screen.x, std::max(p3screen.x, std::max(p1screen.x,p2screen.x))) - vp.x;
-						vp.height = std::max(p4screen.y, std::max(p3screen.y, std::max(p1screen.y,p2screen.y))) - vp.y;
-						renderer_->setViewPort(ftl::render::ViewPortMode::Warping, vp);
-
-						//Eigen::Matrix4d windowPose;
-						//windowPose.setIdentity();
-
-						//Eigen::Matrix4d fakepose = (viewPose.cast<double>()).inverse() * state_.getPose();
-						//ftl::rgbd::Camera fakecam = cam;
-
-						//eye[1] = -eye[1];
-						//eye[2] = -eye[2];
-						//Eigen::Translation3f trans2(eye);
-						//Eigen::Affine3f t2(trans2);
-						//Eigen::Matrix4f viewPose2 = t2.matrix();
-
-						// Use face tracked window pose for virtual camera
-						//state_.getLeft() = fakecam;
-						transform_ix_ = fset->id;  // Disable keyboard/mouse pose setting
-
-						state_.setPose(transforms_[transform_ix_] * viewPose.cast<double>());
-
-						//Eigen::Vector4d pt1 = state_.getPose().inverse() * Eigen::Vector4d(eye[0],eye[1],eye[2],1);
-						//pt1 /= pt1[3];
-						//Eigen::Vector4d pt2 = state_.getPose().inverse() * Eigen::Vector4d(0,0,0,1);
-						//pt2 /= pt2[3];
-
-
-						//ftl::overlay::draw3DLine(state_.getLeft(), im1_, over_depth, pt1, pt2, cv::Scalar(0,0,255,0));
-						//ftl::overlay::drawRectangle(state_.getLeft(), im1_, over_depth, windowPose.inverse() * state_.getPose(), cv::Scalar(255,0,0,0), screenWidth, screenHeight);
-						//ftl::overlay::drawCamera(state_.getLeft(), im1_, over_depth, fakecam, fakepose, cv::Scalar(255,0,255,255), 1.0,screen_->root()->value("show_frustrum", false));
-					}
+				if (data.size() > 0) {
+					return {&f,&(*data.rbegin())};
 				}
 			}
+		}
+	}
+	return {nullptr, nullptr};
+}
+
+void ftl::gui::Camera::_generateWindow(const ftl::rgbd::Frame &f, const ftl::codecs::Face &face, Eigen::Matrix4d &pose_adjust, ftl::render::ViewPort &vp) {
+	auto cam = ftl::rgbd::Camera::from(intrinsics_);
+	auto d = face;
+
+	float screenWidth = intrinsics_->value("screen_size", 0.6f);  // In meters
+	float screenHeight = (9.0f/16.0f) * screenWidth;
+
+	float screenDistance = (d.depth > cam.minDepth && d.depth < cam.maxDepth) ? d.depth : intrinsics_->value("screen_dist_default", 0.5f);  // Face distance from screen in meters
+
+	auto pos = f.getLeft().screenToCam(float(d.box.x+(d.box.width/2)), float(d.box.y+(d.box.height/2)), screenDistance);
+	Eigen::Vector3f eye;
+	eye[0] = -pos.x;
+	eye[1] = pos.y;
+	eye[2] = -pos.z;
+	//eye[3] = 0;
+
+	Eigen::Translation3f trans(eye);
+	Eigen::Affine3f t(trans);
+	Eigen::Matrix4f viewPose = t.matrix();
+
+	// Calculate where the screen is within current camera space
+	Eigen::Vector4f p1 = viewPose.cast<float>() * (Eigen::Vector4f(screenWidth/2.0, screenHeight/2.0, 0, 1));
+	Eigen::Vector4f p2 = viewPose.cast<float>() * (Eigen::Vector4f(screenWidth/2.0, -screenHeight/2.0, 0, 1));
+	Eigen::Vector4f p3 = viewPose.cast<float>() * (Eigen::Vector4f(-screenWidth/2.0, screenHeight/2.0, 0, 1));
+	Eigen::Vector4f p4 = viewPose.cast<float>() * (Eigen::Vector4f(-screenWidth/2.0, -screenHeight/2.0, 0, 1));
+	p1 = p1 / p1[3];
+	p2 = p2 / p2[3];
+	p3 = p3 / p3[3];
+	p4 = p4 / p4[3];
+	float2 p1screen = cam.camToScreen<float2>(make_float3(p1[0],p1[1],p1[2]));
+	float2 p2screen = cam.camToScreen<float2>(make_float3(p2[0],p2[1],p2[2]));
+	float2 p3screen = cam.camToScreen<float2>(make_float3(p3[0],p3[1],p3[2]));
+	float2 p4screen = cam.camToScreen<float2>(make_float3(p4[0],p4[1],p4[2]));
+
+	std::vector<cv::Point2f> quad_pts;
+	std::vector<cv::Point2f> squre_pts;
+	quad_pts.push_back(cv::Point2f(p1screen.x,p1screen.y));
+	quad_pts.push_back(cv::Point2f(p2screen.x,p2screen.y));
+	quad_pts.push_back(cv::Point2f(p3screen.x,p3screen.y));
+	quad_pts.push_back(cv::Point2f(p4screen.x,p4screen.y));
+	squre_pts.push_back(cv::Point2f(0,0));
+	squre_pts.push_back(cv::Point2f(0,cam.height));
+	squre_pts.push_back(cv::Point2f(cam.width,0));
+	squre_pts.push_back(cv::Point2f(cam.width,cam.height));
+
+	cv::Mat transmtx = cv::getPerspectiveTransform(quad_pts,squre_pts);
+	//cv::Mat transformed = cv::Mat::zeros(overlay_.rows, overlay_.cols, CV_8UC4);
+	//cv::warpPerspective(im1_, im1_, transmtx, im1_.size());
+
+	// TODO: Use the transmtx above for perspective distortion..
+
+	//ftl::render::ViewPort vp;
+	vp.x = std::min(p4screen.x, std::min(p3screen.x, std::min(p1screen.x,p2screen.x)));
+	vp.y = std::min(p4screen.y, std::min(p3screen.y, std::min(p1screen.y,p2screen.y)));
+	vp.width = std::max(p4screen.x, std::max(p3screen.x, std::max(p1screen.x,p2screen.x))) - vp.x;
+	vp.height = std::max(p4screen.y, std::max(p3screen.y, std::max(p1screen.y,p2screen.y))) - vp.y;
+	/*vp.warpMatrix.entries[0] = transmtx.at<float>(0,0);
+	vp.warpMatrix.entries[1] = transmtx.at<float>(1,0);
+	vp.warpMatrix.entries[2] = transmtx.at<float>(2,0);
+	vp.warpMatrix.entries[3] = transmtx.at<float>(0,1);
+	vp.warpMatrix.entries[4] = transmtx.at<float>(1,1);
+	vp.warpMatrix.entries[5] = transmtx.at<float>(2,1);
+	vp.warpMatrix.entries[6] = transmtx.at<float>(0,2);
+	vp.warpMatrix.entries[7] = transmtx.at<float>(1,2);
+	vp.warpMatrix.entries[8] = transmtx.at<float>(2,2);
+	vp.warpMatrix = vp.warpMatrix.getInverse(); //.getInverse();*/
+	//renderer_->setViewPort(ftl::render::ViewPortMode::Warping, vp);
+
+	pose_adjust = viewPose.cast<double>();
+}
+
+void ftl::gui::Camera::_applyPoseEffects(std::vector<ftl::rgbd::FrameSet*> &fss) {
+	if (renderer_->value("window_effect", false)) {
+		auto [frame,face] = _selectFace(fss);
+		if (face) {
+			Eigen::Matrix4d windowPose;
+			ftl::render::ViewPort windowViewPort;
+			_generateWindow(*frame, *face, windowPose, windowViewPort);
+
+			// Apply the window effect
+			renderer_->setViewPort(ftl::render::ViewPortMode::Stretch, windowViewPort);
+			state_.getPose() = windowPose * state_.getPose();
 		}
 	}
 }
