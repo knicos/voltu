@@ -150,6 +150,11 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 			ftl::cuda::flip<uchar4>(dst1, 0);
 			texture1_.unmap(0);
 
+			depth1_.make(buf.width(), buf.height());
+			dst1 = depth1_.map(0);
+			dst1.setTo(cv::Scalar(0.5f));
+			depth1_.unmap(0);
+
 			width_ = texture1_.width();
 			height_ = texture1_.height();
 			return;
