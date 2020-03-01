@@ -195,10 +195,10 @@ TextureObject<uchar4> &Colouriser::_processColour(ftl::rgbd::Frame &f, Channel c
 		buf.to_gpumat().setTo(colour, cvstream);
 	}
 
-	// FIXME: This doesn't work with the buffer yet.
 	if (f.hasChannel(Channel::Mask)) {
 		if (show_mask > 0) {
-			ftl::cuda::show_mask(f.getTexture<uchar4>(c), f.getTexture<uint8_t>(Channel::Mask), show_mask, make_uchar4(255,0,255,255), stream);
+			f.get<cv::cuda::GpuMat>(c).copyTo(buf.to_gpumat());
+			ftl::cuda::show_mask(buf, f.getTexture<uint8_t>(Channel::Mask), show_mask, make_uchar4(255,0,255,255), stream);
 		}
 	}
 
