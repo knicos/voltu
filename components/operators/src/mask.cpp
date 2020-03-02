@@ -64,6 +64,10 @@ bool BorderMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 	int topm = config()->value("top",5);
 	int bottomm = config()->value("bottom",5);
 
+	if (!in.hasChannel(Channel::Depth)) {
+		return true;
+	}
+
 	ftl::cuda::border_mask(
 		out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 		leftm, rightm, topm, bottomm, stream
