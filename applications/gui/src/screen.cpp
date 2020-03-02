@@ -587,7 +587,7 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 
 	nvgTextAlign(ctx, NVG_ALIGN_RIGHT);
 
-	if (root()->value("show_information", false)) {
+	if (root()->value("show_information", true)) {
 		string msg;
 
 		// FIXME: Do not do this every frame, or cache the results every N frames...
@@ -599,7 +599,15 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		nvgText(ctx, screenSize[0]-10, 40, msg.c_str(), NULL);	
 
 		msg = string("Bitrate: ") + to_string_with_precision(ftl::stream::Net::getRequiredBitrate(), 2) + string("Mbps");
-		nvgText(ctx, screenSize[0]-10, 60, msg.c_str(), NULL);	
+		nvgText(ctx, screenSize[0]-10, 60, msg.c_str(), NULL);
+
+		if (camera_) {
+			auto intrin = camera_->getIntrinsics();
+			msg = string("Resolution: ") + std::to_string(intrin.width) + string("x") + std::to_string(intrin.height);
+			nvgText(ctx, screenSize[0]-10, 80, msg.c_str(), NULL);
+			msg = string("Focal: ") + to_string_with_precision(intrin.fx, 2);
+			nvgText(ctx, screenSize[0]-10, 100, msg.c_str(), NULL);
+		}
 	}
 
 	nvgText(ctx, screenSize[0]-10, screenSize[1]-20, status_.c_str(), NULL);

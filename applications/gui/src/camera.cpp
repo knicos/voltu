@@ -437,6 +437,7 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 			} else {
 				name_ = "No name";
 			}
+			state_.getLeft() = frame->getLeftCamera();
 			return;
 		}
 	}
