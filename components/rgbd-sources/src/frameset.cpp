@@ -16,6 +16,11 @@ using ftl::codecs::Channel;
 using ftl::rgbd::FrameSet;
 using ftl::codecs::Channels;
 
+float Builder::latency__ = 0.0f;
+float Builder::fps__ = 0.0f;
+int Builder::stats_count__ = 0;
+MUTEX Builder::msg_mutex__;
+
 /*void FrameSet::upload(ftl::codecs::Channels<0> c, cudaStream_t stream) {
 	for (auto &f : frames) {
 		f.upload(c, stream);
@@ -68,10 +73,6 @@ Builder::Builder() : head_(0), id_(0) {
 
 	mspf_ = ftl::timer::getInterval();
 	name_ = "NoName";
-
-	latency_ = 0.0f;;
-	stats_count_ = 0;
-	fps_ = 0.0f;
 
 	if (size_ > 0) states_.resize(size_);
 }
@@ -241,18 +242,33 @@ static void mergeFrameset(ftl::rgbd::FrameSet &f1, ftl::rgbd::FrameSet &f2) {
 }
 
 void Builder::_recordStats(float fps, float latency) {
-	latency_ += latency;
-	fps_ += fps;
-	++stats_count_;
+	UNIQUE_LOCK(msg_mutex__, lk);
+	latency__ += latency;
+	fps__ += fps;
+	++stats_count__;
 
-	if (fps_/float(stats_count_) <= float(stats_count_)) {
+	/*if (fps_/float(stats_count_) <= float(stats_count_)) {
 		fps_ /= float(stats_count_);
 		latency_ /= float(stats_count_);
 		LOG(INFO) << name_ << ": fps = " << fps_ << ", latency = " << latency_;
 		fps_ = 0.0f;
 		latency_ = 0.0f;
 		stats_count_ = 0;
-	}
+	}*/
+}
+
+std::pair<float,float> Builder::getStatistics() {
+	UNIQUE_LOCK(msg_mutex__, lk);
+	if (stats_count__ == 0.0f) return {0.0f,0.0f};
+	fps__ /= float(stats_count__);
+	latency__ /= float(stats_count__);
+	float fps = fps__;
+	float latency = latency__;
+	//LOG(INFO) << name_ << ": fps = " << fps_ << ", latency = " << latency_;
+	fps__ = 0.0f;
+	latency__ = 0.0f;
+	stats_count__ = 0;
+	return {fps,latency};
 }
 
 ftl::rgbd::FrameSet *Builder::_findFrameset(int64_t ts) {

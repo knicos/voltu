@@ -17,6 +17,11 @@ using std::optional;
 
 static constexpr int kTallyScale = 10;
 
+float Net::req_bitrate__ = 0.0f;
+float Net::sample_count__ = 0.0f;
+int64_t Net::last_msg__ = 0;
+MUTEX Net::msg_mtx__;
+
 Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net), clock_adjust_(0) {
 	// TODO: Install "find_stream" binding if not installed...
 	if (!net_->isBound("find_stream")) {
@@ -40,7 +45,6 @@ Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), acti
 	}
 
 	last_frame_ = 0;
-	last_msg_ = 0;
 	time_peer_ = ftl::UUID(0);
 }
 
@@ -378,16 +382,26 @@ void Net::_checkDataRate(size_t tx_size, int64_t tx_latency, int64_t ts) {
     float min_mbps = (float(tx_size) * 8.0f * (1000.0f / float(ftl::timer::getInterval()))) / 1048576.0f;
     //if (actual_mbps > 0.0f && actual_mbps < min_mbps) LOG(WARNING) << "Bitrate = " << actual_mbps << "Mbps, min required = " << min_mbps << "Mbps";
 
-	UNIQUE_LOCK(msg_mtx_,lk);
-	req_bitrate_ += float(tx_size) * 8.0f;
-	sample_count_ += 1.0f;
+	UNIQUE_LOCK(msg_mtx__,lk);
+	req_bitrate__ += float(tx_size) * 8.0f;
+	sample_count__ += 1.0f;
 
-	if (ts - last_msg_ >= 1000) {
+	/*if (ts - last_msg_ >= 1000) {
 		DLOG(INFO) << "Required Bitrate = " << (req_bitrate_ / float(ts - last_msg_) * 1000.0f / 1048576.0f) << "Mbps";
 		last_msg_ = ts;
 		req_bitrate_ = 0.0f;
 		sample_count_ = 0.0f;
-	}
+	}*/
+}
+
+float Net::getRequiredBitrate() {
+	int64_t ts = ftl::timer::get_time();
+	UNIQUE_LOCK(msg_mtx__,lk);
+	float r = (req_bitrate__ / float(ts - last_msg__) * 1000.0f / 1048576.0f);
+	last_msg__ = ts;
+	req_bitrate__ = 0.0f;
+	sample_count__ = 0.0f;
+	return r;
 }
 
 bool Net::end() {

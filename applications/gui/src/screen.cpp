@@ -1,5 +1,8 @@
 #include "screen.hpp"
 
+#include <ftl/streams/netstream.hpp>
+#include <ftl/rgbd/frameset.hpp>
+
 #include <nanogui/opengl.h>
 #include <nanogui/glutil.h>
 #include <nanogui/screen.h>
@@ -9,6 +12,8 @@
 #include <nanogui/label.h>
 #include <nanogui/toolbutton.h>
 #include <nanogui/popupbutton.h>
+
+#include <sstream>
 
 #include <nlohmann/json.hpp>
 
@@ -58,6 +63,14 @@ namespace {
 			color.w = 1.0f;
 			gl_FragDepth = texture(depthImage, uv).r;
 		})";
+}
+
+template <typename T>
+std::string to_string_with_precision(const T a_value, const int n = 6) {
+    std::ostringstream out;
+    out.precision(n);
+    out << std::fixed << a_value;
+    return out.str();
 }
 
 ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl::ctrl::Master *controller) :
@@ -573,6 +586,22 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 	}
 
 	nvgTextAlign(ctx, NVG_ALIGN_RIGHT);
+
+	if (root()->value("show_information", false)) {
+		string msg;
+
+		// FIXME: Do not do this every frame, or cache the results every N frames...
+
+		auto [fps,latency] = ftl::rgbd::Builder::getStatistics();
+		msg = string("Frame rate: ") + std::to_string((int)fps);
+		nvgText(ctx, screenSize[0]-10, 20, msg.c_str(), NULL);
+		msg = string("Latency: ") + std::to_string((int)latency) + string("ms");
+		nvgText(ctx, screenSize[0]-10, 40, msg.c_str(), NULL);	
+
+		msg = string("Bitrate: ") + to_string_with_precision(ftl::stream::Net::getRequiredBitrate(), 2) + string("Mbps");
+		nvgText(ctx, screenSize[0]-10, 60, msg.c_str(), NULL);	
+	}
+
 	nvgText(ctx, screenSize[0]-10, screenSize[1]-20, status_.c_str(), NULL);
 
 	/* Draw the user interface */

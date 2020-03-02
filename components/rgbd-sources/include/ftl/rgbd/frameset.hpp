@@ -133,6 +133,12 @@ class Builder : public Generator {
 
 	void setBufferSize(size_t n) { bufferSize_ = n; }
 
+	/**
+	 * Retrieve an fps + latency pair, averaged since last call to this
+	 * function.
+	 */
+	static std::pair<float,float> getStatistics();
+
 	private:
 	std::list<FrameSet*> framesets_;  // Active framesets
 	std::list<FrameSet*> allocated_;  // Keep memory allocations
@@ -141,9 +147,6 @@ class Builder : public Generator {
 	ftl::rgbd::VideoCallback cb_;
 	MUTEX mutex_;
 	int mspf_;
-	float latency_;
-	float fps_;
-	int stats_count_;
 	int64_t last_ts_;
 	int64_t last_frame_;
 	int id_;
@@ -155,6 +158,11 @@ class Builder : public Generator {
 	std::vector<ftl::rgbd::FrameState*> states_;
 
 	std::string name_;
+
+	static MUTEX msg_mutex__;
+	static float latency__;
+	static float fps__;
+	static int stats_count__;
 
 	/* Insert a new frameset into the buffer, along with all intermediate
 	 * framesets between the last in buffer and the new one.

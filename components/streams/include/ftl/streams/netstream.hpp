@@ -60,6 +60,12 @@ class Net : public Stream {
 
 	inline const ftl::UUID &getPeer() const { return peer_; }
 
+	/**
+	 * Return the average bitrate of all streams since the last call to this
+	 * function. Units are Mbps.
+	 */
+	static float getRequiredBitrate();
+
 	private:
 	SHARED_MUTEX mutex_;
 	bool active_;
@@ -76,10 +82,10 @@ class Net : public Stream {
 	std::array<std::atomic<int>,32> reqtally_;
 	ftl::codecs::Channels<0> last_selected_;
 
-	float req_bitrate_;
-	float sample_count_;
-	int64_t last_msg_;
-	MUTEX msg_mtx_;
+	static float req_bitrate__;
+	static float sample_count__;
+	static int64_t last_msg__;
+	static MUTEX msg_mtx__;
 
 	std::list<detail::StreamClient> clients_;
 
