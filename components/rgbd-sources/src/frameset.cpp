@@ -171,9 +171,8 @@ void Builder::markPartial(int64_t ts) {
 	{
 		UNIQUE_LOCK(mutex_, lk);
 		fs = _findFrameset(ts);
+		if (fs) fs->set(ftl::data::FSFlag::PARTIAL);
 	}
-
-	fs->set(ftl::data::FSFlag::PARTIAL);
 }
 
 void Builder::_schedule() {
