@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include <ftl/net.hpp>
+#include <ftl/timer.hpp>
 
 #include <thread>
 #include <chrono>
@@ -102,7 +103,7 @@ TEST_CASE("Universe::onConnect()", "[net]") {
 		});
 
 		b.connect("tcp://localhost:7077")->waitConnection();
-		sleep_for(milliseconds(100));
+		//sleep_for(milliseconds(100));
 		REQUIRE( done );
 	}
 }
@@ -124,7 +125,7 @@ TEST_CASE("Universe::onDisconnect()", "[net]") {
 		p->waitConnection();
 		sleep_for(milliseconds(100));
 		p->close();
-		sleep_for(milliseconds(1100));
+		sleep_for(milliseconds(100));
 		REQUIRE( done );
 	}
 
@@ -139,7 +140,7 @@ TEST_CASE("Universe::onDisconnect()", "[net]") {
 		p->waitConnection();
 		sleep_for(milliseconds(100));
 		p->close();
-		sleep_for(milliseconds(1100));
+		sleep_for(milliseconds(100));
 		REQUIRE( done );
 	}
 }
@@ -158,7 +159,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		b.broadcast("done");
 		
-		sleep_for(milliseconds(100));
+		sleep_for(milliseconds(50));
 		REQUIRE( !done );
 	}
 	
@@ -172,7 +173,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		b.broadcast("hello");
 		
-		sleep_for(milliseconds(100));
+		while (!done) sleep_for(milliseconds(5));
 		
 		REQUIRE( done );
 	}
@@ -187,7 +188,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		b.broadcast("hello", 676);
 		
-		sleep_for(milliseconds(100));
+		while (done == 0) sleep_for(milliseconds(5));
 		
 		REQUIRE( done == 676 );
 	}
@@ -209,7 +210,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		});
 
 		REQUIRE( a.numberOfPeers() == 2 );
-		sleep_for(milliseconds(100)); // NOTE: Binding might not be ready
+		//sleep_for(milliseconds(100)); // NOTE: Binding might not be ready
 		
 		a.broadcast("hello", 676);
 		
@@ -251,10 +252,54 @@ TEST_CASE("Universe::findAll()", "") {
 			return {6,7,8};
 		});
 
-		sleep_for(milliseconds(100)); // NOTE: Binding might not be ready
+		//sleep_for(milliseconds(100)); // NOTE: Binding might not be ready
 
 		auto res = a.findAll<int>("test_all");
 		REQUIRE( (res.size() == 6) );
 		REQUIRE( (res[0] == 3 || res[0] == 6) );
+	}
+}
+
+TEST_CASE("Peer::call() __ping__", "") {
+	Universe a;
+	Universe b;
+	Universe c;
+
+	a.listen("tcp://localhost:7077");
+	auto *p = b.connect("tcp://localhost:7077");
+	p->waitConnection();
+
+	SECTION("single ping") {
+		int64_t res = p->call<int64_t>("__ping__");
+		REQUIRE((res <= ftl::timer::get_time() && res > 0));
+	}
+
+	SECTION("large number of pings") {
+		for (int i=0; i<100; ++i) {
+			int64_t res = p->call<int64_t>("__ping__");
+			REQUIRE(res > 0);
+		}
+	}
+
+	SECTION("large number of parallel pings") {
+		std::atomic<int> count = 0;
+		for (int i=0; i<100; ++i) {
+			ftl::pool.push([&count, p](int id) {
+				int64_t res = p->call<int64_t>("__ping__");
+				count++;
+			});
+		}
+
+		while (count < 100) std::this_thread::sleep_for(milliseconds(5));
+	}
+
+	SECTION("single invalid rpc") {
+		bool errored = false;
+		try {
+			int64_t res = p->call<int64_t>("__ping2__");
+		} catch (const ftl::exception &e) {
+			errored = true;
+		}
+		REQUIRE(errored);
 	}
 }

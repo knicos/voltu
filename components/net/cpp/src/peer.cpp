@@ -519,9 +519,16 @@ bool Peer::_data() {
 				obj.convert(hs);
 				
 				if (get<1>(hs) != "__handshake__") {
-					_badClose(false);
-					LOG(ERROR) << "Missing handshake - got '" << get<1>(hs) << "'";
-					return false;
+					LOG(WARNING) << "Missing handshake - got '" << get<1>(hs) << "'";
+
+					// Allow a small delay in case another thread is doing the handshake
+					lk.unlock();
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					if (status_ == kConnecting) {
+						LOG(ERROR) << "Failed to get handshake";
+						_badClose(false);
+						return false;
+					}
 				} else {
 					// Must handle immediately with no other thread able
 					// to read next message before completion.
@@ -530,9 +537,16 @@ bool Peer::_data() {
 					return true;
 				}
 			} catch(...) {
-				_badClose(false);
-				LOG(ERROR) << "Bad first message format";
-				return false;
+				LOG(WARNING) << "Bad first message format... waiting";
+
+				// Allow a small delay in case another thread is doing the handshake
+				lk.unlock();
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				if (status_ == kConnecting) {
+					LOG(ERROR) << "Failed to get handshake";
+					_badClose(false);
+					return false;
+				}
 			}
 		}
 	}
@@ -580,8 +594,33 @@ void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
 	_send();
 }
 
+void Peer::_waitCall(int id, std::condition_variable &cv, bool &hasreturned, const std::string &name) {
+	std::mutex m;
+
+	int64_t beginat = ftl::timer::get_time();
+	std::function<void(int)> j;
+	while (!hasreturned) {
+		// Attempt to do a thread pool job if available
+		if ((bool)(j=ftl::pool.pop())) {
+			j(-1);
+		} else {
+			// Block for a little otherwise
+			std::unique_lock<std::mutex> lk(m);
+			cv.wait_for(lk, std::chrono::milliseconds(2), [&hasreturned]{return hasreturned;});
+		}
+
+		if (ftl::timer::get_time() - beginat > 1000) break;
+	}
+	
+	if (!hasreturned) {
+		cancelCall(id);
+		throw FTL_Error("RPC failed with timeout: " << name);
+	}
+}
+
 bool Peer::waitConnection() {
 	if (status_ == kConnected) return true;
+	else if (status_ != kConnecting) return false;
 	
 	std::mutex m;
 	//UNIQUE_LOCK(m,lk);
@@ -594,7 +633,7 @@ bool Peer::waitConnection() {
 		}
 	});
 
-	cv.wait_for(lk, seconds(5));
+	cv.wait_for(lk, seconds(1), [this](){return status_ == kConnected;});
 	universe_->removeCallback(h);
 	return status_ == kConnected;
 }

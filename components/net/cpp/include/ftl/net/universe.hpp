@@ -142,6 +142,21 @@ class Universe : public ftl::Configurable {
 	
 	template <typename R, typename... ARGS>
 	R call(const UUID &pid, const std::string &name, ARGS... args);
+
+	/**
+	 * Non-blocking Remote Procedure Call using a callback function.
+	 * 
+	 * @param pid Peer GUID
+	 * @param name RPC Function name.
+	 * @param cb Completion callback.
+	 * @param args A variable number of arguments for RPC function.
+	 * 
+	 * @return A call id for use with cancelCall() if needed.
+	 */
+	template <typename R, typename... ARGS>
+	int asyncCall(const UUID &pid, const std::string &name,
+			std::function<void(const R&)> cb,
+			ARGS... args);
 	
 	template <typename... ARGS>
 	bool send(const UUID &pid, const std::string &name, ARGS... args);
@@ -284,7 +299,8 @@ template <typename... ARGS>
 void Universe::broadcast(const std::string &name, ARGS... args) {
 	SHARED_LOCK(net_mutex_,lk);
 	for (auto p : peers_) {
-		if (p->isConnected()) p->send(name, args...);
+		if (!p->waitConnection()) continue;
+		p->send(name, args...);
 	}
 }
 
@@ -310,8 +326,9 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 	SHARED_LOCK(net_mutex_,lk);
 
 	for (auto p : peers_) {
+		if (!p->waitConnection()) continue;
 		count++;
-		if (p->isConnected()) record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
+		record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
 	}
 	lk.unlock();
 	
@@ -356,9 +373,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 	std::map<Peer*, int> record;
 	SHARED_LOCK(net_mutex_,lk);
 	for (auto p : peers_) {
-		if (!p->isConnected()) {
-			continue;
-		}
+		if (!p->waitConnection()) continue;
 		sentcount++;
 		record[p] = p->asyncCall<std::vector<R>>(name, handler, args...);
 	}
@@ -390,6 +405,16 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 		else throw FTL_Error("Attempting to call an disconnected peer : " << pid.to_string());
 	}
 	return p->call<R>(name, args...);
+}
+
+template <typename R, typename... ARGS>
+int Universe::asyncCall(const ftl::UUID &pid, const std::string &name, std::function<void(const R&)> cb, ARGS... args) {
+	Peer *p = getPeer(pid);
+	if (p == nullptr || !p->isConnected()) {
+		if (p == nullptr) throw FTL_Error("Attempting to call an unknown peer : " << pid.to_string());
+		else throw FTL_Error("Attempting to call an disconnected peer : " << pid.to_string());
+	}
+	return p->asyncCall(name, cb, args...);
 }
 
 template <typename... ARGS>

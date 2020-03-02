@@ -16,6 +16,7 @@
 #include <ftl/uri.hpp>
 #include <ftl/uuid.hpp>
 #include <ftl/threads.hpp>
+#include <ftl/timer.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -228,6 +229,8 @@ class Peer {
 	void _updateURI();
 	
 	int _send();
+
+	void _waitCall(int id, std::condition_variable &cv, bool &hasreturned, const std::string &name);
 	
 	template<typename... ARGS>
 	void _trigger(const std::vector<std::function<void(Peer &, ARGS...)>> &hs, ARGS... args) {
@@ -319,35 +322,17 @@ void Peer::bind(const std::string &name, F func) {
 template <typename R, typename... ARGS>
 R Peer::call(const std::string &name, ARGS... args) {
 	bool hasreturned = false;
-	std::mutex m;
+	//std::mutex m;
 	std::condition_variable cv;
 	
 	R result;
 	int id = asyncCall<R>(name, [&](const R &r) {
-		//UNIQUE_LOCK(m,lk);
-		std::unique_lock<std::mutex> lk(m);
-		hasreturned = true;
 		result = r;
-		lk.unlock();
+		hasreturned = true;
 		cv.notify_one();
 	}, std::forward<ARGS>(args)...);
 	
-	// While waiting, do some other thread jobs...
-	/*std::function<void(int)> j;
-	while (!hasreturned && (bool)(j=ftl::pool.pop())) {
-			LOG(INFO) << "Doing job whilst waiting...";
-			j(-1);
-	}*/
-
-	{  // Block thread until async callback notifies us
-		std::unique_lock<std::mutex> lk(m);
-		cv.wait_for(lk, std::chrono::seconds(1), [&hasreturned]{return hasreturned;});
-	}
-	
-	if (!hasreturned) {
-		cancelCall(id);
-		throw FTL_Error("RPC failed with timeout: " << name);
-	}
+	_waitCall(id, cv, hasreturned, name);
 	
 	return result;
 }
