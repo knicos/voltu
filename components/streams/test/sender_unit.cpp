@@ -88,6 +88,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		stream.select(0, Channels(Channel::Colour), true);
 
 		fs.count = 1;
+		fs.mask = 1;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].get<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
 
@@ -110,6 +111,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		stream.select(0, Channels(Channel::Colour), true);
 
 		fs.count = 2;
+		fs.mask = 3;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].get<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
 		fs.frames.emplace_back();
@@ -135,6 +137,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		stream.select(0, Channels(Channel::Depth), true);
 
 		fs.count = 2;
+		fs.mask = 3;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[0].get<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
 		fs.frames.emplace_back();
@@ -161,6 +164,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		stream.select(0, Channels(Channel::Depth), true);
 
 		fs.count = 10;
+		fs.mask = 0x3FF;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[0].get<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
 
@@ -190,6 +194,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		stream.select(0, Channels(Channel::Depth), true);
 
 		fs.count = 2;
+		fs.mask = 3;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[0].get<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
 		fs.frames.emplace_back();
@@ -217,6 +222,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		stream.select(0, Channel::Colour + Channel::Depth, true);
 
 		fs.count = 1;
+		fs.mask = 1;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].get<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
@@ -280,6 +286,7 @@ TEST_CASE( "Sender request to control encoding" ) {
 		});
 
 		fs.count = 1;
+		fs.mask = 1;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].get<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
 

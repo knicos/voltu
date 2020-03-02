@@ -190,20 +190,25 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 	_checkFrameSets(fs.id);
 
 	if (!paused_) {
-		// Enforce interpolated colour and GPU upload
-		for (int i=0; i<fs.frames.size(); ++i) {
-			fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
+		if (!fs.test(ftl::data::FSFlag::PARTIAL) || !screen_->root()->value("drop_partial_framesets", false)) { 
+			// Enforce interpolated colour and GPU upload
+			for (int i=0; i<fs.frames.size(); ++i) {
+				if (!fs.hasFrame(i)) continue;
+				fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
 
-			// TODO: Do all channels. This is a fix for screen capture sources.
-			if (!fs.frames[i].isGPU(Channel::Colour)) fs.frames[i].upload(Channels<0>(Channel::Colour), pre_pipelines_[fs.id]->getStream());
+				// TODO: Do all channels. This is a fix for screen capture sources.
+				if (!fs.frames[i].isGPU(Channel::Colour)) fs.frames[i].upload(Channels<0>(Channel::Colour), pre_pipelines_[fs.id]->getStream());
+			}
+
+			{
+				FTL_Profile("Prepipe",0.020);
+				pre_pipelines_[fs.id]->apply(fs, fs, 0);
+			}
+
+			fs.swapTo(*framesets_[fs.id]);
+		} else {
+			LOG(WARNING) << "Dropping frameset: " << fs.timestamp;
 		}
-
-		{
-			FTL_Profile("Prepipe",0.020);
-			pre_pipelines_[fs.id]->apply(fs, fs, 0);
-		}
-
-		fs.swapTo(*framesets_[fs.id]);
 	}
 
 	const auto *cstream = interceptor_;

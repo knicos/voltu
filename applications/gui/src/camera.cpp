@@ -138,7 +138,10 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 			ftl::rgbd::Frame *frame = nullptr;
 
 			if ((size_t)fid_ >= fs->frames.size()) return;
+			if (!fs->hasFrame(fid_)) return;
+
 			frame = &fs->frames[fid_];
+			if (!frame->hasChannel(channel_)) return;
 
 			auto &buf = colouriser_->colourise(*frame, channel_, 0);
 
@@ -390,7 +393,8 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		auto &f = fs2.frames.emplace_back();
 		fs2.count = 1;
 		fs2.mask = 1;
-		fs2.stale = false;
+		//fs2.stale = false;
+		fs2.set(ftl::data::FSFlag::STALE);
 		frame_.swapTo(Channels<0>(Channel::Colour), f);  // Channel::Colour + Channel::Depth
 		fs2.timestamp = ftl::timer::get_time();
 		fs2.id = 0;

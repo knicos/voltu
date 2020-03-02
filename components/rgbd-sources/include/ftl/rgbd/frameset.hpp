@@ -127,7 +127,11 @@ class Builder : public Generator {
 	 */
 	void completed(int64_t ts, size_t ix);
 
+	void markPartial(int64_t ts);
+
 	void setName(const std::string &name);
+
+	void setBufferSize(size_t n) { bufferSize_ = n; }
 
 	private:
 	std::list<FrameSet*> framesets_;  // Active framesets
@@ -147,6 +151,7 @@ class Builder : public Generator {
 	volatile bool skip_;
 	ftl::timer::TimerHandle main_id_;
 	size_t size_;
+	size_t bufferSize_;
 	std::vector<ftl::rgbd::FrameState*> states_;
 
 	std::string name_;

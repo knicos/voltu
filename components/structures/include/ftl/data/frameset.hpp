@@ -16,6 +16,11 @@ namespace data {
 //static const size_t kMaxFramesets = 15;
 static const size_t kMaxFramesInSet = 32;
 
+enum class FSFlag : int {
+	STALE = 0,
+	PARTIAL = 1
+};
+
 /**
  * Represents a set of synchronised frames, each with two channels. This is
  * used to collect all frames from multiple computers that have the same
@@ -30,10 +35,15 @@ class FrameSet {
 	std::vector<FRAME> frames;
 	std::atomic<int> count;				// Number of valid frames
 	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
-	bool stale;						// True if buffers have been invalidated
+	//bool stale;						// True if buffers have been invalidated
 	SHARED_MUTEX mtx;
 
 	Eigen::Matrix4d pose;  // Set to identity by default.
+
+	void set(FSFlag f) { flags_ |= (1 << static_cast<int>(f)); }
+	void clear(FSFlag f) { flags_ &= ~(1 << static_cast<int>(f)); }
+	bool test(FSFlag f) const { return flags_ & (1 << static_cast<int>(f)); }
+	void clearFlags() { flags_ = 0; }
 
 	/**
 	 * Move the entire frameset to another frameset object. This will
@@ -78,6 +88,19 @@ class FrameSet {
 		return false;
 	}
 
+	/**
+	 * Check that a given frame is valid in this frameset.
+	 */
+	inline bool hasFrame(size_t ix) const { return (1 << ix) & mask; }
+
+	/**
+	 * Get the first valid frame in this frameset. No valid frames throws an
+	 * exception.
+	 */
+	FRAME &firstFrame();
+
+	const FRAME &firstFrame() const;
+
 	void clearData() {
 		data_.clear();
 		data_channels_.clear();
@@ -86,6 +109,7 @@ class FrameSet {
 	private:
 	std::unordered_map<int, std::vector<unsigned char>> data_;
 	ftl::codecs::Channels<2048> data_channels_;
+	std::atomic<int> flags_;
 };
 
 /**
@@ -137,7 +161,7 @@ void ftl::data::FrameSet<FRAME>::swapTo(ftl::data::FrameSet<FRAME> &fs) {
 
 	fs.timestamp = timestamp;
 	fs.count = static_cast<int>(count);
-	fs.stale = stale;
+	fs.flags_ = (int)flags_;
 	fs.mask = static_cast<unsigned int>(mask);
 	fs.id = id;
 	fs.pose = pose;
@@ -150,7 +174,7 @@ void ftl::data::FrameSet<FRAME>::swapTo(ftl::data::FrameSet<FRAME> &fs) {
 	fs.data_channels_ = data_channels_;
 	data_channels_.clear();
 
-	stale = true;
+	set(ftl::data::FSFlag::STALE);
 }
 
 // Default data channel implementation
@@ -194,6 +218,22 @@ template <typename FRAME>
 void ftl::data::FrameSet<FRAME>::createRawData(ftl::codecs::Channel c, const std::vector<unsigned char> &v) {
 	data_.insert({static_cast<int>(c), v});
 	data_channels_ += c;
+}
+
+template <typename FRAME>
+FRAME &ftl::data::FrameSet<FRAME>::firstFrame() {
+	for (size_t i=0; i<frames.size(); ++i) {
+		if (hasFrame(i)) return frames[i];
+	}
+	throw FTL_Error("No frames in frameset");
+}
+
+template <typename FRAME>
+const FRAME &ftl::data::FrameSet<FRAME>::firstFrame() const {
+	for (size_t i=0; i<frames.size(); ++i) {
+		if (hasFrame(i)) return frames[i];
+	}
+	throw FTL_Error("No frames in frameset");
 }
 
 #endif  // _FTL_DATA_FRAMESET_HPP_

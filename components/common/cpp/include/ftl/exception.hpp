@@ -37,8 +37,10 @@ class exception : public std::exception
 	public:
 	explicit exception(const char *msg);
 	explicit exception(const Formatter &msg);
+	~exception();
 
 	const char * what () const throw () {
+		processed_ = true;
     	return msg_.c_str();
     }
 
@@ -46,9 +48,12 @@ class exception : public std::exception
         return trace_.c_str();
     }
 
+	void ignore() const { processed_ = true; }
+
 	private:
 	std::string msg_;
     std::string trace_;
+	mutable bool processed_;
 };
 }
 

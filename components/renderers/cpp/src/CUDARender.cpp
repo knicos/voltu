@@ -120,6 +120,7 @@ void CUDARender::_renderChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel i
 	if (in == Channel::None) return;
 
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
+		if (!scene_->hasFrame(i)) continue;
 		auto &f = scene_->frames[i];
 
 		if (!f.hasChannel(in)) {
@@ -168,6 +169,7 @@ void CUDARender::_dibr(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
+		if (!scene_->hasFrame(i)) continue;
 		auto &f = scene_->frames[i];
 		//auto *s = scene_->sources[i];
 
@@ -236,6 +238,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 	// For each source depth map
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
+		if (!scene_->hasFrame(i)) continue;
 		auto &f = scene_->frames[i];
 		//auto *s = scene_->sources[i];
 
@@ -453,7 +456,7 @@ void CUDARender::_renderPass2(Channels<0> chans, const Eigen::Matrix4d &t) {
 	for (auto chan : chans) {
 		ftl::codecs::Channel mapped = chan;
 
-		if (chan == Channel::Colour && scene_->frames[0].hasChannel(Channel::ColourHighRes)) mapped = Channel::ColourHighRes;
+		if (chan == Channel::Colour && scene_->firstFrame().hasChannel(Channel::ColourHighRes)) mapped = Channel::ColourHighRes;
 
 		_renderChannel(*out_, mapped, t, stream_);
 	}

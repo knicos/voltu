@@ -245,13 +245,13 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {
 		Channel cc = c;
-		if ((cc == Channel::Colour) && fs.frames[offset].hasChannel(Channel::ColourHighRes)) {
+		if ((cc == Channel::Colour) && fs.firstFrame().hasChannel(Channel::ColourHighRes)) {
 			cc = Channel::ColourHighRes;
 		}
 		
-		if ((cc == Channel::Right) && fs.frames[offset].hasChannel(Channel::RightHighRes)) {
+		if ((cc == Channel::Right) && fs.firstFrame().hasChannel(Channel::RightHighRes)) {
 			cc = Channel::RightHighRes;
-			fs.frames[offset].upload(cc);
+			//fs.frames[offset].upload(cc);
 		}
 
 		StreamPacket spkt;
@@ -277,6 +277,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 
 		// Upload if in host memory
 		for (auto &f : fs.frames) {
+			if (!fs.hasFrame(f.id)) continue;
 			if (f.isCPU(c)) {
 				f.upload(Channels<0>(cc), cv::cuda::StreamAccessor::getStream(enc->stream()));
 			}
@@ -292,8 +293,6 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 		enc->stream().waitForCompletion();
 
 		if (enc) {
-			// FIXME: Timestamps may not always be aligned to interval.
-			//if (do_inject || fs.timestamp % (10*ftl::timer::getInterval()) == 0) enc->reset();
 			if (reset) enc->reset();
 
 			try {
@@ -307,6 +306,9 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 				if (!lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
 				else if (lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat;
 				else pkt.flags = ftl::codecs::kFlagFlipRGB;
+
+				// In the event of partial frames, add a flag to indicate that
+				if (fs.count < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
 
 				// Choose correct region of interest into the surface.
 				cv::Rect roi = _generateROI(fs, cc, offset);
@@ -336,9 +338,9 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 }
 
 cv::Rect Sender::_generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset) {
-	const ftl::rgbd::Frame *cframe = &fs.frames[offset];
-	int rwidth = cframe->get<cv::cuda::GpuMat>(c).cols;
-	int rheight = cframe->get<cv::cuda::GpuMat>(c).rows;
+	const ftl::rgbd::Frame &cframe = fs.firstFrame();
+	int rwidth = cframe.get<cv::cuda::GpuMat>(c).cols;
+	int rheight = cframe.get<cv::cuda::GpuMat>(c).rows;
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(fs.frames.size()-offset);
 	return cv::Rect(0, 0, tx*rwidth, ty*rheight);
 }
@@ -374,13 +376,14 @@ float Sender::_selectFloatMax(Channel c) {
 int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool lossless) {
 	auto &surface = _getTile(fs.id, c);
 
-	const ftl::rgbd::Frame *cframe = &fs.frames[offset];
-	auto &m = cframe->get<cv::cuda::GpuMat>(c);
+	const ftl::rgbd::Frame *cframe = nullptr; //&fs.frames[offset];
+
+	const auto &m = fs.firstFrame().get<cv::cuda::GpuMat>(c);
 
 	// Choose tile configuration and allocate memory
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(fs.frames.size());
-	int rwidth = cframe->get<cv::cuda::GpuMat>(c).cols;
-	int rheight = cframe->get<cv::cuda::GpuMat>(c).rows;
+	int rwidth = m.cols;
+	int rheight = m.rows;
 	int width = tx * rwidth;
 	int height = ty * rheight;
 	int tilecount = tx*ty;
@@ -390,28 +393,34 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 
 	// Loop over tiles with ROI mats and do colour conversions.
 	while (tilecount > 0 && count+offset < fs.frames.size()) {
-		auto &m = cframe->get<cv::cuda::GpuMat>(c);
-		cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
-		cv::cuda::GpuMat sroi = surface.surface(roi);
+		if (fs.hasFrame(offset+count)) {
+			cframe = &fs.frames[offset+count];
+			auto &m = cframe->get<cv::cuda::GpuMat>(c);
+			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
+			cv::cuda::GpuMat sroi = surface.surface(roi);
 
-		if (m.type() == CV_32F) {
-			if (lossless) {
-				m.convertTo(sroi, CV_16UC1, 1000, stream);
+			if (m.type() == CV_32F) {
+				if (lossless) {
+					m.convertTo(sroi, CV_16UC1, 1000, stream);
+				} else {
+					ftl::cuda::depth_to_vuya(m, sroi, _selectFloatMax(c), stream);
+				}
+			} else if (m.type() == CV_8UC4) {
+				cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
+			} else if (m.type() == CV_8UC3) {
+				cv::cuda::cvtColor(m, sroi, cv::COLOR_BGR2RGBA, 0, stream);
 			} else {
-				ftl::cuda::depth_to_vuya(m, sroi, _selectFloatMax(c), stream);
+				LOG(ERROR) << "Unsupported colour format: " << m.type();
+				return 0;
 			}
-		} else if (m.type() == CV_8UC4) {
-			cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
-		} else if (m.type() == CV_8UC3) {
-			cv::cuda::cvtColor(m, sroi, cv::COLOR_BGR2RGBA, 0, stream);
 		} else {
-			LOG(ERROR) << "Unsupported colour format: " << m.type();
-			return 0;
+			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
+			cv::cuda::GpuMat sroi = surface.surface(roi);
+			sroi.setTo(cv::Scalar(0));
 		}
 
 		++count;
 		--tilecount;
-		cframe = &fs.frames[offset+count];
 	}
 
 	return count;
