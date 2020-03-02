@@ -153,7 +153,8 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 
 		frameset_.id = 0;
 		frameset_.count = 1;
-		frameset_.stale = false;
+		//frameset_.stale = false;
+		frameset_.clear(ftl::data::FSFlag::STALE);
 
         if (to_read_ < 1 || !buffer_) return true;
 

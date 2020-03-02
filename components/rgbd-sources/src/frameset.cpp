@@ -62,7 +62,7 @@ void FrameSet::resetFull() {
 Builder::Builder() : head_(0), id_(0) {
 	jobs_ = 0;
 	skip_ = false;
-	//setFPS(20);
+	bufferSize_ = 1;
 	size_ = 0;
 	last_frame_ = 0;
 
@@ -111,9 +111,11 @@ ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
 		// Add new frameset
 		fs = _addFrameset(timestamp);
 		if (!fs) throw FTL_Error("Could not add frameset");
+
+		_schedule();
 	}
 
-	if (fs->stale) {
+	if (fs->test(ftl::data::FSFlag::STALE)) {
 		throw FTL_Error("Frameset already completed");
 	}
 
@@ -152,8 +154,8 @@ void Builder::completed(int64_t ts, size_t ix) {
 			++fs->count;
 		}
 
-		if (!fs->stale && static_cast<unsigned int>(fs->count) >= size_) {
-			//LOG(INFO) << "Frameset ready... " << fs->timestamp;
+		// No buffering, so do a schedule here for immediate effect
+		if (bufferSize_ == 0 && !fs->test(ftl::data::FSFlag::STALE) && static_cast<unsigned int>(fs->count) >= size_) {
 			UNIQUE_LOCK(mutex_, lk);
 			_schedule();
 		}
@@ -162,38 +164,51 @@ void Builder::completed(int64_t ts, size_t ix) {
 	}
 }
 
+void Builder::markPartial(int64_t ts) {
+	ftl::rgbd::FrameSet *fs = nullptr;
+
+	{
+		UNIQUE_LOCK(mutex_, lk);
+		fs = _findFrameset(ts);
+	}
+
+	fs->set(ftl::data::FSFlag::PARTIAL);
+}
+
 void Builder::_schedule() {
 	if (size_ == 0) return;
 	ftl::rgbd::FrameSet *fs = nullptr;
 
-	//UNIQUE_LOCK(mutex_, lk);
+	// Still working on a previously scheduled frame
 	if (jobs_ > 0) return;
+
+	// Find a valid / completed frameset to process
 	fs = _getFrameset();
 
-	//LOG(INFO) << "Latency for " << name_ << " = " << (latency_*ftl::timer::getInterval()) << "ms";
-
+	// We have a frameset so create a thread job to call the onFrameset callback
 	if (fs) {
-		//UNIQUE_LOCK(fs->mtx, lk2);
-		// The buffers are invalid after callback so mark stale
-		//fs->stale = true;
 		jobs_++;
-		//lk.unlock();
 
 		ftl::pool.push([this,fs](int) {
 			UNIQUE_LOCK(fs->mtx, lk2);
+
+			// Calling onFrameset but without all frames so mark as partial
+			if (fs->count < fs->frames.size()) fs->set(ftl::data::FSFlag::PARTIAL);
+
 			try {
 				if (cb_) cb_(*fs);
-				//LOG(INFO) << "Frameset processed (" << name_ << "): " << fs->timestamp;
+			} catch(const ftl::exception &e) {
+				LOG(ERROR) << "Exception in frameset builder: " << e.what();
+				LOG(ERROR) << "Trace = " << e.trace();
 			} catch(std::exception &e) {
 				LOG(ERROR) << "Exception in frameset builder: " << e.what();
 			}
 
-			//fs->resetFull();
-
 			UNIQUE_LOCK(mutex_, lk);
 			_freeFrameset(fs);
-
 			jobs_--;
+
+			// Schedule another frame immediately (or try to)
 			_schedule();
 		});
 	}
@@ -205,68 +220,7 @@ size_t Builder::size() {
 }
 
 void Builder::onFrameSet(const std::function<bool(ftl::rgbd::FrameSet &)> &cb) {
-	/*if (!cb) {
-		main_id_.cancel();
-		return;
-	}*/
-
 	cb_ = cb;
-
-	/*if (main_id_.id() != -1) {
-		main_id_.cancel();
-	}*/
-
-	// 3. Issue IO retrieve ad compute jobs before finding a valid
-	// frame at required latency to pass to callback.
-	/*main_id_ = ftl::timer::add(ftl::timer::kTimerMain, [this,cb](int64_t ts) {
-		//if (jobs_ > 0) LOG(ERROR) << "SKIPPING TIMER JOB " << ts;
-		if (jobs_ > 0) return true;
-		if (size_ == 0) return true;
-		jobs_++;
-
-		// Find a previous frameset and specified latency and do the sync
-		// callback with that frameset.
-		//if (latency_ > 0) {
-			ftl::rgbd::FrameSet *fs = nullptr;
-	
-			UNIQUE_LOCK(mutex_, lk);
-			fs = _getFrameset();
-
-			//LOG(INFO) << "Latency for " << name_ << " = " << (latency_*ftl::timer::getInterval()) << "ms";
-
-			if (fs) {
-				UNIQUE_LOCK(fs->mtx, lk2);
-				// The buffers are invalid after callback so mark stale
-				fs->stale = true;
-				lk.unlock();
-
-				//LOG(INFO) << "PROCESS FRAMESET";
-
-				//ftl::pool.push([this,fs,cb](int) {
-					try {
-						cb(*fs);
-						//LOG(INFO) << "Frameset processed (" << name_ << "): " << fs->timestamp;
-					} catch(std::exception &e) {
-						LOG(ERROR) << "Exception in group sync callback: " << e.what();
-					}
-
-					//fs->resetFull();
-
-					lk.lock();
-					_freeFrameset(fs);
-
-					jobs_--;
-				//});
-			} else {
-				//LOG(INFO) << "NO FRAME FOUND: " << name_ << " " << size_;
-				//latency_++;
-				jobs_--;
-			}
-		//}
-
-		//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Main";
-		return true;
-	});*/
 }
 
 ftl::rgbd::FrameState &Builder::state(size_t ix) {
@@ -320,23 +274,36 @@ ftl::rgbd::FrameSet *Builder::_findFrameset(int64_t ts) {
  */
 ftl::rgbd::FrameSet *Builder::_getFrameset() {
 	//LOG(INFO) << "BUF SIZE = " << framesets_.size();
-	for (auto i=framesets_.begin(); i!=framesets_.end(); i++) {
+
+	auto i = framesets_.begin();
+	int N = bufferSize_;
+
+	// Skip N frames to fixed buffer location
+	if (bufferSize_ > 0) {
+		while (N-- > 0 && i != framesets_.end()) ++i;
+	// Otherwise skip to first fully completed frame
+	} else {
+		while (i != framesets_.end() && (*i)->count < (*i)->frames.size()) ++i;
+	}
+
+	if (i != framesets_.end()) {
 		auto *f = *i;
 		//LOG(INFO) << "GET: " << f->count << " of " << size_;
-		if (!f->stale && static_cast<unsigned int>(f->count) >= size_) {
+		//if (!f->stale && static_cast<unsigned int>(f->count) >= size_) {
 			//LOG(INFO) << "GET FRAMESET and remove: " << f->timestamp;
 			auto j = framesets_.erase(i);
 
 			last_frame_ = f->timestamp;
-			f->stale = true;
+			//f->stale = true;
+			f->set(ftl::data::FSFlag::STALE);
 			
 			int count = 0;
 			// Merge all previous frames
+			// TODO: Remove?
 			while (j!=framesets_.end()) {
 				++count;
 
 				auto *f2 = *j;
-				//LOG(INFO) << "MERGE: " << f2->count;
 				j = framesets_.erase(j);
 				mergeFrameset(*f,*f2);
 				_freeFrameset(f2);
@@ -349,7 +316,7 @@ ftl::rgbd::FrameSet *Builder::_getFrameset() {
 			_recordStats(framerate, now - f->timestamp);
 			last_ts_ = now;
 			return f;
-		}
+		//}
 	}
 
 	return nullptr;
@@ -378,7 +345,7 @@ ftl::rgbd::FrameSet *Builder::_addFrameset(int64_t timestamp) {
 	newf->id = id_;
 	newf->count = 0;
 	newf->mask = 0;
-	newf->stale = false;
+	newf->clearFlags();
 	newf->frames.resize(size_);
 	newf->pose.setIdentity();
 	newf->clearData();

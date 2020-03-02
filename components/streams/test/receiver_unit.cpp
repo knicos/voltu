@@ -63,6 +63,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	};
 	TestStream stream(cfg2);
 	receiver->setStream(&stream);
+	receiver->set("frameset_buffer_size", 0);
 
 	ftl::codecs::NvPipeEncoder encoder(definition_t::HD1080, definition_t::SD480);
 
@@ -260,6 +261,7 @@ TEST_CASE( "Receiver sync bugs" ) {
 	};
 	TestStream stream(cfg2);
 	receiver->setStream(&stream);
+	receiver->set("frameset_buffer_size", 0);
 
 	ftl::codecs::NvPipeEncoder encoder(definition_t::HD1080, definition_t::SD480);
 
@@ -323,6 +325,81 @@ TEST_CASE( "Receiver sync bugs" ) {
 		REQUIRE( count == 2 );
 		REQUIRE( ts == 20 );
 		REQUIRE( !haswrongchan );
+	}
+
+	ftl::timer::stop(true);
+	//while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	delete receiver;
+}
+
+TEST_CASE( "Receiver non zero buffer" ) {
+	json_t global = json_t{{"$id","ftl://test"}};
+	ftl::config::configure(global);
+
+	json_t cfg = json_t{
+		{"$id","ftl://test/1"}
+	};
+	auto *receiver = ftl::create<Receiver>(cfg);
+
+	json_t cfg2 = json_t{
+		{"$id","ftl://test/2"}
+	};
+	TestStream stream(cfg2);
+	receiver->setStream(&stream);
+	receiver->set("frameset_buffer_size", 1);
+
+	ftl::codecs::NvPipeEncoder encoder(definition_t::HD1080, definition_t::SD480);
+
+	ftl::codecs::Packet pkt;
+	pkt.codec = codec_t::Any;
+	pkt.bitrate = 255;
+	pkt.definition = definition_t::Any;
+	pkt.flags = 0;
+	pkt.frame_count = 1;
+
+	ftl::codecs::StreamPacket spkt;
+	spkt.version = 4;
+	spkt.timestamp = 10;
+	spkt.frame_number = 0;
+	spkt.channel = Channel::Colour;
+	spkt.streamID = 0;
+
+	ftl::rgbd::Frame dummy;
+	ftl::rgbd::FrameState state;
+	state.getLeft().width = 1280;
+	state.getLeft().height = 720;
+	dummy.setOrigin(&state);
+	ftl::stream::injectCalibration(&stream, dummy, 0, 0, 0);
+
+	ftl::timer::start(false);
+
+	SECTION("Fixed buffer delay") {
+		cv::cuda::GpuMat m(cv::Size(1280,720), CV_8UC4, cv::Scalar(0));
+
+		bool r = encoder.encode(m, pkt);
+		REQUIRE( r );
+
+		int count = 0;
+		receiver->onFrameSet([&count](ftl::rgbd::FrameSet &fs) {
+			++count;
+
+			REQUIRE( fs.timestamp == 10 );
+			REQUIRE( fs.frames.size() == 1 );
+			REQUIRE( fs.frames[0].hasChannel(Channel::Colour) );
+			REQUIRE( fs.frames[0].get<cv::cuda::GpuMat>(Channel::Colour).rows == 720 );
+			REQUIRE( fs.frames[0].get<cv::cuda::GpuMat>(Channel::Colour).type() == CV_8UC4 );
+
+			return true;
+		});
+
+		stream.post(spkt, pkt);
+		spkt.timestamp += 10;
+		stream.post(spkt, pkt);
+
+		int i=10;
+		while (i-- > 0 && count < 1) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+		REQUIRE( count == 1 );
 	}
 
 	ftl::timer::stop(true);

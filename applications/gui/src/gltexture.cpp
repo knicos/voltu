@@ -137,6 +137,7 @@ void GLTexture::unmap(cudaStream_t stream) {
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width_, height_, GL_RED, GL_FLOAT, NULL);
 	}
 	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
 	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, 0);
 }
 

@@ -18,6 +18,7 @@ enum struct format_t {
 static constexpr uint8_t kFlagFlipRGB = 0x01;		// Swap blue and red channels [deprecated]
 static constexpr uint8_t kFlagMappedDepth = 0x02;	// Use Yuv mapping for float [deprecated]
 static constexpr uint8_t kFlagFloat = 0x04;			// Floating point output
+static constexpr uint8_t kFlagPartial = 0x10;		// This frameset is not complete
 static constexpr uint8_t kFlagMultiple = 0x80;		// Multiple video frames in single packet
 
 /**

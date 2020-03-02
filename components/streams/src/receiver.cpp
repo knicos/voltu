@@ -27,9 +27,18 @@ Receiver::Receiver(nlohmann::json &config) : ftl::Configurable(config), stream_(
 	timestamp_ = 0;
 	second_channel_ = Channel::Depth;
 
+	size_t bsize = value("frameset_buffer_size", 3);
 	for (int i=0; i<ftl::stream::kMaxStreams; ++i) {
 		builder_[i].setID(i);
+		builder_[i].setBufferSize(bsize);
 	}
+
+	on("frameset_buffer_size", [this](const ftl::config::Event &e) {
+		size_t bsize = value("frameset_buffer_size", 3);
+		for (int i=0; i<ftl::stream::kMaxStreams; ++i) {
+			builder_[i].setBufferSize(bsize);
+		}
+	});
 }
 
 Receiver::~Receiver() {
@@ -160,7 +169,8 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 		fs.id = 0;
 		fs.timestamp = frame.timestamp;
 		fs.count = 1;
-		fs.stale = false;
+		//fs.stale = false;
+		fs.clear(ftl::data::FSFlag::STALE);
 		frame.frame.swapTo(fs.frames.emplace_back());
 
 		audio_cb_(fs);
@@ -216,6 +226,11 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	}*/
 
 	bool apply_Y_filter = value("apply_Y_filter", true);
+
+	// Mark a frameset as being partial
+	if (pkt.flags & ftl::codecs::kFlagPartial) {
+		builder_[spkt.streamID].markPartial(spkt.timestamp);
+	}
 
 	// Now split the tiles from surface into frames, doing colour conversions
 	// at the same time.

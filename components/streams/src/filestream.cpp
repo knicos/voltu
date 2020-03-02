@@ -137,7 +137,7 @@ bool File::readPacket(std::tuple<ftl::codecs::StreamPacket,ftl::codecs::Packet> 
 			obj.convert(data);
 		} catch (std::exception &e) {
 			LOG(INFO) << "Corrupt message: " << buffer_in_.nonparsed_size() << " - " << e.what();
-			active_ = false;
+			//active_ = false;
 			return false;
 		}
 
@@ -249,6 +249,8 @@ bool File::tick(int64_t ts) {
 	timestamp_ += interval_;
 
 	if (data_.size() == 0 && value("looping", true)) {
+		buffer_in_.reset();
+		buffer_in_.remove_nonparsed_buffer();
 		_open();
 
 		timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();

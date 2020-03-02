@@ -64,6 +64,8 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 			}
 
 			for (size_t j=0; j<in.frames.size(); ++j) {
+				if (!in.hasFrame(j)) continue;
+				
 				auto *instance = i.instances[j&0x1];
 
 				if (instance->enabled()) {
