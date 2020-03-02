@@ -81,6 +81,7 @@ ftl::gui::Screen::Screen(ftl::Configurable *proot, ftl::net::Universe *pnet, ftl
 	ctrl_ = controller;
 	root_ = proot;
 	camera_ = nullptr;
+	last_stats_count_ = 0;
 
 	#ifdef HAVE_OPENVR
 	HMD_ = nullptr;
@@ -590,15 +591,14 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 	if (root()->value("show_information", true)) {
 		string msg;
 
-		// FIXME: Do not do this every frame, or cache the results every N frames...
+		auto &stats = getStatistics();
 
-		auto [fps,latency] = ftl::rgbd::Builder::getStatistics();
-		msg = string("Frame rate: ") + std::to_string((int)fps);
+		msg = string("Frame rate: ") + std::to_string((int)stats.fps);
 		nvgText(ctx, screenSize[0]-10, 20, msg.c_str(), NULL);
-		msg = string("Latency: ") + std::to_string((int)latency) + string("ms");
+		msg = string("Latency: ") + std::to_string((int)stats.latency) + string("ms");
 		nvgText(ctx, screenSize[0]-10, 40, msg.c_str(), NULL);	
 
-		msg = string("Bitrate: ") + to_string_with_precision(ftl::stream::Net::getRequiredBitrate(), 2) + string("Mbps");
+		msg = string("Bitrate: ") + to_string_with_precision(stats.bitrate, 2) + string("Mbps");
 		nvgText(ctx, screenSize[0]-10, 60, msg.c_str(), NULL);
 
 		if (camera_) {
@@ -615,6 +615,17 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 	/* Draw the user interface */
 	screen()->performLayout(ctx);
 	nanogui::Screen::draw(ctx);
+}
+
+const ftl::gui::Statistics &ftl::gui::Screen::getStatistics() {
+	if (--last_stats_count_ <= 0) {
+		auto [fps,latency] = ftl::rgbd::Builder::getStatistics();
+		stats_.fps = fps;
+		stats_.latency = latency;
+		stats_.bitrate = ftl::stream::Net::getRequiredBitrate();
+		last_stats_count_ = 20;
+	}
+	return stats_;
 }
 
 void ftl::gui::Screen::drawFast() {

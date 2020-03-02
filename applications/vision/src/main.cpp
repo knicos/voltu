@@ -75,9 +75,17 @@ static void run(ftl::Configurable *root) {
 	source->setChannel(Channel::Depth);
 	grp->addSource(source);
 
-	grp->onFrameSet([sender](ftl::rgbd::FrameSet &fs) {
+	int stats_count = 0;
+
+	grp->onFrameSet([sender,&stats_count](ftl::rgbd::FrameSet &fs) {
 		fs.id = 0;
 		sender->post(fs);
+
+		if (--stats_count <= 0) {
+			auto [fps,latency] = ftl::rgbd::Builder::getStatistics();
+			LOG(INFO) << "Frame rate: " << fps << ", Latency: " << latency;
+			stats_count = 20;
+		}
 		return true;
 	});
 

@@ -23,6 +23,12 @@ namespace gui {
 class Camera;
 class MediaPanel;
 
+struct Statistics {
+	float fps;
+	float latency;
+	float bitrate;
+};
+
 class Screen : public nanogui::Screen {
 	public:
 	explicit Screen(ftl::Configurable *root, ftl::net::Universe *net, ftl::ctrl::Master *controller);
@@ -45,6 +51,8 @@ class Screen : public nanogui::Screen {
 
 	void setActiveCamera(ftl::gui::Camera*);
 	ftl::gui::Camera *activeCamera() { return camera_; }
+
+	const ftl::gui::Statistics &getStatistics();
 
 #ifdef HAVE_OPENVR
 	// initialize OpenVR
@@ -108,6 +116,9 @@ class Screen : public nanogui::Screen {
 	#ifdef HAVE_OPENVR
 	vr::IVRSystem *HMD_;
 	#endif
+
+	ftl::gui::Statistics stats_;
+	int last_stats_count_;
 };
 
 }
