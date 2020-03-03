@@ -155,6 +155,11 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		} else if (path.rfind("device:", 0) == 0) {
 			ftl::URI uri(path);
 			uri.to_json(screen->root()->getConfig()["sources"].emplace_back());
+		} else {
+			ftl::URI uri(path);
+			if (uri.getScheme() == ftl::URI::SCHEME_TCP) {
+				screen->net()->connect(path);
+			}
 		}
 	}
 
@@ -325,19 +330,35 @@ void SourceWindow::_updateCameras(const vector<string> &netcams) {
 	if (netcams.size() == 0) return;
 
 	for (auto s : netcams) {
+		LOG(INFO) << "ADDING CAMERA: " << s;
+
+		if (available_.count(s) == 0) {
+			auto *stream = ftl::create<ftl::stream::Net>(screen_->root(), string("netstream")+std::to_string(available_.size()-1), screen_->net());
+			available_[s] = stream;
+			stream->set("uri", s);
+			bool isspecial = (stream->get<std::string>("uri") == screen_->root()->value("data_stream",std::string("")));
+			stream_->add(stream, (isspecial) ? 1 : 0);
+
+			LOG(INFO) << "Add Stream: " << stream->value("uri", std::string("NONE"));
+		}
+
 		// FIXME: Check for already existing...
 		//if (streams_.find(s) == cameras_.end()) {
-			available_.push_back(s);
-			json_t srcjson;
-			srcjson["uri"] = s;
-			screen_->root()->getConfig()["streams"].push_back(srcjson);
+			//available_.push_back(s);
+			//json_t srcjson;
+			//srcjson["uri"] = s;
+			//screen_->root()->getConfig()["streams"].push_back(srcjson);
+
 			//screen_->root()->getConfig()["receivers"].push_back(json_t{});
 		//}
 	}
 
-	std::vector<ftl::stream::Net*> strms = ftl::createArray<ftl::stream::Net>(screen_->root(), "streams", screen_->net());
+	//stream_->reset();
+	stream_->begin();
 
-	for (int i=0; i<strms.size(); ++i) {
+	//std::vector<ftl::stream::Net*> strms = ftl::createArray<ftl::stream::Net>(screen_->root(), "streams", screen_->net());
+
+	/*for (int i=0; i<strms.size(); ++i) {
 		auto *stream = strms[i];
 		bool isspecial = (stream->get<std::string>("uri") == screen_->root()->value("data_stream",std::string("")));
 		if (isspecial) LOG(INFO) << "Adding special stream";
@@ -348,18 +369,8 @@ void SourceWindow::_updateCameras(const vector<string> &netcams) {
 		//Scene *scene = new Scene(receiver);
 		//scenes_.push_back(scene);
 
-		/*if (.find(src->getURI()) == cameras_.end()) {
-			LOG(INFO) << "Making camera: " << src->getURI();
 
-			// TODO: Need to have GUI wrapper for an entire stream... which
-			// manages a set of cameras.
-
-			auto *cam = new ftl::gui::Camera(screen_, src);
-			cameras_[src->getURI()] = cam;
-		} else {
-			//LOG(INFO) << "Camera already exists: " << s;
-		}*/
-	}
+	}*/
 
 	//refresh_thumbs_ = true;
 	//if (thumbs_.size() != available_.size()) {

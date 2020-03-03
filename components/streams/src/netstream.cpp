@@ -133,6 +133,7 @@ bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet 
 }
 
 bool Net::begin() {
+	if (active_) return true;
 	if (!get<string>("uri")) return false;
 	active_ = true;
 

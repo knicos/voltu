@@ -9,6 +9,7 @@
 #include <ftl/threads.hpp>
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <string>
 #include "gltexture.hpp"
 
@@ -66,7 +67,7 @@ class SourceWindow : public nanogui::Window {
 	ftl::stream::Intercept *interceptor_;
 	ftl::stream::File *recorder_;
 	ftl::stream::Receiver *receiver_;
-	std::vector<std::string> available_;
+	std::unordered_map<std::string, ftl::stream::Stream*> available_;
 	std::vector<GLTexture> thumbs_;
 	bool refresh_thumbs_;
 	nanogui::Widget *ipanel_;
