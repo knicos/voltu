@@ -1,6 +1,9 @@
 #include "ftl/operators/detectandtrack.hpp"
 #include "ftl/codecs/transformation.hpp"
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::operators::ArUco;
 using ftl::rgbd::Frame;
 
@@ -18,18 +21,22 @@ ArUco::ArUco(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
 	params_ = cv::aruco::DetectorParameters::create();
 
 	debug_ = cfg->value("debug", false);
-	estimate_pose_ = cfg->value("estimate_pose", false);
-	auto marker_size = cfg->get<float>("marker_size");
-	if (!marker_size || (*marker_size < 0.0f)) {
-		marker_size_ = 0.0;
-		estimate_pose_ = false;
-	}
-	else {
-		marker_size_ = *marker_size;
-	}
+	//estimate_pose_ = cfg->value("estimate_pose", false);
+	//auto marker_size = cfg->get<float>("marker_size");
+	//if (!marker_size || (*marker_size <= 0.0f)) {
+	//	marker_size_ = 0.1f;
+	//	estimate_pose_ = false;
+	//}
+	//else {
+	//	marker_size_ = *marker_size;
+	//}
 
 	channel_in_ = Channel::Colour;
 	channel_out_ = Channel::Transforms;
+
+	cfg->on("dictionary", [this,cfg](const ftl::config::Event &e) {
+		dictionary_ = cv::aruco::getPredefinedDictionary(cfg->value("dictionary", 0));
+	});
 }
 
 bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
@@ -37,6 +44,10 @@ bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 	Frame *inptr = &in;
 	Frame *outptr = &out;
+
+	estimate_pose_ = config()->value("estimate_pose", false);
+	debug_ = config()->value("debug", false);
+	marker_size_ = config()->value("marker_size",0.1f);
 
 	job_ = std::move(ftl::pool.push([this,inptr,outptr,stream](int id) {
 		Frame &in = *inptr;
