@@ -157,7 +157,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 			uri.to_json(screen->root()->getConfig()["sources"].emplace_back());
 		} else {
 			ftl::URI uri(path);
-			if (uri.getScheme() == ftl::URI::SCHEME_TCP) {
+			if (uri.getScheme() == ftl::URI::SCHEME_TCP || uri.getScheme() == ftl::URI::SCHEME_WS) {
 				screen->net()->connect(path);
 			}
 		}

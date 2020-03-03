@@ -191,6 +191,11 @@ static void run(ftl::Configurable *root) {
 				sender->post(fs);
 				return true;
 			});
+		} else {
+			ftl::URI uri(path);
+			if (uri.getScheme() == ftl::URI::SCHEME_TCP || uri.getScheme() == ftl::URI::SCHEME_WS) {
+				net->connect(path)->waitConnection();
+			}
 		}
 	}
 
