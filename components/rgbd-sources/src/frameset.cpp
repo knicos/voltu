@@ -87,21 +87,15 @@ Builder::~Builder() {
 	}
 }
 
-ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
-	if (timestamp <= 0 || ix >= kMaxFramesInSet) throw FTL_Error("Invalid frame timestamp or index");
+ftl::rgbd::FrameSet *Builder::get(int64_t timestamp) {
+	if (timestamp <= 0) throw FTL_Error("Invalid frame timestamp");
 
 	UNIQUE_LOCK(mutex_, lk);
 
-	//LOG(INFO) << "BUILDER PUSH: " << timestamp << ", " << ix << ", " << size_;
+	return _get(timestamp);
+}
 
-	// Size is determined by largest frame index received... note that size
-	// cannot therefore reduce.
-	if (ix >= size_) {
-		size_ = ix+1;
-		states_.resize(size_);
-	}
-	//states_[ix] = frame.origin();
-
+ftl::rgbd::FrameSet *Builder::_get(int64_t timestamp) {
 	if (timestamp <= last_frame_) {
 		throw FTL_Error("Frameset already completed: " << timestamp);
 	}
@@ -119,6 +113,25 @@ ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
 	if (fs->test(ftl::data::FSFlag::STALE)) {
 		throw FTL_Error("Frameset already completed");
 	}
+	return fs;
+}
+
+ftl::rgbd::Frame &Builder::get(int64_t timestamp, size_t ix) {
+	if (timestamp <= 0 || ix >= kMaxFramesInSet) throw FTL_Error("Invalid frame timestamp or index");
+
+	UNIQUE_LOCK(mutex_, lk);
+
+	//LOG(INFO) << "BUILDER PUSH: " << timestamp << ", " << ix << ", " << size_;
+
+	// Size is determined by largest frame index received... note that size
+	// cannot therefore reduce.
+	if (ix >= size_) {
+		size_ = ix+1;
+		states_.resize(size_);
+	}
+	//states_[ix] = frame.origin();
+
+	auto *fs = _get(timestamp);
 
 	if (ix >= fs->frames.size()) {
 		throw FTL_Error("Frame index out-of-bounds");

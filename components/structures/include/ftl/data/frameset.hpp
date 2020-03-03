@@ -106,6 +106,8 @@ class FrameSet {
 		data_channels_.clear();
 	}
 
+	ftl::codecs::Channels<2048> getDataChannels() const { return data_channels_; }
+
 	private:
 	std::unordered_map<int, std::vector<unsigned char>> data_;
 	ftl::codecs::Channels<2048> data_channels_;

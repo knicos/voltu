@@ -123,6 +123,11 @@ class Builder : public Generator {
 	ftl::rgbd::Frame &get(int64_t timestamp, size_t ix);
 
 	/**
+	 * Get the entire frameset for a given timestamp.
+	 */
+	ftl::rgbd::FrameSet *get(int64_t timestamp);
+
+	/**
 	 * Mark a frame as completed.
 	 */
 	void completed(int64_t ts, size_t ix);
@@ -171,6 +176,7 @@ class Builder : public Generator {
 
 	/* Find a frameset with given latency in frames. */
 	ftl::rgbd::FrameSet *_getFrameset();
+	ftl::rgbd::FrameSet *_get(int64_t timestamp);
 
 	/* Search for a matching frameset. */
 	ftl::rgbd::FrameSet *_findFrameset(int64_t ts);

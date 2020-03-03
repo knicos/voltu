@@ -133,8 +133,15 @@ void Receiver::_processState(const StreamPacket &spkt, const Packet &pkt) {
 
 void Receiver::_processData(const StreamPacket &spkt, const Packet &pkt) {
 	//InternalVideoStates &frame = _getVideoFrame(spkt);
-	auto &frame = builder_[spkt.streamID].get(spkt.timestamp, spkt.frame_number);
-	frame.createRawData(spkt.channel, pkt.data);
+	if (spkt.frameNumber() == 255) {
+		auto *fs = builder_[spkt.streamID].get(spkt.timestamp);
+		if (fs) {
+			fs->createRawData(spkt.channel, pkt.data);
+		}
+	} else {
+		auto &frame = builder_[spkt.streamID].get(spkt.timestamp, spkt.frame_number);
+		frame.createRawData(spkt.channel, pkt.data);
+	}
 }
 
 void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
@@ -353,6 +360,12 @@ void Receiver::setStream(ftl::stream::Stream *s) {
 		// TODO: Allow for multiple framesets
 		//if (spkt.frameSetID() > 0) LOG(INFO) << "Frameset " << spkt.frameSetID() << " received: " << (int)spkt.channel;
 		if (spkt.frameSetID() >= ftl::stream::kMaxStreams) return;
+
+		// Frameset level data channels
+		if (spkt.frameNumber() == 255 && pkt.data.size() > 0) {
+			_processData(spkt,pkt);
+			return;
+		}
 
 		// Too many frames, so ignore.
 		if (spkt.frameNumber() >= value("max_frames",32)) return;

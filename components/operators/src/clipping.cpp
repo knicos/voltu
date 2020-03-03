@@ -61,14 +61,17 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 	in.create(Channel::Shapes3D, shapes);
 		
 	for (size_t i=0; i<in.frames.size(); ++i) {	
+		if (!in.hasFrame(i)) continue;
 		auto &f = in.frames[i];
 		//auto *s = in.sources[i];
 
-		auto pose = MatrixConversion::toCUDA(f.getPose().cast<float>());
+		if (f.hasChannel(Channel::Depth)) {
+			auto pose = MatrixConversion::toCUDA(f.getPose().cast<float>());
 
-		auto sclip = clip;
-		sclip.origin = sclip.origin.getInverse() * pose;
-		if (!no_clip) ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getLeftCamera(), sclip, stream);
+			auto sclip = clip;
+			sclip.origin = sclip.origin.getInverse() * pose;
+			if (!no_clip) ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getLeftCamera(), sclip, stream);
+		}
 	}
 
 	return true;

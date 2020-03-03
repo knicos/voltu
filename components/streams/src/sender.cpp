@@ -139,6 +139,25 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 
 	FTL_Profile("SenderPost", 0.02);
 
+	// Send any frameset data channels
+	for (auto c : fs.getDataChannels()) {
+		StreamPacket spkt;
+		spkt.version = 4;
+		spkt.timestamp = fs.timestamp;
+		spkt.streamID = 0; //fs.id;
+		spkt.frame_number = 255;
+		spkt.channel = c;
+
+		ftl::codecs::Packet pkt;
+		pkt.codec = ftl::codecs::codec_t::MSGPACK;
+		pkt.definition = ftl::codecs::definition_t::Any;
+		pkt.frame_count = 1;
+		pkt.flags = 0;
+		pkt.bitrate = 0;
+		pkt.data = fs.getRawData(c);
+		stream_->post(spkt, pkt);
+	}
+
     for (size_t i=0; i<fs.frames.size(); ++i) {
         const auto &frame = fs.frames[i];
 
