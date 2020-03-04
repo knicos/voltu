@@ -63,7 +63,12 @@ static void run(ftl::Configurable *root) {
 
 	Source *source = nullptr;
 	source = ftl::create<Source>(root, "source", net);
-	if (file != "") source->set("uri", file);
+	if (file != "") {
+		//source->set("uri", file);
+		ftl::URI uri(file);
+		uri.to_json(source->getConfig());
+		source->set("uri", uri.getBaseURI());
+	}
 	
 	ftl::stream::Sender *sender = ftl::create<ftl::stream::Sender>(root, "sender");
 	ftl::stream::Net *outstream = ftl::create<ftl::stream::Net>(root, "stream", net);

@@ -30,6 +30,7 @@ set(OPERSRC
 	src/aruco.cpp
 	src/weighting.cpp
 	src/weighting.cu
+	src/poser.cpp
 )
 
 if (LIBSGM_FOUND)

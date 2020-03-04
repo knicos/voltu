@@ -228,12 +228,16 @@ bool Net::begin() {
 		// TODO: Register URI as available.
 		host_ = true;
 		return true;
+	} else {
+		//LOG(INFO) << "Net cfg: " << net_->call<std::string>(*p, "get_cfg", uri_);
 	}
 
 	host_ = false;
 	peer_ = *p;
 	tally_ = 30*kTallyScale;
 	for (size_t i=0; i<reqtally_.size(); ++i) reqtally_[i] = 0;
+
+	LOG(INFO) << "SEND REQUESTS FOR: " << uri_;
 	
 	// Initially send a colour request just to create the connection
 	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 0);

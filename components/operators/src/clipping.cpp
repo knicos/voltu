@@ -3,6 +3,9 @@
 #include <ftl/utility/matrix_conversion.hpp>
 #include <ftl/codecs/shapes.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::operators::ClipScene;
 using ftl::codecs::Channel;
 using ftl::rgbd::Format;
@@ -56,7 +59,10 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 	bool no_clip = config()->value("no_clip", false);
 
 	std::vector<ftl::codecs::Shape3D> shapes;
-	if (in.hasChannel(Channel::Shapes3D)) in.get(Channel::Shapes3D, shapes);
+	if (in.hasChannel(Channel::Shapes3D)) {
+		in.get(Channel::Shapes3D, shapes);
+		LOG(INFO) << "Already has shapes: " << shapes.size();
+	}
 	shapes.push_back(shape);
 	in.create(Channel::Shapes3D, shapes);
 		

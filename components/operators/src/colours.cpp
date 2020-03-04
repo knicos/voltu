@@ -65,7 +65,7 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 				//cv::cuda::resize(right, rbuf_, depth.size(), 0.0, 0.0, cv::INTER_LINEAR, cvstream);
 				//cv::cuda::swap(right, rbuf_);
 
-				throw FTL_Error("Depth and colour channels and different resolutions: " << depth.rows << " vs " << col.rows);
+				throw FTL_Error("Depth and colour channels and different resolutions: " << depth.size() << " vs " << right.size());
 			}
 		}
 	}

@@ -1,5 +1,9 @@
 #include "ftl/operators/detectandtrack.hpp"
-#include "ftl/codecs/transformation.hpp"
+#include "ftl/codecs/shapes.hpp"
+
+#include <Eigen/Eigen>
+#include <opencv2/core/eigen.hpp>
+#include <opencv2/calib3d.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -8,13 +12,30 @@ using ftl::operators::ArUco;
 using ftl::rgbd::Frame;
 
 using ftl::codecs::Channel;
-using ftl::codecs::Transformation;
+using ftl::codecs::Shape3D;
 
 using cv::Mat;
 using cv::Point2f;
 using cv::Vec3d;
 
 using std::vector;
+
+static cv::Mat rmat(cv::Vec3d &rvec) {
+	cv::Mat R(cv::Size(3, 3), CV_64FC1);
+	cv::Rodrigues(rvec, R);
+	return R;
+}
+
+static Eigen::Matrix4d matrix(cv::Vec3d &rvec, cv::Vec3d &tvec) {
+	cv::Mat M = cv::Mat::eye(cv::Size(4, 4), CV_64FC1);
+	rmat(rvec).copyTo(M(cv::Rect(0, 0, 3, 3)));
+	M.at<double>(0, 3) = tvec[0];
+	M.at<double>(1, 3) = tvec[1];
+	M.at<double>(2, 3) = tvec[2];
+	Eigen::Matrix4d r;
+	cv::cv2eigen(M,r);
+	return r;
+}
 
 ArUco::ArUco(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
 	dictionary_ = cv::aruco::getPredefinedDictionary(cfg->value("dictionary", 0));
@@ -32,7 +53,7 @@ ArUco::ArUco(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
 	//}
 
 	channel_in_ = Channel::Colour;
-	channel_out_ = Channel::Transforms;
+	channel_out_ = Channel::Shapes3D;
 
 	cfg->on("dictionary", [this,cfg](const ftl::config::Event &e) {
 		dictionary_ = cv::aruco::getPredefinedDictionary(cfg->value("dictionary", 0));
@@ -77,10 +98,19 @@ bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 			cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, K, dist, rvecs, tvecs);
 		}
 
-		vector<Transformation> result;
+		vector<Shape3D> result;
+		if (out.hasChannel(channel_out_)) {
+			out.get(channel_out_, result);
+		}
+
 		for (size_t i = 0; i < rvecs.size(); i++) {
 			if (estimate_pose_) {
-				result.push_back(ftl::codecs::Transformation(ids[i], rvecs[i], tvecs[i]));
+				auto &t = result.emplace_back();
+				t.id = ids[i];
+				t.type = ftl::codecs::Shape3DType::ARUCO;
+				t.pose = (in.getPose() * matrix(rvecs[i], tvecs[i])).cast<float>();
+				t.size = Eigen::Vector3f(0.1f,0.1f,0.1f);
+				t.label = "Aruco";
 			}
 		}
 

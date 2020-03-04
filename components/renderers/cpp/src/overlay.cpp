@@ -335,9 +335,17 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 				fs.frames[i].get(Channel::Shapes3D, shapes);
 
 				for (auto &s : shapes) {
-					auto pose = s.pose.cast<double>().inverse() * state.getPose();
-					Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
-					pos /= pos[3];
+					auto pose = s.pose.cast<double>(); //.inverse() * state.getPose();
+					//Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+					//pos /= pos[3];
+
+                    Eigen::Vector3f scale(s.size[0]/2.0f, s.size[1]/2.0f, s.size[2]/2.0f);
+
+                    switch (s.type) {
+                    case ftl::codecs::Shape3DType::CLIPPING: _drawOutlinedShape(Shape::BOX, state.getPose().inverse() * pose, scale, make_uchar4(255,0,255,80), make_uchar4(255,0,255,255)); break;
+                    case ftl::codecs::Shape3DType::ARUCO: _drawAxis(state.getPose().inverse() * pose, Eigen::Vector3f(0.2f, 0.2f, 0.2f)); break;
+                    default: break;
+                    }
 
 					//ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
 					//ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
