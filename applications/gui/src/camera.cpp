@@ -47,9 +47,11 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 
 ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::codecs::Channel c)
 		: screen_(screen), fsmask_(fsmask), fid_(fid), texture1_(GLTexture::Type::BGRA), texture2_(GLTexture::Type::BGRA), depth1_(GLTexture::Type::Float), channel_(c),channels_(0u) {
-	eye_ = Eigen::Vector3d(0.0f, 0.0f, 0.0f);
-	neye_ = Eigen::Vector4d(0.0f, 0.0f, 0.0f, 0.0f);
+	
+	eye_ = Eigen::Vector3d::Zero();
+	neye_ = Eigen::Vector4d::Zero();
 	rotmat_.setIdentity();
+	
 	//up_ = Eigen::Vector3f(0,1.0f,0);
 	lerpSpeed_ = 0.999f;
 	sdepth_ = false;
@@ -99,12 +101,33 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 		state_.getLeft() = ftl::rgbd::Camera::from(intrinsics_);
 		state_.getRight() = state_.getLeft();
 
-		Eigen::Matrix4d pose;
-		pose.setIdentity();
-		state_.setPose(pose);
+		{
+			Eigen::Matrix4d pose;
+			pose.setIdentity();
+			state_.setPose(pose);
 
-		for (auto &t : transforms_) {
-			t.setIdentity();
+			for (auto &t : transforms_) {
+				t.setIdentity();
+			}
+		}
+		{
+			double camera_initial_x = intrinsics_->value("camera_x", 0.0);
+			double camera_initial_y = intrinsics_->value("camera_y", -1.75);
+			double camera_initial_z = intrinsics_->value("camera_z", 0.0);
+
+			double lookat_initial_x = intrinsics_->value("lookat_x", 1.0);
+			double lookat_initial_y = intrinsics_->value("lookat_y", 0.0);
+			double lookat_initial_z = intrinsics_->value("lookat_z", 0.0);
+
+			Eigen::Vector3f head(camera_initial_x, camera_initial_y, camera_initial_z);
+			Eigen::Vector3f lookat(lookat_initial_x, lookat_initial_y, lookat_initial_z);
+			// TODO up vector
+			Eigen::Matrix4f pose = nanogui::lookAt(head, head+lookat, Eigen::Vector3f(0.0f, 1.0f, 0.0f));
+
+			eye_ = Eigen::Vector3d(camera_initial_x, camera_initial_y, camera_initial_z);
+			neye_ = Eigen::Vector4d(eye_(0), eye_(1), eye_(2), 0.0);
+			rotmat_ = pose.cast<double>();
+			rotmat_.block(0, 3, 3, 1).setZero();
 		}
 	}
 }
