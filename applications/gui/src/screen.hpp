@@ -109,6 +109,8 @@ class Screen : public nanogui::Screen {
 	GLuint leftEye_;
 	GLuint rightEye_;
 
+	std::vector<cv::Point3d> points_;
+
 	bool show_two_images_ = false;
 
 	ftl::Configurable *shortcuts_;

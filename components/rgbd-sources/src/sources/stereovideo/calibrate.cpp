@@ -11,7 +11,6 @@
 #include "calibrate.hpp"
 #include "ftl/exception.hpp"
 
-
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
 #include <opencv2/imgproc.hpp>
@@ -54,6 +53,7 @@ Calibrate::Calibrate(nlohmann::json &config, Size image_size, cv::cuda::Stream &
 	D_[0] = Mat::zeros(Size(5, 1), CV_64FC1);
 	D_[1] = Mat::zeros(Size(5, 1), CV_64FC1);
 	pose_ = Mat::eye(Size(4, 4), CV_64FC1);
+	pose_adjustment_ = Mat::eye(Size(4, 4), CV_64FC1);
 	Q_ = Mat::eye(Size(4, 4), CV_64FC1);
 	Q_.at<double>(3, 2) = -1;
 	Q_.at<double>(2, 3) = 1;
@@ -120,7 +120,7 @@ Mat Calibrate::getPose() const {
 	else {
 		pose_.copyTo(T);
 	}
-	return T;
+	return pose_adjustment_ * T;
 }
 
 bool Calibrate::setRectify(bool enabled) {
@@ -172,6 +172,12 @@ bool Calibrate::setPose(const Mat &P) {
 	return true;
 }
 
+bool Calibrate::setPoseAdjustment(const Mat &T) {
+	if (!ftl::calibration::validate::pose(T)) { return false; }
+	pose_adjustment_ = T * pose_adjustment_;
+	return true;
+}
+
 bool Calibrate::loadCalibration(const string &fname) {
 	FileStorage fs;
 
@@ -187,6 +193,7 @@ bool Calibrate::loadCalibration(const string &fname) {
 	Mat R;
 	Mat t;
 	Mat pose;
+	Mat pose_adjustment;
 
 	fs["resolution"] >> calib_size;
 	fs["K"] >> K;
@@ -194,6 +201,7 @@ bool Calibrate::loadCalibration(const string &fname) {
 	fs["R"] >> R;
 	fs["t"] >> t;
 	fs["P"] >> pose;
+	fs["adjustment"] >> pose_adjustment;
 	fs.release();
 
 	bool retval = true;
@@ -217,6 +225,9 @@ bool Calibrate::loadCalibration(const string &fname) {
 		LOG(ERROR) << "invalid pose in calibration file";
 		retval = false;
 	}
+	if (!setPoseAdjustment(pose_adjustment)) {
+		LOG(WARNING) << "invalid pose adjustment in calibration file (using identity)";
+	}
 
 	LOG(INFO) << "calibration loaded from: " << fname;
 	return retval;
@@ -224,7 +235,8 @@ bool Calibrate::loadCalibration(const string &fname) {
 
 bool Calibrate::writeCalibration(	const string &fname, const Size &size,
 									const vector<Mat> &K, const vector<Mat> &D, 
-									const Mat &R, const Mat &t, const Mat &pose) {
+									const Mat &R, const Mat &t, const Mat &pose,
+									const Mat &pose_adjustment) {
 	
 	cv::FileStorage fs(fname, cv::FileStorage::WRITE);
 	if (!fs.isOpened()) { return false; }
@@ -235,6 +247,7 @@ bool Calibrate::writeCalibration(	const string &fname, const Size &size,
 		<< "R" << R
 		<< "t" << t
 		<< "P" << pose
+		<< "adjustment" << pose_adjustment;
 	;
 	
 	fs.release();
@@ -249,7 +262,7 @@ bool Calibrate::saveCalibration(const string &fname) {
 	//	// copy to fname + ".bak"
 	//}
 
-	return writeCalibration(fname, calib_size_, K_, D_, R_, t_, pose_);
+	return writeCalibration(fname, calib_size_, K_, D_, R_, t_, pose_, pose_adjustment_);
 }
 
 bool Calibrate::calculateRectificationParameters() {

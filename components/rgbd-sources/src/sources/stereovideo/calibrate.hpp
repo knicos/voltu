@@ -144,6 +144,11 @@ class Calibrate : public ftl::Configurable {
 	bool setPose(const cv::Mat &P);
 
 	/**
+	 * @brief	Set adjustment, which is applied to pose: T_update*T_pose 
+	 */
+	bool setPoseAdjustment(const cv::Mat &T);
+
+	/**
 	 * @brief	Calculate rectification parameters and maps. Can fail if
 	 * 			calibration parameters are invalid.
 	 * @returns	true if successful
@@ -177,7 +182,8 @@ class Calibrate : public ftl::Configurable {
 								const std::vector<cv::Mat> &K,
 								const std::vector<cv::Mat> &D,
 								const cv::Mat &R, const cv::Mat &t,
-								const cv::Mat &pose);
+								const cv::Mat &pose,
+								const cv::Mat &pose_adjustment);
 
 	/*	@brief	Save current calibration to file
 	 *	@param	File name
@@ -225,6 +231,7 @@ private:
 	cv::Mat t_;
 	// pose for left camera
 	cv::Mat pose_;
+	cv::Mat pose_adjustment_;
 };
 
 }

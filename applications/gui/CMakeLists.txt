@@ -42,4 +42,6 @@ target_include_directories(ftl-gui PUBLIC
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(ftl-gui ftlcommon ftlctrl ftlrgbd ftlstreams ftlrender Threads::Threads ${OpenCV_LIBS} openvr ftlnet nanogui ${NANOGUI_EXTRA_LIBS})
 
-
+if (BUILD_TESTS)
+	add_subdirectory(test)
+endif()

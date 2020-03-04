@@ -201,7 +201,12 @@ public:
 	/**
 	 * Change the pose of the origin state and mark as changed.
 	 */
-	void setPose(const Eigen::Matrix4d &pose);
+	void setPose(const Eigen::Matrix4d &pose, bool mark=true);
+
+	/**
+	 * Change the pose of the origin state and mark as changed.
+	 */
+	void patchPose(const Eigen::Matrix4d &pose);
 
 	/**
 	 * Wrapper to access left settings channel.
@@ -505,8 +510,16 @@ const typename STATE::Settings &ftl::data::Frame<BASE,N,STATE,DATA>::getRight() 
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
-void ftl::data::Frame<BASE,N,STATE,DATA>::setPose(const Eigen::Matrix4d &pose) {
-	if (origin_) origin_->setPose(pose);
+void ftl::data::Frame<BASE,N,STATE,DATA>::setPose(const Eigen::Matrix4d &pose, bool mark) {
+	if (origin_) {
+		if (mark) origin_->setPose(pose);
+		else origin_->getPose() = pose;
+	}
+}
+
+template <int BASE, int N, typename STATE, typename DATA>
+void ftl::data::Frame<BASE,N,STATE,DATA>::patchPose(const Eigen::Matrix4d &pose) {
+	state_.getPose() = pose * state_.getPose();
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
