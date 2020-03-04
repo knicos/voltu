@@ -130,6 +130,13 @@ static void run(ftl::Configurable *root) {
 	sender->setStream(outstream);
 
 	ftl::audio::Source *audioSrc = nullptr;
+	// TODO: Temporary reconstruction local audio source for testing
+	audioSrc = ftl::create<ftl::audio::Source>(root, "audio_test");
+
+	audioSrc->onFrameSet([sender](ftl::audio::FrameSet &fs) {
+		sender->post(fs);
+		return true;
+	});
 
 	std::vector<Source*> sources;
 	// Create a vector of all input RGB-Depth sources
@@ -183,14 +190,6 @@ static void run(ftl::Configurable *root) {
 			});
 			groups.push_back(reconstr);
 			++i;
-
-			// TODO: Temporary reconstruction local audio source for testing
-			audioSrc = ftl::create<ftl::audio::Source>(root, "audio_test");
-
-			audioSrc->onFrameSet([sender](ftl::audio::FrameSet &fs) {
-				sender->post(fs);
-				return true;
-			});
 		} else {
 			ftl::URI uri(path);
 			if (uri.getScheme() == ftl::URI::SCHEME_TCP || uri.getScheme() == ftl::URI::SCHEME_WS) {
@@ -218,7 +217,7 @@ static void run(ftl::Configurable *root) {
 			int count = 0;
 			for (auto &s : stream_uris) {
 				LOG(INFO) << " --- found stream: " << s;
-				auto *nstream = ftl::create<ftl::stream::Net>(stream, std::to_string(count), net);
+				auto *nstream = ftl::create<ftl::stream::Net>(stream, std::string("netstream")+std::to_string(count), net);
 				nstream->set("uri", s);
 				stream->add(nstream);
 				++count;

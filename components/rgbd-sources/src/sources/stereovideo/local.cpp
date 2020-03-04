@@ -110,8 +110,8 @@ LocalSource::LocalSource(nlohmann::json &config)
 		LOG(WARNING) << "Not able to find second camera for stereo";
 	}
 	else {
-		camera_b_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
-		camera_b_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
+		camera_b_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 1280));
+		camera_b_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 720));
 		camera_b_->set(cv::CAP_PROP_FPS, 1000 / ftl::timer::getInterval());
 		//camera_b_->set(cv::CAP_PROP_BUFFERSIZE, 0);  // Has no effect
 
@@ -121,8 +121,8 @@ LocalSource::LocalSource(nlohmann::json &config)
 	LOG(INFO) << "Video backend: " << camera_a_->getBackendName();
 	LOG(INFO) << "Video defaults: " << camera_a_->get(cv::CAP_PROP_FRAME_WIDTH) << "x" << camera_a_->get(cv::CAP_PROP_FRAME_HEIGHT) << " @ " << camera_a_->get(cv::CAP_PROP_FPS);
 
-	camera_a_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 640));
-	camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 480));
+	camera_a_->set(cv::CAP_PROP_FRAME_WIDTH, value("width", 1280));
+	camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 720));
 	camera_a_->set(cv::CAP_PROP_FPS, 1000 / ftl::timer::getInterval());
 	//camera_a_->set(cv::CAP_PROP_BUFFERSIZE, 0);  // Has no effect
 	

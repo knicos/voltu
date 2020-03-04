@@ -134,7 +134,7 @@ void CUDARender::_renderChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel i
 		auto &texture = colouriser_->colourise(f, in, stream);
 
 		auto transform = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse() * t.cast<float>().inverse()) * poseInverse_;
-		auto transformR = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse()).getFloat3x3();
+		auto transformR = MatrixConversion::toCUDA(f.getPose().cast<float>().inverse() * t.cast<float>().inverse()).getFloat3x3();
 
 		if (f.hasChannel(Channel::Depth)) {
 			ftl::cuda::reproject(
@@ -571,7 +571,7 @@ bool CUDARender::submit(ftl::rgbd::FrameSet *in, Channels<0> chans, const Eigen:
 	bool success = true;
 
 	try {
-		_renderPass1(t);
+		_renderPass1(in->pose);
 		//cudaSafeCall(cudaStreamSynchronize(stream_));
 	} catch (std::exception &e) {
 		LOG(ERROR) << "Exception in render: " << e.what();
@@ -581,7 +581,7 @@ bool CUDARender::submit(ftl::rgbd::FrameSet *in, Channels<0> chans, const Eigen:
 	auto &s = sets_.emplace_back();
 	s.fs = in;
 	s.channels = chans;
-	s.transform = t;
+	s.transform = in->pose;
 
 	last_frame_ = scene_->timestamp;
 	scene_ = nullptr;

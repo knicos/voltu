@@ -4,6 +4,9 @@
 #include <loguru.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/rgbd/source.hpp>
+#include <opencv2/calib3d.hpp>
+#include <Eigen/Eigen>
+#include <opencv2/core/eigen.hpp>
 
 using ftl::rgbd::detail::ScreenCapture;
 using ftl::codecs::Channel;
@@ -32,6 +35,24 @@ struct X11State {
 }
 }
 #endif
+
+static cv::Mat rmat(const cv::Vec3d &rvec) {
+	cv::Mat R(cv::Size(3, 3), CV_64FC1);
+	cv::Rodrigues(rvec, R);
+	return R;
+}
+
+static Eigen::Matrix4d matrix(const cv::Vec3d &rvec, const cv::Vec3d &tvec) {
+	cv::Mat M = cv::Mat::eye(cv::Size(4, 4), CV_64FC1);
+	rmat(rvec).copyTo(M(cv::Rect(0, 0, 3, 3)));
+	M.at<double>(0, 3) = tvec[0];
+	M.at<double>(1, 3) = tvec[1];
+	M.at<double>(2, 3) = tvec[2];
+	Eigen::Matrix4d r;
+	cv::cv2eigen(M,r);
+	return r;
+}
+
 
 ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
         : ftl::rgbd::detail::Source(host) {
@@ -106,7 +127,7 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
     params_.cy = -(params_.height / 2.0);
     params_.fx = 700.0;
     params_.fy = 700.0;
-    params_.maxDepth = host_->value("depth", 1.0f);
+    params_.maxDepth = host_->value("size", 1.0f);
     params_.minDepth = 0.0f;
 	params_.doffs = 0.0;
 	params_.baseline = 0.1f;
@@ -114,9 +135,14 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 	state_.getLeft() = params_;
 	state_.set("name", std::string("[ScreenCapture] ") + host_->value("name", host_->getID()));
 
-	host_->on("depth", [this](const ftl::config::Event &e) {
-		params_.maxDepth = host_->value("depth", 1.0f);
+	float offsetz = host_->value("offset_z",0.0f);
+	state_.setPose(matrix(cv::Vec3d(0.0, 3.14159, 0.0), cv::Vec3d(0.0,0.0,params_.maxDepth+offsetz)));
+
+	host_->on("size", [this](const ftl::config::Event &e) {
+		float offsetz = host_->value("offset_z",0.0f);
+		params_.maxDepth = host_->value("size", 1.0f);
 		state_.getLeft() = params_;
+		state_.setPose(matrix(cv::Vec3d(0.0, 3.14159, 0.0), cv::Vec3d(0.0,0.0,params_.maxDepth+offsetz)));
 	});
 
 	host_->on("offset_x", [this](const ftl::config::Event &e) {

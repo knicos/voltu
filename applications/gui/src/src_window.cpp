@@ -3,6 +3,7 @@
 #include "screen.hpp"
 #include "camera.hpp"
 #include "scene.hpp"
+#include "frameset_mgr.hpp"
 
 #include <ftl/profiler.hpp>
 
@@ -32,6 +33,7 @@
 #include <ftl/operators/weighting.hpp>
 #include <ftl/operators/mvmls.hpp>
 #include <ftl/operators/clipping.hpp>
+#include <ftl/operators/poser.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -87,8 +89,13 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		nanogui::Alignment::Middle, 0, 5));
 
 	screen->net()->onConnect([this](ftl::net::Peer *p) {
-		UNIQUE_LOCK(mutex_, lk);
-		_updateCameras(screen_->net()->findAll<string>("list_streams"));
+		ftl::pool.push([this](int id) {
+			// FIXME: Find better option that waiting here.
+			// Wait to make sure streams have started properly.
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			UNIQUE_LOCK(mutex_, lk);
+			_updateCameras(screen_->net()->findAll<string>("list_streams"));
+		});
 	});
 
 	UNIQUE_LOCK(mutex_, lk);
@@ -140,7 +147,6 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	// Check paths for FTL files to load.
 	auto paths = (*screen->root()->get<nlohmann::json>("paths"));
 
-	int ftl_count = available_.size();
 	for (auto &x : paths.items()) {
 		std::string path = x.value().get<std::string>();
 		auto eix = path.find_last_of('.');
@@ -149,9 +155,11 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		// Command line path is ftl file
 		if (ext == "ftl") {
 			LOG(INFO) << "Found FTL file: " << path;
-			auto *fstream = ftl::create<ftl::stream::File>(screen->root(), std::string("ftlfile-")+std::to_string(ftl_count+1));
+			int fsid = ftl::gui::mapToFrameset(path);
+			auto *fstream = ftl::create<ftl::stream::File>(screen->root(), std::string("ftlfile-")+std::to_string(fsid));
 			fstream->set("filename", path);
-			stream_->add(fstream, ftl_count++);
+			available_[path] = fstream;
+			stream_->add(fstream, fsid);
 		} else if (path.rfind("device:", 0) == 0) {
 			ftl::URI uri(path);
 			uri.to_json(screen->root()->getConfig()["sources"].emplace_back());
@@ -169,8 +177,10 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	if (screen->root()->getConfig()["sources"].size() > 0) {
 		devices = ftl::createArray<Source>(screen->root(), "sources", screen->control()->getNet());
 		auto *gen = createSourceGenerator(screen->root(), devices);
-		gen->onFrameSet([this, ftl_count](ftl::rgbd::FrameSet &fs) {
-			fs.id = ftl_count;  // Set a frameset id to something unique.
+		int fsid = ftl::gui::mapToFrameset(screen->root()->getID());
+
+		gen->onFrameSet([this, fsid](ftl::rgbd::FrameSet &fs) {
+			fs.id = fsid;  // Set a frameset id to something unique.
 			return _processFrameset(fs, false);
 		});
 	}
@@ -254,6 +264,7 @@ void SourceWindow::_checkFrameSets(int id) {
 		p->append<ftl::operators::BorderMask>("border_mask");
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
+		p->append<ftl::operators::Poser>("poser")->value("enabled", true);
 
 		pre_pipelines_.push_back(p);
 		framesets_.push_back(new ftl::rgbd::FrameSet);
@@ -329,17 +340,19 @@ std::vector<ftl::gui::Camera*> SourceWindow::getCameras() {
 void SourceWindow::_updateCameras(const vector<string> &netcams) {
 	if (netcams.size() == 0) return;
 
+	int ncount = 0;
 	for (auto s : netcams) {
-		LOG(INFO) << "ADDING CAMERA: " << s;
-
 		if (available_.count(s) == 0) {
-			auto *stream = ftl::create<ftl::stream::Net>(screen_->root(), string("netstream")+std::to_string(available_.size()-1), screen_->net());
+			auto *stream = ftl::create<ftl::stream::Net>(screen_->root(), string("netstream")+std::to_string(available_.size()), screen_->net());
 			available_[s] = stream;
 			stream->set("uri", s);
-			bool isspecial = (stream->get<std::string>("uri") == screen_->root()->value("data_stream",std::string("")));
-			stream_->add(stream, (isspecial) ? 1 : 0);
+			int fsid = ftl::gui::mapToFrameset(s);
+			stream_->add(stream, fsid);
 
-			LOG(INFO) << "Add Stream: " << stream->value("uri", std::string("NONE"));
+			LOG(INFO) << "Add Stream: " << stream->value("uri", std::string("NONE")) << " (" << fsid << ")";
+			++ncount;
+		} else {
+			LOG(INFO) << "Stream exists: " << s;
 		}
 
 		// FIXME: Check for already existing...
@@ -354,7 +367,7 @@ void SourceWindow::_updateCameras(const vector<string> &netcams) {
 	}
 
 	//stream_->reset();
-	stream_->begin();
+	if (ncount > 0) stream_->begin();
 
 	//std::vector<ftl::stream::Net*> strms = ftl::createArray<ftl::stream::Net>(screen_->root(), "streams", screen_->net());
 
