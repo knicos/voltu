@@ -32,6 +32,7 @@ class FrameSet {
 
 	int id=0;
 	int64_t timestamp;				// Millisecond timestamp of all frames
+	int64_t originClockDelta;
 	std::vector<FRAME> frames;
 	std::atomic<int> count;				// Number of valid frames
 	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
@@ -39,6 +40,8 @@ class FrameSet {
 	SHARED_MUTEX mtx;
 
 	Eigen::Matrix4d pose;  // Set to identity by default.
+
+	inline int64_t localTimestamp() const { return timestamp + originClockDelta; }
 
 	void set(FSFlag f) { flags_ |= (1 << static_cast<int>(f)); }
 	void clear(FSFlag f) { flags_ &= ~(1 << static_cast<int>(f)); }

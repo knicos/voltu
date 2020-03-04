@@ -153,6 +153,8 @@ bool Net::begin() {
 		StreamPacket spkt = spkt_raw;
 		// FIXME: see #335
 		//spkt.timestamp -= clock_adjust_;
+		spkt.originClockDelta = clock_adjust_;
+		//LOG(INFO) << "LATENCY: " << ftl::timer::get_time() - spkt.localTimestamp() << " : " << spkt.timestamp << " - " << clock_adjust_;
 		spkt.version = 4;
 
 		// Manage recuring requests
@@ -236,8 +238,6 @@ bool Net::begin() {
 	peer_ = *p;
 	tally_ = 30*kTallyScale;
 	for (size_t i=0; i<reqtally_.size(); ++i) reqtally_[i] = 0;
-
-	LOG(INFO) << "SEND REQUESTS FOR: " << uri_;
 	
 	// Initially send a colour request just to create the connection
 	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 0);
@@ -281,7 +281,7 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 	net_->send(peer_, uri_, (short)0, spkt, pkt);
 
 	// FIXME: Find a way to use this for correct stream latency info
-	if (false) {  // TODO: Not every time
+	if (false) { //if (c == Channel::Colour) {  // TODO: Not every time
 		auto start = std::chrono::high_resolution_clock::now();
 		//int64_t mastertime;
 
@@ -289,16 +289,16 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 			net_->asyncCall<int64_t>(peer_, "__ping__", [this, start](const int64_t &mastertime) {
 				auto elapsed = std::chrono::high_resolution_clock::now() - start;
 				int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-				clock_adjust_ = mastertime - (ftl::timer::get_time() + (latency/2));
+				clock_adjust_ = ftl::timer::get_time() - mastertime + (latency/2);
 
-				if (clock_adjust_ > 0) {
-					LOG(INFO) << "Clock adjustment: " << clock_adjust_;
-				}
+				//if (clock_adjust_ > 0) {
+				//	LOG(INFO) << "Clock adjustment: " << clock_adjust_;
+				//}
 			});
 		} catch (...) {
 			LOG(ERROR) << "Ping failed";
 			// Reset time peer and remove timer
-			time_peer_ = ftl::UUID(0);
+			//time_peer_ = ftl::UUID(0);
 			return false;
 		}
 	}

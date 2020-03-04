@@ -46,7 +46,6 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
 
                     idstr += std::to_string(in.id) + string("-") + std::to_string(i) + string("-") + std::to_string(t.id);
 
-                    LOG(INFO) << "POSE ID: " << idstr;
                     auto pose = t.pose.cast<double>();  // f.getPose() * 
 
                     auto p = pose_db__.find(idstr);
@@ -55,6 +54,7 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
 						ps.pose = pose;
 						ps.locked = false;
 						pose_db__.emplace(std::make_pair(idstr,ps));
+                        LOG(INFO) << "POSE ID: " << idstr;
                     } else {
                         // TODO: Merge poses
                         if (!(*p).second.locked) (*p).second.pose = pose;
