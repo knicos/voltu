@@ -119,6 +119,11 @@ static void run(ftl::Configurable *root) {
 	net->start();
 	net->waitConnections();
 
+	// TODO temporary fix to for set_pose_adjustment from gui->reconstruct->vision
+	net->bind("set_pose_adjustment",
+		[net](cv::Mat T){ net->broadcast("set_pose_adjustment", T); }
+	);
+
 	vector<ftl::Reconstruction*> groups;
 
 	ftl::codecs::Channels channels;
