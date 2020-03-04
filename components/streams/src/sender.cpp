@@ -27,7 +27,7 @@ Sender::Sender(nlohmann::json &config) : ftl::Configurable(config), stream_(null
 }
 
 Sender::~Sender() {
-    // Delete all encoders
+	// Delete all encoders
 	for (auto c : state_) {
 		if (c.second.encoder[0]) ftl::codecs::free(c.second.encoder[0]);
 		if (c.second.encoder[1]) ftl::codecs::free(c.second.encoder[1]);
@@ -36,7 +36,7 @@ Sender::~Sender() {
 
 void Sender::setStream(ftl::stream::Stream*s) {
 	if (stream_) stream_->onPacket(nullptr);
-    stream_ = s;
+	stream_ = s;
 	stream_->onPacket([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		//LOG(INFO) << "SENDER REQUEST : " << (int)spkt.channel;
 
@@ -54,7 +54,7 @@ void Sender::onRequest(const ftl::stream::StreamCallback &cb) {
 }
 
 void Sender::post(const ftl::audio::FrameSet &fs) {
-    if (!stream_) return;
+	if (!stream_) return;
 
 	//if (fs.stale) return;
 	//fs.stale = true;
@@ -127,9 +127,9 @@ static void mergeNALUnits(const std::list<ftl::codecs::Packet> &pkts, ftl::codec
 }
 
 void Sender::post(ftl::rgbd::FrameSet &fs) {
-    if (!stream_) return;
+	if (!stream_) return;
 
-    Channels selected;
+	Channels selected;
 	Channels available;  // but not selected and actually sent.
 	Channels needencoding;
 
@@ -158,8 +158,8 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 		stream_->post(spkt, pkt);
 	}
 
-    for (size_t i=0; i<fs.frames.size(); ++i) {
-        const auto &frame = fs.frames[i];
+	for (size_t i=0; i<fs.frames.size(); ++i) {
+		const auto &frame = fs.frames[i];
 
 		if (do_inject) {
 			//LOG(INFO) << "Force inject calibration";
@@ -270,7 +270,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 		
 		if ((cc == Channel::Right) && fs.firstFrame().hasChannel(Channel::RightHighRes)) {
 			cc = Channel::RightHighRes;
-			//fs.frames[offset].upload(cc);
+			fs.frames[offset].upload(cc);
 		}
 
 		StreamPacket spkt;
