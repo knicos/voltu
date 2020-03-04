@@ -215,6 +215,8 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 				if (!fs.frames[i].isGPU(Channel::Colour)) fs.frames[i].upload(Channels<0>(Channel::Colour), pre_pipelines_[fs.id]->getStream());
 			}
 
+			fs.mask &= pre_pipelines_[fs.id]->value("frame_mask", 0xFFFF);
+
 			{
 				FTL_Profile("Prepipe",0.020);
 				pre_pipelines_[fs.id]->apply(fs, fs, 0);
