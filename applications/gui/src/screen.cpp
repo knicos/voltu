@@ -19,6 +19,8 @@
 
 #include <loguru.hpp>
 
+#include <opencv2/core/eigen.hpp>
+
 #include "ctrl_window.hpp"
 #include "src_window.hpp"
 #include "config_window.hpp"
@@ -423,33 +425,47 @@ bool ftl::gui::Screen::mouseButtonEvent(const nanogui::Vector2i &p, int button, 
 	} else {
 		if (!camera_) return false;
 		
-		//ol movable = camera_->source()->hasCapabilities(ftl::rgbd::kCapMovable);
-		if (button == 0 && down) {
-			Eigen::Vector2f screenSize = size().cast<float>();
-			auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
-			Eigen::Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
-			Eigen::Vector2f positionInScreen(0.0f, 0.0f);
-			auto mOffset = (screenSize - (screenSize.cwiseProduct(scaleFactor))) / 2;
-			Eigen::Vector2f positionAfterOffset = positionInScreen + mOffset;
+		Eigen::Vector2f screenSize = size().cast<float>();
+		auto mScale = (screenSize.cwiseQuotient(imageSize).minCoeff());
+		Eigen::Vector2f scaleFactor = mScale * imageSize.cwiseQuotient(screenSize);
+		Eigen::Vector2f positionInScreen(0.0f, 0.0f);
+		auto mOffset = (screenSize - (screenSize.cwiseProduct(scaleFactor))) / 2;
+		Eigen::Vector2f positionAfterOffset = positionInScreen + mOffset;
 
-			float sx = ((float)p[0] - positionAfterOffset[0]) / mScale;
-			float sy = ((float)p[1] - positionAfterOffset[1]) / mScale;
+		float sx = ((float)p[0] - positionAfterOffset[0]) / mScale;
+		float sy = ((float)p[1] - positionAfterOffset[1]) / mScale;
 
-			//Eigen::Vector4f camPos;
-
-			//try {
-				//camPos = camera_->source()->point(sx,sy).cast<float>();
-			//} catch(...) {
-			//	return true;
-			//}
+		if (button == 1 && down) {
 			
-			//camPos *= -1.0f;
-			//Eigen::Vector4f worldPos =  camera_->source()->getPose().cast<float>() * camPos;
-			//lookPoint_ = Eigen::Vector3f(worldPos[0],worldPos[1],worldPos[2]);
-			//LOG(INFO) << "Depth at click = " << -camPos[2];
+			auto p = camera_->getPoint(sx, sy);
+			points_.push_back(p);
+
+			//auto n = camera_->getNormal(sx, sy);
+
+			LOG(INFO) << "point: (" << p.x << ", " << p.y << ", " << p.z << ") added";
+			if (points_.size() < 2) { return true; }
+			
+			auto p1 = Eigen::Vector3f(points_[0].x, points_[0].y, points_[0].z);
+			auto p2 = Eigen::Vector3f(points_[1].x, points_[1].y, points_[1].z);
+			
+			points_.clear();
+			// TODO: check p1 and p2 valid
+			if (p1 == p2) { return true; }
+			auto T = nanogui::lookAt(p1, p2, Eigen::Vector3f(0.0,1.0,0.0));
+			cv::Mat T_cv;
+			cv::eigen2cv(T, T_cv);
+			T_cv.convertTo(T_cv, CV_64FC1);
+			net_->broadcast("set_pose_adjustment", T_cv);
+			
 			return true;
-		} else {
-			
+
+		}
+		else if (button == 0 && down) {
+			auto p = camera_->getPoint(sx, sy);
+			LOG(INFO) << "point: " << (Eigen::Vector4d(p.x, p.y, p.z, -1.0f)).transpose();
+
+			//auto q = camera_->getNormal(sx, sy);
+			//LOG(INFO) << "normal: " << (Eigen::Vector4d(q.x, q.y, q.z, 1.0)).transpose();
 		}
 		return false;
 	}

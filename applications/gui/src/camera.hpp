@@ -106,6 +106,14 @@ class Camera {
 
 	StatisticsImage *stats_ = nullptr;
 
+	float getDepth(int x, int y);
+	float getDepth(float x, float y) { return getDepth((int) round(x), (int) round(y)); }
+	cv::Point3f getPoint(int x, int y);
+	cv::Point3f getPoint(float x, float y) { return getPoint((int) round(x), (int) round(y)); }
+	//cv::Point3f getNormal(int x, int y);
+	//cv::Point3f getNormal(float x, float y) { return getNormal((int) round(x), (int) round(y)); }
+	void setTransform(const Eigen::Matrix4d &T);
+	Eigen::Matrix4d getTransform() const;
 
 #ifdef HAVE_OPENVR
 	bool isVR() { return vr_mode_; }
@@ -140,8 +148,12 @@ class Camera {
 	bool pause_;
 	ftl::codecs::Channel channel_;
 	ftl::codecs::Channels<0> channels_;
+	
+	cv::cuda::HostMem im_depth_;
+	//cv::cuda::HostMem im_normals_;
+	cv::Mat im_normals_f_;
+
 	cv::Mat overlay_; // first channel (left)
-	//cv::Mat im2_; // second channel ("right")
 	bool stereo_;
 	std::atomic_flag stale_frame_;
 	int rx_;
@@ -164,6 +176,7 @@ class Camera {
 
 	int transform_ix_;
 	std::array<Eigen::Matrix4d,ftl::stream::kMaxStreams> transforms_;  // Frameset transforms for virtual cam
+	Eigen::Matrix4d T_ = Eigen::Matrix4d::Identity();
 
 	MUTEX mutex_;
 
@@ -173,6 +186,9 @@ class Camera {
 	float baseline_;
 	#endif
 
+	void _downloadFrames(ftl::cuda::TextureObject<uchar4> &, ftl::cuda::TextureObject<uchar4> &);
+	void _downloadFrames(ftl::cuda::TextureObject<uchar4> &);
+	void _downloadFrames();
 	void _draw(std::vector<ftl::rgbd::FrameSet*> &fss);
 	void _applyPoseEffects(std::vector<ftl::rgbd::FrameSet*> &fss);
 	std::pair<const ftl::rgbd::Frame *, const ftl::codecs::Face *> _selectFace(std::vector<ftl::rgbd::FrameSet*> &fss);

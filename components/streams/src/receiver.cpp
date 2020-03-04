@@ -125,7 +125,8 @@ void Receiver::_processState(const StreamPacket &spkt, const Packet &pkt) {
 		case Channel::Configuration		: ftl::config::parseJSON(frame.state.getConfig(), parseConfig(pkt)); break;
 		case Channel::Calibration		: frame.state.getLeft() = parseCalibration(pkt); break;
 		case Channel::Calibration2		: frame.state.getRight() = parseCalibration(pkt); break;
-		case Channel::Pose				: frame.state.getPose() = parsePose(pkt); break;
+		//case Channel::Pose				: frame.state.getPose() = parsePose(pkt); break;
+		case Channel::Pose				: frame.state.setPose(parsePose(pkt)); break;
 		default: break;
 		}
 	}
@@ -331,9 +332,9 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 				builder_[spkt.streamID].completed(spkt.timestamp, spkt.frame_number+i);
 
 				// Check for any state changes and send them back
-				if (vidstate.state.hasChanged(Channel::Pose)) injectPose(stream_, frame, spkt.timestamp, spkt.frameNumber()+i);
-				if (vidstate.state.hasChanged(Channel::Calibration)) injectCalibration(stream_, frame, spkt.timestamp, spkt.streamID, spkt.frameNumber()+i);
-				if (vidstate.state.hasChanged(Channel::Calibration2)) injectCalibration(stream_, frame, spkt.timestamp, spkt.streamID, spkt.frameNumber()+i, true);
+				//if (vidstate.state.hasChanged(Channel::Pose)) injectPose(stream_, frame, spkt.timestamp, spkt.frameNumber()+i);
+				//if (vidstate.state.hasChanged(Channel::Calibration)) injectCalibration(stream_, frame, spkt.timestamp, spkt.streamID, spkt.frameNumber()+i);
+				//if (vidstate.state.hasChanged(Channel::Calibration2)) injectCalibration(stream_, frame, spkt.timestamp, spkt.streamID, spkt.frameNumber()+i, true);
 
 				//frame.reset();
 				//frame.completed.clear();

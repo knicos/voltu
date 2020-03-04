@@ -376,6 +376,13 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	channels_ = frame_.getChannels();
 
+	frame_.get<cv::cuda::GpuMat>(Channel::Depth).download(im_depth_);
+	cv::flip(im_depth_, im_depth_, 0);
+
+	//frame_.get<cv::cuda::GpuMat>(Channel::Normals).download(im_normals_);
+	//im_normals_.createMatHeader().convertTo(im_normals_f_, CV_32FC4);
+	//cv::flip(im_normals_f_, im_normals_f_, 0);
+
 	// Normalize depth map
 	frame_.get<cv::cuda::GpuMat>(Channel::Depth).convertTo(frame_.get<cv::cuda::GpuMat>(Channel::Depth), CV_32F, 1.0/8.0);
 
@@ -418,6 +425,18 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 	framesets_ = &fss;
 	stale_frame_.clear();
+
+	if (screen_->activeCamera() == this) {
+		for (auto *fs : fss) {
+			if (!usesFrameset(fs->id)) continue;
+
+			for (auto &f : fs->frames) {
+				//if (f.hasChanged(Channel::Pose)) {
+					f.patchPose(T_);
+				//}
+			}
+		}
+	}
 
 	//if (fss.size() <= fsid_) return;
 	if (fid_ == 255) {
@@ -749,3 +768,42 @@ void ftl::gui::Camera::stopVideoRecording() {
 	if (record_stream_ && record_stream_->active()) record_stream_->end();
 }
 
+float ftl::gui::Camera::getDepth(int x, int y) {
+	if (x < 0 || y < 0) { return NAN; }
+	UNIQUE_LOCK(mutex_, lk);
+	if (x >= im_depth_.cols || y >= im_depth_.rows) { return NAN; }
+	LOG(INFO) << y << ", " << x;
+	return im_depth_.createMatHeader().at<float>(y, x);
+}
+
+cv::Point3f ftl::gui::Camera::getPoint(int x, int y) {
+	if (x < 0 || y < 0) { return cv::Point3f(); }
+	UNIQUE_LOCK(mutex_, lk);
+		LOG(INFO) << y << ", " << x;
+	if (x >= im_depth_.cols || y >= im_depth_.rows) { return cv::Point3f(); }
+	float d = im_depth_.createMatHeader().at<float>(y, x);
+
+	auto point = frame_.getLeftCamera().screenToCam(x, y, d);
+	Eigen::Vector4d p(point.x, point.y, point.z, 1.0f);
+	Eigen::Matrix4d pose = frame_.getPose();
+	Eigen::Vector4d point_eigen = pose * p;
+	return cv::Point3f(point_eigen(0), point_eigen(1), point_eigen(2));
+}
+
+/*
+cv::Point3f ftl::gui::Camera::getNormal(int x, int y) {
+	UNIQUE_LOCK(mutex_, lk);
+		LOG(INFO) << y << ", " << x;
+	if (x >= im_normals_.cols || y >= im_normals_.rows) { return cv::Point3f(); }
+	auto n = im_normals_f_.at<cv::Vec4f>(y, x);
+	return cv::Point3f(n[0], n[1], n[2]);
+}
+*/
+
+void ftl::gui::Camera::setTransform(const Eigen::Matrix4d &T) {
+	T_ = T * T_;
+}
+
+Eigen::Matrix4d ftl::gui::Camera::getTransform() const {
+	return T_;
+}

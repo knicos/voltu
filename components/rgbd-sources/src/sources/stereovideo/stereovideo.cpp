@@ -125,9 +125,22 @@ void StereoVideoSource::init(const string &file) {
 				LOG(ERROR) << "invalid pose received (bad value)";
 				return false;
 			}
-
+			updateParameters();
+			LOG(INFO) << "new pose";
 			return true;
 	});
+
+	host_->getNet()->bind("set_pose_adjustment",
+		[this](cv::Mat T){
+			if (!calib_->setPoseAdjustment(T)) {
+				LOG(ERROR) << "invalid pose received (bad value)";
+				return false;
+			}
+			updateParameters();
+			LOG(INFO) << "new pose adjustment";
+			return true;
+	});
+
 
 	host_->getNet()->bind("set_intrinsics",
 		[this](cv::Size size, cv::Mat K_l, cv::Mat D_l, cv::Mat K_r, cv::Mat D_r) {
@@ -143,7 +156,8 @@ void StereoVideoSource::init(const string &file) {
 					return false;
 				}
 			}
-
+			updateParameters();
+			LOG(INFO) << "new intrinsic parameters";
 			return true;
 	});
 
@@ -153,11 +167,14 @@ void StereoVideoSource::init(const string &file) {
 				LOG(ERROR) << "invalid extrinsic parameters (bad values)";
 				return false;
 			}
+			updateParameters();
+			LOG(INFO) << "new extrinsic (stereo) parameters";
 			return true;
 	});
 
 	host_->getNet()->bind("save_calibration",
 		[this, fname](){
+			LOG(INFO) << "saving calibration to " << fname;
 			return calib_->saveCalibration(fname);
 	});
 
@@ -165,6 +182,7 @@ void StereoVideoSource::init(const string &file) {
 		[this](bool enable){
 			bool retval = calib_->setRectify(enable);
 			updateParameters();
+			LOG(INFO) << "rectification " << (retval ? "on" : "off");
 			return retval;
 	});
 
@@ -215,6 +233,7 @@ void StereoVideoSource::updateParameters() {
 	
 	if (d_resolution > 0.0) {
 		// Learning OpenCV p. 442
+		// TODO: remove, should not be used here
 		float max_depth_new = sqrt(d_resolution * fx * baseline);
 		max_depth = (max_depth_new > max_depth) ? max_depth : max_depth_new;
 	}
