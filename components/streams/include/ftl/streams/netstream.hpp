@@ -76,6 +76,7 @@ class Net : public Stream {
 	ftl::UUID peer_;
 	int64_t last_frame_;
 	int64_t frame_no_;
+	int64_t last_ping_;
 	std::string uri_;
 	bool host_;
 	int tally_;

@@ -22,7 +22,7 @@ float Net::sample_count__ = 0.0f;
 int64_t Net::last_msg__ = 0;
 MUTEX Net::msg_mtx__;
 
-Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net), clock_adjust_(0) {
+Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net), clock_adjust_(0), last_ping_(0) {
 	// TODO: Install "find_stream" binding if not installed...
 	if (!net_->isBound("find_stream")) {
 		net_->bind("find_stream", [this](const std::string &uri) -> optional<ftl::UUID> {
@@ -292,7 +292,7 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 				clock_adjust_ = ftl::timer::get_time() - mastertime + (latency/2);
 
 				//if (clock_adjust_ > 0) {
-				//	LOG(INFO) << "Clock adjustment: " << clock_adjust_;
+					//LOG(INFO) << "LATENCY: " << latency;
 				//}
 			});
 		} catch (...) {
@@ -357,25 +357,29 @@ bool Net::_processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt) {
 	// Sync clocks!
 	if (ftl::timer::isClockSlave() && p.id() == time_peer_) {
 		auto start = std::chrono::high_resolution_clock::now();
+		int64_t now = ftl::timer::get_time();
+		if (last_ping_ < now-500) {
+			last_ping_ = now;
 
-		try {
-			net_->asyncCall<int64_t>(time_peer_, "__ping__", [this, start](const int64_t &mastertime) {
-				auto elapsed = std::chrono::high_resolution_clock::now() - start;
-				int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-				auto clock_adjust = mastertime - (ftl::timer::get_time() + (latency/2));
+			try {
+				net_->asyncCall<int64_t>(time_peer_, "__ping__", [this, start](const int64_t &mastertime) {
+					auto elapsed = std::chrono::high_resolution_clock::now() - start;
+					int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+					auto clock_adjust = mastertime - (ftl::timer::get_time() + (latency/2));
 
-				if (clock_adjust > 0) {
-					LOG(INFO) << "Clock adjustment: " << clock_adjust;
-					//LOG(INFO) << "Latency: " << (latency / 2);
-					//LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
-					ftl::timer::setClockAdjustment(clock_adjust);
-				}		
-			});
-		} catch (...) {
-			LOG(ERROR) << "Ping failed";
-			// Reset time peer and remove timer
-			time_peer_ = ftl::UUID(0);
-			return false;
+					if (clock_adjust != 0) {
+						LOG(INFO) << "Clock adjustment: " << clock_adjust << ", latency=" << latency/2;
+						//LOG(INFO) << "Latency: " << (latency / 2);
+						//LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
+						ftl::timer::setClockAdjustment(clock_adjust);
+					}		
+				});
+			} catch (...) {
+				LOG(ERROR) << "Ping failed";
+				// Reset time peer and remove timer
+				time_peer_ = ftl::UUID(0);
+				return false;
+			}
 		}
 	}
 
