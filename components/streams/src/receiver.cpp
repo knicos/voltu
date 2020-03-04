@@ -176,6 +176,7 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 		ftl::audio::FrameSet fs;
 		fs.id = 0;
 		fs.timestamp = frame.timestamp;
+		fs.originClockDelta;
 		fs.count = 1;
 		//fs.stale = false;
 		fs.clear(ftl::data::FSFlag::STALE);

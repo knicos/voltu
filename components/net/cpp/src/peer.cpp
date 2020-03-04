@@ -218,8 +218,9 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 		});
 
 		bind("__ping__", [this]() {
-			auto now = std::chrono::high_resolution_clock::now();
-			return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
+			//auto now = std::chrono::high_resolution_clock::now();
+			//return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
+			return ftl::timer::get_time();
 		});
 
 		send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::net::this_peer); 
@@ -293,8 +294,9 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 		});
 
 		bind("__ping__", [this]() {
-			auto now = std::chrono::high_resolution_clock::now();
-			return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
+			//auto now = std::chrono::high_resolution_clock::now();
+			//return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
+			return ftl::timer::get_time();
 		});
 	}
 }

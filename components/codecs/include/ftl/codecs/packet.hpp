@@ -74,6 +74,9 @@ struct StreamPacket {
 
 	inline int frameNumber() const { return (version >= 4) ? frame_number : streamID; }
 	inline int frameSetID() const { return (version >= 4) ? streamID : 0; }
+	inline int64_t localTimestamp() const { return timestamp + originClockDelta; }
+
+	int64_t originClockDelta;  // Not message packet / saved
 
 	MSGPACK_DEFINE(timestamp, streamID, frame_number, channel);
 

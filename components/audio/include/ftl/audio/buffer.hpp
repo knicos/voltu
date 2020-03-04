@@ -4,6 +4,9 @@
 #include <vector>
 #include <cmath>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 namespace ftl {
 namespace audio {
 
@@ -25,7 +28,7 @@ class Buffer {
 	void setDelay(float d) {
 		req_delay_ = d  * static_cast<float>(rate_);
 		// Big jumps should be instant
-		if (fabs(req_delay_ - cur_delay_) > 0.5f) {
+		if (fabs(req_delay_ - cur_delay_) > 0.5f*static_cast<float>(rate_)) {
 			//cur_delay_ = req_delay_;
 			reset();
 		}
@@ -98,7 +101,8 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 
 	void reset() override {
 		Buffer<T>::reset();
-		write_position_ = 0;
+		write_position_ = 0; //int(this->cur_delay_);
+		LOG(INFO) << "RESET AUDIO: " << write_position_;
 		read_position_ = 0;
 	}
 
@@ -133,6 +137,7 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 
 		const float d = 0.6f*clamp((this->req_delay_ - this->cur_delay_) / static_cast<float>(this->rate_), 0.5f);
 		i += 1.0f - d;  // FIXME: Is this correct? Seems to function but perhaps not ideal
+		//LOG(INFO) << "D " << this->req_delay_ << " - " << this->cur_delay_;
 
 		/*if (d > 0.0f) {	// Increase delay = oversample with increment < 1.0
 			//i += 1.0f * (1.0f - d);
@@ -141,7 +146,7 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 			//i += 1.0f / (1.0f + d);
 			i += 1.0f - d;
 		}*/
-		this->cur_delay_ += d;
+		this->cur_delay_ += d; //* static_cast<float>(this->rate_);
 
 		offset_+= CHAN;
 		if (offset_ == CHAN*FRAME) {
