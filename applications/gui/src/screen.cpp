@@ -612,7 +612,7 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 		msg = string("Frame rate: ") + std::to_string((int)stats.fps);
 		nvgText(ctx, screenSize[0]-10, 20, msg.c_str(), NULL);
 		msg = string("Latency: ") + std::to_string((int)stats.latency) + string("ms");
-		nvgText(ctx, screenSize[0]-10, 40, msg.c_str(), NULL);	
+		//nvgText(ctx, screenSize[0]-10, 40, msg.c_str(), NULL);	
 
 		msg = string("Bitrate: ") + to_string_with_precision(stats.bitrate, 2) + string("Mbps");
 		nvgText(ctx, screenSize[0]-10, 60, msg.c_str(), NULL);
