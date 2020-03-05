@@ -60,7 +60,7 @@ void Sender::post(const ftl::audio::FrameSet &fs) {
 	//fs.stale = true;
 
 	for (size_t i=0; i<fs.frames.size(); ++i) {
-		if (!fs.frames[i].hasChannel(Channel::Audio)) continue;
+		if (!(fs.frames[i].hasChannel(Channel::AudioMono) || fs.frames[i].hasChannel(Channel::AudioStereo))) continue;
 
 		auto &data = (fs.frames[i].hasChannel(Channel::AudioStereo)) ?
 			fs.frames[i].get<ftl::audio::Audio>(Channel::AudioStereo) :
