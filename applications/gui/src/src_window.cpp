@@ -202,7 +202,10 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 	}
 
 	// Make sure there are enough framesets allocated
-	_checkFrameSets(fs.id);
+	{
+		UNIQUE_LOCK(mutex_, lk);
+		_checkFrameSets(fs.id);
+	}
 
 	if (!paused_) {
 		if (!fs.test(ftl::data::FSFlag::PARTIAL) || !screen_->root()->value("drop_partial_framesets", false)) { 
@@ -229,7 +232,10 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 	}
 
 	const auto *cstream = interceptor_;
-	_createDefaultCameras(*framesets_[fs.id], true);  // cstream->available(fs.id).has(Channel::Depth)
+	{
+		UNIQUE_LOCK(mutex_, lk);
+		_createDefaultCameras(*framesets_[fs.id], true);  // cstream->available(fs.id).has(Channel::Depth)
+	}
 
 	//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
 

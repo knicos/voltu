@@ -348,39 +348,10 @@ bool Net::_processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt) {
 		}
 
 		// First connected peer (or reconnecting peer) becomes a time server
-		if (time_peer_ == ftl::UUID(0)) {
+		/*if (time_peer_ == ftl::UUID(0)) {
 			time_peer_ = p.id();
 			DLOG(INFO) << "Adding time peer";
-		}
-	}
-
-	// Sync clocks!
-	if (ftl::timer::isClockSlave() && p.id() == time_peer_) {
-		auto start = std::chrono::high_resolution_clock::now();
-		int64_t now = ftl::timer::get_time();
-		if (last_ping_ < now-500) {
-			last_ping_ = now;
-
-			try {
-				net_->asyncCall<int64_t>(time_peer_, "__ping__", [this, start](const int64_t &mastertime) {
-					auto elapsed = std::chrono::high_resolution_clock::now() - start;
-					int64_t latency = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-					auto clock_adjust = mastertime - (ftl::timer::get_time() + (latency/2));
-
-					if (clock_adjust != 0) {
-						LOG(INFO) << "Clock adjustment: " << clock_adjust << ", latency=" << latency/2;
-						//LOG(INFO) << "Latency: " << (latency / 2);
-						//LOG(INFO) << "Local: " << std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count() << ", master: " << mastertime;
-						ftl::timer::setClockAdjustment(clock_adjust);
-					}		
-				});
-			} catch (...) {
-				LOG(ERROR) << "Ping failed";
-				// Reset time peer and remove timer
-				time_peer_ = ftl::UUID(0);
-				return false;
-			}
-		}
+		}*/
 	}
 
 	return false;

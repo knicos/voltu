@@ -53,9 +53,61 @@ using json = nlohmann::json;
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
-	ftl::ctrl::Master ctrl(root, net);
 
 	ftl::timer::setHighPrecision(true);
+
+	if (root->value("time_master", false)) {
+		net->bind("time_master", [net]() {
+			return net->id();
+		});
+		LOG(INFO) << "Becoming a time master";
+	}
+
+	if (root->get<string>("time_peer")) {
+		if (!net->connect(*root->get<string>("time_peer"))->waitConnection()) {
+			LOG(ERROR) << "Could not connect to time master";
+		} else {
+			LOG(INFO) << "Connected to time master";
+		}
+	}
+
+	auto opt_time_master = net->findOne<ftl::UUID>(string("time_master"));
+	ftl::UUID time_peer(0);
+	if (opt_time_master) {
+		time_peer = *opt_time_master;
+		LOG(INFO) << "Found a time master: " << time_peer.to_string();
+	}
+	int sync_counter = 0;
+
+	ftl::ctrl::Master ctrl(root, net);
+
+	// Sync clocks!
+	ftl::timer::add(ftl::timer::kTimerMain, [&time_peer,&sync_counter,net](int64_t ts) {
+		if (sync_counter-- <= 0 && time_peer != ftl::UUID(0) ) {
+			sync_counter = 20;
+			auto start = std::chrono::high_resolution_clock::now();
+			int64_t now = ftl::timer::get_time();
+
+			try {
+				net->asyncCall<int64_t>(time_peer, "__ping__", [start](const int64_t &mastertime) {
+					auto elapsed = std::chrono::high_resolution_clock::now() - start;
+					int64_t latency = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+					auto clock_adjust = mastertime + ((latency+500)/2000) - ftl::timer::get_time();
+
+					//LOG(INFO) << "LATENCY: " << float(latency)/1000.0f << "ms";
+
+					if (clock_adjust != 0) {
+						LOG(INFO) << "Clock adjustment: " << clock_adjust << ", latency=" << float(latency)/1000.0f << "ms";
+						ftl::timer::setClockAdjustment(clock_adjust);
+					}		
+				});
+			} catch (const std::exception &e) {
+				LOG(ERROR) << "Ping failed, could not time sync: " << e.what();
+				return true;
+			}
+		}
+		return true;
+	});
 
 	auto paths = root->get<vector<string>>("paths");
 	string file = "";
