@@ -40,17 +40,17 @@ struct __align__(16) Camera {
 	/**
 	 * Convert screen plus depth into camera coordinates.
 	 */
-	__device__ float3 screenToCam(int ux, int uy, float depth) const; 
+	__host__ __device__ float3 screenToCam(int ux, int uy, float depth) const; 
 
 	/**
 	 * Convert screen plus depth into camera coordinates.
 	 */
-	__device__ float3 screenToCam(uint ux, uint uy, float depth) const; 
+	__host__ __device__ float3 screenToCam(uint ux, uint uy, float depth) const; 
 
 	/**
 	 * Convert screen plus depth into camera coordinates.
 	 */
-	__device__ float3 screenToCam(float ux, float uy, float depth) const;
+	__host__ __device__ float3 screenToCam(float ux, float uy, float depth) const;
 
 	#ifndef __CUDACC__
 
