@@ -32,7 +32,7 @@ void Visibility::update(vector<int> &visible) {
 
 int Visibility::getOptimalCamera() {
 	// most visible on average
-	int best_i;
+	int best_i = 0;
 	double best_score = -INFINITY;
 	for (int i = 0; i < visibility_.rows; i++) {
 		double score = 0.0;

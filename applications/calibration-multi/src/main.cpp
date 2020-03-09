@@ -451,7 +451,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 	vector<Mat> rgb(n_cameras);
 	std::this_thread::sleep_for(std::chrono::seconds(3)); // rectification disabled, has some delay
 
-	while(calib.getMinVisibility() < n_views) {
+	while(calib.getMinVisibility() < static_cast<size_t>(n_views)) {
 		loop:
 		cv::waitKey(10);
 		
@@ -501,7 +501,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 		for (size_t i = 0; i < n_cameras; i++) {
 			if (visible[i]) {
-				for (int j = 0; j < points[i].size(); j++) {
+				for (size_t j = 0; j < points[i].size(); j++) {
 					cv::drawMarker(	rgb[i], points[i][j], Scalar(42, 255, 42), cv::MARKER_CROSS, 25, 1);
 					cv::putText(rgb[i], std::to_string(j), Point2i(points[i][j]),
 						cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, Scalar(64, 64, 255), 1);

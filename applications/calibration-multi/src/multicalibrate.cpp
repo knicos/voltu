@@ -614,7 +614,7 @@ double MultiCameraCalibrationNew::getReprojectionErrorOptimized(size_t c_from, c
 
 double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 	if (reference_camera != -1) {
-		DCHECK(reference_camera >= 0 && reference_camera < n_cameras_);
+		DCHECK(reference_camera >= 0 && reference_camera < static_cast<int>(n_cameras_));
 		reference_camera_ = reference_camera; 
 	}
 
