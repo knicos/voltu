@@ -41,7 +41,7 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 	/**
 	 * Add a frameset handler to a specific stream ID.
 	 */
-	void onFrameSet(int s, const ftl::rgbd::VideoCallback &cb);
+	void onFrameSet(size_t s, const ftl::rgbd::VideoCallback &cb);
 
 	void onAudio(const ftl::audio::FrameSet::Callback &cb);
 

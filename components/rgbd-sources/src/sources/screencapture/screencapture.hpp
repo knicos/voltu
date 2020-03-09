@@ -28,8 +28,8 @@ class ScreenCapture : public ftl::rgbd::detail::Source {
 	bool compute(int n=-1, int b=-1);
 	bool isReady();
 
-	int getOffsetX() const { return (offset_x_ > full_width_-params_.width) ? full_width_-params_.width : offset_x_; }
-	int getOffsetY() const { return (offset_y_ > full_height_-params_.height) ? full_height_-params_.height : offset_y_; }
+	size_t getOffsetX() const { return (offset_x_ > full_width_-params_.width) ? full_width_-params_.width : offset_x_; }
+	size_t getOffsetY() const { return (offset_y_ > full_height_-params_.height) ? full_height_-params_.height : offset_y_; }
 
 	private:
 	bool ready_;
@@ -37,10 +37,10 @@ class ScreenCapture : public ftl::rgbd::detail::Source {
 	int64_t cur_ts_;
 	ftl::rgbd::Frame sframe_;
 
-	int full_width_;
-	int full_height_;
-	int offset_x_;
-	int offset_y_;
+	size_t full_width_;
+	size_t full_height_;
+	size_t offset_x_;
+	size_t offset_y_;
 
 	ImplState *impl_state_;
 };

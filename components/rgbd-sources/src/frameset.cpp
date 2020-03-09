@@ -206,7 +206,7 @@ void Builder::_schedule() {
 			UNIQUE_LOCK(fs->mtx, lk2);
 
 			// Calling onFrameset but without all frames so mark as partial
-			if (fs->count < fs->frames.size()) fs->set(ftl::data::FSFlag::PARTIAL);
+			if (static_cast<size_t>(fs->count) < fs->frames.size()) fs->set(ftl::data::FSFlag::PARTIAL);
 
 			try {
 				if (cb_) cb_(*fs);
@@ -311,7 +311,7 @@ ftl::rgbd::FrameSet *Builder::_getFrameset() {
 		while (N-- > 0 && i != framesets_.end()) ++i;
 	// Otherwise skip to first fully completed frame
 	} else {
-		while (i != framesets_.end() && (*i)->count < (*i)->frames.size()) ++i;
+		while (i != framesets_.end() && static_cast<size_t>((*i)->count) < (*i)->frames.size()) ++i;
 	}
 
 	if (i != framesets_.end()) {

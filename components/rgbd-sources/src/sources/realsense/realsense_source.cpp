@@ -56,8 +56,8 @@ bool RealsenseSource::compute(int n, int b) {
 
     if (host_->value("colour_only", false)) {
         auto cframe = frames.get_color_frame();
-        int w = cframe.get_width();
-        int h = cframe.get_height();
+        size_t w = cframe.get_width();
+        size_t h = cframe.get_height();
 
         if (params_.width != w) {
             params_.width = w;

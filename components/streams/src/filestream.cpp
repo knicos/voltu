@@ -50,7 +50,7 @@ bool File::_checkFile() {
 		}
 
 		auto &spkt = std::get<0>(data);
-		auto &pkt = std::get<1>(data);
+		//auto &pkt = std::get<1>(data);
 
 		if (spkt.timestamp < first_ts_) first_ts_ = spkt.timestamp;
 
@@ -205,7 +205,6 @@ bool File::tick(int64_t ts) {
 		}
 	}
 
-	bool partial = false;
 	int64_t extended_ts = timestamp_ + 200;  // Buffer 200ms ahead
 
 	while ((active_ && istream_->good()) || buffer_in_.nonparsed_size() > 0u) {

@@ -33,7 +33,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
     int win = config()->value("window_size",16);
     bool do_corr = config()->value("merge_corresponding", true);
 	bool do_aggr = config()->value("merge_mls", false);
-    bool do_colour_adjust = config()->value("apply_colour_adjust", false);
+    //bool do_colour_adjust = config()->value("apply_colour_adjust", false);
 	bool cull_zero = config()->value("cull_no_confidence", false);
     //bool show_best_source = config()->value("show_pixel_source", false);
 

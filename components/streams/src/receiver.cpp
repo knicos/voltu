@@ -28,14 +28,14 @@ Receiver::Receiver(nlohmann::json &config) : ftl::Configurable(config), stream_(
 	second_channel_ = Channel::Depth;
 
 	size_t bsize = value("frameset_buffer_size", 3);
-	for (int i=0; i<ftl::stream::kMaxStreams; ++i) {
+	for (size_t i=0; i<ftl::stream::kMaxStreams; ++i) {
 		builder_[i].setID(i);
 		builder_[i].setBufferSize(bsize);
 	}
 
 	on("frameset_buffer_size", [this](const ftl::config::Event &e) {
 		size_t bsize = value("frameset_buffer_size", 3);
-		for (int i=0; i<ftl::stream::kMaxStreams; ++i) {
+		for (size_t i=0; i<ftl::stream::kMaxStreams; ++i) {
 			builder_[i].setBufferSize(bsize);
 		}
 	});
@@ -176,7 +176,7 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 		ftl::audio::FrameSet fs;
 		fs.id = 0;
 		fs.timestamp = frame.timestamp;
-		fs.originClockDelta;
+		//fs.originClockDelta;
 		fs.count = 1;
 		//fs.stale = false;
 		fs.clear(ftl::data::FSFlag::STALE);
@@ -397,11 +397,11 @@ ftl::rgbd::FrameState &Receiver::state(size_t ix) {
 }
 
 void Receiver::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
-	for (int i=0; i<ftl::stream::kMaxStreams; ++i)
+	for (size_t i=0; i<ftl::stream::kMaxStreams; ++i)
 		builder_[i].onFrameSet(cb);
 }
 
-void Receiver::onFrameSet(int s, const ftl::rgbd::VideoCallback &cb) {
+void Receiver::onFrameSet(size_t s, const ftl::rgbd::VideoCallback &cb) {
 	if (s >= 0 && s < ftl::stream::kMaxStreams)
 		builder_[s].onFrameSet(cb);
 }

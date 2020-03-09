@@ -207,6 +207,7 @@ void MediaPanel::_startRecording(MediaPanel::RecordMode mode) {
 	case RecordMode::Snapshot3D		:
 	case RecordMode::Video3D		: filename += ".ftl"; break;
 	case RecordMode::Video2D		: filename += ".ftl"; break;
+	default: return;
 	}
 
 	if (mode == RecordMode::Video3D) {

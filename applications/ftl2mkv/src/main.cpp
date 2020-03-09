@@ -27,7 +27,7 @@ static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet
         exit(1);
     }
 
-	AVCodecID codec_id;
+	AVCodecID codec_id = AV_CODEC_ID_HEVC;
 	switch (pkt.codec) {
 	case codec_t::HEVC_LOSSLESS:
 	case codec_t::HEVC : codec_id = AV_CODEC_ID_HEVC; break;

@@ -83,7 +83,7 @@ CBSegmentation::CBSegmentation(
 		char codebook_size, size_t width, size_t height,
 		float alpha, float beta, float epsilon, float sigma,
 		int T_add, int T_del, int T_h) :
-		width_(width), height_(height), size_(codebook_size + 1),
+		size_(codebook_size + 1), width_(width), height_(height),
 		alpha_(alpha), beta_(beta), epsilon_(epsilon), sigma_(sigma),
 		T_add_(T_add), T_del_(T_del), T_h_(T_h) {
 	

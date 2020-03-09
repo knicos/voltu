@@ -137,14 +137,6 @@ ftl::gui::Camera::~Camera() {
 	//delete fileout_;
 }
 
-static Eigen::Vector3f cudaToEigen(const float3 &v) {
-	Eigen::Vector3f e;
-	e[0] = v.x;
-	e[1] = v.y;
-	e[2] = v.z;
-	return e;
-}
-
 void ftl::gui::Camera::drawUpdated(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	// Only draw if frameset updated.
 	if (!stale_frame_.test_and_set()) {
@@ -677,8 +669,8 @@ const void ftl::gui::Camera::captureFrame() {
 				Eigen::Matrix4d eye_l = ConvertSteamVRMatrixToMatrix4(
 					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
 				
-				Eigen::Matrix4d eye_r = ConvertSteamVRMatrixToMatrix4(
-					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
+				//Eigen::Matrix4d eye_r = ConvertSteamVRMatrixToMatrix4(
+				//	vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
 
 				float baseline_in = 2.0 * eye_l(0, 3);
 				

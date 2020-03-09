@@ -49,10 +49,8 @@ int main(int argc, char **argv) {
 			//nanogui::mainloop(20);
 
 			float last_draw_time = 0.0f;
-			float last_vr_time = 0.0f;
 
 			while (ftl::running) {
-				nanogui::Screen *screen = app;
 				if (!app->visible()) {
 					ftl::running = false;
 				} else if (glfwWindowShouldClose(app->glfwWindow())) {
@@ -65,7 +63,6 @@ int main(int argc, char **argv) {
 					// Generate poses and render and virtual frame here
 					// at full FPS (25 without VR and 90 with VR currently)
 					app->drawFast();
-					last_vr_time = now;
 
 					// Only draw the GUI at 25fps
 					if (delta >= 0.04f) {

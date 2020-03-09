@@ -327,7 +327,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 				else pkt.flags = ftl::codecs::kFlagFlipRGB;
 
 				// In the event of partial frames, add a flag to indicate that
-				if (fs.count < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
+				if (static_cast<size_t>(fs.count) < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
 
 				// Choose correct region of interest into the surface.
 				cv::Rect roi = _generateROI(fs, cc, offset);

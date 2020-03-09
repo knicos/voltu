@@ -86,7 +86,6 @@ static void run(ftl::Configurable *root) {
 		if (sync_counter-- <= 0 && time_peer != ftl::UUID(0) ) {
 			sync_counter = 20;
 			auto start = std::chrono::high_resolution_clock::now();
-			int64_t now = ftl::timer::get_time();
 
 			try {
 				net->asyncCall<int64_t>(time_peer, "__ping__", [start](const int64_t &mastertime) {

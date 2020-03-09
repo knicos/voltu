@@ -14,16 +14,6 @@
 using ftl::Reconstruction;
 using ftl::codecs::Channel;
 
-static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
-	Eigen::Affine3d rx =
-		Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
-	Eigen::Affine3d ry =
-		Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
-	Eigen::Affine3d rz =
-		Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
-	return rz * rx * ry;
-}
-
 Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	ftl::Configurable(config), busy_(false), rbusy_(false), new_frame_(false), fs_render_(), fs_align_() {
 	gen_ = nullptr;

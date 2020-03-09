@@ -210,7 +210,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 	if (!paused_) {
 		if (!fs.test(ftl::data::FSFlag::PARTIAL) || !screen_->root()->value("drop_partial_framesets", false)) { 
 			// Enforce interpolated colour and GPU upload
-			for (int i=0; i<fs.frames.size(); ++i) {
+			for (size_t i=0; i<fs.frames.size(); ++i) {
 				if (!fs.hasFrame(i)) continue;
 				fs.frames[i].createTexture<uchar4>(Channel::Colour, true);
 
@@ -239,7 +239,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 
 	//LOG(INFO) << "Channels = " << (unsigned int)cstream->available(fs.id);
 
-	int i=0;
+	size_t i=0;
 	for (auto cam : cameras_) {
 		// Only update the camera periodically unless the active camera
 		if (screen_->activeCamera() == cam.second.camera ||
@@ -255,7 +255,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 	return true;
 }
 
-void SourceWindow::_checkFrameSets(int id) {
+void SourceWindow::_checkFrameSets(size_t id) {
 	while (framesets_.size() <= id) {
 		auto *p = ftl::config::create<ftl::operators::Graph>(screen_->root(), std::string("pre_filters") + std::to_string(framesets_.size()));
 		p->append<ftl::operators::DepthChannel>("depth")->value("enabled", false);
@@ -315,8 +315,8 @@ ftl::codecs::Channels<0> SourceWindow::_aggregateChannels(int id) {
 }
 
 void SourceWindow::_createDefaultCameras(ftl::rgbd::FrameSet &fs, bool makevirtual) {
-	for (int i=0; i<fs.frames.size(); ++i) {
-		int id = (fs.id << 8) + i;
+	for (size_t i=0; i<fs.frames.size(); ++i) {
+		size_t id = (fs.id << 8) + i;
 		if (cameras_.find(id) == cameras_.end()) {
 			auto *cam = new ftl::gui::Camera(screen_, 1 << fs.id, i);
 			cameras_[id] = {

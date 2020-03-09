@@ -171,7 +171,7 @@ bool DetectAndTrack::detect(const Mat &im) {
 
 		//LOG(INFO) << "Face confidence: " << levelWeights[best_ix];
 
-		if (!found && (tracked_.size() < max_tracked_)) {
+		if (!found && (tracked_.size() < static_cast<size_t>(max_tracked_))) {
 			createTracker(im, obj);
 		}
 	}

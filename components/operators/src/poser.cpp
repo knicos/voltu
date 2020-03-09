@@ -24,9 +24,9 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
         std::vector<ftl::codecs::Shape3D> transforms;
         in.get(Channel::Shapes3D, transforms);
 
-        for (auto &t : transforms) {
+        //for (auto &t : transforms) {
             //LOG(INFO) << "Have FS transform: " << t.id;
-        }
+        //}
     }
 
 	for (size_t i=0; i<in.frames.size(); ++i) {

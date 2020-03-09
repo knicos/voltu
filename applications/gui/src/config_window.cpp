@@ -71,14 +71,6 @@ static std::string titleForURI(const ftl::URI &uri) {
 	}
 }
 
-static std::string genPadding(const std::string &str, size_t count) {
-	std::string res = "";
-	for (size_t i=0; i<count; ++i) {
-		res += str;
-	}
-	return res;
-}
-
 ConfigWindow::ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 		: nanogui::Window(parent, "Settings"), ctrl_(ctrl) {
 	using namespace nanogui;
@@ -102,7 +94,7 @@ ConfigWindow::ConfigWindow(nanogui::Widget *parent, ftl::ctrl::Master *ctrl)
 	searchBox->setButtons(buttons);
 
 	std::vector<std::string> configurable_titles(size);
-	for (int i = 0; i < size; ++i) {
+	for (size_t i = 0; i < size; ++i) {
 		ftl::URI uri(configurables[i]);
 		std::string label = uri.getFragment();
 

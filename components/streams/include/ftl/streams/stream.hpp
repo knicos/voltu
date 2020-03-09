@@ -114,7 +114,7 @@ class Muxer : public Stream {
 	explicit Muxer(nlohmann::json &config);
 	virtual ~Muxer();
 
-	void add(Stream *, int fsid=0);
+	void add(Stream *, size_t fsid=0);
 
 	bool onPacket(const StreamCallback &) override;
 
@@ -126,7 +126,7 @@ class Muxer : public Stream {
 
 	void reset() override;
 
-	int originStream(int fsid, int fid);
+	int originStream(size_t fsid, int fid);
 
 	private:
 	struct StreamEntry {
@@ -135,13 +135,13 @@ class Muxer : public Stream {
 	};
 
 	std::vector<StreamEntry> streams_;
-	std::vector<std::pair<int,int>> revmap_[kMaxStreams];
+	std::vector<std::pair<size_t,int>> revmap_[kMaxStreams];
 	int nid_[kMaxStreams];
 	StreamCallback cb_;
 	SHARED_MUTEX mutex_;
 
 	void _notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
-	int _lookup(int fsid, int sid, int ssid);
+	int _lookup(size_t fsid, int sid, int ssid);
 };
 
 /**

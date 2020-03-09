@@ -58,9 +58,6 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
         : ftl::rgbd::detail::Source(host) {
 	capabilities_ = kCapVideo;
 
-	const uint WIDTH  = 1280;
-	const uint HEIGHT = 720;
-
 	ready_ = false;
 
     #ifdef HAVE_X11
