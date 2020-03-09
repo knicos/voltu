@@ -286,6 +286,7 @@ TEST_CASE("Peer::call() __ping__", "") {
 		for (int i=0; i<100; ++i) {
 			ftl::pool.push([&count, p](int id) {
 				int64_t res = p->call<int64_t>("__ping__");
+				REQUIRE( res > 0 );
 				count++;
 			});
 		}
@@ -297,6 +298,7 @@ TEST_CASE("Peer::call() __ping__", "") {
 		bool errored = false;
 		try {
 			int64_t res = p->call<int64_t>("__ping2__");
+			REQUIRE( res > 0 );  // Not called or required actually
 		} catch (const ftl::exception &e) {
 			errored = true;
 		}

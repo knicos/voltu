@@ -206,7 +206,7 @@ bool ftl::calibration::validate::distortionCoefficients(const Mat &D, Size size)
 		(D.total() == 8) ||
 		(D.total() == 12))) { return false; }
 
-	for (int i = 0; i < D.total(); i++) {
+	for (size_t i = 0; i < D.total(); i++) {
 		if (!std::isfinite(D.at<double>(i))) { return false; }
 	}
 

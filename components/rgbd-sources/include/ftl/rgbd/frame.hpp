@@ -210,7 +210,7 @@ ftl::cuda::TextureObject<T> &Frame::getTexture(ftl::codecs::Channel c) {
 	auto &m = getData(c);
 	if (!m.isgpu) throw FTL_Error("Texture channel is not on GPU");
 
-	if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.gpu.type() != m.tex.cvType()) {
+	if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != static_cast<size_t>(m.gpu.cols) || m.tex.height() != static_cast<size_t>(m.gpu.rows) || m.gpu.type() != m.tex.cvType()) {
 		throw FTL_Error("Texture has not been created properly for this channel: " << (int)c);
 	}
 
@@ -240,7 +240,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const 
 	if (m.tex.devicePtr() == nullptr) {
 		//LOG(INFO) << "Creating texture object";
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
-	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows) {
+	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != static_cast<size_t>(m.gpu.cols) || m.tex.height() != static_cast<size_t>(m.gpu.rows)) {
 		//LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'";
 		m.tex.free();
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
@@ -272,7 +272,7 @@ ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, bool i
 	if (m.tex.devicePtr() == nullptr) {
 		//LOG(INFO) << "Creating texture object";
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
-	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != m.gpu.cols || m.tex.height() != m.gpu.rows || m.tex.devicePtr() != m.gpu.data) {
+	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != static_cast<size_t>(m.gpu.cols) || m.tex.height() != static_cast<size_t>(m.gpu.rows) || m.tex.devicePtr() != m.gpu.data) {
 		//LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'.";
 		m.tex.free();
 		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);

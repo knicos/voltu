@@ -54,7 +54,6 @@ double ftl::timer::get_time_seconds() {
 }
 
 static void waitTimePoint() {
-	auto start = high_resolution_clock::now();
 	int64_t now = get_time();
 	int64_t target = now / mspf;
 	int64_t msdelay = mspf - (now % mspf);

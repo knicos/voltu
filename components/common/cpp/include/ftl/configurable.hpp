@@ -15,6 +15,9 @@
 
 #define REQUIRED(...) required(__func__, __VA_ARGS__)
 
+// TODO: Find a better place for this
+#define UNUSED(A) (void)(A)
+
 namespace ftl {
 
 class Configurable;

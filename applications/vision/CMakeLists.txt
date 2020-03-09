@@ -6,7 +6,7 @@
 
 set(CVNODESRC
 	src/main.cpp
-	src/middlebury.cpp
+	#src/middlebury.cpp
 )
 
 add_executable(ftl-vision ${CVNODESRC})

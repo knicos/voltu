@@ -53,8 +53,8 @@ class TextureObjectBase {
 	inline size_t pixelPitch() const { return pitch2_; }
 	inline uchar *devicePtr() const { return ptr_; };
 	__host__ __device__ inline uchar *devicePtr(int v) const { return &ptr_[v*pitch_]; }
-	__host__ __device__ inline int width() const { return width_; }
-	__host__ __device__ inline int height() const { return height_; }
+	__host__ __device__ inline size_t width() const { return width_; }
+	__host__ __device__ inline size_t height() const { return height_; }
 	__host__ __device__ inline cudaTextureObject_t cudaTexture() const { return texobj_; }
 
 	cv::cuda::GpuMat to_gpumat() const;
@@ -72,8 +72,8 @@ class TextureObjectBase {
 	cudaTextureObject_t texobj_;
 	size_t pitch_;
 	size_t pitch2_; 		// in T units
-	int width_;
-	int height_;
+	size_t width_;
+	size_t height_;
 	uchar *ptr_;			// Device memory pointer
 	bool needsfree_;		// We manage memory, so free it
 	bool needsdestroy_;		// The texture object needs to be destroyed
@@ -107,7 +107,7 @@ class TextureObject : public TextureObjectBase {
 	operator cv::cuda::GpuMat();
 
 	void create(const cv::Size &);
-	void create(int w, int h);
+	void create(size_t w, size_t h);
 
 	__host__ __device__ T *devicePtr() const { return (T*)(ptr_); };
 	__host__ __device__ T *devicePtr(int v) const { return &(T*)(ptr_)[v*pitch2_]; }
@@ -292,7 +292,7 @@ void TextureObject<T>::create(const cv::Size &s) {
 }
 
 template <typename T>
-void TextureObject<T>::create(int w, int h) {
+void TextureObject<T>::create(size_t w, size_t h) {
 	if (width_ != w || height_ != h) {
 		*this = std::move(TextureObject<T>(w, h));
 	}

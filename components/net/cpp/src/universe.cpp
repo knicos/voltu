@@ -46,8 +46,8 @@ callback_t ftl::net::Universe::cbid__ = 0;
 Universe::Universe() :
 		Configurable(),
 		active_(true),
-		impl_(new ftl::net::NetImplDetail),
 		this_peer(ftl::net::this_peer),
+		impl_(new ftl::net::NetImplDetail),
 		phase_(0),
 		send_size_(TCP_SEND_BUFFER_SIZE),
 		recv_size_(TCP_RECEIVE_BUFFER_SIZE),
@@ -62,8 +62,8 @@ Universe::Universe() :
 Universe::Universe(nlohmann::json &config) :
 		Configurable(config),
 		active_(true),
-		impl_(new ftl::net::NetImplDetail),
 		this_peer(ftl::net::this_peer),
+		impl_(new ftl::net::NetImplDetail),
 		phase_(0),
 		send_size_(value("tcp_send_buffer",TCP_SEND_BUFFER_SIZE)),
 		recv_size_(value("tcp_recv_buffer",TCP_RECEIVE_BUFFER_SIZE)),

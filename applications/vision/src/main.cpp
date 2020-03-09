@@ -17,7 +17,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <ftl/rgbd.hpp>
-#include <ftl/middlebury.hpp>
+//#include <ftl/middlebury.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/master.hpp>
 #include <nlohmann/json.hpp>

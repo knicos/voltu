@@ -177,6 +177,8 @@ void Overlay::_drawFilledShape(Shape shape, const Eigen::Matrix4d &pose, float s
     Eigen::Matrix4f mv = pose.cast<float>();
 
     auto [offset,count, loffset, lcount] = shapes_[shape];
+    UNUSED(loffset);
+    UNUSED(lcount);
     oShader.setUniform("scale", scale);
     oShader.setUniform("pose", mv);
     oShader.setUniform("blockColour", Eigen::Vector4f(float(c.x)/255.0f,float(c.y)/255.0f,float(c.z)/255.0f,float(c.w)/255.0f));
@@ -215,6 +217,9 @@ void Overlay::_drawAxis(const Eigen::Matrix4d &pose, const Eigen::Vector3f &scal
     Eigen::Matrix4f mv = pose.cast<float>();
 
     auto [offset,count,loffset,lcount] = shapes_[Shape::AXIS];
+    UNUSED(offset);
+    UNUSED(count);
+    UNUSED(lcount);
     oShader.setUniform("scale", scale);
     oShader.setUniform("pose", mv);
 

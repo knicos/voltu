@@ -193,7 +193,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 
 	cv::destroyAllWindows();
 	
-	bool calib_ok = true;
+	//bool calib_ok = true;
 
 	for (int c = 0; c < n_cameras; c++) {
 		LOG(INFO) << "Calculating intrinsic paramters for camera " << std::to_string(c);
@@ -219,7 +219,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 			continue;
 		}
 
-		calib_ok = true;
+		//calib_ok = true;
 		calibrate_flags &=	~cv::CALIB_FIX_K1 & ~cv::CALIB_FIX_K2 & ~cv::CALIB_FIX_K3;
 
 		double fovx, fovy, focal_length, aspect_ratio;

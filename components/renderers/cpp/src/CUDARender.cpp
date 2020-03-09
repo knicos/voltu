@@ -31,16 +31,6 @@ using ftl::cuda::Mask;
 using ftl::render::parseCUDAColour;
 using ftl::render::parseCVColour;
 
-static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
-  Eigen::Affine3d rx =
-      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
-  Eigen::Affine3d ry =
-      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
-  Eigen::Affine3d rz =
-      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
-  return rz * rx * ry;
-}
-
 CUDARender::CUDARender(nlohmann::json &config) : ftl::render::Renderer(config), scene_(nullptr) {
 	/*if (config["clipping"].is_object()) {
 		auto &c = config["clipping"];
@@ -208,7 +198,7 @@ void CUDARender::_adjustDepthThresholds(const ftl::rgbd::Camera &fcam) {
 
 ftl::cuda::TextureObject<float> &CUDARender::_getDepthBuffer(const cv::Size &size) {
 	for (auto *b : depth_buffers_) {
-		if (b->width() == size.width && b->height() == size.height) return *b;
+		if (b->width() == static_cast<size_t>(size.width) && b->height() == static_cast<size_t>(size.height)) return *b;
 	}
 	auto *nb = new ftl::cuda::TextureObject<float>(size.width, size.height);
 	depth_buffers_.push_back(nb);
@@ -217,7 +207,7 @@ ftl::cuda::TextureObject<float> &CUDARender::_getDepthBuffer(const cv::Size &siz
 
 ftl::cuda::TextureObject<short2> &CUDARender::_getScreenBuffer(const cv::Size &size) {
 	for (auto *b : screen_buffers_) {
-		if (b->width() == size.width && b->height() == size.height) return *b;
+		if (b->width() == static_cast<size_t>(size.width) && b->height() == static_cast<size_t>(size.height)) return *b;
 	}
 	auto *nb = new ftl::cuda::TextureObject<short2>(size.width, size.height);
 	screen_buffers_.push_back(nb);
