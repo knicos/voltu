@@ -27,9 +27,9 @@ __device__ inline float cross<float>(float p1, float p2) {
 template <typename T, bool SYM>
 __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, int y, float tau, int v_max, int h_max) {
     int x_min = max(0, x - h_max);
-    int x_max = min(img.width()-1, static_cast<unsigned long>(x + h_max));
+    int x_max = min(img.width()-1, static_cast<unsigned int>(x + h_max));
     int y_min = max(0, y - v_max);
-    int y_max = min(img.height()-1, static_cast<unsigned long>(y + v_max));
+    int y_max = min(img.height()-1, static_cast<unsigned int>(y + v_max));
 
 	uchar4 result = make_uchar4(0, 0, 0, 0);
 
@@ -93,9 +93,9 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 
 __device__ uchar4 calculate_support_region(const TextureObject<uint8_t> &img, int x, int y, int v_max, int h_max) {
     int x_min = max(0, x - h_max);
-    int x_max = min(img.width()-1, static_cast<unsigned long>(x + h_max));
+    int x_max = min(img.width()-1, static_cast<unsigned int>(x + h_max));
     int y_min = max(0, y - v_max);
-    int y_max = min(img.height()-1, static_cast<unsigned long>(y + v_max));
+    int y_max = min(img.height()-1, static_cast<unsigned int>(y + v_max));
 
 	uchar4 result = make_uchar4(0, 0, 0, 0);
 
