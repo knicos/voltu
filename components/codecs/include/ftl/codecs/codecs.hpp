@@ -61,6 +61,8 @@ enum struct definition_t : uint8_t {
 
 	HTC_VIVE = 8,
 	OLD_SKOOL = 9,
+	MIDDLEBURY = 10,
+	MIDDLEBURY_HD = 11,
 
 	hz48000 = 32,
 	hz44100 = 33,

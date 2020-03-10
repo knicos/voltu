@@ -76,7 +76,11 @@ class Frame : public ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData> {
 public:
 	using ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>::create;
 
-	Frame() {}
+	Frame();
+	Frame(Frame &&f);
+	~Frame();
+
+	Frame &operator=(Frame &&f);
 
 	// Prevent frame copy, instead use a move.
 	//Frame(const Frame &)=delete;

@@ -4,6 +4,7 @@
 
 #ifdef WIN32
 #include <windows.h>
+#pragma comment(lib, "User32.lib")
 #else
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -12,6 +13,7 @@
 
 #ifndef WIN32
 #include <signal.h>
+#include <dirent.h>
 #endif
 
 #include <nlohmann/json.hpp>
@@ -84,6 +86,38 @@ bool ftl::is_file(const std::string &path) {
 		return S_ISREG(s.st_mode);
 	} else {
 		return false;
+	}
+#endif
+}
+
+std::vector<std::string> ftl::directory_listing(const std::string &path) {
+	std::vector<std::string> res;
+
+#ifdef WIN32
+	std::string path2 = path + "\\*";
+	WIN32_FIND_DATA ffd;
+	HANDLE hFind = FindFirstFile(path2.c_str(), &ffd);
+
+	if (hFind == INVALID_HANDLE_VALUE) return res;
+
+	do {
+		res.push_back(std::string(ffd.cFileName));
+	} while (FindNextFile(hFind, &ffd) != 0);
+
+	FindClose(hFind);
+	return res;
+#else
+	DIR *dir;
+	struct dirent *ent;
+	if ((dir = opendir (path.c_str())) != NULL) {
+		/* print all the files and directories within directory */
+		while ((ent = readdir (dir)) != NULL) {
+			res.push_back(path + std::string(ent->d_name));
+		}
+		closedir (dir);
+		return res;
+	} else {
+		return res;
 	}
 #endif
 }

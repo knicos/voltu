@@ -17,7 +17,7 @@ class Colouriser;
  * Generate triangles between connected points and render those. Colour is done
  * by weighted reprojection to the original source images.
  */
-class CUDARender : public ftl::render::Renderer {
+class CUDARender : public ftl::render::FSRenderer {
 	public:
 	explicit CUDARender(nlohmann::json &config);
 	~CUDARender();
@@ -27,6 +27,8 @@ class CUDARender : public ftl::render::Renderer {
 
 	bool submit(ftl::rgbd::FrameSet *in, ftl::codecs::Channels<0>, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
+
+	void render() override;
 
 	void blend(ftl::codecs::Channel) override;
 

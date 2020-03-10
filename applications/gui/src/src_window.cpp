@@ -34,6 +34,7 @@
 #include <ftl/operators/mvmls.hpp>
 #include <ftl/operators/clipping.hpp>
 #include <ftl/operators/poser.hpp>
+#include <ftl/operators/gt_analysis.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -85,7 +86,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	auto vscroll = new VScrollPanel(this);
 	ipanel_ = new Widget(vscroll);
-	ipanel_->setLayout(new GridLayout(nanogui::Orientation::Horizontal, 2,
+	ipanel_->setLayout(new GridLayout(nanogui::Orientation::Horizontal, 3,
 		nanogui::Alignment::Middle, 0, 5));
 
 	screen->net()->onConnect([this](ftl::net::Peer *p) {
@@ -273,6 +274,7 @@ void SourceWindow::_checkFrameSets(size_t id) {
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
 		p->append<ftl::operators::Poser>("poser")->value("enabled", true);
+		p->append<ftl::operators::GTAnalysis>("gtanal");
 
 		pre_pipelines_.push_back(p);
 		framesets_.push_back(new ftl::rgbd::FrameSet);

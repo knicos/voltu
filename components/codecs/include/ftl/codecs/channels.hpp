@@ -37,6 +37,7 @@ enum struct Channel : int {
 	RightHighRes	= 20,	// 8UC3 or 8UC4
 	Colour2HighRes	= 20,
 	Overlay			= 21,   // 8UC4
+	GroundTruth		= 22,	// 32F
 
 	Audio			= 32,
 	AudioMono		= 32,
@@ -55,7 +56,8 @@ enum struct Channel : int {
 	Data			= 2048,	// Custom data, any codec.
 	Faces			= 2049, // Data about detected faces
 	Transforms		= 2050,	// Transformation matrices for framesets
-	Shapes3D		= 2051	// Labeled 3D shapes
+	Shapes3D		= 2051,	// Labeled 3D shapes
+	Messages		= 2052	// Vector of Strings
 };
 
 inline bool isVideo(Channel c) { return (int)c < 32; };
@@ -147,6 +149,7 @@ static const Channels kAllChannels(0xFFFFFFFFu);
 
 inline bool isFloatChannel(ftl::codecs::Channel chan) {
 	switch (chan) {
+	case Channel::GroundTruth:
 	case Channel::Depth		:
 	//case Channel::Normals   :
 	case Channel::Confidence:

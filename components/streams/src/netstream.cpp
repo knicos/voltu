@@ -154,6 +154,8 @@ bool Net::begin() {
 		// FIXME: see #335
 		//spkt.timestamp -= clock_adjust_;
 		spkt.originClockDelta = clock_adjust_;
+		spkt.hint_capability = 0;
+		spkt.hint_source_total = 0;
 		//LOG(INFO) << "LATENCY: " << ftl::timer::get_time() - spkt.localTimestamp() << " : " << spkt.timestamp << " - " << clock_adjust_;
 		spkt.version = 4;
 
@@ -275,7 +277,10 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 		ftl::timer::get_time(),
 		frameset,
 		frames,
-		c
+		c,
+		0,
+		0,
+		0
 	};
 
 	net_->send(peer_, uri_, (short)0, spkt, pkt);

@@ -604,6 +604,8 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 
 	nvgTextAlign(ctx, NVG_ALIGN_RIGHT);
 
+	int offset_top = 20;
+
 	if (root()->value("show_information", true)) {
 		string msg;
 
@@ -623,6 +625,18 @@ void ftl::gui::Screen::draw(NVGcontext *ctx) {
 			nvgText(ctx, screenSize[0]-10, 80, msg.c_str(), NULL);
 			msg = string("Focal: ") + to_string_with_precision(intrin.fx, 2);
 			nvgText(ctx, screenSize[0]-10, 100, msg.c_str(), NULL);
+
+			offset_top = 120;
+		} else {
+			offset_top = 80;
+		}
+	}
+
+	if (camera_) {
+		auto &msgs = camera_->getMessages();
+		for (auto &m : msgs) {
+			nvgText(ctx, screenSize[0]-10, offset_top, m.c_str(), NULL);
+			offset_top += 20;
 		}
 	}
 

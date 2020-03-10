@@ -1,6 +1,9 @@
 
 #include <ftl/rgbd/frame.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::rgbd::Frame;
 using ftl::rgbd::FrameState;
 using ftl::codecs::Channels;
@@ -9,6 +12,7 @@ using ftl::rgbd::VideoData;
 
 static cv::Mat none;
 static cv::cuda::GpuMat noneGPU;
+static std::atomic<int> frame_count = 0;
 
 template <>
 cv::Mat &VideoData::as<cv::Mat>() {
@@ -71,6 +75,24 @@ cv::cuda::GpuMat &VideoData::make<cv::cuda::GpuMat>() {
 		data_[i].encoded.clear();
 	}
 }*/
+
+Frame::Frame() {
+	++frame_count;
+	//LOG(INFO) << "Frames: " << frame_count;
+}
+
+Frame::Frame(Frame &&f) : ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>(std::move(f)) {
+
+}
+
+Frame &Frame::operator=(Frame &&f) {
+	ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>::operator=(std::move(f));
+	return *this;
+}
+
+Frame::~Frame() {
+	--frame_count;
+}
 
 void Frame::download(Channel c, cv::cuda::Stream stream) {
 	download(Channels(c), stream);

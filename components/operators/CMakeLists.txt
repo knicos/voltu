@@ -31,6 +31,8 @@ set(OPERSRC
 	src/weighting.cpp
 	src/weighting.cu
 	src/poser.cpp
+	src/gt_analysis.cpp
+	src/gt_analysis.cu
 )
 
 if (LIBSGM_FOUND)

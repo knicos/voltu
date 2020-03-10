@@ -71,7 +71,10 @@ bool File::_checkFile() {
 
 	checked_ = true;
 
+	is_video_ = count < 9;
+
 	LOG(INFO) << " -- Frame rate = " << (1000 / min_ts_diff);
+	if (!is_video_) LOG(INFO) << " -- Static image";
 	interval_ = min_ts_diff;
 	return true;
 }
@@ -222,6 +225,7 @@ bool File::tick(int64_t ts) {
 		// Adjust timestamp
 		// FIXME: A potential bug where multiple times are merged into one?
 		std::get<0>(data).timestamp = (((std::get<0>(data).timestamp) - first_ts_) / interval_) * interval_ + timestart_;
+		std::get<0>(data).hint_capability = (is_video_) ? 0 : ftl::codecs::kStreamCap_Static;
 
 		// Maintain availability of channels.
 		available(0) += std::get<0>(data).channel;

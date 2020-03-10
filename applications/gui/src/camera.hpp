@@ -114,6 +114,7 @@ class Camera {
 	//cv::Point3f getNormal(float x, float y) { return getNormal((int) round(x), (int) round(y)); }
 	void setTransform(const Eigen::Matrix4d &T);
 	Eigen::Matrix4d getTransform() const;
+	const std::vector<std::string> &getMessages() const { return msgs_; }
 
 #ifdef HAVE_OPENVR
 	bool isVR() { return vr_mode_; }
@@ -173,6 +174,8 @@ class Camera {
 	ftl::stream::Sender *record_sender_;
 
 	std::string name_;
+
+	std::vector<std::string> msgs_;
 
 	int transform_ix_;
 	std::array<Eigen::Matrix4d,ftl::stream::kMaxStreams> transforms_;  // Frameset transforms for virtual cam

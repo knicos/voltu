@@ -57,6 +57,8 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		} else if (!tmp_.empty() && tmp_.type() == CV_8UC4 && chunkHead.type() == CV_8UC4) {
 			//tmp_.copyTo(chunkHead);
 			chunkHead.upload(tmp_);
+		} else if (!tmp_.empty() && tmp_.type() == CV_16U && chunkHead.type() == CV_16U) {
+			chunkHead.upload(tmp_);
 		} else {
 			// Silent ignore?
 		}

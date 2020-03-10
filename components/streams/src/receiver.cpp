@@ -4,8 +4,8 @@
 
 #include <opencv2/cudaimgproc.hpp>
 
-#include "parsers.hpp"
-#include "injectors.hpp"
+#include <ftl/streams/parsers.hpp>
+#include <ftl/streams/injectors.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -205,6 +205,8 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	// Allocate a decode surface, this is a tiled image to be split later
 	surface.create(height*ty, width*tx, ((isFloatChannel(spkt.channel)) ? ((pkt.flags & 0x2) ? CV_16UC4 : CV_16U) : CV_8UC4));
 
+	bool is_static = ividstate.decoders[channum] && (spkt.hint_capability & ftl::codecs::kStreamCap_Static);
+
 	// Find or create the decoder
 	_createDecoder(ividstate, channum, pkt);
 	auto *decoder = ividstate.decoders[channum];
@@ -214,15 +216,17 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	}
 
 	// Do the actual decode into the surface buffer
-	try {
-		FTL_Profile("Decode", 0.015);
-		if (!decoder->decode(pkt, surface)) {
-			LOG(ERROR) << "Decode failed on channel " << (int)spkt.channel;
+	if (!is_static) {
+		try {
+			FTL_Profile("Decode", 0.015);
+			if (!decoder->decode(pkt, surface)) {
+				LOG(ERROR) << "Decode failed on channel " << (int)spkt.channel;
+				return;
+			}
+		} catch (std::exception &e) {
+			LOG(ERROR) << "Decode failed for " << spkt.timestamp << ": " << e.what();
 			return;
 		}
-	} catch (std::exception &e) {
-		LOG(ERROR) << "Decode failed for " << spkt.timestamp << ": " << e.what();
-		return;
 	}
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(decoder->stream());

@@ -118,6 +118,7 @@ TextureObject<uchar4> &Colouriser::colourise(ftl::rgbd::Frame &f, Channel c, cud
 	case Channel::ColourHighRes	:
 	case Channel::Colour		:
 	case Channel::Colour2		: return _processColour(f,c,stream);
+	case Channel::GroundTruth	:
 	case Channel::Depth			:
 	case Channel::Depth2		: return _processFloat(f,c, value("depth_min", f.getLeft().minDepth), value("depth_max", f.getLeft().maxDepth), stream);
 	case Channel::Normals		:

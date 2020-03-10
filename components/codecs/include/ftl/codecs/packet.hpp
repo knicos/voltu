@@ -54,6 +54,8 @@ struct Packet {
 	MSGPACK_DEFINE(codec, definition, frame_count, bitrate, flags, data);
 };
 
+static constexpr unsigned int kStreamCap_Static = 0x01;
+
 /**
  * Add timestamp and channel information to a raw encoded frame packet. This
  * allows the packet to be located within a larger stream and should be sent
@@ -76,7 +78,9 @@ struct StreamPacket {
 	inline size_t frameSetID() const { return (version >= 4) ? streamID : 0; }
 	inline int64_t localTimestamp() const { return timestamp + originClockDelta; }
 
-	int64_t originClockDelta;  // Not message packet / saved
+	int64_t originClockDelta;  		// Not message packet / saved
+	unsigned int hint_capability;	// Is this a video stream, for example
+	size_t hint_source_total;		// Number of tracks per frame to expect
 
 	MSGPACK_DEFINE(timestamp, streamID, frame_number, channel);
 

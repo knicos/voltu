@@ -34,6 +34,8 @@ class MediaPanel : public nanogui::Window {
 
 	void recordWindowClosed();
 
+	void performLayout(NVGcontext *ctx) override;
+
 	private:
 	ftl::gui::Screen *screen_;
 	ftl::gui::SourceWindow *sourceWindow_;
@@ -45,6 +47,7 @@ class MediaPanel : public nanogui::Window {
 	nanogui::PopupButton *button_channels_;
 	//nanogui::Button *right_button_;
 	//nanogui::Button *depth_button_;
+	nanogui::Popup *more_button_;
 	nanogui::PopupButton *recordbutton_;
 	std::array<nanogui::Button*,32> channel_buttons_={};
 

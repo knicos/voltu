@@ -38,13 +38,20 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 
 	pkt.definition = (pkt.definition == definition_t::Any) ? ftl::codecs::findDefinition(in.cols, in.rows) : pkt.definition;
 
-	if (pkt.definition == definition_t::Invalid || pkt.definition == definition_t::Any) return false;
+	if (pkt.definition == definition_t::Invalid || pkt.definition == definition_t::Any) {
+		LOG(ERROR) << "Invalid definition";
+		return false;
+	}
 
 	// Ensure definition does not exceed max
-	current_definition_ = ((int)pkt.definition < (int)max_definition) ? max_definition : pkt.definition;
+	current_definition_ = pkt.definition; //((int)pkt.definition < (int)max_definition) ? max_definition : pkt.definition;
 
 	in.download(tmp_);
 	//CHECK(cv::Size(ftl::codecs::getWidth(definition), ftl::codecs::getHeight(definition)) == in.size()); 
+
+	if (!is_colour) {
+		tmp_.convertTo(tmp_, CV_16U, 1000.0f);
+	}
 
 	int width = ftl::codecs::getWidth(current_definition_);
 	int height = ftl::codecs::getHeight(current_definition_);
@@ -55,7 +62,10 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 	} else {
 		
 	}*/
-	if (width != in.cols || height != in.rows) return false;
+	if (width != in.cols || height != in.rows) {
+		LOG(ERROR) << "Input does not match requested definition";
+		return false;
+	}
 
 	if (pkt.codec == codec_t::Any) pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
 

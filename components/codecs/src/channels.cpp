@@ -29,9 +29,9 @@ static ChannelInfo info[] = {
 	"ColourHighRes", 0,			// 17
 	"Disparity", 0,				// 18
 	"Smoothing", 0,				// 19
-	"NoName", 0,
-	"NoName", 0,
-	"NoName", 0,
+	"Colour2HighRes", 0,		// 20
+	"Overlay", 0,				// 21
+	"GroundTruth", CV_32F,		// 22
 	"NoName", 0,
 	"NoName", 0,
 	"NoName", 0,
