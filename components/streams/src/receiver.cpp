@@ -26,6 +26,7 @@ using ftl::codecs::definition_t;
 Receiver::Receiver(nlohmann::json &config) : ftl::Configurable(config), stream_(nullptr) {
 	timestamp_ = 0;
 	second_channel_ = Channel::Depth;
+	frame_mask_ = value("frame_mask", 0xFFFFFFFFu);
 
 	size_t bsize = value("frameset_buffer_size", 3);
 	for (size_t i=0; i<ftl::stream::kMaxStreams; ++i) {
@@ -38,6 +39,10 @@ Receiver::Receiver(nlohmann::json &config) : ftl::Configurable(config), stream_(
 		for (size_t i=0; i<ftl::stream::kMaxStreams; ++i) {
 			builder_[i].setBufferSize(bsize);
 		}
+	});
+
+	on("frame_mask", [this](const ftl::config::Event &e) {
+		frame_mask_ = value("frame_mask", 0xFFFFFFFFu);
 	});
 }
 
@@ -374,7 +379,8 @@ void Receiver::setStream(ftl::stream::Stream *s) {
 		}
 
 		// Too many frames, so ignore.
-		if (spkt.frameNumber() >= value("max_frames",32)) return;
+		//if (spkt.frameNumber() >= value("max_frames",32)) return;
+		if (spkt.frameNumber() >= 32 || ((1 << spkt.frameNumber()) & frame_mask_) == 0) return;
 
 		// Dummy no data packet.
 		if (pkt.data.size() == 0) return;

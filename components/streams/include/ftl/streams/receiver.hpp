@@ -53,6 +53,7 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 	ftl::codecs::Channel second_channel_;
 	int64_t timestamp_;
 	SHARED_MUTEX mutex_;
+	unsigned int frame_mask_;
 
 	struct InternalVideoStates {
 		InternalVideoStates();
