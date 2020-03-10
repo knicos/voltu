@@ -54,10 +54,20 @@ class Frame {
 
 public:
 	Frame() : origin_(nullptr) {}
+	Frame(Frame &&f) {
+		f.swapTo(*this);
+		f.reset();
+	}
+
+	Frame &operator=(Frame &&f) {
+		f.swapTo(*this);
+		f.reset();
+		return *this;
+	}
 
 	// Prevent frame copy, instead use a move.
-	//Frame(const Frame &)=delete;
-	//Frame &operator=(const Frame &)=delete;
+	Frame(const Frame &)=delete;
+	Frame &operator=(const Frame &)=delete;
 
 	/**
 	 * Perform a buffer swap of the selected channels. This is intended to be

@@ -231,6 +231,30 @@ else()
 	message(WARNING "Portaudio not found - sound disabled")
 endif()
 
+# Assimp library
+#find_library( ASSIMP_LIBRARY NAMES assimp PATHS ${PORTAUDIO_DIR} PATH_SUFFIXES lib)
+#if (ASSIMP_LIBRARY)
+#	set(HAVE_ASSIMP TRUE)
+#	add_library(assimp UNKNOWN IMPORTED)
+	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+#	set_property(TARGET assimp PROPERTY IMPORTED_LOCATION ${ASSIMP_LIBRARY})
+#	message(STATUS "Found Assimp: ${ASSIMP_LIBRARY}")
+
+#	if(WIN32)
+		# Find include
+#		find_path(ASSIMP_INCLUDE_DIRS
+#			NAMES assimp/scene.h
+#			PATHS "C:/Program Files/Assimp" "C:/Program Files (x86)/Assimp" ${ASSIMP_DIR}
+#			PATH_SUFFIXES include
+#		)
+#		set_property(TARGET assimp PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${ASSIMP_INCLUDE_DIRS})
+#	endif()
+#else()
+#	set(ASSIMP_LIBRARY "")
+#	add_library(assimp INTERFACE)
+#	message(WARNING "Assimp not found - no model rendering")
+#endif()
+
 find_program( NODE_NPM NAMES npm )
 if (NODE_NPM)
 	message(STATUS "Found NPM: ${NODE_NPM}")

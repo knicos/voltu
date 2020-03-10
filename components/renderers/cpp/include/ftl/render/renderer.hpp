@@ -43,7 +43,23 @@ class Renderer : public ftl::Configurable {
 	 */
 	virtual void end()=0;
 
-    /**
+	virtual void render()=0;
+
+	virtual void blend(ftl::codecs::Channel)=0;
+
+	protected:
+	Stage stage_;
+};
+
+/**
+ * A renderer specifically for RGB-D framesets.
+ */
+class FSRenderer : public ftl::render::Renderer {
+	public:
+	explicit FSRenderer(nlohmann::json &config) : ftl::render::Renderer(config) {};
+	virtual ~FSRenderer() {};
+
+	/**
      * Render all frames of a frameset into the output frame. This can be called
 	 * multiple times between `begin` and `end` to combine multiple framesets.
 	 * Note that the frameset pointer must remain valid until `end` is called,
@@ -55,11 +71,6 @@ class Renderer : public ftl::Configurable {
 	 * to RGB colour appropriately.
      */
     virtual bool submit(ftl::rgbd::FrameSet *, ftl::codecs::Channels<0>, const Eigen::Matrix4d &)=0;
-
-	virtual void blend(ftl::codecs::Channel)=0;
-
-	protected:
-	Stage stage_;
 };
 
 }

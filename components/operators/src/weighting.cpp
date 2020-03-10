@@ -33,27 +33,29 @@ bool PixelWeights::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 	params.normals = config()->value("use_normals", true);
 	bool output_normals = config()->value("output_normals", params.normals);
 
-	if (!in.hasChannel(Channel::Depth) || !in.hasChannel(Channel::Support1)) return false;
+	if ((!in.hasChannel(Channel::Depth) && !in.hasChannel(Channel::GroundTruth)) || !in.hasChannel(Channel::Support1)) return false;
+
+	Channel dchan = (in.hasChannel(Channel::Depth)) ? Channel::Depth : Channel::GroundTruth;
 
 	if (output_normals) {
 		ftl::cuda::pixel_weighting(
-			out.createTexture<short>(Channel::Weights, ftl::rgbd::Format<short>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-			out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-			out.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			out.createTexture<short>(Channel::Weights, ftl::rgbd::Format<short>(in.get<cv::cuda::GpuMat>(dchan).size())),
+			out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(dchan).size())),
+			out.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(dchan).size())),
 			in.createTexture<uchar4>(Channel::Support1),
-			in.createTexture<float>(Channel::Depth),
+			in.createTexture<float>(dchan),
 			in.getLeftCamera(),
-			in.get<cv::cuda::GpuMat>(Channel::Depth).size(),
+			in.get<cv::cuda::GpuMat>(dchan).size(),
 			params, stream
 		);
 	} else {
 		ftl::cuda::pixel_weighting(
-			out.createTexture<short>(Channel::Weights, ftl::rgbd::Format<short>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-			out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			out.createTexture<short>(Channel::Weights, ftl::rgbd::Format<short>(in.get<cv::cuda::GpuMat>(dchan).size())),
+			out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(dchan).size())),
 			in.createTexture<uchar4>(Channel::Support1),
-			in.createTexture<float>(Channel::Depth),
+			in.createTexture<float>(dchan),
 			in.getLeftCamera(),
-			in.get<cv::cuda::GpuMat>(Channel::Depth).size(),
+			in.get<cv::cuda::GpuMat>(dchan).size(),
 			params, stream
 		);
 	}

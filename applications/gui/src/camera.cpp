@@ -12,6 +12,7 @@
 #include <ftl/cuda/normals.hpp>
 #include <ftl/render/colouriser.hpp>
 #include <ftl/cuda/transform.hpp>
+#include <ftl/operators/gt_analysis.hpp>
 
 #include <ftl/render/overlay.hpp>
 #include "statsimage.hpp"
@@ -359,6 +360,9 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 				//}
 			}
 
+			renderer_->render();
+			if (isStereo()) renderer2_->render();
+
 			if (channel_ != Channel::Left && channel_ != Channel::Right && channel_ != Channel::None) {
 				renderer_->blend(channel_);
 				if (isStereo()) {
@@ -385,6 +389,7 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	if (!post_pipe_) {
 		post_pipe_ = ftl::config::create<ftl::operators::Graph>(screen_->root(), "post_filters");
 		post_pipe_->append<ftl::operators::FXAA>("fxaa");
+		post_pipe_->append<ftl::operators::GTAnalysis>("gtanal");
 	}
 
 	post_pipe_->apply(frame_, frame_, 0);
@@ -464,6 +469,11 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 			if ((size_t)fid_ >= fs->frames.size()) return;
 			frame = &fs->frames[fid_];
+
+			if (frame->hasChannel(Channel::Messages)) {
+				msgs_.clear();
+				frame->get(Channel::Messages, msgs_);
+			}
 
 			auto n = frame->get<std::string>("name");
 			if (n) {

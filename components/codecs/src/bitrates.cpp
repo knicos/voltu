@@ -24,6 +24,8 @@ static const Resolution resolutions[] = {
 	0, 0,			// ANY
 	1852, 2056,		// HTC_VIVE
 	640, 480,		// Old school 4:3
+	3000, 1920,		// Middlebury
+	1687, 1080,		// Middlebury smaller
 	0, 0
 };
 

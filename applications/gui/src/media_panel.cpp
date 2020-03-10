@@ -174,7 +174,8 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 	popup = popbutton->popup();
 	popup->setLayout(new GroupLayout());
 	popup->setTheme(screen->toolbuttheme);
-	popup->setAnchorHeight(150);
+	//popup->setAnchorHeight(150);
+	more_button_ = popup;
 
 	for (int i=3; i<32; ++i) {
 		ftl::codecs::Channel c = static_cast<ftl::codecs::Channel>(i);
@@ -249,6 +250,11 @@ void MediaPanel::cameraChanged() {
 			}
 		}
 	}
+}
+
+void MediaPanel::performLayout(NVGcontext *ctx) {
+	nanogui::Window::performLayout(ctx);
+	more_button_->setAnchorHeight(more_button_->height()-20);
 }
 
 void MediaPanel::recordWindowClosed() {

@@ -1,4 +1,4 @@
-#include "injectors.hpp"
+#include <ftl/streams/injectors.hpp>
 #include <ftl/utility/vectorbuffer.hpp>
 
 using ftl::codecs::Channel;

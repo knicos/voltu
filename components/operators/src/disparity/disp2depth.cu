@@ -2,6 +2,10 @@
 #include <ftl/rgbd/camera.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
+#ifndef PINF
+#define PINF __int_as_float(0x7f800000)
+#endif
+
 __global__ void d2d_kernel(cv::cuda::PtrStepSz<float> disp, cv::cuda::PtrStepSz<float> depth,
 		ftl::rgbd::Camera cam) {
 

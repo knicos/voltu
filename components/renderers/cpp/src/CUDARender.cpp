@@ -31,7 +31,7 @@ using ftl::cuda::Mask;
 using ftl::render::parseCUDAColour;
 using ftl::render::parseCVColour;
 
-CUDARender::CUDARender(nlohmann::json &config) : ftl::render::Renderer(config), scene_(nullptr) {
+CUDARender::CUDARender(nlohmann::json &config) : ftl::render::FSRenderer(config), scene_(nullptr) {
 	/*if (config["clipping"].is_object()) {
 		auto &c = config["clipping"];
 		float rx = c.value("pitch", 0.0f);
@@ -130,6 +130,19 @@ void CUDARender::_renderChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel i
 			ftl::cuda::reproject(
 				texture,
 				f.createTexture<float>(Channel::Depth),
+				output.getTexture<float>(_getDepthChannel()),
+				f.createTexture<short>(Channel::Weights),
+				(mesh_) ? &output.getTexture<half4>(_getNormalsChannel()) : nullptr,
+				accum_,
+				contrib_,
+				params_,
+				f.getLeftCamera(),
+				transform, transformR, stream
+			);
+		} else if (f.hasChannel(Channel::GroundTruth)) {
+			ftl::cuda::reproject(
+				texture,
+				f.createTexture<float>(Channel::GroundTruth),
 				output.getTexture<float>(_getDepthChannel()),
 				f.createTexture<short>(Channel::Weights),
 				(mesh_) ? &output.getTexture<half4>(_getNormalsChannel()) : nullptr,
@@ -250,6 +263,13 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		if (f.hasChannel(Channel::Depth)) {
 			ftl::cuda::screen_coord(
 				f.createTexture<float>(Channel::Depth),
+				depthbuffer,
+				screenbuffer,
+				params_, transform, f.getLeftCamera(), stream
+			);
+		} else if (f.hasChannel(Channel::GroundTruth)) {
+			ftl::cuda::screen_coord(
+				f.createTexture<float>(Channel::GroundTruth),
 				depthbuffer,
 				screenbuffer,
 				params_, transform, f.getLeftCamera(), stream
@@ -484,12 +504,18 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 	stage_ = Stage::ReadySubmit;
 }
 
-void CUDARender::blend(Channel c) {
-	if (stage_ == Stage::Finished) {
-		throw FTL_Error("Cannot call blend at this time");
-	} else if (stage_ == Stage::ReadySubmit) {
+void CUDARender::render() {
+	if (stage_ != Stage::ReadySubmit) {
+		throw FTL_Error("Cannot call render at this time");
+	} else {
 		stage_ = Stage::Blending;
 		_endSubmit();
+	}
+}
+
+void CUDARender::blend(Channel c) {
+	if (stage_ != Stage::Blending) {
+		throw FTL_Error("Cannot call blend at this time");
 	}
 
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);

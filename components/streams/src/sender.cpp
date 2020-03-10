@@ -4,7 +4,7 @@
 
 #include <opencv2/cudaimgproc.hpp>
 
-#include "injectors.hpp"
+#include <ftl/streams/injectors.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
