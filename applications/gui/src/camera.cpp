@@ -433,10 +433,10 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
 	if (!isVirtual() && ((1 << fsid) & fsmask_)) {
-		channels_ = c;
-		if (c.has(Channel::Depth)) {
+		channels_ += c;
+		//if (c.has(Channel::Depth)) {
 			//channels_ += Channel::ColourNormals;
-		}
+		//}
 	}
 }
 
@@ -469,6 +469,7 @@ void ftl::gui::Camera::update(std::vector<ftl::rgbd::FrameSet*> &fss) {
 
 			if ((size_t)fid_ >= fs->frames.size()) return;
 			frame = &fs->frames[fid_];
+			channels_ = frame->getChannels();
 
 			if (frame->hasChannel(Channel::Messages)) {
 				msgs_.clear();
