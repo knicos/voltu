@@ -6,13 +6,13 @@
 #define PINF __int_as_float(0x7f800000)
 #endif
 
-__global__ void d2d_kernel(cv::cuda::PtrStepSz<float> disp, cv::cuda::PtrStepSz<float> depth,
+__global__ void d2d_kernel(cv::cuda::PtrStepSz<short> disp, cv::cuda::PtrStepSz<float> depth,
 		ftl::rgbd::Camera cam) {
 
 	for (STRIDE_Y(v,disp.rows)) {
 	for (STRIDE_X(u,disp.cols)) {
-		float d = disp(v,u);
-		depth(v,u) = (d == 0) ? 0.0f : ((cam.baseline*cam.fx) / (d - cam.doffs));
+		short d = disp(v,u);
+		depth(v,u) = (d == 0) ? 0.0f : ((cam.baseline*cam.fx) / ((float(d)/16.0f) - cam.doffs));
 	}
 	}
 }
@@ -34,14 +34,14 @@ namespace cuda {
 
 //==============================================================================
 
-__global__ void d2drev_kernel(cv::cuda::PtrStepSz<float> disp, cv::cuda::PtrStepSz<float> depth,
+__global__ void d2drev_kernel(cv::cuda::PtrStepSz<short> disp, cv::cuda::PtrStepSz<float> depth,
 	ftl::rgbd::Camera cam) {
 
 for (STRIDE_Y(v,disp.rows)) {
 for (STRIDE_X(u,disp.cols)) {
 	float d = depth(v,u);
 	float disparity = (d > cam.maxDepth || d < cam.minDepth) ? 0.0f : ((cam.baseline*cam.fx) / d) + cam.doffs;
-	disp(v,u) = disparity;
+	disp(v,u) = short(disparity*16.0f);
 }
 }
 }

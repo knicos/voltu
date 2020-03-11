@@ -248,7 +248,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 
 		ftl::codecs::Channels<0> channels;
 		if (fromstream) channels = cstream->available(fs.id);
-		if ((*framesets_[fs.id]).frames.size() > 0) channels += (*framesets_[fs.id]).frames[0].getChannels();
+		//if ((*framesets_[fs.id]).frames.size() > 0) channels += (*framesets_[fs.id]).frames[0].getChannels();
 		cam.second.camera->update(fs.id, channels);
 	}
 	++cycle_;

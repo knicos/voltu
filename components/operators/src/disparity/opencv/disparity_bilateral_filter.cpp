@@ -167,7 +167,11 @@ namespace
         if (dst.data != disp.data)
             disp.copyTo(dst, stream);
 
-        disp_bilateral_filter<T>(dst, img, img.channels(), iters, table_color.ptr<float>(), (float *)table_space.data, table_space_step, radius, edge_disc, max_disc, StreamAccessor::getStream(stream));
+        if (img.channels() == 4) {
+            disp_bilateral_filter<T,uchar4>(disp, dst, img, iters, table_color.ptr<float>(), table_space_step, radius, edge_disc, max_disc, StreamAccessor::getStream(stream));
+        } else {
+            // TODO: If we need other channels...
+        }
     }
 
     void DispBilateralFilterImpl::apply(InputArray _disp, InputArray _image, OutputArray dst, Stream& stream)
@@ -184,7 +188,8 @@ namespace
         GpuMat img = _image.getGpuMat();
 
         CV_Assert( disp.type() == CV_8U || disp.type() == CV_16S );
-        CV_Assert( img.type() == CV_8UC1 || img.type() == CV_8UC3 || img.type() == CV_8UC4 );
+        //CV_Assert( img.type() == CV_8UC1 || img.type() == CV_8UC3 || img.type() == CV_8UC4 );
+        CV_Assert( img.type() == CV_8UC4 );  // Nick: We only need/allow 4 channel
         CV_Assert( disp.size() == img.size() );
 
         operators[disp.type()](ndisp_, radius_, iters_, edge_threshold_, max_disc_threshold_,

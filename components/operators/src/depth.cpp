@@ -107,9 +107,13 @@ bool DepthBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
 	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
 	GpuMat &depth = in.get<GpuMat>(channel_);
 
-	ftl::cuda::device::disp_bilateral_filter::disp_bilateral_filter<float>(depth, rgb, rgb.channels(), iter_,
-			table_color_.ptr<float>(), (float *)table_space_.data, table_space_.step / sizeof(float),
-			radius_, edge_disc_, max_disc_, stream);
+	UNUSED(rgb);
+	UNUSED(depth);
+
+	// FIXME: Not working right now
+	//ftl::cuda::device::disp_bilateral_filter::disp_bilateral_filter<float>(depth, rgb, rgb.channels(), iter_,
+	//		table_color_.ptr<float>(), (float *)table_space_.data, table_space_.step / sizeof(float),
+	//		radius_, edge_disc_, max_disc_, stream);
 
 	//disp_in.convertTo(disp_int_, CV_16SC1, scale_, cvstream);
 	//filter_->apply(disp_in, rgb, disp_out, cvstream);
@@ -160,6 +164,7 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 	rbuf_.resize(in.frames.size());
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
+		if (!in.hasFrame(i)) continue;
 		auto &f = in.frames[i];
 		if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
 			_createPipeline();
