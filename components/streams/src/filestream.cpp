@@ -270,7 +270,7 @@ bool File::_open() {
         istream_->seekg(0);
 	} else {
 		if (!istream_) istream_ = new std::ifstream;
-		istream_->open(*get<std::string>("filename"));
+		istream_->open(*get<std::string>("filename"), std::ifstream::in | std::ifstream::binary);
 
 		if (!istream_->good()) {
 			LOG(ERROR) << "Could not open file: " << *get<std::string>("filename");
@@ -314,7 +314,7 @@ bool File::begin(bool dorun) {
 		if (dorun) run();
 	} else if (mode_ == Mode::Write) {
 		if (!ostream_) ostream_ = new std::ofstream;
-		ostream_->open(*get<std::string>("filename"));
+		ostream_->open(*get<std::string>("filename"), std::ifstream::out | std::ifstream::binary);
 
 		if (!ostream_->good()) {
 			LOG(ERROR) << "Could not open file: " << *get<std::string>("filename");
