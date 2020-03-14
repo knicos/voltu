@@ -91,6 +91,8 @@ bool File::post(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet &p
 		return false;
 	}
 
+	LOG(INFO) << "WRITE: " << s.timestamp << " " << (int)s.channel << " " << p.data.size();
+
 	// Don't write dummy packets to files.
 	if (p.data.size() == 0) return true;
 
