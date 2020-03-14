@@ -525,6 +525,7 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::setPose(const Eigen::Matrix4d &pose, b
 		if (mark) origin_->setPose(pose);
 		else origin_->getPose() = pose;
 	}
+	state_.setPose(pose);
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
@@ -535,11 +536,13 @@ void ftl::data::Frame<BASE,N,STATE,DATA>::patchPose(const Eigen::Matrix4d &pose)
 template <int BASE, int N, typename STATE, typename DATA>
 void ftl::data::Frame<BASE,N,STATE,DATA>::setLeft(const typename STATE::Settings &c) {
 	if (origin_) origin_->setLeft(c);
+	state_.setLeft(c);
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
 void ftl::data::Frame<BASE,N,STATE,DATA>::setRight(const typename STATE::Settings &c) {
 	if (origin_) origin_->setRight(c);
+	state_.setRight(c);
 }
 
 template <int BASE, int N, typename STATE, typename DATA>
