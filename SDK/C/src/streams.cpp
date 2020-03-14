@@ -59,6 +59,7 @@ ftlStream_t ftlCreateWriteStream(const char *uri) {
 	s->interval = 40;
 	s->video_fs.frames.reserve(32);
 	s->video_states.resize(32);
+	s->has_fresh_data = false;
 
 	switch (u.getScheme()) {
 		case ftl::URI::SCHEME_FILE	: createFileWriteStream(s, u); break;

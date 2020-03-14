@@ -91,7 +91,7 @@ bool File::post(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet &p
 		return false;
 	}
 
-	LOG(INFO) << "WRITE: " << s.timestamp << " " << (int)s.channel << " " << p.data.size();
+	//LOG(INFO) << "WRITE: " << s.timestamp << " " << (int)s.channel << " " << p.data.size();
 
 	// Don't write dummy packets to files.
 	if (p.data.size() == 0) return true;
@@ -319,7 +319,7 @@ bool File::begin(bool dorun) {
 		ostream_->open(*get<std::string>("filename"), std::ifstream::out | std::ifstream::binary);
 
 		if (!ostream_->good()) {
-			LOG(ERROR) << "Could not open file: " << *get<std::string>("filename");
+			LOG(ERROR) << "Could not open file: '" << *get<std::string>("filename") << "'";
 			return false;
 		}
 

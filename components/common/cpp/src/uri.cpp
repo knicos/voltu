@@ -45,6 +45,8 @@ void URI::_parse(uri_t puri) {
 		if (getcwd(cwdbuf, 1024)) {
 			suri = string("file://") + string(cwdbuf) + suri.substr(1);
 		}
+	} else if (suri[0] == '/') {
+		suri = std::string("file://") + suri;
 	} else if (suri[0] == '~') {
 #ifdef WIN32
 		suri = string("file://") + string(std::getenv("HOMEDRIVE")) + string(std::getenv("HOMEPATH")) + suri.substr(1);
