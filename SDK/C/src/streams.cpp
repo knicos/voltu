@@ -5,6 +5,8 @@
 #include <ftl/streams/filestream.hpp>
 #include <ftl/streams/netstream.hpp>
 
+#include <opencv2/imgproc.hpp>
+
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 
@@ -69,6 +71,7 @@ ftlStream_t ftlCreateWriteStream(const char *uri) {
 
 	if (s->last_error == FTLERROR_OK) {
 		s->sender = ftl::create<ftl::stream::Sender>(root, "sender");
+		//s->sender->set("codec", 0);
 		s->sender->setStream(s->stream);
 		if (!s->stream->begin()) {
 			last_error = FTLERROR_STREAM_FILE_CREATE_FAILED;
@@ -102,6 +105,8 @@ ftlError_t ftlImageWrite(
 	if (stream->video_fs.hasChannel(static_cast<ftl::codecs::Channel>(channel)))
 		return FTLERROR_STREAM_DUPLICATE;
 
+	stream->sender->set("encoder_device", 2);  // Software encoder
+
 	try {
 		auto &frame = stream->video_fs.frames[sourceId];
 		auto &img = frame.create<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
@@ -111,16 +116,25 @@ ftlError_t ftlImageWrite(
 			return FTLERROR_STREAM_NO_INTRINSICS;
 		}
 
+		cv::Mat tmp,tmp2;
+
 		switch (type) {
-		case FTLIMAGE_FLOAT		: img.upload(cv::Mat(intrin.height, intrin.width, CV_32F, const_cast<void*>(data), pitch)); break;
-		case FTLIMAGE_BGRA		: img.upload(cv::Mat(intrin.height, intrin.width, CV_8UC4, const_cast<void*>(data), pitch)); break;
-		case FTLIMAGE_RGBA		:
-		case FTLIMAGE_BGR		:
-		case FTLIMAGE_RGB		:
+		case FTLIMAGE_FLOAT		:	tmp2 = cv::Mat(intrin.height, intrin.width, CV_32F, const_cast<void*>(data), pitch); break;
+		case FTLIMAGE_BGRA		:	tmp2 = cv::Mat(intrin.height, intrin.width, CV_8UC4, const_cast<void*>(data), pitch); break;
+		case FTLIMAGE_RGBA		:	tmp = cv::Mat(intrin.height, intrin.width, CV_8UC4, const_cast<void*>(data), pitch);
+									cv::cvtColor(tmp, tmp2, cv::COLOR_RGBA2BGRA);
+									break;
+		case FTLIMAGE_BGR		:	tmp = cv::Mat(intrin.height, intrin.width, CV_8UC3, const_cast<void*>(data), pitch);
+									cv::cvtColor(tmp, tmp2, cv::COLOR_BGR2BGRA);
+									break;
+		case FTLIMAGE_RGB		:	tmp = cv::Mat(intrin.height, intrin.width, CV_8UC3, const_cast<void*>(data), pitch);
+									cv::cvtColor(tmp, tmp2, cv::COLOR_RGB2BGRA);
+									break;
 		default					: return FTLERROR_STREAM_BAD_IMAGE_TYPE;
 		}
 
-		if (img.empty()) return FTLERROR_STREAM_NO_DATA;
+		if (tmp2.empty()) return FTLERROR_STREAM_NO_DATA;
+		img.upload(tmp2);
 
 		ftl::codecs::Channels<0> channels;
 		if (stream->stream->size() > static_cast<unsigned int>(stream->video_fs.id)) channels = stream->stream->selected(stream->video_fs.id);
@@ -229,6 +243,7 @@ ftlError_t ftlNextFrame(ftlStream_t stream) {
 	if (!stream->has_fresh_data) return FTLERROR_STREAM_NO_DATA;
 
 	try {
+		cudaSetDevice(0);
 		stream->sender->post(stream->video_fs);
 	} catch (const std::exception &e) {
 		return FTLERROR_STREAM_ENCODE_FAILED;
@@ -255,23 +270,26 @@ ftlError_t ftlDestroyStream(ftlStream_t stream) {
 	if (!stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 
-	ftlError_t err = FTLERROR_OK;
+	ftl::pool.push([stream](int id) {
+		//ftlError_t err = FTLERROR_OK;
 
-	if (stream->has_fresh_data) {
-		try {
-			stream->sender->post(stream->video_fs);
-		} catch (const std::exception &e) {
-			err = FTLERROR_STREAM_ENCODE_FAILED;
+		if (stream->has_fresh_data) {
+			try {
+				cudaSetDevice(0);
+				stream->sender->post(stream->video_fs);
+			} catch (const std::exception &e) {
+				//err = FTLERROR_STREAM_ENCODE_FAILED;
+			}
 		}
-	}
 
-	if (!stream->stream->end()) {
-		err = FTLERROR_STREAM_FILE_CREATE_FAILED;
-	}
-	if (stream->sender) delete stream->sender;
-	delete stream->stream;
-	stream->sender = nullptr;
-	stream->stream = nullptr;
-	delete stream;
-	return err;
+		if (!stream->stream->end()) {
+			//err = FTLERROR_STREAM_FILE_CREATE_FAILED;
+		}
+		if (stream->sender) delete stream->sender;
+		delete stream->stream;
+		stream->sender = nullptr;
+		stream->stream = nullptr;
+		delete stream;
+	});
+	return FTLERROR_OK;
 }

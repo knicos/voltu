@@ -260,6 +260,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 	int max_bitrate = std::max(0, std::min(255, value("max_bitrate", 255)));
 	//int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));  // TODO: Use this
 	codec_t codec = static_cast<codec_t>(value("codec", static_cast<int>(codec_t::Any)));
+	device_t device = static_cast<device_t>(value("encoder_device", static_cast<int>(device_t::Any)));
 
 	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {
@@ -285,7 +286,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 		ftl::codecs::Encoder *enc = tile.encoder[(offset==0)?0:1];
 		if (!enc) {
 			enc = ftl::codecs::allocateEncoder(
-				definition_t::HD1080, device_t::Any, codec);
+				definition_t::HD1080, device, codec);
 			tile.encoder[(offset==0)?0:1] = enc;
 		}
 
