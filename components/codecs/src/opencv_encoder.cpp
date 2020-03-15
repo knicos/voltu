@@ -56,9 +56,9 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 	in.download(tmp_);
 	//CHECK(cv::Size(ftl::codecs::getWidth(definition), ftl::codecs::getHeight(definition)) == in.size()); 
 
-	if (!is_colour) {
-		tmp_.convertTo(tmp_, CV_16U, 1000.0f);
-	}
+	//if (!is_colour) {
+		//tmp_.convertTo(tmp_, CV_16U, 1000.0f);
+	//}
 
 	int width = ftl::codecs::getWidth(current_definition_);
 	int height = ftl::codecs::getHeight(current_definition_);

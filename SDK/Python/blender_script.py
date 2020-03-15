@@ -140,19 +140,36 @@ def render():
     rl = tree.nodes.new('CompositorNodeRLayers')
 
     v = tree.nodes.new('CompositorNodeViewer')
-    v.use_alpha = True
+    v.use_alpha = False
+
+    #setup the depthmap calculation using blender's mist function:
+    #bpy.context.scene.render.layers['RenderLayer'].use_pass_mist = True
+    #bpy.context.scene.view_layers["View Layer"].use_pass_mist = True
+    #the depthmap can be calculated as the distance between objects and camera ('LINEAR'), or square/inverse square of the distance ('QUADRATIC'/'INVERSEQUADRATIC'):
+    bpy.context.scene.world.mist_settings.falloff = 'LINEAR'
+    #minimum depth:
+    bpy.context.scene.world.mist_settings.intensity = 0.1
+    #maximum depth (can be changed depending on the scene geometry to normalize the depth map whatever the camera orientation and position is):
+    bpy.context.scene.world.mist_settings.depth = 8.0
+
+    links.new(rl.outputs['Depth'],v.inputs['Image'])
+    bpy.ops.render.render()
+    pixels = bpy.data.images['Viewer Node']
+    depthim = (np.array(pixels.pixels[:]).reshape((pixels.size[1], pixels.size[0], pixels.channels))[:,:,0]).astype(np.float32)
+    # set invalid depth values to 0.0
+    depthim[depthim >= _d_max] = 0.0
+
+    print(np.amax(depthim))
 
     links.new(rl.outputs['Image'], v.inputs['Image'])
     # depth cannot be accessed in python; hack uses alpha to store z-values
-    links.new(rl.outputs['Depth'], v.inputs['Alpha'])
+    #links.new(rl.outputs['Depth'], v.inputs['Alpha'])
 
     bpy.ops.render.render()
-    pixels = bpy.data.images['Viewer Node']
-    im = np.array(pixels.pixels[:]).reshape((pixels.size[1], pixels.size[0], pixels.channels))
+    pixels2 = bpy.data.images['Viewer Node']
+    im = np.array(pixels2.pixels[:]).reshape((pixels2.size[1], pixels2.size[0], pixels2.channels))
     
-    # set invalid depth values to 0.0
-    im[:,:,3][im[:,:,3] >= _d_max] = 0.0
-    return (im[:,:,0:3]*255.0).astype(np.uint8), (im[:,:,3]).astype(np.float32)
+    return (im[:,:,0:3]*255.0).astype(np.uint8), depthim
 
 def render_stereo(camera, baseline=0.15):
     bpy.context.scene.camera = camera
@@ -207,8 +224,8 @@ err = ftlImageWrite(stream, 0, 0, 3, 0, image.imL.ctypes.data_as(c_void_p))
 print(err)
 err = ftlImageWrite(stream, 0, 2, 3, 0, image.imR.ctypes.data_as(c_void_p))
 print(err)
-#err = ftlImageWrite(stream, 0, 1, 0, 0, image.depthL.ctypes.data_as(c_void_p))
-#print(err)
+err = ftlImageWrite(stream, 0, 22, 0, 0, image.depthL.ctypes.data_as(c_void_p))
+print(err)
 err = ftlDestroyStream(stream)
 print(err)
 

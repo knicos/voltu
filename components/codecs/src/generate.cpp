@@ -30,6 +30,7 @@ void init_encoders() {
 
     encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
     encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
+	encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
     encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::SD576, definition_t::LD360));
     encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::SD576, definition_t::LD360));
 	encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::SD576, definition_t::LD360));
