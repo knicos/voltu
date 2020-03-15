@@ -152,7 +152,7 @@ def render():
     
     # set invalid depth values to 0.0
     im[:,:,3][im[:,:,3] >= _d_max] = 0.0
-    return (im[:,:,0:2] * 255.0).astype(np.uint8), im[:,:,3]
+    return (im[:,:,0:3]*255.0).astype(np.uint8), (im[:,:,3]).astype(np.float32)
 
 def render_stereo(camera, baseline=0.15):
     bpy.context.scene.camera = camera
@@ -169,6 +169,7 @@ def render_stereo(camera, baseline=0.15):
     return StereoImage(np.array(K), pose, baseline, imL, depthL, imR, depthR)
 
 
+
 from ctypes import *
 ftl = CDLL('/home/nick/git-repos/ftl/build/SDK/C/libftl-dev.so.0')
 
@@ -179,6 +180,10 @@ ftlCreateWriteStream.argtypes = [c_char_p]
 ftlIntrinsicsWriteLeft = ftl.ftlIntrinsicsWriteLeft
 ftlIntrinsicsWriteLeft.restype = c_int
 ftlIntrinsicsWriteLeft.argtypes = [c_void_p, c_int, c_int, c_int, c_float, c_float, c_float, c_float, c_float, c_float]
+
+ftlIntrinsicsWriteRight = ftl.ftlIntrinsicsWriteRight
+ftlIntrinsicsWriteRight.restype = c_int
+ftlIntrinsicsWriteRight.argtypes = [c_void_p, c_int, c_int, c_int, c_float, c_float, c_float, c_float, c_float, c_float]
 
 ftlImageWrite = ftl.ftlImageWrite
 ftlImageWrite.restype = c_int
@@ -196,9 +201,14 @@ resolution_x_in_px = scale * bpy.context.scene.render.resolution_x
 resolution_y_in_px = scale * bpy.context.scene.render.resolution_y
 
 err = ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(0), c_int(int(resolution_x_in_px)), c_int(int(resolution_y_in_px)), c_float(300.0), c_float(-resolution_x_in_px/2), c_float(-resolution_y_in_px/2), c_float(0.1), c_float(0.1), c_float(8.0))
+err = ftlIntrinsicsWriteRight(c_void_p(stream), c_int(0), c_int(int(resolution_x_in_px)), c_int(int(resolution_y_in_px)), c_float(300.0), c_float(-resolution_x_in_px/2), c_float(-resolution_y_in_px/2), c_float(0.1), c_float(0.1), c_float(8.0))
 print(err)
 err = ftlImageWrite(stream, 0, 0, 3, 0, image.imL.ctypes.data_as(c_void_p))
 print(err)
+err = ftlImageWrite(stream, 0, 2, 3, 0, image.imR.ctypes.data_as(c_void_p))
+print(err)
+#err = ftlImageWrite(stream, 0, 1, 0, 0, image.depthL.ctypes.data_as(c_void_p))
+#print(err)
 err = ftlDestroyStream(stream)
 print(err)
 

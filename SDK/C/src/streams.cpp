@@ -106,11 +106,14 @@ ftlError_t ftlImageWrite(
 		return FTLERROR_STREAM_DUPLICATE;
 
 	stream->sender->set("encoder_device", 2);  // Software encoder
+	stream->sender->set("lossless", true);
 
 	try {
 		auto &frame = stream->video_fs.frames[sourceId];
 		auto &img = frame.create<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
 		auto &intrin = frame.getLeft();
+
+		LOG(INFO) << "INTRIN: " << intrin.width << "x" << intrin.height << " for " << sourceId << ", " << (int)channel;
 
 		if (intrin.width == 0) {
 			return FTLERROR_STREAM_NO_INTRINSICS;
@@ -182,6 +185,8 @@ ftlError_t ftlIntrinsicsWriteLeft(ftlStream_t stream, int32_t sourceId, int32_t 
 	stream->video_fs.frames[sourceId].setLeft(cam);
 	stream->has_fresh_data = true;
 
+	LOG(INFO) << "INTRIN " << f << "," << cx << "," << cy << "," << baseline;
+
 	return FTLERROR_OK;
 }
 
@@ -206,6 +211,8 @@ ftlError_t ftlIntrinsicsWriteRight(ftlStream_t stream, int32_t sourceId, int32_t
 	cam.doffs = 0.0f;
 	stream->video_fs.frames[sourceId].setRight(cam);
 	stream->has_fresh_data = true;
+
+	LOG(INFO) << "INTRINR " << f << "," << cx << "," << cy << "," << baseline;
 
 	return FTLERROR_OK;
 }
