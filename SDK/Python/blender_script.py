@@ -1,6 +1,10 @@
 import bpy
 import numpy as np
 from mathutils import Matrix, Vector
+from collections import namedtuple
+
+Camera = namedtuple("Camera", ["fx", "fy", "cx", "cy", "width", "height",
+                                "min_depth", "max_depth", "baseline", "doff"])
 
 _d_max = 65504.0
 
@@ -62,6 +66,37 @@ def get_calibration_matrix_K_from_blender(camd):
         (   0,    0,   1)))
     return K
 
+def get_ftl_calibration_from_blender(camd):
+    if camd.type != 'PERSP':
+        raise ValueError('Non-perspective cameras not supported')
+    scene = bpy.context.scene
+    f_in_mm = camd.lens
+    scale = scene.render.resolution_percentage / 100
+    resolution_x_in_px = scale * scene.render.resolution_x
+    resolution_y_in_px = scale * scene.render.resolution_y
+    sensor_size_in_mm = get_sensor_size(camd.sensor_fit, camd.sensor_width, camd.sensor_height)
+    sensor_fit = get_sensor_fit(
+        camd.sensor_fit,
+        scene.render.pixel_aspect_x * resolution_x_in_px,
+        scene.render.pixel_aspect_y * resolution_y_in_px
+    )
+    pixel_aspect_ratio = scene.render.pixel_aspect_y / scene.render.pixel_aspect_x
+    if sensor_fit == 'HORIZONTAL':
+        view_fac_in_px = resolution_x_in_px
+    else:
+        view_fac_in_px = pixel_aspect_ratio * resolution_y_in_px
+    pixel_size_mm_per_px = sensor_size_in_mm / f_in_mm / view_fac_in_px
+    s_u = 1 / pixel_size_mm_per_px
+    s_v = 1 / pixel_size_mm_per_px / pixel_aspect_ratio
+
+    # Parameters of intrinsic calibration matrix K
+    u_0 = resolution_x_in_px / 2 - camd.shift_x * view_fac_in_px
+    v_0 = resolution_y_in_px / 2 + camd.shift_y * view_fac_in_px / pixel_aspect_ratio
+    skew = 0 # only use rectangular pixels
+
+    ftlcam = Camera(s_u, s_v, -u_0, -v_0, resolution_x_in_px, resolution_y_in_px, 0.1, 16.0, 0.15, 0.0)
+    return ftlcam
+
 # Returns camera rotation and translation matrices from Blender.
 # 
 # There are 3 coordinate systems involved:
@@ -119,7 +154,7 @@ def get_3x4_P_matrix_from_blender(cam):
 import typing
 
 class StereoImage(typing.NamedTuple):
-    K: np.array
+    intrinsics: Camera
     pose: np.array
     baseline: float
     imL: np.array
@@ -157,7 +192,9 @@ def render():
 
 def render_stereo(camera, baseline=0.15):
     bpy.context.scene.camera = camera
-    _, K, pose = get_3x4_P_matrix_from_blender(camera)
+    #_, K, pose = get_3x4_P_matrix_from_blender(camera)
+    ftlcam = get_ftl_calibration_from_blender(camera.data)
+    pose = get_3x4_RT_matrix_from_blender(camera)
     imL, depthL = render()
     
     location_old = camera.location.copy()
@@ -167,7 +204,7 @@ def render_stereo(camera, baseline=0.15):
     
     camera.location = location_old
     
-    return StereoImage(np.array(K), pose, baseline, imL, depthL, imR, depthR)
+    return StereoImage(Camera(ftlcam.fx, ftlcam.fy, ftlcam.cx, ftlcam.cy, ftlcam.width, ftlcam.height, 0.1, np.amax(depthL), baseline, 0.0), pose, baseline, imL, depthL, imR, depthR)
 
 
 
@@ -201,8 +238,8 @@ scale = bpy.context.scene.render.resolution_percentage / 100
 resolution_x_in_px = scale * bpy.context.scene.render.resolution_x
 resolution_y_in_px = scale * bpy.context.scene.render.resolution_y
 
-err = ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(0), c_int(int(resolution_x_in_px)), c_int(int(resolution_y_in_px)), c_float(300.0), c_float(-resolution_x_in_px/2), c_float(-resolution_y_in_px/2), c_float(0.1), c_float(0.1), c_float(16.0))
-err = ftlIntrinsicsWriteRight(c_void_p(stream), c_int(0), c_int(int(resolution_x_in_px)), c_int(int(resolution_y_in_px)), c_float(300.0), c_float(-resolution_x_in_px/2), c_float(-resolution_y_in_px/2), c_float(0.1), c_float(0.1), c_float(16.0))
+err = ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth))
+err = ftlIntrinsicsWriteRight(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth))
 print(err)
 err = ftlImageWrite(stream, 0, 0, 3, 0, image.imL.ctypes.data_as(c_void_p))
 print(err)
