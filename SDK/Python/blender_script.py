@@ -253,7 +253,7 @@ ftlImageWrite.argtypes = [c_void_p, c_int, c_int, c_int, c_int, c_void_p]
 
 ftlPoseWrite = ftl.ftlPoseWrite
 ftlPoseWrite.restype = c_int
-ftlPoseWrite.argtypes = [c_void_p, c_void_p]
+ftlPoseWrite.argtypes = [c_void_p, c_int, c_void_p]
 
 ftlDestroyStream = ftl.ftlDestroyStream
 ftlDestroyStream.restype = c_int
@@ -282,7 +282,11 @@ def render_and_save(filename, cameras):
             ftlCheck(ftlIntrinsicsWriteRight(c_void_p(stream), c_int(i), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
             
             # This line needs fixing
-            ftlCheck(ftlPoseWrite(stream, image.pose.astype(np.float32).ctypes.data_as(c_void_p)))
+            M = np.identity(4,dtype=np.float32)
+            M[0:3,0:4] = image.pose
+            M = np.transpose(M)
+            M = np.linalg.inv(M)
+            ftlCheck(ftlPoseWrite(stream, c_int(i), M.ctypes.data_as(c_void_p)))
 
             ftlCheck(ftlImageWrite(stream, c_int(i), 0, 5, 0, image.imL.ctypes.data_as(c_void_p)))
             ftlCheck(ftlImageWrite(stream, c_int(i), 2, 5, 0, image.imR.ctypes.data_as(c_void_p)))
