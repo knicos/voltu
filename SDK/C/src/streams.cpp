@@ -133,8 +133,16 @@ ftlError_t ftlImageWrite(
 		case FTLIMAGE_RGB		:	tmp = cv::Mat(intrin.height, intrin.width, CV_8UC3, const_cast<void*>(data), pitch);
 									cv::cvtColor(tmp, tmp2, cv::COLOR_RGB2BGRA);
 									break;
+		case FTLIMAGE_RGB_FLOAT	:	tmp = cv::Mat(intrin.height, intrin.width, CV_32FC3, const_cast<void*>(data), pitch);
+									tmp.convertTo(tmp2, CV_8UC3, 255.0f);
+									cv::cvtColor(tmp2, tmp2, cv::COLOR_RGB2BGRA);
+									break;
 		default					: return FTLERROR_STREAM_BAD_IMAGE_TYPE;
 		}
+
+		double minVal, maxVal;
+		cv::minMaxLoc(tmp, &minVal, &maxVal);
+		LOG(INFO) << "MIN MAX " << minVal << " - " << maxVal;
 
 		if (tmp2.empty()) return FTLERROR_STREAM_NO_DATA;
 		cv::flip(tmp2, tmp2, 0);  // Flip to get opencv form.
@@ -278,26 +286,27 @@ ftlError_t ftlDestroyStream(ftlStream_t stream) {
 	if (!stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 
-	ftl::pool.push([stream](int id) {
-		//ftlError_t err = FTLERROR_OK;
+	//ftl::pool.push([stream](int id) {
+		ftlError_t err = FTLERROR_OK;
 
 		if (stream->has_fresh_data) {
 			try {
 				cudaSetDevice(0);
 				stream->sender->post(stream->video_fs);
 			} catch (const std::exception &e) {
-				//err = FTLERROR_STREAM_ENCODE_FAILED;
+				err = FTLERROR_STREAM_ENCODE_FAILED;
 			}
 		}
 
 		if (!stream->stream->end()) {
-			//err = FTLERROR_STREAM_FILE_CREATE_FAILED;
+			err = FTLERROR_STREAM_FILE_CREATE_FAILED;
 		}
 		if (stream->sender) delete stream->sender;
 		delete stream->stream;
 		stream->sender = nullptr;
 		stream->stream = nullptr;
 		delete stream;
-	});
-	return FTLERROR_OK;
+	//});
+	//return FTLERROR_OK;
+	return err;
 }

@@ -93,7 +93,8 @@ enum ftlImageFormat_t {
 	FTLIMAGE_BGRA,
 	FTLIMAGE_RGBA,
 	FTLIMAGE_RGB,
-	FTLIMAGE_BGR
+	FTLIMAGE_BGR,
+	FTLIMAGE_RGB_FLOAT		// Used by Blender
 };
 
 #ifdef __cplusplus

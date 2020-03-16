@@ -195,7 +195,8 @@ def render():
     pix = np.array(pixels.pixels[:])
     
     # sRGB conversion
-    pix2 = np.zeros(pix.shape[:], dtype=np.float)
+    #pix2 = np.zeros(pix.shape[:], dtype=np.float)
+    pix2 = np.copy(pix)
     np.copyto(pix2, 1.055*(pix**(1.0/2.4)) - 0.055, where=pix <= 1)
     np.copyto(pix2, pix * 12.92, where=pix <= 0.0031308)
     
@@ -204,12 +205,13 @@ def render():
     
     
     im = pix2.reshape((pixels.size[1], pixels.size[0], pixels.channels))
+    im2 = (im[:,:,0:3]).astype(np.float32)
     
     depthim = (np.array(pixels.pixels[:]).reshape((pixels.size[1], pixels.size[0], pixels.channels))[:,:,3]).astype(np.float32)
     # set invalid depth values to 0.0
     depthim[depthim >= _d_max] = 0.0
     
-    return (im[:,:,0:3]*255.0).astype(np.uint8), depthim
+    return im2, depthim
 
 def render_stereo(camera, baseline=0.15):
     bpy.context.scene.camera = camera
@@ -262,9 +264,9 @@ resolution_y_in_px = scale * bpy.context.scene.render.resolution_y
 err = ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth))
 err = ftlIntrinsicsWriteRight(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth))
 print(err)
-err = ftlImageWrite(stream, 0, 0, 3, 0, image.imL.ctypes.data_as(c_void_p))
+err = ftlImageWrite(stream, 0, 0, 5, 0, image.imL.ctypes.data_as(c_void_p))
 print(err)
-err = ftlImageWrite(stream, 0, 2, 3, 0, image.imR.ctypes.data_as(c_void_p))
+err = ftlImageWrite(stream, 0, 2, 5, 0, image.imR.ctypes.data_as(c_void_p))
 print(err)
 err = ftlImageWrite(stream, 0, 22, 0, 0, image.depthL.ctypes.data_as(c_void_p))
 print(err)
