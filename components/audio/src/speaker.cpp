@@ -72,6 +72,8 @@ Speaker::~Speaker() {
 }
 
 void Speaker::_open(int fsize, int sample, int channels) {
+	#ifdef HAVE_PORTAUDIO
+
 	if (buffer_) delete buffer_;
 
 	LOG(INFO) << "Create speaker: " << sample << "," << channels;
@@ -94,7 +96,6 @@ void Speaker::_open(int fsize, int sample, int channels) {
 	//LOG(INFO) << "OUTPUT LATENCY: " << outputParameters.suggestedLatency;
 	latency_ = int64_t(outputParameters.suggestedLatency * 1000.0);
 
-	#ifdef HAVE_PORTAUDIO
 	auto err = Pa_OpenStream(
 		&stream_,
 		NULL,
@@ -126,7 +127,6 @@ void Speaker::_open(int fsize, int sample, int channels) {
 	#else
 	LOG(INFO) << "Built without portaudio (no sound)";
 	#endif
-	
 }
 
 void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
