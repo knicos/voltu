@@ -230,7 +230,8 @@ def render_stereo(camera, baseline=0.15):
     return StereoImage(Camera(ftlcam.fx, ftlcam.fy, ftlcam.cx, ftlcam.cy, ftlcam.width, ftlcam.height, 0.1, np.amax(depthL), baseline, 0.0), pose, baseline, imL, depthL, imR, depthR)
 
 
-
+# ====== Load the FTL SDK ======================================================
+# TODO: Wrap this properly
 from ctypes import *
 ftl = CDLL('/home/nick/git-repos/ftl/build/SDK/C/libftl-dev.so.0')
 
@@ -254,22 +255,28 @@ ftlDestroyStream = ftl.ftlDestroyStream
 ftlDestroyStream.restype = c_int
 ftlDestroyStream.argtypes = [c_void_p]
 
-stream = ftlCreateWriteStream(b'./blender.ftl')
+# ==============================================================================
 
-image = render_stereo(bpy.context.scene.camera, 0.15)
-scale = bpy.context.scene.render.resolution_percentage / 100
-resolution_x_in_px = scale * bpy.context.scene.render.resolution_x
-resolution_y_in_px = scale * bpy.context.scene.render.resolution_y
+def ftlCheck(err):
+    if err != 0:
+        print("FTL SDK Error: ", err)
 
-err = ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth))
-err = ftlIntrinsicsWriteRight(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth))
-print(err)
-err = ftlImageWrite(stream, 0, 0, 5, 0, image.imL.ctypes.data_as(c_void_p))
-print(err)
-err = ftlImageWrite(stream, 0, 2, 5, 0, image.imR.ctypes.data_as(c_void_p))
-print(err)
-err = ftlImageWrite(stream, 0, 22, 0, 0, image.depthL.ctypes.data_as(c_void_p))
-print(err)
-err = ftlDestroyStream(stream)
-print(err)
+def render_and_save(filename):
+    image = render_stereo(bpy.context.scene.camera, 0.15)
+
+    stream = ftlCreateWriteStream(filename)
+    if stream == None:
+        print("Could not create FTL stream")
+        return
+
+    ftlCheck(ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
+    ftlCheck(ftlIntrinsicsWriteRight(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
+    
+    ftlCheck(ftlImageWrite(stream, 0, 0, 5, 0, image.imL.ctypes.data_as(c_void_p)))
+    ftlCheck(ftlImageWrite(stream, 0, 2, 5, 0, image.imR.ctypes.data_as(c_void_p)))
+    ftlCheck(ftlImageWrite(stream, 0, 22, 0, 0, image.depthL.ctypes.data_as(c_void_p)))
+
+    ftlCheck(ftlDestroyStream(stream))
+
+render_and_save(b'./blender.ftl')
 
