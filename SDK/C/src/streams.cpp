@@ -137,6 +137,7 @@ ftlError_t ftlImageWrite(
 		}
 
 		if (tmp2.empty()) return FTLERROR_STREAM_NO_DATA;
+		cv::flip(tmp2, tmp2, 0);  // Flip to get opencv form.
 		img.upload(tmp2);
 
 		ftl::codecs::Channels<0> channels;

@@ -8,6 +8,15 @@ Camera = namedtuple("Camera", ["fx", "fy", "cx", "cy", "width", "height",
 
 _d_max = 65504.0
 
+def lin2s(x):
+    a = 0.055
+    if x <=0.0031308:
+        y = x * 12.92
+    elif 0.0031308 < x <= 1 :
+        y = 1.055*(x**(1.0/2.4)) - 0.055
+
+    return y
+
 ################################################################################
 # https://blender.stackexchange.com/a/120063
 
@@ -183,7 +192,19 @@ def render():
 
     bpy.ops.render.render()
     pixels = bpy.data.images['Viewer Node']
-    im = np.array(pixels.pixels[:]).reshape((pixels.size[1], pixels.size[0], pixels.channels))
+    pix = np.array(pixels.pixels[:])
+    
+    # sRGB conversion
+    pix2 = np.zeros(pix.shape[:], dtype=np.float)
+    np.copyto(pix2, 1.055*(pix**(1.0/2.4)) - 0.055, where=pix <= 1)
+    np.copyto(pix2, pix * 12.92, where=pix <= 0.0031308)
+    
+    # Clamp?
+    pix2[pix2 > 1.0] = 1.0
+    
+    
+    im = pix2.reshape((pixels.size[1], pixels.size[0], pixels.channels))
+    
     depthim = (np.array(pixels.pixels[:]).reshape((pixels.size[1], pixels.size[0], pixels.channels))[:,:,3]).astype(np.float32)
     # set invalid depth values to 0.0
     depthim[depthim >= _d_max] = 0.0
