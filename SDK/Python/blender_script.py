@@ -251,6 +251,10 @@ ftlImageWrite = ftl.ftlImageWrite
 ftlImageWrite.restype = c_int
 ftlImageWrite.argtypes = [c_void_p, c_int, c_int, c_int, c_int, c_void_p]
 
+ftlPoseWrite = ftl.ftlPoseWrite
+ftlPoseWrite.restype = c_int
+ftlPoseWrite.argtypes = [c_void_p, c_void_p]
+
 ftlDestroyStream = ftl.ftlDestroyStream
 ftlDestroyStream.restype = c_int
 ftlDestroyStream.argtypes = [c_void_p]
@@ -277,6 +281,9 @@ def render_and_save(filename, cameras):
             ftlCheck(ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(i), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
             ftlCheck(ftlIntrinsicsWriteRight(c_void_p(stream), c_int(i), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
             
+            # This line needs fixing
+            ftlCheck(ftlPoseWrite(stream, image.pose.astype(np.float32).ctypes.data_as(c_void_p)))
+
             ftlCheck(ftlImageWrite(stream, c_int(i), 0, 5, 0, image.imL.ctypes.data_as(c_void_p)))
             ftlCheck(ftlImageWrite(stream, c_int(i), 2, 5, 0, image.imR.ctypes.data_as(c_void_p)))
             ftlCheck(ftlImageWrite(stream, c_int(i), 22, 0, 0, image.depthL.ctypes.data_as(c_void_p)))
@@ -284,5 +291,5 @@ def render_and_save(filename, cameras):
 
     ftlCheck(ftlDestroyStream(stream))
 
-render_and_save(b'./blender.ftl', ['Camera'])
+render_and_save(b'./blender.ftl', ['Camera', 'Camera.002'])
 
