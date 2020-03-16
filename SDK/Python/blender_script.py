@@ -261,22 +261,28 @@ def ftlCheck(err):
     if err != 0:
         print("FTL SDK Error: ", err)
 
-def render_and_save(filename):
-    image = render_stereo(bpy.context.scene.camera, 0.15)
+def render_and_save(filename, cameras):
+    i = 0
 
     stream = ftlCreateWriteStream(filename)
     if stream == None:
         print("Could not create FTL stream")
         return
 
-    ftlCheck(ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
-    ftlCheck(ftlIntrinsicsWriteRight(c_void_p(stream), c_int(0), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
-    
-    ftlCheck(ftlImageWrite(stream, 0, 0, 5, 0, image.imL.ctypes.data_as(c_void_p)))
-    ftlCheck(ftlImageWrite(stream, 0, 2, 5, 0, image.imR.ctypes.data_as(c_void_p)))
-    ftlCheck(ftlImageWrite(stream, 0, 22, 0, 0, image.depthL.ctypes.data_as(c_void_p)))
+    for camname in cameras:
+        obj = bpy.context.scene.objects[camname]
+        if obj.type == 'CAMERA':
+            image = render_stereo(obj, 0.15)
+
+            ftlCheck(ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(i), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
+            ftlCheck(ftlIntrinsicsWriteRight(c_void_p(stream), c_int(i), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
+            
+            ftlCheck(ftlImageWrite(stream, c_int(i), 0, 5, 0, image.imL.ctypes.data_as(c_void_p)))
+            ftlCheck(ftlImageWrite(stream, c_int(i), 2, 5, 0, image.imR.ctypes.data_as(c_void_p)))
+            ftlCheck(ftlImageWrite(stream, c_int(i), 22, 0, 0, image.depthL.ctypes.data_as(c_void_p)))
+            i = i + 1
 
     ftlCheck(ftlDestroyStream(stream))
 
-render_and_save(b'./blender.ftl')
+render_and_save(b'./blender.ftl', ['Camera'])
 
