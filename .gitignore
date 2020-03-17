@@ -3,6 +3,7 @@
 **/include/ftl/config.h
 **/src/config.cpp
 **/*.blend1
+SDK/Python/ftl/__pycache__
 fabric/
 fabric-js/
 build/
