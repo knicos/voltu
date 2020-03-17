@@ -32,7 +32,11 @@ enum ftlError_t {
 	FTLERROR_STREAM_BAD_IMAGE_SIZE,
 	FTLERROR_STREAM_NO_INTRINSICS,
 	FTLERROR_STREAM_NO_DATA,
-	FTLERROR_STREAM_DUPLICATE
+	FTLERROR_STREAM_BAD_SOURCE,
+	FTLERROR_STREAM_DUPLICATE,
+	FTLERROR_OPERATOR_MISSING_CHANNEL,
+	FTLERROR_OPERATOR_INVALID_FRAME,
+	FTLERROR_OPERATOR_BAD_FORMAT
 };
 
 enum ftlChannel_t {
@@ -97,6 +101,11 @@ enum ftlImageFormat_t {
 	FTLIMAGE_RGB_FLOAT		// Used by Blender
 };
 
+enum ftlPipeline_t {
+	FTLPIPE_DEPTH,
+	FTLPIPE_RECONSTRUCT
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -107,19 +116,65 @@ extern "C" {
  */
 ftlError_t ftlGetLastStreamError(ftlStream_t stream);
 
+const char *ftlGetErrorString(ftlError_t err);
+
 // ==== FTL Stream API =========================================================
 
 /**
  * Create a new file or net stream from a URI. This is for writing or sending
- * data and makes a write only stream.
+ * data and makes a write only stream. Note that a NULL uri string is valid
+ * and will result in an in-memory stream to allow for temporary framesets
+ * that might then be transformed or rendered into an actual output stream.
  */
 ftlStream_t ftlCreateWriteStream(const char *uri);
 
 /**
  * Open an existing file or network stream from the URI. These streams are
- * read only.
+ * read only. The URI can also be a device URI.
  */
 ftlStream_t ftlCreateReadStream(const char *uri);
+
+/**
+ * Set a configurable property for this stream. The `name` parameter is the
+ * path part of a configurable URI, this is prepended with the streams internal
+ * URI so that this path is relative to the stream object.
+ */
+ftlError_t ftlSetConfigString(ftlStream_t stream, const char *name, const char *value);
+
+/**
+ * Set a configurable property for this stream. The `name` parameter is the
+ * path part of a configurable URI, this is prepended with the streams internal
+ * URI so that this path is relative to the stream object. An example:
+ *    `ftlSetConfigInt(stream, "sender/codec", 2);`
+ * 
+ * The example makes the streams encoder use HEVC codec.
+ */
+ftlError_t ftlSetConfigInt(ftlStream_t stream, const char *name, int value);
+
+ftlError_t ftlSetConfigFloat(ftlStream_t stream, const char *name, float value);
+
+ftlError_t ftlSetConfigJSON(ftlStream_t stream, const char *name, const char *json);
+
+/**
+ * Set a configurable property for this stream. The `name` parameter is the
+ * path part of a configurable URI, this is prepended with the streams internal
+ * URI so that this path is relative to the stream object. An example:
+ *    `ftlSetConfigBool(stream, "sender/lossless", false);`
+ * 
+ * The example makes the streams encoder use lossy encoding.
+ */
+ftlError_t ftlSetConfigBool(ftlStream_t stream, const char *name, bool value);
+
+/**
+ * General write function to put any data into a frames channel. This could
+ * be used instead of `ftlImageWrite` or `ftlPoseWrite`, for example.
+ */
+//ftlError_t ftlWrite(ftlStream_t stream, int32_t sourceId, ftlChannel_t channel, ftlDataType_t type, int32_t size, const void *data);
+
+/**
+ * Read data from stream source channel.
+ */
+//ftlError_t ftlRead(ftlStream_t stream, int32_t sourceId, ftlChannel_t channel, ftlDataType_t type, int32_t *size, void *data);
 
 /**
  * Write raw image data to a frame. The width and height of
@@ -188,6 +243,86 @@ ftlError_t ftlIntrinsicsWriteRight(ftlStream_t stream, int32_t sourceId, int32_t
  * completed. Network connections are terminated and files closed.
  */
 ftlError_t ftlDestroyStream(ftlStream_t stream);
+
+// ==== Operator functions =====================================================
+
+/**
+ * Enable a pipeline to be applied before the current frameset is encoded into
+ * the stream. A frameset is only encoded and streamed after a call to
+ * `ftlNextFrame` or `ftlDestroyStream`, therefore this can be enabled any time
+ * before the first such call. Multiple pipelines can be enabled and will be
+ * applied in the order enabled. Default settings for pipelines can be
+ * changed using `ftlSetConfig...` functions with a URI of "pipes/depth/...",
+ * for example.
+ */
+ftlError_t ftlEnablePipeline(ftlStream_t stream, ftlPipeline_t pipeline);
+
+ftlError_t ftlDisablePipeline(ftlStream_t stream, ftlPipeline_t pipeline);
+
+/**
+ * Mark an additional channel as needing saving to the stream. The results of
+ * various pipelines produce channels in addition to the `ftlImageWrite`
+ * function, these need to be selected here.
+ */
+ftlError_t ftlSelect(ftlStream_t stream, ftlChannel_t channel);
+
+/**
+ * Apply the depth operator to a frameset to generate a depth channel. This
+ * requires that the frames already have a left and right channel.
+ */
+//ftlError_t ftlDepth(ftlStream_t stream);
+
+/**
+ * Remove occlusions from a depth map. The `data` passed is a
+ * right depth image with same resolution as in the intrinsics. The `channel`
+ * parameter says which channel in the frame contains the depth map to compare
+ * against, allowing ground truth channel to be used.
+ */
+ftlError_t ftlRemoveOcclusion(ftlStream_t stream, int32_t sourceId, ftlChannel_t channel, uint32_t pitch, const float *data);
+
+/**
+ * Instead of removing occluded pixels, this will add a bit to the mask channel
+ * to indicate an occlusion. It also implicitely selects the mask channel for
+ * encoding into the stream.
+ */
+ftlError_t ftlMaskOcclusion(ftlStream_t stream, int32_t sourceId, ftlChannel_t channel, uint32_t pitch, const float *data);
+
+/**
+ * Apply a discontinuity detection to the specified channel. The given channel
+ * must be a depth map. The operator adds a discontinuity flag to the mask
+ * channel.
+ */
+//ftlError_t ftlDiscontinuity(ftlStream_t stream, ftlChannel_t channel);
+
+/**
+ * Performs a frameset reconstruction on the current stream frameset. This
+ * updates and modifies depths maps. The depth channel must exist for this to
+ * work, if not then it will run `ftlDepth` automatically.
+ */
+//ftlError_t ftlReconstruction(ftlStream_t stream);
+
+// ==== Rendering ==============================================================
+
+/*ftlError_t ftlRender(
+	ftlStream_t input,
+	ftlStream_t output,
+	const float *pose,
+	...
+	)*/
+
+// ==== Misc frame operations ==================================================
+
+/**
+ * Set config properties within a frame. For example, set the `name` property
+ * to give this source frame a label.
+ */
+ftlError_t ftlSetPropertyString(ftlStream_t stream, int32_t sourceId, const char *prop, const char *value);
+
+ftlError_t ftlSetPropertyInt(ftlStream_t stream, int32_t sourceId, const char *prop, int value);
+
+ftlError_t ftlSetPropertyFloat(ftlStream_t stream, int32_t sourceId, const char *prop, float value);
+
+// TODO: Possibly add shapes and other kinds of data to the frame?
 
 #ifdef __cplusplus
 };

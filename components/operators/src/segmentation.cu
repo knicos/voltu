@@ -1,5 +1,5 @@
 #include "segmentation_cuda.hpp"
-#include <ftl/operators/mask_cuda.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 
 #define T_PER_BLOCK 8
 

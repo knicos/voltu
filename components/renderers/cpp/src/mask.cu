@@ -1,5 +1,5 @@
 #include "splatter_cuda.hpp"
-#include <ftl/operators/mask_cuda.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 
 using ftl::cuda::TextureObject;
 using ftl::cuda::Mask;

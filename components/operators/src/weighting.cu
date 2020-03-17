@@ -24,7 +24,7 @@ __global__ void pixel_weight_kernel(
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x < size.width && y < size.height) {
-		Mask mask(0);
+		Mask mask(mask_out(x,y));
 
 		const float d = depth.tex2D((int)x, (int)y);
 		// Multiples of pixel size at given depth

@@ -1,6 +1,8 @@
 #include <ftl/cuda_common.hpp>
 #include <ftl/rgbd/camera.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
+#include <ftl/operators/cuda/disparity.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 
 #ifndef PINF
 #define PINF __int_as_float(0x7f800000)
@@ -59,4 +61,67 @@ void depth_to_disparity(cv::cuda::GpuMat &disparity, const cv::cuda::GpuMat &dep
 	cudaSafeCall( cudaGetLastError() );
 }
 }
+}
+
+// =============================================================================
+
+__global__ void remove_occ_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda::PtrStepSz<float> depthR,
+	ftl::rgbd::Camera cam)
+{
+	for (STRIDE_Y(v,depth.rows)) {
+	for (STRIDE_X(u,depth.cols)) {
+		float d = depth(v,u);
+		int disparity = int((d > cam.maxDepth || d < cam.minDepth) ? 0.0f : ((cam.baseline*cam.fx) / d) + cam.doffs);
+
+		if (disparity > 0 && u-disparity > 0) {
+			float dR = depthR(v,u-disparity);
+			if (fabsf(d-dR) > 0.01f*d) {
+				depth(v,u) = 0.0f;
+			}
+		}
+	}
+	}
+}
+
+void ftl::cuda::remove_occlusions(cv::cuda::GpuMat &depth, const cv::cuda::GpuMat &depthR,
+			const ftl::rgbd::Camera &c, cudaStream_t stream) {
+	dim3 grid(1,1,1);
+	dim3 threads(128, 4, 1);
+	grid.x = cv::cuda::device::divUp(depth.cols, 128);
+	grid.y = cv::cuda::device::divUp(depth.rows, 4);
+	remove_occ_kernel<<<grid, threads, 0, stream>>>(
+		depth, depthR, c);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+__global__ void mask_occ_kernel(cv::cuda::PtrStepSz<float> depth,
+	cv::cuda::PtrStepSz<float> depthR,
+	cv::cuda::PtrStepSz<uchar> mask,
+	ftl::rgbd::Camera cam)
+{
+	for (STRIDE_Y(v,depth.rows)) {
+	for (STRIDE_X(u,depth.cols)) {
+		float d = depth(v,u);
+		int disparity = int((d > cam.maxDepth || d < cam.minDepth) ? 0.0f : ((cam.baseline*cam.fx) / d) + cam.doffs);
+
+		if (disparity > 0 && u-disparity > 0) {
+			float dR = depthR(v,u-disparity);
+			if (fabsf(d-dR) > 0.01f*d) {
+				mask(v,u) = mask(v,u) | ftl::cuda::Mask::kMask_Occlusion;
+			}
+		}
+	}
+	}
+}
+
+void ftl::cuda::mask_occlusions(const cv::cuda::GpuMat &depth, const cv::cuda::GpuMat &depthR,
+			cv::cuda::GpuMat &mask,
+			const ftl::rgbd::Camera &c, cudaStream_t stream) {
+	dim3 grid(1,1,1);
+	dim3 threads(128, 4, 1);
+	grid.x = cv::cuda::device::divUp(depth.cols, 128);
+	grid.y = cv::cuda::device::divUp(depth.rows, 4);
+	mask_occ_kernel<<<grid, threads, 0, stream>>>(
+		depth, depthR, mask, c);
+	cudaSafeCall( cudaGetLastError() );
 }

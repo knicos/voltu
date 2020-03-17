@@ -1,6 +1,6 @@
 #include "mvmls_cuda.hpp"
 #include <ftl/cuda/weighting.hpp>
-#include <ftl/operators/mask_cuda.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 #include <ftl/cuda/warp.hpp>
 
 using ftl::cuda::TextureObject;

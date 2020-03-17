@@ -251,6 +251,22 @@ ftlImageWrite = ftl.ftlImageWrite
 ftlImageWrite.restype = c_int
 ftlImageWrite.argtypes = [c_void_p, c_int, c_int, c_int, c_int, c_void_p]
 
+ftlRemoveOcclusion = ftl.ftlRemoveOcclusion
+ftlRemoveOcclusion.restype = c_int
+ftlRemoveOcclusion.argtypes = [c_void_p, c_int, c_int, c_int, c_void_p]
+
+ftlMaskOcclusion = ftl.ftlMaskOcclusion
+ftlMaskOcclusion.restype = c_int
+ftlMaskOcclusion.argtypes = [c_void_p, c_int, c_int, c_int, c_void_p]
+
+ftlEnablePipeline = ftl.ftlEnablePipeline
+ftlEnablePipeline.restype = c_int
+ftlEnablePipeline.argtypes = [c_void_p, c_int]
+
+ftlSelect = ftl.ftlSelect
+ftlSelect.restype = c_int
+ftlSelect.argtypes = [c_void_p, c_int]
+
 ftlPoseWrite = ftl.ftlPoseWrite
 ftlPoseWrite.restype = c_int
 ftlPoseWrite.argtypes = [c_void_p, c_int, c_void_p]
@@ -273,6 +289,8 @@ def render_and_save(filename, cameras):
         print("Could not create FTL stream")
         return
 
+    ftlCheck(ftlEnablePipeline(stream, 0))
+
     for camname in cameras:
         obj = bpy.context.scene.objects[camname]
         if obj.type == 'CAMERA':
@@ -281,7 +299,6 @@ def render_and_save(filename, cameras):
             ftlCheck(ftlIntrinsicsWriteLeft(c_void_p(stream), c_int(i), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
             ftlCheck(ftlIntrinsicsWriteRight(c_void_p(stream), c_int(i), c_int(int(image.intrinsics.width)), c_int(int(image.intrinsics.height)), c_float(image.intrinsics.fx), c_float(image.intrinsics.cx), c_float(image.intrinsics.cy), c_float(image.intrinsics.baseline), c_float(image.intrinsics.min_depth), c_float(image.intrinsics.max_depth)))
             
-            # This line needs fixing
             M = np.identity(4,dtype=np.float32)
             M[0:3,0:4] = image.pose
             M = np.transpose(M)
@@ -291,9 +308,10 @@ def render_and_save(filename, cameras):
             ftlCheck(ftlImageWrite(stream, c_int(i), 0, 5, 0, image.imL.ctypes.data_as(c_void_p)))
             ftlCheck(ftlImageWrite(stream, c_int(i), 2, 5, 0, image.imR.ctypes.data_as(c_void_p)))
             ftlCheck(ftlImageWrite(stream, c_int(i), 22, 0, 0, image.depthL.ctypes.data_as(c_void_p)))
+            ftlCheck(ftlMaskOcclusion(stream, c_int(i), 22, 0, image.depthR.ctypes.data_as(c_void_p)))
             i = i + 1
 
     ftlCheck(ftlDestroyStream(stream))
 
-render_and_save(b'./blender.ftl', ['Camera', 'Camera.002'])
+render_and_save(b'./blender.ftl', ['Camera'])
 

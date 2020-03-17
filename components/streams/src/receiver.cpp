@@ -208,7 +208,11 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	auto &surface = ividstate.surface[static_cast<int>(spkt.channel)];
 
 	// Allocate a decode surface, this is a tiled image to be split later
-	surface.create(height*ty, width*tx, ((isFloatChannel(spkt.channel)) ? ((pkt.flags & 0x2) ? CV_16UC4 : CV_16U) : CV_8UC4));
+	int cvtype = ftl::codecs::type(spkt.channel);
+	if (cvtype == CV_32F) cvtype = (pkt.flags & 0x2) ? CV_16UC4 : CV_16U;
+
+	//surface.create(height*ty, width*tx, ((isFloatChannel(spkt.channel)) ? ((pkt.flags & 0x2) ? CV_16UC4 : CV_16U) : CV_8UC4));
+	surface.create(height*ty, width*tx, cvtype);
 
 	bool is_static = ividstate.decoders[channum] && (spkt.hint_capability & ftl::codecs::kStreamCap_Static);
 
@@ -279,7 +283,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 		// Add channel to frame and allocate memory if required
 		const cv::Size size = cv::Size(width, height);
-		frame.getBuffer<cv::cuda::GpuMat>(spkt.channel).create(size, (isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
+		frame.getBuffer<cv::cuda::GpuMat>(spkt.channel).create(size, ftl::codecs::type(spkt.channel)); //(isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
 
 		cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
 		cv::cuda::GpuMat sroi = surface(roi);
@@ -300,6 +304,8 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 			ftl::cuda::vuya_to_depth(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), sroi, 16.0f, cvstream);
 		} else if (isFloatChannel(rchan)) {
 			sroi.convertTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, cvstream);
+		} else if (sroi.type() == CV_8UC1) {
+			sroi.copyTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cvstream);
 		} else {
 			cv::cuda::cvtColor(sroi, frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cv::COLOR_RGBA2BGRA, 0, cvstream);
 		}

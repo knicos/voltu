@@ -3,7 +3,7 @@
 #include "splatter_cuda.hpp"
 #include <ftl/cuda/points.hpp>
 #include <ftl/cuda/normals.hpp>
-#include <ftl/operators/mask_cuda.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 #include <ftl/render/colouriser.hpp>
 #include <ftl/cuda/transform.hpp>
 

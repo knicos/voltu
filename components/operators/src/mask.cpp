@@ -1,5 +1,5 @@
 #include <ftl/operators/mask.hpp>
-#include <ftl/operators/mask_cuda.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 
 using ftl::operators::DiscontinuityMask;
 using ftl::operators::BorderMask;
@@ -27,6 +27,12 @@ bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 
 	if (!in.hasChannel(Channel::Depth) || !in.hasChannel(Channel::Support1)) return false;
 
+	if (!out.hasChannel(Channel::Mask)) {
+		auto &m = out.create<cv::cuda::GpuMat>(Channel::Mask);
+		m.create(in.get<cv::cuda::GpuMat>(Channel::Depth).size(), CV_8UC1);
+		m.setTo(cv::Scalar(0));
+	}
+
 	/*ftl::cuda::discontinuity(
 		out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 		in.createTexture<uchar4>(Channel::Support1),
@@ -37,7 +43,7 @@ bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 	);*/
 
 	ftl::cuda::discontinuity(
-		out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+		out.createTexture<uint8_t>(Channel::Mask),
 		in.createTexture<uchar4>(Channel::Support1),
 		in.createTexture<float>(Channel::Depth),
 		in.get<cv::cuda::GpuMat>(Channel::Depth).size(),

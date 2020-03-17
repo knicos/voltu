@@ -1,5 +1,5 @@
 #include <ftl/operators/gt_analysis.hpp>
-#include <ftl/operators/gt_cuda.hpp>
+#include <ftl/operators/cuda/gt.hpp>
 
 using ftl::operators::GTAnalysis;
 using ftl::codecs::Channel;

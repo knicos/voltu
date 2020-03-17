@@ -1,5 +1,5 @@
 #include "ftl/operators/disparity.hpp"
-#include "disparity/cuda.hpp"
+#include <ftl/operators/cuda/disparity.hpp>
 
 using ftl::operators::DisparityToDepth;
 using ftl::codecs::Channel;

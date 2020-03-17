@@ -3,7 +3,7 @@
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
 #include "disparity/qsort.h"
-#include "disparity/cuda.hpp"
+#include <ftl/operators/cuda/disparity.hpp>
 
 __device__ void quicksort(float A[], size_t n)
 {
