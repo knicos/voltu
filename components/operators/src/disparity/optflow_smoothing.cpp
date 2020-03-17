@@ -1,7 +1,7 @@
 #include <loguru.hpp>
 
 #include "ftl/operators/disparity.hpp"
-#include "disparity/cuda.hpp"
+#include <ftl/operators/cuda/disparity.hpp>
 
 #ifdef HAVE_OPTFLOW
 

@@ -1,7 +1,7 @@
 #include <ftl/operators/disparity.hpp>
 
 #include "opencv/joint_bilateral.hpp"
-#include "cuda.hpp"
+#include <ftl/operators/cuda/disparity.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 

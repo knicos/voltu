@@ -13,23 +13,23 @@ static ChannelInfo info[] = {
     "Right", CV_8UC4,			// 2
     "DepthRight", CV_32F,		// 3
     "Deviation", CV_32F,		// 4
-    "Normals", CV_32FC4,		// 5
+    "Normals", CV_16FC4,		// 5
     "Weights", CV_16SC1,		// 6
     "Confidence", CV_32F,		// 7
     "EnergyVector", CV_32FC4,	// 8
     "Flow", CV_32F,				// 9
     "Energy", CV_32F,			// 10
-	"Mask", CV_32S,				// 11
+	"Mask", CV_8U,				// 11
 	"Density", CV_32F,			// 12
     "Support1", CV_8UC4,		// 13
     "Support2", CV_8UC4,		// 14
     "Segmentation", CV_32S,		// 15
 
 	"ColourNormals", 0,			// 16
-	"ColourHighRes", 0,			// 17
-	"Disparity", 0,				// 18
+	"ColourHighRes", CV_8UC4,			// 17
+	"Disparity", CV_32F,				// 18
 	"Smoothing", 0,				// 19
-	"Colour2HighRes", 0,		// 20
+	"Colour2HighRes", CV_8UC4,		// 20
 	"Overlay", 0,				// 21
 	"GroundTruth", CV_32F,		// 22
 	"NoName", 0,

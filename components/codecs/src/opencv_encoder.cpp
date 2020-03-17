@@ -30,7 +30,7 @@ bool OpenCVEncoder::supports(ftl::codecs::codec_t codec) {
 bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
 	bool is_colour = !(pkt.flags & ftl::codecs::kFlagFloat);
 
-	if (is_colour && in.type() != CV_8UC4) return false;
+	if (is_colour && in.type() != CV_8UC4 && in.type() != CV_8UC1) return false;
 	if (!is_colour && in.type() == CV_8UC4) {
 		LOG(ERROR) << "OpenCV Encoder doesn't support lossy depth";
 		return false;
@@ -74,7 +74,7 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		return false;
 	}
 
-	if (pkt.codec == codec_t::Any) pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
+	if (pkt.codec == codec_t::Any) pkt.codec = (is_colour && in.type() != CV_8UC1) ? codec_t::JPG : codec_t::PNG;
 
 	//for (int i=0; i<chunk_count_; ++i) {
 		// Add chunk job to thread pool

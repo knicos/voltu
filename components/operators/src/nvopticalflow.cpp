@@ -3,6 +3,9 @@
 
 #include <opencv2/cudaimgproc.hpp>
 
+#define LOGURU_REPLACE_GLOG 1
+#include <loguru.hpp>
+
 using ftl::rgbd::Frame;
 using ftl::rgbd::Source;
 using ftl::codecs::Channel;
@@ -29,7 +32,9 @@ NVOpticalFlow::~NVOpticalFlow() {
 bool NVOpticalFlow::init() {
 	if (!ftl::cuda::hasCompute(7,5)) {
 		config()->set("enabled", false);
-		throw FTL_Error("GPU does not support optical flow");
+		//throw FTL_Error("GPU does not support optical flow");
+		LOG(ERROR) << "GPU does not support optical flow";
+		return false;
 	}
 	nvof_ = cv::cuda::NvidiaOpticalFlow_1_0::create(
 				size_.width, size_.height, 
@@ -47,7 +52,7 @@ bool NVOpticalFlow::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 	if (in.get<GpuMat>(channel_in_).size() != size_) {
 		size_ = in.get<GpuMat>(channel_in_).size();
-		init();
+		if (!init()) return false;
 	}
 	
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);

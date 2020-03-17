@@ -3,7 +3,7 @@
 
 #include <ftl/operators/operator.hpp>
 #include <ftl/cuda_common.hpp>
-#include <ftl/operators/gt_cuda.hpp>
+#include <ftl/operators/cuda/gt.hpp>
 
 namespace ftl {
 namespace operators {

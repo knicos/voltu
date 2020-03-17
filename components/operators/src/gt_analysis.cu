@@ -1,4 +1,4 @@
-#include <ftl/operators/gt_cuda.hpp>
+#include <ftl/operators/cuda/gt.hpp>
 
 #ifndef WARP_SIZE
 #define WARP_SIZE 32

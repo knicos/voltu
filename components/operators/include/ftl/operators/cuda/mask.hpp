@@ -41,6 +41,7 @@ class Mask {
 	static constexpr type kMask_Correspondence = 0x04;
 	static constexpr type kMask_Bad = 0x08;
 	static constexpr type kMask_Noise = 0x10;
+	static constexpr type kMask_Occlusion = 0x20;
 
 	private:
 	type v_;

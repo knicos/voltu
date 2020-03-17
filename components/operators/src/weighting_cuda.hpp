@@ -1,7 +1,7 @@
 #ifndef _FTL_OPERATORS_WEIGHTING_CUDA_HPP_
 #define _FTL_OPERATORS_WEIGHTING_CUDA_HPP_
 
-#include <ftl/operators/mask_cuda.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 
 namespace ftl {
 namespace cuda {

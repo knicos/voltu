@@ -409,7 +409,14 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 	int tilecount = tx*ty;
 	uint32_t count = 0;
 
-	surface.surface.create(height, width, (lossless && m.type() == CV_32F) ? CV_16U : CV_8UC4);
+	int cvtype = CV_8UC4;
+	switch (m.type()) {
+	case CV_32F		:	cvtype = (lossless && m.type() == CV_32F) ? CV_16U : CV_8UC4; break;
+	case CV_8UC1	:	cvtype = CV_8UC1; break;
+	default			:	cvtype = CV_8UC4;
+	}
+
+	surface.surface.create(height, width, cvtype);
 
 	// Loop over tiles with ROI mats and do colour conversions.
 	while (tilecount > 0 && count+offset < fs.frames.size()) {
@@ -429,6 +436,8 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 				cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
 			} else if (m.type() == CV_8UC3) {
 				cv::cuda::cvtColor(m, sroi, cv::COLOR_BGR2RGBA, 0, stream);
+			} else if (m.type() == CV_8UC1) {
+				m.copyTo(sroi, stream);
 			} else {
 				LOG(ERROR) << "Unsupported colour format: " << m.type();
 				return 0;

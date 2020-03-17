@@ -37,10 +37,16 @@ bool PixelWeights::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 
 	Channel dchan = (in.hasChannel(Channel::Depth)) ? Channel::Depth : Channel::GroundTruth;
 
+	if (!out.hasChannel(Channel::Mask)) {
+		auto &m = out.create<cv::cuda::GpuMat>(Channel::Mask);
+		m.create(in.get<cv::cuda::GpuMat>(dchan).size(), CV_8UC1);
+		m.setTo(cv::Scalar(0));
+	}
+
 	if (output_normals) {
 		ftl::cuda::pixel_weighting(
 			out.createTexture<short>(Channel::Weights, ftl::rgbd::Format<short>(in.get<cv::cuda::GpuMat>(dchan).size())),
-			out.createTexture<uint8_t>(Channel::Mask, ftl::rgbd::Format<uint8_t>(in.get<cv::cuda::GpuMat>(dchan).size())),
+			out.createTexture<uint8_t>(Channel::Mask),
 			out.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(dchan).size())),
 			in.createTexture<uchar4>(Channel::Support1),
 			in.createTexture<float>(dchan),
