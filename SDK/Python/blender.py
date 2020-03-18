@@ -99,8 +99,6 @@ def inverse_pose(pose):
     return inv
 
 def cycles_depth(depth, camd):
-    # assumes principal point in center of image
-
     xs = np.zeros(depth.shape, dtype=np.float)
     xs[:,:] = (0.5 - np.arange(0, xs.shape[1], dtype=np.float) / depth.shape[1]) * camd.sensor_width / camd.lens
 
@@ -110,7 +108,7 @@ def cycles_depth(depth, camd):
     norm = np.sqrt(xs*xs + ys*ys + 1.0)
     return depth / norm
 
-def render(use_eevee_depth=False):
+def render():
     """ render active camera (image and depth) """
     context = bpy.context
     use_nodes = bool(context.scene.use_nodes)
@@ -143,22 +141,11 @@ def render(use_eevee_depth=False):
 
         im = pix_srgb.reshape((pixels.size[1], pixels.size[0], pixels.channels))[:,:,0:3]
 
-        if context.scene.render.engine == 'CYCLES' and use_eevee_depth:
-            try:
-                context.scene.render.engine = 'BLENDER_EEVEE'
-                bpy.ops.render.render()
-                pixels = bpy.data.images['Viewer Node']
-
-            finally:
-                context.scene.render.engine = 'CYCLES'
-
         depth = np.array(pixels.pixels[:]).reshape((pixels.size[1], pixels.size[0], pixels.channels))[:,:,3]
-
-        # set invalid depth values to 0.0
         d_max = 65504.0
-        depth[depth >= d_max] = 0.0
+        depth[depth >= d_max] = 0.0 # set invalid depth values to 0.0
 
-        if context.scene.render.engine == 'CYCLES' and not use_eevee_depth:
+        if context.scene.render.engine == 'CYCLES':
              depth = cycles_depth(depth, context.scene.camera.data)
 
         return im, depth
@@ -168,28 +155,28 @@ def render(use_eevee_depth=False):
         tree.nodes.remove(rl)
         bpy.context.scene.use_nodes = use_nodes
 
-def render_stereo(camera, baseline=0.15, use_eevee_depth=False):
+def render_stereo(camera, baseline=0.15):
     context = bpy.context
     camera_old = bpy.context.scene.camera
-
-    pose = np.array(camera.matrix_world)
-    pose[:,1] = -pose[:,1]
-    pose[:,2] = -pose[:,2]
 
     try:
         context.scene.camera = camera
         imL, depthL = render()
 
-        location_old = camera.location.copy()
+        matrix_world_old = camera.matrix_world.copy()
         try:
             camera.location = (camera.matrix_world @ Vector((baseline, 0.0, 0.0, 1.0)))[0:3]
             imR, depthR = render()
 
         finally:
-            camera.location = location_old
+            camera.matrix_world = matrix_world_old
 
     finally:
         context.scene.camera = camera_old
+
+    pose = np.array(camera.matrix_world)
+    pose[:,1] = -pose[:,1]
+    pose[:,2] = -pose[:,2]
 
     d_max = max(np.max(depthL), np.max(depthR))
     ftlcamera = get_ftl_calibration_from_blender(camera.data, baseline=baseline, d_max=d_max)
@@ -211,21 +198,21 @@ class FTL_Options(bpy.types.PropertyGroup):
                                        default=0.15)
 
     use_sgm : bpy.props.BoolProperty(name="Use SGM",
-                                     description="Calculate disparity using SGM",
+                                     description="Calculate disparity using SGM (FTL)",
                                      default=False)
 
 
     use_ground_truth : bpy.props.BoolProperty(name="Save as ground truth",
-                                              description="Save depth in Ground Truth instead of Depth channel.",
+                                              description="Save depth in Ground Truth instead of Depth channel",
                                               default=True)
 
     mask_occlusions : bpy.props.BoolProperty(name="Mask occlusions",
-                                             description="Right camera depth is used to mask occluded pixels.",
+                                             description="Right camera depth is used to mask occluded pixels",
                                              default=True)
 
-    depth_eevee : bpy.props.BoolProperty(name="Depth from Eevee",
-                                             description="Render depth with Eeveee",
-                                             default=True)
+    depth_eevee :     bpy.props.BoolProperty(name="Render depth with Eevee",
+                                             description="Always render depth with Eevee.",
+                                             default=False)
 
     cameras : bpy.props.EnumProperty(
         name = "Cameras",
@@ -271,15 +258,30 @@ class FTL_OT_Operator(bpy.types.Operator):
         baseline = options.baseline
 
         for i, camera in enumerate(cameras):
-            res = render_stereo(camera, baseline, options.depth_eevee)
+            res = render_stereo(camera, baseline)
             writer.write(i, Channel.Calibration, res.intrinsics)
             writer.write(i, Channel.Pose, res.pose)
             writer.write(i, Channel.Left, res.imL)
             writer.write(i, Channel.Right, res.imR)
-            writer.write(i, depth_channel, res.depthL)
+
+            depthL = res.depthL
+            depthR = res.depthR
+
+            if options.depth_eevee and context.scene.render.engine != 'BLENDER_EEVEE':
+                engine = context.scene.render.engine
+                try:
+                    context.scene.render.engine = 'BLENDER_EEVEE'
+                    res_eevee = render_stereo(camera, baseline)
+                    depthL = res_eevee.depthL
+                    depthR = res_eevee.depthR
+
+                finally:
+                    context.scene.render.engine = engine
+
+            writer.write(i, depth_channel, depthL)
 
             if options.mask_occlusions:
-                writer.mask_occlusion(i, depth_channel, res.depthR)
+                writer.mask_occlusion(i, depth_channel, depthR)
 
         print("saved to %s" % options.file_path)
         return {'FINISHED'}
