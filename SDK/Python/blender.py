@@ -172,6 +172,10 @@ def render_stereo(camera, baseline=0.15, use_eevee_depth=False):
     context = bpy.context
     camera_old = bpy.context.scene.camera
 
+    pose = np.array(camera.matrix_world)
+    pose[:,1] = -pose[:,1]
+    pose[:,2] = -pose[:,2]
+
     try:
         context.scene.camera = camera
         imL, depthL = render()
@@ -186,10 +190,6 @@ def render_stereo(camera, baseline=0.15, use_eevee_depth=False):
 
     finally:
         context.scene.camera = camera_old
-
-    pose = np.array(camera.matrix_world)
-    pose[:,1] = -pose[:,1]
-    pose[:,2] = -pose[:,2]
 
     d_max = max(np.max(depthL), np.max(depthR))
     ftlcamera = get_ftl_calibration_from_blender(camera.data, baseline=baseline, d_max=d_max)
