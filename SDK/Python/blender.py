@@ -64,54 +64,6 @@ def get_calibration_matrix_K_from_blender(camd):
         (   0,    0,   1)))
     return K
 
-# Returns camera rotation and translation matrices from Blender.
-#
-# There are 3 coordinate systems involved:
-#    1. The World coordinates: "world"
-#       - right-handed
-#    2. The Blender camera coordinates: "bcam"
-#       - x is horizontal
-#       - y is up
-#       - right-handed: negative z look-at direction
-#    3. The desired computer vision camera coordinates: "cv"
-#       - x is horizontal
-#       - y is down (to align to the actual pixel coordinates
-#         used in digital images)
-#       - right-handed: positive z look-at direction
-def get_3x4_RT_matrix_from_blender(cam):
-    # bcam stands for blender camera
-    R_bcam2cv = Matrix(
-        ((1, 0,  0),
-        (0, -1, 0),
-        (0, 0, -1)))
-
-    # Transpose since the rotation is object rotation,
-    # and we want coordinate rotation
-    # R_world2bcam = cam.rotation_euler.to_matrix().transposed()
-    # T_world2bcam = -1*R_world2bcam * location
-    #
-    # Use matrix_world instead to account for all constraints
-    location, rotation = cam.matrix_world.decompose()[0:2]
-    R_world2bcam = rotation.to_matrix().transposed()
-
-    # Convert camera location to translation vector used in coordinate changes
-    # T_world2bcam = -1*R_world2bcam*cam.location
-    # Use location from matrix_world to account for constraints:
-    T_world2bcam = -1*R_world2bcam @ location
-
-    # Build the coordinate transform matrix from world to computer vision camera
-    R_world2cv = R_bcam2cv@R_world2bcam
-    T_world2cv = R_bcam2cv@T_world2bcam
-
-    # put into 3x4 matrix
-    RT = Matrix((
-        R_world2cv[0][:] + (T_world2cv[0],),
-        R_world2cv[1][:] + (T_world2cv[1],),
-        R_world2cv[2][:] + (T_world2cv[2],)
-        ))
-
-    return RT
-
 def get_ftl_calibration_from_blender(camd, d_min=0.0, d_max=np.inf, baseline=0.0, doff=0.0):
 
     K = get_calibration_matrix_K_from_blender(camd)
@@ -138,12 +90,32 @@ class StereoImage(typing.NamedTuple):
     imR: np.array
     depthR: np.array
 
-def render():
-    """ render active camera (image and depth) """
+def inverse_pose(pose):
+    inv = np.identity(4, dtype=pose.dtype)
+    inv[0:3,0:3] = pose[0:3,0:3].T
+    inv[0,3] = -pose[0:3,3]@pose[0:3,0]
+    inv[1,3] = -pose[0:3,3]@pose[0:3,1]
+    inv[2,3] = -pose[0:3,3]@pose[0:3,2]
+    return inv
 
-    use_nodes = bpy.context.scene.use_nodes
-    bpy.context.scene.use_nodes = True
-    tree = bpy.context.scene.node_tree
+def cycles_depth(depth, camd):
+    # assumes principal point in center of image
+
+    xs = np.zeros(depth.shape, dtype=np.float)
+    xs[:,:] = (0.5 - np.arange(0, xs.shape[1], dtype=np.float) / depth.shape[1]) * camd.sensor_width / camd.lens
+
+    ys = np.zeros(depth.shape, dtype=np.float)
+    (ys.T)[:,:] = (0.5 - np.arange(0, ys.shape[0], dtype=np.float) / depth.shape[0]) * camd.sensor_height / camd.lens
+
+    norm = np.sqrt(xs*xs + ys*ys + 1.0)
+    return depth / norm
+
+def render(use_eevee_depth=False):
+    """ render active camera (image and depth) """
+    context = bpy.context
+    use_nodes = bool(context.scene.use_nodes)
+    context.scene.use_nodes = True
+    tree = context.scene.node_tree
     links = tree.links
 
     # possible issues with existing nodes of same type when accessing via bpy.data (?)
@@ -162,7 +134,6 @@ def render():
         pix = np.array(pixels.pixels[:])
 
         # sRGB conversion
-        #pix2 = np.zeros(pix.shape[:], dtype=np.float)
         pix_srgb = np.copy(pix)
         np.copyto(pix_srgb, 1.055*(pix**(1.0/2.4)) - 0.055, where=pix <= 1)
         np.copyto(pix_srgb, pix * 12.92, where=pix <= 0.0031308)
@@ -171,11 +142,24 @@ def render():
         pix_srgb[pix_srgb > 1.0] = 1.0
 
         im = pix_srgb.reshape((pixels.size[1], pixels.size[0], pixels.channels))[:,:,0:3]
+
+        if context.scene.render.engine == 'CYCLES' and use_eevee_depth:
+            try:
+                context.scene.render.engine = 'BLENDER_EEVEE'
+                bpy.ops.render.render()
+                pixels = bpy.data.images['Viewer Node']
+
+            finally:
+                context.scene.render.engine = 'CYCLES'
+
         depth = np.array(pixels.pixels[:]).reshape((pixels.size[1], pixels.size[0], pixels.channels))[:,:,3]
 
         # set invalid depth values to 0.0
         d_max = 65504.0
         depth[depth >= d_max] = 0.0
+
+        if context.scene.render.engine == 'CYCLES' and not use_eevee_depth:
+             depth = cycles_depth(depth, context.scene.camera.data)
 
         return im, depth
 
@@ -184,10 +168,12 @@ def render():
         tree.nodes.remove(rl)
         bpy.context.scene.use_nodes = use_nodes
 
-def render_stereo(camera, baseline=0.15):
+def render_stereo(camera, baseline=0.15, use_eevee_depth=False):
+    context = bpy.context
     camera_old = bpy.context.scene.camera
+
     try:
-        bpy.context.scene.camera = camera
+        context.scene.camera = camera
         imL, depthL = render()
 
         location_old = camera.location.copy()
@@ -199,16 +185,16 @@ def render_stereo(camera, baseline=0.15):
             camera.location = location_old
 
     finally:
-        bpy.context.scene.camera = camera_old
+        context.scene.camera = camera_old
+
+    pose = np.array(camera.matrix_world)
+    pose[:,1] = -pose[:,1]
+    pose[:,2] = -pose[:,2]
 
     d_max = max(np.max(depthL), np.max(depthR))
-    pose = np.identity(4,dtype=np.float32)
-    pose[0:3,0:4] = get_3x4_RT_matrix_from_blender(camera)
-    pose = np.linalg.inv(pose)
-
     ftlcamera = get_ftl_calibration_from_blender(camera.data, baseline=baseline, d_max=d_max)
 
-    return StereoImage(ftlcamera, np.array(pose), imL, depthL, imR, depthR)
+    return StereoImage(ftlcamera, pose, imL, depthL, imR, depthR)
 
 ################################################################################
 
@@ -235,6 +221,10 @@ class FTL_Options(bpy.types.PropertyGroup):
 
     mask_occlusions : bpy.props.BoolProperty(name="Mask occlusions",
                                              description="Right camera depth is used to mask occluded pixels.",
+                                             default=True)
+
+    depth_eevee : bpy.props.BoolProperty(name="Depth from Eevee",
+                                             description="Render depth with Eeveee",
                                              default=True)
 
     cameras : bpy.props.EnumProperty(
@@ -281,7 +271,7 @@ class FTL_OT_Operator(bpy.types.Operator):
         baseline = options.baseline
 
         for i, camera in enumerate(cameras):
-            res = render_stereo(camera, baseline)
+            res = render_stereo(camera, baseline, options.depth_eevee)
             writer.write(i, Channel.Calibration, res.intrinsics)
             writer.write(i, Channel.Pose, res.pose)
             writer.write(i, Channel.Left, res.imL)
@@ -323,6 +313,9 @@ class FTL_PT_Panel(bpy.types.Panel):
 
         row = layout.row()
         row.prop(ftl_options, "mask_occlusions")
+
+        row = layout.row()
+        row.prop(ftl_options, "depth_eevee")
 
         row = layout.row()
         row.operator("scene.ftl_operator", text="Generate")
