@@ -204,7 +204,7 @@ def render_stereo(camera, baseline=0.15):
     d_max = max(np.max(depthL), np.max(depthR))
     pose = np.identity(4,dtype=np.float32)
     pose[0:3,0:4] = get_3x4_RT_matrix_from_blender(camera)
-    pose = np.linalg.inv(pose.T)
+    pose = np.linalg.inv(pose)
 
     ftlcamera = get_ftl_calibration_from_blender(camera.data, baseline=baseline, d_max=d_max)
 

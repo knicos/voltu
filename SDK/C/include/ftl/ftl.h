@@ -146,7 +146,7 @@ ftlError_t ftlSetConfigString(ftlStream_t stream, const char *name, const char *
  * path part of a configurable URI, this is prepended with the streams internal
  * URI so that this path is relative to the stream object. An example:
  *    `ftlSetConfigInt(stream, "sender/codec", 2);`
- * 
+ *
  * The example makes the streams encoder use HEVC codec.
  */
 ftlError_t ftlSetConfigInt(ftlStream_t stream, const char *name, int value);
@@ -160,7 +160,7 @@ ftlError_t ftlSetConfigJSON(ftlStream_t stream, const char *name, const char *js
  * path part of a configurable URI, this is prepended with the streams internal
  * URI so that this path is relative to the stream object. An example:
  *    `ftlSetConfigBool(stream, "sender/lossless", false);`
- * 
+ *
  * The example makes the streams encoder use lossy encoding.
  */
 ftlError_t ftlSetConfigBool(ftlStream_t stream, const char *name, bool value);
@@ -184,14 +184,14 @@ ftlError_t ftlSetConfigBool(ftlStream_t stream, const char *name, bool value);
  * the pitch is assumed to be width multiplied by size of pixel in bytes. Note
  * that `ftlNextFrame` must be called before calling this again for the same
  * source and channel.
- * 
+ *
  * @param stream As created with `ftlCreateWriteStream`
  * @param sourceId Unique consecutive ID for a camera or source
  * @param channel The image channel
  * @param type The image format
  * @param pitch Bytes per row, in case different from width x sizeof(type)
  * @param data Raw image data, pitch x height bytes in size
- * 
+ *
  * @return FTLERROR_OK on success
  */
 ftlError_t ftlImageWrite(
@@ -207,7 +207,7 @@ ftlError_t ftlImageWrite(
  * frames when `ftlNextFrame` is called. When reading an FTL file this is
  * determined automatically. Default is 25 fps. Advised to call this only once
  * before any call to `ftlNextFrame`.
- * 
+ *
  * @param stream As created with `ftlCreateWriteStream`
  * @param fps Frames per second of video output
  */
@@ -222,8 +222,7 @@ ftlError_t ftlNextFrame(ftlStream_t stream);
 
 /**
  * Write of 4x4 transformation matrix into the stream for a given source. The
- * `data` pointer must contain 16 float values packed and in Eigen::Matrix4f
- * form.
+ * `data` pointer must contain 16 float values in column major order.
  */
 ftlError_t ftlPoseWrite(ftlStream_t stream, int32_t sourceId, const float *data);
 
