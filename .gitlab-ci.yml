@@ -18,6 +18,8 @@ linux:
   stage: all
   tags:
     - linux
+  variables:
+    FTL_LIB: ../../build/SDK/C/libftl-dev.so
 #  before_script:
 #    - export DEBIAN_FRONTEND=noninteractive
 #    - apt-get update -qq && apt-get install -y -qq g++ cmake git
@@ -28,6 +30,8 @@ linux:
     - cmake .. -DWITH_OPTFLOW=TRUE -DUSE_CPPCHECK=FALSE -DBUILD_CALIBRATION=TRUE -DWITH_CERES=TRUE -DCMAKE_BUILD_TYPE=Release
     - make
     - ctest --output-on-failure
+    - cd ../SDK/Python
+    - python3 -m unittest discover test
 
 webserver-deploy:
   only:

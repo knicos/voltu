@@ -1,6 +1,11 @@
 from typing import NamedTuple
 from enum import IntEnum
 
+class FTLException(Exception):
+    def __init__(self, code, message):
+        self.code = code
+        self.message = message
+
 class Pipeline(IntEnum):
 	DEPTH = 0
 	RECONSTRUCT = 1
