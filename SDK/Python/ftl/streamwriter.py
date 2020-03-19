@@ -1,16 +1,35 @@
-from . types import Channel, is_float_channel, Camera, Pipeline
+from . types import FTLException, Channel, is_float_channel, Camera, Pipeline
 import numpy as np
 from enum import IntEnum
 
 import ctypes
-
+import sys
 import os.path
+
+################################################################################
+# Try to locate shared library
 
 _paths = [
     ".",
     "/usr/lib",
     "/usr/local/lib",
 ]
+
+_libpath = None
+if "FTL_LIB" in os.environ and os.path.exists(os.environ["FTL_LIB"]):
+    _libpath = os.environ["FTL_LIB"]
+
+else:
+    for p in _paths:
+        p = os.path.join(p, "libftl-dev.so")
+        if os.path.exists(p):
+            _libpath = p
+            break
+
+if _libpath is None:
+    raise FileNotFoundError("libftl-dev.so not found")
+
+################################################################################
 
 class _imageformat_t(IntEnum):
 	FLOAT     = 0
@@ -19,16 +38,6 @@ class _imageformat_t(IntEnum):
 	RGB       = 3
 	BGR       = 4
 	RGB_FLOAT = 5
-
-_libpath = None
-for p in _paths:
-    p = os.path.join(p, "libftl-dev.so")
-    if os.path.exists(p):
-        _libpath = p
-        break
-
-if _libpath is None:
-    raise FileNotFoundError("libftl-dev.so not found")
 
 _c_api = ctypes.CDLL(_libpath)
 
@@ -70,12 +79,22 @@ _c_api.ftlDestroyStream.argtypes = [ctypes.c_void_p]
 
 def _ftl_check(retval):
     if retval != 0:
-        raise Exception("FTL api returned %i" % retval)
+        raise FTLException(retval ,"FTL api returned %i" % retval)
 
 class FTLStreamWriter:
     def __init__(self, fname):
         self._sources = {}
-        self._instance = _c_api.ftlCreateWriteStream(bytes(fname, "utf8"))
+
+        if isinstance(fname, str):
+            fname_ = bytes(fname, sys.getdefaultencoding())
+
+        elif isinstance(fname, bytes):
+            fname_ = fname
+
+        else:
+            raise TypeError()
+
+        self._instance = _c_api.ftlCreateWriteStream(fname_)
 
         if self._instance is None:
             raise Exception("Error: ftlCreateWriteStream")
@@ -148,9 +167,11 @@ class FTLStreamWriter:
 
         func = _c_api.ftlIntrinsicsWriteLeft if channel == Channel.Calibration else _c_api.ftlIntrinsicsWriteRight
 
-        _ftl_check(func(self._instance, source, camera.width, camera.height,
-                        camera.fx, camera.cx, camera.cy, camera.baseline,
-                        camera.min_depth, camera.max_depth))
+        _ftl_check(func(self._instance, source,
+                        int(camera.width), int(camera.height),
+                        float(camera.fx), float(camera.cx),
+                        float(camera.cy), float(camera.baseline),
+                        float(camera.min_depth), float(camera.max_depth)))
 
         self._sources[source] = camera
 
@@ -168,6 +189,8 @@ class FTLStreamWriter:
 
     def write(self, source, channel, data):
         """ Write data to stream """
+        source = int(source)
+        channel = Channel(channel)
 
         if channel in [Channel.Calibration, Channel.Calibration2]:
             self._write_calibration(source, channel, data)
