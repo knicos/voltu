@@ -29,6 +29,8 @@ class FixstarsSGM : public ftl::operators::Operator {
 	~FixstarsSGM();
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	bool isMemoryHeavy() const override { return true; }
 	
 	private:
 	bool init();

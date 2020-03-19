@@ -59,14 +59,15 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 			//while (i.instances.size() < in.frames.size()) {
 				//i.instances.push_back(i.maker->make());
 			//}
-			if (in.frames.size() > 1 && i.instances.size() < 2) {
+			if (in.frames.size() > 1 && i.instances.size() < 2 && !i.instances[0]->isMemoryHeavy()) {
 				i.instances.push_back(i.maker->make());
 			}
 
 			for (size_t j=0; j<in.frames.size(); ++j) {
 				if (!in.hasFrame(j)) continue;
 				
-				auto *instance = i.instances[j&0x1];
+				int iix = (i.instances[0]->isMemoryHeavy()) ? 0 : j&0x1;
+				auto *instance = i.instances[iix];
 
 				if (instance->enabled()) {
 					try {

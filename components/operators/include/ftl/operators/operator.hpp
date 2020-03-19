@@ -54,6 +54,8 @@ class Operator {
 	 */
 	virtual void wait(cudaStream_t) {}
 
+	virtual bool isMemoryHeavy() const { return false; }
+
 	inline ftl::Configurable *config() const { return config_; }
 
 	private:
