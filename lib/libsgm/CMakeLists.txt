@@ -26,8 +26,8 @@ if(BUILD_OPENCV_WRAPPER)
 	include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
-configure_file(${CMAKE_SOURCE_DIR}/include/libsgm_config.h.in
-               ${CMAKE_SOURCE_DIR}/include/libsgm_config.h
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/libsgm_config.h.in
+               ${CMAKE_CURRENT_SOURCE_DIR}/include/libsgm_config.h
 )
 
 add_subdirectory(src)

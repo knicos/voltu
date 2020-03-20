@@ -116,10 +116,10 @@ endif()
 # ==============================================================================
 
 if (WITH_FIXSTARS)
-	find_package(LibSGM REQUIRED)
-	if (LibSGM_FOUND)
-		set(HAVE_LIBSGM true)
-	endif()
+	set(HAVE_LIBSGM true)
+	add_subdirectory(lib/libsgm)
+	include_directories(lib/libsgm/include)
+	set_property(TARGET sgm PROPERTY FOLDER "dependencies")
 endif()
 
 if (WITH_CERES)
@@ -400,7 +400,7 @@ if (BUILD_CALIBRATION)
 	if (NOT HAVE_CERES)
 		message(ERROR "Ceres is required")
 	endif()
-	
+
 	add_subdirectory(applications/calibration-ceres)
 	add_subdirectory(applications/calibration-multi)
 endif()
