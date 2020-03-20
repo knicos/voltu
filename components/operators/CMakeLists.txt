@@ -52,6 +52,7 @@ target_include_directories(ftloperators PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
+
+target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon sgm Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
 
 #ADD_SUBDIRECTORY(test)
