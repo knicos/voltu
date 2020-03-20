@@ -35,9 +35,9 @@ set(OPERSRC
 	src/gt_analysis.cu
 )
 
-if (LIBSGM_FOUND)
+if (HAVE_LIBSGM)
 	list(APPEND OPERSRC src/disparity/fixstars_sgm.cpp)
-endif (LIBSGM_FOUND)
+endif (HAVE_LIBSGM)
 
 if (HAVE_OPTFLOW)
 	list(APPEND OPERSRC
@@ -52,6 +52,7 @@ target_include_directories(ftloperators PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
+
+target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon sgm Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
 
 #ADD_SUBDIRECTORY(test)
