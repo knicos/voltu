@@ -120,6 +120,8 @@ if (WITH_FIXSTARS)
 	add_subdirectory(lib/libsgm)
 	include_directories(lib/libsgm/include)
 	set_property(TARGET sgm PROPERTY FOLDER "dependencies")
+else()
+	add_library(sgm INTERFACE)
 endif()
 
 if (WITH_CERES)
