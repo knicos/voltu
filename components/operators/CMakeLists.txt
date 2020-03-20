@@ -35,9 +35,9 @@ set(OPERSRC
 	src/gt_analysis.cu
 )
 
-if (LIBSGM_FOUND)
+if (HAVE_LIBSGM)
 	list(APPEND OPERSRC src/disparity/fixstars_sgm.cpp)
-endif (LIBSGM_FOUND)
+endif (HAVE_LIBSGM)
 
 if (HAVE_OPTFLOW)
 	list(APPEND OPERSRC
