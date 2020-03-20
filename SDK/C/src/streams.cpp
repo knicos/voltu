@@ -112,6 +112,7 @@ ftlError_t ftlImageWrite(
 	if (stream->video_fs.hasChannel(static_cast<ftl::codecs::Channel>(channel)))
 		return FTLERROR_STREAM_DUPLICATE;
 
+	stream->sender->set("codec", 1);
 	stream->sender->set("encoder_device", 2);  // Software encoder
 	stream->sender->set("lossless", true);
 
