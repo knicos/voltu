@@ -99,9 +99,20 @@ class FTLStreamWriter:
         if self._instance is None:
             raise Exception("Error: ftlCreateWriteStream")
 
+    def close(self):
+        if self._instance is not None:
+            _ftl_check(_c_api.ftlDestroyStream(self._instance))
+            self._instance = None
+
     def __del__(self):
         if self._instance is not None:
             _c_api.ftlDestroyStream(self._instance)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
 
     def _check_image(self, source, channel, data):
         """ Check image is has correct number of channels and correct size

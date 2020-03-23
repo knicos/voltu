@@ -259,27 +259,28 @@ class FTL_OT_Operator(bpy.types.Operator):
 
         for i, camera in enumerate(cameras):
             res = render_stereo(camera, baseline)
-            writer.write(i, Channel.Calibration, res.intrinsics)
-            writer.write(i, Channel.Pose, res.pose)
-            writer.write(i, Channel.Left, res.imL)
-            writer.write(i, Channel.Right, res.imR)
 
-            depthL = res.depthL
-            depthR = res.depthR
+            imR = np.flip(res.imR, 0)
+            imL = np.flip(res.imL, 0)
+            depthL = np.flip(res.depthL, 0)
+            depthR = np.flip(res.depthR, 0)
 
             if options.depth_eevee and context.scene.render.engine != 'BLENDER_EEVEE':
                 engine = context.scene.render.engine
                 try:
                     context.scene.render.engine = 'BLENDER_EEVEE'
                     res_eevee = render_stereo(camera, baseline)
-                    depthL = res_eevee.depthL
-                    depthR = res_eevee.depthR
+                    depthL = np.flip(res_eevee.depthL, 0)
+                    depthR = np.flip(res_eevee.depthR, 0)
 
                 finally:
                     context.scene.render.engine = engine
 
+            writer.write(i, Channel.Calibration, res.intrinsics)
+            writer.write(i, Channel.Pose, res.pose)
+            writer.write(i, Channel.Left, imL)
+            writer.write(i, Channel.Right, imR)
             writer.write(i, depth_channel, depthL)
-
             if options.mask_occlusions:
                 writer.mask_occlusion(i, depth_channel, depthR)
 
