@@ -13,7 +13,7 @@ using ftl::operators::DisparityBilateralFilter;
 
 DisparityBilateralFilter::DisparityBilateralFilter(ftl::Configurable* cfg) :
 		ftl::operators::Operator(cfg) {
-	
+
 	scale_ = 16.0;
 	n_disp_ = cfg->value("n_disp", 256);
 	radius_ = cfg->value("radius", 4);
@@ -39,7 +39,7 @@ bool DisparityBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out
 
 			//LOG(ERROR) << "Calculated disparity from depth";
 
-			ftl::cuda::depth_to_disparity(disp, depth, params, stream);
+			ftl::cuda::depth_to_disparity<float, short>(depth, disp, params, 16.0f, stream);
 		} else {
 			throw FTL_Error("Joint Bilateral Filter is missing Disparity and Depth");
 			return false;

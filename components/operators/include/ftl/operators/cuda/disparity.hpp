@@ -3,11 +3,13 @@
 namespace ftl {
 namespace cuda {
 
-void disparity_to_depth(const cv::cuda::GpuMat &disparity, cv::cuda::GpuMat &depth,
-						const ftl::rgbd::Camera &c, cudaStream_t &stream);
+template<typename T_in, typename T_out>
+void disparity_to_depth(const cv::cuda::GpuMat &depth, cv::cuda::GpuMat &disparity,
+						const ftl::rgbd::Camera &c, float scale, cudaStream_t &stream);
 
-void depth_to_disparity(cv::cuda::GpuMat &disparity, const cv::cuda::GpuMat &depth,
-						const ftl::rgbd::Camera &c, cudaStream_t &stream);
+template<typename T_in, typename T_out>
+void depth_to_disparity(const cv::cuda::GpuMat &depth, cv::cuda::GpuMat &disparity,
+						const ftl::rgbd::Camera &c, float scale, cudaStream_t &stream);
 
 void remove_occlusions(cv::cuda::GpuMat &depth, const cv::cuda::GpuMat &depthR,
 						const ftl::rgbd::Camera &c, cudaStream_t stream);

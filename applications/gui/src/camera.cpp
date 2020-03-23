@@ -48,11 +48,11 @@ static Eigen::Affine3d create_rotation_matrix(float ax, float ay, float az) {
 
 ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::codecs::Channel c)
 		: screen_(screen), fsmask_(fsmask), fid_(fid), texture1_(GLTexture::Type::BGRA), texture2_(GLTexture::Type::BGRA), depth1_(GLTexture::Type::Float), channel_(c),channels_(0u) {
-	
+
 	eye_ = Eigen::Vector3d::Zero();
 	neye_ = Eigen::Vector4d::Zero();
 	rotmat_.setIdentity();
-	
+
 	//up_ = Eigen::Vector3f(0,1.0f,0);
 	lerpSpeed_ = 0.999f;
 	sdepth_ = false;
@@ -98,7 +98,7 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 		});
 
 		intrinsics_ = ftl::create<ftl::Configurable>(renderer_, "intrinsics");
-	
+
 		state_.getLeft() = ftl::rgbd::Camera::from(intrinsics_);
 		state_.getRight() = state_.getLeft();
 
@@ -389,7 +389,7 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	if (!post_pipe_) {
 		post_pipe_ = ftl::config::create<ftl::operators::Graph>(screen_->root(), "post_filters");
 		post_pipe_->append<ftl::operators::FXAA>("fxaa");
-		post_pipe_->append<ftl::operators::GTAnalysis>("gtanal");
+		post_pipe_->append<ftl::operators::GTAnalysis>("gtanalyse");
 	}
 
 	post_pipe_->apply(frame_, frame_, 0);
@@ -587,14 +587,14 @@ bool ftl::gui::Camera::setVR(bool on) {
 		state_.getLeft().height = size_y;
 		state_.getRight().width = size_x;
 		state_.getRight().height = size_y;
-		
+
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Left);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
 		state_.getLeft().fx = intrinsic(0,0);
 		state_.getLeft().fy = intrinsic(0,0);
 		state_.getLeft().cx = intrinsic(0,2);
 		state_.getLeft().cy = intrinsic(1,2);
-		
+
 		intrinsic = getCameraMatrix(screen_->getVR(), vr::Eye_Right);
 		CHECK(intrinsic(0, 2) < 0 && intrinsic(1, 2) < 0);
 		state_.getRight().fx = intrinsic(0,0);
@@ -671,7 +671,7 @@ const void ftl::gui::Camera::captureFrame() {
 
 		if (screen_->isVR()) {
 			#ifdef HAVE_OPENVR
-			
+
 			vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
 			vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
 
@@ -679,12 +679,12 @@ const void ftl::gui::Camera::captureFrame() {
 			{
 				Eigen::Matrix4d eye_l = ConvertSteamVRMatrixToMatrix4(
 					vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
-				
+
 				//Eigen::Matrix4d eye_r = ConvertSteamVRMatrixToMatrix4(
 				//	vr::VRSystem()->GetEyeToHeadTransform(vr::Eye_Left));
 
 				float baseline_in = 2.0 * eye_l(0, 3);
-				
+
 				if (baseline_in != baseline_) {
 					baseline_ = baseline_in;
 					//src_->set("baseline", baseline_);
@@ -698,17 +698,17 @@ const void ftl::gui::Camera::captureFrame() {
 				vreye[0] = pose(0, 3);
 				vreye[1] = -pose(1, 3);
 				vreye[2] = -pose(2, 3);
-				
+
 				// NOTE: If modified, should be verified with VR headset!
 				Eigen::Matrix3d R;
 				R =		Eigen::AngleAxisd(ea[0], Eigen::Vector3d::UnitX()) *
 						Eigen::AngleAxisd(-ea[1], Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(-ea[2], Eigen::Vector3d::UnitZ()); 
-				
+						Eigen::AngleAxisd(-ea[2], Eigen::Vector3d::UnitZ());
+
 				//double rd = 180.0 / 3.141592;
 				//LOG(INFO) << "rotation x: " << ea[0] *rd << ", y: " << ea[1] * rd << ", z: " << ea[2] * rd;
 				// pose.block<3, 3>(0, 0) = R;
-				
+
 				rotmat_.block(0, 0, 3, 3) = R;
 
 				// TODO: Apply a rotation to orient also
@@ -720,7 +720,7 @@ const void ftl::gui::Camera::captureFrame() {
 				Eigen::Translation3d trans(eye_ + vreye);
 				Eigen::Affine3d t(trans);
 				viewPose = t.matrix() * rotmat_;
-			
+
 			} else {
 				//LOG(ERROR) << "No VR Pose";
 			}
