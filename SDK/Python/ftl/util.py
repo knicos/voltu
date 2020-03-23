@@ -1,65 +1,22 @@
 import numpy as np
-from . ftltype import Camera
+from . types import Camera
 
-def get_camera_matrix(calib):
-    K = np.identity(3, dtype=np.float64)
-    K[0,0] = calib.fx
-    K[1,1] = calib.fy
-    K[0,2] = calib.cx
-    K[1,2] = calib.cy
-    return K
-
-def get_Q(calib):
-    """ Disparity to depth matrix. Explained in "Learning OpenCV: Computer
-        Vision with the OpenCV Library" (2008) p. 435.
-    """
-    Q = np.identity(4, dtype=np.float64)
-    Q[0,3] = calib.cx
-    Q[1,3] = calib.cy
-    Q[2,2] = 0.0
-    Q[2,3] = calib.fx
-    Q[3,2] = -1 / calib.baseline
-    Q[3,3] = calib.doff
-    return Q
-
-def disparity_to_depth(disparity, camera, max_depth=10.0, invalid_value=0.0):
+def disparity_to_depth(disparity, camera, invalid_value=0.0):
     """ Calculate depth map from disparity map. Depth values smaller than 0.0
 	    and larger than max_depth are set to invalid_value.
     """
 
     depth = (camera.fx * camera.baseline) / (disparity - camera.doff)
     depth[depth < 0] = invalid_value
-    depth[depth > max_depth] = invalid_value
+    depth[depth > camera.max_depth] = invalid_value
     return depth
 
 def depth_to_disparity(depth, camera, invalid_value=0.0):
     """ Calculate disparity from depth image. Inverse of disparity_to_depth().
     """
-    invalid = depth == 0.0
-    depth[invalid] = 1.0
-    disparity = ((camera.fx * camera.baseline) / depth) + camera.doff
-    disparity[invalid] = invalid_value
+    valid = depth != invalid_value
+    disparity = np.divide((camera.fx * camera.baseline), depth, where=valid) + camera.doff
     return disparity
-
-class Calibration:
-    @staticmethod
-    def from_K(K, size, min_depth=0.0, max_depth=100.0, baseline=0.0, doff=0.0):
-        calib = Camera._make([K[0,0], K[1,1], K[0,2], K[1,2], size[1], size[0],
-                             min_depth, max_depth, baseline, doff])
-        return Calibration(calib, None, None)
-
-    def __init__(self, calib, channel, capabilities):
-        self._calib = calib
-        self._capabilities = capabilities
-
-    def matrix(self):
-        return get_camera_matrix(self._calib)
-
-    def Q(self):
-        return get_Q(self._calib)
-
-    def params(self):
-        return self._calib
 
 def point3d(calib, u, v, d):
     """ Calculate point 3D coordinates

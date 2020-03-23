@@ -153,7 +153,6 @@ ftlError_t ftlImageWrite(
 		LOG(INFO) << "MIN MAX " << minVal << " - " << maxVal;
 
 		if (tmp2.empty()) return FTLERROR_STREAM_NO_DATA;
-		cv::flip(tmp2, tmp2, 0);  // Flip to get opencv form.
 		img.upload(tmp2);
 
 		ftl::codecs::Channels<0> channels;
@@ -264,12 +263,10 @@ ftlError_t ftlRemoveOcclusion(ftlStream_t stream, int32_t sourceId, ftlChannel_t
 	//auto &mask = frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Mask);
 	auto &depth = frame.get<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
 	auto &intrin = frame.getLeft();
-	
+
 	cv::Mat depthR(intrin.height, intrin.width, CV_32F, const_cast<float*>(data), pitch);
-	cv::Mat tmp;
-	cv::flip(depthR, tmp, 0);
 	cv::cuda::GpuMat depthRGPU;
-	depthRGPU.upload(tmp);
+	depthRGPU.upload(depthR);
 	ftl::cuda::remove_occlusions(depth, depthRGPU, intrin, 0);
 
 	return FTLERROR_OK;
@@ -291,14 +288,12 @@ ftlError_t ftlMaskOcclusion(ftlStream_t stream, int32_t sourceId, ftlChannel_t c
 	auto &mask = frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Mask);
 	auto &depth = frame.get<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
 	auto &intrin = frame.getLeft();
-	
+
 	mask.create(depth.size(), CV_8UC1);
 
 	cv::Mat depthR(intrin.height, intrin.width, CV_32F, const_cast<float*>(data), pitch);
-	cv::Mat tmp;
-	cv::flip(depthR, tmp, 0);
 	cv::cuda::GpuMat depthRGPU;
-	depthRGPU.upload(tmp);
+	depthRGPU.upload(depthR);
 	ftl::cuda::mask_occlusions(depth, depthRGPU, mask, intrin, 0);
 
 	ftlSelect(stream, FTLCHANNEL_Mask);
@@ -334,7 +329,7 @@ ftlError_t ftlSelect(ftlStream_t stream, ftlChannel_t channel) {
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (static_cast<int>(channel) < 0 || static_cast<int>(channel) > 32)
 		return FTLERROR_STREAM_BAD_CHANNEL;
-	
+
 	ftl::codecs::Channels<0> channels;
 	if (stream->stream->size() > static_cast<unsigned int>(stream->video_fs.id)) channels = stream->stream->selected(stream->video_fs.id);
 	channels += static_cast<ftl::codecs::Channel>(channel);

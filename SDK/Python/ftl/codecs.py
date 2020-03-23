@@ -4,11 +4,66 @@ import msgpack
 import struct
 from warnings import warn
 
-from . import ftltype
+from . types import Channel, Camera, is_float_channel
 from . import libde265
-from . misc import Calibration
+from . calibration import Calibration
 
+from collections import namedtuple
 from enum import IntEnum
+
+################################################################################
+
+# components/codecs/include/ftl/codecs/packet.hpp
+Packet = namedtuple("Packet", ["codec", "definition", "block_total",
+                               "block_number", "flags", "data"])
+
+StreamPacket = namedtuple("StreamPacket", ["timestamp", "frameset_id",
+                                           "frame_number", "channel"])
+
+class PacketFlags:
+    RGB = 0x01
+    MappedDepth = 0x02
+    Float = 0x04
+    Partial = 0x10
+    Multiple = 0x80
+
+# components/codecs/include/ftl/codecs/codecs.hpp
+class codec_t(IntEnum):
+    JPG = 0
+    PNG = 1
+    H264 = 2
+    HEVC = 3
+    WAV = 4
+    JSON = 100
+    CALIBRATION = 101
+    POSE = 102
+    MSGPACK = 103,
+    STRING = 104,
+    RAW = 105
+
+definition_t = {
+    0 : (7680, 4320),
+    1 : (2160, 3840),
+    2 : (1080, 1920),
+    3 : (720, 1280),
+    4 : (576, 1024),
+    5 : (480, 854),
+    6 : (360, 640),
+    7 : (0, 0),
+    8 : (2056, 1852)
+}
+
+def get_definition(shape):
+	for k, v in definition_t.items():
+		if shape[:2] == v:
+			return k
+
+	return 7 # (None)
+
+def process_flags_image(packet, im):
+    return im
+
+################################################################################
 
 _has_opencv = False
 try:
@@ -71,19 +126,41 @@ class FTLDecoder:
 # OpenCV (optional)
 ################################################################################
 
+def split_images(packet, im):
+    if packet.block_total == 1:
+        return im
+
+    n = packet.block_total
+    height, width = definition_t[packet.definition]
+    cols = im.shape[1] // width
+
+    imgs = []
+    for i in range(0, n):
+        y_start = (i//cols) * height
+        y_end = y_start + height
+        x_start = (i%cols) * width
+        x_end = x_start + width
+        imgs.append(im[y_start:y_end,x_start:x_end,...])
+
+    return imgs
+
 def decode_codec_opencv(packet):
     if packet.block_total != 1 or packet.block_number != 0:
-        raise Exception("Unsupported block format (todo)")
+        warn("Unsupported block format (todo)") # is this relevant?
 
-    return _int_to_float(cv.imdecode(np.frombuffer(packet.data, dtype=np.uint8),
-                                                   cv.IMREAD_UNCHANGED))
+    im = _int_to_float(cv.imdecode(np.frombuffer(packet.data, dtype=np.uint8),
+                                                 cv.IMREAD_UNCHANGED))
+
+    return split_images(packet, im)
 
 def decode_codec_opencv_float(packet):
     if packet.block_total != 1 or packet.block_number != 0:
-        raise Exception("Unsupported block format (todo)")
+        warn("Unsupported block format (todo)") # is this relevant?
 
-    return cv.imdecode(np.frombuffer(packet.data, dtype=np.uint8),
-                                     cv.IMREAD_UNCHANGED).astype(np.float) / 1000.0
+    im = cv.imdecode(np.frombuffer(packet.data, dtype=np.uint8),
+                                   cv.IMREAD_UNCHANGED).astype(np.float) / 1000.0
+
+    return split_images(packet, im)
 
 ################################################################################
 # HEVC
@@ -237,7 +314,7 @@ class FTLDecoder_HEVC_Float(FTLDecoder_HEVC):
         if img is None:
             return None
 
-        if (packet.flags & ftltype.PacketFlags.MappedDepth):
+        if (packet.flags & PacketFlags.MappedDepth):
             return self._decode_format_mappeddepth(img)
 
         else:
@@ -265,11 +342,11 @@ class FTLDecoder_HEVC_YCbCr(FTLDecoder_HEVC):
 
 def decode_codec_calibration(packet):
     calibration = struct.unpack("@ddddIIdddd", packet.data[:(4*8+2*4+4*8)])
-    return Calibration(ftltype.Camera._make(calibration), 0, 0)
+    return Calibration(Camera._make(calibration), 0, 0)
 
 def decode_codec_msgpack_calibration(packet):
     calib, channel, capabilities = msgpack.unpackb(packet.data)
-    return Calibration(ftltype.Camera._make(calib), channel, capabilities)
+    return Calibration(Camera._make(calib), channel, capabilities)
 
 def decode_codec_msgpack_pose(packet):
     raw = msgpack.unpackb(packet.data)
@@ -292,8 +369,8 @@ def create_decoder(codec, channel, version=3):
         @returns    callable which takes packet as argument
     """
 
-    if codec == ftltype.codec_t.HEVC:
-        if ftltype.is_float_channel(channel):
+    if codec == codec_t.HEVC:
+        if is_float_channel(channel):
             return FTLDecoder_HEVC_Float().decode
         else:
             if version < 3:
@@ -301,33 +378,33 @@ def create_decoder(codec, channel, version=3):
             else:
                 return FTLDecoder_HEVC_YCbCr().decode
 
-    elif codec == ftltype.codec_t.PNG:
+    elif codec == codec_t.PNG:
         if not _has_opencv:
             raise Exception("OpenCV required for OpenCV (png/jpeg) decoding")
 
-        if ftltype.is_float_channel(channel):
+        if is_float_channel(channel):
             return decode_codec_opencv_float
         else:
             return decode_codec_opencv
 
-    elif codec == ftltype.codec_t.JPG:
+    elif codec == codec_t.JPG:
         if not _has_opencv:
             raise Exception("OpenCV required for OpenCV (png/jpeg) decoding")
 
         return decode_codec_opencv
 
-    elif codec == ftltype.codec_t.MSGPACK:
-        if channel == ftltype.Channel.Calibration:
+    elif codec == codec_t.MSGPACK:
+        if channel == Channel.Calibration:
             return decode_codec_msgpack_calibration
-        elif channel == ftltype.Channel.Pose:
+        elif channel == Channel.Pose:
             return decode_codec_msgpack_pose
         else:
             return lambda packet: msgpack.unpackb(packet.data)
 
-    elif codec == ftltype.codec_t.CALIBRATION:
+    elif codec == codec_t.CALIBRATION:
         return decode_codec_calibration
 
-    elif codec == ftltype.codec_t.POSE:
+    elif codec == codec_t.POSE:
         return decode_codec_pose
 
     else:
@@ -338,7 +415,7 @@ def create_decoder(codec, channel, version=3):
 ################################################################################
 
 def create_packet(codec, definition, flags, data):
-    return ftltype.Packet._make((codec, definition, 1, 0, flags, data))
+    return Packet._make((codec, definition, 1, 0, flags, data))
 
 # TODO exception types?
 
@@ -346,8 +423,8 @@ def encode_codec_opencv_jpg(data, **kwargs):
     params = []
     retval, encoded = cv.imencode(".jpg", data, params)
     if retval:
-        return create_packet(ftltype.codec_t.JPG,
-                             ftltype.get_definition(data),
+        return create_packet(codec_t.JPG,
+                             get_definition(data),
                              0,
                              encoded)
     else:
@@ -358,8 +435,8 @@ def encode_codec_opencv_png(data, **kwargs):
     params = [cv.IMWRITE_PNG_COMPRESSION, 9]
     retval, encoded = cv.imencode(".png", data, params)
     if retval:
-        return create_packet(ftltype.codec_t.PNG,
-                             ftltype.get_definition(data),
+        return create_packet(codec_t.PNG,
+                             get_definition(data),
                              0,
                              encoded)
     else:
@@ -371,8 +448,8 @@ def encode_codec_opencv_png_float(data, compression=9):
     params = [cv.IMWRITE_PNG_COMPRESSION, compression]
     retval, encoded = cv.imencode(".png", data, params)
     if retval:
-        return create_packet(ftltype.codec_t.PNG,
-                             ftltype.get_definition(data),
+        return create_packet(codec_t.PNG,
+                             get_definition(data),
                              0,
                              encoded)
     else:
@@ -387,23 +464,23 @@ def create_encoder(codec, channel, **options):
         @returns    callable which takes unencoded data and optional parameters
     """
 
-    if codec == ftltype.codec_t.JPG:
-        if not ftltype.is_float_channel(channel):
+    if codec == codec_t.JPG:
+        if not is_float_channel(channel):
             return encode_codec_opencv_jpg
         else:
             raise Exception("JPG not supported for float channels")
 
-    elif codec == ftltype.codec_t.PNG:
-        if ftltype.is_float_channel(channel):
+    elif codec == codec_t.PNG:
+        if is_float_channel(channel):
             return encode_codec_opencv_png_float
         else:
             return encode_codec_opencv_png
 
-    elif codec == ftltype.codec_t.MSGPACK:
-        if channel == ftltype.Channel.Pose:
+    elif codec == codec_t.MSGPACK:
+        if channel == Channel.Pose:
             raise NotImplementedError("todo")
 
-        elif channel == ftltype.Channel.Calibration:
+        elif channel == Channel.Calibration:
             raise NotImplementedError("todo")
 
         else:
