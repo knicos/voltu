@@ -55,7 +55,7 @@ using std::vector;
 using ftl::config::json_t;
 
 static ftl::rgbd::Generator *createSourceGenerator(ftl::Configurable *root, const std::vector<ftl::rgbd::Source*> &srcs) {
-	
+
 	auto *grp = new ftl::rgbd::Group();
 	/*auto pipeline = ftl::config::create<ftl::operators::Graph>(root, "pipeline");
 	pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
@@ -75,7 +75,7 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 	setLayout(new nanogui::BoxLayout(nanogui::Orientation::Vertical, nanogui::Alignment::Fill, 20, 5));
 
 	using namespace nanogui;
-	
+
 	new Label(this, "Select Camera","sans-bold",20);
 
 	// FIXME: Reallocating the vector may currently causes thread issues since
@@ -209,7 +209,7 @@ bool SourceWindow::_processFrameset(ftl::rgbd::FrameSet &fs, bool fromstream) {
 	}
 
 	if (!paused_) {
-		if (!fs.test(ftl::data::FSFlag::PARTIAL) || !screen_->root()->value("drop_partial_framesets", false)) { 
+		if (!fs.test(ftl::data::FSFlag::PARTIAL) || !screen_->root()->value("drop_partial_framesets", false)) {
 			// Enforce interpolated colour and GPU upload
 			for (size_t i=0; i<fs.frames.size(); ++i) {
 				if (!fs.hasFrame(i)) continue;
@@ -274,7 +274,7 @@ void SourceWindow::_checkFrameSets(size_t id) {
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
 		p->append<ftl::operators::Poser>("poser")->value("enabled", true);
-		p->append<ftl::operators::GTAnalysis>("gtanal");
+		p->append<ftl::operators::GTAnalysis>("gtanalyse");
 
 		pre_pipelines_.push_back(p);
 		framesets_.push_back(new ftl::rgbd::FrameSet);
