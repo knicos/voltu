@@ -1,6 +1,7 @@
 #include <loguru.hpp>
 
 #include "ftl/operators/disparity.hpp"
+#include <ftl/operators/cuda/disparity.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudaarithm.hpp>
@@ -14,9 +15,22 @@ using ftl::rgbd::Frame;
 using ftl::rgbd::Source;
 using ftl::operators::FixstarsSGM;
 
+void FixstarsSGM::computeP2(cudaStream_t &stream) {
+	const int P3 = config()->value("P3", P2_);
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+	P2_map_.setTo(P3, cvstream);
+
+	if (config()->value("use_P2_map", false)) {
+		edges_.create(size_, CV_8UC1);
+		auto ptr = canny_;
+		ptr->detect(lbw_, edges_, cvstream);
+		P2_map_.setTo(P2_, edges_, cvstream);
+	}
+}
+
 FixstarsSGM::FixstarsSGM(ftl::Configurable* cfg) :
 		ftl::operators::Operator(cfg) {
-	
+
 	ssgm_ = nullptr;
 	size_ = Size(0, 0);
 
@@ -77,6 +91,16 @@ FixstarsSGM::FixstarsSGM(ftl::Configurable* cfg) :
 			updateParameters();
 		}
 	});
+
+	updateP2Parameters();
+
+	cfg->on("canny_low", [this, cfg](const ftl::config::Event&) {
+		updateP2Parameters();
+	});
+
+	cfg->on("canny_high", [this, cfg](const ftl::config::Event&) {
+		updateP2Parameters();
+	});
 }
 
 FixstarsSGM::~FixstarsSGM() {
@@ -100,6 +124,7 @@ bool FixstarsSGM::init() {
 		sgm::StereoSGM::Parameters(P1_, P2_, uniqueness_, true)
 	);
 
+	P2_map_.create(size_, CV_8UC1);
 	return true;
 }
 
@@ -109,13 +134,20 @@ bool FixstarsSGM::updateParameters() {
 		sgm::StereoSGM::Parameters(P1_, P2_, uniqueness_, true));
 }
 
+bool FixstarsSGM::updateP2Parameters() {
+	canny_ = cv::cuda::createCannyEdgeDetector(
+		config()->value("canny_low", 30.0),
+		config()->value("canny_high", 120.0));
+	return true;
+}
+
 bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(Channel::Left) || !in.hasChannel(Channel::Right)) {
 		LOG(ERROR) << "Fixstars is missing Left or Right channel";
 		return false;
 	}
 
-	const auto &l = in.get<GpuMat>(Channel::Left);
+	auto &l = in.get<GpuMat>(Channel::Left);
 	const auto &r = in.get<GpuMat>(Channel::Right);
 
 	if (l.size() != size_) {
@@ -129,14 +161,32 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	cv::cuda::cvtColor(l, lbw_, cv::COLOR_BGRA2GRAY, 0, cvstream);
 	cv::cuda::cvtColor(r, rbw_, cv::COLOR_BGRA2GRAY, 0, cvstream);
 
-	cvstream.waitForCompletion();
-	ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data);
+	//cvstream.waitForCompletion();
+	computeP2(stream);
+	//if ((int)P2_map_.step != P2_map_.cols) LOG(ERROR) << "P2 map step error: " << P2_map_.cols << "," << P2_map_.step;
+	ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, stream);
 
 	// GpuMat left_pixels(dispt_, cv::Rect(0, 0, max_disp_, dispt_.rows));
 	// left_pixels.setTo(0);
 
 	cv::cuda::threshold(disp_int_, disp, 4096.0f, 0.0f, cv::THRESH_TOZERO_INV, cvstream);
-	
+
+	if (config()->value("check_reprojection", false)) {
+		ftl::cuda::check_reprojection(disp, in.getTexture<uchar4>(Channel::Colour),
+			in.createTexture<uchar4>(Channel::Colour2, true),
+			stream);
+	}
+
+	if (config()->value("show_P2_map", false)) {
+		cv::cuda::cvtColor(P2_map_, out.get<GpuMat>(Channel::Colour), cv::COLOR_GRAY2BGRA);
+	}
+	if (config()->value("show_rpe", false)) {
+		ftl::cuda::show_rpe(disp, l, r, 100.0f, stream);
+	}
+	if (config()->value("show_disp_density", false)) {
+		ftl::cuda::show_disp_density(disp, l, 100.0f, stream);
+	}
+
 	//disp_int_.convertTo(disp, CV_32F, 1.0f / 16.0f, cvstream);
 	return true;
 }

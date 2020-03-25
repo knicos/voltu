@@ -45,29 +45,29 @@ namespace {
 namespace sgm {
 	namespace details {
 
-		void check_consistency(uint8_t* d_left_disp, const uint8_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel) {
+		void check_consistency(uint8_t* d_left_disp, const uint8_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel, cudaStream_t stream) {
 
 			const dim3 blocks(width / 16, height / 16);
 			const dim3 threads(16, 16);
 			if (depth_bits == 16) {
-				check_consistency_kernel<uint16_t> << < blocks, threads >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint16_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
 			}
 			else if (depth_bits == 8) {
-				check_consistency_kernel<uint8_t> << < blocks, threads >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint8_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
 			}
 
 			CudaKernelCheck();
 		}
 
-		void check_consistency(uint16_t* d_left_disp, const uint16_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel) {
+		void check_consistency(uint16_t* d_left_disp, const uint16_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel, cudaStream_t stream) {
 
 			const dim3 blocks(width / 16, height / 16);
 			const dim3 threads(16, 16);
 			if (depth_bits == 16) {
-				check_consistency_kernel<uint16_t> << < blocks, threads >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint16_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
 			}
 			else if (depth_bits == 8) {
-				check_consistency_kernel<uint8_t> << < blocks, threads >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint8_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
 			}
 			
 			CudaKernelCheck();	

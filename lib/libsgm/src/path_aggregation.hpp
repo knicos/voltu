@@ -46,7 +46,8 @@ public:
 		int width,
 		int height,
 		unsigned int p1,
-		unsigned int p2,
+		const uint8_t *p2,
+		int p2_pitch,
 		cudaStream_t stream);
 
 };

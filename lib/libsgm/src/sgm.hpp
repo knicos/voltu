@@ -48,9 +48,10 @@ public:
 		int src_pitch,
 		int dst_pitch,
 		unsigned int penalty1,
-		unsigned int penalty2,
+		const uint8_t *penalty2,
 		float uniqueness,
-		bool subpixel);
+		bool subpixel,
+		cudaStream_t stream);
 
 	void enqueue(
 		output_type *dest_left,
@@ -62,7 +63,7 @@ public:
 		int src_pitch,
 		int dst_pitch,
 		unsigned int penalty1,
-		unsigned int penalty2,
+		const uint8_t *penalty2,
 		float uniqueness,
 		bool subpixel,
 		cudaStream_t stream);

@@ -11,6 +11,7 @@
 
 #ifdef HAVE_LIBSGM
 #include <libsgm.h>
+#include <opencv2/cudaimgproc.hpp>
 #endif
 
 namespace ftl {
@@ -19,7 +20,7 @@ namespace operators {
 #ifdef HAVE_LIBSGM
 /*
  * FixstarsSGM https://github.com/fixstars/libSGM
- * 
+ *
  * Requires modified version https://gitlab.utu.fi/joseha/libsgm
  */
 class FixstarsSGM : public ftl::operators::Operator {
@@ -31,21 +32,28 @@ class FixstarsSGM : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	bool isMemoryHeavy() const override { return true; }
-	
+
 	private:
 	bool init();
 	bool updateParameters();
-	
+	bool updateP2Parameters();
+	void computeP2(cudaStream_t &stream);
+
 	sgm::StereoSGM *ssgm_;
 	cv::Size size_;
 	cv::cuda::GpuMat lbw_;
 	cv::cuda::GpuMat rbw_;
 	cv::cuda::GpuMat disp_int_;
 
+	cv::cuda::GpuMat P2_map_;
+	cv::cuda::GpuMat edges_;
+	cv::Ptr<cv::cuda::CannyEdgeDetector> canny_;
+
 	int P1_;
 	int P2_;
 	int max_disp_;
 	float uniqueness_;
+	bool use_P2_map_;
 };
 #endif
 
@@ -101,7 +109,7 @@ class DepthChannel : public ftl::operators::Operator {
 	std::vector<cv::cuda::GpuMat> rbuf_;
 	cv::Size depth_size_;
 
-	void _createPipeline();
+	void _createPipeline(size_t);
 };
 
 /*

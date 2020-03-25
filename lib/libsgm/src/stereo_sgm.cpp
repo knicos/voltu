@@ -29,7 +29,7 @@ namespace sgm {
 	public:
 		using output_type = sgm::output_type;
 		virtual void execute(output_type* dst_L, output_type* dst_R, const void* src_L, const void* src_R, 
-			int w, int h, int sp, int dp, unsigned int P1, unsigned int P2, float uniqueness, bool subpixel) = 0;
+			int w, int h, int sp, int dp, unsigned int P1, const uint8_t *P2, float uniqueness, bool subpixel, cudaStream_t stream) = 0;
 
 		virtual ~SemiGlobalMatchingBase() {}
 	};
@@ -38,9 +38,9 @@ namespace sgm {
 	class SemiGlobalMatchingImpl : public SemiGlobalMatchingBase {
 	public:
 		void execute(output_type* dst_L, output_type* dst_R, const void* src_L, const void* src_R,
-			int w, int h, int sp, int dp, unsigned int P1, unsigned int P2, float uniqueness, bool subpixel) override
+			int w, int h, int sp, int dp, unsigned int P1, const uint8_t *P2, float uniqueness, bool subpixel, cudaStream_t stream) override
 		{
-			sgm_engine_.execute(dst_L, dst_R, (const input_type*)src_L, (const input_type*)src_R, w, h, sp, dp, P1, P2, uniqueness, subpixel);
+			sgm_engine_.execute(dst_L, dst_R, (const input_type*)src_L, (const input_type*)src_R, w, h, sp, dp, P1, P2, uniqueness, subpixel, stream);
 		}
 	private:
 		SemiGlobalMatching<input_type, DISP_SIZE> sgm_engine_;
@@ -149,7 +149,7 @@ namespace sgm {
 		if (cu_res_) { delete cu_res_; }
 	}
 
-	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch) {
+	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch, const uint8_t *P2, cudaStream_t stream) {
 
 		const void *d_input_left, *d_input_right;
 
@@ -173,11 +173,11 @@ namespace sgm {
 			d_left_disp = dst; // when threre is no device-host copy or type conversion, use passed buffer
 		
 		cu_res_->sgm_engine->execute((uint16_t*)d_tmp_left_disp, (uint16_t*)d_tmp_right_disp,
-			d_input_left, d_input_right, width, height, src_pitch, dst_pitch, param_.P1, param_.P2, param_.uniqueness, param_.subpixel);
+			d_input_left, d_input_right, width, height, src_pitch, dst_pitch, param_.P1, P2, param_.uniqueness, param_.subpixel, stream);
 
-		sgm::details::median_filter((uint16_t*)d_tmp_left_disp, (uint16_t*)d_left_disp, width, height, dst_pitch);
-		sgm::details::median_filter((uint16_t*)d_tmp_right_disp, (uint16_t*)d_right_disp, width, height, dst_pitch);
-		sgm::details::check_consistency((uint16_t*)d_left_disp, (uint16_t*)d_right_disp, cu_res_->d_mask, width, height, input_depth_bits_, src_pitch, dst_pitch, param_.subpixel);
+		sgm::details::median_filter((uint16_t*)d_tmp_left_disp, (uint16_t*)d_left_disp, width, height, dst_pitch, stream);
+		sgm::details::median_filter((uint16_t*)d_tmp_right_disp, (uint16_t*)d_right_disp, width, height, dst_pitch, stream);
+		sgm::details::check_consistency((uint16_t*)d_left_disp, (uint16_t*)d_right_disp, cu_res_->d_mask, width, height, input_depth_bits_, src_pitch, dst_pitch, param_.subpixel, stream);
 
 		if (!is_cuda_output(inout_type_) && output_depth_bits_ == 8) {
 			sgm::details::cast_16bit_8bit_array((const uint16_t*)d_left_disp, (uint8_t*)d_tmp_left_disp, dst_pitch * height);
@@ -197,8 +197,8 @@ namespace sgm {
 		}
 	}
 
-	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst) {
-		execute(left_pixels, right_pixels, dst, width_, height_, src_pitch_, dst_pitch_);
+	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst, const uint8_t *P2, cudaStream_t stream) {
+		execute(left_pixels, right_pixels, dst, width_, height_, src_pitch_, dst_pitch_, P2, stream);
 	}
 
 	bool StereoSGM::updateParameters(const Parameters &params) {
