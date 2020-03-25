@@ -137,3 +137,107 @@ void ftl::cuda::mask_occlusions(const cv::cuda::GpuMat &depth, const cv::cuda::G
 		depth, depthR, mask, c);
 	cudaSafeCall( cudaGetLastError() );
 }
+
+
+// =============================================================================
+
+__global__ void check_reprojection_kernel(cv::cuda::PtrStepSz<short> disp,
+	ftl::cuda::TextureObject<uchar4> left,
+	ftl::cuda::TextureObject<uchar4> right)
+{
+	for (STRIDE_Y(v,disp.rows)) {
+	for (STRIDE_X(u,disp.cols)) {
+		const float d = float(disp(v,u)) / 16.0f;
+		const float4 l = left.tex2D(float(u)+0.5f, float(v)+0.5f);
+
+		if (d > 0) {
+			const float4 r = right.tex2D(float(u-d)+0.5f, float(v)+0.5f);
+			const float diff = max(fabsf(l.x-r.x),max(fabsf(l.y-r.y), fabsf(l.z-r.z)));
+			if (diff > 10.0f) disp(v,u) = 0;
+		}
+	}
+	}
+}
+
+void ftl::cuda::check_reprojection(const cv::cuda::GpuMat &disp, const ftl::cuda::TextureObject<uchar4> &left, const ftl::cuda::TextureObject<uchar4> &right, cudaStream_t stream) {
+	dim3 grid(1,1,1);
+	dim3 threads(128, 4, 1);
+	grid.x = cv::cuda::device::divUp(disp.cols, 128);
+	grid.y = cv::cuda::device::divUp(disp.rows, 4);
+
+	check_reprojection_kernel<<<grid, threads, 0, stream>>>(disp, left, right);
+
+	cudaSafeCall( cudaGetLastError() );
+}
+
+
+// =============================================================================
+
+
+__global__ void show_rpe_kernel(cv::cuda::PtrStepSz<short> disp,
+	cv::cuda::PtrStepSz<uchar4> left,
+	cv::cuda::PtrStepSz<uchar4> right,
+	float scale)
+{
+	for (STRIDE_Y(v,left.rows)) {
+	for (STRIDE_X(u,left.cols)) {
+		short d = disp(v,u) / 16;
+
+		if (d > 0 && u-d >= 0) {
+			uchar4 l = left(v,u);
+			uchar4 r = right(v,u-d);
+			float d = max(abs(int(l.x)-int(r.x)),max(abs(int(l.y)-int(r.y)), abs(int(l.z)-int(r.z))));
+
+			left(v,u) = make_uchar4(0,0,min(255.0f, (d/scale) * 255.0f),255);
+		}
+	}
+	}
+}
+
+void ftl::cuda::show_rpe(const cv::cuda::GpuMat &disp, cv::cuda::GpuMat &left, const cv::cuda::GpuMat &right,
+			float scale, cudaStream_t stream) {
+	dim3 grid(1,1,1);
+	dim3 threads(128, 4, 1);
+	grid.x = cv::cuda::device::divUp(disp.cols, 128);
+	grid.y = cv::cuda::device::divUp(disp.rows, 4);
+	show_rpe_kernel<<<grid, threads, 0, stream>>>(
+		disp, left, right, scale);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// =============================================================================
+
+
+template <int MAX_DISP>
+__global__ void show_disp_density_kernel(cv::cuda::PtrStepSz<short> disp,
+	cv::cuda::PtrStepSz<uchar4> left,
+	float scale)
+{
+	for (STRIDE_Y(v,disp.rows)) {
+	for (STRIDE_X(u,disp.cols)) {
+		short d = disp(v,u) / 16;
+		int count = 0;
+
+		for (int i=1; i<MAX_DISP; ++i) {
+			if (u+i-d < disp.cols && u+i-d >= 0) {
+				short dd = disp(v,u+i-d) / 16;
+				if (d > 0 && dd == i) ++count;
+			}
+		}
+
+		count = max(0,count-1);
+		left(v,u) = make_uchar4(0,0,min(255.0f, (float(count)/4.0f) * 255.0f),255);
+	}
+	}
+}
+
+void ftl::cuda::show_disp_density(const cv::cuda::GpuMat &disp, cv::cuda::GpuMat &left,
+			float scale, cudaStream_t stream) {
+	dim3 grid(1,1,1);
+	dim3 threads(128, 4, 1);
+	grid.x = cv::cuda::device::divUp(disp.cols, 128);
+	grid.y = cv::cuda::device::divUp(disp.rows, 4);
+	show_disp_density_kernel<256><<<grid, threads, 0, stream>>>(
+		disp, left, scale);
+	cudaSafeCall( cudaGetLastError() );
+}

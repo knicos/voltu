@@ -131,7 +131,7 @@ DepthChannel::~DepthChannel() {
 
 }
 
-void DepthChannel::_createPipeline() {
+void DepthChannel::_createPipeline(size_t size) {
 	if (pipe_ != nullptr) return;
 
 	pipe_ = ftl::config::create<ftl::operators::Graph>(config(), "depth");
@@ -145,7 +145,7 @@ void DepthChannel::_createPipeline() {
 	#endif
 	#ifdef HAVE_OPTFLOW
 	pipe_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
-	pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
+	if (size == 1) pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
 	#endif
 	pipe_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
 	//pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
@@ -167,7 +167,7 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 		if (!in.hasFrame(i)) continue;
 		auto &f = in.frames[i];
 		if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
-			_createPipeline();
+			_createPipeline(in.frames.size());
 
 			cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
 			cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
@@ -202,7 +202,7 @@ bool DepthChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 
 	auto &f = in;
 	if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
-		_createPipeline();
+		_createPipeline(1);
 
 		cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
 		cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);

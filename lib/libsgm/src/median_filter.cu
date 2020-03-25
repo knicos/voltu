@@ -256,33 +256,33 @@ namespace {
 namespace sgm {
 	namespace details {
 
-		void median_filter(const uint8_t* d_src, uint8_t* d_dst, int width, int height, int pitch) {
+		void median_filter(const uint8_t* d_src, uint8_t* d_dst, int width, int height, int pitch, cudaStream_t stream) {
 
 			if (pitch % 4 == 0) {
 				const dim3 block(BLOCK_X, BLOCK_Y);
 				const dim3 grid(divup(width / 4, block.x), divup(height, block.y));
-				median_kernel_3x3_8u_v4<<<grid, block>>>(d_src, d_dst, width, height, pitch);
+				median_kernel_3x3_8u_v4<<<grid, block, 0, stream>>>(d_src, d_dst, width, height, pitch);
 			}
 			else {
 				const dim3 block(BLOCK_X, BLOCK_Y);
 				const dim3 grid(divup(width, block.x), divup(height, block.y));
-				median_kernel_3x3_8u<<<grid, block>>>(d_src, d_dst, width, height, pitch);
+				median_kernel_3x3_8u<<<grid, block, 0, stream>>>(d_src, d_dst, width, height, pitch);
 			}
 
 			CudaSafeCall(cudaGetLastError());
 		}
 
-		void median_filter(const uint16_t* d_src, uint16_t* d_dst, int width, int height, int pitch) {
+		void median_filter(const uint16_t* d_src, uint16_t* d_dst, int width, int height, int pitch, cudaStream_t stream) {
 			
 			if (pitch % 2 == 0) {
 				const dim3 block(BLOCK_X, BLOCK_Y);
 				const dim3 grid(divup(width / 2, block.x), divup(height, block.y));
-				median_kernel_3x3_16u_v2<<<grid, block>>>(d_src, d_dst, width, height, pitch);
+				median_kernel_3x3_16u_v2<<<grid, block, 0, stream>>>(d_src, d_dst, width, height, pitch);
 			}
 			else {
 				const dim3 block(BLOCK_X, BLOCK_Y);
 				const dim3 grid(divup(width, block.x), divup(height, block.y));
-				median_kernel_3x3_16u<<<grid, block>>>(d_src, d_dst, width, height, pitch);
+				median_kernel_3x3_16u<<<grid, block, 0, stream>>>(d_src, d_dst, width, height, pitch);
 			}
 
 			CudaSafeCall(cudaGetLastError());

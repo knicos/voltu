@@ -28,6 +28,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include "libsgm_config.h"
+#include <cuda_runtime.h>
 
 #if defined(LIBSGM_SHARED)
 	#if defined(WIN32) || defined(_WIN32)
@@ -113,13 +114,13 @@ namespace sgm {
 		* The element_type is uint8_t for output_depth_bits == 8 and uint16_t for output_depth_bits == 16.
 		* Note that dst element value would be multiplied StereoSGM::SUBPIXEL_SCALE if subpixel option was enabled.
 		*/
-		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst);
+		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst, const uint8_t *P2, cudaStream_t stream);
 
 		/**
 		 * Same as execute(left_pixels, right_pixels, dst) with image size parameters.
 		 * Dimensions must be smaller or equal to dimensions provided in constructor.
 		 */
-		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch);
+		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch, const uint8_t *P2, cudaStream_t stream);
 
 		/**
 		 * Mask for invalid pixels. Must have same shape and pitch as src. Pixels which have non-zero values

@@ -19,6 +19,16 @@ void mask_occlusions(const cv::cuda::GpuMat &depth,
 		cv::cuda::GpuMat &mask,
 		const ftl::rgbd::Camera &c, cudaStream_t stream);
 
+void check_reprojection(const cv::cuda::GpuMat &disp,
+			const ftl::cuda::TextureObject<uchar4> &left, const ftl::cuda::TextureObject<uchar4> &right,
+			cudaStream_t stream);
+
+void show_rpe(const cv::cuda::GpuMat &disp, cv::cuda::GpuMat &left, const cv::cuda::GpuMat &right,
+			float scale, cudaStream_t stream);
+
+void show_disp_density(const cv::cuda::GpuMat &disp, cv::cuda::GpuMat &left,
+			float scale, cudaStream_t stream);
+
 
 void optflow_filter(cv::cuda::GpuMat &disp, const cv::cuda::GpuMat &optflow,
 					cv::cuda::GpuMat &history, cv::cuda::GpuMat &support, int n_max, float threshold, bool fill,
