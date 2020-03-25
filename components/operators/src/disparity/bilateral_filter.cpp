@@ -49,6 +49,10 @@ bool DisparityBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out
 	if (!filter_) filter_ = ftl::cuda::createDisparityBilateralFilter(n_disp_ * scale_, radius_, iter_);
 
 	filter_->setNumIters(config()->value("iter", 13));
+	if (config()->value("radius",4) != radius_) {
+		radius_ = config()->value("radius", 4);
+		filter_->setRadius(radius_);
+	}
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
