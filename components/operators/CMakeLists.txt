@@ -42,6 +42,7 @@ endif (HAVE_LIBSGM)
 if (HAVE_OPTFLOW)
 	list(APPEND OPERSRC
 		src/nvopticalflow.cpp
+		src/opticalflow.cu
 		src/disparity/optflow_smoothing.cu
 		src/disparity/optflow_smoothing.cpp)
 endif()

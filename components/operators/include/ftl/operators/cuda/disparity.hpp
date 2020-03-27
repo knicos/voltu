@@ -29,6 +29,8 @@ void show_rpe(const cv::cuda::GpuMat &disp, cv::cuda::GpuMat &left, const cv::cu
 void show_disp_density(const cv::cuda::GpuMat &disp, cv::cuda::GpuMat &left,
 			float scale, cudaStream_t stream);
 
+void merge_disparities(cv::cuda::GpuMat &disp, const cv::cuda::GpuMat &estimate, cudaStream_t stream);
+
 
 void optflow_filter(cv::cuda::GpuMat &disp, const cv::cuda::GpuMat &optflow,
 					cv::cuda::GpuMat &history, cv::cuda::GpuMat &support, int n_max, float threshold, bool fill,

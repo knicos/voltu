@@ -3,6 +3,7 @@
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #include <ftl/operators/cuda/disparity.hpp>
 #include <ftl/operators/cuda/mask.hpp>
+#include <ftl/cuda/fixed.hpp>
 
 #ifndef PINF
 #define PINF __int_as_float(0x7f800000)
@@ -202,6 +203,34 @@ void ftl::cuda::show_rpe(const cv::cuda::GpuMat &disp, cv::cuda::GpuMat &left, c
 	grid.y = cv::cuda::device::divUp(disp.rows, 4);
 	show_rpe_kernel<<<grid, threads, 0, stream>>>(
 		disp, left, right, scale);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// =============================================================================
+
+
+__global__ void merge_disp_kernel(cv::cuda::PtrStepSz<short> disp,
+	cv::cuda::PtrStepSz<short> estimate)
+{
+	for (STRIDE_Y(v,disp.rows)) {
+	for (STRIDE_X(u,disp.cols)) {
+		short cd = disp(v,u);
+		float d = fixed2float<4>((cd >= 4096) ? 0 : cd);
+		float e = fixed2float<4>(estimate(v,u));
+
+		if (e == 0.0f) d = 0.0f;
+		if (fabsf(d-e) > 4.0f) d = 0.0f;
+		disp(v,u) = float2fixed<4>(d);
+	}
+	}
+}
+
+void ftl::cuda::merge_disparities(cv::cuda::GpuMat &disp, const cv::cuda::GpuMat &estimate, cudaStream_t stream) {
+	dim3 grid(1,1,1);
+	dim3 threads(128, 4, 1);
+	grid.x = cv::cuda::device::divUp(disp.cols, 128);
+	grid.y = cv::cuda::device::divUp(disp.rows, 4);
+	merge_disp_kernel<<<grid, threads, 0, stream>>>(disp, estimate);
 	cudaSafeCall( cudaGetLastError() );
 }
 

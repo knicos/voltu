@@ -45,6 +45,9 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 
 	//in.resetTexture(Channel::Colour);
 	in.createTexture<uchar4>(Channel::Colour, true);
+	if (in.hasChannel(Channel::Right)) {
+		in.createTexture<uchar4>(Channel::Right, true);
+	}
 
 	if (in.hasChannel(Channel::Depth)) {
 		auto &depth = in.get<cv::cuda::GpuMat>(Channel::Depth);

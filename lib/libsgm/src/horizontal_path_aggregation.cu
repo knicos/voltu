@@ -21,7 +21,7 @@ limitations under the License.
 namespace sgm {
 namespace path_aggregation {
 
-static constexpr unsigned int DP_BLOCK_SIZE = 8u;
+static constexpr unsigned int DP_BLOCK_SIZE = 16u;
 static constexpr unsigned int DP_BLOCKS_PER_THREAD = 1u;
 
 static constexpr unsigned int WARPS_PER_BLOCK = 4u;

@@ -50,7 +50,7 @@ __global__ void temporal_median_filter_kernel(
 
 		float t = area * threshold + 0.25f;  // 0.25 is the 1/4 pixel accuracy NVIDIA claim
 
-		if (max(abs(flow.x),abs(flow.y)) > makeFixed<5>(t))
+		if (sqrt(float(flow.x*flow.x) + float(flow.y*flow.y)) > makeFixed<5>(t))  // max(abs(flow.x),abs(flow.y))
 		{
 			// TODO: Perhaps rather than discard it could follow the optical flow
 			// This would require the generation of a depth flow also.
@@ -73,7 +73,7 @@ __global__ void temporal_median_filter_kernel(
 
 		const float disparity = disp(y, x);
 
-		if (isValidDisparity(disparity))
+		//if (isValidDisparity(disparity))
 		{
 			history(y, (x + 1) * n_max - 1) += 1.0;
 			count++;
