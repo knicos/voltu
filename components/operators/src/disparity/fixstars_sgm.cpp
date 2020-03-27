@@ -155,7 +155,8 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		if (!init()) { return false; }
 	}
 
-	auto &disp = out.create<GpuMat>(Channel::Disparity, Format<short>(l.size()));
+	bool has_estimate = in.hasChannel(Channel::Disparity);
+	auto &disp = (!has_estimate) ? out.create<GpuMat>(Channel::Disparity, Format<short>(l.size())) : in.get<GpuMat>(Channel::Disparity);
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	cv::cuda::cvtColor(l, lbw_, cv::COLOR_BGRA2GRAY, 0, cvstream);
@@ -168,6 +169,10 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 	// GpuMat left_pixels(dispt_, cv::Rect(0, 0, max_disp_, dispt_.rows));
 	// left_pixels.setTo(0);
+
+	if (config()->value("merge_estimates", false) && has_estimate) {
+		ftl::cuda::merge_disparities(disp_int_, disp, stream);
+	}
 
 	cv::cuda::threshold(disp_int_, disp, 4096.0f, 0.0f, cv::THRESH_TOZERO_INV, cvstream);
 

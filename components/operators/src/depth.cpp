@@ -140,12 +140,12 @@ void DepthChannel::_createPipeline(size_t size) {
 
 	pipe_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pipe_->append<ftl::operators::CrossSupport>("cross");
+	#ifdef HAVE_OPTFLOW
+	pipe_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow, Channel::Colour2, Channel::Flow2);
+	//if (size == 1) pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
+	#endif
 	#ifdef HAVE_LIBSGM
 	pipe_->append<ftl::operators::FixstarsSGM>("algorithm");
-	#endif
-	#ifdef HAVE_OPTFLOW
-	pipe_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
-	if (size == 1) pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
 	#endif
 	pipe_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
 	//pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);

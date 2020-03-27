@@ -79,7 +79,7 @@ void StereoVideoSource::init(const string &file) {
 
 	pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
 	#ifdef HAVE_OPTFLOW
-	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow);
+	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
 	#endif
 	pipeline_input_->append<ftl::operators::ColourChannels>("colour");
 
