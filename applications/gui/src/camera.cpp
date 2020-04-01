@@ -13,6 +13,7 @@
 #include <ftl/render/colouriser.hpp>
 #include <ftl/cuda/transform.hpp>
 #include <ftl/operators/gt_analysis.hpp>
+#include <ftl/cuda/colour_cuda.hpp>
 
 #include <ftl/render/overlay.hpp>
 #include "statsimage.hpp"
@@ -160,6 +161,8 @@ void ftl::gui::Camera::draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 			if (!frame->hasChannel(channel_)) return;
 
 			auto &buf = colouriser_->colourise(*frame, channel_, 0);
+			auto &buf2 = frame->getTexture<uchar4>(Channel::Colour);
+			ftl::cuda::compositeInverse(buf2, buf, 0);
 
 			// For non-virtual cameras, copy the CUDA texture into the opengl
 			// texture device-to-device.

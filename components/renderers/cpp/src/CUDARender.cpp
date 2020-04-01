@@ -7,7 +7,7 @@
 #include <ftl/render/colouriser.hpp>
 #include <ftl/cuda/transform.hpp>
 
-#include "colour_cuda.hpp"
+#include <ftl/cuda/colour_cuda.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>

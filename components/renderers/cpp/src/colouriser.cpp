@@ -1,6 +1,6 @@
 #include <ftl/render/colouriser.hpp>
 #include "splatter_cuda.hpp"
-#include "colour_cuda.hpp"
+#include <ftl/cuda/colour_cuda.hpp>
 #include <ftl/cuda/normals.hpp>
 
 #include <opencv2/cudaarithm.hpp>
