@@ -63,8 +63,7 @@ struct StereoCensusSgm::Impl {
 	WinnerTakesAll<DSImage16U,float> wta;
 
 	Impl(int width, int height, int min_disp, int max_disp) :
-		//dsi(width, height, min_disp, max_disp),
-		cost(width, height, min_disp, max_disp, ct_windows_w, ct_windows_h),
+		cost(width, height, min_disp, max_disp),
 		cost_min(width, height),
 		cost_min_paths(width, height),
 		uncertainty(width, height),

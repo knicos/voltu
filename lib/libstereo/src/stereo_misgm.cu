@@ -47,6 +47,7 @@ using ftl::stereo::aggregations::StandardSGM;
 
 struct StereoMiSgm::Impl {
 	MutualInformationMatchingCost cost;
+
 	Array2D<unsigned short> cost_min;
 	Array2D<unsigned short> cost_min_paths;
 	Array2D<unsigned short> uncertainty;
@@ -74,8 +75,16 @@ StereoMiSgm::StereoMiSgm() : impl_(nullptr) {
 	impl_ = new Impl(0, 0, 0, 0);
 }
 
-void StereoMiSgm::setPrior(const cv::Mat &prior) {
-	prior.copyTo(impl_->prior);
+void StereoMiSgm::setPrior(cv::InputArray prior) {
+	if (prior.rows() != impl_->cost.height() || prior.cols() != impl_->cost.width()) {
+		return;
+	}
+	if (prior.isGpuMat()) {
+		prior.getGpuMat().download(impl_->prior);
+	}
+	else {
+		prior.getMat().copyTo(impl_->prior);
+	}
 }
 
 

@@ -39,17 +39,17 @@ public:
 	typedef unsigned short Type;
 
 	CensusMatchingCost() : DSBase<DataType>(0, 0, 0, 0) {};
-	CensusMatchingCost(int width, int height, int disp_min, int disp_max, int wwidth, int wheight)
+	CensusMatchingCost(int width, int height, int disp_min, int disp_max)
 		: DSBase<DataType>(width, height, disp_min, disp_max),
 			ct_l_(width, height), ct_r_(width,height),
 			//cost_max(wwidth * wheight),
-			ww_(wwidth), wh_(wheight)
+			ww_(9), wh_(7)
 		{
-			if (wwidth != 9 || wheight != 7) {
+			if (ww_ != 9 || wh_ != 7) {
 				// TODO: window size paramters (hardcoded) in matching_cost.cpp
 				throw std::exception();
 			}
-			if (wwidth*wheight > 64) {
+			if (ww_*wh_ > 64) {
 				throw std::exception(); // todo: dynamic size
 			}
 
@@ -57,6 +57,7 @@ public:
 			data().ct_r = ct_r_.data();
 		}
 
+	void set(cv::InputArray l, cv::InputArray r);
 	void set(const Array2D<uchar>& l, const Array2D<uchar>& r);
 	static constexpr short COST_MAX = 9*7; // TODO: window size paramters (hardcoded) in matching_cost.cpp
 

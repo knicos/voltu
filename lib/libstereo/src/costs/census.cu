@@ -46,3 +46,24 @@ void CensusMatchingCost::set(const Array2D<uchar> &l, const Array2D<uchar> &r) {
 	parallel2D<algorithms::CensusTransform<9,7>>({l.data(), ct_l_.data()}, l.width, l.height);
 	parallel2D<algorithms::CensusTransform<9,7>>({r.data(), ct_r_.data()}, r.width, r.height);
 }
+
+void CensusMatchingCost::set(cv::InputArray l, cv::InputArray r) {
+	if (l.type() != CV_8UC1 || r.type() != CV_8UC1) { throw std::exception(); }
+	if (l.rows() != r.rows() || l.cols() != r.cols() || l.rows() != height() || l.cols() != width()) {
+		throw std::exception();
+	}
+
+	if (l.isGpuMat() && r.isGpuMat()) {
+		auto ml = l.getGpuMat();
+		auto mr = r.getGpuMat();
+		set(Array2D<uchar>(ml), Array2D<uchar>(mr));
+	}
+	else if (l.isMat() && r.isMat()) {
+		auto ml = l.getMat();
+		auto mr = r.getMat();
+		set(Array2D<uchar>(ml), Array2D<uchar>(mr));
+	}
+	else {
+		throw std::exception();
+	}
+}

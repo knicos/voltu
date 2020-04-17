@@ -69,7 +69,7 @@ struct StereoADCensusSgm::Impl {
 	Impl(int width, int height, int min_disp, int max_disp) :
 		dsi(width, height, min_disp, max_disp),
 		ad_cost(width, height, min_disp, max_disp),
-		census_cost(width, height, min_disp, max_disp, 9, 7),
+		census_cost(width, height, min_disp, max_disp),
 		cost(width, height, min_disp, max_disp, ad_cost, census_cost),
 		cost_min(width, height),
 		cost_min_paths(width, height),
