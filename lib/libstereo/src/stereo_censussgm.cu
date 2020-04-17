@@ -2,6 +2,8 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core/cuda/common.hpp>
 
+#include <nppi.h>
+
 #include "stereo.hpp"
 
 #include "util_opencv.hpp"
@@ -11,6 +13,8 @@
 #include "wta.hpp"
 #include "cost_aggregation.hpp"
 #include "aggregations/standard_sgm.hpp"
+
+#include "median_filter.hpp"
 
 #ifdef __GNUG__
 
@@ -108,14 +112,8 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("WTA"); }
 
-	if (disparity.isGpuMat()) {
-		impl_->wta.disparity.toGpuMat(disparity.getGpuMatRef());
-	}
-	else {
-		cv::Mat &disparity_ = disparity.getMatRef();
-		impl_->wta.disparity.toMat(disparity_);
-		cv::medianBlur(disparity_, disparity_, 3);
-	}
+	median_filter(impl_->wta.disparity, disparity);
+	if (params.debug) { timer_print("median filter"); }
 
 	// confidence estimate
 

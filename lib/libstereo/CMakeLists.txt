@@ -38,6 +38,8 @@ if (LIBSTEREO_SHARED)
                 src/costs/census.cu
                 src/costs/gradient.cu
                 src/costs/mutual_information.cu
+                src/median_filter.cu
+                src/median_filter_fixstars.cu
     )
 set_target_properties(libstereo PROPERTIES PUBLIC_HEADER include/stereo.hpp)
 
@@ -52,6 +54,8 @@ else()
                 src/costs/census.cu
                 src/costs/gradient.cu
                 src/costs/mutual_information.cu
+                src/median_filter.cu
+                src/median_filter_fixstars.cu
     )
 endif()
 
