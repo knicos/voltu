@@ -2,6 +2,7 @@
 #define _FTL_LIBSTEREO_AGGREGATIONS_STANDARD_HPP_
 
 #include "../dsi.hpp"
+#include "../array2d.hpp"
 
 namespace ftl {
 namespace stereo {
@@ -14,6 +15,8 @@ struct StandardSGM {
 
 	// Provided externally
 	const DSIIN in;
+	typename Array2D<costtype_t>::Data min_cost_all;
+
 	const int P1;
 	const int P2;
 
@@ -102,9 +105,12 @@ struct StandardSGM {
 		// Each thread then obtains thread global minimum
 		#ifdef __CUDA_ARCH__
 		min_cost = warpMin(min_cost);
+		#else
+		// add assert
 		#endif
 
 		data.previous_cost_min = min_cost;
+		min_cost_all(pixel.y,pixel.x) += min_cost; // atomic?
 
 		// Swap current and previous cost buffers
 		costtype_t *tmp_ptr = const_cast<costtype_t *>(data.previous);

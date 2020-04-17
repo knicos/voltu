@@ -45,9 +45,6 @@ using cv::Mat;
 using cv::Size;
 using ftl::stereo::aggregations::StandardSGM;
 
-static int ct_windows_w = 9;
-static int ct_windows_h = 7;
-
 struct StereoADSgm::Impl {
 	DisparitySpaceImage<unsigned short> dsi;
 	AbsDiffBT cost;
@@ -99,7 +96,7 @@ void StereoADSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray di
 	if (params.debug) { timer_print("census transform"); }
 
 	// cost aggregation
-	StandardSGM<AbsDiffBT::DataType> func = {impl_->cost.data(), params.P1, params.P2};
+	StandardSGM<AbsDiffBT::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
 	auto &out = impl_->aggr(func, params.paths);
 
 	cudaSafeCall(cudaDeviceSynchronize());

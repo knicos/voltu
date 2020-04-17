@@ -122,7 +122,7 @@ void StereoMiSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray di
 	cudaSafeCall(cudaDeviceSynchronize());
 	// cost aggregation
 	//AggregationParameters aggr_params = {impl_->cost_min_paths.data(), params};
-	StandardSGM<MutualInformationMatchingCost::DataType> func = {impl_->cost.data(), params.P1, params.P2};
+	StandardSGM<MutualInformationMatchingCost::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
 	auto &out = impl_->aggr(func, AggregationDirections::ALL);  // params.paths
 
 	cudaSafeCall(cudaDeviceSynchronize());

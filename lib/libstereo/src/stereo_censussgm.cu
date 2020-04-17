@@ -1,6 +1,8 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+
 #include <opencv2/core/cuda/common.hpp>
+#include <opencv2/cudaarithm.hpp>
 
 #include "stereo.hpp"
 
@@ -47,15 +49,11 @@ using cv::Mat;
 using cv::Size;
 using ftl::stereo::aggregations::StandardSGM;
 
-static int ct_windows_w = 9;
-static int ct_windows_h = 7;
-
 struct StereoCensusSgm::Impl {
 	//DisparitySpaceImage<unsigned short> dsi;
 	CensusMatchingCost cost;
 	Array2D<unsigned short> cost_min;
 	Array2D<unsigned short> cost_min_paths;
-	Array2D<unsigned short> uncertainty;
 	Array2D<float> confidence;
 	Array2D<float> disparity_r;
 	Array2D<uchar> l;
@@ -68,7 +66,6 @@ struct StereoCensusSgm::Impl {
 		cost(width, height, min_disp, max_disp),
 		cost_min(width, height),
 		cost_min_paths(width, height),
-		uncertainty(width, height),
 		confidence(width, height),
 		disparity_r(width, height), l(width, height), r(width, height) {}
 
@@ -86,9 +83,6 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 		impl_ = new Impl(l.cols(), l.rows(), params.d_min, params.d_max);
 	}
 
-	//impl_->dsi.clear();
-	impl_->uncertainty.toMat().setTo(0);
-
 	mat2gray(l, impl_->l);
 	mat2gray(r, impl_->r);
 	timer_set();
@@ -100,7 +94,7 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	if (params.debug) { timer_print("census transform"); }
 
 	// cost aggregation
-	StandardSGM<CensusMatchingCost::DataType> func = {impl_->cost.data(), params.P1, params.P2};
+	StandardSGM<CensusMatchingCost::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
 	auto &out = impl_->aggr(func, params.paths);
 
 	cudaSafeCall(cudaDeviceSynchronize());
@@ -120,11 +114,14 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	// message passing. Lecture Notes in Computer Science (Including Subseries
 	// Lecture Notes in Artificial Intelligence and Lecture Notes in
 	// Bioinformatics). https://doi.org/10.1007/978-3-319-11752-2_4
-	//cv::Mat uncertainty;
-	//uncertainty = impl_->cost_min.toMat() - impl_->cost_min_paths.toMat();
-	// confidence threshold
-	// TODO: estimate confidence from uncertainty and plot ROC curve.
-	//disparity.setTo(0.0f, uncertainty > params.uniqueness);
+
+	if (disparity.isGpuMat()) {
+		// TODO: extract cost_min in WTA
+		cv::cuda::GpuMat uncertainty;
+		cv::cuda::subtract(impl_->cost_min.toGpuMat(), impl_->cost_min_paths.toGpuMat(), uncertainty);
+		cv::cuda::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
+		disparity.getGpuMatRef().setTo(0, uncertainty);
+	}
 }
 
 StereoCensusSgm::~StereoCensusSgm() {
