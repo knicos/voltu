@@ -23,7 +23,7 @@ TEST_CASE("Gradient Matching Cost", "") {
 
 TEST_CASE("Census Matching Cost", "") {
 	SECTION("Construct a Census matching cost") {
-		CensusMatchingCost dsi(100,100,10,20,9,7);
+		CensusMatchingCost dsi(100,100,10,20);
 
 		cv::Mat left(100,100, CV_8UC1);
 		cv::Mat right(100,100, CV_8UC1);
