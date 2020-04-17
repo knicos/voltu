@@ -17,11 +17,30 @@
 namespace ftl {
 namespace operators {
 
+class StereoDisparity : public ftl::operators::Operator {
+public:
+	explicit StereoDisparity(ftl::Configurable* cfg);
+
+	~StereoDisparity();
+	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	bool isMemoryHeavy() const override { return true; }
+
+private:
+	bool init();
+
+	struct Impl;
+	Impl *impl_;
+
+	cv::cuda::GpuMat disp32f_;
+};
+
 #ifdef HAVE_LIBSGM
 /*
  * FixstarsSGM https://github.com/fixstars/libSGM
  *
- * Requires modified version https://gitlab.utu.fi/joseha/libsgm
+ * Requires modified version in lib/libsgm
  */
 class FixstarsSGM : public ftl::operators::Operator {
 	public:
@@ -95,17 +114,17 @@ class DisparityToDepth : public ftl::operators::Operator {
  * disparity to depth steps.
  */
 class DepthChannel : public ftl::operators::Operator {
-    public:
-    explicit DepthChannel(ftl::Configurable *cfg);
-    ~DepthChannel();
+	public:
+	explicit DepthChannel(ftl::Configurable *cfg);
+	~DepthChannel();
 
 	inline Operator::Type type() const override { return Operator::Type::ManyToMany; }
 
-    bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
+	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
-    private:
-    ftl::operators::Graph *pipe_;
+	private:
+	ftl::operators::Graph *pipe_;
 	std::vector<cv::cuda::GpuMat> rbuf_;
 	cv::Size depth_size_;
 
