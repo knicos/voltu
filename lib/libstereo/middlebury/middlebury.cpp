@@ -169,3 +169,13 @@ MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gt, const cv::Mat &m
 	result.rms_bad_nonoccl = sqrt(err2_bad/n);
 	return result;
 }
+
+void add_noise(cv::Mat &im, double stddev, double mean) {
+	cv::Mat noise = cv::Mat(im.size(),CV_64FC3);
+	cv::randn(noise, mean, stddev);
+
+	cv::Mat tmp;
+	im.convertTo(tmp, CV_64FC3, 1.0/255.0);
+	tmp += noise;
+	cv::normalize(tmp, im, 0, 255, cv::NORM_MINMAX, CV_8UC3);
+}
