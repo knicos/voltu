@@ -17,11 +17,13 @@ namespace impl {
 			cost_a(w,h,dmin,dmax), cost_b(w,h,dmin,dmax) {}
 
 		__host__ __device__ inline unsigned short operator()(const int y, const int x, const int d) const {
-			return (cost_a(y, x, d) + cost_b(y, x, d));
+			return cost_a(y,x,d)*wa + cost_b(y,x,d)*wb;
 		}
 
 		A cost_a;
 		B cost_b;
+		float wa = 1.0;
+		float wb = 1.0;
 	};
 }
 
@@ -39,6 +41,11 @@ public:
 	void set() {
 		this->data().cost_a = cost_a.data();
 		this->data().cost_b = cost_b.data();
+	}
+
+	void setWeights(float a, float b) {
+		this->data().wa = a;
+		this->data().wb = b;
 	}
 
 	static constexpr short COST_MAX = A::COST_MAX + B::COST_MAX;
