@@ -115,6 +115,12 @@ endif()
 
 # ==============================================================================
 
+add_subdirectory(lib/libstereo)
+include_directories(lib/libstereo/include)
+set_property(TARGET libstereo PROPERTY FOLDER "dependencies")
+
+#
+
 if (WITH_FIXSTARS)
 	set(HAVE_LIBSGM true)
 	add_subdirectory(lib/libsgm)

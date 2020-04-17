@@ -8,6 +8,7 @@ set(OPERSRC
 	src/normals.cpp
 	src/filling.cpp
 	src/filling.cu
+	src/disparity/libstereo.cpp
 	src/disparity/disp2depth.cu
 	src/disparity/disparity_to_depth.cpp
 	src/disparity/bilateral_filter.cpp
@@ -54,6 +55,6 @@ target_include_directories(ftloperators PUBLIC
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
 
-target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon sgm Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
+target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon sgm libstereo Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
 
 #ADD_SUBDIRECTORY(test)
