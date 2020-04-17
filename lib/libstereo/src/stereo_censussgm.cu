@@ -2,8 +2,6 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core/cuda/common.hpp>
 
-#include <nppi.h>
-
 #include "stereo.hpp"
 
 #include "util_opencv.hpp"
