@@ -147,7 +147,10 @@ void DepthChannel::_createPipeline(size_t size) {
 	#ifdef HAVE_LIBSGM
 	pipe_->append<ftl::operators::FixstarsSGM>("algorithm");
 	#else
+	// TODO fix windows build
+	#ifndef _MSC_VER
 	pipe_->append<ftl::operators::StereoDisparity>("algorithm");
+	#endif
 	#endif
 	pipe_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter");
 	//pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);

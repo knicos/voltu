@@ -53,12 +53,10 @@ struct StereoCensusSgm::Impl {
 	//DisparitySpaceImage<unsigned short> dsi;
 	CensusMatchingCost cost;
 	Array2D<unsigned short> cost_min_paths;
-	Array2D<float> confidence;
+	Array2D<unsigned short> uncertainty;
 	Array2D<float> disparity_r;
 	Array2D<uchar> l;
 	Array2D<uchar> r;
-
-	cv::Mat uncertainty;
 
 	PathAggregator<StandardSGM<CensusMatchingCost::DataType>> aggr;
 	WinnerTakesAll<DSImage16U,float> wta;
@@ -66,7 +64,7 @@ struct StereoCensusSgm::Impl {
 	Impl(int width, int height, int min_disp, int max_disp) :
 		cost(width, height, min_disp, max_disp),
 		cost_min_paths(width, height),
-		confidence(width, height),
+		uncertainty(width, height),
 		disparity_r(width, height), l(width, height), r(width, height) {}
 
 };
@@ -111,14 +109,16 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	// Bioinformatics). https://doi.org/10.1007/978-3-319-11752-2_4
 
 	if (disparity.isGpuMat()) {
-		cv::cuda::subtract(impl_->wta.min_cost.toGpuMat(), impl_->cost_min_paths.toGpuMat(), impl_->uncertainty);
+		auto uncertainty = impl_->uncertainty.toGpuMat();
+		cv::cuda::subtract(impl_->wta.min_cost.toGpuMat(), impl_->cost_min_paths.toGpuMat(), uncertainty);
 		cv::cuda::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
 		impl_->wta.disparity.toGpuMat().setTo(0, uncertainty);
 	}
 	else {
-		cv::subtract(impl_->wta.min_cost.toMat(), impl_->cost_min_paths.toMat(), impl_->uncertainty);
+		auto uncertainty = impl_->uncertainty.toMat();
+		cv::subtract(impl_->wta.min_cost.toMat(), impl_->cost_min_paths.toMat(), uncertainty);
 		cv::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
-		impl_->wta.disparity.toMat().setTo(0, uncertainty);
+		impl_->wta.disparity.toGpuMat().setTo(0, uncertainty);
 	}
 
 	median_filter(impl_->wta.disparity, disparity);
