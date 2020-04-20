@@ -9,6 +9,7 @@ public:
 	~StereoADCensusSgm();
 
 	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp) {};
 
 	struct Parameters {
 		int d_min = 0;
@@ -35,6 +36,7 @@ public:
 	~StereoADSgm();
 
 	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp) {};
 
 	struct Parameters {
 		int d_min = 0;
@@ -61,6 +63,7 @@ public:
 	~StereoCensusSgm();
 
 	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp) {};
 
 	struct Parameters {
 		int d_min = 0;
@@ -108,7 +111,13 @@ private:
 	Impl *impl_;
 };
 
-
+/**
+ * Work in progress
+ *
+ * Mutual Information and Census cost with SGM. Cost calculation uses intensity
+ * variance to weight MI and Census costs (low weight for census cost on
+ * low variance areas). Window size for local variance based on census mask size.
+ */
 class StereoMiSgm2 {
 public:
 	StereoMiSgm2();
@@ -127,9 +136,10 @@ public:
 		int paths = AggregationDirections::HORIZONTAL |
 					AggregationDirections::VERTICAL |
 					AggregationDirections::DIAGONAL;
+
+		float alpha = 0.2; /** alpha: minimum weight for census cost */
+		float beta = 0.8; /** 1-beta: minimum weight for MI cost */
 		bool debug = false;
-		float w1 = 1.0;
-		float w2 = 1.0;
 	};
 	Parameters params;
 
@@ -175,6 +185,7 @@ public:
 	~StereoGradientStree();
 
 	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp) {};
 
 	struct Parameters {
 		int d_min = 0;

@@ -21,8 +21,8 @@ void colorize(const cv::Mat &disp, cv::Mat &out, int ndisp=-1) {
 	disp.convertTo(dispf, CV_32FC1);
 	dispf.convertTo(dispc, CV_8UC1, (1.0f / (ndisp > 0 ? (float) ndisp : dmax)) * 255.0f);
 
-	//cv::applyColorMap(dispc, out, cv::COLORMAP_TURBO);
-	cv::applyColorMap(dispc, out, cv::COLORMAP_INFERNO);
+	cv::applyColorMap(dispc, out, cv::COLORMAP_TURBO);
+	//cv::applyColorMap(dispc, out, cv::COLORMAP_INFERNO);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,17 +63,17 @@ int main(int argc, char* argv[]) {
 	int ndisp = calib.vmax - calib.vmin;
 
 	auto stereo = StereoCensusSgm();
-	stereo.params.P1 = 7;
-	stereo.params.P2 = 60;
+	stereo.params.P1 = 4;
+	stereo.params.P2 = 25;
 
 	stereo.params.d_min = calib.vmin;
 	stereo.params.d_max = calib.vmax;
 	stereo.params.subpixel = 1;
 	stereo.params.debug = true;
 	//stereo.params.paths = AggregationDirections::ALL;
-	//stereo.params.uniqueness = 200;
+	stereo.params.uniqueness = 40;
 
-	int i_max = 1;
+	int i_max = 5;
 	float t = 4.0f;
 
 	if (imL.empty() || imR.empty() || gtL.empty()) {
@@ -87,8 +87,6 @@ int main(int argc, char* argv[]) {
 	}
 
 	Mat disp(imL.size(), CV_32FC1, cv::Scalar(0.0f));
-	//stereo.setPrior(gtL);
-
 	std::cout << "resolution: " << imL.cols << "x" << imL.rows << ", " << ndisp << " disparities [" << calib.vmin << "," << calib.vmax << "]\n";
 
 	std::vector<cv::Mat> disp_color;
@@ -102,9 +100,8 @@ int main(int argc, char* argv[]) {
 		cv::cuda::GpuMat gpu_disp(disp);
 		stereo.compute(gpu_imL, gpu_imR, gpu_disp);
 		gpu_disp.download(disp);
+		stereo.setPrior(disp);
 
-		//stereo.compute(imL, imR, disp);
-		//stereo.setPrior(disp);
 		auto stop = std::chrono::high_resolution_clock::now();
 		std::cout	<< "disparity complete in "
 					<< std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count()
@@ -153,7 +150,7 @@ int main(int argc, char* argv[]) {
 	Mat gt_color;
 	colorize(gtL, gt_color, calib.ndisp);
 	cv::imshow("gt", gt_color);
-	cv::waitKey();
+	while(cv::waitKey() != 27);
 
 	return 0;
 }

@@ -33,6 +33,7 @@ if (LIBSTEREO_SHARED)
     add_library(libstereo SHARED
                 src/stereo_gradientstree.cu
                 src/stereo_misgm.cu
+                src/stereo_misgm2.cu
                 src/stereo_censussgm.cu
                 src/stereo_sgmp.cpp
                 src/costs/census.cu
@@ -47,6 +48,7 @@ else()
     add_library(libstereo
                 src/stereo_gradientstree.cu
                 src/stereo_misgm.cu
+                src/stereo_misgm2.cu
                 src/stereo_censussgm.cu
                 src/stereo_adcensussgm.cu
                 src/stereo_adsgm.cu
