@@ -52,19 +52,19 @@ using ftl::stereo::aggregations::StandardSGM;
 struct StereoCensusSgm::Impl {
 	//DisparitySpaceImage<unsigned short> dsi;
 	CensusMatchingCost cost;
-	Array2D<unsigned short> cost_min;
 	Array2D<unsigned short> cost_min_paths;
 	Array2D<float> confidence;
 	Array2D<float> disparity_r;
 	Array2D<uchar> l;
 	Array2D<uchar> r;
 
+	cv::Mat uncertainty;
+
 	PathAggregator<StandardSGM<CensusMatchingCost::DataType>> aggr;
 	WinnerTakesAll<DSImage16U,float> wta;
 
 	Impl(int width, int height, int min_disp, int max_disp) :
 		cost(width, height, min_disp, max_disp),
-		cost_min(width, height),
 		cost_min_paths(width, height),
 		confidence(width, height),
 		disparity_r(width, height), l(width, height), r(width, height) {}
@@ -104,11 +104,6 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("WTA"); }
 
-	median_filter(impl_->wta.disparity, disparity);
-	if (params.debug) { timer_print("median filter"); }
-
-	// confidence estimate
-
 	// Drory, A., Haubold, C., Avidan, S., & Hamprecht, F. A. (2014).
 	// Semi-global matching: A principled derivation in terms of
 	// message passing. Lecture Notes in Computer Science (Including Subseries
@@ -116,12 +111,18 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	// Bioinformatics). https://doi.org/10.1007/978-3-319-11752-2_4
 
 	if (disparity.isGpuMat()) {
-		// TODO: extract cost_min in WTA
-		cv::cuda::GpuMat uncertainty;
-		cv::cuda::subtract(impl_->cost_min.toGpuMat(), impl_->cost_min_paths.toGpuMat(), uncertainty);
+		cv::cuda::subtract(impl_->wta.min_cost.toGpuMat(), impl_->cost_min_paths.toGpuMat(), impl_->uncertainty);
 		cv::cuda::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
-		disparity.getGpuMatRef().setTo(0, uncertainty);
+		impl_->wta.disparity.toGpuMat().setTo(0, uncertainty);
 	}
+	else {
+		cv::subtract(impl_->wta.min_cost.toMat(), impl_->cost_min_paths.toMat(), impl_->uncertainty);
+		cv::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
+		impl_->wta.disparity.toMat().setTo(0, uncertainty);
+	}
+
+	median_filter(impl_->wta.disparity, disparity);
+	if (params.debug) { timer_print("median filter"); }
 }
 
 StereoCensusSgm::~StereoCensusSgm() {
