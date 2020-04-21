@@ -11,6 +11,7 @@
 #include "wta.hpp"
 #include "cost_aggregation.hpp"
 #include "aggregations/standard_sgm.hpp"
+#include "median_filter.hpp"
 
 #ifdef __GNUG__
 
@@ -131,14 +132,8 @@ void StereoMiSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray di
 	impl_->wta(out, 0);
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("WTA"); }
-	if (disparity.isGpuMat()) {
-		impl_->wta.disparity.toGpuMat(disparity.getGpuMatRef());
-	}
-	else {
-		cv::Mat &disparity_ = disparity.getMatRef();
-		impl_->wta.disparity.toMat(disparity_);
-		cv::medianBlur(disparity_, disparity_, 3);
-	}
+
+	median_filter(impl_->wta.disparity, disparity);
 	// confidence estimate
 
 	// Drory, A., Haubold, C., Avidan, S., & Hamprecht, F. A. (2014).

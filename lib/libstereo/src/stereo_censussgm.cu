@@ -118,7 +118,7 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 		auto uncertainty = impl_->uncertainty.toMat();
 		cv::subtract(impl_->wta.min_cost.toMat(), impl_->cost_min_paths.toMat(), uncertainty);
 		cv::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
-		impl_->wta.disparity.toGpuMat().setTo(0, uncertainty);
+		impl_->wta.disparity.toMat().setTo(0, uncertainty);
 	}
 
 	median_filter(impl_->wta.disparity, disparity);

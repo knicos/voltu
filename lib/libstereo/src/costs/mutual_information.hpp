@@ -8,13 +8,14 @@
 #include <cuda_runtime.h>
 
 namespace impl {
-	struct MutualInformationMatchingCost : DSImplBase<unsigned short> {
+	template<typename T>
+	struct MutualInformationMatchingCost : DSImplBase<T> {
 		typedef unsigned short Type;
 
-		MutualInformationMatchingCost(ushort w, ushort h, ushort dmin, ushort dmax) : DSImplBase<unsigned short>({w,h,dmin,dmax}) {}
+		MutualInformationMatchingCost(ushort w, ushort h, ushort dmin, ushort dmax) : DSImplBase<T>({w,h,dmin,dmax}) {}
 
-		__host__ __device__ inline unsigned short operator()(const int y, const int x, const int d) const {
-			if ((x-d) < 0) { return 24; }
+		__host__ __device__ inline T operator()(const int y, const int x, const int d) const {
+			if ((x-d) < 0) { return 0; }
 			const int I1 = l(y,x);
 			const int I2 = r(y,x-d);
 			const float H1 = h1(0,I1);
@@ -23,19 +24,20 @@ namespace impl {
 			return -(H1+H2-H12);
 		}
 
-		static constexpr unsigned short COST_MAX = 255;
+		static constexpr T COST_MAX = 255;
 
 		Array2D<unsigned char>::Data l;
 		Array2D<unsigned char>::Data r;
 		Array2D<float>::Data h1;
 		Array2D<float>::Data h2;
 		Array2D<float>::Data h12;
+		float normalize = 1.0f;
 	};
 }
 
-class MutualInformationMatchingCost : public DSBase<impl::MutualInformationMatchingCost>{
+class MutualInformationMatchingCost : public DSBase<impl::MutualInformationMatchingCost<unsigned short>>{
 public:
-	typedef impl::MutualInformationMatchingCost DataType;
+	typedef impl::MutualInformationMatchingCost<unsigned short> DataType;
 	typedef unsigned short Type;
 
 	MutualInformationMatchingCost(int width, int height, int disp_min, int disp_max) :

@@ -155,8 +155,8 @@ public:
 	struct Parameters {
 		int d_min = 0;
 		int d_max = 0;
-		unsigned short P1 = 2;
-		unsigned short P2 = 8;
+		unsigned short P1 = 1;
+		unsigned short P2 = 16;
 		float uniqueness = std::numeric_limits<short>::max();
 		int subpixel = 1; // subpixel interpolation method
 		int paths = AggregationDirections::HORIZONTAL |
@@ -164,7 +164,7 @@ public:
 					AggregationDirections::DIAGONAL;
 
 		float alpha = 0.2; /** alpha: minimum weight for census cost */
-		float beta = 0.8; /** 1-beta: minimum weight for MI cost */
+		float beta = 0.7; /** 1-beta: minimum weight for MI cost */
 		bool debug = false;
 	};
 	Parameters params;

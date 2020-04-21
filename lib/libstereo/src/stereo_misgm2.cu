@@ -13,6 +13,7 @@
 #include "wta.hpp"
 #include "cost_aggregation.hpp"
 #include "aggregations/standard_sgm.hpp"
+#include "aggregations/adaptive_penalty.hpp"
 #include "median_filter.hpp"
 
 #include "costs/dual.hpp"
@@ -49,7 +50,7 @@ static void timer_print(const std::string &msg, const bool reset=true) {}
 
 using cv::Mat;
 using cv::Size;
-using ftl::stereo::aggregations::StandardSGM;
+using ftl::stereo::aggregations::AdaptivePenaltySGM;
 
 static void variance_mask(cv::InputArray in, cv::OutputArray out, int wsize=3) {
 	if (in.isGpuMat()) {
@@ -68,8 +69,7 @@ static void variance_mask(cv::InputArray in, cv::OutputArray out, int wsize=3) {
 		else {
 			im = in.getGpuMat();
 		}
-		std::cout << im.type() << "\n";
-		std::cout << mean.type() << "\n";
+
 		cv::cuda::multiply(im, im, im2);
 		auto filter = cv::cuda::createBoxFilter(CV_32FC1, CV_32FC1, cv::Size(wsize,wsize));
 		filter->apply(im, mean);   // E[X]
@@ -90,6 +90,7 @@ struct StereoMiSgm2::Impl {
 	Array2D<float> variance_r;
 	DualCostsWeighted<CensusMatchingCost, MutualInformationMatchingCost> cost;
 
+	Array2D<unsigned char> penalty;
 	Array2D<unsigned short> cost_min;
 	Array2D<unsigned short> cost_min_paths;
 	Array2D<unsigned short> uncertainty;
@@ -100,7 +101,7 @@ struct StereoMiSgm2::Impl {
 
 	Mat prior; // used only to calculate MI
 
-	PathAggregator<StandardSGM<DualCostsWeighted<CensusMatchingCost, MutualInformationMatchingCost>::DataType>> aggr;
+	PathAggregator<AdaptivePenaltySGM<DualCostsWeighted<CensusMatchingCost, MutualInformationMatchingCost>::DataType>> aggr;
 	WinnerTakesAll<DSImage16U,float> wta;
 
 	Impl(int width, int height, int min_disp, int max_disp) :
@@ -109,6 +110,7 @@ struct StereoMiSgm2::Impl {
 		variance(width, height),
 		variance_r(width, height),
 		cost(width, height, min_disp, max_disp, census, mi, variance, variance_r),
+		penalty(width, height),
 		cost_min(width, height),
 		cost_min_paths(width, height),
 		uncertainty(width, height),
@@ -156,9 +158,9 @@ void StereoMiSgm2::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray d
 	timer_set();
 
 	cv::cuda::GpuMat var_l = impl_->variance.toGpuMat();
-	variance_mask(impl_->l.toGpuMat(), var_l, 9);
+	variance_mask(impl_->l.toGpuMat(), var_l, 17);
 	cv::cuda::GpuMat var_r = impl_->variance_r.toGpuMat();
-	variance_mask(impl_->r.toGpuMat(), var_r, 9);
+	variance_mask(impl_->r.toGpuMat(), var_r, 17);
 
 	cv::cuda::normalize(var_l, var_l, params.alpha, params.beta, cv::NORM_MINMAX, -1);
 	cv::cuda::normalize(var_r, var_r, params.alpha, params.beta, cv::NORM_MINMAX, -1);
@@ -179,13 +181,30 @@ void StereoMiSgm2::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray d
 
 	cudaSafeCall(cudaDeviceSynchronize());
 
-	StandardSGM<DualCostsWeighted<CensusMatchingCost, MutualInformationMatchingCost>::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
-	auto &out = impl_->aggr(func, AggregationDirections::ALL);  // params.paths
+	auto penalty = impl_->penalty.toGpuMat();
+	penalty.setTo(params.P2);
+
+	/*cv::cuda::GpuMat mask(penalty.size(), CV_8UC1);
+	cv::cuda::compare(var_l, 0.25, mask, cv::CMP_LT);
+	penalty.setTo(params.P2*2, mask);
+	cv::cuda::compare(var_l, 0.75, mask, cv::CMP_GT);
+	penalty.setTo(params.P1, mask);*/
+
+	AdaptivePenaltySGM<DualCostsWeighted<CensusMatchingCost, MutualInformationMatchingCost>::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1};
+	impl_->aggr.getDirectionData(AggregationDirections::LEFTRIGHT).penalties = impl_->penalty;
+	impl_->aggr.getDirectionData(AggregationDirections::RIGHTLEFT).penalties = impl_->penalty;
+	impl_->aggr.getDirectionData(AggregationDirections::UPDOWN).penalties = impl_->penalty;
+	impl_->aggr.getDirectionData(AggregationDirections::DOWNUP).penalties = impl_->penalty;
+	impl_->aggr.getDirectionData(AggregationDirections::TOPLEFTBOTTOMRIGHT).penalties = impl_->penalty;
+	impl_->aggr.getDirectionData(AggregationDirections::BOTTOMRIGHTTOPLEFT).penalties = impl_->penalty;
+	impl_->aggr.getDirectionData(AggregationDirections::BOTTOMLEFTTOPRIGHT).penalties = impl_->penalty;
+	impl_->aggr.getDirectionData(AggregationDirections::TOPRIGHTBOTTOMLEFT).penalties = impl_->penalty;
+	auto &out = impl_->aggr(func, params.paths);
 
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("Aggregation"); }
 
-	impl_->wta(out, 0);
+	impl_->wta(out, params.subpixel);
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("WTA"); }
 

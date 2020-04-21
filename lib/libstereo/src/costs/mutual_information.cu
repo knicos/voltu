@@ -74,7 +74,7 @@ void calculate_h12(const cv::Mat &P, cv::Mat &out, int ksize=7, double sigma=1.0
 
 	// possible numerical issues? should also be less than 1/(width*height) of
 	// original image.
-	static float e = 0.00000001;
+	const float e = 0.00000001;
 	cv::Mat tmp;
 
 	P.copyTo(out);
@@ -154,4 +154,14 @@ void MutualInformationMatchingCost::set(const cv::Mat &l, const cv::Mat &r, cons
 	h1.copyTo(h1_.toMat());
 	h2.copyTo(h2_.toMat());
 	#endif
+
+	data().normalize = 0;
+	double min, max;
+	cv::minMaxLoc(h12, &min, &max);
+	data().normalize += max;
+	cv::minMaxLoc(h1, &min, &max);
+	data().normalize -= min;
+	cv::minMaxLoc(h2, &min, &max);
+	data().normalize -= min;
+	data().normalize = 1.0f/data().normalize;
 }
