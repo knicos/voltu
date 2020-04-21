@@ -25,6 +25,8 @@ namespace impl {
 			return ((r_val > min(l_val_n,l_val) && r_val < max(l_val_n,l_val)) || (r_val > min(l_val_p,l_val) && r_val < max(l_val_p,l_val))) ? 0 : abs(l_val-r_val);
 		}
 
+		static constexpr unsigned short COST_MAX = 255;
+
 		Array2D<uchar>::Data l;
 		Array2D<uchar>::Data r;
 	};

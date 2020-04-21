@@ -48,6 +48,14 @@ public:
 		if (needs_free_ && data_.data) freeMemory(data_.data);
 	}
 
+	Array2D<T> &operator=(const Array2D<T> &c) {
+		data_ = c.data_;
+		width = c.width;
+		height = c.height;
+		needs_free_ = false;
+		return *this;
+	}
+
 	struct Data {
 		__host__ __device__ inline T& operator() (const int y, const int x) {
 			return data[x + y*pitch];

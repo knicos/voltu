@@ -83,6 +83,39 @@ template <typename F>
 class PathAggregator {
 	public:
 
+	DisparitySpaceImage<typename F::Type> &operator()(F &f, int paths) {
+		out.create(f.in.width, f.in.height, f.in.disp_min, f.in.disp_max);
+		out.clear();
+
+		for (int i=0; i<8; ++i) {
+			if (paths & (1 << i)) {
+				queuePath(i, f);
+				//out.add(buffers[i]);
+			}
+		}
+
+		return out;
+	}
+
+	typename F::DirectionData &getDirectionData(AggregationDirections d) {
+		switch (d) {
+		case AggregationDirections::LEFTRIGHT			: return path_data[0];
+		case AggregationDirections::RIGHTLEFT			: return path_data[1];
+		case AggregationDirections::UPDOWN				: return path_data[2];
+		case AggregationDirections::DOWNUP				: return path_data[3];
+		case AggregationDirections::TOPLEFTBOTTOMRIGHT	: return path_data[4];
+		case AggregationDirections::BOTTOMRIGHTTOPLEFT	: return path_data[5];
+		case AggregationDirections::BOTTOMLEFTTOPRIGHT	: return path_data[6];
+		case AggregationDirections::TOPRIGHTBOTTOMLEFT	: return path_data[7];
+		default: throw std::exception();
+		}
+	}
+
+	private:
+	DisparitySpaceImage<typename F::Type> out;
+	typename F::DirectionData path_data[8];
+	DisparitySpaceImage<typename F::Type> buffers[8];
+
 	void queuePath(int id, F &f) {
 		F f1 = f;
 		f1.direction(path_data[id], out);
@@ -98,23 +131,4 @@ class PathAggregator {
 		case 7	:	parallel1DWarp<algorithms::Aggregator<F,-1, 1>>({f1}, f.in.height+f.in.width, f.in.disparityRange()); break;
 		}
 	}
-
-	DisparitySpaceImage<typename F::Type> &operator()(F &f, int paths) {
-		out.create(f.in.width, f.in.height, f.in.disp_min, f.in.disp_max);
-		out.clear();
-
-		for (int i=0; i<8; ++i) {
-			if (paths & (1 << i)) {
-				queuePath(i, f);
-				//out.add(buffers[i]);
-			}
-		}
-
-		return out;
-	}
-
-	private:
-	DisparitySpaceImage<typename F::Type> out;
-	typename F::DirectionData path_data[8];
-	DisparitySpaceImage<typename F::Type> buffers[8];
 };

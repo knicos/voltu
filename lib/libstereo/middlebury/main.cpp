@@ -6,6 +6,8 @@
 #include "middlebury.hpp"
 #include "stereo.hpp"
 
+#include "../../components/common/cpp/include/ftl/config.h"
+
 /**
  * @param   disp    disparity map
  * @param   out     output parameter
@@ -21,8 +23,11 @@ void colorize(const cv::Mat &disp, cv::Mat &out, int ndisp=-1) {
 	disp.convertTo(dispf, CV_32FC1);
 	dispf.convertTo(dispc, CV_8UC1, (1.0f / (ndisp > 0 ? (float) ndisp : dmax)) * 255.0f);
 
+	#if OPENCV_VERSION >= 40102
 	cv::applyColorMap(dispc, out, cv::COLORMAP_TURBO);
-	//cv::applyColorMap(dispc, out, cv::COLORMAP_INFERNO);
+	#else
+	cv::applyColorMap(dispc, out, cv::COLORMAP_INFERNO);
+	#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,18 +67,18 @@ int main(int argc, char* argv[]) {
 
 	int ndisp = calib.vmax - calib.vmin;
 
-	auto stereo = StereoCensusSgm();
-	stereo.params.P1 = 4;
-	stereo.params.P2 = 25;
+	auto stereo = StereoCensusAdaptive();
+	stereo.params.P1 = 8;
+	//stereo.params.P2 = 25;
 
 	stereo.params.d_min = calib.vmin;
 	stereo.params.d_max = calib.vmax;
 	stereo.params.subpixel = 1;
 	stereo.params.debug = true;
 	//stereo.params.paths = AggregationDirections::ALL;
-	stereo.params.uniqueness = 40;
+	stereo.params.uniqueness = 80;
 
-	int i_max = 5;
+	int i_max = 1;
 	float t = 4.0f;
 
 	if (imL.empty() || imR.empty() || gtL.empty()) {

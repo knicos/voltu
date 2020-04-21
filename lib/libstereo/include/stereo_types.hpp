@@ -1,7 +1,7 @@
 #ifndef _FTL_LIBSTEREO_TYPES_HPP_
 #define _FTL_LIBSTEREO_TYPES_HPP_
 
-enum AggregationDirections {
+enum AggregationDirections : int {
 	LEFTRIGHT = 1,
 	RIGHTLEFT = 2,
 	HORIZONTAL = 1+2,
