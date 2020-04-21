@@ -5,6 +5,7 @@ project(libstereo)
 option(BUILD_MIDDLEBURY     "Build Middlebury evaluation" OFF)
 option(BUILD_TESTS          "Build unit tests" ON)
 option(LIBSTEREO_SHARED     "Build a shared library" OFF)
+option(USE_GPU              "Use the GPU instead of CPU" ON)
 
 find_package(OpenCV REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -20,6 +21,9 @@ set(CMAKE_CXX_FLAGS_RELEASE)
 
 if (CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_CUDA_FLAGS "--gpu-architecture=compute_61 -std=c++14 -Xcompiler -fPIC -Xcompiler ${OpenMP_CXX_FLAGS}")
+    set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
+else()
+    set(CMAKE_CUDA_FLAGS "--gpu-architecture=compute_61 -std=c++14")
     set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
 endif()
 
@@ -50,6 +54,7 @@ else()
                 src/stereo_misgm.cu
                 src/stereo_misgm2.cu
                 src/stereo_censussgm.cu
+                src/stereo_census_adaptive.cu
                 src/stereo_adcensussgm.cu
                 src/stereo_adsgm.cu
                 #src/stereo_sgmp.cpp

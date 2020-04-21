@@ -25,6 +25,8 @@ namespace impl {
 			#endif
 		}
 
+		static constexpr unsigned short COST_MAX = 255;
+
 		Array2D<short>::Data l_dx;
 		Array2D<short>::Data r_dx;
 		Array2D<short>::Data l_dy;

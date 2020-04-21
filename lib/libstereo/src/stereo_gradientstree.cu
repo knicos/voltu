@@ -92,13 +92,13 @@ void StereoGradientStree::compute(cv::InputArray l, cv::InputArray r, cv::Output
 	cudaSafeCall(cudaDeviceSynchronize());
 
 	//AggregationParameters aggr_params = {impl_->cost_min_paths.data(), params};
-	StandardSGM<GradientMatchingCostL2::DataType> func1 = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
+	StandardSGM<GradientMatchingCostL2::DataType> func1 = {impl_->cost.data(), impl_->cost_min_paths.data(), int(params.P1), int(params.P2)};
 	auto &out1 = impl_->aggr1(func1, AggregationDirections::HORIZONTAL);
 
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("Aggregation 1"); }
 
-	StandardSGM<DisparitySpaceImage<unsigned short>::DataType> func2 = {out1.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
+	StandardSGM<DisparitySpaceImage<unsigned short>::DataType> func2 = {out1.data(), impl_->cost_min_paths.data(), int(params.P1), int(params.P2)};
 	auto &out2 = impl_->aggr2(func2, AggregationDirections::VERTICAL);
 
 	cudaSafeCall(cudaDeviceSynchronize());

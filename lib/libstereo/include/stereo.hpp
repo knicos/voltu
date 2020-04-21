@@ -84,6 +84,32 @@ private:
 	Impl *impl_;
 };
 
+class StereoCensusAdaptive {
+public:
+	StereoCensusAdaptive();
+	~StereoCensusAdaptive();
+
+	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp) {};
+
+	struct Parameters {
+		int d_min = 0;
+		int d_max = 0;
+		unsigned short P1 = 5;
+		float uniqueness = std::numeric_limits<unsigned short>::max();
+		int subpixel = 1; // subpixel interpolation method
+		int paths = AggregationDirections::HORIZONTAL |
+					AggregationDirections::VERTICAL |
+					AggregationDirections::DIAGONAL;
+		bool debug = false;
+	};
+	Parameters params;
+
+private:
+	struct Impl;
+	Impl *impl_;
+};
+
 class StereoMiSgm {
 public:
 	StereoMiSgm();

@@ -90,7 +90,7 @@ public:
 		this->data().weights_r = weights_r.data();
 	}
 
-	static constexpr short COST_MAX = A::COST_MAX + B::COST_MAX;
+	static constexpr short COST_MAX = A::DataType::COST_MAX + B::DataType::COST_MAX;
 
 protected:
 	A &cost_a;

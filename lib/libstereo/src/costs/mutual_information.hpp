@@ -23,6 +23,8 @@ namespace impl {
 			return -(H1+H2-H12);
 		}
 
+		static constexpr unsigned short COST_MAX = 255;
+
 		Array2D<unsigned char>::Data l;
 		Array2D<unsigned char>::Data r;
 		Array2D<float>::Data h1;

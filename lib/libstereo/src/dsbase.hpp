@@ -18,7 +18,7 @@ namespace impl {
 		uint16_t disp_min;
 		uint16_t disp_max;
 
-		static constexpr T COST_MAX = std::numeric_limits<T>::max();
+		//static constexpr T COST_MAX = std::numeric_limits<T>::max();
 
 		__host__ __device__ inline uint16_t disparityRange() const { return disp_max-disp_min+1; }
 		__host__ __device__ inline uint32_t size() const { return width * disparityRange() * height; }

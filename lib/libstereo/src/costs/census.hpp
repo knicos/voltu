@@ -28,6 +28,8 @@ namespace impl {
 			#endif
 		}
 
+		static constexpr unsigned short COST_MAX = 64;
+
 		Array2D<uint64_t>::Data ct_l;
 		Array2D<uint64_t>::Data ct_r;
 	};
