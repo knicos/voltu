@@ -174,6 +174,36 @@ private:
 	Impl *impl_;
 };
 
+/**
+ * SGM aggregation on ground truth cost
+ */
+class StereoGtSgm {
+public:
+	StereoGtSgm();
+	~StereoGtSgm();
+
+	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp);
+
+	struct Parameters {
+		int d_min = 0;
+		int d_max = 0;
+		float P1 = 0.1f;
+		float P2 = 1.0f;
+		float uniqueness = std::numeric_limits<float>::max();
+		int subpixel = 1; // subpixel interpolation method
+		int paths = AggregationDirections::HORIZONTAL |
+					AggregationDirections::VERTICAL |
+					AggregationDirections::DIAGONAL;
+		bool debug = false;
+	};
+	Parameters params;
+
+private:
+	struct Impl;
+	Impl *impl_;
+};
+
 
 /**
  * Census + SGM + prior

@@ -73,9 +73,23 @@ static void run_misgm(MiddleburyData &data, cv::Mat &disparity) {
 	stereo.compute(data.imL, data.imR, disparity);
 }
 
+
+static void run_gtsgm(MiddleburyData &data, cv::Mat &disparity) {
+	auto stereo = StereoGtSgm();
+	stereo.params.P1 = 0.1;
+	stereo.params.P2 = 1.0;
+
+	stereo.params.d_min = data.calib.vmin;
+	stereo.params.d_max = data.calib.vmax;
+	stereo.params.subpixel = 1;
+	stereo.params.debug = true;
+	stereo.setPrior(data.gtL);
+	stereo.compute(data.imL, data.imR, disparity);
+}
+
 static const std::map<std::string, std::function<void(MiddleburyData&, cv::Mat&)>> algorithms = {
 	{ "censussgm", run_censussgm },
-	{ "misgm", run_misgm }
+	{ "misgm", run_misgm },
 };
 
 ////////////////////////////////////////////////////////////////////////////////
