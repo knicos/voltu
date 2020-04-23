@@ -20,10 +20,10 @@ set(CMAKE_USE_RELATIVE_PATHS ON)
 set(CMAKE_CXX_FLAGS_RELEASE)
 
 if (CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CUDA_FLAGS "--gpu-architecture=compute_61 -std=c++14 -Xcompiler -fPIC -Xcompiler ${OpenMP_CXX_FLAGS}")
+    set(CMAKE_CUDA_FLAGS "--gpu-architecture=compute_61 -std=c++14 -Xcompiler -fPIC -Xcompiler ${OpenMP_CXX_FLAGS} --expt-relaxed-constexpr")
     set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
 else()
-    set(CMAKE_CUDA_FLAGS "--gpu-architecture=compute_61 -std=c++14")
+    set(CMAKE_CUDA_FLAGS "--gpu-architecture=compute_61 -std=c++14 --expt-relaxed-constexpr")
     set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
 endif()
 
@@ -51,6 +51,7 @@ set_target_properties(libstereo PROPERTIES PUBLIC_HEADER include/stereo.hpp)
 else()
     add_library(libstereo
                 src/stereo_gradientstree.cu
+                src/stereo_gtsgm.cu
                 src/stereo_misgm.cu
                 src/stereo_misgm2.cu
                 src/stereo_censussgm.cu

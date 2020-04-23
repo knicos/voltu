@@ -76,7 +76,7 @@ namespace algorithms {
 				auto* ptr_min_cost = min_cost.ptr(y);
 
 				for (int x = 0; x < dsi.width; ++x) {
-					TCost min1 = TCost(-1); //std::numeric_limits<TCost>::max();
+					TCost min1 = std::numeric_limits<TCost>::max();
 					//TCost min2 = TCost(-1); //std::numeric_limits<TCost>::max();
 					TDisp d = TDisp(0);
 
@@ -146,7 +146,7 @@ namespace algorithms {
 				TDisp* ptr_disparity = disparity.ptr(y);
 
 				for (int x = thread.x; x < size.x; x+=stride.x) {
-					TCost min1 = TCost(-1); //std::numeric_limits<TCost>::max();
+					TCost min1 = std::numeric_limits<TCost>::max();
 					TDisp d = TDisp(0);
 
 					for (int d_ = dsi.disp_min; d_ < min(dsi.disp_max+1, dsi.width-x); d_++) {
