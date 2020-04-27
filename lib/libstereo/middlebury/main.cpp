@@ -171,10 +171,30 @@ void show_result(std::string name, const MiddleburyData &data, const Result &res
 	cv::imshow(data.name + " (error) - " + name, err_color);
 
 	printf("\n%s: %s\n", name.c_str(), data.name.c_str());
-	for (auto res : result.results) {
-		printf("%9.2f %%    correct (err < %.2f)\n", 100.0f * res.err_bad_nonoccl, res.threshold);
-		printf("%9.2f px   RMSE\n", res.rms_bad_nonoccl);
-	}
+	int nt = result.results.size();
+
+	printf("%8s", "");
+	for (auto res : result.results) { printf("%10.2f ", res.threshold); }
+	printf("\n");
+
+	for (auto res : result.results) { printf("%13s", "-------------"); }
+	printf("\n");
+
+	printf("%-8s", "total");
+	for (auto res : result.results) { printf("%9.2f%% ", res.err_total*100.0f); }
+	printf("\n");
+
+	printf("%-8s", "bad");
+	for (auto res : result.results) { printf("%9.2f%% ", res.err_bad*100.0f); }
+	printf("\n");
+
+	printf("%-8s", "invalid");
+	for (auto res : result.results) { printf("%9.2f%% ", res.err_invalid*100.0f); }
+	printf("\n");
+
+	printf("%-8s", "RMSE");
+	for (auto res : result.results) { printf("%8.2fpx ", res.rms_good); }
+	printf("\n");
 }
 
 void show_results( const MiddleburyData &data, const std::map<std::string, Result> &results) {

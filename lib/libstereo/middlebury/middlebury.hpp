@@ -3,14 +3,14 @@
 #include <opencv2/core/mat.hpp>
 
 struct MiddEvalResult {
-	float err_total;   // all pixels
-	float rms_total;   //
-	float err_nonoccl;   // non-masked pixels
-	float rms_nonoccl;   //
-	float err_bad;     // within threshold disparity from correct value
-	float rms_bad;     // RMS for pixels within threshold disparity from correct value
-	float err_bad_nonoccl;
-	float rms_bad_nonoccl;
+	int n;
+	int bad;
+	int invalid;
+	float err_bad;
+	float err_invalid;
+	float err_total;
+	float rms_bad;
+	float rms_good;
 	float threshold;
 };
 

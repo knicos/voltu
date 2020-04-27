@@ -117,56 +117,71 @@ MiddEvalCalib read_calibration(const std::string &filename) {
 	return calib;
 }
 
-MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gt, const cv::Mat &mask, float threshold) {
-	MiddEvalResult result {0.0f, 0.0f, 0.0f};
+MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gtdisp, const cv::Mat &mask, float threshold) {
+	MiddEvalResult result {0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+	if (gtdisp.type() != CV_32FC1) { throw std::exception(); }
+	if (disp.type() != CV_32FC1) { throw std::exception(); }
+	if (!mask.empty() && mask.type() != CV_8UC1) { throw std::exception(); }
+
+	using std::min;
+	using std::max;
+
+	bool usemask = !mask.empty();
+
 	result.threshold = threshold;
+	int &n = result.n;
+	int &bad = result.bad;
+	int good = 0;
+	int &invalid = result.invalid;
 
-	cv::Mat diff1(disp.size(), CV_32FC1);
-	cv::Mat diff2;
+	float &rms_good = result.rms_good;
+	float &rms_bad = result.rms_bad;
 
-	cv::absdiff(disp, gt, diff1);
-	diff1.setTo(0.0f, gt != gt); // NaN
+	float serr = 0;
 
-	// ...? where do inf values come from; issue in subpixel interpolation?
-	// doesn't seem to happen when interpolation is enabled
-	diff1.setTo(0.0f, gt == INFINITY);
+	// evaldisp.cpp from middlebury SDK
 
-	float n, n_gt, n_bad, err2, err2_bad;
+	for (int y = 0; y < gtdisp.rows; y++) {
+	for (int x = 0; x < gtdisp.cols; x++) {
+		float gt = gtdisp.at<float>(y, x, 0);
+		if (gt == INFINITY) // unknown
+		continue;
 
-	// errors incl. occluded areas
-	n = countNonZero(disp);
-	n_gt = countNonZero(gt);
-	cv::pow(diff1, 2, diff2);
-	err2 = cv::sum(diff2)[0];
+		float d = disp.at<float>(y, x, 0);
+		int valid = (d != INFINITY && d != 0.0f); // added 0.0f
+		/*if (valid) {
+			float maxd = maxdisp; // max disp range
+			d = max(0, min(maxd, d)); // clip disps to max disp range
+		}*/
+		/*if (valid && rounddisp) { d = round(d); }*/
+		float err = fabs(d - gt);
 
-	result.err_total = n/n_gt;
-	result.rms_total = sqrt(err2/n);
+		if (usemask && mask.at<uchar>(y, x, 0) != 255) {} // don't evaluate pixel
+		else {
+			n++;
+			if (valid) {
+				serr += err;
+				if (err > threshold) {
+					bad++;
+					rms_bad += err*err;
+				}
+				else {
+					rms_good += err*err;
+					good++;
+				}
+			} else {// invalid (i.e. hole in sparse disp map)
+				invalid++;
+			}
+		}
+	}
+	}
 
-	diff2.setTo(0.0f, diff1 > threshold);
-	n_bad = countNonZero(diff1 <= threshold);
-	err2_bad = cv::sum(diff2)[0];
-	result.err_bad = n_bad/n_gt;
-	result.rms_bad = sqrt(err2_bad/n);
-
-	// errors ignoring occlusions (mask)
-	diff1.setTo(0.0f, mask != 255);
-	cv::pow(diff1, 2, diff2);
-
-	cv::Mat tmp;
-	disp.copyTo(tmp);
-	tmp.setTo(0.0f, mask != 255);
-	n = countNonZero(tmp);
-	n_gt = countNonZero(mask == 255);
-	err2 = cv::sum(diff2)[0];
-
-	result.err_nonoccl = n/n_gt;
-	result.rms_nonoccl = sqrt(err2/n);
-
-	diff2.setTo(0.0f, diff1 > threshold);
-	n_bad = countNonZero(diff1 <= threshold) - countNonZero(mask != 255);
-	err2_bad = cv::sum(diff2)[0];
-	result.err_bad_nonoccl = n_bad/n_gt;
-	result.rms_bad_nonoccl = sqrt(err2_bad/n);
+	rms_bad = sqrtf(rms_bad/float(bad));
+	rms_good = sqrtf(rms_good/float(good));
+	result.err_bad = float(bad)/float(n);
+	result.err_invalid = float(invalid)/float(n);
+	result.err_total = float(bad+invalid)/float(n);
+	float avgErr = serr / float(n - invalid);
 	return result;
 }
 
