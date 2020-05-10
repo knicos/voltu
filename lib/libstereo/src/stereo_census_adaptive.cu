@@ -57,8 +57,8 @@ struct StereoCensusAdaptive::Impl {
 	Array2D<unsigned short> uncertainty;
 	Array2D<float> disparity_r;
 	Array2D<uchar> l;
-    Array2D<uchar> r;
-    Array2D<uchar> penalty;
+	Array2D<uchar> r;
+	Array2D<unsigned short> penalty;
 
 	PathAggregator<AdaptivePenaltySGM<CensusMatchingCost::DataType>> aggr;
 	WinnerTakesAll<DSImage16U,float> wta;
@@ -67,8 +67,8 @@ struct StereoCensusAdaptive::Impl {
 		cost(width, height, min_disp, max_disp),
 		cost_min_paths(width, height),
 		uncertainty(width, height),
-        disparity_r(width, height), l(width, height), r(width, height),
-        penalty(width, height) {}
+		disparity_r(width, height), l(width, height), r(width, height),
+		penalty(width, height) {}
 
 };
 
@@ -92,17 +92,17 @@ void StereoCensusAdaptive::compute(cv::InputArray l, cv::InputArray r, cv::Outpu
 	impl_->cost.set(impl_->l, impl_->r);
 
 	cudaSafeCall(cudaDeviceSynchronize());
-    if (params.debug) { timer_print("census transform"); }
-    
-    impl_->penalty.toGpuMat().setTo(params.P1*4);
-    auto canny = cv::cuda::createCannyEdgeDetector(30,120);
-    cv::cuda::GpuMat edges;
-    canny->detect(impl_->l.toGpuMat(), edges);
-    impl_->penalty.toGpuMat().setTo(int(float(params.P1)*1.5f), edges);
+	if (params.debug) { timer_print("census transform"); }
 
-    cv::Mat penalties;
-    impl_->penalty.toGpuMat().download(penalties);
-    cv::imshow("Penalties", penalties);
+	impl_->penalty.toGpuMat().setTo(params.P1*4);
+	auto canny = cv::cuda::createCannyEdgeDetector(30,120);
+	cv::cuda::GpuMat edges;
+	canny->detect(impl_->l.toGpuMat(), edges);
+	impl_->penalty.toGpuMat().setTo(int(float(params.P1)*1.5f), edges);
+
+	cv::Mat penalties;
+	impl_->penalty.toGpuMat().download(penalties);
+	cv::imshow("Penalties", penalties);
 
 	// cost aggregation
 	AdaptivePenaltySGM<CensusMatchingCost::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1};

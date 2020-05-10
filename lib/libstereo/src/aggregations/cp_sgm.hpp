@@ -1,5 +1,5 @@
-#ifndef _FTL_LIBSTEREO_AGGREGATIONS_ADAPTIVE_HPP_
-#define _FTL_LIBSTEREO_AGGREGATIONS_ADAPTIVE_HPP_
+#ifndef _FTL_LIBSTEREO_AGGREGATIONS_CONFPRIOR_HPP_
+#define _FTL_LIBSTEREO_AGGREGATIONS_CONFPRIOR_HPP_
 
 #include "../dsi.hpp"
 #include "../array2d.hpp"
@@ -9,21 +9,22 @@ namespace stereo {
 namespace aggregations {
 
 template <typename DSIIN>
-struct AdaptivePenaltySGM {
+struct ConfidencePriorSGM {
 	typedef typename DSIIN::Type Type;
 	typedef typename DSIIN::Type costtype_t;
 
 	// Provided externally
 	const DSIIN in;
 	typename Array2D<costtype_t>::Data min_cost_all;
+    typename Array2D<uchar>::Data conf_prior;
 
 	const costtype_t P1;
+	const costtype_t P2;
 
 	// Provided internally
 	typename DisparitySpaceImage<costtype_t>::DataType out;
 	typename DisparitySpaceImage<costtype_t>::DataType previous;
 	typename DisparitySpaceImage<costtype_t>::DataType updates;
-	typename Array2D<costtype_t>::Data penalties;
 
 	struct PathData : BasePathData<costtype_t> {
 		// Custom path data goes here...
@@ -35,7 +36,6 @@ struct AdaptivePenaltySGM {
 	struct DirectionData {
 		DisparitySpaceImage<costtype_t> previous;
 		DisparitySpaceImage<costtype_t> updates;
-		Array2D<costtype_t> penalties;
 	};
 
 	/* Initialise buffers for a new path direction. */
@@ -45,8 +45,6 @@ struct AdaptivePenaltySGM {
 		data.updates.create(out.width+out.height, 1, out.disp_min, out.disp_max);
 		previous = data.previous.data();
 		updates = data.updates.data();
-		data.penalties.create(out.width, out.height);  // Note: should already exist
-		penalties = data.penalties.data();
 	}
 
 	/* Reset buffers to start a new path */
@@ -70,7 +68,7 @@ struct AdaptivePenaltySGM {
 	__host__ __device__ inline costtype_t calculateCost(ushort2 pixel, int d, costtype_t *previous, int size, costtype_t previous_cost_min) {
 		const costtype_t L_min =
 			min(previous[d],
-				min(costtype_t(previous_cost_min + penalties(pixel.y, pixel.x)),
+				min(costtype_t(previous_cost_min + P2),
 						min(costtype_t(previous[min(d+1,size)] + P1),
 									costtype_t(previous[max(d-1,0)] + P1))
 			)
@@ -93,8 +91,9 @@ struct AdaptivePenaltySGM {
 		costtype_t min_cost = 255;
 
 		// For each disparity (striding the threads)
+		uchar p = conf_prior(pixel.y, pixel.x);
 		for (int d=thread; d<=d_stop; d+=stride) {
-			auto c = calculateCost(pixel, d, data.previous, d_stop, data.previous_cost_min);
+			auto c = (p == 0) ? calculateCost(pixel, d, data.previous, d_stop, data.previous_cost_min) : (p == d+in.disp_min) ? 0 : P2;
 
 			out(pixel.y,pixel.x,d+in.disp_min) += c;
 			data.current[d] = c;

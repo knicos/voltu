@@ -36,34 +36,72 @@ include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 if (LIBSTEREO_SHARED)
     add_library(libstereo SHARED
                 src/stereo_gradientstree.cu
+                src/stereo_gtsgm.cu
                 src/stereo_misgm.cu
-                src/stereo_misgm2.cu
-                src/stereo_censussgm.cu
-                src/stereo_sgmp.cpp
+                src/algorithms/censussgm.cu
+                src/algorithms/excensussgm.cu
+                src/algorithms/stablesgm.cu
+                src/algorithms/tcensussgm.cu
+                src/algorithms/hcensussgm.cu
+                src/algorithms/hwcensussgm.cu
+                src/algorithms/brefcensussgm.cu
+                src/algorithms/meancensussgm.cu
+                src/algorithms/hstablesgm.cu
+                #src/stereo_hier_census.cu
+                src/stereo_wcensussgm.cu
+                src/stereo_census_adaptive.cu
+                src/stereo_cp_censussgm.cu
+                src/stereo_adcensussgm.cu
+                src/stereo_varcensussgm.cu
+                src/stereo_adsgm.cu
+                src/stereo_sad.cu
+                #src/stereo_sgmp.cpp
+                src/stereo_wadcensus.cu
                 src/costs/census.cu
+                src/costs/tcensus.cu
                 src/costs/gradient.cu
+                src/costs/sad.cu
+                src/costs/stable.cu
                 src/costs/mutual_information.cu
                 src/median_filter.cu
                 src/median_filter_fixstars.cu
+                src/dsi_tools.cu
     )
-set_target_properties(libstereo PROPERTIES PUBLIC_HEADER include/stereo.hpp)
+    set_target_properties(libstereo PROPERTIES PUBLIC_HEADER include/stereo.hpp)
 
 else()
     add_library(libstereo
                 src/stereo_gradientstree.cu
                 src/stereo_gtsgm.cu
                 src/stereo_misgm.cu
-                src/stereo_misgm2.cu
-                src/stereo_censussgm.cu
+                src/algorithms/censussgm.cu
+                src/algorithms/excensussgm.cu
+                src/algorithms/stablesgm.cu
+                src/algorithms/tcensussgm.cu
+                src/algorithms/hcensussgm.cu
+                src/algorithms/hwcensussgm.cu
+                src/algorithms/brefcensussgm.cu
+                src/algorithms/meancensussgm.cu
+                src/algorithms/hstablesgm.cu
+                #src/stereo_hier_census.cu
+                src/stereo_wcensussgm.cu
                 src/stereo_census_adaptive.cu
+                src/stereo_cp_censussgm.cu
                 src/stereo_adcensussgm.cu
+                src/stereo_varcensussgm.cu
                 src/stereo_adsgm.cu
+                src/stereo_sad.cu
                 #src/stereo_sgmp.cpp
+                src/stereo_wadcensus.cu
                 src/costs/census.cu
+                src/costs/tcensus.cu
                 src/costs/gradient.cu
+                src/costs/sad.cu
+                src/costs/stable.cu
                 src/costs/mutual_information.cu
                 src/median_filter.cu
                 src/median_filter_fixstars.cu
+                src/dsi_tools.cu
     )
 endif()
 

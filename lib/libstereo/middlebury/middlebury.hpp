@@ -9,8 +9,10 @@ struct MiddEvalResult {
 	float err_bad;
 	float err_invalid;
 	float err_total;
-	float rms_bad;
-	float rms_good;
+	float mse_bad;
+	float mse_good;
+	float mse_total;
+	float avgerr;
 	float threshold;
 };
 
@@ -32,6 +34,25 @@ MiddEvalCalib read_calibration(const std::string &filename);
 MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gt, const cv::Mat &mask, float threshold=1.0f);
 
 cv::Mat read_pfm(const std::string &filename);
+
+struct MiddleburyData {
+	const std::string name;
+	const cv::Mat imL;
+	const cv::Mat imR;
+	const cv::Mat gtL;
+	const cv::Mat maskL;
+	const MiddEvalCalib calib;
+};
+
+/** Load one middlebury dataset image
+ * @param path path to image directory
+ */
+MiddleburyData load_input(const std::string &path);
+
+/** Load all middlebury dataset images
+ * @param path path to middlebury datase directory
+ */
+std::vector<MiddleburyData> load_directory(const std::string &path);
 
 /**
  * Add gaussian noise to image.

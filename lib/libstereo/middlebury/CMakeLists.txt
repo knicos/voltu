@@ -5,4 +5,4 @@ add_executable (middlebury
 
 target_include_directories(middlebury PRIVATE ../include/)
 target_include_directories(middlebury PUBLIC ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(middlebury libstereo pthread dl ${OpenCV_LIBS})
+target_link_libraries(middlebury libstereo pthread stdc++fs dl ${OpenCV_LIBS})

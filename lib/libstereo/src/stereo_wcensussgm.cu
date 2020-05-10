@@ -15,6 +15,7 @@
 #include "aggregations/standard_sgm.hpp"
 
 #include "median_filter.hpp"
+#include "dsi_tools.hpp"
 
 #ifdef __GNUG__
 
@@ -49,31 +50,32 @@ using cv::Mat;
 using cv::Size;
 using ftl::stereo::aggregations::StandardSGM;
 
-struct StereoCensusSgm::Impl {
-	//DisparitySpaceImage<unsigned short> dsi;
-	CensusMatchingCost cost;
-	Array2D<unsigned short> cost_min_paths;
-	Array2D<unsigned short> uncertainty;
-	Array2D<float> disparity_r;
+typedef WeightedCensusMatchingCost MatchingCost;
+
+struct StereoWCensusSgm::Impl {
+	MatchingCost cost;
+	Array2D<MatchingCost::Type> cost_min_paths;
+	Array2D<MatchingCost::Type> uncertainty;
 	Array2D<uchar> l;
 	Array2D<uchar> r;
 
-	PathAggregator<StandardSGM<CensusMatchingCost::DataType>> aggr;
-	WinnerTakesAll<DSImage16U,float> wta;
+	PathAggregator<StandardSGM<MatchingCost::DataType>> aggr;
+	WinnerTakesAll<DisparitySpaceImage<MatchingCost::Type>,float> wta;
 
 	Impl(int width, int height, int min_disp, int max_disp) :
 		cost(width, height, min_disp, max_disp),
 		cost_min_paths(width, height),
 		uncertainty(width, height),
-		disparity_r(width, height), l(width, height), r(width, height) {}
+		l(width, height), r(width, height)
+		{}
 
 };
 
-StereoCensusSgm::StereoCensusSgm() : impl_(nullptr) {
+StereoWCensusSgm::StereoWCensusSgm() : impl_(nullptr) {
 	impl_ = new Impl(0, 0, 0, 0);
 }
 
-void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity) {
+void StereoWCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity) {
 	cudaSetDevice(0);
 
 	if (l.rows() != impl_->cost.height() || r.cols() != impl_->cost.width()) {
@@ -92,13 +94,13 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	if (params.debug) { timer_print("census transform"); }
 
 	// cost aggregation
-	StandardSGM<CensusMatchingCost::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
+	StandardSGM<MatchingCost::DataType> func = {impl_->cost.data(), impl_->cost_min_paths.data(), params.P1, params.P2};
 	auto &out = impl_->aggr(func, params.paths);
 
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("Aggregation"); }
 
-	impl_->wta(out, 0);
+	impl_->wta(out, params.subpixel, params.lr_consistency);
 	cudaSafeCall(cudaDeviceSynchronize());
 	if (params.debug) { timer_print("WTA"); }
 
@@ -108,24 +110,27 @@ void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArra
 	// Lecture Notes in Artificial Intelligence and Lecture Notes in
 	// Bioinformatics). https://doi.org/10.1007/978-3-319-11752-2_4
 
-	if (disparity.isGpuMat()) {
-		auto uncertainty = impl_->uncertainty.toGpuMat();
-		cv::cuda::subtract(impl_->wta.min_cost.toGpuMat(), impl_->cost_min_paths.toGpuMat(), uncertainty);
-		cv::cuda::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
-		impl_->wta.disparity.toGpuMat().setTo(0, uncertainty);
-	}
-	else {
-		auto uncertainty = impl_->uncertainty.toMat();
-		cv::subtract(impl_->wta.min_cost.toMat(), impl_->cost_min_paths.toMat(), uncertainty);
-		cv::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
-		impl_->wta.disparity.toMat().setTo(0, uncertainty);
-	}
+	#if USE_GPU
+	auto uncertainty = impl_->uncertainty.toGpuMat();
+	cv::cuda::subtract(impl_->wta.min_cost.toGpuMat(), impl_->cost_min_paths.toGpuMat(), uncertainty);
+	cv::cuda::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
+	impl_->wta.disparity.toGpuMat().setTo(0, uncertainty);
+	#else
+	auto uncertainty = impl_->uncertainty.toMat();
+	cv::subtract(impl_->wta.min_cost.toMat(), impl_->cost_min_paths.toMat(), uncertainty);
+	cv::compare(uncertainty, params.uniqueness, uncertainty, cv::CMP_GT);
+	impl_->wta.disparity.toMat().setTo(0, uncertainty);
+	#endif
 
 	median_filter(impl_->wta.disparity, disparity);
 	if (params.debug) { timer_print("median filter"); }
+
+	Array2D<MatchingCost::Type> dsitmp_dev(l.cols(), l.rows());
+	dsi_slice(out, impl_->wta.disparity, dsitmp_dev);
+	show_dsi_slice(dsitmp_dev.toGpuMat());
 }
 
-StereoCensusSgm::~StereoCensusSgm() {
+StereoWCensusSgm::~StereoWCensusSgm() {
 	if (impl_) {
 		delete impl_;
 		impl_ = nullptr;
