@@ -171,7 +171,7 @@ struct WinnerTakesAll {
 	Array2D<TDisp> disparity_right;
 	Array2D<typename DSI::Type> min_cost;
 
-	Array2D<TDisp> &operator()(const DSI& dsi, const int subpixel=0) {
+	Array2D<TDisp> &operator()(const DSI& dsi, const int subpixel=0, const bool lr_consistency=true) {
 		disparity.create(dsi.width(), dsi.height());
 		disparity_right.create(dsi.width(), dsi.height());
 		min_cost.create(dsi.width(), dsi.height());
@@ -193,7 +193,9 @@ struct WinnerTakesAll {
 		algorithms::WTADiagonal<DSI,float> wtadiag = {dsi.data(), disparity_right.data()};
 		parallel2D(wtadiag, dsi.width(), dsi.height());
 
-		parallel2D<algorithms::ConsistencyCheck<float>>({disparity.data(), disparity_right.data()}, dsi.width(), dsi.height());
+		if (lr_consistency) {
+			parallel2D<algorithms::ConsistencyCheck<float>>({disparity.data(), disparity_right.data()}, dsi.width(), dsi.height());
+		}
 		return disparity;
 	}
 };

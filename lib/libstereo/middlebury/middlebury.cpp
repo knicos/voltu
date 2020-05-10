@@ -8,6 +8,10 @@
 #include <vector>
 
 #include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 
 cv::Mat read_pfm(const std::string &filename) {
 	cv::Mat im;
@@ -114,11 +118,65 @@ MiddEvalCalib read_calibration(const std::string &filename) {
 		}
 	}
 
+	if (calib.vmax == 0) {
+		calib.vmax = calib.ndisp;
+	}
+
 	return calib;
 }
 
+MiddleburyData load_input(const fs::path &path) {
+	cv::Mat imL;
+	cv::Mat imR;
+	cv::Mat gtL;
+	cv::Mat maskL;
+
+	imL = cv::imread(path/"im0.png");
+	imR = cv::imread(path/"im1.png");
+	gtL = read_pfm(path/"disp0.pfm");
+	if (gtL.empty()) {
+		gtL = read_pfm(path/std::string("disp0GT.pfm"));
+	}
+	if (gtL.empty()) {
+		gtL.create(imL.size(), CV_32FC1);
+		gtL.setTo(cv::Scalar(0.0f));
+	}
+
+	maskL = cv::imread(path/std::string("mask0nocc.png"), cv::IMREAD_GRAYSCALE);
+	if (maskL.empty()) {
+		maskL.create(imL.size(), CV_8UC1);
+		maskL.setTo(cv::Scalar(255));
+	}
+
+	auto calib = read_calibration(path/std::string("calib.txt"));
+	if (imL.empty() || imR.empty() || gtL.empty() || maskL.empty()) {
+		throw std::exception();
+	}
+
+	std::string name = path.filename() == "." ?
+		path.parent_path().filename().c_str() :
+		path.filename().c_str();
+
+	return {name, imL, imR, gtL, maskL, calib};
+}
+
+MiddleburyData load_input(const std::string &path) {
+	return load_input(fs::path(path));
+}
+
+std::vector<MiddleburyData> load_directory(const std::string &path) {
+	std::vector<MiddleburyData> res;
+	for(auto& p: fs::directory_iterator(path)) {
+		try {
+			res.push_back(load_input(p.path()));
+		}
+		catch (...) {}
+	}
+	return res;
+}
+
 MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gtdisp, const cv::Mat &mask, float threshold) {
-	MiddEvalResult result {0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+	MiddEvalResult result {0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 	if (gtdisp.type() != CV_32FC1) { throw std::exception(); }
 	if (disp.type() != CV_32FC1) { throw std::exception(); }
 	if (!mask.empty() && mask.type() != CV_8UC1) { throw std::exception(); }
@@ -134,9 +192,9 @@ MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gtdisp, const cv::Ma
 	int good = 0;
 	int &invalid = result.invalid;
 
-	float &rms_good = result.rms_good;
-	float &rms_bad = result.rms_bad;
-
+	float &mse_good = result.mse_good;
+	float &mse_bad = result.mse_bad;
+	float &mse_total = result.mse_total;
 	float serr = 0;
 
 	// evaldisp.cpp from middlebury SDK
@@ -161,12 +219,14 @@ MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gtdisp, const cv::Ma
 			n++;
 			if (valid) {
 				serr += err;
+				mse_total += err*err;
+
 				if (err > threshold) {
 					bad++;
-					rms_bad += err*err;
+					mse_bad += err*err;
 				}
 				else {
-					rms_good += err*err;
+					mse_good += err*err;
 					good++;
 				}
 			} else {// invalid (i.e. hole in sparse disp map)
@@ -176,12 +236,13 @@ MiddEvalResult evaluate(const cv::Mat &disp, const cv::Mat &gtdisp, const cv::Ma
 	}
 	}
 
-	rms_bad = sqrtf(rms_bad/float(bad));
-	rms_good = sqrtf(rms_good/float(good));
+	mse_bad = mse_bad/float(bad);
+	mse_good = mse_good/float(good);
+	mse_total = mse_total/float(n - invalid);
+	result.avgerr = serr/float(n - invalid);
 	result.err_bad = float(bad)/float(n);
 	result.err_invalid = float(invalid)/float(n);
 	result.err_total = float(bad+invalid)/float(n);
-	float avgErr = serr / float(n - invalid);
 	return result;
 }
 

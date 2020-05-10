@@ -17,8 +17,8 @@ struct StandardSGM {
 	const DSIIN in;
 	typename Array2D<costtype_t>::Data min_cost_all;
 
-	const int P1;
-	const int P2;
+	const costtype_t P1;
+	const costtype_t P2;
 
 	// Provided internally
 	typename DisparitySpaceImage<costtype_t>::DataType out;

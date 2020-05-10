@@ -18,4 +18,10 @@ enum AggregationDirections : int {
 	ALL = HORIZONTAL+VERTICAL+DIAGONAL,
 };
 
+enum class CensusPattern {
+	STANDARD,
+	GENERALISED,
+	STAR
+};
+
 #endif
