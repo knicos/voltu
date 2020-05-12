@@ -503,6 +503,8 @@ bool ftl::gui::Screen::keyboardEvent(int key, int scancode, int action, int modi
 		} else if (action == 1 && key == 'H') {
 			swindow_->setVisible(false);
 			//cwindow_->setVisible(false);
+		} else if (action == 1 && key == ' ') {
+			swindow_->togglePaused();
 		} else if (action == 1) {
 			std::string combo = generateKeyComboStr(key, modifiers);
 

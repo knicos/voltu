@@ -52,6 +52,7 @@ class SourceWindow : public nanogui::Window {
 	inline std::vector<ftl::rgbd::FrameSet*> &getFramesets() { return framesets_; }
 
 	inline void paused(bool p) { paused_ = p; }
+	inline void togglePaused() { paused_ = !paused_; }
 
 	private:
 	ftl::gui::Screen *screen_;
