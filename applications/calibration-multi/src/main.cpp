@@ -444,6 +444,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	int iter = 0;
 	Mat show;
+	cv::Mat show2;
 
 	vector<int> visible;
 	vector<vector<Point2d>> points(n_cameras);
@@ -536,6 +537,8 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 		stack(rgb, show);
 		cv::namedWindow("Cameras", cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL);
+		//cv::resize(show, show2, cv::Size(float(show.cols) / float(show.rows) * 1080.0f, 1080));
+		cv::resizeWindow("Cameras", cv::Size(2*1920,1080));
 		cv::imshow("Cameras", show);
 	}
 	cv::destroyWindow("Cameras");

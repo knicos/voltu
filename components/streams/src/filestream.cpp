@@ -41,7 +41,7 @@ bool File::_checkFile() {
 	int count = 10;
 	int64_t ts = -1000;
 	int min_ts_diff = 1000;
-	first_ts_ = 10000000;
+	first_ts_ = 10000000000000ll;
 
 	while (count > 0) {
 		std::tuple<ftl::codecs::StreamPacket,ftl::codecs::Packet> data;
@@ -53,6 +53,8 @@ bool File::_checkFile() {
 		//auto &pkt = std::get<1>(data);
 
 		if (spkt.timestamp < first_ts_) first_ts_ = spkt.timestamp;
+
+		//LOG(INFO) << "TIMESTAMP: " << spkt.timestamp;
 
 		if (spkt.timestamp > 0 && int(spkt.channel) < 32) {
 			if (spkt.timestamp > ts) {
@@ -104,7 +106,7 @@ bool File::post(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet &p
 
 	ftl::codecs::StreamPacket s2 = s;
 	// Adjust timestamp relative to start of file.
-	s2.timestamp -= timestart_;
+	//s2.timestamp -= timestart_;
 
 	auto data = std::make_tuple(s2,p);
 	msgpack::sbuffer buffer;
