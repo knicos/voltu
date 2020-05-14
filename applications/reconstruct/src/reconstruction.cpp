@@ -10,6 +10,8 @@
 #include "ftl/operators/mvmls.hpp"
 #include "ftl/operators/clipping.hpp"
 #include <ftl/operators/disparity.hpp>
+#include <ftl/operators/poser.hpp>
+#include <ftl/operators/detectandtrack.hpp>
 
 using ftl::Reconstruction;
 using ftl::codecs::Channel;
@@ -25,6 +27,8 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	pipeline_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter")->set("enabled", false);
 	pipeline_->append<ftl::operators::DisparityToDepth>("calculate_depth")->set("enabled", false);
 	pipeline_->append<ftl::operators::ClipScene>("clipping")->set("enabled", false);
+	pipeline_->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+	pipeline_->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	//pipeline_->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
@@ -33,10 +37,12 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	pipeline_->append<ftl::operators::CrossSupport>("cross");
 	pipeline_->append<ftl::operators::DiscontinuityMask>("discontinuity");
 	pipeline_->append<ftl::operators::CrossSupport>("cross2")->set("discon_support", true);
+	pipeline_->append<ftl::operators::BorderMask>("border_mask")->value("enabled", false);
 	pipeline_->append<ftl::operators::CullDiscontinuity>("remove_discontinuity")->set("enabled", false);
 	//pipeline_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
 	pipeline_->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
 	pipeline_->append<ftl::operators::MultiViewMLS>("mvmls");
+	pipeline_->append<ftl::operators::Poser>("poser")->value("enabled", false);
 
 	//pipeline_->set("enabled", false);
 }
