@@ -81,7 +81,6 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 				if (clip_colour) {
 					f.clearPackets(Channel::Colour);
 					f.clearPackets(Channel::Depth);
-					LOG(INFO) << "Clipping colour";
 					ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getTexture<uchar4>(Channel::Colour), f.getLeftCamera(), sclip, stream);
 				} else {
 					f.clearPackets(Channel::Depth);
