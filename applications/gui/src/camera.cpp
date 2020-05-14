@@ -7,6 +7,7 @@
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/cudaarithm.hpp>
 
 #include <ftl/operators/antialiasing.hpp>
 #include <ftl/cuda/normals.hpp>
@@ -426,6 +427,11 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		//fs2.stale = false;
 		fs2.set(ftl::data::FSFlag::STALE);
 		frame_.swapTo(Channels<0>(Channel::Colour), f);  // Channel::Colour + Channel::Depth
+		if (f.hasChannel(Channel::Colour)) {
+			f.create<cv::cuda::GpuMat>(Channel::Colour2).create(f.get<cv::cuda::GpuMat>(Channel::Colour).size(), f.get<cv::cuda::GpuMat>(Channel::Colour2).type());
+			f.swapChannels(Channel::Colour, Channel::Colour2);
+			cv::cuda::flip(f.get<cv::cuda::GpuMat>(Channel::Colour2), f.get<cv::cuda::GpuMat>(Channel::Colour), 0);
+		}
 		fs2.timestamp = ftl::timer::get_time();
 		fs2.id = 0;
 		record_sender_->post(fs2);
