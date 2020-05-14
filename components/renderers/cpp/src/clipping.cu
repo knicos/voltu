@@ -22,6 +22,22 @@ __global__ void clipping_kernel(ftl::cuda::TextureObject<float> depth, ftl::rgbd
 	}
 }
 
+__global__ void clipping_kernel(ftl::cuda::TextureObject<float> depth, ftl::cuda::TextureObject<uchar4> colour, ftl::rgbd::Camera camera, ftl::cuda::ClipSpace clip)
+{
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x < depth.width() && y < depth.height()) {
+		float d = depth(x,y);
+		float4 p = make_float4(camera.screenToCam(x,y,d), 0.0f);
+
+		if (d <= camera.minDepth || d >= camera.maxDepth || isClipped(p, clip)) {
+			depth(x,y) = 0.0f;
+			colour(x,y) = make_uchar4(0,0,0,0);
+		}
+	}
+}
+
 void ftl::cuda::clipping(ftl::cuda::TextureObject<float> &depth,
 		const ftl::rgbd::Camera &camera,
 		const ClipSpace &clip, cudaStream_t stream) {
@@ -30,5 +46,17 @@ void ftl::cuda::clipping(ftl::cuda::TextureObject<float> &depth,
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	clipping_kernel<<<gridSize, blockSize, 0, stream>>>(depth, camera, clip);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+void ftl::cuda::clipping(ftl::cuda::TextureObject<float> &depth,
+		ftl::cuda::TextureObject<uchar4> &colour,
+		const ftl::rgbd::Camera &camera,
+		const ClipSpace &clip, cudaStream_t stream) {
+
+	const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
+	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	clipping_kernel<<<gridSize, blockSize, 0, stream>>>(depth, colour, camera, clip);
 	cudaSafeCall( cudaGetLastError() );
 }

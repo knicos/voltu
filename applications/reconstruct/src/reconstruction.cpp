@@ -24,23 +24,23 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 
 	pipeline_ = ftl::config::create<ftl::operators::Graph>(this, "pre_filters");
 	pipeline_->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
-	pipeline_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter")->set("enabled", false);
-	pipeline_->append<ftl::operators::DisparityToDepth>("calculate_depth")->set("enabled", false);
-	pipeline_->append<ftl::operators::ClipScene>("clipping")->set("enabled", false);
+	pipeline_->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter")->value("enabled", false);
+	pipeline_->append<ftl::operators::DisparityToDepth>("calculate_depth")->value("enabled", false);
+	pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
+	pipeline_->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
 	pipeline_->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
 	pipeline_->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
-	pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	//pipeline_->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
 	//pipeline_->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
 	//pipeline_->append<ftl::operators::ScanFieldFill>("filling");  // Generate a smoothing channel
 	pipeline_->append<ftl::operators::CrossSupport>("cross");
 	pipeline_->append<ftl::operators::DiscontinuityMask>("discontinuity");
-	pipeline_->append<ftl::operators::CrossSupport>("cross2")->set("discon_support", true);
+	pipeline_->append<ftl::operators::CrossSupport>("cross2")->value("discon_support", true);
 	pipeline_->append<ftl::operators::BorderMask>("border_mask")->value("enabled", false);
 	pipeline_->append<ftl::operators::CullDiscontinuity>("remove_discontinuity")->set("enabled", false);
 	//pipeline_->append<ftl::operators::AggreMLS>("mls");  // Perform MLS (using smoothing channel)
-	pipeline_->append<ftl::operators::VisCrossSupport>("viscross")->set("enabled", false);
+	pipeline_->append<ftl::operators::VisCrossSupport>("viscross")->value("enabled", false);
 	pipeline_->append<ftl::operators::MultiViewMLS>("mvmls");
 	pipeline_->append<ftl::operators::Poser>("poser")->value("enabled", false);
 
