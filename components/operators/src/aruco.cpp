@@ -66,7 +66,7 @@ bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	Frame *inptr = &in;
 	Frame *outptr = &out;
 
-	estimate_pose_ = config()->value("estimate_pose", false);
+	estimate_pose_ = config()->value("estimate_pose", true);
 	debug_ = config()->value("debug", false);
 	marker_size_ = config()->value("marker_size",0.1f);
 

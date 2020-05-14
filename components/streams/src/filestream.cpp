@@ -364,6 +364,17 @@ bool File::end() {
 	return true;
 }
 
+void File::reset() {
+	UNIQUE_LOCK(mutex_, lk);
+	data_.clear();
+	buffer_in_.reset();
+	buffer_in_.remove_nonparsed_buffer();
+	_open();
+
+	timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
+	timestamp_ = timestart_;
+}
+
 bool File::active() {
 	return active_;
 }

@@ -29,6 +29,8 @@ class File : public Stream {
 	bool end() override;
 	bool active() override;
 
+	void reset() override;
+
 	/**
 	 * Automatically tick through the frames using a timer. Threads are used.
 	 */

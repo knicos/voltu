@@ -24,6 +24,8 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
         std::vector<ftl::codecs::Shape3D> transforms;
         in.get(Channel::Shapes3D, transforms);
 
+		//LOG(INFO) << "Found shapes 3D global: " << (int)transforms.size();
+
         //for (auto &t : transforms) {
             //LOG(INFO) << "Have FS transform: " << t.id;
         //}
@@ -36,6 +38,8 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
             if (f.hasChannel(Channel::Shapes3D)) {
                 std::vector<ftl::codecs::Shape3D> transforms;
                 f.get(Channel::Shapes3D, transforms);
+
+				//LOG(INFO) << "Found shapes 3D: " << (int)transforms.size();
 
                 for (auto &t : transforms) {
                     std::string idstr;
@@ -58,6 +62,7 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
                     } else {
                         // TODO: Merge poses
                         if (!(*p).second.locked) (*p).second.pose = pose;
+						//LOG(INFO) << "POSE ID: " << idstr;
                     }
                 }
             }
