@@ -344,6 +344,7 @@ bool File::begin(bool dorun) {
 }
 
 bool File::end() {
+	UNIQUE_LOCK(mutex_, lk);
 	if (!active_) return false;
 	active_ = false;
 	timer_.cancel();
@@ -366,6 +367,10 @@ bool File::end() {
 
 void File::reset() {
 	UNIQUE_LOCK(mutex_, lk);
+
+	// TODO: Find a better solution
+	while (jobs_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
 	data_.clear();
 	buffer_in_.reset();
 	buffer_in_.remove_nonparsed_buffer();
