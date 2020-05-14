@@ -77,7 +77,8 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 			auto sclip = clip;
 			sclip.origin = sclip.origin.getInverse() * pose;
 			if (!no_clip) {
-				f.create<cv::cuda::GpuMat>(Channel::Depth);  // Force reset.
+				//f.create<cv::cuda::GpuMat>(Channel::Depth);  // Force reset.
+				f.clearPackets(Channel::Depth);
 				ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getLeftCamera(), sclip, stream);
 			}
 		}
