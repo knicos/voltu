@@ -31,7 +31,7 @@ private:
 	DeviceBuffer<cost_type> m_cost_buffer;
 	cudaStream_t m_streams[NUM_PATHS];
 	cudaEvent_t m_events[NUM_PATHS];
-	
+
 public:
 	PathAggregation();
 	~PathAggregation();
@@ -48,6 +48,8 @@ public:
 		unsigned int p1,
 		const uint8_t *p2,
 		int p2_pitch,
+		const uint8_t* w,
+		int w_pitch,
 		cudaStream_t stream);
 
 };

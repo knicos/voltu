@@ -28,8 +28,8 @@ namespace sgm {
 	class SemiGlobalMatchingBase {
 	public:
 		using output_type = sgm::output_type;
-		virtual void execute(output_type* dst_L, output_type* dst_R, const void* src_L, const void* src_R, 
-			int w, int h, int sp, int dp, unsigned int P1, const uint8_t *P2, float uniqueness, bool subpixel, cudaStream_t stream) = 0;
+		virtual void execute(output_type* dst_L, output_type* dst_R, const void* src_L, const void* src_R,
+			int w, int h, int sp, int dp, unsigned int P1, const uint8_t *P2, const uint8_t *weights, int weights_pitch, float uniqueness, bool subpixel, cudaStream_t stream) = 0;
 
 		virtual ~SemiGlobalMatchingBase() {}
 	};
@@ -38,9 +38,9 @@ namespace sgm {
 	class SemiGlobalMatchingImpl : public SemiGlobalMatchingBase {
 	public:
 		void execute(output_type* dst_L, output_type* dst_R, const void* src_L, const void* src_R,
-			int w, int h, int sp, int dp, unsigned int P1, const uint8_t *P2, float uniqueness, bool subpixel, cudaStream_t stream) override
+			int w, int h, int sp, int dp, unsigned int P1, const uint8_t *P2, const uint8_t *weights, int weights_pitch, float uniqueness, bool subpixel, cudaStream_t stream) override
 		{
-			sgm_engine_.execute(dst_L, dst_R, (const input_type*)src_L, (const input_type*)src_R, w, h, sp, dp, P1, P2, uniqueness, subpixel, stream);
+			sgm_engine_.execute(dst_L, dst_R, (const input_type*)src_L, (const input_type*)src_R, w, h, sp, dp, P1, P2, weights, weights_pitch, uniqueness, subpixel, stream);
 		}
 	private:
 		SemiGlobalMatching<input_type, DISP_SIZE> sgm_engine_;
@@ -54,7 +54,7 @@ namespace sgm {
 		void* d_tmp_left_disp;
 		void* d_tmp_right_disp;
 		uint8_t* d_mask;
-		
+
 		SemiGlobalMatchingBase* sgm_engine;
 
 		CudaStereoSGMResources(int width_, int height_, int disparity_size_, int input_depth_bits_, int output_depth_bits_, int src_pitch_, int dst_pitch_, EXECUTE_INOUT inout_type_) {
@@ -80,7 +80,7 @@ namespace sgm {
 				CudaSafeCall(cudaMalloc(&this->d_src_left, input_depth_bits_ / 8 * src_pitch_ * height_));
 				CudaSafeCall(cudaMalloc(&this->d_src_right, input_depth_bits_ / 8 * src_pitch_ * height_));
 			}
-			
+
 			CudaSafeCall(cudaMalloc(&this->d_left_disp, sizeof(uint16_t) * dst_pitch_ * height_));
 			CudaSafeCall(cudaMalloc(&this->d_right_disp, sizeof(uint16_t) * dst_pitch_ * height_));
 
@@ -149,7 +149,8 @@ namespace sgm {
 		if (cu_res_) { delete cu_res_; }
 	}
 
-	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch, const uint8_t *P2, cudaStream_t stream) {
+	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch,
+		const uint8_t *P2, const uint8_t *weights, int weights_pitch, cudaStream_t stream) {
 
 		const void *d_input_left, *d_input_right;
 
@@ -171,9 +172,9 @@ namespace sgm {
 
 		if (is_cuda_output(inout_type_) && output_depth_bits_ == 16)
 			d_left_disp = dst; // when threre is no device-host copy or type conversion, use passed buffer
-		
+
 		cu_res_->sgm_engine->execute((uint16_t*)d_tmp_left_disp, (uint16_t*)d_tmp_right_disp,
-			d_input_left, d_input_right, width, height, src_pitch, dst_pitch, param_.P1, P2, param_.uniqueness, param_.subpixel, stream);
+			d_input_left, d_input_right, width, height, src_pitch, dst_pitch, param_.P1, P2, weights, weights_pitch, param_.uniqueness, param_.subpixel, stream);
 
 		sgm::details::median_filter((uint16_t*)d_tmp_left_disp, (uint16_t*)d_left_disp, width, height, dst_pitch, stream);
 		sgm::details::median_filter((uint16_t*)d_tmp_right_disp, (uint16_t*)d_right_disp, width, height, dst_pitch, stream);
@@ -197,8 +198,8 @@ namespace sgm {
 		}
 	}
 
-	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst, const uint8_t *P2, cudaStream_t stream) {
-		execute(left_pixels, right_pixels, dst, width_, height_, src_pitch_, dst_pitch_, P2, stream);
+	void StereoSGM::execute(const void* left_pixels, const void* right_pixels, void* dst, const uint8_t *P2, const uint8_t *weights, int weights_pitch, cudaStream_t stream) {
+		execute(left_pixels, right_pixels, dst, width_, height_, src_pitch_, dst_pitch_, P2, weights, weights_pitch, stream);
 	}
 
 	bool StereoSGM::updateParameters(const Parameters &params) {
@@ -208,7 +209,7 @@ namespace sgm {
 		if ((params.uniqueness < 0.0) || (params.uniqueness > 1.0)) {
 			return false;
 		}
-		
+
 		Parameters params_ = params;
 		std::swap(params_, this->param_);
 		return true;

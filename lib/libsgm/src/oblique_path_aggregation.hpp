@@ -32,6 +32,8 @@ void enqueue_aggregate_upleft2downright_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template <unsigned int MAX_DISPARITY>
@@ -44,6 +46,8 @@ void enqueue_aggregate_upright2downleft_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template <unsigned int MAX_DISPARITY>
@@ -56,6 +60,8 @@ void enqueue_aggregate_downright2upleft_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template <unsigned int MAX_DISPARITY>
@@ -68,6 +74,8 @@ void enqueue_aggregate_downleft2upright_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 }

@@ -32,7 +32,7 @@ struct DynamicProgramming {
 		DP_BLOCK_SIZE >= 2,
 		"DP_BLOCK_SIZE must be greater than or equal to 2");
 	static_assert(
-		(SUBGROUP_SIZE & (SUBGROUP_SIZE - 1)) == 0,	
+		(SUBGROUP_SIZE & (SUBGROUP_SIZE - 1)) == 0,
 		"SUBGROUP_SIZE must be a power of 2");
 
 	uint32_t last_min;
@@ -45,7 +45,7 @@ struct DynamicProgramming {
 	}
 
 	__device__ void update(
-		uint32_t *local_costs, uint32_t p1, uint32_t p2, uint32_t mask)
+		uint32_t *local_costs, uint32_t p1, uint32_t p2, float w, uint32_t mask)
 	{
 		const unsigned int lane_id = threadIdx.x % SUBGROUP_SIZE;
 
@@ -62,14 +62,14 @@ struct DynamicProgramming {
 			uint32_t out = min(dp[k] - last_min, p2);
 			if(lane_id != 0){ out = min(out, prev - last_min + p1); }
 			out = min(out, dp[k + 1] - last_min + p1);
-			lazy_out = local_min = out + local_costs[k];
+			lazy_out = local_min = out + round(local_costs[k]*w);
 		}
 		for(unsigned int k = 1; k + 1 < DP_BLOCK_SIZE; ++k){
 			uint32_t out = min(dp[k] - last_min, p2);
 			out = min(out, dp[k - 1] - last_min + p1);
 			out = min(out, dp[k + 1] - last_min + p1);
 			dp[k - 1] = lazy_out;
-			lazy_out = out + local_costs[k];
+			lazy_out = out + round(local_costs[k]*w);
 			local_min = min(local_min, lazy_out);
 		}
 		{
@@ -85,7 +85,7 @@ struct DynamicProgramming {
 				out = min(out, next - last_min + p1);
 			}
 			dp[k - 1] = lazy_out;
-			dp[k] = out + local_costs[k];
+			dp[k] = out + round(local_costs[k]*w);
 			local_min = min(local_min, dp[k]);
 		}
 		last_min = subgroup_min<SUBGROUP_SIZE>(local_min, mask);

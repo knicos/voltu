@@ -49,6 +49,8 @@ public:
 		int dst_pitch,
 		unsigned int penalty1,
 		const uint8_t *penalty2,
+		const uint8_t *weights,
+		int weights_pitch,
 		float uniqueness,
 		bool subpixel,
 		cudaStream_t stream);
@@ -64,6 +66,8 @@ public:
 		int dst_pitch,
 		unsigned int penalty1,
 		const uint8_t *penalty2,
+		const uint8_t *weights,
+		int weights_pitch,
 		float uniqueness,
 		bool subpixel,
 		cudaStream_t stream);
