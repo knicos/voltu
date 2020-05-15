@@ -437,6 +437,19 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		record_sender_->post(fs2);
 		record_stream_->select(0, Channels<0>(Channel::Colour));
 		f.swapTo(Channels<0>(Channel::Colour), frame_);
+	} else if (do_snapshot_) {
+		do_snapshot_ = false;
+		cv::Mat flipped;
+		cv::Mat im1;
+
+		frame_.get<cv::cuda::GpuMat>(Channel::Colour).download(im1);
+
+		{
+			//UNIQUE_LOCK(mutex_, lk);
+			cv::flip(im1, flipped, 0);
+		}
+		cv::cvtColor(flipped, flipped, cv::COLOR_BGRA2BGR);
+		cv::imwrite(snapshot_filename_, flipped);
 	}
 }
 
@@ -775,14 +788,16 @@ const void ftl::gui::Camera::captureFrame() {
 }
 
 void ftl::gui::Camera::snapshot(const std::string &filename) {
-	cv::Mat flipped;
+	/*cv::Mat flipped;
 
 	{
 		UNIQUE_LOCK(mutex_, lk);
 		//cv::flip(im1_, flipped, 0);
 	}
 	cv::cvtColor(flipped, flipped, cv::COLOR_BGRA2BGR);
-	cv::imwrite(filename, flipped);
+	cv::imwrite(filename, flipped);*/
+	snapshot_filename_ = filename;
+	do_snapshot_ = true;
 }
 
 void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
