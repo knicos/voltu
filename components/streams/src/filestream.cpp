@@ -14,18 +14,29 @@ File::File(nlohmann::json &config) : Stream(config), ostream_(nullptr), istream_
 	mode_ = Mode::Read;
 	jobs_ = 0;
 	checked_ = false;
+	save_data_ = value("save_data", false);
+
+	on("save_data", [this](const ftl::config::Event &e) {
+		save_data_ = value("save_data", false);
+	});
 }
 
 File::File(nlohmann::json &config, std::ifstream *is) : Stream(config), ostream_(nullptr), istream_(is), active_(false) {
 	mode_ = Mode::Read;
 	jobs_ = 0;
 	checked_ = false;
+	save_data_ = false;
 }
 
 File::File(nlohmann::json &config, std::ofstream *os) : Stream(config), ostream_(os), istream_(nullptr), active_(false) {
 	mode_ = Mode::Write;
 	jobs_ = 0;
 	checked_ = false;
+	save_data_ = value("save_data", false);
+
+	on("save_data", [this](const ftl::config::Event &e) {
+		save_data_ = value("save_data", false);
+	});
 }
 
 File::~File() {
@@ -102,7 +113,7 @@ bool File::post(const ftl::codecs::StreamPacket &s, const ftl::codecs::Packet &p
 
 	// Discard all data channel packets for now
 	// TODO: Allow saving of data channels once formats have solidified.
-	if (static_cast<int>(s.channel) >= static_cast<int>(ftl::codecs::Channel::Data)) return true;
+	if (!save_data_ && static_cast<int>(s.channel) >= static_cast<int>(ftl::codecs::Channel::Data)) return true;
 
 	ftl::codecs::StreamPacket s2 = s;
 	// Adjust timestamp relative to start of file.

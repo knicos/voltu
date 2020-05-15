@@ -73,6 +73,7 @@ class File : public Stream {
 	int version_;
 	ftl::timer::TimerHandle timer_;
 	bool is_video_;
+	bool save_data_;
 
 	StreamCallback cb_;
 	MUTEX mutex_;
