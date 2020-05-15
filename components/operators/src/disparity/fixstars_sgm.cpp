@@ -5,6 +5,7 @@
 
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudafilters.hpp>
 
 using cv::Size;
 using cv::cuda::GpuMat;
@@ -14,6 +15,33 @@ using ftl::codecs::Channel;
 using ftl::rgbd::Frame;
 using ftl::rgbd::Source;
 using ftl::operators::FixstarsSGM;
+
+
+static void variance_mask(cv::InputArray in, cv::OutputArray out, int wsize, cv::cuda::Stream &cvstream) {
+	if (in.isGpuMat() && out.isGpuMat()) {
+		cv::cuda::GpuMat im;
+		cv::cuda::GpuMat im2;
+		cv::cuda::GpuMat mean;
+		cv::cuda::GpuMat mean2;
+
+		mean.create(in.size(), CV_32FC1);
+		mean2.create(in.size(), CV_32FC1);
+		im2.create(in.size(), CV_32FC1);
+		in.getGpuMat().convertTo(im, CV_32FC1, cvstream);
+
+		cv::cuda::multiply(im, im, im2, 1.0, CV_32FC1, cvstream);
+		auto filter = cv::cuda::createBoxFilter(CV_32FC1, CV_32FC1, cv::Size(wsize,wsize));
+		filter->apply(im, mean, cvstream);   // E[X]
+		filter->apply(im2, mean2, cvstream); // E[X^2]
+		cv::cuda::multiply(mean, mean, mean, 1.0, -1, cvstream); // (E[X])^2
+
+		// NOTE: floating point accuracy in subtraction
+		// (cv::cuda::createBoxFilter only supports float and 8 bit integer types)
+		cv::cuda::subtract(mean2, mean, out.getGpuMatRef(), cv::noArray(), -1, cvstream); // E[X^2] - (E[X])^2
+	}
+	else { throw std::exception(); /* todo CPU version */ }
+}
+
 
 void FixstarsSGM::computeP2(cudaStream_t &stream) {
 	const int P3 = config()->value("P3", P2_);
@@ -115,6 +143,8 @@ bool FixstarsSGM::init() {
 	lbw_.create(size_, CV_8UC1);
 	rbw_.create(size_, CV_8UC1);
 	disp_int_.create(size_, CV_16SC1);
+	weights_.create(size_, CV_32FC1);
+	weights_.setTo(1.0);
 
 	LOG(INFO) << "INIT FIXSTARS";
 
@@ -164,8 +194,19 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 	//cvstream.waitForCompletion();
 	computeP2(stream);
-	//if ((int)P2_map_.step != P2_map_.cols) LOG(ERROR) << "P2 map step error: " << P2_map_.cols << "," << P2_map_.step;
-	ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, stream);
+
+	bool use_variance = config()->value("use_variance", true);
+	if (use_variance) {
+		variance_mask(lbw_, weightsF_, config()->value("var_wsize", 11), cvstream);
+		float minweight = std::min(1.0f, std::max(0.0f, config()->value("var_minweight", 0.5f)));
+		cv::cuda::normalize(weightsF_, weightsF_, minweight, 1.0, cv::NORM_MINMAX, -1, cv::noArray(), cvstream);
+		weightsF_.convertTo(weights_, CV_8UC1, 255.0f);
+
+		//if ((int)P2_map_.step != P2_map_.cols) LOG(ERROR) << "P2 map step error: " << P2_map_.cols << "," << P2_map_.step;
+		ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, (uint8_t*) weights_.data, weights_.step1(), stream);
+	} else {
+		ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, nullptr, 0, stream);
+	}
 
 	// GpuMat left_pixels(dispt_, cv::Rect(0, 0, max_disp_, dispt_.rows));
 	// left_pixels.setTo(0);

@@ -33,7 +33,9 @@ __global__ void aggregate_oblique_path_kernel(
 	int height,
 	unsigned int p1,
 	const uint8_t* __restrict__ p2,
-	int p2_pitch)
+	int p2_pitch,
+	const uint8_t* __restrict__ w,
+	int w_pitch)
 {
 	static const unsigned int SUBGROUP_SIZE = MAX_DISPARITY / DP_BLOCK_SIZE;
 	static const unsigned int PATHS_PER_WARP = WARP_SIZE / SUBGROUP_SIZE;
@@ -105,7 +107,7 @@ __global__ void aggregate_oblique_path_kernel(
 			for(unsigned int j = 0; j < DP_BLOCK_SIZE; ++j){
 				local_costs[j] = __popc(left_value ^ right_values[j]);
 			}
-			dp.update(local_costs, p1, p2[x+y*p2_pitch], shfl_mask);
+			dp.update(local_costs, p1, p2[x+y*p2_pitch], w ? float(w[x+y*w_pitch])/255.0f : 1.0f, shfl_mask);
 			store_uint8_vector<DP_BLOCK_SIZE>(
 				&dest[dp_offset + x * MAX_DISPARITY + y * MAX_DISPARITY * width],
 				dp.dp);
@@ -125,6 +127,8 @@ void enqueue_aggregate_upleft2downright_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream)
 {
 	static const unsigned int SUBGROUP_SIZE = MAX_DISPARITY / DP_BLOCK_SIZE;
@@ -133,7 +137,7 @@ void enqueue_aggregate_upleft2downright_path(
 	const int gdim = (width + height + PATHS_PER_BLOCK - 2) / PATHS_PER_BLOCK;
 	const int bdim = BLOCK_SIZE;
 	aggregate_oblique_path_kernel<1, 1, MAX_DISPARITY><<<gdim, bdim, 0, stream>>>(
-		dest, left, right, width, height, p1, p2, p2_pitch);
+		dest, left, right, width, height, p1, p2, p2_pitch, w, w_pitch);
 }
 
 template <unsigned int MAX_DISPARITY>
@@ -146,6 +150,8 @@ void enqueue_aggregate_upright2downleft_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream)
 {
 	static const unsigned int SUBGROUP_SIZE = MAX_DISPARITY / DP_BLOCK_SIZE;
@@ -154,7 +160,7 @@ void enqueue_aggregate_upright2downleft_path(
 	const int gdim = (width + height + PATHS_PER_BLOCK - 2) / PATHS_PER_BLOCK;
 	const int bdim = BLOCK_SIZE;
 	aggregate_oblique_path_kernel<-1, 1, MAX_DISPARITY><<<gdim, bdim, 0, stream>>>(
-		dest, left, right, width, height, p1, p2, p2_pitch);
+		dest, left, right, width, height, p1, p2, p2_pitch, w, w_pitch);
 }
 
 template <unsigned int MAX_DISPARITY>
@@ -167,6 +173,8 @@ void enqueue_aggregate_downright2upleft_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream)
 {
 	static const unsigned int SUBGROUP_SIZE = MAX_DISPARITY / DP_BLOCK_SIZE;
@@ -175,7 +183,7 @@ void enqueue_aggregate_downright2upleft_path(
 	const int gdim = (width + height + PATHS_PER_BLOCK - 2) / PATHS_PER_BLOCK;
 	const int bdim = BLOCK_SIZE;
 	aggregate_oblique_path_kernel<-1, -1, MAX_DISPARITY><<<gdim, bdim, 0, stream>>>(
-		dest, left, right, width, height, p1, p2, p2_pitch);
+		dest, left, right, width, height, p1, p2, p2_pitch, w, w_pitch);
 }
 
 template <unsigned int MAX_DISPARITY>
@@ -188,6 +196,8 @@ void enqueue_aggregate_downleft2upright_path(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream)
 {
 	static const unsigned int SUBGROUP_SIZE = MAX_DISPARITY / DP_BLOCK_SIZE;
@@ -196,7 +206,7 @@ void enqueue_aggregate_downleft2upright_path(
 	const int gdim = (width + height + PATHS_PER_BLOCK - 2) / PATHS_PER_BLOCK;
 	const int bdim = BLOCK_SIZE;
 	aggregate_oblique_path_kernel<1, -1, MAX_DISPARITY><<<gdim, bdim, 0, stream>>>(
-		dest, left, right, width, height, p1, p2, p2_pitch);
+		dest, left, right, width, height, p1, p2, p2_pitch, w, w_pitch);
 }
 
 
@@ -209,6 +219,8 @@ template void enqueue_aggregate_upleft2downright_path<64u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template void enqueue_aggregate_upleft2downright_path<128u>(
@@ -220,8 +232,10 @@ template void enqueue_aggregate_upleft2downright_path<128u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
-	
+
 template void enqueue_aggregate_upleft2downright_path<256u>(
 	cost_type *dest,
 	const feature_type *left,
@@ -231,6 +245,8 @@ template void enqueue_aggregate_upleft2downright_path<256u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template void enqueue_aggregate_upright2downleft_path<64u>(
@@ -242,6 +258,8 @@ template void enqueue_aggregate_upright2downleft_path<64u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template void enqueue_aggregate_upright2downleft_path<128u>(
@@ -253,8 +271,10 @@ template void enqueue_aggregate_upright2downleft_path<128u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
-	
+
 template void enqueue_aggregate_upright2downleft_path<256u>(
 	cost_type *dest,
 	const feature_type *left,
@@ -264,6 +284,8 @@ template void enqueue_aggregate_upright2downleft_path<256u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template void enqueue_aggregate_downright2upleft_path<64u>(
@@ -275,6 +297,8 @@ template void enqueue_aggregate_downright2upleft_path<64u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template void enqueue_aggregate_downright2upleft_path<128u>(
@@ -286,8 +310,10 @@ template void enqueue_aggregate_downright2upleft_path<128u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
-	
+
 template void enqueue_aggregate_downright2upleft_path<256u>(
 	cost_type *dest,
 	const feature_type *left,
@@ -297,6 +323,8 @@ template void enqueue_aggregate_downright2upleft_path<256u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template void enqueue_aggregate_downleft2upright_path<64u>(
@@ -308,6 +336,8 @@ template void enqueue_aggregate_downleft2upright_path<64u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 template void enqueue_aggregate_downleft2upright_path<128u>(
@@ -319,8 +349,10 @@ template void enqueue_aggregate_downleft2upright_path<128u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
-	
+
 template void enqueue_aggregate_downleft2upright_path<256u>(
 	cost_type *dest,
 	const feature_type *left,
@@ -330,6 +362,8 @@ template void enqueue_aggregate_downleft2upright_path<256u>(
 	unsigned int p1,
 	const uint8_t *p2,
 	int p2_pitch,
+	const uint8_t* w,
+	int w_pitch,
 	cudaStream_t stream);
 
 }

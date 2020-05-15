@@ -65,6 +65,8 @@ class FixstarsSGM : public ftl::operators::Operator {
 	cv::cuda::GpuMat disp_int_;
 
 	cv::cuda::GpuMat P2_map_;
+	cv::cuda::GpuMat weights_;
+	cv::cuda::GpuMat weightsF_;
 	cv::cuda::GpuMat edges_;
 	cv::Ptr<cv::cuda::CannyEdgeDetector> canny_;
 

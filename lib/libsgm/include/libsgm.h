@@ -84,7 +84,7 @@ namespace sgm {
 		* @attention
 		* output_depth_bits must be set to 16 when subpixel is enabled.
 		*/
-		LIBSGM_API StereoSGM(int width, int height, int disparity_size, int input_depth_bits, int output_depth_bits, 
+		LIBSGM_API StereoSGM(int width, int height, int disparity_size, int input_depth_bits, int output_depth_bits,
 			EXECUTE_INOUT inout_type, const Parameters& param = Parameters());
 
 		/**
@@ -114,13 +114,13 @@ namespace sgm {
 		* The element_type is uint8_t for output_depth_bits == 8 and uint16_t for output_depth_bits == 16.
 		* Note that dst element value would be multiplied StereoSGM::SUBPIXEL_SCALE if subpixel option was enabled.
 		*/
-		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst, const uint8_t *P2, cudaStream_t stream);
+		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst, const uint8_t *P2, const uint8_t *weights, int weights_pitch, cudaStream_t stream);
 
 		/**
 		 * Same as execute(left_pixels, right_pixels, dst) with image size parameters.
 		 * Dimensions must be smaller or equal to dimensions provided in constructor.
 		 */
-		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch, const uint8_t *P2, cudaStream_t stream);
+		LIBSGM_API void execute(const void* left_pixels, const void* right_pixels, void* dst, const int width, const int height, const int src_pitch, const int dst_pitch, const uint8_t *P2, const uint8_t *weights, int weights_pitch, cudaStream_t stream);
 
 		/**
 		 * Mask for invalid pixels. Must have same shape and pitch as src. Pixels which have non-zero values
@@ -129,7 +129,7 @@ namespace sgm {
 		LIBSGM_API void setMask(uint8_t* mask, int pitch);
 
 		/**
-		 * Update parameters. Returns true if successful. 
+		 * Update parameters. Returns true if successful.
 		 */
 		LIBSGM_API bool updateParameters(const Parameters &params);
 
