@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
 
     LOG(INFO) << "Converting...";
 
-    int current_stream = root->value("stream", 0);
+    int current_stream = root->value("stream", 255);
     int current_channel = root->value("channel", -1);
 
 	//bool stream_added[10] = {false};
@@ -142,16 +142,16 @@ int main(int argc, char **argv) {
 	// Read entire file to find all streams before reading again to write data
 	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
         if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
-        if (spkt.streamID == current_stream || current_stream == 255) {
+        if (spkt.frame_number == current_stream || current_stream == 255) {
 
             if (pkt.codec != codec_t::HEVC) {
                 return;
             }
 
-			if (spkt.streamID >= 10) return;  // TODO: Allow for more than 10
+			if (spkt.frame_number >= 10) return;  // TODO: Allow for more than 10
 
-			if (video_st[spkt.streamID][(spkt.channel == Channel::Left) ? 0 : 1] == nullptr) {
-				video_st[spkt.streamID][(spkt.channel == Channel::Left) ? 0 : 1] = add_video_stream(oc, pkt);
+			if (video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] == nullptr) {
+				video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] = add_video_stream(oc, pkt);
 			}
 		}
 	});
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
 
     res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&seen_key](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
         if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
-        if (spkt.streamID == current_stream || current_stream == 255) {
+        if (spkt.frame_number == current_stream || current_stream == 255) {
 
             if (pkt.codec != codec_t::HEVC) {
                 return;
@@ -181,23 +181,23 @@ int main(int argc, char **argv) {
 
             //LOG(INFO) << "Reading packet: (" << (int)spkt.streamID << "," << (int)spkt.channel << ") " << (int)pkt.codec << ", " << (int)pkt.definition;
 
-			if (spkt.streamID >= 10) return;  // TODO: Allow for more than 10
+			if (spkt.frame_number >= 10) return;  // TODO: Allow for more than 10
 
 			bool keyframe = false;
 			if (pkt.codec == codec_t::HEVC) {
 				if (ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) {
-					seen_key[spkt.streamID] = true;
+					seen_key[spkt.frame_number] = true;
 					keyframe = true;
 				}
 			}
-			if (!seen_key[spkt.streamID]) return;
+			if (!seen_key[spkt.frame_number]) return;
 
             AVPacket avpkt;
 			av_init_packet(&avpkt);
 			if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
 			avpkt.pts = spkt.timestamp - r.getStartTime();
 			avpkt.dts = avpkt.pts;
-			avpkt.stream_index= video_st[spkt.streamID][(spkt.channel == Channel::Left) ? 0 : 1]->index;
+			avpkt.stream_index= video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1]->index;
 			avpkt.data= const_cast<uint8_t*>(pkt.data.data());
 			avpkt.size= pkt.data.size();
 			avpkt.duration = 1;
