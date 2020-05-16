@@ -4,6 +4,7 @@
 #include <ftl/codecs/packet.hpp>
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/codecs/hevc.hpp>
+#include <ftl/codecs/h264.hpp>
 
 #include <fstream>
 
@@ -144,7 +145,7 @@ int main(int argc, char **argv) {
         if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         if (spkt.frame_number == current_stream || current_stream == 255) {
 
-            if (pkt.codec != codec_t::HEVC) {
+            if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) {
                 return;
             }
 
@@ -175,7 +176,7 @@ int main(int argc, char **argv) {
         if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         if (spkt.frame_number == current_stream || current_stream == 255) {
 
-            if (pkt.codec != codec_t::HEVC) {
+            if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) {
                 return;
             }
 
@@ -186,6 +187,11 @@ int main(int argc, char **argv) {
 			bool keyframe = false;
 			if (pkt.codec == codec_t::HEVC) {
 				if (ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) {
+					seen_key[spkt.frame_number] = true;
+					keyframe = true;
+				}
+			} else if (pkt.codec == codec_t::H264) {
+				if (ftl::codecs::h264::isIFrame(pkt.data.data(), pkt.data.size())) {
 					seen_key[spkt.frame_number] = true;
 					keyframe = true;
 				}
