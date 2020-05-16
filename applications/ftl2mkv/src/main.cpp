@@ -52,6 +52,8 @@ static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet
 	st->codecpar->format = AV_PIX_FMT_NV12;
 	st->codecpar->bit_rate = 4000000;
 
+	if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set_int(&st->metadata, "stereo_mode", 1, 0);
+
     /* put sample parameters */
     //c->bit_rate = 4000000;
     /* resolution must be a multiple of two */
@@ -166,6 +168,9 @@ int main(int argc, char **argv) {
 	}
 
 	av_dump_format(oc, 0, "output.mkv", 1);
+	av_dict_set(&oc->metadata, "title", "Future Tech Lab Recording", 0);
+	av_dict_set(&oc->metadata, "artist", "University of Turku", 0);
+
 	if (avformat_write_header(oc, NULL) < 0) {
 		LOG(ERROR) << "Failed to write stream header";
 	}
