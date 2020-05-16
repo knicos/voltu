@@ -82,7 +82,7 @@ class Camera {
 	inline int64_t getFrameTimeMS() const { return int64_t(delta_ * 1000.0f); }
 
 	const ftl::rgbd::Camera &getIntrinsics() const { return state_.getLeft(); }
-	const Eigen::Matrix4d &getPose() const { return state_.getPose(); }
+	const Eigen::Matrix4d getPose() const { UNIQUE_LOCK(mutex_, lk); return state_.getPose(); }
 
 	/**
 	 * @internal. Used to inform the camera if it is the active camera or not.
@@ -183,7 +183,7 @@ class Camera {
 	std::array<Eigen::Matrix4d,ftl::stream::kMaxStreams> transforms_;  // Frameset transforms for virtual cam
 	Eigen::Matrix4d T_ = Eigen::Matrix4d::Identity();
 
-	MUTEX mutex_;
+	mutable MUTEX mutex_;
 
 	#ifdef HAVE_OPENVR
 	vr::TrackedDevicePose_t rTrackedDevicePose_[ vr::k_unMaxTrackedDeviceCount ];

@@ -27,7 +27,7 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
 		//LOG(INFO) << "Found shapes 3D global: " << (int)transforms.size();
 
         //for (auto &t : transforms) {
-            //LOG(INFO) << "Have FS transform: " << t.id;
+        //    LOG(INFO) << "Have FS transform: " << t.label;
         //}
     }
 

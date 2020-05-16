@@ -6,6 +6,8 @@
 #include "frameset_mgr.hpp"
 
 #include <ftl/profiler.hpp>
+#include <ftl/codecs/shapes.hpp>
+#include <ftl/utility/vectorbuffer.hpp>
 
 #include <nanogui/imageview.h>
 #include <nanogui/textbox.h>
@@ -112,7 +114,36 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 
 	interceptor_->onIntercept([this] (const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		//LOG(INFO) << (std::string)spkt;
-		if (recorder_->active() && pkt.data.size() > 0) recorder_->post(spkt, pkt);
+		if (recorder_->active() && pkt.data.size() > 0) {
+
+			if (spkt.channel == Channel::Shapes3D && spkt.frame_number == 255) {
+				// Decode the shapes channel to insert the virtual camera...
+				std::vector<ftl::codecs::Shape3D> shapes;
+				auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
+				unpacked.get().convert(shapes);
+
+				auto *cam = screen_->activeCamera();
+
+				if (cam) {
+					// Modify shapes
+					auto &s = shapes.emplace_back();
+					s.id = shapes.size();
+					s.label = std::string("virtual-")+std::to_string(shapes.size());
+					s.type = ftl::codecs::Shape3DType::CAMERA;
+					s.pose = cam->getPose().cast<float>();
+					//LOG(INFO) << "Inject virtual : " << shapes.size();
+				}
+
+				auto npkt = pkt;
+				npkt.data.resize(0);
+				ftl::util::FTLVectorBuffer buf(npkt.data);
+				msgpack::pack(buf, shapes);
+
+				recorder_->post(spkt, npkt);
+			} else {
+				recorder_->post(spkt, pkt);
+			}
+		}
 	});
 
 	paused_ = false;
