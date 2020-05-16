@@ -806,6 +806,7 @@ void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
 		record_stream_->setMode(ftl::stream::File::Mode::Write);
 		record_sender_ = ftl::create<ftl::stream::Sender>(screen_->root(), "videoEncode");
 		record_sender_->setStream(record_stream_);
+		record_sender_->value("codec", 2);  // Default H264
 	}
 
 	if (record_stream_->active()) return;

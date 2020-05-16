@@ -62,7 +62,6 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 	std::vector<ftl::codecs::Shape3D> shapes;
 	if (in.hasChannel(Channel::Shapes3D)) {
 		in.get(Channel::Shapes3D, shapes);
-		LOG(INFO) << "Already has shapes: " << shapes.size();
 	}
 	shapes.push_back(shape);
 	in.create(Channel::Shapes3D, shapes);
