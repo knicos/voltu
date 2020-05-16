@@ -410,11 +410,6 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 	// Normalize depth map
 	frame_.get<cv::cuda::GpuMat>(Channel::Depth).convertTo(frame_.get<cv::cuda::GpuMat>(Channel::Depth), CV_32F, 1.0/8.0);
 
-	// Unmap GL buffer from CUDA and finish updating GL texture
-	texture1_.unmap(renderer_->getCUDAStream());
-	depth1_.unmap(renderer_->getCUDAStream());
-	if (isStereo()) texture2_.unmap(renderer2_->getCUDAStream());
-
 	width_ = texture1_.width();
 	height_ = texture1_.height();
 
@@ -426,16 +421,26 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		fs2.mask = 1;
 		//fs2.stale = false;
 		fs2.set(ftl::data::FSFlag::STALE);
-		frame_.swapTo(Channels<0>(Channel::Colour), f);  // Channel::Colour + Channel::Depth
-		if (f.hasChannel(Channel::Colour)) {
-			f.create<cv::cuda::GpuMat>(Channel::Colour2).create(f.get<cv::cuda::GpuMat>(Channel::Colour).size(), f.get<cv::cuda::GpuMat>(Channel::Colour2).type());
-			f.swapChannels(Channel::Colour, Channel::Colour2);
-			cv::cuda::flip(f.get<cv::cuda::GpuMat>(Channel::Colour2), f.get<cv::cuda::GpuMat>(Channel::Colour), 0);
+		if (frame_.hasChannel(Channel::Colour2)) {
+			frame_.swapTo(Channels<0>(Channel::Colour) | Channel::Colour2, f);
+			ftl::cuda::flip(f.getTexture<uchar4>(Channel::Colour), 0);
+			ftl::cuda::flip(f.getTexture<uchar4>(Channel::Colour2), 0);
+		} else {
+			frame_.swapTo(Channels<0>(Channel::Colour), f);  // Channel::Colour + Channel::Depth
+			ftl::cuda::flip(f.getTexture<uchar4>(Channel::Colour), 0);
 		}
+
 		fs2.timestamp = ftl::timer::get_time();
 		fs2.id = 0;
 		record_sender_->post(fs2);
 		record_stream_->select(0, Channels<0>(Channel::Colour));
+		// Reverse the flip
+		if (f.hasChannel(Channel::Colour2)) {
+			ftl::cuda::flip(f.getTexture<uchar4>(Channel::Colour), 0);
+			ftl::cuda::flip(f.getTexture<uchar4>(Channel::Colour2), 0);
+		} else {
+			ftl::cuda::flip(f.getTexture<uchar4>(Channel::Colour), 0);
+		}
 		f.swapTo(Channels<0>(Channel::Colour), frame_);
 	} else if (do_snapshot_) {
 		do_snapshot_ = false;
@@ -451,6 +456,11 @@ void ftl::gui::Camera::_draw(std::vector<ftl::rgbd::FrameSet*> &fss) {
 		cv::cvtColor(flipped, flipped, cv::COLOR_BGRA2BGR);
 		cv::imwrite(snapshot_filename_, flipped);
 	}
+
+	// Unmap GL buffer from CUDA and finish updating GL texture
+	texture1_.unmap(renderer_->getCUDAStream());
+	depth1_.unmap(renderer_->getCUDAStream());
+	if (isStereo()) texture2_.unmap(renderer2_->getCUDAStream());
 }
 
 void ftl::gui::Camera::update(int fsid, const ftl::codecs::Channels<0> &c) {
@@ -807,6 +817,7 @@ void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
 		record_sender_ = ftl::create<ftl::stream::Sender>(screen_->root(), "videoEncode");
 		record_sender_->setStream(record_stream_);
 		record_sender_->value("codec", 2);  // Default H264
+		record_sender_->value("stereo", true);  // If both channels, then default to stereo
 	}
 
 	if (record_stream_->active()) return;
