@@ -262,6 +262,9 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 	codec_t codec = static_cast<codec_t>(value("codec", static_cast<int>(codec_t::Any)));
 	device_t device = static_cast<device_t>(value("encoder_device", static_cast<int>(device_t::Any)));
 
+	// TODO: Support high res
+	bool is_stereo = value("stereo", false) && c == Channel::Colour && fs.firstFrame().hasChannel(Channel::Colour2);
+
 	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {
 		Channel cc = c;
@@ -303,7 +306,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 			}
 		}
 
-		int count = _generateTiles(fs, offset, cc, enc->stream(), lossless);
+		int count = _generateTiles(fs, offset, cc, enc->stream(), lossless, is_stereo);
 		if (count <= 0) {
 			LOG(ERROR) << "Could not generate tiles.";
 			break;
@@ -326,12 +329,13 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 				if (!lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
 				else if (lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat;
 				else pkt.flags = ftl::codecs::kFlagFlipRGB;
+				if (is_stereo) pkt.flags |= ftl::codecs::kFlagStereo;
 
 				// In the event of partial frames, add a flag to indicate that
 				if (static_cast<size_t>(fs.count) < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
 
 				// Choose correct region of interest into the surface.
-				cv::Rect roi = _generateROI(fs, cc, offset);
+				cv::Rect roi = _generateROI(fs, cc, offset, is_stereo);
 				cv::cuda::GpuMat sroi = tile.surface(roi);
 
 				FTL_Profile("Encoder",0.02);
@@ -357,9 +361,10 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 	}
 }
 
-cv::Rect Sender::_generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset) {
+cv::Rect Sender::_generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset, bool stereo) {
 	const ftl::rgbd::Frame &cframe = fs.firstFrame();
 	int rwidth = cframe.get<cv::cuda::GpuMat>(c).cols;
+	if (stereo) rwidth *= 2;
 	int rheight = cframe.get<cv::cuda::GpuMat>(c).rows;
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(fs.frames.size()-offset);
 	return cv::Rect(0, 0, tx*rwidth, ty*rheight);
@@ -393,7 +398,7 @@ float Sender::_selectFloatMax(Channel c) {
 	}
 }
 
-int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool lossless) {
+int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool lossless, bool stereo) {
 	auto &surface = _getTile(fs.id, c);
 
 	const ftl::rgbd::Frame *cframe = nullptr; //&fs.frames[offset];
@@ -402,7 +407,7 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 
 	// Choose tile configuration and allocate memory
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(fs.frames.size());
-	int rwidth = m.cols;
+	int rwidth = (stereo) ? m.cols*2 : m.cols;
 	int rheight = m.rows;
 	int width = tx * rwidth;
 	int height = ty * rheight;
@@ -423,7 +428,7 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 		if (fs.hasFrame(offset+count)) {
 			cframe = &fs.frames[offset+count];
 			auto &m = cframe->get<cv::cuda::GpuMat>(c);
-			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
+			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, (stereo) ? rwidth/2 : rwidth, rheight);
 			cv::cuda::GpuMat sroi = surface.surface(roi);
 
 			if (m.type() == CV_32F) {
@@ -441,6 +446,30 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 			} else {
 				LOG(ERROR) << "Unsupported colour format: " << m.type();
 				return 0;
+			}
+
+			// Do the right channel
+			if (stereo) {
+				auto &m = cframe->get<cv::cuda::GpuMat>((c == Channel::Colour) ? Channel::Colour2 : Channel::Colour2HighRes);
+				cv::Rect roi((count % tx)*rwidth + (rwidth/2), (count / tx)*rheight, rwidth/2, rheight);
+				cv::cuda::GpuMat sroi = surface.surface(roi);
+
+				if (m.type() == CV_32F) {
+					if (lossless) {
+						m.convertTo(sroi, CV_16UC1, 1000, stream);
+					} else {
+						ftl::cuda::depth_to_vuya(m, sroi, _selectFloatMax(c), stream);
+					}
+				} else if (m.type() == CV_8UC4) {
+					cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
+				} else if (m.type() == CV_8UC3) {
+					cv::cuda::cvtColor(m, sroi, cv::COLOR_BGR2RGBA, 0, stream);
+				} else if (m.type() == CV_8UC1) {
+					m.copyTo(sroi, stream);
+				} else {
+					LOG(ERROR) << "Unsupported colour format: " << m.type();
+					return 0;
+				}
 			}
 		} else {
 			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);

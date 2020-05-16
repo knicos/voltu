@@ -41,18 +41,21 @@ static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet
     //c->codec_id = codec_id;
     //c->codec_type = AVMEDIA_TYPE_VIDEO;
 
-	st->time_base.den = 20;
-	st->time_base.num = 1;
+	//st->time_base.den = 20;
+	//st->time_base.num = 1;
 	//st->id = oc->nb_streams-1;
 	//st->nb_frames = 0;
 	st->codecpar->codec_id = codec_id;
 	st->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
 	st->codecpar->width = ftl::codecs::getWidth(pkt.definition);
+	//if (pkt.flags & ftl::codecs::kFlagStereo) st->codecpar->width *= 2;
 	st->codecpar->height = ftl::codecs::getHeight(pkt.definition);
 	st->codecpar->format = AV_PIX_FMT_NV12;
 	st->codecpar->bit_rate = 4000000;
 
-	if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set_int(&st->metadata, "stereo_mode", 1, 0);
+	if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set(&st->metadata, "stereo_mode", "left_right", 0);
+	//if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set(&oc->metadata, "stereo_mode", "1", 0);
+	//if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set_int(&st->metadata, "StereoMode", 1, 0);
 
     /* put sample parameters */
     //c->bit_rate = 4000000;
@@ -141,9 +144,11 @@ int main(int argc, char **argv) {
 
 	//bool stream_added[10] = {false};
 
+	int64_t first_ts = 10000000000000ll;
+
 	// TODO: In future, find a better way to discover number of streams...
 	// Read entire file to find all streams before reading again to write data
-	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	bool res = r.read(90000000000000, [&first_ts,&current_stream,&current_channel,&r,&video_st,oc](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
         if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         if (spkt.frame_number == current_stream || current_stream == 255) {
 
@@ -152,6 +157,8 @@ int main(int argc, char **argv) {
             }
 
 			if (spkt.frame_number >= 10) return;  // TODO: Allow for more than 10
+
+			if (spkt.timestamp < first_ts) first_ts = spkt.timestamp;
 
 			if (video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] == nullptr) {
 				video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] = add_video_stream(oc, pkt);
@@ -177,7 +184,7 @@ int main(int argc, char **argv) {
 
 	bool seen_key[10] = {false};
 
-    res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&seen_key](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+    res = r.read(90000000000000, [first_ts,&current_stream,&current_channel,&r,&video_st,oc,&seen_key](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
         if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         if (spkt.frame_number == current_stream || current_stream == 255) {
 
@@ -203,10 +210,14 @@ int main(int argc, char **argv) {
 			}
 			if (!seen_key[spkt.frame_number]) return;
 
+			//if (spkt.timestamp > last_ts) framecount++;
+			//last_ts = spkt.timestamp;
+
             AVPacket avpkt;
 			av_init_packet(&avpkt);
 			if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
-			avpkt.pts = spkt.timestamp - r.getStartTime();
+			//avpkt.pts = framecount*50; //spkt.timestamp - r.getStartTime();
+			avpkt.pts = spkt.timestamp - first_ts;
 			avpkt.dts = avpkt.pts;
 			avpkt.stream_index= video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1]->index;
 			avpkt.data= const_cast<uint8_t*>(pkt.data.data());
