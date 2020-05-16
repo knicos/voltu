@@ -14,6 +14,7 @@
 #include <ftl/render/colouriser.hpp>
 #include <ftl/cuda/transform.hpp>
 #include <ftl/operators/gt_analysis.hpp>
+#include <ftl/operators/poser.hpp>
 #include <ftl/cuda/colour_cuda.hpp>
 
 #include <ftl/render/overlay.hpp>
@@ -97,6 +98,12 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 		fsmask_ = renderer_->value("fsmask", fsmask_);
 		renderer_->on("fsmask", [this](const ftl::config::Event &e) {
 			fsmask_ = renderer_->value("fsmask", fsmask_);
+		});
+
+		// Allow Pose origin to be changed
+		pose_source_ = renderer_->value("pose_source", pose_source_);
+		renderer_->on("pose_source", [this](const ftl::config::Event &e) {
+			pose_source_ = renderer_->value("pose_source", pose_source_);
 		});
 
 		intrinsics_ = ftl::create<ftl::Configurable>(renderer_, "intrinsics");
@@ -758,25 +765,32 @@ const void ftl::gui::Camera::captureFrame() {
 			}
 			#endif
 		} else {
-			// Use mouse to move camera
+			if (pose_source_.size() == 0) {
+				// Use mouse to move camera
 
-			float rrx = ((float)ry_ * 0.2f * delta_);
-			float rry = (float)rx_ * 0.2f * delta_;
-			float rrz = 0.0;
+				float rrx = ((float)ry_ * 0.2f * delta_);
+				float rry = (float)rx_ * 0.2f * delta_;
+				float rrz = 0.0;
 
-			Eigen::Affine3d r = create_rotation_matrix(rrx, -rry, rrz);
-			rotmat_ = rotmat_ * r.matrix();
+				Eigen::Affine3d r = create_rotation_matrix(rrx, -rry, rrz);
+				rotmat_ = rotmat_ * r.matrix();
 
-			rx_ = 0;
-			ry_ = 0;
+				rx_ = 0;
+				ry_ = 0;
 
-			eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
-			eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
-			eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
+				eye_[0] += (neye_[0] - eye_[0]) * lerpSpeed_ * delta_;
+				eye_[1] += (neye_[1] - eye_[1]) * lerpSpeed_ * delta_;
+				eye_[2] += (neye_[2] - eye_[2]) * lerpSpeed_ * delta_;
 
-			Eigen::Translation3d trans(eye_);
-			Eigen::Affine3d t(trans);
-			viewPose = t.matrix() * rotmat_;
+				Eigen::Translation3d trans(eye_);
+				Eigen::Affine3d t(trans);
+				viewPose = t.matrix() * rotmat_;
+			} else {
+				// Use some other pose source.
+				if (!ftl::operators::Poser::get(pose_source_, viewPose)) {
+					LOG(ERROR) << "Missing pose: " << pose_source_;
+				}
+			}
 		}
 
 		{

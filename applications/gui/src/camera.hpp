@@ -148,6 +148,7 @@ class Camera {
 	bool sdepth_;
 	bool pause_;
 	bool do_snapshot_ = false;
+	std::string pose_source_;
 	std::string snapshot_filename_;
 	ftl::codecs::Channel channel_;
 	ftl::codecs::Channels<0> channels_;

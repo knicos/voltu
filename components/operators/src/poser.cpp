@@ -1,5 +1,4 @@
 #include <ftl/operators/poser.hpp>
-#include <ftl/codecs/shapes.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -19,6 +18,43 @@ Poser::~Poser() {
 
 }
 
+void Poser::add(const ftl::codecs::Shape3D &t, int frameset, int frame) {
+	std::string idstr;
+	switch(t.type) {
+	case Shape3DType::ARUCO         : idstr = "aruco-"; break;
+	case Shape3DType::CAMERA		: idstr = "camera-"; break;
+	default                         : idstr = "unk-"; break;
+	}
+
+	idstr += std::to_string(frameset) + string("-") + std::to_string(frame) + string("-") + std::to_string(t.id);
+
+	auto pose = t.pose.cast<double>();  // f.getPose() * 
+
+	auto p = pose_db__.find(idstr);
+	if (p == pose_db__.end()) {
+		ftl::operators::Poser::PoseState ps;
+		ps.pose = pose;
+		ps.locked = false;
+		pose_db__.emplace(std::make_pair(idstr,ps));
+		LOG(INFO) << "POSE ID: " << idstr;
+	} else {
+		// TODO: Merge poses
+		if (!(*p).second.locked) (*p).second.pose = pose;
+		//LOG(INFO) << "POSE ID: " << idstr;
+	}
+}
+
+bool Poser::get(const std::string &name, Eigen::Matrix4d &pose) {
+	auto p = pose_db__.find(name);
+	if (p != pose_db__.end()) {
+		pose = (*p).second.pose;
+		return true;
+	} else {
+		LOG(WARNING) << "Pose not found: " << name;
+		return false;
+	}
+}
+
 bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) {
     if (in.hasChannel(Channel::Shapes3D)) {
         std::vector<ftl::codecs::Shape3D> transforms;
@@ -26,9 +62,10 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
 
 		//LOG(INFO) << "Found shapes 3D global: " << (int)transforms.size();
 
-        //for (auto &t : transforms) {
+        for (auto &t : transforms) {
         //    LOG(INFO) << "Have FS transform: " << t.label;
-        //}
+			add(t, in.id, 255);
+        }
     }
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
@@ -42,28 +79,7 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
 				//LOG(INFO) << "Found shapes 3D: " << (int)transforms.size();
 
                 for (auto &t : transforms) {
-                    std::string idstr;
-                    switch(t.type) {
-                    case Shape3DType::ARUCO         : idstr = "aruco-"; break;
-                    default                         : idstr = "unk-"; break;
-                    }
-
-                    idstr += std::to_string(in.id) + string("-") + std::to_string(i) + string("-") + std::to_string(t.id);
-
-                    auto pose = t.pose.cast<double>();  // f.getPose() * 
-
-                    auto p = pose_db__.find(idstr);
-                    if (p == pose_db__.end()) {
-						ftl::operators::Poser::PoseState ps;
-						ps.pose = pose;
-						ps.locked = false;
-						pose_db__.emplace(std::make_pair(idstr,ps));
-                        LOG(INFO) << "POSE ID: " << idstr;
-                    } else {
-                        // TODO: Merge poses
-                        if (!(*p).second.locked) (*p).second.pose = pose;
-						//LOG(INFO) << "POSE ID: " << idstr;
-                    }
+                    add(t, in.id, i);
                 }
             }
         }

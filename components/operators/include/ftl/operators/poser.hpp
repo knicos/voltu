@@ -3,6 +3,7 @@
 
 #include <ftl/operators/operator.hpp>
 #include <ftl/cuda_common.hpp>
+#include <ftl/codecs/shapes.hpp>
 
 #include <unordered_map>
 
@@ -21,6 +22,8 @@ class Poser : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 
+	static bool get(const std::string &name, Eigen::Matrix4d &pose);
+
     private:
 	struct PoseState {
 		Eigen::Matrix4d pose;
@@ -28,6 +31,8 @@ class Poser : public ftl::operators::Operator {
 	};
 
     static std::unordered_map<std::string,PoseState> pose_db__;
+
+	void add(const ftl::codecs::Shape3D &t, int frameset, int frame);
 
 };
 
