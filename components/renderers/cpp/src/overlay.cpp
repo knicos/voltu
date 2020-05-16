@@ -327,7 +327,15 @@ void Overlay::draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const 
 
                 Eigen::Vector3f scale(s.size[0]/2.0f, s.size[1]/2.0f, s.size[2]/2.0f);
 
-                _drawOutlinedShape(Shape::BOX, state.getPose().inverse() * pose, scale, make_uchar4(255,0,255,80), make_uchar4(255,0,255,255));
+                if (s.type == ftl::codecs::Shape3DType::CAMERA) {
+                        //auto pose = s.pose;
+                    auto name = s.label;
+                    _drawOutlinedShape(Shape::CAMERA, state.getPose().inverse() * pose, Eigen::Vector3f(0.2f,0.2f,0.2f), make_uchar4(255,0,0,80), make_uchar4(255,0,0,255));
+                    _drawAxis(state.getPose().inverse() * pose, Eigen::Vector3f(0.2f, 0.2f, 0.2f));
+                } else {
+                    _drawOutlinedShape(Shape::BOX, state.getPose().inverse() * pose, scale, make_uchar4(255,0,255,80), make_uchar4(255,0,255,255));
+                }
+
 				//ftl::overlay::drawFilledBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,50), s.size.cast<double>());
                 //ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,255), s.size.cast<double>());
 				//ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
