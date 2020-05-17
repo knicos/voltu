@@ -44,6 +44,8 @@ class Sender : public ftl::Configurable {
 	std::atomic_flag do_inject_;
 	//std::function<void(ftl::codecs::Channel, int, int)> state_cb_;
 	ftl::stream::StreamCallback reqcb_;
+	int add_iframes_;
+	int iframe_;
 
 	struct EncodingState {
 		uint8_t bitrate;

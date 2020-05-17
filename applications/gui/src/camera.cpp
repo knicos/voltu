@@ -111,6 +111,16 @@ ftl::gui::Camera::Camera(ftl::gui::Screen *screen, int fsmask, int fid, ftl::cod
 		state_.getLeft() = ftl::rgbd::Camera::from(intrinsics_);
 		state_.getRight() = state_.getLeft();
 
+		intrinsics_->on("width", [this](const ftl::config::Event &e) {
+			state_.getLeft() = ftl::rgbd::Camera::from(intrinsics_);
+			state_.getRight() = state_.getLeft();
+		});
+
+		intrinsics_->on("focal", [this](const ftl::config::Event &e) {
+			state_.getLeft() = ftl::rgbd::Camera::from(intrinsics_);
+			state_.getRight() = state_.getLeft();
+		});
+
 		{
 			Eigen::Matrix4d pose;
 			pose.setIdentity();
@@ -831,6 +841,7 @@ void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
 		record_sender_ = ftl::create<ftl::stream::Sender>(screen_->root(), "videoEncode");
 		record_sender_->setStream(record_stream_);
 		record_sender_->value("codec", 2);  // Default H264
+		record_sender_->set("iframes", 50);  // Add iframes by default
 		record_sender_->value("stereo", true);  // If both channels, then default to stereo
 	}
 

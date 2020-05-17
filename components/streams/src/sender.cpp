@@ -24,6 +24,12 @@ using ftl::stream::injectConfig;
 
 Sender::Sender(nlohmann::json &config) : ftl::Configurable(config), stream_(nullptr) {
 	do_inject_.test_and_set();
+	iframe_ = 1;
+	add_iframes_ = value("iframes", 0);
+
+	on("iframes", [this](const ftl::config::Event &e) {
+		add_iframes_ = value("iframes", 0);
+	});
 }
 
 Sender::~Sender() {
@@ -137,6 +143,9 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 
 	bool do_inject = !do_inject_.test_and_set();
 
+	// Add an iframe at the requested frequency.
+	if (add_iframes_ > 0) iframe_ = (iframe_+1) % add_iframes_;
+
 	FTL_Profile("SenderPost", 0.02);
 
 	// Send any frameset data channels
@@ -249,7 +258,7 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 
 	for (auto c : needencoding) {
 		// TODO: One thread per channel.
-		_encodeChannel(fs, c, do_inject);
+		_encodeChannel(fs, c, do_inject || iframe_ == 0);
 	}
 
 	//do_inject_ = false;

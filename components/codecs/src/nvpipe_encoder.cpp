@@ -112,10 +112,10 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		return false;
 	}
 
-	bool is_stereo = pkt.flags & ftl::codecs::kFlagStereo;
+	//bool is_stereo = pkt.flags & ftl::codecs::kFlagStereo;
 
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
-	pkt.definition = (pkt.definition == definition_t::Any) ? ftl::codecs::findDefinition((is_stereo) ? in.cols/tx/2 : in.cols/tx, in.rows/ty) : pkt.definition;
+	pkt.definition = (pkt.definition == definition_t::Any) ? ftl::codecs::findDefinition(in.cols/tx, in.rows/ty) : pkt.definition;
 	if (pkt.definition == definition_t::Invalid || pkt.definition == definition_t::Any) {
 		LOG(ERROR) << "Could not find appropriate definition";
 		return false;
@@ -135,7 +135,7 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		return false;
 	}
 
-	if (((is_stereo) ? tx*width*2 : tx*width) != in.cols || ty*height != in.rows) {
+	if (tx*width != in.cols || ty*height != in.rows) {
 		// TODO: Resize if lower definition requested...
 		LOG(ERROR) << "Input size does not match expected: " << in.cols << " != " << tx*width;
 		pkt.definition = definition_t::Invalid;
