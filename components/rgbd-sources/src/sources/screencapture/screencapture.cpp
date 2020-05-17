@@ -73,6 +73,38 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 
     s.root = DefaultRootWindow(s.display);  // TODO: Could choose windows?
 
+	int winx = host_->value("x", -1);
+	int winy = host_->value("y", -1);
+
+	LOG(INFO) << "WINDOW: " << winx << "," << winy;
+
+	if (winx >= 0 && winy >= 0) {
+		Window root;
+		Window parent;
+		Window *children = 0;
+		unsigned int nchildren;
+		Status ok = XQueryTree(s.display, s.root, &root, &parent, &children, &nchildren);
+
+		if (ok && nchildren > 0) {
+			//s.root = children[nchildren-window-1];
+
+			for (int i=nchildren-1; i>=0; --i) {
+				if (XGetWindowAttributes(s.display, children[i], &s.window_attributes)) {
+					if ((s.window_attributes.height == 720 || s.window_attributes.height == 1080) && s.window_attributes.map_state == IsViewable) {
+						LOG(INFO) << "Possible window: " << s.window_attributes.x << "," << s.window_attributes.y << " " << s.window_attributes.width << "x" << s.window_attributes.height;
+						if (s.window_attributes.x <= winx && s.window_attributes.y <= winy) {
+							LOG(INFO) << "Found window at " << winx << "," << winy << " : " << i;
+							s.root = children[i];
+							break;
+						}
+					}
+
+				}
+			}
+		}
+		XFree(children);
+	}
+
     if (!XGetWindowAttributes(s.display, s.root, &s.window_attributes)) {
 		LOG(ERROR) << "Could not get X11 window attributes";
 		return;
@@ -89,9 +121,10 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 	params_.width = awidth;
 	params_.height = full_height_;
 
+	LOG(INFO) << "Screen capture: " << params_.width << "x" << params_.height;
 
-    s.ximg = XShmCreateImage(s.display, DefaultVisualOfScreen(s.screen),
-			DefaultDepthOfScreen(s.screen), ZPixmap, NULL, &s.shminfo,
+	s.ximg = XShmCreateImage(s.display, s.window_attributes.visual,
+			s.window_attributes.depth, ZPixmap, NULL, &s.shminfo,
 			params_.width, params_.height);
 
 	// TODO: Can this happen?
