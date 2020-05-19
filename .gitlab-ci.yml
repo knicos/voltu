@@ -45,12 +45,12 @@ webserver-deploy:
     - npm install web-service/server
     - browserify web-service/public/js/index.js -o web-service/public/js/bundle.js
 #    - rsync -vr --delete web-service/ nodejs@${NODE_SERVER}:/srv/nodejs/web-service
-    - cp -rf web-service/ /src/nodejs/web-service
+    - cp -rf web-service/ /srv/nodejs/web-service
 #    - ssh nodejs@${NODE_SERVER} -- "npm install web-service/server && pm2 restart web-service"
     - npm install web-service/server && pm2 restart web-service
     - doxygen
 #    - rsync -vr --delete doc/ nodejs@${NODE_SERVER}:/srv/nodejs/doc
-    - cp -rf doc/ /src/nodejs/doc
+    - cp -rf doc/ /srv/nodejs/doc
 
 ### Windows
 
