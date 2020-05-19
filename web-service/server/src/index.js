@@ -42,12 +42,8 @@ let peer_data = [];
  * @param {number} rate Bitrate index requested
  * @param {string} dest URI destination
  */
-function RGBDClient(peer, N, rate, dest) {
+function RGBDClient(peer) {
 	this.peer = peer;
-	this.txmax = N*16;  // 16 is for 16 blocks per frame... this will change in the near future
-	this.rate = rate;
-	this.dest = dest;
-	this.txcount = 0;
 }
 
 /**
@@ -55,7 +51,7 @@ function RGBDClient(peer, N, rate, dest) {
  */
 RGBDClient.prototype.push = function(uri, latency, spacket, packet) {
 	this.peer.send(uri, latency, spacket, packet);
-	this.txcount++;
+	//this.txcount++;
 }
 
 /**
@@ -82,10 +78,10 @@ function RGBDStream(uri, peer) {
 	peer.bind(uri, (latency, spacket, packet) => {
 		// Forward frames to all clients
 		this.pushFrames(latency, spacket, packet);
-		this.rxcount++;
-		if (this.rxcount >= this.rxmax && this.clients.length > 0) {
-			this.subscribe();
-		}
+		//this.rxcount++;
+		//if (this.rxcount >= this.rxmax && this.clients.length > 0) {
+		//	this.subscribe();
+		//}
 	});
 
 	/*peer.bind(uri, (frame, ttime, chunk, rgb, depth) => {
@@ -98,17 +94,18 @@ function RGBDStream(uri, peer) {
 	});*/
 }
 
-RGBDStream.prototype.addClient = function(peer, N, rate, dest) {
+RGBDStream.prototype.addClient = function(peer) {
 	// TODO(Nick) Verify that it isn't already in list...
 	for (let i=0; i<this.clients.length; i++) {
-		if (this.clients[i].peer.string_id == peer.string_id) return;
+		//if (this.clients[i].peer.string_id == peer.string_id) return;
+		if (this.clients[i].peer === peer) return;
 	}
 
-	this.clients.push(new RGBDClient(peer, N, rate, dest));
-	console.log("MINMAX", this.rxcount, this.rxmax);
-	if (this.rxcount >= this.rxmax) {
-		this.subscribe();
-	}
+	this.clients.push(new RGBDClient(peer));
+	//console.log("MINMAX", this.rxcount, this.rxmax);
+	//if (this.rxcount >= this.rxmax) {
+	//	this.subscribe();
+	//}
 }
 
 RGBDStream.prototype.subscribe = function() {
@@ -133,13 +130,13 @@ RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 		this.clients[i].push(this.uri, latency, spacket, packet);
 	}
 
-	let i=0;
+	/*let i=0;
 	while (i < this.clients.length) {
 		if (this.clients[i].txcount >= this.clients[i].txmax) {
 			console.log("remove client");
 			this.clients.splice(i, 1);
 		} else i++;
-	}
+	}*/
 }
 
 // ---- PROTOCOL ---------------------------------------------------------------
@@ -329,7 +326,21 @@ app.ws('/', (ws, req) => {
 	p.bind("find_stream", (uri) => {
 		const parsedURI = stringSplitter(uri)
 		if (uri_to_peer.hasOwnProperty(parsedURI)) {
-			console.log("Stream found: ", uri);
+			console.log("Stream found: ", uri, parsedURI);
+
+			if (!p.isBound(uri)) {
+				console.log("Adding local stream binding");
+				p.bind(uri, (ttimeoff, spkt, pkt) => {
+					console.log("STREAM: ", spkt);
+					let speer = uri_to_peer[parsedURI];
+					if (speer) {
+						uri_data[parsedURI].addClient(p);
+						speer.send(parsedURI, ttimeoff, spkt, pkt);
+					} else if (speer) console.log("Stream response");
+					else console.error("No stream peer");
+				});
+			}
+
 			return [Peer.uuid];
 		} else {
 			console.log("Stream not found: ", uri)

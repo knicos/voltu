@@ -40,7 +40,6 @@ function Peer(ws) {
 	this.master = false;
 
 	let message = (raw) => {
-		// console.log(raw)
 		//Gets right data for client
 		if(this.sock.on === undefined){
 			raw = raw.data;
@@ -183,6 +182,10 @@ Peer.prototype.bind = function(name, f) {
 	} else {
 		this.bindings[name] = f;
 	}
+}
+
+Peer.prototype.isBound = function(name) {
+	return this.bindings.hasOwnProperty(name) || this.proxies.hasOwnProperty(name);
 }
 
 /**
