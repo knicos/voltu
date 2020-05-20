@@ -125,6 +125,11 @@ function FTLStream(peer, uri, element) {
 	this.uri = uri;
 	this.peer = peer;
 
+	this.current = "";
+	this.current_fs = 0;
+	this.current_source = 0;
+	this.current_channel = 0;
+
 	//this.elements_ = {};
 	//this.converters_ = {};
 
@@ -141,6 +146,12 @@ function FTLStream(peer, uri, element) {
 		this.start(0,0,0);
 	}
 	this.outer.appendChild(this.play_button);
+
+	this.element.onclick = () => {
+		let pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+		this.setPose(pose);
+	}
+
     this.converter = null;
 
     let rxcount = 0;
@@ -176,16 +187,28 @@ function FTLStream(peer, uri, element) {
 				}
 			}
         } else if (pckg[0] === 103) {
-			console.log(msgpack.decode(pckg[5]));
+			//console.log(msgpack.decode(pckg[5]));
 		}
 	});
 	
 	//this.start();
 }
 
+FTLStream.prototype.setPose = function(pose) {
+	if (pose.length != 16) {
+		console.error("Invalid pose");
+		return;
+	}
+	this.peer.send(this.uri, 0, [1, this.current_fs, this.current_source, 66],
+		[103, 7, 1, 0, 0, msgpack.encode(pose)]);
+}
+
 FTLStream.prototype.start = function(fs, source, channel) {
 	let id = "id-"+fs+"-"+source+"-"+channel;
 	this.current = id;
+	this.current_fs = fs;
+	this.current_source = source;
+	this.current_channel = channel;
 
 	if (this.found) {
 		this.peer.send(this.uri, 0, [1,fs,255,channel],[255,7,35,0,0,Buffer.alloc(0)]);

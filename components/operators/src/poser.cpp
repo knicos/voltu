@@ -55,6 +55,22 @@ bool Poser::get(const std::string &name, Eigen::Matrix4d &pose) {
 	}
 }
 
+bool Poser::set(const std::string &name, const Eigen::Matrix4d &pose) {
+	auto p = pose_db__.find(name);
+	if (p == pose_db__.end()) {
+		ftl::operators::Poser::PoseState ps;
+		ps.pose = pose;
+		ps.locked = false;
+		pose_db__.emplace(std::make_pair(name,ps));
+		LOG(INFO) << "POSE ID: " << name;
+	} else {
+		// TODO: Merge poses
+		if (!(*p).second.locked) (*p).second.pose = pose;
+		//LOG(INFO) << "POSE ID: " << idstr;
+	}
+	return true;
+}
+
 bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) {
     if (in.hasChannel(Channel::Shapes3D)) {
         std::vector<ftl::codecs::Shape3D> transforms;

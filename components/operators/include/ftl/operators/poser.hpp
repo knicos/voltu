@@ -23,6 +23,7 @@ class Poser : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 
 	static bool get(const std::string &name, Eigen::Matrix4d &pose);
+	static bool set(const std::string &name, const Eigen::Matrix4d &pose);
 
     private:
 	struct PoseState {

@@ -16,6 +16,7 @@
 #include <ftl/operators/gt_analysis.hpp>
 #include <ftl/operators/poser.hpp>
 #include <ftl/cuda/colour_cuda.hpp>
+#include <ftl/streams/parsers.hpp>
 
 #include <ftl/render/overlay.hpp>
 #include "statsimage.hpp"
@@ -847,7 +848,14 @@ void ftl::gui::Camera::startVideoRecording(const std::string &filename, const st
 		record_sender_ = ftl::create<ftl::stream::Sender>(screen_->root(), "videoEncode");
 		record_sender_->value("codec", 2);  // Default H264
 		record_sender_->set("iframes", 50);  // Add iframes by default
-		record_sender_->value("stereo", true);  // If both channels, then default to stereo
+		record_sender_->value("stereo", false);  // If both channels, then default to stereo
+
+		record_sender_->onRequest([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+			if (spkt.channel == ftl::codecs::Channel::Pose) {
+				auto pose = ftl::stream::parsePose(pkt);
+				ftl::operators::Poser::set(std::string("live"), pose);
+			}
+		});
 	}
 
 	if (record_stream_->active()) return;

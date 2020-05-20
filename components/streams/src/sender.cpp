@@ -44,7 +44,7 @@ void Sender::setStream(ftl::stream::Stream*s) {
 	if (stream_) stream_->onPacket(nullptr);
 	stream_ = s;
 	stream_->onPacket([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		//LOG(INFO) << "SENDER REQUEST : " << (int)spkt.channel;
+		LOG(INFO) << "SENDER REQUEST : " << (int)spkt.channel;
 
 		//if (state_cb_) state_cb_(spkt.channel, spkt.streamID, spkt.frame_number);
 		if (reqcb_) reqcb_(spkt,pkt);
