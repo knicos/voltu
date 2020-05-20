@@ -54,6 +54,12 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 		recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
 		recordbutton_->setPushed(false);
 	});
+	itembutton = new Button(recordpopup, "Virtual camera Live");
+	itembutton->setCallback([this]() {
+		_startRecording(RecordMode::Live2D);
+		recordbutton_->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
+		recordbutton_->setPushed(false);
+	});
 	itembutton = new Button(recordpopup, "3D scene snapshot (.ftl)");
 	itembutton->setCallback([this]() {
 		_startRecording(RecordMode::Snapshot3D);
@@ -208,6 +214,7 @@ void MediaPanel::_startRecording(MediaPanel::RecordMode mode) {
 	case RecordMode::Snapshot3D		:
 	case RecordMode::Video3D		: filename += ".ftl"; break;
 	case RecordMode::Video2D		: filename += ".ftl"; break;
+	case RecordMode::Live2D			: break;
 	default: return;
 	}
 
@@ -218,14 +225,16 @@ void MediaPanel::_startRecording(MediaPanel::RecordMode mode) {
 		screen_->activeCamera()->snapshot(filename);
 	} else if (mode == RecordMode::Video2D) {
 		record_mode_ = mode;
-		screen_->activeCamera()->startVideoRecording(filename);
+		screen_->activeCamera()->startVideoRecording(filename, "");
+	} else if (mode == RecordMode::Live2D) {
+		screen_->activeCamera()->startVideoRecording("", "ftl://live.utu.fi");
 	}
 }
 
 void MediaPanel::_stopRecording() {
 	if (record_mode_ == RecordMode::Video3D) {
 		sourceWindow_->stopRecordingVideo();
-	} else if (record_mode_ == RecordMode::Video2D) {
+	} else if (record_mode_ == RecordMode::Video2D || record_mode_ == RecordMode::Live2D) {
 		screen_->activeCamera()->stopVideoRecording();
 	}
 	record_mode_ = RecordMode::None;

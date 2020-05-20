@@ -56,7 +56,9 @@ class MediaPanel : public nanogui::Window {
 		Snapshot2D,
 		Snapshot3D,
 		Video2D,
-		Video3D
+		Video3D,
+		Live2D,
+		Live3D
 	};
 	RecordMode record_mode_;
 

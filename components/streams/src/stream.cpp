@@ -180,10 +180,27 @@ void Broadcast::add(Stream *s) {
 	UNIQUE_LOCK(mutex_,lk);
 
 	streams_.push_back(s);
-	s->onPacket([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	s->onPacket([this,s](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		LOG(INFO) << "BCAST Request: " << (int)spkt.streamID << " " << (int)spkt.channel << " " << spkt.timestamp;
 		SHARED_LOCK(mutex_, lk);
+		if (spkt.frameSetID() < 255) available(spkt.frameSetID()) += spkt.channel;
 		if (cb_) cb_(spkt, pkt);
+		if (spkt.streamID < 255) s->select(spkt.streamID, selected(spkt.streamID));
 	});
+}
+
+void Broadcast::remove(Stream *s) {
+	UNIQUE_LOCK(mutex_,lk);
+	s->onPacket(nullptr);
+	streams_.remove(s);
+}
+
+void Broadcast::clear() {
+	UNIQUE_LOCK(mutex_,lk);
+	for (auto s : streams_) {
+		s->onPacket(nullptr);
+	}
+	streams_.clear();
 }
 
 bool Broadcast::onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &cb) {
@@ -194,9 +211,11 @@ bool Broadcast::onPacket(const std::function<void(const ftl::codecs::StreamPacke
 
 bool Broadcast::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	SHARED_LOCK(mutex_, lk);
-	
+	if (spkt.frameSetID() < 255) available(spkt.frameSetID()) += spkt.channel;
+
 	bool status = true;
 	for (auto s : streams_) {
+		//s->select(spkt.frameSetID(), selected(spkt.frameSetID()));
 		status = status && s->post(spkt, pkt);
 	}
 	return status;
@@ -219,6 +238,7 @@ bool Broadcast::end() {
 }
 
 bool Broadcast::active() {
+	if (streams_.size() == 0) return false;
 	bool r = true;
 	for (auto &s : streams_) {
 		r = r && s->active();

@@ -203,7 +203,7 @@ bool ftl::net::ws_connect(SOCKET sockfd, const URI &uri) {
 	http += "\r\n";
 	int rc = ::send(sockfd, http.c_str(), (int)http.length(), 0);
 	if (rc != (int)http.length()) {
-		LOG(ERROR) << "Could not send Websocket http request...";
+		LOG(ERROR) << "Could not send Websocket http request... (" << rc << ", " << errno << ")";
 		std::cout << http;
 		return false;
 	}

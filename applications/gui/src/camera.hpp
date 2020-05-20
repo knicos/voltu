@@ -8,6 +8,7 @@
 #include "gltexture.hpp"
 
 #include <ftl/streams/filestream.hpp>
+#include <ftl/streams/netstream.hpp>
 #include <ftl/streams/sender.hpp>
 #include <ftl/codecs/faces.hpp>
 
@@ -96,7 +97,7 @@ class Camera {
 
 	void snapshot(const std::string &filename);
 
-	void startVideoRecording(const std::string &filename);
+	void startVideoRecording(const std::string &filename, const std::string &uri);
 
 	void stopVideoRecording();
 
@@ -173,7 +174,9 @@ class Camera {
 	ftl::operators::Graph *post_pipe_;
 	ftl::rgbd::Frame frame_;
 	ftl::rgbd::FrameState state_;
-	ftl::stream::File *record_stream_;
+	ftl::stream::File *file_stream_;
+	ftl::stream::Net *net_stream_;
+	ftl::stream::Broadcast *record_stream_;
 	ftl::stream::Sender *record_sender_;
 
 	std::string name_;

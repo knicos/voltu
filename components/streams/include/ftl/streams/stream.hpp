@@ -155,6 +155,8 @@ class Broadcast : public Stream {
 	virtual ~Broadcast();
 
 	void add(Stream *);
+	void remove(Stream *);
+	void clear();
 
 	bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &) override;
 
