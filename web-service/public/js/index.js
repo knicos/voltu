@@ -107,8 +107,8 @@ createCard = (url, viewers) => {
 
 createPeer = () => {
     // FOR PRODUCTION
-    //const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
-    const ws = new WebSocket("ws://localhost:8080")
+    const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
+    //const ws = new WebSocket("ws://localhost:8080")
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
 }
