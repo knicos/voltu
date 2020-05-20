@@ -147,7 +147,7 @@ connectToStream = () => {
                 if (ts > 0) {
                     dts = streampckg[0] - ts;
                     console.log("Framerate = ", 1000/dts);
-                    converter = new VideoConverter.default(element, 1000/dts, 6);
+                    converter = new VideoConverter.default(element, 30, 1);
                 }
                 ts = streampckg[0];
             }

@@ -124,7 +124,7 @@ RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 		else this.rgb = packet[5];
 	}
 
-	console.log("Frame = ", packet[0], packet[1]);
+	//console.log("Frame = ", packet[0], packet[1]);
 
 	for (let i=0; i < this.clients.length; i++) {
 		this.clients[i].push(this.uri, latency, spacket, packet);
