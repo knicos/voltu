@@ -349,6 +349,8 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 
 				FTL_Profile("Encoder",0.02);
 
+				LOG(INFO) << "Enocode bitrate: " << (int)pkt.bitrate;
+
 				if (enc->encode(sroi, pkt)) {
 					stream_->post(spkt, pkt);
 

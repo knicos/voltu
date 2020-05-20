@@ -42,7 +42,7 @@ MediaPanel::MediaPanel(ftl::gui::Screen *screen, ftl::gui::SourceWindow *sourceW
 	auto recordpopup = recordbutton_->popup();
 	recordpopup->setLayout(new GroupLayout());
 	recordpopup->setTheme(screen->toolbuttheme);
-	recordpopup->setAnchorHeight(150);
+	recordpopup->setAnchorHeight(180);
 	auto itembutton = new Button(recordpopup, "2D snapshot (.png)");
 	itembutton->setCallback([this]() {
 		_startRecording(RecordMode::Snapshot2D);
@@ -227,6 +227,7 @@ void MediaPanel::_startRecording(MediaPanel::RecordMode mode) {
 		record_mode_ = mode;
 		screen_->activeCamera()->startVideoRecording(filename, "");
 	} else if (mode == RecordMode::Live2D) {
+		record_mode_ = mode;
 		screen_->activeCamera()->startVideoRecording("", "ftl://live.utu.fi");
 	}
 }

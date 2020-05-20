@@ -88,7 +88,7 @@ static uint64_t calculateBitrate(definition_t def, float ratescale) {
 	}
 
 	bitrate *= 1000.0f*1000.0f;
-	float minrate = 0.25f * bitrate;
+	float minrate = 0.05f * bitrate;
 	return uint64_t((bitrate - minrate)*ratescale + minrate);
 }
 
@@ -167,13 +167,14 @@ bool NvPipeEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 
 	if (!_createEncoder(pkt, fmt)) return false;
 
-	if (isLossy(pkt.codec) && pkt.bitrate != last_bitrate_) {
+	// Doesn't seem to work
+	/*if (isLossy(pkt.codec) && pkt.bitrate != last_bitrate_) {
 		uint64_t bitrate = calculateBitrate(pkt.definition, float(pkt.bitrate)/255.0f) * pkt.frame_count;
 		const int fps = 1000/ftl::timer::getInterval();
 		LOG(INFO) << "Changing bitrate: " << bitrate;
 		NvPipe_SetBitrate(nvenc_, bitrate, fps);
 		last_bitrate_ = pkt.bitrate;
-	}
+	}*/
 
 	//LOG(INFO) << "NvPipe Encode: " << int(definition) << " " << in.cols;
 
@@ -262,7 +263,7 @@ static NvPipe_Format selectFormat(const Packet &pkt, format_t fmt) {
 bool NvPipeEncoder::_encoderMatch(const ftl::codecs::Packet &pkt, format_t fmt) {
 	return	compression_ == selectCompression(pkt, fmt) &&
 			format_ == selectFormat(pkt, fmt) &&
-			codec_ == selectCodec(pkt);
+			codec_ == selectCodec(pkt) && last_bitrate_ == pkt.bitrate;
 }
 
 bool NvPipeEncoder::_createEncoder(const ftl::codecs::Packet &pkt, format_t fmt) {
