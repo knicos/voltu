@@ -148,15 +148,6 @@ function FTLStream(peer, uri, element) {
 	}
 	this.outer.appendChild(this.play_button);
 
-	// Create some controls
-	this.control_up = document.createElement("BUTTON");
-	this.control_up.innerHTML = "Up";
-	this.control_up.onclick = () => {
-		this.translateY += 0.05;
-		this.updatePose();
-	};
-	this.outer.appendChild(this.control_up);
-
 	this.element.onkeypress = (event) => {
 		console.log(event);
 		switch(event.code) {
@@ -164,6 +155,15 @@ function FTLStream(peer, uri, element) {
 		case "KeyS"		: this.translateZ -= 0.05; this.updatePose(); break;
 		case "KeyA"		: this.translateX -= 0.05; this.updatePose(); break;
 		case "KeyD"		: this.translateX += 0.05; this.updatePose(); break;
+		}
+	}
+
+	this.element.onmousemove = (event) => {
+		console.log(event);
+		if (event.buttons == 1) {
+			this.rotationX += event.movementY * (1/25) * 5.0;
+			this.rotationY -= event.movementX * (1/25) * 5.0;
+			this.updatePose();
 		}
 	}
 
