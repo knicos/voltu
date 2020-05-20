@@ -7,9 +7,10 @@
     "test": "test"
   },
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node server/src/index.js",
     "watch": "nodemon src/index.js",
-    "test": "mocha test"
+	"test": "mocha test",
+	"build": "browserify ./public/js/index.js -o ./public/js/bundle.js"
   },
   "author": "Nicolas Pope",
   "license": "ISC",
@@ -20,6 +21,7 @@
     "h264-converter": "^0.1.0",
     "mongoose": "^5.7.3",
     "msgpack5": "^4.2.1",
+    "rematrix": "^0.7.0",
     "url-parse": "^1.4.7",
     "uuid": "^3.3.3"
   },

@@ -42,10 +42,10 @@ webserver-deploy:
   variables:
     NODE_SERVER: '10.0.0.9'
   script:
-    - npm install web-service/server
+    - npm install web-service
     - browserify web-service/public/js/index.js -o web-service/public/js/bundle.js
     - rsync -vr --delete web-service/ nodejs@${NODE_SERVER}:/srv/nodejs/web-service
-    - ssh nodejs@${NODE_SERVER} -- "npm install web-service/server && pm2 restart web-service"
+    - ssh nodejs@${NODE_SERVER} -- "npm install web-service && pm2 restart web-service"
     - doxygen
     - rsync -vr --delete doc/ nodejs@${NODE_SERVER}:/srv/nodejs/doc
 

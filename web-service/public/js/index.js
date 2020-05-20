@@ -1,6 +1,7 @@
 const Peer = require('../../server/src/peer')
 const VideoConverter = require('./lib/dist/video-converter');
 const msgpack = require('msgpack5')();
+const rematrix = require('rematrix');
 
 let current_data = {};
 let peer;
@@ -148,7 +149,8 @@ function FTLStream(peer, uri, element) {
 	this.outer.appendChild(this.play_button);
 
 	this.element.onclick = () => {
-		let pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+		//let pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+		let pose = rematrix.rotateZ(45);
 		this.setPose(pose);
 	}
 
