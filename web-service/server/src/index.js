@@ -114,7 +114,7 @@ RGBDStream.prototype.subscribe = function() {
 	//console.log("Subscribe to ", this.uri);
 	// TODO: Don't hard code 9 here, instead use 9 for thumbnails and 0 for
 	// the video...
-	this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
+	//this.peer.send("get_stream", this.uri, 10, 0, [Peer.uuid], this.uri);
 }
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
@@ -158,7 +158,7 @@ app.get('/streams', (req, res) => {
 app.get('/stream/rgb', (req, res) => {
 	let uri = req.query.uri;
 	if (uri_data.hasOwnProperty(uri)) {
-		uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
+		//uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
 		res.end(uri_data[uri].rgb);
 	}
@@ -298,8 +298,9 @@ app.ws('/', (ws, req) => {
 		if (puris) {
 			for (let i=0; i<puris.length; i++) {
 				console.log("Removing stream: ", puris[i]);
-				//delete uri_to_peer[puris[i]];
+				delete uri_to_peer[puris[i]];
 				delete uri_data[puris[i]];
+				//p.unbind(pu)
 			}
 			delete peer_uris[peer.string_id];
 		}
@@ -331,11 +332,15 @@ app.ws('/', (ws, req) => {
 			if (!p.isBound(uri)) {
 				console.log("Adding local stream binding");
 				p.bind(uri, (ttimeoff, spkt, pkt) => {
-					console.log("STREAM: ", spkt);
+					console.log("STREAM: ", ttimeoff, spkt, pkt);
 					let speer = uri_to_peer[parsedURI];
 					if (speer) {
+						try {
 						uri_data[parsedURI].addClient(p);
 						speer.send(parsedURI, ttimeoff, spkt, pkt);
+						} catch(e) {
+							console.error("EXCEPTION", e);
+						}
 					} else if (speer) console.log("Stream response");
 					else console.error("No stream peer");
 				});
@@ -393,7 +398,7 @@ app.ws('/', (ws, req) => {
 	});
 
 	// Request from frames from a source
-	p.bind("get_stream", (uri, N, rate, /*pid,*/ dest) => {
+	/*p.bind("get_stream", (uri, N, rate, dest) => {
 		console.log(uri)
 		const parsedURI = stringSplitter(uri);
 		if(uri_data[uri]){
@@ -409,7 +414,7 @@ app.ws('/', (ws, req) => {
 			console.log("Couldn't get stream for ", uri)
 			return "{}";
 		}
-	});
+	});*/
 
 	/**
 	 * Get JSON values for stream configuration

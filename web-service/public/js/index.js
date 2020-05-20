@@ -107,8 +107,8 @@ createCard = (url, viewers) => {
 
 createPeer = () => {
     // FOR PRODUCTION
-    const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
-    // const ws = new WebSocket("ws://localhost:8080")
+    //const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
+    const ws = new WebSocket("ws://localhost:8080")
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
 }
@@ -120,20 +120,45 @@ webSocketTest = () => {
 
 connectToStream = () => {
     const element = document.getElementById('ftlab-stream-video');
-    const converter = new VideoConverter.default(element, 20, 6);
+    let converter = null;
+
+    let rxcount = 0;
+    let ts = 0;
+    let dts = 0;
 
     peer.bind(current_data.uri, (latency, streampckg, pckg) => {
         if(pckg[0] === 2){
-            function decode(value){
-                converter.appendRawData(value);
+            rxcount++;
+            if (rxcount >= 25) {
+                rxcount = 0;
+                peer.send(current_data.uri, 0, [1,0,255,0],[255,7,35,0,0,Buffer.alloc(0)]);
+                //peer.send(current_data.uri, 0, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
             }
-            decode(pckg[5]);
-            converter.play();
+
+            if (converter) {
+                function decode(value){
+                    converter.appendRawData(value);
+                }
+                decode(pckg[5]);
+                converter.play();
+            } else {
+                if (ts > 0) {
+                    dts = streampckg[0] - ts;
+                    console.log("Framerate = ", 1000/dts);
+                    converter = new VideoConverter.default(element, 1000/dts, 6);
+                }
+                ts = streampckg[0];
+            }
         };
     })
 
     // Start the transaction
-    peer.send("get_stream", (current_data.uri, 30, 0, current_data.uri));
+    //peer.send("get_stream", (current_data.uri, 30, 0, current_data.uri));
+
+    peer.rpc("find_stream", (res) => {
+        peer.send(current_data.uri, 0, [1,0,255,0],[255,7,35,0,0,Buffer.alloc(0)]);
+        //peer.send(current_data.uri, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
+    }, current_data.uri);
 }
 
 closeStream = () => {

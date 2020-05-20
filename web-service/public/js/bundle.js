@@ -1,4 +1,5 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function (Buffer){
 const Peer = require('../../server/src/peer')
 const VideoConverter = require('./lib/dist/video-converter');
 
@@ -108,8 +109,8 @@ createCard = (url, viewers) => {
 
 createPeer = () => {
     // FOR PRODUCTION
-    const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
-    // const ws = new WebSocket("ws://localhost:8080")
+    //const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
+    const ws = new WebSocket("ws://localhost:8080")
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
 }
@@ -121,20 +122,45 @@ webSocketTest = () => {
 
 connectToStream = () => {
     const element = document.getElementById('ftlab-stream-video');
-    const converter = new VideoConverter.default(element, 20, 6);
+    let converter = null;
+
+    let rxcount = 0;
+    let ts = 0;
+    let dts = 0;
 
     peer.bind(current_data.uri, (latency, streampckg, pckg) => {
         if(pckg[0] === 2){
-            function decode(value){
-                converter.appendRawData(value);
+            rxcount++;
+            if (rxcount >= 25) {
+                rxcount = 0;
+                peer.send(current_data.uri, 0, [1,0,255,0],[255,7,35,0,0,Buffer.alloc(0)]);
+                //peer.send(current_data.uri, 0, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
             }
-            decode(pckg[5]);
-            converter.play();
+
+            if (converter) {
+                function decode(value){
+                    converter.appendRawData(value);
+                }
+                decode(pckg[5]);
+                converter.play();
+            } else {
+                if (ts > 0) {
+                    dts = streampckg[0] - ts;
+                    console.log("Framerate = ", 1000/dts);
+                    converter = new VideoConverter.default(element, 1000/dts, 6);
+                }
+                ts = streampckg[0];
+            }
         };
     })
 
     // Start the transaction
-    peer.send("get_stream", (current_data.uri, 30, 0, current_data.uri));
+    //peer.send("get_stream", (current_data.uri, 30, 0, current_data.uri));
+
+    peer.rpc("find_stream", (res) => {
+        peer.send(current_data.uri, 0, [1,0,255,0],[255,7,35,0,0,Buffer.alloc(0)]);
+        //peer.send(current_data.uri, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
+    }, current_data.uri);
 }
 
 closeStream = () => {
@@ -194,7 +220,8 @@ saveConfigs = async () => {
     });
     const content = await rawResp.json();
 }
-},{"../../server/src/peer":36,"./lib/dist/video-converter":9}],2:[function(require,module,exports){
+}).call(this,require("buffer").Buffer)
+},{"../../server/src/peer":36,"./lib/dist/video-converter":9,"buffer":44}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var bit_stream_1 = require("./util/bit-stream");
@@ -1914,7 +1941,7 @@ BufferList.prototype._match = function(offset, search) {
 
 module.exports = BufferList
 
-},{"readable-stream":28,"safe-buffer":29,"util":53}],11:[function(require,module,exports){
+},{"readable-stream":27,"safe-buffer":28,"util":53}],11:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -2144,7 +2171,7 @@ function msgpack (options) {
 
 module.exports = msgpack
 
-},{"./lib/decoder":15,"./lib/encoder":16,"./lib/streams":17,"assert":38,"bl":10,"safe-buffer":29}],15:[function(require,module,exports){
+},{"./lib/decoder":15,"./lib/encoder":16,"./lib/streams":17,"assert":38,"bl":10,"safe-buffer":28}],15:[function(require,module,exports){
 'use strict'
 
 var bl = require('bl')
@@ -2927,7 +2954,7 @@ function encodeFloat (obj, forceFloat64) {
   return buf
 }
 
-},{"bl":10,"safe-buffer":29}],17:[function(require,module,exports){
+},{"bl":10,"safe-buffer":28}],17:[function(require,module,exports){
 'use strict'
 
 var Transform = require('readable-stream').Transform
@@ -3019,7 +3046,7 @@ Decoder.prototype._transform = function (buf, enc, done) {
 module.exports.decoder = Decoder
 module.exports.encoder = Encoder
 
-},{"bl":10,"inherits":12,"readable-stream":28}],18:[function(require,module,exports){
+},{"bl":10,"inherits":12,"readable-stream":27}],18:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -3114,7 +3141,7 @@ var objectKeys = Object.keys || function (obj) {
 module.exports = Duplex;
 
 /*<replacement>*/
-var util = require('core-util-is');
+var util = Object.create(require('core-util-is'));
 util.inherits = require('inherits');
 /*</replacement>*/
 
@@ -3233,7 +3260,7 @@ module.exports = PassThrough;
 var Transform = require('./_stream_transform');
 
 /*<replacement>*/
-var util = require('core-util-is');
+var util = Object.create(require('core-util-is'));
 util.inherits = require('inherits');
 /*</replacement>*/
 
@@ -3316,7 +3343,7 @@ function _isUint8Array(obj) {
 /*</replacement>*/
 
 /*<replacement>*/
-var util = require('core-util-is');
+var util = Object.create(require('core-util-is'));
 util.inherits = require('inherits');
 /*</replacement>*/
 
@@ -4270,7 +4297,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":19,"./internal/streams/BufferList":24,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":49,"core-util-is":11,"events":45,"inherits":12,"isarray":13,"process-nextick-args":18,"safe-buffer":29,"string_decoder/":27,"util":43}],22:[function(require,module,exports){
+},{"./_stream_duplex":19,"./internal/streams/BufferList":24,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":49,"core-util-is":11,"events":45,"inherits":12,"isarray":13,"process-nextick-args":18,"safe-buffer":28,"string_decoder/":29,"util":43}],22:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4341,7 +4368,7 @@ module.exports = Transform;
 var Duplex = require('./_stream_duplex');
 
 /*<replacement>*/
-var util = require('core-util-is');
+var util = Object.create(require('core-util-is'));
 util.inherits = require('inherits');
 /*</replacement>*/
 
@@ -4553,7 +4580,7 @@ var Duplex;
 Writable.WritableState = WritableState;
 
 /*<replacement>*/
-var util = require('core-util-is');
+var util = Object.create(require('core-util-is'));
 util.inherits = require('inherits');
 /*</replacement>*/
 
@@ -5175,7 +5202,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":19,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":49,"core-util-is":11,"inherits":12,"process-nextick-args":18,"safe-buffer":29,"timers":50,"util-deprecate":30}],24:[function(require,module,exports){
+},{"./_stream_duplex":19,"./internal/streams/destroy":25,"./internal/streams/stream":26,"_process":49,"core-util-is":11,"inherits":12,"process-nextick-args":18,"safe-buffer":28,"timers":50,"util-deprecate":30}],24:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -5255,7 +5282,7 @@ if (util && util.inspect && util.inspect.custom) {
     return this.constructor.name + ' ' + obj;
   };
 }
-},{"safe-buffer":29,"util":43}],25:[function(require,module,exports){
+},{"safe-buffer":28,"util":43}],25:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -5334,6 +5361,79 @@ module.exports = {
 module.exports = require('events').EventEmitter;
 
 },{"events":45}],27:[function(require,module,exports){
+exports = module.exports = require('./lib/_stream_readable.js');
+exports.Stream = exports;
+exports.Readable = exports;
+exports.Writable = require('./lib/_stream_writable.js');
+exports.Duplex = require('./lib/_stream_duplex.js');
+exports.Transform = require('./lib/_stream_transform.js');
+exports.PassThrough = require('./lib/_stream_passthrough.js');
+
+},{"./lib/_stream_duplex.js":19,"./lib/_stream_passthrough.js":20,"./lib/_stream_readable.js":21,"./lib/_stream_transform.js":22,"./lib/_stream_writable.js":23}],28:[function(require,module,exports){
+/* eslint-disable node/no-deprecated-api */
+var buffer = require('buffer')
+var Buffer = buffer.Buffer
+
+// alternative to using Object.keys for old browsers
+function copyProps (src, dst) {
+  for (var key in src) {
+    dst[key] = src[key]
+  }
+}
+if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
+  module.exports = buffer
+} else {
+  // Copy properties from require('buffer')
+  copyProps(buffer, exports)
+  exports.Buffer = SafeBuffer
+}
+
+function SafeBuffer (arg, encodingOrOffset, length) {
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+// Copy static methods from Buffer
+copyProps(Buffer, SafeBuffer)
+
+SafeBuffer.from = function (arg, encodingOrOffset, length) {
+  if (typeof arg === 'number') {
+    throw new TypeError('Argument must not be a number')
+  }
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+SafeBuffer.alloc = function (size, fill, encoding) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  var buf = Buffer(size)
+  if (fill !== undefined) {
+    if (typeof encoding === 'string') {
+      buf.fill(fill, encoding)
+    } else {
+      buf.fill(fill)
+    }
+  } else {
+    buf.fill(0)
+  }
+  return buf
+}
+
+SafeBuffer.allocUnsafe = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return Buffer(size)
+}
+
+SafeBuffer.allocUnsafeSlow = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return buffer.SlowBuffer(size)
+}
+
+},{"buffer":44}],29:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5630,80 +5730,7 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":29}],28:[function(require,module,exports){
-exports = module.exports = require('./lib/_stream_readable.js');
-exports.Stream = exports;
-exports.Readable = exports;
-exports.Writable = require('./lib/_stream_writable.js');
-exports.Duplex = require('./lib/_stream_duplex.js');
-exports.Transform = require('./lib/_stream_transform.js');
-exports.PassThrough = require('./lib/_stream_passthrough.js');
-
-},{"./lib/_stream_duplex.js":19,"./lib/_stream_passthrough.js":20,"./lib/_stream_readable.js":21,"./lib/_stream_transform.js":22,"./lib/_stream_writable.js":23}],29:[function(require,module,exports){
-/* eslint-disable node/no-deprecated-api */
-var buffer = require('buffer')
-var Buffer = buffer.Buffer
-
-// alternative to using Object.keys for old browsers
-function copyProps (src, dst) {
-  for (var key in src) {
-    dst[key] = src[key]
-  }
-}
-if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
-  module.exports = buffer
-} else {
-  // Copy properties from require('buffer')
-  copyProps(buffer, exports)
-  exports.Buffer = SafeBuffer
-}
-
-function SafeBuffer (arg, encodingOrOffset, length) {
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-// Copy static methods from Buffer
-copyProps(Buffer, SafeBuffer)
-
-SafeBuffer.from = function (arg, encodingOrOffset, length) {
-  if (typeof arg === 'number') {
-    throw new TypeError('Argument must not be a number')
-  }
-  return Buffer(arg, encodingOrOffset, length)
-}
-
-SafeBuffer.alloc = function (size, fill, encoding) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  var buf = Buffer(size)
-  if (fill !== undefined) {
-    if (typeof encoding === 'string') {
-      buf.fill(fill, encoding)
-    } else {
-      buf.fill(fill)
-    }
-  } else {
-    buf.fill(0)
-  }
-  return buf
-}
-
-SafeBuffer.allocUnsafe = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return Buffer(size)
-}
-
-SafeBuffer.allocUnsafeSlow = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return buffer.SlowBuffer(size)
-}
-
-},{"buffer":44}],30:[function(require,module,exports){
+},{"safe-buffer":28}],30:[function(require,module,exports){
 (function (global){
 
 /**
@@ -5798,14 +5825,16 @@ function bytesToUuid(buf, offset) {
   var i = offset || 0;
   var bth = byteToHex;
   // join used to fix memory issue caused by concatenation: https://bugs.chromium.org/p/v8/issues/detail?id=3175#c4
-  return ([bth[buf[i++]], bth[buf[i++]], 
-	bth[buf[i++]], bth[buf[i++]], '-',
-	bth[buf[i++]], bth[buf[i++]], '-',
-	bth[buf[i++]], bth[buf[i++]], '-',
-	bth[buf[i++]], bth[buf[i++]], '-',
-	bth[buf[i++]], bth[buf[i++]],
-	bth[buf[i++]], bth[buf[i++]],
-	bth[buf[i++]], bth[buf[i++]]]).join('');
+  return ([
+    bth[buf[i++]], bth[buf[i++]],
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]],
+    bth[buf[i++]], bth[buf[i++]],
+    bth[buf[i++]], bth[buf[i++]]
+  ]).join('');
 }
 
 module.exports = bytesToUuid;
@@ -5862,7 +5891,7 @@ var _clockseq;
 var _lastMSecs = 0;
 var _lastNSecs = 0;
 
-// See https://github.com/broofa/node-uuid for API details
+// See https://github.com/uuidjs/uuid for API details
 function v1(options, buf, offset) {
   var i = buf && offset || 0;
   var b = buf || [];
@@ -6032,7 +6061,6 @@ function Peer(ws) {
 	this.master = false;
 
 	let message = (raw) => {
-		// console.log(raw)
 		//Gets right data for client
 		if(this.sock.on === undefined){
 			raw = raw.data;
@@ -6175,6 +6203,10 @@ Peer.prototype.bind = function(name, f) {
 	} else {
 		this.bindings[name] = f;
 	}
+}
+
+Peer.prototype.isBound = function(name) {
+	return this.bindings.hasOwnProperty(name) || this.proxies.hasOwnProperty(name);
 }
 
 /**

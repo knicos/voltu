@@ -834,12 +834,17 @@ void ftl::gui::Camera::snapshot(const std::string &filename) {
 	do_snapshot_ = true;
 }
 
-void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
+void ftl::gui::Camera::startVideoRecording(const std::string &filename, const std::string &uri) {
 	if (!record_stream_) {
-		record_stream_ = ftl::create<ftl::stream::File>(screen_->root(), "video2d");
-		record_stream_->setMode(ftl::stream::File::Mode::Write);
+		file_stream_ = ftl::create<ftl::stream::File>(screen_->root(), "video2d");
+		file_stream_->setMode(ftl::stream::File::Mode::Write);
+		net_stream_ = ftl::create<ftl::stream::Net>(screen_->root(), "liveStream", screen_->net());
+
+		record_stream_ = ftl::create<ftl::stream::Broadcast>(screen_->root(), "recordStream");
+		//record_stream_->add(file_stream_);
+		//record_stream_->add(net_stream_);
+
 		record_sender_ = ftl::create<ftl::stream::Sender>(screen_->root(), "videoEncode");
-		record_sender_->setStream(record_stream_);
 		record_sender_->value("codec", 2);  // Default H264
 		record_sender_->set("iframes", 50);  // Add iframes by default
 		record_sender_->value("stereo", true);  // If both channels, then default to stereo
@@ -847,8 +852,22 @@ void ftl::gui::Camera::startVideoRecording(const std::string &filename) {
 
 	if (record_stream_->active()) return;
 
-	record_stream_->set("filename", filename);
-	record_stream_->begin();
+	record_stream_->clear();
+
+	if (filename.size() > 0) {
+		file_stream_->set("filename", filename);
+		record_stream_->add(file_stream_);
+	}
+
+	if (uri.size() > 0) {
+		net_stream_->set("uri", uri);
+		record_stream_->add(net_stream_);
+	}
+
+	record_sender_->setStream(record_stream_);
+
+	LOG(INFO) << "About to record";
+	if (record_stream_->begin()) LOG(INFO) << "Recording started...";
 }
 
 void ftl::gui::Camera::stopVideoRecording() {

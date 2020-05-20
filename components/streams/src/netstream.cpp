@@ -231,6 +231,9 @@ bool Net::begin() {
 		LOG(INFO) << "Hosting stream: " << uri_;
 		// TODO: Register URI as available.
 		host_ = true;
+
+		net_->broadcast("add_stream", uri_);
+
 		return true;
 	} else {
 		//LOG(INFO) << "Net cfg: " << net_->call<std::string>(*p, "get_cfg", uri_);
@@ -275,7 +278,7 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 	StreamPacket spkt = {
 		4,
 		ftl::timer::get_time(),
-		frameset,
+		0,
 		frames,
 		c,
 		0,
