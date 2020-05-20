@@ -148,10 +148,37 @@ function FTLStream(peer, uri, element) {
 	}
 	this.outer.appendChild(this.play_button);
 
+	// Create some controls
+	this.control_up = document.createElement("BUTTON");
+	this.control_up.innerHTML = "Up";
+	this.control_up.onclick = () => {
+		this.translateY += 0.05;
+		this.updatePose();
+	};
+	this.outer.appendChild(this.control_up);
+
+	this.element.onkeypress = (event) => {
+		console.log(event);
+		switch(event.code) {
+		case "KeyW"		: this.translateZ += 0.05; this.updatePose(); break;
+		case "KeyS"		: this.translateZ -= 0.05; this.updatePose(); break;
+		case "KeyA"		: this.translateX -= 0.05; this.updatePose(); break;
+		case "KeyD"		: this.translateX += 0.05; this.updatePose(); break;
+		}
+	}
+
+	this.rotationX = 0;
+	this.rotationY = 0;
+	this.rotationZ = 0;
+	this.translateX = 0;
+	this.translateY = 0;
+	this.translateZ = 0;
+
 	this.element.onclick = () => {
 		//let pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-		let pose = rematrix.rotateZ(45);
-		this.setPose(pose);
+		//this.rotation += 10;
+		//let pose = rematrix.rotateZ(this.rotation);
+		//this.setPose(pose);
 	}
 
     this.converter = null;
@@ -194,6 +221,15 @@ function FTLStream(peer, uri, element) {
 	});
 	
 	//this.start();
+}
+
+FTLStream.prototype.updatePose = function() {
+	let poseRX = rematrix.rotateX(this.rotationX);
+	let poseRY = rematrix.rotateY(this.rotationY);
+	let poseRZ = rematrix.rotateZ(this.rotationZ);
+	let poseT = rematrix.translate3d(this.translateX, this.translateY, this.translateZ);
+	let pose = [poseT,poseRX,poseRY,poseRZ].reduce(rematrix.multiply);
+	this.setPose(pose);
 }
 
 FTLStream.prototype.setPose = function(pose) {
