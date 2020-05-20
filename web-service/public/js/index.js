@@ -1,5 +1,6 @@
 const Peer = require('../../server/src/peer')
 const VideoConverter = require('./lib/dist/video-converter');
+const msgpack = require('msgpack5')();
 
 let current_data = {};
 let peer;
@@ -48,16 +49,18 @@ getAvailableStreams = async () => {
 
 
 createVideoPlayer = () => {
-    const containerDiv = document.getElementById('container')
-    containerDiv.innerHTML = `<h1>Stream from source ${current_data.uri}</h1><br>
+	const containerDiv = document.getElementById('container');
+	containerDiv.innerHTML = '';
+    /*containerDiv.innerHTML = `<h1>Stream from source ${current_data.uri}</h1><br>
         <button onclick="renderThumbnails(); closeStream()">Go back</button>
-        <button onclick="connectToStream()">Start Stream</button><br>
+        <button onclick="connectToStream('${current_data.uri}')">Start Stream</button><br>
         <button onclick="webSocketTest()">WebSocket Test</button><br>
         <video id="ftlab-stream-video" width="640" height="360"></video>`;
     containerDiv.innerHTML += '<br>'
-    containerDiv.innerHTML += ''
+    containerDiv.innerHTML += ''*/
     createPeer();
-    connectToStream();
+	//connectToStream();
+	new FTLStream(peer, current_data.uri, containerDiv);
 }
 
 /**
@@ -106,9 +109,10 @@ createCard = (url, viewers) => {
 
 
 createPeer = () => {
-    // FOR PRODUCTION
-    const ws = new WebSocket("ws://" + location.host + ":" + (location.port == "" ? "80" : location.port) + location.pathname);
-    //const ws = new WebSocket("ws://localhost:8080")
+	// FOR PRODUCTION
+	console.log("HOST", location.host);
+    const ws = new WebSocket("ws://" + location.host + location.pathname);
+	//const ws = new WebSocket("ws://localhost:8080")
     ws.binaryType = "arraybuffer";
     peer = new Peer(ws)
 }
@@ -117,8 +121,84 @@ webSocketTest = () => {
     peer.send("update_cfg", "ftl://utu.fi#reconstruction_default/0/renderer/cool_effect", "true")    
 }
 
+function FTLStream(peer, uri, element) {
+	this.uri = uri;
+	this.peer = peer;
 
-connectToStream = () => {
+	//this.elements_ = {};
+	//this.converters_ = {};
+
+	//const element = document.getElementById('ftlab-stream-video');
+	this.outer = element;
+	this.element = document.createElement("VIDEO");
+	this.element.setAttribute("width", 640);
+	this.element.setAttribute("height", 360);
+	this.element.setAttribute("controls", true);
+	this.outer.appendChild(this.element);
+	this.play_button = document.createElement("BUTTON");
+	this.play_button.innerHTML = "Play";
+	this.play_button.onclick = () => {
+		this.start(0,0,0);
+	}
+	this.outer.appendChild(this.play_button);
+    this.converter = null;
+
+    let rxcount = 0;
+    let ts = 0;
+	let dts = 0;
+
+    this.peer.bind(uri, (latency, streampckg, pckg) => {
+        if(pckg[0] === 2){  // H264 packet.
+			let id = "id-"+streampckg[1]+"-"+streampckg[2]+"-"+streampckg[3];
+
+			if (this.current == id) {
+				rxcount++;
+				if (rxcount >= 25) {
+					rxcount = 0;
+					peer.send(uri, 0, [1,0,255,0],[255,7,35,0,0,Buffer.alloc(0)]);
+					//peer.send(current_data.uri, 0, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
+				}
+			
+				if (this.converter) {
+					/*function decode(value){
+						this.converter.appendRawData(value);
+					}
+					decode(pckg[5]);*/
+					this.converter.appendRawData(pckg[5]);
+					this.converter.play();
+				} else {
+					if (ts > 0) {
+						dts = streampckg[0] - ts;
+						console.log("Framerate = ", 1000/dts);
+						this.converter = new VideoConverter.default(this.element, 30, 1);
+					}
+					ts = streampckg[0];
+				}
+			}
+        } else if (pckg[0] === 103) {
+			console.log(msgpack.decode(pckg[5]));
+		}
+	});
+	
+	//this.start();
+}
+
+FTLStream.prototype.start = function(fs, source, channel) {
+	let id = "id-"+fs+"-"+source+"-"+channel;
+	this.current = id;
+
+	if (this.found) {
+		this.peer.send(this.uri, 0, [1,fs,255,channel],[255,7,35,0,0,Buffer.alloc(0)]);
+	} else {
+		this.peer.rpc("find_stream", (res) => {
+			this.found = true;
+			this.peer.send(this.uri, 0, [1,fs,255,channel],[255,7,35,0,0,Buffer.alloc(0)]);
+		}, this.uri);
+	}
+}
+
+
+/*connectToStream = () => {
     const element = document.getElementById('ftlab-stream-video');
     let converter = null;
 
@@ -149,7 +229,9 @@ connectToStream = () => {
                 }
                 ts = streampckg[0];
             }
-        };
+        } else if (pckg[0] === 103) {
+			console.log(msgpack.decode(pckg[5]));
+		}
     })
 
     // Start the transaction
@@ -159,7 +241,7 @@ connectToStream = () => {
         peer.send(current_data.uri, 0, [1,0,255,0],[255,7,35,0,0,Buffer.alloc(0)]);
         //peer.send(current_data.uri, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
     }, current_data.uri);
-}
+}*/
 
 closeStream = () => {
     peer.sock.close()
