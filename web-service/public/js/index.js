@@ -261,7 +261,7 @@ function FTLStream(peer, uri, element) {
 
 	this.paused = false;
 
-	this.overlay.onkeypress = (event) => {
+	this.overlay.addEventListener('keydown', (event) => {
 		console.log(event);
 		switch(event.code) {
 		case "KeyW"		: this.translateZ += 0.05; this.updatePose(); break;
@@ -269,7 +269,7 @@ function FTLStream(peer, uri, element) {
 		case "KeyA"		: this.translateX -= 0.05; this.updatePose(); break;
 		case "KeyD"		: this.translateX += 0.05; this.updatePose(); break;
 		}
-	}
+	});
 
 	/*this.element.onmousemove = (event) => {
 		console.log(event);
