@@ -2,10 +2,10 @@ const Peer = require('../../server/src/peer')
 const VideoConverter = require('./lib/dist/video-converter');
 const msgpack = require('msgpack5')();
 const rematrix = require('rematrix');
+const THREE = require('three');
 
 let current_data = {};
 let peer;
-let player;
 
 /**
  * Validates that the user is logged in by sending the token 
@@ -136,19 +136,132 @@ function FTLStream(peer, uri, element) {
 
 	//const element = document.getElementById('ftlab-stream-video');
 	this.outer = element;
+	this.outer.classList.add("ftl");
+	this.outer.classList.add("container");
 	this.element = document.createElement("VIDEO");
 	this.element.setAttribute("width", 640);
 	this.element.setAttribute("height", 360);
 	this.element.setAttribute("controls", true);
+	this.element.style.display = "none";
+	this.element.classList.add("ftl");
+	this.element.id = "ftl-video-element";
 	this.outer.appendChild(this.element);
+
+	//this.player = videojs('ftl-video-element');
+	//this.player.vr({projection: '360'});
+
+	this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1100 );
+	this.camera.target = new THREE.Vector3( 0, 0, 0 );
+
+	this.scene = new THREE.Scene();
+
+	var geometry = new THREE.SphereBufferGeometry( 500, 60, 40 );
+	// invert the geometry on the x-axis so that all of the faces point inward
+	geometry.scale( - 1, 1, 1 );
+
+	var texture = new THREE.VideoTexture( this.element );
+	var material = new THREE.MeshBasicMaterial( { map: texture } );
+
+	this.mesh = new THREE.Mesh( geometry, material );
+
+	this.scene.add( this.mesh );
+
+	this.renderer = new THREE.WebGLRenderer();
+	this.renderer.setPixelRatio( window.devicePixelRatio );
+	this.renderer.setSize( window.innerWidth, window.innerHeight );
+	this.outer.appendChild( this.renderer.domElement );
+
+	var me = this;
+
+	this.isUserInteracting = false;
+	this.onPointerDownPointerX = 0;
+	this.onPointerDownPointerY = 0;
+	this.onPointerDownLon = 0;
+	this.onPointerDownLat = 0;
+	this.lon = 0;
+	this.lat = 0;
+	this.distance = 1.0;
+
+	this.overlay = document.createElement("DIV");
+	this.overlay.classList.add("ftl");
+	this.overlay.classList.add("overlay");
+	this.overlay.setAttribute("tabindex","0");
+	this.outer.appendChild(this.overlay);
+
+	this.overlay.addEventListener('mousedown', (event) => {
+		event.preventDefault();
+
+		this.isUserInteracting = true;
+
+		this.onPointerDownPointerX = event.clientX;
+		this.onPointerDownPointerY = event.clientY;
+
+		this.onPointerDownLon = this.lon;
+		this.onPointerDownLat = this.lat;
+	});
+
+	this.overlay.addEventListener('mousemove', (event) => {
+		if ( this.isUserInteracting === true ) {
+			this.lon = ( this.onPointerDownPointerX - event.clientX ) * 0.1 + this.onPointerDownLon;
+			this.lat = ( this.onPointerDownPointerY - event.clientY ) * 0.1 + this.onPointerDownLat;
+		}
+	});
+
+	this.overlay.addEventListener('mouseup', (event) => {
+		this.isUserInteracting = false;
+	});
+
+	this.overlay.addEventListener('wheel', (event) => {
+		event.preventDefault();
+		this.distance += event.deltaY * 0.05;
+		this.distance = THREE.MathUtils.clamp( this.distance, 1, 50 );
+	});
+
+	function update() {
+		me.lat = Math.max( - 85, Math.min( 85, me.lat ) );
+		let phi = THREE.MathUtils.degToRad( 90 - me.lat );
+		let theta = THREE.MathUtils.degToRad( me.lon );
+
+		me.camera.position.x = me.distance * Math.sin( phi ) * Math.cos( theta );
+		me.camera.position.y = me.distance * Math.cos( phi );
+		me.camera.position.z = me.distance * Math.sin( phi ) * Math.sin( theta );
+
+		me.camera.lookAt( me.camera.target );
+
+		me.renderer.render( me.scene, me.camera );
+
+	}
+
+	function animate() {
+
+		requestAnimationFrame( animate );
+		update();
+
+	}
+
+	animate();
+
 	this.play_button = document.createElement("BUTTON");
 	this.play_button.innerHTML = "Play";
+	this.play_button.classList.add("ftl");
+	this.play_button.classList.add("play");
 	this.play_button.onclick = () => {
 		this.start(0,0,0);
 	}
-	this.outer.appendChild(this.play_button);
+	this.overlay.appendChild(this.play_button);
 
-	this.element.onkeypress = (event) => {
+	this.pause_button = document.createElement("BUTTON");
+	this.pause_button.innerHTML = "Pause";
+	this.pause_button.classList.add("ftl");
+	this.pause_button.classList.add("pause");
+	this.pause_button.onclick = () => {
+		this.pause();
+	}
+	this.overlay.appendChild(this.pause_button);
+
+	this.paused = false;
+
+	this.overlay.onkeypress = (event) => {
 		console.log(event);
 		switch(event.code) {
 		case "KeyW"		: this.translateZ += 0.05; this.updatePose(); break;
@@ -158,14 +271,14 @@ function FTLStream(peer, uri, element) {
 		}
 	}
 
-	this.element.onmousemove = (event) => {
+	/*this.element.onmousemove = (event) => {
 		console.log(event);
 		if (event.buttons == 1) {
 			this.rotationX += event.movementY * (1/25) * 5.0;
 			this.rotationY -= event.movementX * (1/25) * 5.0;
 			this.updatePose();
 		}
-	}
+	}*/
 
 	this.rotationX = 0;
 	this.rotationY = 0;
@@ -174,12 +287,12 @@ function FTLStream(peer, uri, element) {
 	this.translateY = 0;
 	this.translateZ = 0;
 
-	this.element.onclick = () => {
+	//this.element.onclick = () => {
 		//let pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 		//this.rotation += 10;
 		//let pose = rematrix.rotateZ(this.rotation);
 		//this.setPose(pose);
-	}
+	//}
 
     this.converter = null;
 
@@ -188,6 +301,8 @@ function FTLStream(peer, uri, element) {
 	let dts = 0;
 
     this.peer.bind(uri, (latency, streampckg, pckg) => {
+		if (this.paused) return;
+
         if(pckg[0] === 2){  // H264 packet.
 			let id = "id-"+streampckg[1]+"-"+streampckg[2]+"-"+streampckg[3];
 
@@ -210,7 +325,7 @@ function FTLStream(peer, uri, element) {
 					if (ts > 0) {
 						dts = streampckg[0] - ts;
 						console.log("Framerate = ", 1000/dts);
-						this.converter = new VideoConverter.default(this.element, 30, 1);
+						this.converter = new VideoConverter.default(this.element, 25, 4);
 					}
 					ts = streampckg[0];
 				}
@@ -221,6 +336,23 @@ function FTLStream(peer, uri, element) {
 	});
 	
 	//this.start();
+	if (this.peer.status == 2) {
+		this.start(0,0,0);
+	} else {
+		this.peer.on("connect", (p)=> {
+			this.start(0,0,0);
+		});
+	}
+}
+
+FTLStream.prototype.pause = function() {
+	this.paused = !this.paused;
+	if (!this.paused) {
+		this.start(0,0,0);
+		this.element.play();
+	} else {
+		this.element.pause();
+	}
 }
 
 FTLStream.prototype.updatePose = function() {
