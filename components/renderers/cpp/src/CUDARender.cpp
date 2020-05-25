@@ -404,6 +404,7 @@ void CUDARender::_updateParameters(ftl::rgbd::Frame &out, ftl::codecs::Channel c
 	params_.disconDisparities = value("discon_disparities", 2.0f);
 	params_.accumulationMode = static_cast<ftl::render::AccumulationFunction>(value("accumulation_func", 0));
 	params_.m_flags = 0;
+	params_.projection = static_cast<ftl::rgbd::Projection>(value("projection",0));
 	if (value("normal_weight_colours", true)) params_.m_flags |= ftl::render::kNormalWeightColours;
 	if (value("channel_weights", false)) params_.m_flags |= ftl::render::kUseWeightsChannel;
 }

@@ -9,6 +9,7 @@
 
 using ftl::cuda::TextureObject;
 using ftl::render::Parameters;
+using ftl::rgbd::Projection;
 
 /*
  * DIBR point cloud with a depth check
@@ -26,11 +27,13 @@ using ftl::render::Parameters;
 
 	const float3 camPos = transform * cam.screenToCam(x,y,d0);
 
-	const float d = camPos.z;
+	//const float d = camPos.z;
 
-	const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
-	const unsigned int cx = screenPos.x;
-	const unsigned int cy = screenPos.y;
+	//const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
+	const float3 screenPos = params.camera.project<Projection::PERSPECTIVE>(camPos);
+	const unsigned int cx = (unsigned int)(screenPos.x+0.5f);
+	const unsigned int cy = (unsigned int)(screenPos.y+0.5f);
+	const float d = screenPos.z;
 	if (d > params.camera.minDepth && d < params.camera.maxDepth && cx < depth_out.width() && cy < depth_out.height()) {
 		// Transform estimated point to virtual cam space and output z
 		atomicMin(&depth_out(cx,cy), d * 100000.0f);

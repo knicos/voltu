@@ -150,12 +150,22 @@ function FTLStream(peer, uri, element) {
 	//this.player = videojs('ftl-video-element');
 	//this.player.vr({projection: '360'});
 
-	this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1100 );
+	if (false) {
+		this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1100 );
+	} else {
+		this.camera = new THREE.OrthographicCamera(window.innerWidth/-2, window.innerWidth/2, window.innerHeight/2, window.innerHeight/-2, 1, 4);
+	}
 	this.camera.target = new THREE.Vector3( 0, 0, 0 );
 
 	this.scene = new THREE.Scene();
 
-	var geometry = new THREE.SphereBufferGeometry( 500, 60, 40 );
+	var geometry;
+	
+	if (false) {
+		geometry = new THREE.SphereBufferGeometry( 500, 60, 40 );
+	} else {
+		geometry = new THREE.PlaneGeometry(1280, 720, 32);
+	}
 	// invert the geometry on the x-axis so that all of the faces point inward
 	geometry.scale( - 1, 1, 1 );
 
@@ -180,7 +190,7 @@ function FTLStream(peer, uri, element) {
 	this.onPointerDownLat = 0;
 	this.lon = 0;
 	this.lat = 0;
-	this.distance = 1.0;
+	this.distance = 2.0;
 
 	this.overlay = document.createElement("DIV");
 	this.overlay.classList.add("ftl");
@@ -202,8 +212,12 @@ function FTLStream(peer, uri, element) {
 
 	this.overlay.addEventListener('mousemove', (event) => {
 		if ( this.isUserInteracting === true ) {
-			this.lon = ( this.onPointerDownPointerX - event.clientX ) * 0.1 + this.onPointerDownLon;
-			this.lat = ( this.onPointerDownPointerY - event.clientY ) * 0.1 + this.onPointerDownLat;
+			//this.lon = ( this.onPointerDownPointerX - event.clientX ) * 0.1 + this.onPointerDownLon;
+			//this.lat = ( this.onPointerDownPointerY - event.clientY ) * 0.1 + this.onPointerDownLat;
+
+			this.rotationX += event.movementY * (1/25) * 5.0;
+			this.rotationY -= event.movementX * (1/25) * 5.0;
+			this.updatePose();
 		}
 	});
 
@@ -222,9 +236,13 @@ function FTLStream(peer, uri, element) {
 		let phi = THREE.MathUtils.degToRad( 90 - me.lat );
 		let theta = THREE.MathUtils.degToRad( me.lon );
 
-		me.camera.position.x = me.distance * Math.sin( phi ) * Math.cos( theta );
-		me.camera.position.y = me.distance * Math.cos( phi );
-		me.camera.position.z = me.distance * Math.sin( phi ) * Math.sin( theta );
+		//me.camera.position.x = me.distance * Math.sin( phi ) * Math.cos( theta );
+		//me.camera.position.y = me.distance * Math.cos( phi );
+		//me.camera.position.z = me.distance * Math.sin( phi ) * Math.sin( theta );
+
+		me.camera.position.x = 0;
+		me.camera.position.y = 0;
+		me.camera.position.z = -2;
 
 		me.camera.lookAt( me.camera.target );
 
@@ -325,7 +343,7 @@ function FTLStream(peer, uri, element) {
 					if (ts > 0) {
 						dts = streampckg[0] - ts;
 						console.log("Framerate = ", 1000/dts);
-						this.converter = new VideoConverter.default(this.element, 25, 4);
+						this.converter = new VideoConverter.default(this.element, 26, 1);
 					}
 					ts = streampckg[0];
 				}
