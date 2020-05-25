@@ -59976,16 +59976,16 @@ function FTLStream(peer, uri, element) {
 						this.converter.appendRawData(value);
 					}
 					decode(pckg[5]);*/
-					this.converter.appendRawData(pckg[5]);
-					this.converter.play();
-					if (this.converter.sourceBuffer.mode != "sequence") {
+					if (this.converter.sourceBuffer && this.converter.sourceBuffer.mode != "sequence") {
 						this.converter.sourceBuffer.mode = 'sequence';
 					}
+					this.converter.appendRawData(pckg[5]);
 				} else {
 					if (ts > 0) {
 						dts = streampckg[0] - ts;
 						console.log("Framerate = ", 1000/dts);
 						this.converter = new VideoConverter.default(this.element, 26, 1);
+						this.converter.play();
 					}
 					ts = streampckg[0];
 				}
