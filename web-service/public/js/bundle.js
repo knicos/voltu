@@ -59859,7 +59859,7 @@ const rematrix = require('rematrix');
 const THREE = require('three');
 
 var debug = require("./lib/dist/util/debug");
-debug.setLogger(console.log,console.error);
+debug.setLogger(null,console.error);
 
 let current_data = {};
 let peer;
@@ -60176,7 +60176,9 @@ function FTLStream(peer, uri, element) {
 	let dts = 0;
 
     this.peer.bind(uri, (latency, streampckg, pckg) => {
-		if (this.paused) return;
+		if (this.paused) {
+			return;
+		}
 
         if(pckg[0] === 2){  // H264 packet.
 			let id = "id-"+streampckg[1]+"-"+streampckg[2]+"-"+streampckg[3];
@@ -60197,13 +60199,14 @@ function FTLStream(peer, uri, element) {
 					if (this.converter.sourceBuffer && this.converter.sourceBuffer.mode != "sequence") {
 						this.converter.sourceBuffer.mode = 'sequence';
 					}
-					this.converter.appendRawData(pckg[5]);
+					this.converter.appendRawData(pckg[5], (streampckg[0]-ts));
+					this.converter.play();
 				} else {
 					if (ts > 0) {
 						dts = streampckg[0] - ts;
 						console.log("Framerate = ", 1000/dts);
-						this.converter = new VideoConverter.default(this.element, 26, 1);
-						this.converter.play();
+						this.converter = new VideoConverter.default(this.element, 31, 1);
+						dts = 0;
 					}
 					ts = streampckg[0];
 				}
@@ -61634,13 +61637,13 @@ var VideoConverter = (function () {
         this.isFirstFrame = true;
         this.setup();
     };
-    VideoConverter.prototype.appendRawData = function (data) {
+    VideoConverter.prototype.appendRawData = function (data, dts) {
         var nalus = this.receiveBuffer.append(data);
         for (var _i = 0, nalus_1 = nalus; _i < nalus_1.length; _i++) {
             var nalu = nalus_1[_i];
             var ret = this.remuxer.remux(nalu);
             if (ret) {
-                this.writeFragment(ret[0], ret[1]);
+				this.writeFragment(ret[0], ret[1]);  // ret[0]
             }
         }
     };

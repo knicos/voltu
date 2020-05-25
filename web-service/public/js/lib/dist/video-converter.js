@@ -111,13 +111,13 @@ var VideoConverter = (function () {
         this.isFirstFrame = true;
         this.setup();
     };
-    VideoConverter.prototype.appendRawData = function (data) {
+    VideoConverter.prototype.appendRawData = function (data, dts) {
         var nalus = this.receiveBuffer.append(data);
         for (var _i = 0, nalus_1 = nalus; _i < nalus_1.length; _i++) {
             var nalu = nalus_1[_i];
             var ret = this.remuxer.remux(nalu);
             if (ret) {
-                this.writeFragment(ret[0], ret[1]);
+				this.writeFragment(ret[0], ret[1]);  // ret[0]
             }
         }
     };
