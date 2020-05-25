@@ -7,6 +7,7 @@ using ftl::rgbd::Camera;
 using ftl::cuda::TextureObject;
 using ftl::render::Parameters;
 using ftl::render::ViewPortMode;
+using ftl::rgbd::Projection;
 
 #define T_PER_BLOCK 8
 
@@ -45,7 +46,7 @@ __device__ inline uint2 convertToScreen<ViewPortMode::Warping>(const Parameters 
 /*
  * Convert source screen position to output screen coordinates.
  */
- template <ftl::render::ViewPortMode VPMODE>
+ template <ftl::render::ViewPortMode VPMODE, Projection PROJECT>
  __global__ void screen_coord_kernel(TextureObject<float> depth,
         TextureObject<float> depth_out,
 		TextureObject<short2> screen_out, Parameters params, float4x4 pose, Camera camera) {
@@ -53,22 +54,22 @@ __device__ inline uint2 convertToScreen<ViewPortMode::Warping>(const Parameters 
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x >= 0 && y >= 0 && x < depth.width() && y < depth.height()) {
-		uint2 screenPos = make_uint2(30000,30000);
+		//uint2 screenPos = make_uint2(30000,30000);
 
 		const float d = depth.tex2D(x, y);
 
 		// Find the virtual screen position of current point
 		const float3 camPos =  (d > camera.minDepth && d < camera.maxDepth) ? pose * camera.screenToCam(x,y,d) : make_float3(0.0f,0.0f,0.0f);
-		screenPos = convertToScreen<VPMODE>(params, camPos);
+		float3 screenPos = params.camera.project<PROJECT>(camPos); //convertToScreen<VPMODE>(params, camPos);
 
-		if (	camPos.z < params.camera.minDepth ||
-				camPos.z > params.camera.maxDepth ||
+		if (	screenPos.z < params.camera.minDepth ||
+				screenPos.z > params.camera.maxDepth ||
 				//!vp.inside(screenPos.x, screenPos.y))
 				screenPos.x >= params.camera.width ||
 				screenPos.y >= params.camera.height)
-			screenPos = make_uint2(30000,30000);
+			screenPos = make_float3(30000,30000,0);
 		screen_out(x,y) = make_short2(screenPos.x, screenPos.y);
-		depth_out(x,y) = camPos.z;
+		depth_out(x,y) = screenPos.z;
 	}
 }
 
@@ -78,10 +79,18 @@ void ftl::cuda::screen_coord(TextureObject<float> &depth, TextureObject<float> &
     const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	switch (params.viewPortMode) {
-	case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-	case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-	case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+	if (params.projection == Projection::PERSPECTIVE) {
+		switch (params.viewPortMode) {
+		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		}
+	} else if (params.projection == Projection::EQUIRECTANGULAR) {
+		switch (params.viewPortMode) {
+		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		}
 	}
 	cudaSafeCall( cudaGetLastError() );
 }

@@ -69,6 +69,7 @@ struct Parameters {
 	ftl::rgbd::Camera camera;  // Virtual camera intrinsics
 	ftl::render::ViewPort viewport;
 	ftl::render::ViewPortMode viewPortMode;
+	ftl::rgbd::Projection projection;
 
 	ftl::render::AccumulationFunction accumulationMode;
 };
