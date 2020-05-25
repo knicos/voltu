@@ -59859,7 +59859,7 @@ const rematrix = require('rematrix');
 const THREE = require('three');
 
 var debug = require("./lib/dist/util/debug");
-debug.setLogger(null,console.error);
+debug.setLogger(console.log,console.error);
 
 let current_data = {};
 let peer;
