@@ -59700,7 +59700,7 @@ createVideoPlayer = () => {
     containerDiv.innerHTML += ''*/
     createPeer();
 	//connectToStream();
-	new FTLStream(peer, current_data.uri, containerDiv);
+	window.ftlstream = new FTLStream(peer, current_data.uri, containerDiv);
 }
 
 /**
@@ -59978,6 +59978,9 @@ function FTLStream(peer, uri, element) {
 					decode(pckg[5]);*/
 					this.converter.appendRawData(pckg[5]);
 					this.converter.play();
+					if (this.converter.sourceBuffer.mode != "sequence") {
+						this.converter.sourceBuffer.mode = 'sequence';
+					}
 				} else {
 					if (ts > 0) {
 						dts = streampckg[0] - ts;
