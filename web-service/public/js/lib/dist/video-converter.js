@@ -143,6 +143,7 @@ var VideoConverter = (function () {
                 this.queue.push(data);
             }
             else {
+				if (this.queue.length > 0) console.error("DATA IN QUEUE");
                 this.doAppend(data);
             }
         }

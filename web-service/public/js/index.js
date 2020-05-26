@@ -125,6 +125,11 @@ webSocketTest = () => {
     peer.send("update_cfg", "ftl://utu.fi#reconstruction_default/0/renderer/cool_effect", "true")    
 }
 
+function FTLFrameset(id) {
+	this.id = id;
+	this.sources = {};
+}
+
 function FTLStream(peer, uri, element) {
 	this.uri = uri;
 	this.peer = peer;
@@ -133,6 +138,10 @@ function FTLStream(peer, uri, element) {
 	this.current_fs = 0;
 	this.current_source = 0;
 	this.current_channel = 0;
+
+	this.framesets = {};
+
+	this.handlers = {};
 
 	//this.elements_ = {};
 	//this.converters_ = {};
@@ -369,6 +378,22 @@ function FTLStream(peer, uri, element) {
 		this.peer.on("connect", (p)=> {
 			this.start(0,0,0);
 		});
+	}
+}
+
+FTLStream.prototype.on = function(name, cb) {
+	if (!this.handlers.hasOwnProperty(name)) {
+		this.handlers[name] = [];
+	}
+	this.handlers[name].push(cb);
+}
+
+FTLStream.prototype.notify = function (name, ...args) {
+	if (this.handlers.hasOwnProperty(name)) {
+		let a = this.handlers[name];
+		for (let i=0; i<a.length; ++i) {
+			a[i].apply(this, args);
+		}
 	}
 }
 
