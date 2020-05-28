@@ -2,19 +2,8 @@ const Peer = require('../../server/src/peer')
 const msgpack = require('msgpack5')();
 const rematrix = require('rematrix');
 const THREE = require('three');
-const MUXJS = require('mux.js');
-const MP4 = MUXJS.mp4.generator;
-const H264Stream = MUXJS.codecs.h264.H264Stream;
+const FTLRemux = require('./ftlremux');
 //const VIDEO_PROPERTIES = require('../../node_modules/mux.js/lib/constants/video-properties.js');
-
-const VIDEO_PROPERTIES = [
-	'width',
-	'height',
-	'profileIdc',
-	'levelIdc',
-	'profileCompatibility',
-	'sarRatio'
-  ];
   
 
 let current_data = {};
@@ -139,50 +128,6 @@ function FTLFrameset(id) {
 	this.id = id;
 	this.sources = {};
 }
-
-function getNALType(data) {
-	return (data.length > 4) ? data.readUInt8(4) & 0x1F : 0;
-}
-
-function isKeyFrame(data) {
-	return getNALType(data) == 7;  // SPS
-}
-
-function concatNals(sample) {
-	let length = sample.size;
-	let data = new Uint8Array(length);
-	let view = new DataView(data.buffer);
-	let dataOffset = 0;
-
-	for (var i=0; i<sample.units.length; ++i) {
-		view.setUint32(dataOffset, sample.units[i].data.byteLength);
-        dataOffset += 4;
-        data.set(sample.units[i].data, dataOffset);
-        dataOffset += sample.units[i].data.byteLength;
-	}
-
-	sample.data = data;
-}
-
-var createDefaultSample = function() {
-	return {
-	  units: [],
-	  data: null,
-	  size: 0,
-	  compositionTimeOffset: 1,
-	  duration: 0,
-	  dataOffset: 0,
-	  flags: {
-		isLeading: 0,
-		dependsOn: 1,
-		isDependedOn: 0,
-		hasRedundancy: 0,
-		degradationPriority: 0,
-		isNonSyncSample: 1
-	  },
-	  keyFrame: true
-	};
-  };
 
 function FTLStream(peer, uri, element) {
 	this.uri = uri;
@@ -391,13 +336,11 @@ function FTLStream(peer, uri, element) {
 	});*/
 
     let rxcount = 0;
-    let ts = 0;
-	let dts = 0;
 
-	let seen_keyframe = false;
-	let init_seg = false;
-
-	this.h264 = new H264Stream();
+	this.remux = new FTLRemux();
+	this.remux.on('data', (data) => {
+		this.doAppend(data);
+	});
 
 	this.doAppend = function(data) {
 		if (this.sourceBuffer.updating) {
@@ -413,78 +356,7 @@ function FTLStream(peer, uri, element) {
 		}
 	}
 
-	this.h264.on('data', (nalUnit) => {
-		//console.log("NAL", nalUnit);
-		//this.segstream.push(data);
-
-		//trackDecodeInfo.collectDtsInfo(track, nalUnit);
-
-		// record the track config
-		if (nalUnit.nalUnitType === 'seq_parameter_set_rbsp') {
-			this.track.config = nalUnit.config;
-			this.track.sps = [nalUnit.data];
-
-			VIDEO_PROPERTIES.forEach(function(prop) {
-				this.track[prop] = nalUnit.config[prop];
-			}, this);
-		}
-
-		if (nalUnit.nalUnitType === 'pic_parameter_set_rbsp') {
-			//pps = nalUnit.data;
-			this.track.pps = [nalUnit.data];
-		}
-
-		if (!init_seg && this.track.sps && this.track.pps) {
-			init_seg = true;
-			console.log("Init", this.track);
-			this.doAppend(MP4.initSegment([this.track]));
-		}
-
-		let keyFrame = nalUnit.nalUnitType == 'slice_layer_without_partitioning_rbsp_idr';
-
-		// buffer video until flush() is called
-		//nalUnits.push(nalUnit);
-		//if (keyFrame || !nalUnit.hasOwnProperty("nalUnitType")) {
-			/*this.track.samples.push({
-				data: nalUnit.data,
-				duration: 1,
-				pts: nalUnit.pts,
-				dts: nalUnit.dts,
-				flags: {
-					isLeading: 0,
-					isDependedOn: 0,
-					hasRedundancy: 0,
-					degradPrio: 0,
-					isNonSyncSample: keyFrame ? 0 : 1,
-					dependsOn: keyFrame ? 2 : 1,
-					paddingValue: 0,
-				}
-			});*/
-
-			let sample = this.track.samples[0];
-			sample.units.push(nalUnit);
-			sample.size += nalUnit.data.byteLength + 4;
-
-			sample.keyFrame &= keyFrame;
-			
-			if (keyFrame) {
-				sample.flags.isNonSyncSample = 0;
-				sample.flags.dependsOn = 2;
-			}
-		//}
-	});
-
-	this.track = {
-		timelineStartInfo: {
-			baseMediaDecodeTime: 0
-		},
-		baseMediaDecodeTime: 0,
-		id: 0,
-		codec: 'avc',
-		type: 'video',
-		samples: [],
-		duration: 0
-	};
+	this.mime = 'video/mp4; codecs="avc1.640028"';
 	
 	this.mediaSource = new MediaSource();
 	//this.element.play();
@@ -497,13 +369,8 @@ function FTLStream(peer, uri, element) {
 
 	this.element.addEventListener('play', (e) => {
 		console.log("Play");
-		init_seg = false;
-		seen_keyframe = false;
-		ts = 0;
-		this.track.baseMediaDecodeTime = 0;
-		this.sequenceNo = 0;
 		this.active = true;
-		this.start(0,0,0);
+		this.remux.select(0,0,0);
 	});
 
 	this.mediaSource.addEventListener('sourceopen', (e) => {
@@ -534,9 +401,7 @@ function FTLStream(peer, uri, element) {
 		});
 	});
 
-	this.mime = 'video/mp4; codecs="avc1.640028"';
 	this.queue = [];
-	this.sequenceNo = 0;
 
 	this.element.src = URL.createObjectURL(this.mediaSource);
 
@@ -556,91 +421,7 @@ function FTLStream(peer, uri, element) {
 					//peer.send(current_data.uri, 0, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
 				}
 
-				//console.log("NALU", getNALType(pckg[5]));
-
-				if (!seen_keyframe) {
-					if (isKeyFrame(pckg[5])) {
-						console.log("Key frame ", streampckg[0]);
-						seen_keyframe = true;
-					}
-				}
-			
-				if (seen_keyframe) {
-					if (ts == 0) ts = streampckg[0];
-					//if (this.track.samples.length > 0) console.error("Unfinished sample");
-					dts += streampckg[0]-ts;
-
-					this.track.samples.push(createDefaultSample());
-
-					this.h264.push({
-						type: 'video',
-						dts: dts,
-						pts: streampckg[0],
-						data: pckg[5],
-						trackId: 0
-					});
-					this.h264.flush();
-
-					let sample = this.track.samples[0];
-					/*if (sample.keyFrame) {
-						sample.flags.isNonSyncSample = 0;
-						sample.flags.dependsOn = 2;
-					}*/
-
-					concatNals(sample);
-					let delta = (streampckg[0]-ts)*90;
-					sample.duration = (delta > 0) ? delta : 1000;
-
-					let moof = MP4.moof(this.sequenceNo++, [this.track]);
-					let mdat = MP4.mdat(sample.data);
-					let result = new Uint8Array(moof.byteLength + mdat.byteLength);
-					//result.set(MP4.STYP);
-					result.set(moof);
-					result.set(mdat, moof.byteLength);
-					this.doAppend(result);
-				
-					//this.doAppend();
-					//this.doAppend(MP4.mdat(sample.data));
-					this.track.samples = [];
-					this.track.baseMediaDecodeTime += delta;
-
-					//this.segstream.flush();
-					//if (isKeyFrame(pckg[5])) console.log("Key frame ", streampckg[0]);
-					/*function decode(value){
-						this.converter.appendRawData(value);
-					}
-					decode(pckg[5]);*/
-					//if (this.converter.sourceBuffer && this.converter.sourceBuffer.mode != "sequence") {
-					//	this.converter.sourceBuffer.mode = 'sequence';
-					//}
-					//this.converter.appendRawData(pckg[5], (streampckg[0]-ts));
-					//this.converter.play();
-
-					/*if (ts > 0) {
-						this.converter.feed({
-							video: pckg[5],
-							duration: streampckg[0]-ts
-						});
-					} else {
-						this.converter.feed({
-							video: pckg[5]
-						});
-					}*/
-
-					ts = streampckg[0];
-				}
-				
-				
-				/*else {
-					if (ts > 0) {
-						dts = streampckg[0] - ts;
-						console.log("Framerate = ", 1000/dts);
-						//this.converter = new VideoConverter.default(this.element, 31, 1);
-						
-						dts = 0;
-					}
-					ts = streampckg[0];
-				}*/
+				this.remux.push(streampckg, pckg);
 			}
         } else if (pckg[0] === 103) {
 			//console.log(msgpack.decode(pckg[5]));
@@ -709,6 +490,8 @@ FTLStream.prototype.start = function(fs, source, channel) {
 	this.current_fs = fs;
 	this.current_source = source;
 	this.current_channel = channel;
+
+	this.remux.select(fs, source, channel);
 
 	if (this.found) {
 		this.peer.send(this.uri, 0, [1,fs,255,channel],[255,7,35,0,0,Buffer.alloc(0)]);
