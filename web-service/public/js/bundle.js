@@ -508,7 +508,7 @@ var objectKeys = Object.keys || function (obj) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"object-assign":61,"util/":4}],2:[function(require,module,exports){
+},{"object-assign":62,"util/":4}],2:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -1130,7 +1130,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":3,"_process":63,"inherits":2}],5:[function(require,module,exports){
+},{"./support/isBuffer":3,"_process":8,"inherits":2}],5:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -1669,9 +1669,195 @@ BufferList.prototype._match = function(offset, search) {
 
 module.exports = BufferList
 
-},{"readable-stream":72,"safe-buffer":74,"util":80}],7:[function(require,module,exports){
+},{"readable-stream":72,"safe-buffer":74,"util":81}],7:[function(require,module,exports){
 
 },{}],8:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],9:[function(require,module,exports){
 (function (Buffer){
 /*!
  * The buffer module from node.js, for the browser.
@@ -3452,7 +3638,7 @@ function numberIsNaN (obj) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"base64-js":5,"buffer":8,"ieee754":11}],9:[function(require,module,exports){
+},{"base64-js":5,"buffer":9,"ieee754":12}],10:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -3563,7 +3749,7 @@ function objectToString(o) {
 }
 
 }).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":13}],10:[function(require,module,exports){
+},{"../../is-buffer/index.js":14}],11:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4088,7 +4274,7 @@ function functionBindPolyfill(context) {
   };
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -4174,9 +4360,9 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 arguments[4][2][0].apply(exports,arguments)
-},{"dup":2}],13:[function(require,module,exports){
+},{"dup":2}],14:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -4199,14 +4385,14 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = Array.isArray || function (arr) {
   return toString.call(arr) == '[object Array]';
 };
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict'
 
 var Buffer = require('safe-buffer').Buffer
@@ -4293,7 +4479,7 @@ function msgpack (options) {
 
 module.exports = msgpack
 
-},{"./lib/decoder":16,"./lib/encoder":17,"./lib/streams":18,"assert":1,"bl":6,"safe-buffer":74}],16:[function(require,module,exports){
+},{"./lib/decoder":17,"./lib/encoder":18,"./lib/streams":19,"assert":1,"bl":6,"safe-buffer":74}],17:[function(require,module,exports){
 'use strict'
 
 var bl = require('bl')
@@ -4731,7 +4917,7 @@ module.exports = function buildDecode (decodingTypes) {
 
 module.exports.IncompleteBufferError = IncompleteBufferError
 
-},{"bl":6,"util":80}],17:[function(require,module,exports){
+},{"bl":6,"util":81}],18:[function(require,module,exports){
 'use strict'
 
 var Buffer = require('safe-buffer').Buffer
@@ -5076,7 +5262,7 @@ function encodeFloat (obj, forceFloat64) {
   return buf
 }
 
-},{"bl":6,"safe-buffer":74}],18:[function(require,module,exports){
+},{"bl":6,"safe-buffer":74}],19:[function(require,module,exports){
 'use strict'
 
 var Transform = require('readable-stream').Transform
@@ -5168,7 +5354,7 @@ Decoder.prototype._transform = function (buf, enc, done) {
 module.exports.decoder = Decoder
 module.exports.encoder = Encoder
 
-},{"bl":6,"inherits":12,"readable-stream":72}],19:[function(require,module,exports){
+},{"bl":6,"inherits":13,"readable-stream":72}],20:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -5301,7 +5487,7 @@ AacStream.prototype = new Stream();
 
 module.exports = AacStream;
 
-},{"../utils/stream.js":60,"./utils":20}],20:[function(require,module,exports){
+},{"../utils/stream.js":61,"./utils":21}],21:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -5474,7 +5660,7 @@ module.exports = {
   parseAacTimestamp: parseAacTimestamp
 };
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -5632,7 +5818,7 @@ AdtsStream.prototype = new Stream();
 
 module.exports = AdtsStream;
 
-},{"../utils/clock":58,"../utils/stream.js":60}],22:[function(require,module,exports){
+},{"../utils/clock":59,"../utils/stream.js":61}],23:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6119,7 +6305,7 @@ module.exports = {
   NalByteStream: NalByteStream
 };
 
-},{"../utils/exp-golomb.js":59,"../utils/stream.js":60}],23:[function(require,module,exports){
+},{"../utils/exp-golomb.js":60,"../utils/stream.js":61}],24:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6131,7 +6317,7 @@ module.exports = {
   h264: require('./h264')
 };
 
-},{"./adts":21,"./h264":22}],24:[function(require,module,exports){
+},{"./adts":22,"./h264":23}],25:[function(require,module,exports){
 // constants
 var AUDIO_PROPERTIES = [
   'audioobjecttype',
@@ -6143,7 +6329,7 @@ var AUDIO_PROPERTIES = [
 
 module.exports = AUDIO_PROPERTIES;
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 var VIDEO_PROPERTIES = [
   'width',
   'height',
@@ -6156,7 +6342,7 @@ var VIDEO_PROPERTIES = [
 
 module.exports = VIDEO_PROPERTIES;
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6206,7 +6392,7 @@ module.exports = function() {
   return silence;
 };
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6359,7 +6545,7 @@ CoalesceStream.prototype.flush = function(flushSource) {
 
 module.exports = CoalesceStream;
 
-},{"../utils/stream.js":60}],28:[function(require,module,exports){
+},{"../utils/stream.js":61}],29:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6427,7 +6613,7 @@ var getFlvHeader = function(duration, audio, video) { // :ByteArray {
 
 module.exports = getFlvHeader;
 
-},{"./flv-tag.js":29}],29:[function(require,module,exports){
+},{"./flv-tag.js":30}],30:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6806,7 +6992,7 @@ FlvTag.frameTime = function(tag) {
 
 module.exports = FlvTag;
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6819,7 +7005,7 @@ module.exports = {
   getFlvHeader: require('./flv-header')
 };
 
-},{"./flv-header":28,"./flv-tag":29,"./transmuxer":32}],31:[function(require,module,exports){
+},{"./flv-header":29,"./flv-tag":30,"./transmuxer":33}],32:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -6852,7 +7038,7 @@ var TagList = function() {
 
 module.exports = TagList;
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -7307,7 +7493,7 @@ Transmuxer.prototype = new Stream();
 // forward compatibility
 module.exports = Transmuxer;
 
-},{"../codecs/adts.js":21,"../codecs/h264":22,"../m2ts/m2ts.js":36,"../utils/stream.js":60,"./coalesce-stream.js":27,"./flv-tag.js":29,"./tag-list.js":31}],33:[function(require,module,exports){
+},{"../codecs/adts.js":22,"../codecs/h264":23,"../m2ts/m2ts.js":37,"../utils/stream.js":61,"./coalesce-stream.js":28,"./flv-tag.js":30,"./tag-list.js":32}],34:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -7332,7 +7518,7 @@ muxjs.mp2t.tools = require('./tools/ts-inspector');
 
 module.exports = muxjs;
 
-},{"./codecs":23,"./flv":30,"./m2ts":35,"./mp4":44,"./partial":50,"./tools/flv-inspector":54,"./tools/mp4-inspector":55,"./tools/ts-inspector":56}],34:[function(require,module,exports){
+},{"./codecs":24,"./flv":31,"./m2ts":36,"./mp4":45,"./partial":51,"./tools/flv-inspector":55,"./tools/mp4-inspector":56,"./tools/ts-inspector":57}],35:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -8191,7 +8377,7 @@ module.exports = {
   Cea608Stream: Cea608Stream
 };
 
-},{"../tools/caption-packet-parser":53,"../utils/stream":60}],35:[function(require,module,exports){
+},{"../tools/caption-packet-parser":54,"../utils/stream":61}],36:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -8200,7 +8386,7 @@ module.exports = {
  */
 module.exports = require('./m2ts');
 
-},{"./m2ts":36}],36:[function(require,module,exports){
+},{"./m2ts":37}],37:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -8740,7 +8926,7 @@ for (var type in StreamTypes) {
 
 module.exports = m2ts;
 
-},{"../utils/stream.js":60,"./caption-stream":34,"./metadata-stream":37,"./stream-types":39,"./timestamp-rollover-stream":40}],37:[function(require,module,exports){
+},{"../utils/stream.js":61,"./caption-stream":35,"./metadata-stream":38,"./stream-types":40,"./timestamp-rollover-stream":41}],38:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -8995,7 +9181,7 @@ MetadataStream.prototype = new Stream();
 
 module.exports = MetadataStream;
 
-},{"../utils/stream":60,"./stream-types":39}],38:[function(require,module,exports){
+},{"../utils/stream":61,"./stream-types":40}],39:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -9284,7 +9470,7 @@ module.exports = {
   videoPacketContainsKeyFrame: videoPacketContainsKeyFrame
 };
 
-},{"./stream-types.js":39}],39:[function(require,module,exports){
+},{"./stream-types.js":40}],40:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -9299,7 +9485,7 @@ module.exports = {
   METADATA_STREAM_TYPE: 0x15
 };
 
-},{}],40:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -9402,7 +9588,7 @@ module.exports = {
   handleRollover: handleRollover
 };
 
-},{"../utils/stream":60}],41:[function(require,module,exports){
+},{"../utils/stream":61}],42:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -9559,7 +9745,7 @@ module.exports = {
   concatenateFrameData: concatenateFrameData
 };
 
-},{"../data/silence":26,"../utils/clock":58}],42:[function(require,module,exports){
+},{"../data/silence":27,"../utils/clock":59}],43:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -10014,7 +10200,7 @@ var CaptionParser = function() {
 
 module.exports = CaptionParser;
 
-},{"../m2ts/caption-stream":34,"../tools/caption-packet-parser":53,"../tools/mp4-inspector":55,"./probe":46}],43:[function(require,module,exports){
+},{"../m2ts/caption-stream":35,"../tools/caption-packet-parser":54,"../tools/mp4-inspector":56,"./probe":47}],44:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -10335,7 +10521,7 @@ module.exports = {
   concatenateNalDataForFrame: concatenateNalDataForFrame
 };
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -10351,7 +10537,7 @@ module.exports = {
   CaptionParser: require('./caption-parser')
 };
 
-},{"./caption-parser":42,"./mp4-generator":45,"./probe":46,"./transmuxer":48}],45:[function(require,module,exports){
+},{"./caption-parser":43,"./mp4-generator":46,"./probe":47,"./transmuxer":49}],46:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -11152,7 +11338,7 @@ module.exports = {
   }
 };
 
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -11503,7 +11689,7 @@ module.exports = {
   getTimescaleFromMediaHeader: getTimescaleFromMediaHeader
 };
 
-},{"../tools/mp4-inspector.js":55,"../utils/bin":57}],47:[function(require,module,exports){
+},{"../tools/mp4-inspector.js":56,"../utils/bin":58}],48:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -11612,7 +11798,7 @@ module.exports = {
   collectDtsInfo: collectDtsInfo
 };
 
-},{"../utils/clock":58}],48:[function(require,module,exports){
+},{"../utils/clock":59}],49:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -12796,7 +12982,7 @@ module.exports = {
   generateVideoSegmentTimingInfo: generateVideoSegmentTimingInfo
 };
 
-},{"../aac":19,"../aac/utils":20,"../codecs/adts.js":21,"../codecs/h264":22,"../constants/audio-properties.js":24,"../constants/video-properties.js":25,"../m2ts/m2ts.js":36,"../utils/clock":58,"../utils/stream.js":60,"./audio-frame-utils":41,"./frame-utils":43,"./mp4-generator.js":45,"./track-decode-info":47}],49:[function(require,module,exports){
+},{"../aac":20,"../aac/utils":21,"../codecs/adts.js":22,"../codecs/h264":23,"../constants/audio-properties.js":25,"../constants/video-properties.js":26,"../m2ts/m2ts.js":37,"../utils/clock":59,"../utils/stream.js":61,"./audio-frame-utils":42,"./frame-utils":44,"./mp4-generator.js":46,"./track-decode-info":48}],50:[function(require,module,exports){
 'use strict';
 
 var Stream = require('../utils/stream.js');
@@ -12952,12 +13138,12 @@ AudioSegmentStream.prototype = new Stream();
 
 module.exports = AudioSegmentStream;
 
-},{"../constants/audio-properties.js":24,"../mp4/audio-frame-utils":41,"../mp4/mp4-generator.js":45,"../mp4/track-decode-info.js":47,"../utils/clock":58,"../utils/stream.js":60}],50:[function(require,module,exports){
+},{"../constants/audio-properties.js":25,"../mp4/audio-frame-utils":42,"../mp4/mp4-generator.js":46,"../mp4/track-decode-info.js":48,"../utils/clock":59,"../utils/stream.js":61}],51:[function(require,module,exports){
 module.exports = {
   Transmuxer: require('./transmuxer')
 };
 
-},{"./transmuxer":51}],51:[function(require,module,exports){
+},{"./transmuxer":52}],52:[function(require,module,exports){
 var Stream = require('../utils/stream.js');
 var m2ts = require('../m2ts/m2ts.js');
 var codecs = require('../codecs/index.js');
@@ -13337,7 +13523,7 @@ Transmuxer.prototype = new Stream();
 
 module.exports = Transmuxer;
 
-},{"../aac/index":19,"../aac/utils":20,"../codecs/adts":21,"../codecs/index.js":23,"../m2ts/m2ts.js":36,"../mp4/track-decode-info.js":47,"../utils/clock":58,"../utils/stream.js":60,"./audio-segment-stream.js":49,"./video-segment-stream.js":52}],52:[function(require,module,exports){
+},{"../aac/index":20,"../aac/utils":21,"../codecs/adts":22,"../codecs/index.js":24,"../m2ts/m2ts.js":37,"../mp4/track-decode-info.js":48,"../utils/clock":59,"../utils/stream.js":61,"./audio-segment-stream.js":50,"./video-segment-stream.js":53}],53:[function(require,module,exports){
 /**
  * Constructs a single-track, ISO BMFF media segment from H264 data
  * events. The output of this stream can be fed to a SourceBuffer
@@ -13547,7 +13733,7 @@ VideoSegmentStream.prototype = new Stream();
 
 module.exports = VideoSegmentStream;
 
-},{"../constants/video-properties.js":25,"../mp4/frame-utils":43,"../mp4/mp4-generator.js":45,"../mp4/track-decode-info.js":47,"../utils/stream.js":60}],53:[function(require,module,exports){
+},{"../constants/video-properties.js":26,"../mp4/frame-utils":44,"../mp4/mp4-generator.js":46,"../mp4/track-decode-info.js":48,"../utils/stream.js":61}],54:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -13745,7 +13931,7 @@ module.exports = {
   USER_DATA_REGISTERED_ITU_T_T35: USER_DATA_REGISTERED_ITU_T_T35
 };
 
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -13919,7 +14105,7 @@ module.exports = {
   textify: textifyFlv
 };
 
-},{}],55:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -14822,7 +15008,7 @@ module.exports = {
   parseSidx: parse.sidx
 };
 
-},{"../utils/bin":57}],56:[function(require,module,exports){
+},{"../utils/bin":58}],57:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -15345,7 +15531,7 @@ module.exports = {
   parseAudioPes_: parseAudioPes_
 };
 
-},{"../aac/utils.js":20,"../m2ts/probe.js":38,"../m2ts/stream-types.js":39,"../m2ts/timestamp-rollover-stream.js":40,"../utils/clock":58}],57:[function(require,module,exports){
+},{"../aac/utils.js":21,"../m2ts/probe.js":39,"../m2ts/stream-types.js":40,"../m2ts/timestamp-rollover-stream.js":41,"../utils/clock":59}],58:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -15365,7 +15551,7 @@ module.exports = {
   toHexString: toHexString
 };
 
-},{}],58:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -15425,7 +15611,7 @@ module.exports = {
   metadataTsToSeconds: metadataTsToSeconds
 };
 
-},{}],59:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -15580,7 +15766,7 @@ ExpGolomb = function(workingData) {
 
 module.exports = ExpGolomb;
 
-},{}],60:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 /**
  * mux.js
  *
@@ -15723,7 +15909,7 @@ Stream.prototype.reset = function(flushSource) {
 
 module.exports = Stream;
 
-},{}],61:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -15815,7 +16001,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],62:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -15864,193 +16050,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 
 
 }).call(this,require('_process'))
-},{"_process":63}],63:[function(require,module,exports){
-// shim for using process in browser
-var process = module.exports = {};
-
-// cached from whatever global is present so that test runners that stub it
-// don't break things.  But we need to wrap it in a try catch in case it is
-// wrapped in strict mode code which doesn't define any globals.  It's inside a
-// function because try/catches deoptimize in certain engines.
-
-var cachedSetTimeout;
-var cachedClearTimeout;
-
-function defaultSetTimout() {
-    throw new Error('setTimeout has not been defined');
-}
-function defaultClearTimeout () {
-    throw new Error('clearTimeout has not been defined');
-}
-(function () {
-    try {
-        if (typeof setTimeout === 'function') {
-            cachedSetTimeout = setTimeout;
-        } else {
-            cachedSetTimeout = defaultSetTimout;
-        }
-    } catch (e) {
-        cachedSetTimeout = defaultSetTimout;
-    }
-    try {
-        if (typeof clearTimeout === 'function') {
-            cachedClearTimeout = clearTimeout;
-        } else {
-            cachedClearTimeout = defaultClearTimeout;
-        }
-    } catch (e) {
-        cachedClearTimeout = defaultClearTimeout;
-    }
-} ())
-function runTimeout(fun) {
-    if (cachedSetTimeout === setTimeout) {
-        //normal enviroments in sane situations
-        return setTimeout(fun, 0);
-    }
-    // if setTimeout wasn't available but was latter defined
-    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
-        cachedSetTimeout = setTimeout;
-        return setTimeout(fun, 0);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedSetTimeout(fun, 0);
-    } catch(e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
-            return cachedSetTimeout.call(null, fun, 0);
-        } catch(e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
-            return cachedSetTimeout.call(this, fun, 0);
-        }
-    }
-
-
-}
-function runClearTimeout(marker) {
-    if (cachedClearTimeout === clearTimeout) {
-        //normal enviroments in sane situations
-        return clearTimeout(marker);
-    }
-    // if clearTimeout wasn't available but was latter defined
-    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
-        cachedClearTimeout = clearTimeout;
-        return clearTimeout(marker);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedClearTimeout(marker);
-    } catch (e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
-            return cachedClearTimeout.call(null, marker);
-        } catch (e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
-            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
-            return cachedClearTimeout.call(this, marker);
-        }
-    }
-
-
-
-}
-var queue = [];
-var draining = false;
-var currentQueue;
-var queueIndex = -1;
-
-function cleanUpNextTick() {
-    if (!draining || !currentQueue) {
-        return;
-    }
-    draining = false;
-    if (currentQueue.length) {
-        queue = currentQueue.concat(queue);
-    } else {
-        queueIndex = -1;
-    }
-    if (queue.length) {
-        drainQueue();
-    }
-}
-
-function drainQueue() {
-    if (draining) {
-        return;
-    }
-    var timeout = runTimeout(cleanUpNextTick);
-    draining = true;
-
-    var len = queue.length;
-    while(len) {
-        currentQueue = queue;
-        queue = [];
-        while (++queueIndex < len) {
-            if (currentQueue) {
-                currentQueue[queueIndex].run();
-            }
-        }
-        queueIndex = -1;
-        len = queue.length;
-    }
-    currentQueue = null;
-    draining = false;
-    runClearTimeout(timeout);
-}
-
-process.nextTick = function (fun) {
-    var args = new Array(arguments.length - 1);
-    if (arguments.length > 1) {
-        for (var i = 1; i < arguments.length; i++) {
-            args[i - 1] = arguments[i];
-        }
-    }
-    queue.push(new Item(fun, args));
-    if (queue.length === 1 && !draining) {
-        runTimeout(drainQueue);
-    }
-};
-
-// v8 likes predictible objects
-function Item(fun, array) {
-    this.fun = fun;
-    this.array = array;
-}
-Item.prototype.run = function () {
-    this.fun.apply(null, this.array);
-};
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-process.version = ''; // empty string to avoid regexp issues
-process.versions = {};
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-process.prependListener = noop;
-process.prependOnceListener = noop;
-
-process.listeners = function (name) { return [] }
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-process.umask = function() { return 0; };
-
-},{}],64:[function(require,module,exports){
+},{"_process":8}],64:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -16182,7 +16182,7 @@ Duplex.prototype._destroy = function (err, cb) {
 
   pna.nextTick(cb, err);
 };
-},{"./_stream_readable":66,"./_stream_writable":68,"core-util-is":9,"inherits":12,"process-nextick-args":62}],65:[function(require,module,exports){
+},{"./_stream_readable":66,"./_stream_writable":68,"core-util-is":10,"inherits":13,"process-nextick-args":63}],65:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -16230,7 +16230,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":67,"core-util-is":9,"inherits":12}],66:[function(require,module,exports){
+},{"./_stream_transform":67,"core-util-is":10,"inherits":13}],66:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -17252,7 +17252,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":64,"./internal/streams/BufferList":69,"./internal/streams/destroy":70,"./internal/streams/stream":71,"_process":63,"core-util-is":9,"events":10,"inherits":12,"isarray":14,"process-nextick-args":62,"safe-buffer":74,"string_decoder/":75,"util":7}],67:[function(require,module,exports){
+},{"./_stream_duplex":64,"./internal/streams/BufferList":69,"./internal/streams/destroy":70,"./internal/streams/stream":71,"_process":8,"core-util-is":10,"events":11,"inherits":13,"isarray":15,"process-nextick-args":63,"safe-buffer":74,"string_decoder/":75,"util":7}],67:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -17467,7 +17467,7 @@ function done(stream, er, data) {
 
   return stream.push(null);
 }
-},{"./_stream_duplex":64,"core-util-is":9,"inherits":12}],68:[function(require,module,exports){
+},{"./_stream_duplex":64,"core-util-is":10,"inherits":13}],68:[function(require,module,exports){
 (function (process,global,setImmediate){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -18157,7 +18157,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":64,"./internal/streams/destroy":70,"./internal/streams/stream":71,"_process":63,"core-util-is":9,"inherits":12,"process-nextick-args":62,"safe-buffer":74,"timers":77,"util-deprecate":78}],69:[function(require,module,exports){
+},{"./_stream_duplex":64,"./internal/streams/destroy":70,"./internal/streams/stream":71,"_process":8,"core-util-is":10,"inherits":13,"process-nextick-args":63,"safe-buffer":74,"timers":77,"util-deprecate":79}],69:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -18312,10 +18312,10 @@ module.exports = {
   destroy: destroy,
   undestroy: undestroy
 };
-},{"process-nextick-args":62}],71:[function(require,module,exports){
+},{"process-nextick-args":63}],71:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":10}],72:[function(require,module,exports){
+},{"events":11}],72:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = exports;
 exports.Readable = exports;
@@ -18695,7 +18695,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":8}],75:[function(require,module,exports){
+},{"buffer":9}],75:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -70114,7 +70114,9 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":63,"timers":77}],78:[function(require,module,exports){
+},{"process/browser.js":78,"timers":77}],78:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8}],79:[function(require,module,exports){
 (function (global){
 
 /**
@@ -70185,11 +70187,227 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],79:[function(require,module,exports){
+},{}],80:[function(require,module,exports){
 arguments[4][3][0].apply(exports,arguments)
-},{"dup":3}],80:[function(require,module,exports){
+},{"dup":3}],81:[function(require,module,exports){
 arguments[4][4][0].apply(exports,arguments)
-},{"./support/isBuffer":79,"_process":63,"dup":4,"inherits":12}],81:[function(require,module,exports){
+},{"./support/isBuffer":80,"_process":8,"dup":4,"inherits":13}],82:[function(require,module,exports){
+var v1 = require('./v1');
+var v4 = require('./v4');
+
+var uuid = v4;
+uuid.v1 = v1;
+uuid.v4 = v4;
+
+module.exports = uuid;
+
+},{"./v1":85,"./v4":86}],83:[function(require,module,exports){
+/**
+ * Convert array of 16 byte values to UUID string format of the form:
+ * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+ */
+var byteToHex = [];
+for (var i = 0; i < 256; ++i) {
+  byteToHex[i] = (i + 0x100).toString(16).substr(1);
+}
+
+function bytesToUuid(buf, offset) {
+  var i = offset || 0;
+  var bth = byteToHex;
+  // join used to fix memory issue caused by concatenation: https://bugs.chromium.org/p/v8/issues/detail?id=3175#c4
+  return ([
+    bth[buf[i++]], bth[buf[i++]],
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]], '-',
+    bth[buf[i++]], bth[buf[i++]],
+    bth[buf[i++]], bth[buf[i++]],
+    bth[buf[i++]], bth[buf[i++]]
+  ]).join('');
+}
+
+module.exports = bytesToUuid;
+
+},{}],84:[function(require,module,exports){
+// Unique ID creation requires a high quality random # generator.  In the
+// browser this is a little complicated due to unknown quality of Math.random()
+// and inconsistent support for the `crypto` API.  We do the best we can via
+// feature-detection
+
+// getRandomValues needs to be invoked in a context where "this" is a Crypto
+// implementation. Also, find the complete implementation of crypto on IE11.
+var getRandomValues = (typeof(crypto) != 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto)) ||
+                      (typeof(msCrypto) != 'undefined' && typeof window.msCrypto.getRandomValues == 'function' && msCrypto.getRandomValues.bind(msCrypto));
+
+if (getRandomValues) {
+  // WHATWG crypto RNG - http://wiki.whatwg.org/wiki/Crypto
+  var rnds8 = new Uint8Array(16); // eslint-disable-line no-undef
+
+  module.exports = function whatwgRNG() {
+    getRandomValues(rnds8);
+    return rnds8;
+  };
+} else {
+  // Math.random()-based (RNG)
+  //
+  // If all else fails, use Math.random().  It's fast, but is of unspecified
+  // quality.
+  var rnds = new Array(16);
+
+  module.exports = function mathRNG() {
+    for (var i = 0, r; i < 16; i++) {
+      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
+      rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
+    }
+
+    return rnds;
+  };
+}
+
+},{}],85:[function(require,module,exports){
+var rng = require('./lib/rng');
+var bytesToUuid = require('./lib/bytesToUuid');
+
+// **`v1()` - Generate time-based UUID**
+//
+// Inspired by https://github.com/LiosK/UUID.js
+// and http://docs.python.org/library/uuid.html
+
+var _nodeId;
+var _clockseq;
+
+// Previous uuid creation time
+var _lastMSecs = 0;
+var _lastNSecs = 0;
+
+// See https://github.com/uuidjs/uuid for API details
+function v1(options, buf, offset) {
+  var i = buf && offset || 0;
+  var b = buf || [];
+
+  options = options || {};
+  var node = options.node || _nodeId;
+  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
+
+  // node and clockseq need to be initialized to random values if they're not
+  // specified.  We do this lazily to minimize issues related to insufficient
+  // system entropy.  See #189
+  if (node == null || clockseq == null) {
+    var seedBytes = rng();
+    if (node == null) {
+      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
+      node = _nodeId = [
+        seedBytes[0] | 0x01,
+        seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]
+      ];
+    }
+    if (clockseq == null) {
+      // Per 4.2.2, randomize (14 bit) clockseq
+      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
+    }
+  }
+
+  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
+  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
+  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
+  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
+  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
+
+  // Per 4.2.1.2, use count of uuid's generated during the current clock
+  // cycle to simulate higher resolution clock
+  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
+
+  // Time since last uuid creation (in msecs)
+  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
+
+  // Per 4.2.1.2, Bump clockseq on clock regression
+  if (dt < 0 && options.clockseq === undefined) {
+    clockseq = clockseq + 1 & 0x3fff;
+  }
+
+  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
+  // time interval
+  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
+    nsecs = 0;
+  }
+
+  // Per 4.2.1.2 Throw error if too many uuids are requested
+  if (nsecs >= 10000) {
+    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
+  }
+
+  _lastMSecs = msecs;
+  _lastNSecs = nsecs;
+  _clockseq = clockseq;
+
+  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
+  msecs += 12219292800000;
+
+  // `time_low`
+  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+  b[i++] = tl >>> 24 & 0xff;
+  b[i++] = tl >>> 16 & 0xff;
+  b[i++] = tl >>> 8 & 0xff;
+  b[i++] = tl & 0xff;
+
+  // `time_mid`
+  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
+  b[i++] = tmh >>> 8 & 0xff;
+  b[i++] = tmh & 0xff;
+
+  // `time_high_and_version`
+  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
+  b[i++] = tmh >>> 16 & 0xff;
+
+  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
+  b[i++] = clockseq >>> 8 | 0x80;
+
+  // `clock_seq_low`
+  b[i++] = clockseq & 0xff;
+
+  // `node`
+  for (var n = 0; n < 6; ++n) {
+    b[i + n] = node[n];
+  }
+
+  return buf ? buf : bytesToUuid(b);
+}
+
+module.exports = v1;
+
+},{"./lib/bytesToUuid":83,"./lib/rng":84}],86:[function(require,module,exports){
+var rng = require('./lib/rng');
+var bytesToUuid = require('./lib/bytesToUuid');
+
+function v4(options, buf, offset) {
+  var i = buf && offset || 0;
+
+  if (typeof(options) == 'string') {
+    buf = options === 'binary' ? new Array(16) : null;
+    options = null;
+  }
+  options = options || {};
+
+  var rnds = options.random || (options.rng || rng)();
+
+  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+  rnds[6] = (rnds[6] & 0x0f) | 0x40;
+  rnds[8] = (rnds[8] & 0x3f) | 0x80;
+
+  // Copy bytes to buffer, if provided
+  if (buf) {
+    for (var ii = 0; ii < 16; ++ii) {
+      buf[i + ii] = rnds[ii];
+    }
+  }
+
+  return buf || bytesToUuid(rnds);
+}
+
+module.exports = v4;
+
+},{"./lib/bytesToUuid":83,"./lib/rng":84}],87:[function(require,module,exports){
 (function (Buffer){
 const Peer = require('../../server/src/peer')
 const msgpack = require('msgpack5')();
@@ -70198,7 +70416,17 @@ const THREE = require('three');
 const MUXJS = require('mux.js');
 const MP4 = MUXJS.mp4.generator;
 const H264Stream = MUXJS.codecs.h264.H264Stream;
-const VIDEO_PROPERTIES = require('../../node_modules/mux.js/lib/constants/video-properties.js');
+//const VIDEO_PROPERTIES = require('../../node_modules/mux.js/lib/constants/video-properties.js');
+
+const VIDEO_PROPERTIES = [
+	'width',
+	'height',
+	'profileIdc',
+	'levelIdc',
+	'profileCompatibility',
+	'sarRatio'
+  ];
+  
 
 let current_data = {};
 let peer;
@@ -70997,374 +71225,7 @@ saveConfigs = async () => {
     const content = await rawResp.json();
 }
 }).call(this,require("buffer").Buffer)
-},{"../../node_modules/mux.js/lib/constants/video-properties.js":25,"../../server/src/peer":108,"buffer":8,"msgpack5":15,"mux.js":33,"rematrix":73,"three":76}],82:[function(require,module,exports){
-arguments[4][6][0].apply(exports,arguments)
-},{"dup":6,"readable-stream":99,"safe-buffer":100,"util":80}],83:[function(require,module,exports){
-(function (Buffer){
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-// NOTE: These type checking functions intentionally don't use `instanceof`
-// because it is fragile and can be easily faked with `Object.create()`.
-
-function isArray(arg) {
-  if (Array.isArray) {
-    return Array.isArray(arg);
-  }
-  return objectToString(arg) === '[object Array]';
-}
-exports.isArray = isArray;
-
-function isBoolean(arg) {
-  return typeof arg === 'boolean';
-}
-exports.isBoolean = isBoolean;
-
-function isNull(arg) {
-  return arg === null;
-}
-exports.isNull = isNull;
-
-function isNullOrUndefined(arg) {
-  return arg == null;
-}
-exports.isNullOrUndefined = isNullOrUndefined;
-
-function isNumber(arg) {
-  return typeof arg === 'number';
-}
-exports.isNumber = isNumber;
-
-function isString(arg) {
-  return typeof arg === 'string';
-}
-exports.isString = isString;
-
-function isSymbol(arg) {
-  return typeof arg === 'symbol';
-}
-exports.isSymbol = isSymbol;
-
-function isUndefined(arg) {
-  return arg === void 0;
-}
-exports.isUndefined = isUndefined;
-
-function isRegExp(re) {
-  return objectToString(re) === '[object RegExp]';
-}
-exports.isRegExp = isRegExp;
-
-function isObject(arg) {
-  return typeof arg === 'object' && arg !== null;
-}
-exports.isObject = isObject;
-
-function isDate(d) {
-  return objectToString(d) === '[object Date]';
-}
-exports.isDate = isDate;
-
-function isError(e) {
-  return (objectToString(e) === '[object Error]' || e instanceof Error);
-}
-exports.isError = isError;
-
-function isFunction(arg) {
-  return typeof arg === 'function';
-}
-exports.isFunction = isFunction;
-
-function isPrimitive(arg) {
-  return arg === null ||
-         typeof arg === 'boolean' ||
-         typeof arg === 'number' ||
-         typeof arg === 'string' ||
-         typeof arg === 'symbol' ||  // ES6 symbol
-         typeof arg === 'undefined';
-}
-exports.isPrimitive = isPrimitive;
-
-exports.isBuffer = Buffer.isBuffer;
-
-function objectToString(o) {
-  return Object.prototype.toString.call(o);
-}
-
-}).call(this,{"isBuffer":require("../../../../node_modules/is-buffer/index.js")})
-},{"../../../../node_modules/is-buffer/index.js":13}],84:[function(require,module,exports){
-arguments[4][2][0].apply(exports,arguments)
-},{"dup":2}],85:[function(require,module,exports){
-arguments[4][14][0].apply(exports,arguments)
-},{"dup":14}],86:[function(require,module,exports){
-arguments[4][15][0].apply(exports,arguments)
-},{"./lib/decoder":87,"./lib/encoder":88,"./lib/streams":89,"assert":1,"bl":82,"dup":15,"safe-buffer":100}],87:[function(require,module,exports){
-arguments[4][16][0].apply(exports,arguments)
-},{"bl":82,"dup":16,"util":80}],88:[function(require,module,exports){
-arguments[4][17][0].apply(exports,arguments)
-},{"bl":82,"dup":17,"safe-buffer":100}],89:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"bl":82,"dup":18,"inherits":84,"readable-stream":99}],90:[function(require,module,exports){
-arguments[4][62][0].apply(exports,arguments)
-},{"_process":63,"dup":62}],91:[function(require,module,exports){
-arguments[4][64][0].apply(exports,arguments)
-},{"./_stream_readable":93,"./_stream_writable":95,"core-util-is":83,"dup":64,"inherits":84,"process-nextick-args":90}],92:[function(require,module,exports){
-arguments[4][65][0].apply(exports,arguments)
-},{"./_stream_transform":94,"core-util-is":83,"dup":65,"inherits":84}],93:[function(require,module,exports){
-arguments[4][66][0].apply(exports,arguments)
-},{"./_stream_duplex":91,"./internal/streams/BufferList":96,"./internal/streams/destroy":97,"./internal/streams/stream":98,"_process":63,"core-util-is":83,"dup":66,"events":10,"inherits":84,"isarray":85,"process-nextick-args":90,"safe-buffer":100,"string_decoder/":101,"util":7}],94:[function(require,module,exports){
-arguments[4][67][0].apply(exports,arguments)
-},{"./_stream_duplex":91,"core-util-is":83,"dup":67,"inherits":84}],95:[function(require,module,exports){
-arguments[4][68][0].apply(exports,arguments)
-},{"./_stream_duplex":91,"./internal/streams/destroy":97,"./internal/streams/stream":98,"_process":63,"core-util-is":83,"dup":68,"inherits":84,"process-nextick-args":90,"safe-buffer":100,"timers":77,"util-deprecate":102}],96:[function(require,module,exports){
-arguments[4][69][0].apply(exports,arguments)
-},{"dup":69,"safe-buffer":100,"util":7}],97:[function(require,module,exports){
-arguments[4][70][0].apply(exports,arguments)
-},{"dup":70,"process-nextick-args":90}],98:[function(require,module,exports){
-arguments[4][71][0].apply(exports,arguments)
-},{"dup":71,"events":10}],99:[function(require,module,exports){
-arguments[4][72][0].apply(exports,arguments)
-},{"./lib/_stream_duplex.js":91,"./lib/_stream_passthrough.js":92,"./lib/_stream_readable.js":93,"./lib/_stream_transform.js":94,"./lib/_stream_writable.js":95,"dup":72}],100:[function(require,module,exports){
-arguments[4][74][0].apply(exports,arguments)
-},{"buffer":8,"dup":74}],101:[function(require,module,exports){
-arguments[4][75][0].apply(exports,arguments)
-},{"dup":75,"safe-buffer":100}],102:[function(require,module,exports){
-arguments[4][78][0].apply(exports,arguments)
-},{"dup":78}],103:[function(require,module,exports){
-var v1 = require('./v1');
-var v4 = require('./v4');
-
-var uuid = v4;
-uuid.v1 = v1;
-uuid.v4 = v4;
-
-module.exports = uuid;
-
-},{"./v1":106,"./v4":107}],104:[function(require,module,exports){
-/**
- * Convert array of 16 byte values to UUID string format of the form:
- * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
- */
-var byteToHex = [];
-for (var i = 0; i < 256; ++i) {
-  byteToHex[i] = (i + 0x100).toString(16).substr(1);
-}
-
-function bytesToUuid(buf, offset) {
-  var i = offset || 0;
-  var bth = byteToHex;
-  // join used to fix memory issue caused by concatenation: https://bugs.chromium.org/p/v8/issues/detail?id=3175#c4
-  return ([
-    bth[buf[i++]], bth[buf[i++]],
-    bth[buf[i++]], bth[buf[i++]], '-',
-    bth[buf[i++]], bth[buf[i++]], '-',
-    bth[buf[i++]], bth[buf[i++]], '-',
-    bth[buf[i++]], bth[buf[i++]], '-',
-    bth[buf[i++]], bth[buf[i++]],
-    bth[buf[i++]], bth[buf[i++]],
-    bth[buf[i++]], bth[buf[i++]]
-  ]).join('');
-}
-
-module.exports = bytesToUuid;
-
-},{}],105:[function(require,module,exports){
-// Unique ID creation requires a high quality random # generator.  In the
-// browser this is a little complicated due to unknown quality of Math.random()
-// and inconsistent support for the `crypto` API.  We do the best we can via
-// feature-detection
-
-// getRandomValues needs to be invoked in a context where "this" is a Crypto
-// implementation. Also, find the complete implementation of crypto on IE11.
-var getRandomValues = (typeof(crypto) != 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto)) ||
-                      (typeof(msCrypto) != 'undefined' && typeof window.msCrypto.getRandomValues == 'function' && msCrypto.getRandomValues.bind(msCrypto));
-
-if (getRandomValues) {
-  // WHATWG crypto RNG - http://wiki.whatwg.org/wiki/Crypto
-  var rnds8 = new Uint8Array(16); // eslint-disable-line no-undef
-
-  module.exports = function whatwgRNG() {
-    getRandomValues(rnds8);
-    return rnds8;
-  };
-} else {
-  // Math.random()-based (RNG)
-  //
-  // If all else fails, use Math.random().  It's fast, but is of unspecified
-  // quality.
-  var rnds = new Array(16);
-
-  module.exports = function mathRNG() {
-    for (var i = 0, r; i < 16; i++) {
-      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
-      rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
-    }
-
-    return rnds;
-  };
-}
-
-},{}],106:[function(require,module,exports){
-var rng = require('./lib/rng');
-var bytesToUuid = require('./lib/bytesToUuid');
-
-// **`v1()` - Generate time-based UUID**
-//
-// Inspired by https://github.com/LiosK/UUID.js
-// and http://docs.python.org/library/uuid.html
-
-var _nodeId;
-var _clockseq;
-
-// Previous uuid creation time
-var _lastMSecs = 0;
-var _lastNSecs = 0;
-
-// See https://github.com/uuidjs/uuid for API details
-function v1(options, buf, offset) {
-  var i = buf && offset || 0;
-  var b = buf || [];
-
-  options = options || {};
-  var node = options.node || _nodeId;
-  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
-
-  // node and clockseq need to be initialized to random values if they're not
-  // specified.  We do this lazily to minimize issues related to insufficient
-  // system entropy.  See #189
-  if (node == null || clockseq == null) {
-    var seedBytes = rng();
-    if (node == null) {
-      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
-      node = _nodeId = [
-        seedBytes[0] | 0x01,
-        seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]
-      ];
-    }
-    if (clockseq == null) {
-      // Per 4.2.2, randomize (14 bit) clockseq
-      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
-    }
-  }
-
-  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
-  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
-  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
-  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
-  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
-
-  // Per 4.2.1.2, use count of uuid's generated during the current clock
-  // cycle to simulate higher resolution clock
-  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
-
-  // Time since last uuid creation (in msecs)
-  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
-
-  // Per 4.2.1.2, Bump clockseq on clock regression
-  if (dt < 0 && options.clockseq === undefined) {
-    clockseq = clockseq + 1 & 0x3fff;
-  }
-
-  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
-  // time interval
-  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
-    nsecs = 0;
-  }
-
-  // Per 4.2.1.2 Throw error if too many uuids are requested
-  if (nsecs >= 10000) {
-    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
-  }
-
-  _lastMSecs = msecs;
-  _lastNSecs = nsecs;
-  _clockseq = clockseq;
-
-  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
-  msecs += 12219292800000;
-
-  // `time_low`
-  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
-  b[i++] = tl >>> 24 & 0xff;
-  b[i++] = tl >>> 16 & 0xff;
-  b[i++] = tl >>> 8 & 0xff;
-  b[i++] = tl & 0xff;
-
-  // `time_mid`
-  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
-  b[i++] = tmh >>> 8 & 0xff;
-  b[i++] = tmh & 0xff;
-
-  // `time_high_and_version`
-  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
-  b[i++] = tmh >>> 16 & 0xff;
-
-  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
-  b[i++] = clockseq >>> 8 | 0x80;
-
-  // `clock_seq_low`
-  b[i++] = clockseq & 0xff;
-
-  // `node`
-  for (var n = 0; n < 6; ++n) {
-    b[i + n] = node[n];
-  }
-
-  return buf ? buf : bytesToUuid(b);
-}
-
-module.exports = v1;
-
-},{"./lib/bytesToUuid":104,"./lib/rng":105}],107:[function(require,module,exports){
-var rng = require('./lib/rng');
-var bytesToUuid = require('./lib/bytesToUuid');
-
-function v4(options, buf, offset) {
-  var i = buf && offset || 0;
-
-  if (typeof(options) == 'string') {
-    buf = options === 'binary' ? new Array(16) : null;
-    options = null;
-  }
-  options = options || {};
-
-  var rnds = options.random || (options.rng || rng)();
-
-  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
-  rnds[6] = (rnds[6] & 0x0f) | 0x40;
-  rnds[8] = (rnds[8] & 0x3f) | 0x80;
-
-  // Copy bytes to buffer, if provided
-  if (buf) {
-    for (var ii = 0; ii < 16; ++ii) {
-      buf[i + ii] = rnds[ii];
-    }
-  }
-
-  return buf || bytesToUuid(rnds);
-}
-
-module.exports = v4;
-
-},{"./lib/bytesToUuid":104,"./lib/rng":105}],108:[function(require,module,exports){
+},{"../../server/src/peer":88,"buffer":9,"msgpack5":16,"mux.js":34,"rematrix":73,"three":76}],88:[function(require,module,exports){
 (function (Buffer){
 const msgpack = require('msgpack5')()
   , encode  = msgpack.encode
@@ -71653,7 +71514,7 @@ Peer.prototype.getUuid = function() {
 module.exports = Peer;
 
 }).call(this,require("buffer").Buffer)
-},{"./utils/uuidParser":109,"buffer":8,"msgpack5":86,"uuid":103}],109:[function(require,module,exports){
+},{"./utils/uuidParser":89,"buffer":9,"msgpack5":16,"uuid":82}],89:[function(require,module,exports){
 // Maps for number <-> hex string conversion
 var _byteToHex = [];
 var _hexToByte = {};
@@ -71708,4 +71569,4 @@ module.exports = {
   parse: parse,
   unparse: unparse
 };
-},{}]},{},[81]);
+},{}]},{},[87]);

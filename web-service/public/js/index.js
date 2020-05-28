@@ -5,7 +5,17 @@ const THREE = require('three');
 const MUXJS = require('mux.js');
 const MP4 = MUXJS.mp4.generator;
 const H264Stream = MUXJS.codecs.h264.H264Stream;
-const VIDEO_PROPERTIES = require('../../node_modules/mux.js/lib/constants/video-properties.js');
+//const VIDEO_PROPERTIES = require('../../node_modules/mux.js/lib/constants/video-properties.js');
+
+const VIDEO_PROPERTIES = [
+	'width',
+	'height',
+	'profileIdc',
+	'levelIdc',
+	'profileCompatibility',
+	'sarRatio'
+  ];
+  
 
 let current_data = {};
 let peer;
