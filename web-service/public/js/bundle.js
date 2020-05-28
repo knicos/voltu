@@ -70815,7 +70815,12 @@ function FTLStream(peer, uri, element) {
 			this.queue.push(data);
 		} else {
 			//console.log("Direct append: ", data);
-			this.sourceBuffer.appendBuffer(data);
+
+			try {
+				this.sourceBuffer.appendBuffer(data);
+			} catch (e) {
+				console.error("Failed to append buffer");
+			}
 		}
 	}
 
@@ -70926,11 +70931,16 @@ function FTLStream(peer, uri, element) {
 		});
 
 		this.sourceBuffer.addEventListener('updateend', () => {
-			if (this.queue.length > 0) {
+			if (this.queue.length > 0 && !this.sourceBuffer.updating) {
 				let s = this.queue[0];
 				this.queue.shift();
 				//console.log("Append", s);
-				this.sourceBuffer.appendBuffer(s);
+
+				try {
+					this.sourceBuffer.appendBuffer(s);
+				} catch(e) {
+					console.error("Failed to append buffer");
+				}
 			}
 		});
 	});
