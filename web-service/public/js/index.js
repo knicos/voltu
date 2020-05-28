@@ -2,7 +2,7 @@ const Peer = require('../../server/src/peer')
 const msgpack = require('msgpack5')();
 const rematrix = require('rematrix');
 const THREE = require('three');
-const FTLRemux = require('./ftlremux');
+const FTLMSE = require('./ftlmse');
 //const VIDEO_PROPERTIES = require('../../node_modules/mux.js/lib/constants/video-properties.js');
   
 
@@ -289,7 +289,7 @@ function FTLStream(peer, uri, element) {
 	this.overlay.appendChild(this.pause_button);
 
 	this.paused = false;
-	this.active = false;
+	this.active = true;
 
 	this.overlay.addEventListener('keydown', (event) => {
 		console.log(event);
@@ -337,73 +337,7 @@ function FTLStream(peer, uri, element) {
 
     let rxcount = 0;
 
-	this.remux = new FTLRemux();
-	this.remux.on('data', (data) => {
-		this.doAppend(data);
-	});
-
-	this.doAppend = function(data) {
-		if (this.sourceBuffer.updating) {
-			this.queue.push(data);
-		} else {
-			//console.log("Direct append: ", data);
-
-			try {
-				this.sourceBuffer.appendBuffer(data);
-			} catch (e) {
-				console.error("Failed to append buffer");
-			}
-		}
-	}
-
-	this.mime = 'video/mp4; codecs="avc1.640028"';
-	
-	this.mediaSource = new MediaSource();
-	//this.element.play();
-	this.sourceBuffer = null;
-
-	this.element.addEventListener('pause', (e) => {
-		console.log("pause");
-		this.active = false;
-	});
-
-	this.element.addEventListener('play', (e) => {
-		console.log("Play");
-		this.active = true;
-		this.remux.select(0,0,0);
-	});
-
-	this.mediaSource.addEventListener('sourceopen', (e) => {
-		console.log("Source Open");
-		URL.revokeObjectURL(this.element.src);
-		console.log(this.mediaSource.readyState);
-		this.sourceBuffer = e.target.addSourceBuffer(this.mime);
-		this.sourceBuffer.mode = 'sequence';
-		this.active = true;
-
-		this.sourceBuffer.addEventListener('error', (e) => {
-			console.error("SourceBuffer: ", e);
-			this.active = false;
-		});
-
-		this.sourceBuffer.addEventListener('updateend', () => {
-			if (this.queue.length > 0 && !this.sourceBuffer.updating) {
-				let s = this.queue[0];
-				this.queue.shift();
-				//console.log("Append", s);
-
-				try {
-					this.sourceBuffer.appendBuffer(s);
-				} catch(e) {
-					console.error("Failed to append buffer");
-				}
-			}
-		});
-	});
-
-	this.queue = [];
-
-	this.element.src = URL.createObjectURL(this.mediaSource);
+	this.mse = new FTLMSE(this.element);
 
     this.peer.bind(uri, (latency, streampckg, pckg) => {
 		if (this.paused || !this.active) {
@@ -421,7 +355,7 @@ function FTLStream(peer, uri, element) {
 					//peer.send(current_data.uri, 0, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
 				}
 
-				this.remux.push(streampckg, pckg);
+				this.mse.push(streampckg, pckg);
 			}
         } else if (pckg[0] === 103) {
 			//console.log(msgpack.decode(pckg[5]));
@@ -491,7 +425,7 @@ FTLStream.prototype.start = function(fs, source, channel) {
 	this.current_source = source;
 	this.current_channel = channel;
 
-	this.remux.select(fs, source, channel);
+	this.mse.select(fs, source, channel);
 
 	if (this.found) {
 		this.peer.send(this.uri, 0, [1,fs,255,channel],[255,7,35,0,0,Buffer.alloc(0)]);

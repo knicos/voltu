@@ -70821,6 +70821,93 @@ module.exports = v4;
 
 },{"./lib/bytesToUuid":104,"./lib/rng":105}],108:[function(require,module,exports){
 var ee = require('event-emitter');
+const FTLRemux = require('./ftlremux');
+
+function FTLMSE(video) {
+	this.video = video;
+	this.remux = new FTLRemux();
+
+	this.paused = false;
+	this.active = false;
+
+	this.remux.on('data', (data) => {
+		if (this.sourceBuffer.updating) {
+			this.queue.push(data);
+		} else {
+			//console.log("Direct append: ", data);
+
+			try {
+				this.sourceBuffer.appendBuffer(data);
+			} catch (e) {
+				console.error("Failed to append buffer");
+			}
+		}
+	});
+
+	// TODO: Generate
+	this.mime = 'video/mp4; codecs="avc1.640028"';
+	
+	this.mediaSource = new MediaSource();
+	//this.element.play();
+	this.sourceBuffer = null;
+
+	this.video.addEventListener('pause', (e) => {
+		console.log("pause");
+		this.active = false;
+	});
+
+	this.video.addEventListener('play', (e) => {
+		console.log("Play");
+		this.active = true;
+		this.remux.select(0,0,0);
+	});
+
+	this.mediaSource.addEventListener('sourceopen', (e) => {
+		console.log("Source Open");
+		URL.revokeObjectURL(this.video.src);
+		console.log(this.mediaSource.readyState);
+		this.sourceBuffer = e.target.addSourceBuffer(this.mime);
+		this.sourceBuffer.mode = 'sequence';
+		this.active = true;
+
+		this.sourceBuffer.addEventListener('error', (e) => {
+			console.error("SourceBuffer: ", e);
+			this.active = false;
+		});
+
+		this.sourceBuffer.addEventListener('updateend', () => {
+			if (this.queue.length > 0 && !this.sourceBuffer.updating) {
+				let s = this.queue[0];
+				this.queue.shift();
+				//console.log("Append", s);
+
+				try {
+					this.sourceBuffer.appendBuffer(s);
+				} catch(e) {
+					console.error("Failed to append buffer");
+				}
+			}
+		});
+	});
+
+	this.queue = [];
+	this.video.src = URL.createObjectURL(this.mediaSource);
+}
+
+ee(FTLMSE.prototype);
+
+FTLMSE.prototype.push = function(spkt, pkt) {
+	this.remux.push(spkt,pkt);
+}
+
+FTLMSE.prototype.select = function(frameset, source, channel) {
+	this.remux.select(frameset, source, channel);
+}
+
+module.exports = FTLMSE;
+
+},{"./ftlremux":109,"event-emitter":26}],109:[function(require,module,exports){
+var ee = require('event-emitter');
 const MUXJS = require('mux.js');
 const MP4 = MUXJS.mp4.generator;
 const H264Stream = MUXJS.codecs.h264.H264Stream;
@@ -71020,13 +71107,13 @@ FTLRemux.prototype.reset = function() {
 
 module.exports = FTLRemux;
 
-},{"event-emitter":26,"mux.js":50}],109:[function(require,module,exports){
+},{"event-emitter":26,"mux.js":50}],110:[function(require,module,exports){
 (function (Buffer){
 const Peer = require('../../server/src/peer')
 const msgpack = require('msgpack5')();
 const rematrix = require('rematrix');
 const THREE = require('three');
-const FTLRemux = require('./ftlremux');
+const FTLMSE = require('./ftlmse');
 //const VIDEO_PROPERTIES = require('../../node_modules/mux.js/lib/constants/video-properties.js');
   
 
@@ -71313,7 +71400,7 @@ function FTLStream(peer, uri, element) {
 	this.overlay.appendChild(this.pause_button);
 
 	this.paused = false;
-	this.active = false;
+	this.active = true;
 
 	this.overlay.addEventListener('keydown', (event) => {
 		console.log(event);
@@ -71361,73 +71448,7 @@ function FTLStream(peer, uri, element) {
 
     let rxcount = 0;
 
-	this.remux = new FTLRemux();
-	this.remux.on('data', (data) => {
-		this.doAppend(data);
-	});
-
-	this.doAppend = function(data) {
-		if (this.sourceBuffer.updating) {
-			this.queue.push(data);
-		} else {
-			//console.log("Direct append: ", data);
-
-			try {
-				this.sourceBuffer.appendBuffer(data);
-			} catch (e) {
-				console.error("Failed to append buffer");
-			}
-		}
-	}
-
-	this.mime = 'video/mp4; codecs="avc1.640028"';
-	
-	this.mediaSource = new MediaSource();
-	//this.element.play();
-	this.sourceBuffer = null;
-
-	this.element.addEventListener('pause', (e) => {
-		console.log("pause");
-		this.active = false;
-	});
-
-	this.element.addEventListener('play', (e) => {
-		console.log("Play");
-		this.active = true;
-		this.remux.select(0,0,0);
-	});
-
-	this.mediaSource.addEventListener('sourceopen', (e) => {
-		console.log("Source Open");
-		URL.revokeObjectURL(this.element.src);
-		console.log(this.mediaSource.readyState);
-		this.sourceBuffer = e.target.addSourceBuffer(this.mime);
-		this.sourceBuffer.mode = 'sequence';
-		this.active = true;
-
-		this.sourceBuffer.addEventListener('error', (e) => {
-			console.error("SourceBuffer: ", e);
-			this.active = false;
-		});
-
-		this.sourceBuffer.addEventListener('updateend', () => {
-			if (this.queue.length > 0 && !this.sourceBuffer.updating) {
-				let s = this.queue[0];
-				this.queue.shift();
-				//console.log("Append", s);
-
-				try {
-					this.sourceBuffer.appendBuffer(s);
-				} catch(e) {
-					console.error("Failed to append buffer");
-				}
-			}
-		});
-	});
-
-	this.queue = [];
-
-	this.element.src = URL.createObjectURL(this.mediaSource);
+	this.mse = new FTLMSE(this.element);
 
     this.peer.bind(uri, (latency, streampckg, pckg) => {
 		if (this.paused || !this.active) {
@@ -71445,7 +71466,7 @@ function FTLStream(peer, uri, element) {
 					//peer.send(current_data.uri, 0, [255,7,35,0,0,Buffer.alloc(0)], [1,0,255,0]);
 				}
 
-				this.remux.push(streampckg, pckg);
+				this.mse.push(streampckg, pckg);
 			}
         } else if (pckg[0] === 103) {
 			//console.log(msgpack.decode(pckg[5]));
@@ -71515,7 +71536,7 @@ FTLStream.prototype.start = function(fs, source, channel) {
 	this.current_source = source;
 	this.current_channel = channel;
 
-	this.remux.select(fs, source, channel);
+	this.mse.select(fs, source, channel);
 
 	if (this.found) {
 		this.peer.send(this.uri, 0, [1,fs,255,channel],[255,7,35,0,0,Buffer.alloc(0)]);
@@ -71631,7 +71652,7 @@ saveConfigs = async () => {
     const content = await rawResp.json();
 }
 }).call(this,require("buffer").Buffer)
-},{"../../server/src/peer":110,"./ftlremux":108,"buffer":9,"msgpack5":32,"rematrix":89,"three":92}],110:[function(require,module,exports){
+},{"../../server/src/peer":111,"./ftlmse":108,"buffer":9,"msgpack5":32,"rematrix":89,"three":92}],111:[function(require,module,exports){
 (function (Buffer){
 const msgpack = require('msgpack5')()
   , encode  = msgpack.encode
@@ -71920,7 +71941,7 @@ Peer.prototype.getUuid = function() {
 module.exports = Peer;
 
 }).call(this,require("buffer").Buffer)
-},{"./utils/uuidParser":111,"buffer":9,"msgpack5":32,"uuid":103}],111:[function(require,module,exports){
+},{"./utils/uuidParser":112,"buffer":9,"msgpack5":32,"uuid":103}],112:[function(require,module,exports){
 // Maps for number <-> hex string conversion
 var _byteToHex = [];
 var _hexToByte = {};
@@ -71975,4 +71996,4 @@ module.exports = {
   parse: parse,
   unparse: unparse
 };
-},{}]},{},[109]);
+},{}]},{},[110]);
