@@ -170,10 +170,10 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::read(std::vector<T> &out, int count) {
 // ==== Common forms ===========================================================
 
 template <int SIZE>
-using StereoBuffer16 = ftl::audio::FixedBuffer<short,2,256,SIZE>;
+using StereoBuffer16 = ftl::audio::FixedBuffer<short,2,960,SIZE>;
 
 template <int SIZE>
-using MonoBuffer16 = ftl::audio::FixedBuffer<short,1,256,SIZE>;
+using MonoBuffer16 = ftl::audio::FixedBuffer<short,1,960,SIZE>;
 
 }
 }

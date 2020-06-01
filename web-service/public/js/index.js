@@ -344,7 +344,9 @@ function FTLStream(peer, uri, element) {
 			return;
 		}
 
-        if(pckg[0] === 2){  // H264 packet.
+		if (pckg[0] == 33) {
+			this.mse.push(streampckg, pckg);
+        } else if(pckg[0] === 2){  // H264 packet.
 			let id = "id-"+streampckg[1]+"-"+streampckg[2]+"-"+streampckg[3];
 
 			if (this.current == id) {

@@ -1,6 +1,7 @@
 #include <ftl/streams/sender.hpp>
 #include <ftl/codecs/depth_convert_cuda.hpp>
 #include <ftl/profiler.hpp>
+#include <ftl/audio/software_encoder.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 
@@ -59,6 +60,20 @@ void Sender::onRequest(const ftl::stream::StreamCallback &cb) {
 	reqcb_ = cb;
 }
 
+ftl::audio::Encoder *Sender::_getAudioEncoder(int fsid, int sid, ftl::codecs::Channel c, ftl::codecs::Packet &pkt) {
+	int id = (fsid << 8) + sid;
+	auto i = audio_state_.find(id);
+	if (i == audio_state_.end()) {
+		audio_state_[id] = {nullptr};
+	}
+
+	auto &state = audio_state_[id];
+	if (state.encoder == nullptr) {
+		state.encoder = new ftl::audio::SoftwareEncoder();
+	}
+	return state.encoder;
+}
+
 void Sender::post(const ftl::audio::FrameSet &fs) {
 	if (!stream_) return;
 
@@ -82,7 +97,7 @@ void Sender::post(const ftl::audio::FrameSet &fs) {
 		spkt.channel = (fs.frames[i].hasChannel(Channel::AudioStereo)) ? Channel::AudioStereo : Channel::AudioMono;
 
 		ftl::codecs::Packet pkt;
-		pkt.codec = ftl::codecs::codec_t::RAW;
+		pkt.codec = ftl::codecs::codec_t::OPUS;
 		pkt.definition = ftl::codecs::definition_t::Any;
 
 		switch (settings.sample_rate) {
@@ -92,11 +107,22 @@ void Sender::post(const ftl::audio::FrameSet &fs) {
 		}
 
 		pkt.frame_count = 1;
-		pkt.flags = 0;
-		pkt.bitrate = 0;
+		pkt.flags = (fs.frames[i].hasChannel(Channel::AudioStereo)) ? ftl::codecs::kFlagStereo : 0;
+		pkt.bitrate = 180;
 
-		const unsigned char *ptr = (unsigned char*)data.data().data();
-		pkt.data = std::move(std::vector<unsigned char>(ptr, ptr+data.size()));  // TODO: Reduce copy...
+		// Find encoder here ...
+		ftl::audio::Encoder *enc = _getAudioEncoder(fs.id, i, spkt.channel, pkt);
+
+		// Do encoding into pkt.data
+		if (!enc) {
+			LOG(ERROR) << "Could not find audio encoder";
+			return;
+		}
+		
+		if (!enc->encode(data.data(), pkt)) {
+			LOG(ERROR) << "Could not encode audio";
+			return;
+		}
 
 		stream_->post(spkt, pkt);
 

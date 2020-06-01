@@ -101,7 +101,7 @@ void Speaker::_open(int fsize, int sample, int channels) {
 		NULL,
 		&outputParameters,
 		sample,  // Sample rate
-		256,    // Size of single frame
+		960,    // Size of single frame
 		paNoFlag,
 		(channels == 1) ? pa_speaker_callback<ftl::audio::MonoBuffer16<2000>> : pa_speaker_callback<ftl::audio::StereoBuffer16<2000>>,
 		this->buffer_
@@ -133,7 +133,7 @@ void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
 	auto &audio = frame.get<ftl::audio::Audio>((frame.hasChannel(Channel::AudioStereo)) ? Channel::AudioStereo : Channel::AudioMono);
 
 	if (!buffer_) {
-		_open(256, frame.getSettings().sample_rate, frame.getSettings().channels);
+		_open(960, frame.getSettings().sample_rate, frame.getSettings().channels);
 	}
 	if (!buffer_) return;
 

@@ -13,7 +13,7 @@
 namespace ftl {
 namespace audio {
 
-static constexpr int kFrameSize = 256;
+static constexpr int kFrameSize = 960;
 
 typedef ftl::data::Generator<ftl::audio::FrameSet> Generator;
 

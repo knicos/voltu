@@ -467,8 +467,9 @@ app.ws('/', (ws, req) => {
  * @param {uri} uri 
  */
 function stringSplitter(uri) {
-	const url = new Url(uri)
-	return url.origin;
+	//const url = new Url(uri)
+	//return url.origin;
+	return uri;
 }
 
 console.log("Listening or port 8080");

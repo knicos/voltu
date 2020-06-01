@@ -160,6 +160,8 @@ SourceWindow::SourceWindow(ftl::gui::Screen *screen)
 		int64_t renddelay = (c) ? c->getFrameTimeMS() : 0;
 		speaker_->setDelay(fs.timestamp - framesets_[0]->timestamp + renddelay);  // Add Xms for local render time
 		speaker_->queue(fs.timestamp, fs.frames[0]);
+
+		//LOG(INFO) << "Audio delay = " << (fs.timestamp - framesets_[0]->timestamp + renddelay);
 		return true;
 	});
 

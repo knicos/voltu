@@ -13,6 +13,7 @@ enable_testing()
 option(WITH_NVPIPE "Use NvPipe for compression if available" ON)
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
 option(WITH_OPENVR "Build with OpenVR support" OFF)
+option(WITH_OPUS "Use Opus audio compression" ON)
 option(WITH_FIXSTARS "Use Fixstars libSGM" ON)
 option(WITH_CERES "Use Ceres solver" ON)
 option(USE_CPPCHECK "Apply cppcheck during build" ON)
@@ -111,6 +112,37 @@ if (WITH_OPENVR)
 else()
 	set(OPENVR_LIBRARY "")
 	add_library(openvr INTERFACE)
+endif()
+
+# ============== Opus ==========================================================
+
+if (WITH_OPUS)
+	find_library( OPUS_LIBRARY NAMES opus PATHS ${OPUS_DIR} PATH_SUFFIXES lib)
+	find_path( OPUS_INCLUDE NAMES opus/opus.h)
+	if (OPUS_LIBRARY AND OPUS_INCLUDE)
+		set(HAVE_OPUS TRUE)
+		add_library(Opus UNKNOWN IMPORTED)
+		#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+		set_property(TARGET Opus PROPERTY IMPORTED_LOCATION ${OPUS_LIBRARY})
+		message(STATUS "Found Opus: ${OPUS_LIBRARY}")
+
+		if(WIN32)
+			# Find include
+			find_path(OPUS_INCLUDE_DIRS
+				NAMES opus/opus.h
+				#PATHS "C:/Program Files/OpenVRSDK" "C:/Program Files (x86)/OpenVRSDK" ${OPENVR_DIR}
+				PATH_SUFFIXES include
+			)
+			set_property(TARGET Opus PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${OPUS_INCLUDE_DIRS})
+		endif()
+	else()
+		message(STATUS "No Opus, audio compression disabled")
+		set(OPUS_LIBRARY "")
+		add_library(Opus INTERFACE)
+	endif()
+else()
+	set(OPUS_LIBRARY "")
+	add_library(Opus INTERFACE)
 endif()
 
 # ==============================================================================
