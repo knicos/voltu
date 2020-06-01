@@ -44,6 +44,8 @@ namespace ftl {
 		const std::string &getFragment() const { return m_frag; }
 		std::string getQuery() const;
 		const std::string &getBaseURI() const { return m_base; };
+		bool hasUserInfo() const;
+		const std::string &getUserInfo() const; 
 
 		/**
 		 * Get the URI without query parameters, and limit path to length N.
@@ -74,6 +76,7 @@ namespace ftl {
 		std::string m_path;
 		std::string m_frag;
 		std::string m_base;
+		std::string m_userinfo;
 		std::vector<std::string> m_pathseg;
 		int m_port;
 		scheme_t m_proto;

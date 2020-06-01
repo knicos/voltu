@@ -6,7 +6,10 @@
 #include <loguru.hpp>
 
 #include <cstring>
+
 #include <ftl/net/ws_internal.hpp>
+#include <ftl/utility/base64.hpp>
+
 #include <memory>
 
 
@@ -184,7 +187,7 @@ int ftl::net::ws_prepare(wsheader_type::opcode_type op, bool useMask, size_t len
 	return (int)header_size;
 }
 
-bool ftl::net::ws_connect(SOCKET sockfd, const URI &uri) {
+bool ftl::net::ws_connect(SOCKET sockfd, const URI &uri, const ws_options &options) {
 	string http = "";
 	int status;
 	int i;
@@ -196,11 +199,19 @@ bool ftl::net::ws_connect(SOCKET sockfd, const URI &uri) {
 	} else {
 		http += "Host: "+uri.getHost()+":"+std::to_string(uri.getPort())+"\r\n";
 	}
+	if (uri.hasUserInfo()) {
+		//https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization
+		http += "Authorization: Basic ";
+		http += base64_encode(uri.getUserInfo()) + "\r\n";
+	}
+
 	http += "Upgrade: websocket\r\n";
 	http += "Connection: Upgrade\r\n";
 	http += "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n";
 	http += "Sec-WebSocket-Version: 13\r\n";
 	http += "\r\n";
+	// TODO: Check/process HTTP response code 
+
 	int rc = ::send(sockfd, http.c_str(), (int)http.length(), 0);
 	if (rc != (int)http.length()) {
 		LOG(ERROR) << "Could not send Websocket http request... (" << rc << ", " << errno << ")";

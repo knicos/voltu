@@ -12,6 +12,7 @@ set(COMMONSRC
 	src/timer.cpp
 	src/profiler.cpp
 	src/exception.cpp
+	src/utility/base64.cpp
 )
 
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)

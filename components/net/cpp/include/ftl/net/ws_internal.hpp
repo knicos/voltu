@@ -32,6 +32,10 @@ struct wsheader_type {
 	uint8_t masking_key[4];
 };
 
+struct ws_options {
+	std::string userinfo = "";
+};
+
 /**
  * Websocket dispatch parser. Given a raw socket buffer and its length, this
  * function parses the websocket header and if valid and containing enough data
@@ -49,7 +53,7 @@ int ws_parse(msgpack::unpacker &buf, wsheader_type &ws);
  */
 int ws_prepare(wsheader_type::opcode_type, bool useMask, size_t len, char *buffer, size_t maxlen);
 
-bool ws_connect(SOCKET sockfd, const ftl::URI &uri);
+bool ws_connect(SOCKET sockfd, const ftl::URI &uri, const ws_options &options=ws_options());
 
 };
 };
