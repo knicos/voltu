@@ -110,7 +110,23 @@ static void run(ftl::Configurable *root) {
 
 	auto paths = root->get<vector<string>>("paths");
 	string file = "";
-	if (paths && (*paths).size() > 0) file = (*paths)[(*paths).size()-1];
+	//if (paths && (*paths).size() > 0) file = (*paths)[(*paths).size()-1];
+
+	for (auto &x : *paths) {
+		//LOG(INFO) << "PATH - " << x;
+		if (x != "") {
+			ftl::URI uri(x);
+			if (uri.isValid()) {
+				switch (uri.getScheme()) {
+				case ftl::URI::SCHEME_WS		:
+				case ftl::URI::SCHEME_TCP		: net->connect(x)->waitConnection(); break;
+				case ftl::URI::SCHEME_DEVICE	:
+				case ftl::URI::SCHEME_FILE		: file = x; break;
+				default: break;
+				}
+			}
+		}
+	}
 
 	Source *source = nullptr;
 	source = ftl::create<Source>(root, "source", net);

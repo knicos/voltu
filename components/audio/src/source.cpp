@@ -138,7 +138,7 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 	ftl::audio::AudioSettings settings;
 	settings.channels = channels;
 	settings.sample_rate = 48000;
-	settings.frame_size = 256;
+	settings.frame_size = 960;
 	state_.setLeft(settings);
 
     timer_hp_ = ftl::timer::add(ftl::timer::kTimerHighPrecision, [this](int64_t ts) {

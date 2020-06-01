@@ -33,8 +33,8 @@ enum struct codec_t : uint8_t {
 	H264_LOSSLESS,
 	HEVC_LOSSLESS,
 
-	// TODO: Add audio codecs
-	WAV,
+	WAV=32,
+	OPUS,
 
 	JSON = 100,		// A JSON string
 	CALIBRATION,	// Camera parameters object

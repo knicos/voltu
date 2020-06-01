@@ -1,6 +1,7 @@
 #include <ftl/streams/receiver.hpp>
 #include <ftl/codecs/depth_convert_cuda.hpp>
 #include <ftl/profiler.hpp>
+#include <ftl/audio/software_decoder.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 
@@ -150,6 +151,11 @@ void Receiver::_processData(const StreamPacket &spkt, const Packet &pkt) {
 	}
 }
 
+ftl::audio::Decoder *Receiver::_createAudioDecoder(InternalAudioStates &frame, const ftl::codecs::Packet &pkt) {
+	if (!frame.decoder) frame.decoder = new ftl::audio::SoftwareDecoder();
+	return frame.decoder;
+}
+
 void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 	// Audio Data
 	InternalAudioStates &frame = _getAudioFrame(spkt);
@@ -157,15 +163,25 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 	frame.frame.reset();
 	frame.timestamp = spkt.timestamp;
 	auto &audio = frame.frame.create<ftl::audio::Audio>(spkt.channel);
-	size_t size = pkt.data.size()/sizeof(short);
-	audio.data().resize(size);
-	auto *ptr = (short*)pkt.data.data();
-	for (size_t i=0; i<size; i++) audio.data()[i] = ptr[i];
+	//size_t size = pkt.data.size()/sizeof(short);
+	//audio.data().resize(size);
+	//auto *ptr = (short*)pkt.data.data();
+	//for (size_t i=0; i<size; i++) audio.data()[i] = ptr[i];
+
+	ftl::audio::Decoder *dec = _createAudioDecoder(frame, pkt);
+	if (!dec) {
+		LOG(ERROR) << "Could get an audio decoder";
+		return;
+	}
+	if (!dec->decode(pkt, audio.data())) {
+		LOG(ERROR) << "Audio decode failed";
+		return;
+	}
 
 	// Generate settings from packet data
 	ftl::audio::AudioSettings settings;
 	settings.channels = (spkt.channel == Channel::AudioStereo) ? 2 : 1;
-	settings.frame_size = 256;
+	settings.frame_size = 960;
 	
 	switch (pkt.definition) {
 	case definition_t::hz48000		: settings.sample_rate = 48000; break;

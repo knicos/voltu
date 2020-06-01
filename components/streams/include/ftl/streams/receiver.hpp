@@ -6,6 +6,7 @@
 #include <ftl/audio/frameset.hpp>
 #include <ftl/streams/stream.hpp>
 #include <ftl/codecs/decoder.hpp>
+#include <ftl/audio/decoder.hpp>
 
 namespace ftl {
 namespace stream {
@@ -75,6 +76,7 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 		ftl::audio::Frame frame;
 		MUTEX mutex;
 		ftl::codecs::Channels<0> completed;
+		ftl::audio::Decoder *decoder;
 	};
 
 	std::vector<InternalVideoStates*> video_frames_[ftl::stream::kMaxStreams];
@@ -86,6 +88,7 @@ class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
 	void _processAudio(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 	void _processVideo(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 	void _createDecoder(InternalVideoStates &frame, int chan, const ftl::codecs::Packet &pkt);
+	ftl::audio::Decoder *_createAudioDecoder(InternalAudioStates &frame, const ftl::codecs::Packet &pkt);
 	InternalVideoStates &_getVideoFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
 	InternalAudioStates &_getAudioFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
 };

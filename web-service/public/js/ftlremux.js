@@ -1,6 +1,6 @@
 var ee = require('event-emitter');
 const MUXJS = require('mux.js');
-const MP4 = MUXJS.mp4.generator;
+const MP4 = require('./lib/mp4-generator');
 const H264Stream = MUXJS.codecs.h264.H264Stream;
 
 const VIDEO_PROPERTIES = [
@@ -34,6 +34,56 @@ function concatNals(sample) {
 	}
 
 	sample.data = data;
+}
+
+function concatAudioSamples(samples) {
+	let totallen = 0;
+	for (let i=0; i<samples.length; ++i) {
+		totallen += samples[i].size;
+	}
+
+	let result = new Uint8Array(totallen);
+	let offset = 0;
+	for (let i=0; i<samples.length; ++i) {
+		result.set(samples[i].data, offset);
+		offset += samples[i].size;
+	}
+	return MP4.mdat(result);
+}
+
+function reformAudio(data) {
+	let offset = 0;
+	let results = [];
+
+	while (offset < data.length) {
+		let l = data[offset] + (data[offset+1] << 8); //view.getInt16(offset);
+		offset += 2;
+		//console.log("Opus frame code = ", data[offset] & 0x03, l);
+		//let p;
+		let p = data.subarray(offset, offset+l);
+		/*let ll = l-1;  // Remove config byte
+		if (ll <= 251) {
+			p = new Uint8Array(l+1);
+			p[0] = data[offset];
+			p[1] = ll & 0xff; 
+			p.set(data.subarray(offset+1, offset+l), 2);
+		} else {
+			//let p = data.subarray(offset, offset+l);
+			p = new Uint8Array(l+2);
+			p[0] = data[offset];
+			let l2 = (ll-252) >> 2;
+			let l1 = 252 + ((ll-252) - (l2 << 2));
+			p[1] = l1; 
+			p[3] = l2;
+			console.log("Opus size", l1 + 4*l2, ll, l1, l2);
+			p.set(data.subarray(offset+1, offset+l), 3);
+		}*/
+		//let mdat = MP4.mdat(p);
+		results.push({size: p.byteLength, duration: 1800, data: p});
+		offset += l;
+	}
+
+	return results;
 }
 
 var createDefaultSample = function() {
@@ -79,6 +129,25 @@ function FTLRemux() {
 		duration: 0
 	};
 
+	this.audiotrack = {
+		timelineStartInfo: {
+			baseMediaDecodeTime: 0
+		},
+		baseMediaDecodeTime: 1800,
+		id: 1,
+		codec: 'opus',
+		type: 'audio',
+		samples: [{
+			size: 0,
+			duration: 1800 //960
+		}],
+		duration: 0,
+		insamplerate: 48000,
+		channelcount: 2,
+		width: 0,
+		height: 0
+	};
+
 	this.h264 = new H264Stream();
 
 	this.h264.on('data', (nalUnit) => {
@@ -98,9 +167,13 @@ function FTLRemux() {
 		}
 
 		if (!this.init_seg && this.track.sps && this.track.pps) {
-			this.init_seg = true;
 			console.log("Init", this.track);
-			this.emit('data', MP4.initSegment([this.track]));
+			if (this.has_audio) {
+				this.emit('data', MP4.initSegment([this.track, this.audiotrack]));
+			} else {
+				this.emit('data', MP4.initSegment([this.track]));
+			}
+			this.init_seg = true;
 		}
 
 		let keyFrame = nalUnit.nalUnitType == 'slice_layer_without_partitioning_rbsp_idr';
@@ -116,12 +189,14 @@ function FTLRemux() {
 		}
 	});
 
-	this.mime = 'video/mp4; codecs="avc1.640028"';
 	this.sequenceNo = 0;
+	this.audioSequenceNo = 0;
 	this.seen_keyframe = false;
 	this.ts = 0;
 	this.dts = 0;
 	this.init_seg = false;
+	this.init_audio = false;
+	this.has_audio = false;
 };
 
 ee(FTLRemux.prototype);
@@ -131,7 +206,22 @@ FTLRemux.prototype.push = function(spkt, pkt) {
 		return;
 	}
 
-	if(pkt[0] === 2){  // H264 packet.
+	if (pkt[0] === 33) {  // Opus audio
+		if (this.has_audio && this.init_seg) {
+			// Split into individual packets and create moof+mdat
+			let samples = reformAudio(pkt[5]);
+			this.audiotrack.samples = samples;
+
+			// TODO: Can this audio track be combined into same fragment as video frame?
+			let moof = MP4.moof(this.audioSequenceNo++, [this.audiotrack]);
+			let mdat = concatAudioSamples(samples);
+			let result = new Uint8Array(moof.byteLength + mdat.byteLength);
+			result.set(moof);
+			result.set(mdat, moof.byteLength);
+			this.emit('data', result);
+			this.audiotrack.baseMediaDecodeTime += 1800*samples.length; // 1800 = 20ms*90 or frame size 960@48000hz in 90000 ticks/s
+		}
+	} else if(pkt[0] === 2){  // H264 packet.
 		if (spkt[1] == this.frameset && spkt[2] == this.source && spkt[3] == this.channel) {
 
 			if (!this.seen_keyframe) {

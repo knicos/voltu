@@ -6,6 +6,7 @@
 #include <ftl/audio/frameset.hpp>
 #include <ftl/streams/stream.hpp>
 #include <ftl/codecs/encoder.hpp>
+#include <ftl/audio/encoder.hpp>
 
 #include <unordered_map>
 
@@ -54,7 +55,12 @@ class Sender : public ftl::Configurable {
 		cudaStream_t stream;
 	};
 
+	struct AudioState {
+		ftl::audio::Encoder *encoder;
+	};
+
 	std::unordered_map<int, EncodingState> state_;
+	std::unordered_map<int, AudioState> audio_state_;
 
 	//ftl::codecs::Encoder *_getEncoder(int fsid, int fid, ftl::codecs::Channel c);
 	void _encodeChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
@@ -62,6 +68,7 @@ class Sender : public ftl::Configurable {
 	EncodingState &_getTile(int fsid, ftl::codecs::Channel c);
 	cv::Rect _generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset, bool stereo);
 	float _selectFloatMax(ftl::codecs::Channel c);
+	ftl::audio::Encoder *_getAudioEncoder(int fsid, int sid, ftl::codecs::Channel c, ftl::codecs::Packet &pkt);
 };
 
 }
