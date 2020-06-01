@@ -275,6 +275,7 @@ void StereoVideoSource::updateParameters() {
 }
 
 bool StereoVideoSource::capture(int64_t ts) {
+	capts_ = timestamp_;
 	timestamp_ = ts;
 	lsrc_->grab();
 	return true;
@@ -338,7 +339,7 @@ bool StereoVideoSource::compute(int n, int b) {
 		if (!frame.hasChannel(Channel::Left)) { return false; }
 	}
 
-	host_->notify(timestamp_, frame);
+	host_->notify(capts_, frame);
 	return true;
 }
 
