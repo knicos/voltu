@@ -20,14 +20,17 @@ add_executable(nvpipe_codec_unit
 $<TARGET_OBJECTS:CatchTest>
 	../src/bitrates.cpp
 	../src/encoder.cpp
-	../src/nvpipe_encoder.cpp
-	../src/nvpipe_decoder.cpp
+	#../src/nvpipe_encoder.cpp
+	#../src/nvpipe_decoder.cpp
+	$<TARGET_OBJECTS:NvPipeCodec>
 	../src/depth_convert.cu
 	./nvpipe_codec_unit.cpp
 )
-target_include_directories(nvpipe_codec_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_include_directories(nvpipe_codec_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+${CMAKE_CURRENT_SOURCE_DIR}/../src/Video_Codec_SDK_9.1.23/include
+${CMAKE_CURRENT_SOURCE_DIR}/../src/Video_Codec_SDK_9.1.23/Samples/NvCodec)
 target_link_libraries(nvpipe_codec_unit
-	Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${CUDA_LIBRARIES} ftlcommon nvpipe)
+	Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${CUDA_LIBRARIES} NvPipe ftlcommon nvcuvid cuda)
 
 
 add_test(NvPipeCodecUnitTest nvpipe_codec_unit)

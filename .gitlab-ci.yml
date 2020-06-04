@@ -56,7 +56,7 @@ webserver-deploy:
     - mkdir build
     - cd build
     - echo cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DNANOGUI_DIR="C:/Program Files (x86)/NanoGUI" ..
-    - cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DREALSENSE_DIR="C:/Program Files (x86)/Intel RealSense SDK 2.0" -DNANOGUI_DIR="C:/Program Files (x86)/NanoGUI" ..
+    - cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DREALSENSE_DIR="C:/Program Files (x86)/Intel RealSense SDK 2.0" -DNANOGUI_DIR="C:/Program Files (x86)/NanoGUI" -DOPUS_DIR="C:/Program Files (x86)/Opus" ..
     - devenv ftl.utu.fi.sln /build Release
     - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - mkdir "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
