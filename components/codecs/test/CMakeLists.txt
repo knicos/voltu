@@ -26,6 +26,13 @@ $<TARGET_OBJECTS:CatchTest>
 	../src/depth_convert.cu
 	./nvpipe_codec_unit.cpp
 )
+if (WIN32)
+	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+		target_link_directories(nvpipe_codec_unit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../src/Video_Codec_SDK_9.1.23/Lib/x64)
+	elseif (CMAKE_SIZEOF_VOID_P EQUAL 4)
+		target_link_directories(nvpipe_codec_unit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../src/Video_Codec_SDK_9.1.23/Lib/Win32)
+	endif()
+endif()
 target_include_directories(nvpipe_codec_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include"
 ${CMAKE_CURRENT_SOURCE_DIR}/../src/Video_Codec_SDK_9.1.23/include
 ${CMAKE_CURRENT_SOURCE_DIR}/../src/Video_Codec_SDK_9.1.23/Samples/NvCodec)
