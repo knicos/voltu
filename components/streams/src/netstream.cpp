@@ -278,7 +278,7 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 	StreamPacket spkt = {
 		4,
 		ftl::timer::get_time(),
-		0,
+		frameset,
 		frames,
 		c,
 		0,
