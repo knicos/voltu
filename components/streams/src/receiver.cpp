@@ -105,7 +105,7 @@ Receiver::InternalVideoStates &Receiver::_getVideoFrame(const StreamPacket &spkt
 	return f;
 }
 
-Receiver::InternalAudioStates::InternalAudioStates() {
+Receiver::InternalAudioStates::InternalAudioStates() : decoder(nullptr) {
 	
 }
 
