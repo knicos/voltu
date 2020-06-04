@@ -91,16 +91,20 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<short> &in, ftl::codecs::Pac
 
 	int channels = (cur_stereo_) ? 2 : 1;
 
-	pkt.data.resize(MAX_PACKET_SIZE);
+	int frame_est = (in.size() / (channels*FRAME_SIZE))+1;
+	pkt.data.resize(MAX_PACKET_SIZE*frame_est);
 	int count = 0;
 	int frames = 0;
 
 	unsigned char *outptr = pkt.data.data();
 
+	//LOG(INFO) << "Encode " << (in.size() / (channels*FRAME_SIZE)) << " audio frames";
+
 	for (unsigned int i=0; i<in.size(); i+=channels*FRAME_SIZE) {
 		short *len = (short*)outptr;
 		outptr += 2;
 		int nbBytes = opus_multistream_encode(opus_encoder_, &in.data()[i], FRAME_SIZE, outptr, MAX_PACKET_SIZE);
+		//LOG(INFO) << "Opus encode: " << nbBytes << ", " << (in.size()-i);
 		if (nbBytes <= 0) return false;
 
 		//if (nbBytes > 32000) LOG(WARNING) << "Packet exceeds size limit";
