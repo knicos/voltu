@@ -66,7 +66,9 @@ bool NvPipeDecoder::_create(const ftl::codecs::Packet &pkt) {
 	bool is_float_frame = pkt.flags & ftl::codecs::kFlagFloat;
 
 	// Check existing decoder is valid first and remove if not
-	if (nv_decoder_ != nullptr && (last_definition_ != pkt.definition || last_codec_ != pkt.codec || is_float_channel_ != is_float_frame)) {
+	if (nv_decoder_ != nullptr && (last_definition_ != pkt.definition ||
+			last_codec_ != pkt.codec || is_float_channel_ != is_float_frame ||
+			width_ != last_width_ || height_ != last_height_)) {
 		delete nv_decoder_;
 		nv_decoder_ = nullptr;
 	}
@@ -163,6 +165,8 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	is_float_channel_ = is_float_frame;
 	last_definition_ = pkt.definition;
 	last_codec_ = pkt.codec;
+	last_width_ = width_;
+	last_height_ = height_;
 
 	// Build a decoder instance of the correct kind
 	/*if (nv_decoder_ == nullptr) {

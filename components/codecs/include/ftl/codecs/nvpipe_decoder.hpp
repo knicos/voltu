@@ -30,6 +30,8 @@ class NvPipeDecoder : public ftl::codecs::Decoder {
 	cv::cuda::GpuMat tmp_;
 	int width_;
 	int height_;
+	int last_width_;
+	int last_height_;
 	int n_;
 
 	bool _create(const ftl::codecs::Packet &pkt);
