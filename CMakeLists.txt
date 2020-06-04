@@ -118,19 +118,25 @@ endif()
 
 if (WITH_OPUS)
 	find_library( OPUS_LIBRARY NAMES opus PATHS ${OPUS_DIR} PATH_SUFFIXES lib)
-	find_path( OPUS_INCLUDE NAMES opus/opus.h)
-	if (OPUS_LIBRARY AND OPUS_INCLUDE)
-		set(HAVE_OPUS TRUE)
-		add_library(Opus UNKNOWN IMPORTED)
-		#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
-		set_property(TARGET Opus PROPERTY IMPORTED_LOCATION ${OPUS_LIBRARY})
-		message(STATUS "Found Opus: ${OPUS_LIBRARY}")
+	
+	if (OPUS_LIBRARY)
+		find_path( OPUS_INCLUDE NAMES opus/opus.h)
+
+		if (WIN32 OR OPUS_INCLUDE)
+			set(HAVE_OPUS TRUE)
+			add_library(Opus UNKNOWN IMPORTED)
+			#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+			set_property(TARGET Opus PROPERTY IMPORTED_LOCATION ${OPUS_LIBRARY})
+			message(STATUS "Found Opus: ${OPUS_LIBRARY}")
+		else()
+			message(STATUS "Opus headers not installed")
+		endif()
 
 		if(WIN32)
 			# Find include
 			find_path(OPUS_INCLUDE_DIRS
 				NAMES opus/opus.h
-				#PATHS "C:/Program Files/OpenVRSDK" "C:/Program Files (x86)/OpenVRSDK" ${OPENVR_DIR}
+				PATHS "C:/Program Files/Opus" "C:/Program Files (x86)/Opus" ${OPUS_DIR}
 				PATH_SUFFIXES include
 			)
 			set_property(TARGET Opus PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${OPUS_INCLUDE_DIRS})
@@ -162,12 +168,16 @@ else()
 	add_library(sgm INTERFACE)
 endif()
 
+# ==== Ceres ===================================================================
+
 if (WITH_CERES)
 	find_package(Ceres REQUIRED)
 	set(HAVE_CERES true)
 else()
 	add_library(ceres INTERFACE)
 endif()
+
+# ==============================================================================
 
 if(${CMAKE_VERSION} VERSION_GREATER "3.12.0")
 	cmake_policy(SET CMP0074 NEW)
@@ -186,6 +196,8 @@ else()
 	message(STATUS "Found Readline: ${READLINE_LIBRARY}")
 endif()
 endif()
+
+# ==== Realsense ===============================================================
 
 find_library( REALSENSE_LIBRARY NAMES realsense2 librealsense2 PATHS ${REALSENSE_DIR} PATH_SUFFIXES lib/x64)
 if (REALSENSE_LIBRARY)
@@ -209,6 +221,8 @@ else()
 	add_library(realsense INTERFACE)
 endif()
 
+# ==============================================================================
+
 if (BUILD_GUI)
 	set(HAVE_NANOGUI TRUE)
 
@@ -225,27 +239,7 @@ if (BUILD_GUI)
 	set_property(TARGET glfw glfw_objects nanogui PROPERTY FOLDER "dependencies")
 endif()
 
-find_library( NVPIPE_LIBRARY NAMES NvPipe libNvPipe PATHS ${NVPIPE_DIR} PATH_SUFFIXES lib)
-if (NVPIPE_LIBRARY)
-	set(HAVE_NVPIPE TRUE)
-	add_library(nvpipe UNKNOWN IMPORTED)
-	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
-	set_property(TARGET nvpipe PROPERTY IMPORTED_LOCATION ${NVPIPE_LIBRARY})
-	message(STATUS "Found NvPipe: ${NVPIPE_LIBRARY}")
-
-	if(WIN32)
-		# Find include
-		find_path(NVPIPE_INCLUDE_DIRS
-			NAMES NvPipe.h
-			PATHS "C:/Program Files/NvPipe" "C:/Program Files (x86)/NvPipe" ${NVPIPE_DIR}
-			PATH_SUFFIXES include
-		)
-		set_property(TARGET nvpipe PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NVPIPE_INCLUDE_DIRS})
-	endif()
-else()
-	set(NVPIPE_LIBRARY "")
-	add_library(nvpipe INTERFACE)
-endif()
+# ==== Portaudio v19 ===========================================================
 
 # Portaudio v19 library
 find_library( PORTAUDIO_LIBRARY NAMES portaudio PATHS ${PORTAUDIO_DIR} PATH_SUFFIXES lib)
@@ -270,6 +264,8 @@ else()
 	add_library(portaudio INTERFACE)
 	message(WARNING "Portaudio not found - sound disabled")
 endif()
+
+# ==============================================================================
 
 # Assimp library
 #find_library( ASSIMP_LIBRARY NAMES assimp PATHS ${PORTAUDIO_DIR} PATH_SUFFIXES lib)
@@ -392,7 +388,7 @@ if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	set(OS_LIBS "")
 else()
 	add_definitions(-DUNIX)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -msse3 -Werror -Wall")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -msse3 -Wall")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -pg")
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -mfpmath=sse")
 	set(OS_LIBS "dl")
@@ -400,6 +396,33 @@ endif()
 
 SET(CMAKE_USE_RELATIVE_PATHS ON)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+# ==== NvPipe ==================================================================
+
+add_subdirectory(lib/nvpipe)
+
+#find_library( NVPIPE_LIBRARY NAMES NvPipe libNvPipe PATHS ${NVPIPE_DIR} PATH_SUFFIXES lib)
+#if (NVPIPE_LIBRARY)
+	set(HAVE_NVPIPE TRUE)
+#	add_library(nvpipe UNKNOWN IMPORTED)
+	#set_property(TARGET nanogui PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NANOGUI_EXTRA_INCS})
+#	set_property(TARGET nvpipe PROPERTY IMPORTED_LOCATION ${NVPIPE_LIBRARY})
+#	message(STATUS "Found NvPipe: ${NVPIPE_LIBRARY}")
+
+#	if(WIN32)
+		# Find include
+#		find_path(NVPIPE_INCLUDE_DIRS
+#			NAMES NvPipe.h
+#			PATHS "C:/Program Files/NvPipe" "C:/Program Files (x86)/NvPipe" ${NVPIPE_DIR}
+#			PATH_SUFFIXES include
+#		)
+#		set_property(TARGET nvpipe PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${NVPIPE_INCLUDE_DIRS})
+#	endif()
+#else()
+#	set(NVPIPE_LIBRARY "")
+#	add_library(nvpipe INTERFACE)
+#endif()
+
 
 add_subdirectory(components/common/cpp)
 add_subdirectory(applications/calibration)

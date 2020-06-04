@@ -10,8 +10,10 @@ add_library(BaseCodec OBJECT
 )
 target_include_directories(BaseCodec PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
+	${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/include
+	${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/Samples/NvCodec
 	$<TARGET_PROPERTY:ftlcommon,INTERFACE_INCLUDE_DIRECTORIES>
-	$<TARGET_PROPERTY:nvpipe,INTERFACE_INCLUDE_DIRECTORIES>
+	$<TARGET_PROPERTY:NvPipe,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 add_library(OpenCVCodec OBJECT	
@@ -32,16 +34,27 @@ if (HAVE_NVPIPE)
 	add_library(NvPipeCodec OBJECT	
 		src/nvpipe_encoder.cpp
 		src/nvpipe_decoder.cpp
+		src/Video_Codec_SDK_9.1.23/Samples/NvCodec/NvDecoder/NvDecoder.cpp
 	)
 	target_include_directories(NvPipeCodec PUBLIC
 		${CMAKE_CURRENT_SOURCE_DIR}/include
+		${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/include
+		${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/Samples/NvCodec
 		$<TARGET_PROPERTY:ftlcommon,INTERFACE_INCLUDE_DIRECTORIES>
-		$<TARGET_PROPERTY:nvpipe,INTERFACE_INCLUDE_DIRECTORIES>
+		$<TARGET_PROPERTY:NvPipe,INTERFACE_INCLUDE_DIRECTORIES>
 	)
 	list(APPEND CODECSRC $<TARGET_OBJECTS:NvPipeCodec>)
 endif()
 
 add_library(ftlcodecs ${CODECSRC})
+
+if (WIN32)
+	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+		target_link_directories(ftlcodecs PUBLIC src/Video_Codec_SDK_9.1.23/Lib/x64)
+	elseif (CMAKE_SIZEOF_VOID_P EQUAL 4)
+		target_link_directories(ftlcodecs PUBLIC src/Video_Codec_SDK_9.1.23/Lib/Win32)
+	endif()
+endif()
 
 target_include_directories(ftlcodecs PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -49,7 +62,7 @@ target_include_directories(ftlcodecs PUBLIC
 	PRIVATE src)
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftlcodecs ftlcommon ${OpenCV_LIBS} ${CUDA_LIBRARIES} Eigen3::Eigen nvpipe)
+target_link_libraries(ftlcodecs ftlcommon ${OpenCV_LIBS} ${CUDA_LIBRARIES} Eigen3::Eigen NvPipe nvcuvid)
 
 if (BUILD_TESTS)
 add_subdirectory(test)

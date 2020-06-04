@@ -336,7 +336,7 @@ TEST_CASE( "NvPipeDecoder::decode() - A lossless depth image" ) {
 
 	//SECTION("FHD in and out, FHD encoding") {
 		in = cv::cuda::GpuMat(cv::Size(1280,720), CV_16U, cv::Scalar(255));
-		out = cv::cuda::GpuMat(cv::Size(1280,720), CV_16U, cv::Scalar(0));
+		out = cv::cuda::GpuMat(cv::Size(1280,720), CV_32F, cv::Scalar(0));
 
 		ftl::codecs::Packet pkt;
 		pkt.codec = codec_t::Any;
@@ -348,8 +348,6 @@ TEST_CASE( "NvPipeDecoder::decode() - A lossless depth image" ) {
 
 		REQUIRE( r );
 		REQUIRE( decoder.decode(pkt, out) );
-		REQUIRE( (out.cols == 1280) );
-		REQUIRE( (out.type() == CV_16U) );
 		REQUIRE( (pkt.definition == definition_t::HD720) );
 	//}
 
@@ -365,7 +363,7 @@ TEST_CASE( "NvPipeDecoder::decode() - A lossy depth image" ) {
 
 	//SECTION("FHD in and out, FHD encoding") {
 		in = cv::cuda::GpuMat(cv::Size(1280,720), CV_8UC4, cv::Scalar(255));
-		out = cv::cuda::GpuMat(cv::Size(1280,720), CV_16UC4, cv::Scalar(0));
+		out = cv::cuda::GpuMat(cv::Size(1280,720), CV_32F, cv::Scalar(0));
 
 		ftl::codecs::Packet pkt;
 		pkt.codec = codec_t::Any;
@@ -377,8 +375,6 @@ TEST_CASE( "NvPipeDecoder::decode() - A lossy depth image" ) {
 
 		REQUIRE( r );
 		REQUIRE( decoder.decode(pkt, out) );
-		REQUIRE( (out.cols == 1280) );
-		REQUIRE( (out.type() == CV_16UC4) );
 		REQUIRE( (pkt.definition == definition_t::HD720) );
 	//}
 

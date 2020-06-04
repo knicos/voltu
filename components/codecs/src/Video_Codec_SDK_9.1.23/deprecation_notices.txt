@@ -1,0 +1,13 @@
+The support for the following features and functionality in the existing Video Codec SDK(s) 
+are planned to be removed in future. 
+
+Hence we request and encourage all users of the SDK to take a note of this.
+
+1. Support for CUvideosource and the associated APIs including cuvidCreateVideoSource,
+   cuvidCreateVideoSourceW, cuvidDestroyVideoSource, cuvidSetVideoSourceState,
+   cuvidGetVideoSourceState, cuvidGetSourceVideoFormat, 
+   cuvidGetSourceAudioFormat will be removed from the decoder API in future
+   SDK versions. Please note that the new decode sample applications in the 
+   SDK do not use these APIs, but use FFmpeg instead.
+
+

@@ -1,0 +1,66 @@
+What's new in Video Codec SDK 9.0:
+----------------------------------
+In NVIDIA Video Codec SDK release 9.0, following features have been added:
+
+Encode Features:: 
+1. Improved encoded quality for Turing GPUs
+2. HEVC B-frame support (Turing GPUs only)
+3. Encoded output in video memory
+4. H.264 ME only mode output in video memory.
+5. Non-reference P frames
+6. Support for accepting CUArray as input
+
+Decode Features::
+1. HEVC YUV 444 decoding (Turing GPUs only)
+2. Multiple NVDEC engines(Turing GPUs only)
+
+
+Please refer to .\doc\NVENC_Application_Note.pdf and 
+.\doc\NVDEC_Application_Note.pdf to get more details about the available 
+encoding and decoding functionalities in the SDK. 
+
+For system, software and build environment requirements, please refer to the 
+file ReadMe.txt included in the SDK package.
+
+Package Contents
+----------------
+This package contains the following:
+
+1) Sample applications demonstrating various encoding/decoding/transcoding 
+   capabilities
+   - [.\Samples\]
+
+2) NVIDIA video encoder API header
+   - [.\include\nvEncodeAPI.h]
+
+3) NVIDIA video encoder application note
+   - [.\doc\NVENC_Application_Note.pdf]
+
+4) NVIDIA video encoder programming guide
+   - [.\doc\NVENC_VideoEncoder_API_ProgGuide.pdf]
+
+5) NVIDIA video decoder API headers
+   - [.\include\cuviddec.h]
+   - [.\include\nvcuvid.h]
+
+6) NVIDIA video decoder application note
+   - [.\doc\NVDEC_Application_Note.pdf]
+
+7) NVIDIA video decoder programming guide
+   - [.\doc\NVDEC_VideoDecoder_API_ProgGuide.pdf]
+
+8) Application note on how to use NVIDIA video acceleration in FFmpeg
+   - [.\doc\Using FFmpeg with NVIDIA GPU Hardware Acceleration.pdf]
+
+9) NVIDIA video decoder and encoder stub libraries
+   - [.\Lib\linux\stubs\x86_64\libnvcuvid.so]
+   - [.\Lib\linux\stubs\x86_64\libnvidia-encode.so]
+   - [.\Lib\linux\stubs\ppc64le\libnvcuvid.so]
+   - [.\Lib\linux\stubs\ppc64le\libnvidia-encode.so]
+   - [.\Lib\Win32\nvcuvid.lib]
+   - [.\Lib\x64\nvcuvid.lib]
+
+The sample applications provided in the package are for demonstration purposes
+only and may not be fully tuned for quality and performance. Hence the users 
+are advised to do their independent evaluation for quality and/or performance. 
+

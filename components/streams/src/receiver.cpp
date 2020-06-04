@@ -4,6 +4,7 @@
 #include <ftl/audio/software_decoder.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
+#include <opencv2/highgui.hpp>
 
 #include <ftl/streams/parsers.hpp>
 #include <ftl/streams/injectors.hpp>
@@ -207,6 +208,12 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 	}
 }
 
+namespace sgm {
+	namespace details {
+		void median_filter(const uint16_t* d_src, uint16_t* d_dst, int width, int height, int pitch, cudaStream_t stream);
+	}
+}
+
 void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	FTL_Profile("VideoPacket", 0.02);
 
@@ -217,6 +224,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
 	int width = ftl::codecs::getWidth(pkt.definition);
 	int height = ftl::codecs::getHeight(pkt.definition);
+	int sheight = height;
 
 	//LOG(INFO) << " CODEC = " << (int)pkt.codec << " " << (int)pkt.flags << " " << (int)spkt.channel;
 	//LOG(INFO) << "Decode surface: " << (width*tx) << "x" << (height*ty);
@@ -225,7 +233,10 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	// Allocate a decode surface, this is a tiled image to be split later
 	int cvtype = ftl::codecs::type(spkt.channel);
-	if (cvtype == CV_32F) cvtype = (pkt.flags & 0x2) ? CV_16UC4 : CV_16U;
+	if (cvtype == CV_32F) {
+		//cvtype = CV_16U; //(pkt.flags & 0x2) ? CV_16UC4 : CV_16U;
+		//if (pkt.flags & 0x2) sheight += sheight/2;
+	}
 
 	//surface.create(height*ty, width*tx, ((isFloatChannel(spkt.channel)) ? ((pkt.flags & 0x2) ? CV_16UC4 : CV_16U) : CV_8UC4));
 	surface.create(height*ty, width*tx, cvtype);
@@ -303,28 +314,30 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 		cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
 		cv::cuda::GpuMat sroi = surface(roi);
+		sroi.copyTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cvstream);
 		
 		// Do colour conversion
-		if (isFloatChannel(rchan) && (pkt.flags & 0x2)) {
+		/*if (isFloatChannel(rchan) && (pkt.flags & 0x2)) {
+			cv::Rect croi((i % tx)*width, ty*height+(i / tx)*height/2, width, height/2);
+			cv::cuda::GpuMat csroi = surface(croi);
 			// Smooth Y channel around discontinuities
 			// Lerp the uv channels / smooth over a small kernal size.
 
-			if (value("apply_median", false)) {
-				cv::Mat tmp;
-				sroi.download(tmp);
-				cv::medianBlur(tmp, tmp, 5);
-				sroi.upload(tmp);
-			}
+			//if (value("apply_bilateral", true)) {
+				// cv::cuda::split
+				// Apply disparity bilateral to the luminance channel
+				// cv::cuda::merge or overload vuya_to_depth
+			//}
 
-			if (apply_Y_filter) ftl::cuda::smooth_y(sroi, cvstream);
-			ftl::cuda::vuya_to_depth(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), sroi, 16.0f, cvstream);
+			//if (apply_Y_filter) ftl::cuda::smooth_y(sroi, cvstream);
+			ftl::cuda::vuya_to_depth(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), sroi, csroi, 16.0f, cvstream);
 		} else if (isFloatChannel(rchan)) {
 			sroi.convertTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, cvstream);
 		} else if (sroi.type() == CV_8UC1) {
 			sroi.copyTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cvstream);
 		} else {
 			cv::cuda::cvtColor(sroi, frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cv::COLOR_RGBA2BGRA, 0, cvstream);
-		}
+		}*/
 	}
 
 	// Must ensure all processing is finished before completing a frame.
