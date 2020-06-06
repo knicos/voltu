@@ -5,6 +5,7 @@
 #include <ftl/rgbd/source.hpp>
 
 #include <pylon/PylonIncludes.h>
+#include <pylon/BaslerUniversalInstantCamera.h>
 
 #include <opencv2/imgproc.hpp>
 
@@ -33,13 +34,11 @@ PylonSource::PylonSource(ftl::rgbd::Source *host)
 	}
 
 	try {
-    	lcam_ = new CInstantCamera( CTlFactory::GetInstance().CreateFirstDevice());
+    	lcam_ = new CBaslerUniversalInstantCamera( CTlFactory::GetInstance().CreateFirstDevice());
 
 		lcam_->RegisterConfiguration( new Pylon::CSoftwareTriggerConfiguration, Pylon::RegistrationMode_ReplaceAll, Pylon::Cleanup_Delete);
 
 		lcam_->Open();
-
-		lcam_->StartGrabbing( Pylon::GrabStrategy_OneByOne);
 
 		// Get the camera control object.
 		GenApi::INodeMap& nodemap = lcam_->GetNodeMap();
@@ -63,6 +62,8 @@ PylonSource::PylonSource(ftl::rgbd::Source *host)
 		} else {
 			LOG(WARNING) << "Could not change pixel format";
 		}
+
+		lcam_->StartGrabbing( Pylon::GrabStrategy_OneByOne);
 
 		ready_ = true;
 	} catch (const Pylon::GenericException &e) {
@@ -92,7 +93,7 @@ bool PylonSource::capture(int64_t ts) {
 	if (!lcam_) return false;
 
 	try {
-		if ( lcam_->WaitForFrameTriggerReady( 20, Pylon::TimeoutHandling_ThrowException)) {
+		if ( lcam_->WaitForFrameTriggerReady( 50, Pylon::TimeoutHandling_ThrowException)) {
 			lcam_->ExecuteSoftwareTrigger();
 			LOG(INFO) << "TRIGGER";
 		}
@@ -111,14 +112,17 @@ bool PylonSource::retrieve() {
 	frame.setOrigin(&state_);
 
 	try {
-		if ( lcam_->GetGrabResultWaitObject().Wait( 0)) {
+		/*if ( lcam_->GetGrabResultWaitObject().Wait(40)) {
 			LOG(INFO) << "Grad result waiting";
-		}
+		} else {
+			LOG(INFO) << "No results";
+			return false;
+		}*/
 
 		Pylon::CGrabResultPtr ptrGrabResult;
 
 		int count = 0;
-		if (lcam_->RetrieveResult( 0, ptrGrabResult, Pylon::TimeoutHandling_Return)) ++count;
+		if (lcam_->RetrieveResult(40, ptrGrabResult, Pylon::TimeoutHandling_Return)) ++count;
 
 		if (count == 0 || !ptrGrabResult->GrabSucceeded()) {
 			LOG(ERROR) << "Retrieve failed";
@@ -131,10 +135,8 @@ bool PylonSource::retrieve() {
 			CV_8UC3,
 			(uint8_t*)ptrGrabResult->GetBuffer());
 
-		cv::Mat tmp;
-		cv::cvtColor(wrap, tmp, cv::COLOR_BGR2BGRA);
-
-		frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour).upload(tmp);
+		cv::cvtColor(wrap, tmp_, cv::COLOR_BGR2BGRA);
+		frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour).upload(tmp_);
 
 	} catch (const GenericException &e) {
 		LOG(ERROR) << "Pylon: An exception occurred - " << e.GetDescription();

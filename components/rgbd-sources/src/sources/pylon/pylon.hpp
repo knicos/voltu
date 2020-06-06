@@ -6,7 +6,7 @@
 #include <string>
 
 namespace Pylon {
-class CInstantCamera;
+class CBaslerUniversalInstantCamera;
 }
 
 namespace ftl {
@@ -28,8 +28,9 @@ class PylonSource : public ftl::rgbd::detail::Source {
 
 	private:
 	bool ready_;
-	Pylon::CInstantCamera *lcam_;
+	Pylon::CBaslerUniversalInstantCamera *lcam_;
 	Frame frames_[2];
+	cv::Mat tmp_;
 };
 
 }
