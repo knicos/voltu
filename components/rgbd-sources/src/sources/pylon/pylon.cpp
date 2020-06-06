@@ -29,39 +29,23 @@ PylonSource::PylonSource(ftl::rgbd::Source *host)
 		return;
 	} else {
 		for (auto d : devices) {
-			LOG(INFO) << " - found Pylon device - " << d.GetModelName();
+			LOG(INFO) << " - found Pylon device - " << d.GetFullName() << "(" << d.GetModelName() << ")";
 		}
 	}
 
 	try {
-    	lcam_ = new CBaslerUniversalInstantCamera( CTlFactory::GetInstance().CreateFirstDevice());
-
+    	lcam_ = new CBaslerUniversalInstantCamera( CTlFactory::GetInstance().CreateDevice(devices[0]));
 		lcam_->RegisterConfiguration( new Pylon::CSoftwareTriggerConfiguration, Pylon::RegistrationMode_ReplaceAll, Pylon::Cleanup_Delete);
-
 		lcam_->Open();
 
-		// Get the camera control object.
-		GenApi::INodeMap& nodemap = lcam_->GetNodeMap();
-		// Get the parameters for setting the image area of interest (Image AOI).
-		CIntegerParameter width(nodemap, "Width");
-		CIntegerParameter height(nodemap, "Height");
-		CIntegerParameter offsetX(nodemap, "OffsetX");
-		CIntegerParameter offsetY(nodemap, "OffsetY");
-
-		params_.width = width.GetValue();
-		params_.height = height.GetValue();
-
-		LOG(INFO) << "Camera resolution = " << params_.width << "x" << params_.height;
-
-		// Set the pixel data format.
-		CEnumParameter format(nodemap, "PixelFormat");
-		LOG(INFO) << "Camera format: " << format.GetValue();
-
-		if (format.CanSetValue("BayerBG8")) {  // YCbCr422_8
-			format.SetValue("BayerBG8");
-		} else {
-			LOG(WARNING) << "Could not change pixel format";
+		if (devices.size() >= 2) {
+			rcam_ = new CBaslerUniversalInstantCamera( CTlFactory::GetInstance().CreateDevice(devices[1]));
+			rcam_->RegisterConfiguration( new Pylon::CSoftwareTriggerConfiguration, Pylon::RegistrationMode_ReplaceAll, Pylon::Cleanup_Delete);
+			rcam_->Open();
 		}
+
+		_configureCamera(lcam_);
+		if (rcam_) _configureCamera(rcam_);
 
 		lcam_->StartGrabbing( Pylon::GrabStrategy_OneByOne);
 
@@ -86,6 +70,31 @@ PylonSource::PylonSource(ftl::rgbd::Source *host)
 
 PylonSource::~PylonSource() {
 
+}
+
+void PylonSource::_configureCamera(CBaslerUniversalInstantCamera *cam) {
+	// Get the camera control object.
+	GenApi::INodeMap& nodemap = cam->GetNodeMap();
+	// Get the parameters for setting the image area of interest (Image AOI).
+	CIntegerParameter width(nodemap, "Width");
+	CIntegerParameter height(nodemap, "Height");
+	CIntegerParameter offsetX(nodemap, "OffsetX");
+	CIntegerParameter offsetY(nodemap, "OffsetY");
+
+	params_.width = width.GetValue();
+	params_.height = height.GetValue();
+
+	LOG(INFO) << "Camera resolution = " << params_.width << "x" << params_.height;
+
+	// Set the pixel data format.
+	CEnumParameter format(nodemap, "PixelFormat");
+	LOG(INFO) << "Camera format: " << format.GetValue();
+
+	if (format.CanSetValue("BayerBG8")) {  // YCbCr422_8
+		format.SetValue("BayerBG8");
+	} else {
+		LOG(WARNING) << "Could not change pixel format";
+	}
 }
 
 bool PylonSource::capture(int64_t ts) {
