@@ -149,19 +149,11 @@ static bool validate(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
 	}
 
 	if (pkt.frame_count == 0) {
-		//pkt.definition = definition_t::Invalid;
 		return false;
 	}
 
-	/*auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
-	pkt.definition = (pkt.definition == definition_t::Any) ? ftl::codecs::findDefinition(in.cols/tx, in.rows/ty) : pkt.definition;
-	if (pkt.definition == definition_t::Invalid || pkt.definition == definition_t::Any) {
-		LOG(ERROR) << "Could not find appropriate definition";
-		return false;
-	}*/
-
-	auto width = in.cols; //ftl::codecs::getWidth(pkt.definition)*tx;
-	auto height = in.rows; //ftl::codecs::getHeight(pkt.definition)*ty;
+	auto width = in.cols;
+	auto height = in.rows;
 
 	if (in.empty()) {
 		LOG(WARNING) << "No data";
@@ -173,13 +165,6 @@ static bool validate(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
 		pkt.flags = 0;
 		return false;
 	}
-
-	/*if (width != in.cols || height != in.rows) {
-		// TODO: Resize if lower definition requested...
-		LOG(ERROR) << "Input size does not match expected: " << in.cols << " != " << width;
-		pkt.definition = definition_t::Invalid;
-		return false;
-	}*/
 
 	return true;
 }

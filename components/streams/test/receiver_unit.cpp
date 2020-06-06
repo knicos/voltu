@@ -70,7 +70,6 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
 	pkt.bitrate = 255;
-	pkt.definition = definition_t::Any;
 	pkt.flags = 0;
 	pkt.frame_count = 1;
 
@@ -269,7 +268,6 @@ TEST_CASE( "Receiver sync bugs" ) {
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
 	pkt.bitrate = 255;
-	pkt.definition = definition_t::Any;
 	pkt.flags = 0;
 	pkt.frame_count = 1;
 
@@ -354,7 +352,6 @@ TEST_CASE( "Receiver non zero buffer" ) {
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
 	pkt.bitrate = 255;
-	pkt.definition = definition_t::Any;
 	pkt.flags = 0;
 	pkt.frame_count = 1;
 

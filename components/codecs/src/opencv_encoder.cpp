@@ -38,28 +38,10 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		return false;
 	}
 
-	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
-	pkt.definition = (pkt.definition == definition_t::Any) ? ftl::codecs::findDefinition(in.cols/tx, in.rows/ty) : pkt.definition;
-	if (pkt.definition == definition_t::Invalid || pkt.definition == definition_t::Any) {
-		LOG(ERROR) << "Could not find appropriate definition";
-		return false;
-	}
-
-	// Ensure definition does not exceed max
-	current_definition_ = pkt.definition; //((int)pkt.definition < (int)max_definition) ? max_definition : pkt.definition;
-
 	in.download(tmp_);
 
 	if (!is_colour && in.type() == CV_32F) {
 		tmp_.convertTo(tmp_, CV_16U, 1000.0f);
-	}
-
-	int width = ftl::codecs::getWidth(current_definition_);
-	int height = ftl::codecs::getHeight(current_definition_);
-
-	if (tx*width != in.cols || ty*height != in.rows) {
-		LOG(ERROR) << "Input does not match requested definition";
-		return false;
 	}
 
 	//for (int i=0; i<chunk_count_; ++i) {

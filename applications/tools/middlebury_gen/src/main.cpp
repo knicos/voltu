@@ -297,7 +297,6 @@ int main(int argc, char **argv) {
 			spkt.streamID = 0;
 			spkt.version = 4;
 			pkt.codec = codec_t::Any;
-			pkt.definition = definition_t::Any;
 			pkt.bitrate = 0;
 			pkt.flags = 0;
 			pkt.frame_count = 1;
@@ -309,7 +308,6 @@ int main(int argc, char **argv) {
 			out->post(spkt, pkt);
 
 			pkt.codec = codec_t::Any;
-			pkt.definition = definition_t::Any;
 			spkt.channel = Channel::Colour2;
 			if (!encoder.encode(frame.get<cv::cuda::GpuMat>(Channel::Colour2), pkt)) {
 				LOG(ERROR) << "Encode failed for colour2";
@@ -319,7 +317,6 @@ int main(int argc, char **argv) {
 			spkt.channel = Channel::GroundTruth;
 			pkt.flags = ftl::codecs::kFlagFloat;
 			pkt.codec = codec_t::Any;
-			pkt.definition = definition_t::Any;
 			if (!encoder.encode(frame.get<cv::cuda::GpuMat>(Channel::Depth), pkt)) {
 				LOG(ERROR) << "Encode failed for depth";
 			}

@@ -87,7 +87,6 @@ static void run(ftl::Configurable *root) {
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::HEVC;
 	pkt.bitrate = 255;
-	pkt.definition = definition_t::Any;
 	pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
 	pkt.frame_count = 1;
 
@@ -154,7 +153,6 @@ static void run(ftl::Configurable *root) {
 				ftl::codecs::Packet pkt;
 				pkt.codec = codec_t::HEVC;
 				pkt.bitrate = 255;
-				pkt.definition = definition_t::Any;
 				pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
 				pkt.frame_count = 1;
 

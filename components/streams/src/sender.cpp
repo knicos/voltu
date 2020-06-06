@@ -145,7 +145,7 @@ static void mergeNALUnits(const std::list<ftl::codecs::Packet> &pkts, ftl::codec
 
 	const auto &first = pkts.front();
 	pkt.codec = first.codec;
-	pkt.definition = first.definition;
+	//pkt.definition = first.definition;
 	pkt.frame_count = first.frame_count;
 	pkt.bitrate = first.bitrate;
 	pkt.flags = first.flags | ftl::codecs::kFlagMultiple;  // means merged packets
@@ -185,7 +185,6 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 
 		ftl::codecs::Packet pkt;
 		pkt.codec = ftl::codecs::codec_t::MSGPACK;
-		pkt.definition = ftl::codecs::definition_t::Any;
 		pkt.frame_count = 1;
 		pkt.flags = 0;
 		pkt.bitrate = 0;
@@ -220,7 +219,6 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 
 			ftl::codecs::Packet pkt;
 			pkt.codec = ftl::codecs::codec_t::MSGPACK;
-			pkt.definition = ftl::codecs::definition_t::Any;
 			pkt.frame_count = 1;
 			pkt.flags = 0;
 			pkt.bitrate = 0;
@@ -276,7 +274,6 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 
 		Packet pkt;
 		pkt.codec = codec_t::Any;
-		pkt.definition = definition_t::Any;
 		pkt.frame_count = 1;
 		pkt.bitrate = 0;
 		stream_->post(spkt, pkt);
@@ -357,7 +354,6 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 				ftl::codecs::Packet pkt;
 				pkt.frame_count = count;
 				pkt.codec = codec;
-				pkt.definition = definition_t::Any;
 				pkt.bitrate = (!lossless && ftl::codecs::isFloatChannel(cc)) ? max_bitrate : max_bitrate/2;
 				pkt.flags = 0;
 

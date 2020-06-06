@@ -19,8 +19,7 @@ bool OpenCVDecoder::accepts(const ftl::codecs::Packet &pkt) {
 	return (pkt.codec == codec_t::JPG || pkt.codec == codec_t::PNG);
 }
 
-bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
-	//CHECK(cv::Size(ftl::codecs::getWidth(pkt.definition), ftl::codecs::getHeight(pkt.definition)) == out.size()); 
+bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) { 
 	int chunk_dim = 1; //std::sqrt(pkt.frame_count);
 	int chunk_width = out.cols / chunk_dim;
 	int chunk_height = out.rows / chunk_dim;
