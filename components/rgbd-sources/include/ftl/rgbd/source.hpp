@@ -274,7 +274,7 @@ void ftl::rgbd::Source::inject(ftl::codecs::Channel c, ARGS... args) {
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;
 	pkt.bitrate = 0;
 	pkt.frame_count = 1;
-	pkt.definition = ftl::codecs::definition_t::Any;
+	//pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.flags = 0;
 
 	VectorBuffer buf(pkt.data);

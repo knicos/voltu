@@ -9,6 +9,10 @@
 *
 */
 
+// Nick: Add dlfcn.h
+#ifndef WIN32
+#include <dlfcn.h>
+#endif
 #include "NvEncoder/NvEncoder.h"
 
 #ifndef _WIN32
@@ -55,6 +59,31 @@ NvEncoder::NvEncoder(NV_ENC_DEVICE_TYPE eDeviceType, void *pDevice, uint32_t nWi
 
 void NvEncoder::LoadNvEncApi()
 {
+	// Nick: Patched, as this is missing
+#if defined(_WIN32)
+#if defined(_WIN64)
+    HMODULE hModule = LoadLibrary(TEXT("nvEncodeAPI64.dll"));
+#else
+    HMODULE hModule = LoadLibrary(TEXT("nvEncodeAPI.dll"));
+#endif
+#else
+    void *hModule = dlopen("libnvidia-encode.so.1", RTLD_LAZY);
+#endif
+
+    if (hModule == NULL)
+    {
+        NVENC_THROW_ERROR("NVENC library file is not found. Please ensure NV driver is installed", NV_ENC_ERR_NO_ENCODE_DEVICE);
+    }
+
+    m_hModule = hModule;
+
+    typedef NVENCSTATUS(NVENCAPI *NvEncodeAPIGetMaxSupportedVersion_Type)(uint32_t*);
+#if defined(_WIN32)
+    NvEncodeAPIGetMaxSupportedVersion_Type NvEncodeAPIGetMaxSupportedVersion = (NvEncodeAPIGetMaxSupportedVersion_Type)GetProcAddress(hModule, "NvEncodeAPIGetMaxSupportedVersion");
+#else
+    NvEncodeAPIGetMaxSupportedVersion_Type NvEncodeAPIGetMaxSupportedVersion = (NvEncodeAPIGetMaxSupportedVersion_Type)dlsym(hModule, "NvEncodeAPIGetMaxSupportedVersion");
+#endif
+	// Nick: End patch
 
     uint32_t version = 0;
     uint32_t currentVersion = (NVENCAPI_MAJOR_VERSION << 4) | NVENCAPI_MINOR_VERSION;
@@ -64,6 +93,18 @@ void NvEncoder::LoadNvEncApi()
         NVENC_THROW_ERROR("Current Driver Version does not support this NvEncodeAPI version, please upgrade driver", NV_ENC_ERR_INVALID_VERSION);
     }
 
+	// Nick: Patch
+	typedef NVENCSTATUS(NVENCAPI *NvEncodeAPICreateInstance_Type)(NV_ENCODE_API_FUNCTION_LIST*);
+#if defined(_WIN32)
+    NvEncodeAPICreateInstance_Type NvEncodeAPICreateInstance = (NvEncodeAPICreateInstance_Type)GetProcAddress(hModule, "NvEncodeAPICreateInstance");
+#else
+    NvEncodeAPICreateInstance_Type NvEncodeAPICreateInstance = (NvEncodeAPICreateInstance_Type)dlsym(hModule, "NvEncodeAPICreateInstance");
+#endif
+
+    if (!NvEncodeAPICreateInstance)
+    {
+        NVENC_THROW_ERROR("Cannot find NvEncodeAPICreateInstance() entry in NVENC library", NV_ENC_ERR_NO_ENCODE_DEVICE);
+    }
 
     m_nvenc = { NV_ENCODE_API_FUNCTION_LIST_VER };
     NVENC_API_CALL(NvEncodeAPICreateInstance(&m_nvenc));
@@ -72,6 +113,17 @@ void NvEncoder::LoadNvEncApi()
 NvEncoder::~NvEncoder()
 {
     DestroyHWEncoder();
+
+	// Nick: Patch
+	if (m_hModule)
+    {
+#if defined(_WIN32)
+        FreeLibrary((HMODULE)m_hModule);
+#else
+        dlclose(m_hModule);
+#endif
+        m_hModule = nullptr;
+    }
 }
 
 void NvEncoder::CreateDefaultEncoderParams(NV_ENC_INITIALIZE_PARAMS* pIntializeParams, GUID codecGuid, GUID presetGuid)

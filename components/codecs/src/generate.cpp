@@ -5,9 +5,7 @@
 #include <ftl/config.h>
 #include <loguru.hpp>
 
-#ifdef HAVE_NVPIPE
-#include <ftl/codecs/nvpipe_encoder.hpp>
-#endif
+#include <ftl/codecs/nvidia_encoder.hpp>
 
 namespace ftl {
 namespace codecs {
@@ -22,11 +20,8 @@ void fin_encoders() {
 }
 
 void init_encoders() {
-    #ifdef HAVE_NVPIPE
-    LOG(INFO) << "Adding NvPipe Encoders";
-    encoders.push_back(new ftl::codecs::NvPipeEncoder(definition_t::UHD4k, definition_t::HD720));
-    encoders.push_back(new ftl::codecs::NvPipeEncoder(definition_t::UHD4k, definition_t::HD720));
-    #endif
+    encoders.push_back(new ftl::codecs::NvidiaEncoder(definition_t::UHD4k, definition_t::HD720));
+    encoders.push_back(new ftl::codecs::NvidiaEncoder(definition_t::UHD4k, definition_t::HD720));
 
     encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
     encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));

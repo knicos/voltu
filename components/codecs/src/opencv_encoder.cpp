@@ -28,10 +28,12 @@ bool OpenCVEncoder::supports(ftl::codecs::codec_t codec) {
 }
 
 bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
-	bool is_colour = !(pkt.flags & ftl::codecs::kFlagFloat);
+	bool is_colour = in.type() == CV_8UC4;
 
-	if (is_colour && in.type() != CV_8UC4 && in.type() != CV_8UC1) return false;
-	if (!is_colour && in.type() == CV_8UC4) {
+	if (pkt.codec == codec_t::Any) pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
+	if (!supports(pkt.codec)) return false;
+
+	if (!is_colour && pkt.codec == codec_t::JPG) {
 		LOG(ERROR) << "OpenCV Encoder doesn't support lossy depth";
 		return false;
 	}
@@ -43,38 +45,22 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		return false;
 	}
 
-	/*pkt.definition = (pkt.definition == definition_t::Any) ? ftl::codecs::findDefinition(in.cols, in.rows) : pkt.definition;
-
-	if (pkt.definition == definition_t::Invalid || pkt.definition == definition_t::Any) {
-		LOG(ERROR) << "Invalid definition";
-		return false;
-	}*/
-
 	// Ensure definition does not exceed max
 	current_definition_ = pkt.definition; //((int)pkt.definition < (int)max_definition) ? max_definition : pkt.definition;
 
 	in.download(tmp_);
-	//CHECK(cv::Size(ftl::codecs::getWidth(definition), ftl::codecs::getHeight(definition)) == in.size()); 
 
-	//if (!is_colour) {
-		//tmp_.convertTo(tmp_, CV_16U, 1000.0f);
-	//}
+	if (!is_colour && in.type() == CV_32F) {
+		tmp_.convertTo(tmp_, CV_16U, 1000.0f);
+	}
 
 	int width = ftl::codecs::getWidth(current_definition_);
 	int height = ftl::codecs::getHeight(current_definition_);
 
-	// Scale down image to match requested definition...
-	/*if (ftl::codecs::getHeight(current_definition_) < in.rows) {
-		cv::resize(tmp_, tmp_, cv::Size(ftl::codecs::getWidth(current_definition_), ftl::codecs::getHeight(current_definition_)), 0, 0, (is_colour) ? 1 : cv::INTER_NEAREST);
-	} else {
-		
-	}*/
 	if (tx*width != in.cols || ty*height != in.rows) {
 		LOG(ERROR) << "Input does not match requested definition";
 		return false;
 	}
-
-	if (pkt.codec == codec_t::Any) pkt.codec = (is_colour && in.type() != CV_8UC1) ? codec_t::JPG : codec_t::PNG;
 
 	//for (int i=0; i<chunk_count_; ++i) {
 		// Add chunk job to thread pool

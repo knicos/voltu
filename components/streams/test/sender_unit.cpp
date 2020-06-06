@@ -101,7 +101,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Colour );
 		REQUIRE( pkt.codec == codec_t::HEVC );
-		REQUIRE( pkt.definition == definition_t::HD720 );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
 		REQUIRE( ftl::codecs::hevc::validNAL(pkt.data.data(), pkt.data.size()) );
@@ -127,7 +126,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Colour );
 		REQUIRE( pkt.codec == codec_t::HEVC );
-		REQUIRE( pkt.definition == definition_t::HD720 );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 2 );
 		REQUIRE( ftl::codecs::hevc::validNAL(pkt.data.data(), pkt.data.size()) );
@@ -153,7 +151,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Depth );
 		REQUIRE( pkt.codec == codec_t::HEVC );
-		REQUIRE( pkt.definition == definition_t::HD720 );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.flags == (ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth) );
 		REQUIRE( pkt.frame_count == 2 );
@@ -183,7 +180,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Depth );
 		REQUIRE( pkt.codec == codec_t::HEVC );
-		REQUIRE( pkt.definition == definition_t::HD720 );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.flags == (ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth) );
 		REQUIRE( pkt.frame_count == 1 );
@@ -201,7 +197,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		fs.frames[1].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[1].get<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
 
-		sender->set("lossless", true);
+		sender->set("codec", (int)codec_t::HEVC_LOSSLESS);
 		sender->post(fs);
 
 		REQUIRE( count == 1 );
@@ -211,7 +207,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Depth );
 		REQUIRE( pkt.codec == codec_t::HEVC_LOSSLESS );
-		REQUIRE( pkt.definition == definition_t::HD720 );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.flags == (ftl::codecs::kFlagFloat) );
 		REQUIRE( pkt.frame_count == 2 );
@@ -237,7 +232,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Depth );
 		REQUIRE( pkt.codec == codec_t::HEVC );
-		REQUIRE( pkt.definition == definition_t::HD720 );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
 		REQUIRE( ftl::codecs::hevc::validNAL(pkt.data.data(), pkt.data.size()) );
@@ -300,7 +294,6 @@ TEST_CASE( "Sender request to control encoding" ) {
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Colour );
 		REQUIRE( pkt.codec == codec_t::HEVC );
-		REQUIRE( pkt.definition == definition_t::HD720 );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
 		REQUIRE( ftl::codecs::hevc::validNAL(pkt.data.data(), pkt.data.size()) );

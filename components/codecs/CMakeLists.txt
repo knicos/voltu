@@ -13,7 +13,6 @@ target_include_directories(BaseCodec PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/include
 	${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/Samples/NvCodec
 	$<TARGET_PROPERTY:ftlcommon,INTERFACE_INCLUDE_DIRECTORIES>
-	$<TARGET_PROPERTY:NvPipe,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 add_library(OpenCVCodec OBJECT	
@@ -30,21 +29,20 @@ $<TARGET_OBJECTS:BaseCodec>
 $<TARGET_OBJECTS:OpenCVCodec>
 )
 
-if (HAVE_NVPIPE)
-	add_library(NvPipeCodec OBJECT	
-		src/nvpipe_encoder.cpp
-		src/nvpipe_decoder.cpp
-		src/Video_Codec_SDK_9.1.23/Samples/NvCodec/NvDecoder/NvDecoder.cpp
-	)
-	target_include_directories(NvPipeCodec PUBLIC
-		${CMAKE_CURRENT_SOURCE_DIR}/include
-		${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/include
-		${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/Samples/NvCodec
-		$<TARGET_PROPERTY:ftlcommon,INTERFACE_INCLUDE_DIRECTORIES>
-		$<TARGET_PROPERTY:NvPipe,INTERFACE_INCLUDE_DIRECTORIES>
-	)
-	list(APPEND CODECSRC $<TARGET_OBJECTS:NvPipeCodec>)
-endif()
+add_library(NvidiaCodec OBJECT	
+	src/nvidia_encoder.cpp
+	src/nvidia_decoder.cpp
+	src/Video_Codec_SDK_9.1.23/Samples/NvCodec/NvDecoder/NvDecoder.cpp
+	src/Video_Codec_SDK_9.1.23/Samples/NvCodec/NvEncoder/NvEncoder.cpp
+	src/Video_Codec_SDK_9.1.23/Samples/NvCodec/NvEncoder/NvEncoderCuda.cpp
+)
+target_include_directories(NvidiaCodec PUBLIC
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+	${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/include
+	${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/Samples/NvCodec
+	$<TARGET_PROPERTY:ftlcommon,INTERFACE_INCLUDE_DIRECTORIES>
+)
+list(APPEND CODECSRC $<TARGET_OBJECTS:NvidiaCodec>)
 
 add_library(ftlcodecs ${CODECSRC})
 
@@ -62,7 +60,7 @@ target_include_directories(ftlcodecs PUBLIC
 	PRIVATE src)
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftlcodecs ftlcommon ${OpenCV_LIBS} ${CUDA_LIBRARIES} Eigen3::Eigen NvPipe nvcuvid)
+target_link_libraries(ftlcodecs ftlcommon ${OpenCV_LIBS} ${CUDA_LIBRARIES} Eigen3::Eigen nvcuvid cuda)
 
 if (BUILD_TESTS)
 add_subdirectory(test)

@@ -1,7 +1,7 @@
 #include "catch.hpp"
 
 #include <ftl/streams/receiver.hpp>
-#include <ftl/codecs/nvpipe_encoder.hpp>
+#include <ftl/codecs/nvidia_encoder.hpp>
 #include <ftl/streams/injectors.hpp>
 
 #include <nlohmann/json.hpp>
@@ -65,7 +65,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	receiver->setStream(&stream);
 	receiver->set("frameset_buffer_size", 0);
 
-	ftl::codecs::NvPipeEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
@@ -119,7 +119,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 
 	SECTION("multi-frameset") {
 		cv::cuda::GpuMat m(cv::Size(1280,720), CV_8UC4, cv::Scalar(0));
-		ftl::stream::injectCalibration(&stream, dummy, 1, 0, 0);
+		ftl::stream::injectCalibration(&stream, dummy, 1, 1, 0);
 
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
@@ -174,12 +174,12 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	}
 
 	SECTION("a tiled lossy depth frame") {
-		cv::cuda::GpuMat m(cv::Size(2560,720), CV_8UC4, cv::Scalar(0));
+		cv::cuda::GpuMat m(cv::Size(2560,720), CV_32F, cv::Scalar(0));
 		ftl::stream::injectCalibration(&stream, dummy, 0, 0, 1);
 
 		spkt.channel = Channel::Depth;
 		pkt.frame_count = 2;
-		pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
+		pkt.flags = 0;
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
@@ -208,12 +208,13 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	}
 
 	SECTION("a tiled lossless depth frame") {
-		cv::cuda::GpuMat m(cv::Size(2560,720), CV_16U, cv::Scalar(0));
+		cv::cuda::GpuMat m(cv::Size(2560,720), CV_32F, cv::Scalar(0));
 		ftl::stream::injectCalibration(&stream, dummy, 0, 0, 1);
 
 		spkt.channel = Channel::Depth;
 		pkt.frame_count = 2;
-		pkt.flags = ftl::codecs::kFlagFloat;
+		pkt.flags = 0;
+		pkt.codec = codec_t::HEVC_LOSSLESS;
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
@@ -263,7 +264,7 @@ TEST_CASE( "Receiver sync bugs" ) {
 	receiver->setStream(&stream);
 	receiver->set("frameset_buffer_size", 0);
 
-	ftl::codecs::NvPipeEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
@@ -348,7 +349,7 @@ TEST_CASE( "Receiver non zero buffer" ) {
 	receiver->setStream(&stream);
 	receiver->set("frameset_buffer_size", 1);
 
-	ftl::codecs::NvPipeEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;

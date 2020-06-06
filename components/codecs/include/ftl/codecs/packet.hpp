@@ -36,22 +36,18 @@ struct IndexHeader {
  */
 struct Packet {
 	ftl::codecs::codec_t codec;
-	ftl::codecs::definition_t definition;	// Data resolution
 
 	union {
-	[[deprecated]] uint8_t block_total;	// v1-3 Packets expected per frame
+	[[deprecated]] ftl::codecs::definition_t definition;	// Data resolution
+	uint8_t reserved=7;
+	};
+
 	uint8_t frame_count;	// v4+ Frames included in this packet
-	};
-
-	union {
-	[[deprecated]] uint8_t block_number; 	// v1-3 This packets number within a frame
 	uint8_t bitrate=0;	// v4+ For multi-bitrate encoding, 0=highest
-	};
-
 	uint8_t flags;			// Codec dependent flags (eg. I-Frame or P-Frame)
 	std::vector<uint8_t> data;
 
-	MSGPACK_DEFINE(codec, definition, frame_count, bitrate, flags, data);
+	MSGPACK_DEFINE(codec, reserved, frame_count, bitrate, flags, data);
 };
 
 static constexpr unsigned int kStreamCap_Static = 0x01;

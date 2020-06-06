@@ -23,7 +23,7 @@ void ftl::stream::injectConfig(ftl::stream::Stream *stream, const ftl::rgbd::Fra
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;
-	pkt.definition = ftl::codecs::definition_t::Any;
+	//pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.bitrate = 0;
 	pkt.frame_count = 1;
 	pkt.flags = 0;
@@ -45,7 +45,7 @@ void ftl::stream::injectPose(ftl::stream::Stream *stream, const ftl::rgbd::Frame
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;
-	pkt.definition = ftl::codecs::definition_t::Any;
+	//pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.bitrate = 0;
 	pkt.frame_count = 1;
 	pkt.flags = 0;
@@ -73,7 +73,7 @@ void ftl::stream::injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;
-	pkt.definition = ftl::codecs::definition_t::Any;
+	//pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.bitrate = 0;
 	pkt.frame_count = 1;
 	pkt.flags = 0;

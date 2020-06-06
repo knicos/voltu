@@ -10,7 +10,6 @@ include(GNUInstallDirs)
 include(CTest)
 enable_testing()
 
-option(WITH_NVPIPE "Use NvPipe for compression if available" ON)
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
 option(WITH_OPENVR "Build with OpenVR support" OFF)
 option(WITH_OPUS "Use Opus audio compression" ON)
@@ -399,7 +398,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 # ==== NvPipe ==================================================================
 
-add_subdirectory(lib/nvpipe)
+#add_subdirectory(lib/nvpipe)
 
 #find_library( NVPIPE_LIBRARY NAMES NvPipe libNvPipe PATHS ${NVPIPE_DIR} PATH_SUFFIXES lib)
 #if (NVPIPE_LIBRARY)

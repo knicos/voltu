@@ -14,8 +14,8 @@ from enum import IntEnum
 ################################################################################
 
 # components/codecs/include/ftl/codecs/packet.hpp
-Packet = namedtuple("Packet", ["codec", "definition", "block_total",
-                               "block_number", "flags", "data"])
+Packet = namedtuple("Packet", ["codec", "definition", "frame_count",
+                               "bitrate", "flags", "data"])
 
 StreamPacket = namedtuple("StreamPacket", ["timestamp", "frameset_id",
                                            "frame_number", "channel"])
@@ -33,7 +33,10 @@ class codec_t(IntEnum):
     PNG = 1
     H264 = 2
     HEVC = 3
-    WAV = 4
+    H264_LOSSLESS = 4
+    HEVC_LOSSLESS = 5
+    WAV = 32
+    OPUS = 33
     JSON = 100
     CALIBRATION = 101
     POSE = 102
@@ -127,10 +130,10 @@ class FTLDecoder:
 ################################################################################
 
 def split_images(packet, im):
-    if packet.block_total == 1:
+    if packet.frame_count == 1:
         return im
 
-    n = packet.block_total
+    n = packet.frame_count
     height, width = definition_t[packet.definition]
     cols = im.shape[1] // width
 
@@ -145,7 +148,7 @@ def split_images(packet, im):
     return imgs
 
 def decode_codec_opencv(packet):
-    if packet.block_total != 1 or packet.block_number != 0:
+    if packet.frame_count != 1:
         warn("Unsupported block format (todo)") # is this relevant?
 
     im = _int_to_float(cv.imdecode(np.frombuffer(packet.data, dtype=np.uint8),
@@ -154,7 +157,7 @@ def decode_codec_opencv(packet):
     return split_images(packet, im)
 
 def decode_codec_opencv_float(packet):
-    if packet.block_total != 1 or packet.block_number != 0:
+    if packet.frame_count != 1:
         warn("Unsupported block format (todo)") # is this relevant?
 
     im = cv.imdecode(np.frombuffer(packet.data, dtype=np.uint8),
