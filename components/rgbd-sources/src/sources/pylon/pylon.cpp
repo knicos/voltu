@@ -57,8 +57,8 @@ PylonSource::PylonSource(ftl::rgbd::Source *host)
 		CEnumParameter format(nodemap, "PixelFormat");
 		LOG(INFO) << "Camera format: " << format.GetValue();
 
-		if (format.CanSetValue("BGR8")) {
-			format.SetValue("BGR8");
+		if (format.CanSetValue("BayerBG8")) {  // YCbCr422_8
+			format.SetValue("BayerBG8");
 		} else {
 			LOG(WARNING) << "Could not change pixel format";
 		}
@@ -95,7 +95,7 @@ bool PylonSource::capture(int64_t ts) {
 	try {
 		if ( lcam_->WaitForFrameTriggerReady( 50, Pylon::TimeoutHandling_ThrowException)) {
 			lcam_->ExecuteSoftwareTrigger();
-			LOG(INFO) << "TRIGGER";
+			//LOG(INFO) << "TRIGGER";
 		}
 	} catch (const GenericException &e) {
 		LOG(ERROR) << "Pylon: Trigger exception - " << e.GetDescription();
@@ -122,7 +122,7 @@ bool PylonSource::retrieve() {
 		Pylon::CGrabResultPtr ptrGrabResult;
 
 		int count = 0;
-		if (lcam_->RetrieveResult(40, ptrGrabResult, Pylon::TimeoutHandling_Return)) ++count;
+		if (lcam_->RetrieveResult(0, ptrGrabResult, Pylon::TimeoutHandling_Return)) ++count;
 
 		if (count == 0 || !ptrGrabResult->GrabSucceeded()) {
 			LOG(ERROR) << "Retrieve failed";
@@ -132,10 +132,10 @@ bool PylonSource::retrieve() {
 		cv::Mat wrap(
 			ptrGrabResult->GetHeight(),
 			ptrGrabResult->GetWidth(),
-			CV_8UC3,
+			CV_8UC1,
 			(uint8_t*)ptrGrabResult->GetBuffer());
 
-		cv::cvtColor(wrap, tmp_, cv::COLOR_BGR2BGRA);
+		cv::cvtColor(wrap, tmp_, cv::COLOR_BayerBG2BGRA);
 		frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour).upload(tmp_);
 
 	} catch (const GenericException &e) {
