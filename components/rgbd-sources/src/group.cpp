@@ -20,8 +20,11 @@ using ftl::codecs::Channels;
 
 Group::Group() : pipeline_(nullptr) {
 	jobs_ = 0;
+	cjobs_ = 0;
 	skip_ = false;
 	name_ = "NoName";
+
+	builder_.setBufferSize(0);
 }
 
 Group::~Group() {
@@ -74,9 +77,9 @@ void Group::_retrieveJob(ftl::rgbd::Source *src) {
 	}
 }
 
-void Group::_computeJob(ftl::rgbd::Source *src) {
+void Group::_computeJob(ftl::rgbd::Source *src, int64_t ts) {
 	try {
-		src->compute();
+		src->compute(ts);
 	} catch (std::exception &ex) {
 		LOG(ERROR) << "Exception when computing frame";
 		LOG(ERROR) << ex.what();
@@ -112,13 +115,13 @@ void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 	});
 
 	// 2. After capture, swap any internal source double buffers
-	swap_id_ = ftl::timer::add(ftl::timer::kTimerSwap, [this](int64_t ts) {
+	/*swap_id_ = ftl::timer::add(ftl::timer::kTimerSwap, [this](int64_t ts) {
 		if (skip_) return true;
 		for (auto s : sources_) {
 			s->swap();
 		}
 		return true;
-	});
+	});*/
 
 	// 3. Issue IO retrieve ad compute jobs before finding a valid
 	// frame at required latency to pass to callback.
@@ -128,18 +131,32 @@ void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 		//jobs_++;
 
 		for (auto s : sources_) {
-			jobs_ += 2;
+			jobs_++; // += 2;
 
-			ftl::pool.push([this,s](int id) {
+			ftl::pool.push([this,s,ts](int id) {
 				_retrieveJob(s);
 				//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Retrieve";
 				--jobs_;
+
+				if (cjobs_ == 0) {
+					cjobs_++;
+					s->swap();
+					ftl::pool.push([this,s,ts](int id) {
+						_computeJob(s, ts);
+						//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Compute";
+
+						//LOG(INFO) << "Compute time: " << ftl::timer::get_time() - ts;
+						--cjobs_;
+					});
+				} else {
+					//LOG(WARNING) << "Frame drop";
+				}
 			});
-			ftl::pool.push([this,s](int id) {
+			/*ftl::pool.push([this,s](int id) {
 				_computeJob(s);
 				//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Compute";
 				--jobs_;
-			});
+			});*/
 		}
 		return true;
 	});

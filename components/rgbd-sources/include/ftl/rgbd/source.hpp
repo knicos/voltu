@@ -99,18 +99,18 @@ class Source : public ftl::Configurable {
 	 * may take considerable time to return, especially for sources requiring
 	 * software stereo correspondance.
 	 */
-	bool compute(int N=-1, int B=-1);
+	bool compute(int64_t ts);
 
 	/**
 	 * Wrapper grab that performs capture, swap and computation steps in one.
 	 * It is more optimal to perform capture and compute in parallel.
 	 */
-	bool grab(int N=-1, int B=-1) {
+	/*bool grab(int N=-1, int B=-1) {
 		bool c = capture(0);
 		c = c && retrieve();
 		swap();
 		return c && compute(N,B);
-	}
+	}*/
 
 	/**
 	 * Get a copy of both colour and depth frames. Note that this does a buffer

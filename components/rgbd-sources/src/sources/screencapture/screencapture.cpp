@@ -197,7 +197,7 @@ bool ScreenCapture::retrieve() {
 	return true;
 }
 
-bool ScreenCapture::compute(int n, int b) {
+bool ScreenCapture::compute(int64_t ts) {
 	if (!ready_) return false;
 	cv::Mat img;
 
@@ -213,7 +213,7 @@ bool ScreenCapture::compute(int n, int b) {
 		frame_.create<cv::Mat>(Channel::Colour) = img;
 	}
 
-	host_->notify(timestamp_, frame_);
+	host_->notify(ts, frame_);
     return true;
 }
 

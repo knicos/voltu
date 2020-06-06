@@ -25,7 +25,7 @@ class ScreenCapture : public ftl::rgbd::detail::Source {
 	bool capture(int64_t ts) { timestamp_ = ts; return true; };
 	void swap() override;
 	bool retrieve();
-	bool compute(int n=-1, int b=-1);
+	bool compute(int64_t ts);
 	bool isReady();
 
 	size_t getOffsetX() const { return (offset_x_ > full_width_-params_.width) ? full_width_-params_.width : offset_x_; }

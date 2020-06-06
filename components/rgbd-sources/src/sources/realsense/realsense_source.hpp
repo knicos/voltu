@@ -18,9 +18,10 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 	~RealsenseSource();
 
 	bool capture(int64_t ts) { timestamp_ = ts; return true; }
-	bool retrieve() { return true; }
-	bool compute(int n=-1, int b=-1);
+	bool retrieve();
+	bool compute(int64_t ts);
 	bool isReady();
+	void swap();
 
 	private:
 	bool ready_;
@@ -28,6 +29,7 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
     rs2::pipeline pipe_;
     rs2::align align_to_depth_;
 	rs2::frame rscolour_;
+	Frame frames_[2];
 };
 
 }

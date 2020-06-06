@@ -103,6 +103,7 @@ class Group : public ftl::rgbd::Generator {
 	ftl::operators::Graph *pipeline_;
 	
 	std::atomic<int> jobs_;
+	std::atomic<int> cjobs_;
 	volatile bool skip_;
 	ftl::timer::TimerHandle cap_id_;
 	ftl::timer::TimerHandle swap_id_;
@@ -111,7 +112,7 @@ class Group : public ftl::rgbd::Generator {
 	MUTEX mutex_;
 
 	void _retrieveJob(ftl::rgbd::Source *);
-	void _computeJob(ftl::rgbd::Source *);
+	void _computeJob(ftl::rgbd::Source *, int64_t);
 };
 
 }

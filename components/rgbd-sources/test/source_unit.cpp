@@ -41,7 +41,7 @@ class ImageSource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -53,7 +53,7 @@ class ScreenCapture : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -68,7 +68,7 @@ class StereoVideoSource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -80,7 +80,7 @@ class NetSource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -92,7 +92,7 @@ class SnapshotSource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -104,7 +104,7 @@ class FileSource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -116,7 +116,7 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -128,7 +128,7 @@ class PylonSource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 
@@ -140,7 +140,7 @@ class MiddleburySource : public ftl::rgbd::detail::Source {
 
 	bool capture(int64_t ts) { return true; }
 	bool retrieve() { return true; }
-	bool compute(int n, int b) { return true; };
+	bool compute(int64_t ts) { return true; };
 	bool isReady() { return true; };
 };
 

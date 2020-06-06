@@ -28,7 +28,7 @@ class StereoVideoSource : public detail::Source {
 	void swap();
 	bool capture(int64_t ts);
 	bool retrieve();
-	bool compute(int n, int b);
+	bool compute(int64_t ts);
 	bool isReady();
 
 	Camera parameters(ftl::codecs::Channel chan) override;

@@ -326,7 +326,7 @@ void StereoVideoSource::swap() {
 	frames_[1] = std::move(tmp);
 }
 
-bool StereoVideoSource::compute(int n, int b) {
+bool StereoVideoSource::compute(int64_t ts) {
 	auto &frame = frames_[1];
 
 	if (lsrc_->isStereo()) {
@@ -347,7 +347,7 @@ bool StereoVideoSource::compute(int n, int b) {
 		if (!frame.hasChannel(Channel::Left)) { return false; }
 	}
 
-	host_->notify(capts_, frame);
+	host_->notify(ts, frame);
 	return true;
 }
 

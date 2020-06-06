@@ -23,7 +23,7 @@ class PylonSource : public ftl::rgbd::detail::Source {
 	void swap();
 	bool capture(int64_t ts);
 	bool retrieve();
-	bool compute(int n=-1, int b=-1);
+	bool compute(int64_t ts);
 	bool isReady();
 
 	private:

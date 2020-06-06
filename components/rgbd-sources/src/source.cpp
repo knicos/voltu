@@ -253,9 +253,9 @@ bool Source::retrieve() {
 	else return true;
 }
 
-bool Source::compute(int N, int B) {
+bool Source::compute(int64_t ts) {
 	UNIQUE_LOCK(mutex_,lk);
-	return impl_ && impl_->compute(N,B);
+	return impl_ && impl_->compute(ts);
 }
 
 bool Source::setChannel(ftl::codecs::Channel c) {

@@ -46,7 +46,7 @@ class Source {
 	 * @param n Number of frames to request in batch. Default -1 means automatic (10)
 	 * @param b Bit rate setting. -1 = automatic, 0 = best quality, 9 = lowest quality
 	 */
-	virtual bool compute(int n, int b)=0;
+	virtual bool compute(int64_t ts)=0;
 
 	/**
 	 * Between frames, or before next frame, do any buffer swapping operations.

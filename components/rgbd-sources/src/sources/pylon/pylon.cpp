@@ -176,9 +176,9 @@ void PylonSource::swap() {
 	frames_[1] = std::move(tmp);
 }
 
-bool PylonSource::compute(int n, int b) {
+bool PylonSource::compute(int64_t ts) {
 	auto &frame = frames_[1];
-	host_->notify(timestamp_, frame);
+	host_->notify(ts, frame);
     return true;
 }
 
