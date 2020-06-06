@@ -1,9 +1,7 @@
 #ifndef _FTL_LOCAL_HPP_
 #define _FTL_LOCAL_HPP_
 
-#include <ftl/configurable.hpp>
-#include <ftl/cuda_common.hpp>
-#include <string>
+#include "device.hpp"
 
 namespace cv {
 	class Mat;
@@ -14,39 +12,25 @@ namespace ftl {
 namespace rgbd {
 namespace detail {
 
-class Calibrate;
-
-struct DeviceDetails {
-	std::string name;
-	int id;
-	size_t maxwidth;
-	size_t maxheight;
-};
-
-class LocalSource : public Configurable {
+class OpenCVDevice : public ftl::rgbd::detail::Device {
 	public:
-	explicit LocalSource(nlohmann::json &config);
-	LocalSource(nlohmann::json &config, const std::string &vid);
-	
-	//bool left(cv::Mat &m);
-	//bool right(cv::Mat &m);
-	bool grab();
-	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, Calibrate *c, cv::cuda::Stream &stream);
+	explicit OpenCVDevice(nlohmann::json &config);
+	~OpenCVDevice();
 
-	unsigned int width() const { return dwidth_; }
-	unsigned int height() const { return dheight_; }
+	static std::vector<DeviceDetails> listDevices();
+	
+	bool grab() override;
+	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, Calibrate *c, cv::cuda::Stream &stream) override;
 
-	unsigned int fullWidth() const { return width_; }
-	unsigned int fullHeight() const { return height_; }
+	unsigned int width() const override { return dwidth_; }
+	unsigned int height() const override { return dheight_; }
 
-	inline bool hasHigherRes() const { return dwidth_ != width_; }
+	unsigned int fullWidth() const override { return width_; }
+	unsigned int fullHeight() const override { return height_; }
 	
-	//void setFramerate(float fps);
-	//float getFramerate() const;
+	double getTimestamp() const override;
 	
-	double getTimestamp() const;
-	
-	bool isStereo() const;
+	bool isStereo() const override;
 	
 	private:
 	double timestamp_;

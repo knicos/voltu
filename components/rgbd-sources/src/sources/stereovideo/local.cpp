@@ -30,7 +30,7 @@
 #pragma comment(lib, "mfuuid.lib")
 #endif
 
-using ftl::rgbd::detail::LocalSource;
+using ftl::rgbd::detail::OpenCVDevice;
 using ftl::rgbd::detail::Calibrate;
 using cv::Mat;
 using cv::VideoCapture;
@@ -42,8 +42,8 @@ using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
-LocalSource::LocalSource(nlohmann::json &config)
-		: Configurable(config), timestamp_(0.0) {
+OpenCVDevice::OpenCVDevice(nlohmann::json &config)
+		: ftl::rgbd::detail::Device(config), timestamp_(0.0) {
 
 	std::vector<ftl::rgbd::detail::DeviceDetails> devices = _selectDevices();
 
@@ -142,12 +142,11 @@ LocalSource::LocalSource(nlohmann::json &config)
 	hres_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
 }
 
-LocalSource::LocalSource(nlohmann::json &config, const string &vid)
-	:	Configurable(config), timestamp_(0.0) {
-	LOG(FATAL) << "Stereo video file sources no longer supported";
+OpenCVDevice::~OpenCVDevice() {
+
 }
 
-std::vector<ftl::rgbd::detail::DeviceDetails> LocalSource::_selectDevices() {
+std::vector<ftl::rgbd::detail::DeviceDetails> OpenCVDevice::_selectDevices() {
 	std::vector<ftl::rgbd::detail::DeviceDetails> devices;
 
 #ifdef WIN32
@@ -295,7 +294,7 @@ std::vector<ftl::rgbd::detail::DeviceDetails> LocalSource::_selectDevices() {
 }
 
 
-bool LocalSource::grab() {
+bool OpenCVDevice::grab() {
 	if (!camera_a_) return false;
 
 	if (camera_b_) {
@@ -312,7 +311,7 @@ bool LocalSource::grab() {
 	return true;
 }
 
-bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
+bool OpenCVDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
 	cv::cuda::GpuMat &l_hres_out, cv::Mat &r_hres_out, Calibrate *c, cv::cuda::Stream &stream) {
 	
 	Mat l, r ,hres;
@@ -410,11 +409,11 @@ bool LocalSource::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
 	return true;
 }
 
-double LocalSource::getTimestamp() const {
+double OpenCVDevice::getTimestamp() const {
 	return timestamp_;
 }
 
-bool LocalSource::isStereo() const {
+bool OpenCVDevice::isStereo() const {
 	return stereo_ && !nostereo_;
 }
 

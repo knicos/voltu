@@ -28,10 +28,18 @@
 #include "disparity.hpp"
 
 using ftl::rgbd::detail::Calibrate;
-using ftl::rgbd::detail::LocalSource;
+using ftl::rgbd::detail::OpenCVDevice;
 using ftl::rgbd::detail::StereoVideoSource;
 using ftl::codecs::Channel;
 using std::string;
+
+ftl::rgbd::detail::Device::Device(nlohmann::json &config) : Configurable(config) {
+
+}
+
+ftl::rgbd::detail::Device::~Device() {
+
+}
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::detail::Source(host), ready_(false) {
@@ -55,7 +63,7 @@ void StereoVideoSource::init(const string &file) {
 	if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";
-		lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
+		//lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
 	} else if (ftl::is_directory(file)) {
 		// FIXME: This is not an ideal solution...
 		ftl::config::addPath(file);
@@ -65,13 +73,13 @@ void StereoVideoSource::init(const string &file) {
 			LOG(FATAL) << "No video.mp4 file found in provided paths (" << file << ")";
 		} else {
 			LOG(INFO) << "Using test directory...";
-			lsrc_ = ftl::create<LocalSource>(host_, "feed", *vid);
+			//lsrc_ = ftl::create<LocalSource>(host_, "feed", *vid);
 		}
 	}
 	else {
 		// Use cameras
 		LOG(INFO) << "Using cameras...";
-		lsrc_ = ftl::create<LocalSource>(host_, "feed");
+		lsrc_ = ftl::create<OpenCVDevice>(host_, "feed");
 	}
 
 	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());

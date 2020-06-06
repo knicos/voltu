@@ -11,7 +11,7 @@ namespace ftl {
 namespace rgbd {
 namespace detail {
 
-class LocalSource;
+class Device;
 class Calibrate;
 class Disparity;
 
@@ -36,7 +36,7 @@ class StereoVideoSource : public detail::Source {
 	private:
 	void updateParameters();
 
-	LocalSource *lsrc_;
+	Device *lsrc_;
 	Calibrate *calib_;
 	int64_t capts_;
 
