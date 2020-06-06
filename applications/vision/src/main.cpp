@@ -34,6 +34,10 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/core/utility.hpp"
 
+#ifdef HAVE_PYLON
+#include <pylon/PylonIncludes.h>
+#endif
+
 #ifdef WIN32
 #pragma comment(lib, "Rpcrt4.lib")
 #endif
@@ -194,6 +198,10 @@ static void run(ftl::Configurable *root) {
 }
 
 int main(int argc, char **argv) {
+#ifdef HAVE_PYLON
+	Pylon::PylonAutoInitTerm autoInitTerm;
+#endif
+
 #ifdef WIN32
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 #endif

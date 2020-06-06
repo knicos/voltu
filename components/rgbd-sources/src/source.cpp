@@ -20,6 +20,11 @@
 using ftl::rgbd::detail::RealsenseSource;
 #endif
 
+#ifdef HAVE_PYLON
+#include "sources/pylon/pylon.hpp"
+using ftl::rgbd::detail::PylonSource;
+#endif
+
 #include <fstream>
 
 using ftl::rgbd::Source;
@@ -173,6 +178,12 @@ ftl::rgbd::detail::Source *Source::_createNetImpl(const ftl::URI &uri) {
 ftl::rgbd::detail::Source *Source::_createDeviceImpl(const ftl::URI &uri) {
 	if (uri.getPathSegment(0) == "video") {
 		return new StereoVideoSource(this);
+	} else if (uri.getPathSegment(0) == "pylon") {
+#ifdef HAVE_PYLON
+		return new PylonSource(this);
+#else
+		LOG(ERROR) << "You did not build with 'pylon'";
+#endif
 	} else if (uri.getPathSegment(0) == "realsense") {
 #ifdef HAVE_REALSENSE
 		return new RealsenseSource(this);

@@ -13,34 +13,18 @@ endif()
 if (PYLON_DIR)
 	set(PYLON_FOUND TRUE CACHE BOOL "" FORCE)
 	set(HAVE_PYLON TRUE)
-	# Find lib dir
 	
-	# Find include
-	find_path(PYLON_LIBRARY_DIRS
-		NAMES libpylonbase.so
-		PATHS ${PYLON_DIR}
-		PATH_SUFFIXES lib
-	)
-
-	# Find include
-	find_path(PYLON_INCLUDE_DIRS
-		NAMES pylon/PylonBase.h
-		PATHS ${PYLON_DIR}
-		PATH_SUFFIXES include
-	)
-
 	include(FindPackageHandleStandardArgs)
 	find_package_handle_standard_args(Pylon DEFAULT_MSG PYLON_DIR)
 
 	mark_as_advanced(PYLON_FOUND)
-	mark_as_advanced(PYLON_INCLUDE_DIRS)
-	mark_as_advanced(PYLON_LIBRARY_DIRS)
 
 	list(APPEND PYLON_LIBRARIES pylonbase pylonutility GenApi_gcc_v3_1_Basler_pylon GCBase_gcc_v3_1_Basler_pylon)
 
-	add_library(Pylon UNKNOWN IMPORTED)
-	set_property(TARGET Pylon PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${PYLON_INCLUDE_DIRS})
-	set_property(TARGET Pylon PROPERTY INTERFACE_LINK_DIRECTORIES ${PYLON_INCLUDE_DIRS})
+	add_library(Pylon INTERFACE)
+	set_property(TARGET Pylon PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${PYLON_DIR}/include)
+	#set_property(TARGET Pylon PROPERTY INTERFACE_LINK_DIRECTORIES ${PYLON_DIR}/lib)
+	link_directories(${PYLON_DIR}/lib)
 	set_property(TARGET Pylon PROPERTY INTERFACE_LINK_LIBRARIES ${PYLON_LIBRARIES})
 else()
 	add_library(Pylon INTERFACE)

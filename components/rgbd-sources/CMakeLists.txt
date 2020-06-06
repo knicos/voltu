@@ -17,6 +17,10 @@ if (HAVE_REALSENSE)
 	list(APPEND RGBDSRC "src/sources/realsense/realsense_source.cpp")
 endif()
 
+if (HAVE_PYLON)
+	list(APPEND RGBDSRC "src/sources/pylon/pylon.cpp")
+endif()
+
 if (LibArchive_FOUND)
 	list(APPEND RGBDSRC
 		src/sources/snapshot/snapshot.cpp
@@ -38,7 +42,7 @@ if (CUDA_FOUND)
 set_property(TARGET ftlrgbd PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
-target_link_libraries(ftlrgbd ftlcalibration ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen realsense ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators ftldata ${X11_X11_LIB} ${X11_Xext_LIB})
+target_link_libraries(ftlrgbd ftlcalibration ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen realsense ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators ftldata ${X11_X11_LIB} ${X11_Xext_LIB} Pylon)
 
 if (BUILD_TESTS)
 add_subdirectory(test)

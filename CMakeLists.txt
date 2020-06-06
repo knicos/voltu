@@ -10,7 +10,6 @@ include(GNUInstallDirs)
 include(CTest)
 enable_testing()
 
-option(WITH_PYLON "Use Pylon for Basler cameras" ON)
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
 option(WITH_OPENVR "Build with OpenVR support" OFF)
 option(WITH_OPUS "Use Opus audio compression" ON)
@@ -49,9 +48,7 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
 
-if (WITH_PYLON)
-	find_package( Pylon )
-endif()
+find_package( Pylon )
 
 VERSION_STR_TO_INTS(OPENCV_MAJOR OPENCV_MINOR OPENCV_PATCH ${OpenCV_VERSION})
 math(EXPR OPENCV_NUMBER "(${OPENCV_MAJOR} * 10000) + (${OPENCV_MINOR} * 100) + ${OPENCV_PATCH}")

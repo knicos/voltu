@@ -10,8 +10,16 @@
 
 #include <cuda_gl_interop.h>
 
+#ifdef HAVE_PYLON
+#include <pylon/PylonIncludes.h>
+#endif
+
 
 int main(int argc, char **argv) {
+#ifdef HAVE_PYLON
+	Pylon::PylonAutoInitTerm autoInitTerm;
+#endif
+
 	auto root = ftl::configure(argc, argv, "gui_default");
 	ftl::net::Universe *net = ftl::create<ftl::net::Universe>(root, "net");
 
