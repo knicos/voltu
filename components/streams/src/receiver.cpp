@@ -222,9 +222,14 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	InternalVideoStates &ividstate = _getVideoFrame(spkt);
 
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
-	int width = ftl::codecs::getWidth(pkt.definition);
-	int height = ftl::codecs::getHeight(pkt.definition);
-	int sheight = height;
+
+	int width = ividstate.state.getLeft().width;
+	int height = ividstate.state.getLeft().height;
+
+	if (width == 0 || height == 0) {
+		LOG(WARNING) << "No calibration, skipping frame";
+		return;
+	}
 
 	//LOG(INFO) << " CODEC = " << (int)pkt.codec << " " << (int)pkt.flags << " " << (int)spkt.channel;
 	//LOG(INFO) << "Decode surface: " << (width*tx) << "x" << (height*ty);
@@ -274,8 +279,6 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	cv::waitKey(1);
 	}*/
 
-	bool apply_Y_filter = value("apply_Y_filter", true);
-
 	// Mark a frameset as being partial
 	if (pkt.flags & ftl::codecs::kFlagPartial) {
 		builder_[spkt.streamID].markPartial(spkt.timestamp);
@@ -296,18 +299,6 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 			LOG(WARNING) << "Previous frame not complete: " << spkt.timestamp;
 		}
 
-		{
-			// This ensures that if previous frames are unfinished then they
-			// are discarded.
-			/*UNIQUE_LOCK(vidstate.mutex, lk);
-			if (frame.timestamp != spkt.timestamp && frame.timestamp != -1) {
-				frame.frame.reset();
-				frame.completed.clear();
-				LOG(WARNING) << "Frames out-of-phase by: " << spkt.timestamp - frame.timestamp;
-			}
-			frame.timestamp = spkt.timestamp;*/
-		}
-
 		// Add channel to frame and allocate memory if required
 		const cv::Size size = cv::Size(width, height);
 		frame.getBuffer<cv::cuda::GpuMat>(spkt.channel).create(size, ftl::codecs::type(spkt.channel)); //(isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
@@ -315,29 +306,6 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
 		cv::cuda::GpuMat sroi = surface(roi);
 		sroi.copyTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cvstream);
-		
-		// Do colour conversion
-		/*if (isFloatChannel(rchan) && (pkt.flags & 0x2)) {
-			cv::Rect croi((i % tx)*width, ty*height+(i / tx)*height/2, width, height/2);
-			cv::cuda::GpuMat csroi = surface(croi);
-			// Smooth Y channel around discontinuities
-			// Lerp the uv channels / smooth over a small kernal size.
-
-			//if (value("apply_bilateral", true)) {
-				// cv::cuda::split
-				// Apply disparity bilateral to the luminance channel
-				// cv::cuda::merge or overload vuya_to_depth
-			//}
-
-			//if (apply_Y_filter) ftl::cuda::smooth_y(sroi, cvstream);
-			ftl::cuda::vuya_to_depth(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), sroi, csroi, 16.0f, cvstream);
-		} else if (isFloatChannel(rchan)) {
-			sroi.convertTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), CV_32FC1, 1.0f/1000.0f, cvstream);
-		} else if (sroi.type() == CV_8UC1) {
-			sroi.copyTo(frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cvstream);
-		} else {
-			cv::cuda::cvtColor(sroi, frame.getBuffer<cv::cuda::GpuMat>(spkt.channel), cv::COLOR_RGBA2BGRA, 0, cvstream);
-		}*/
 	}
 
 	// Must ensure all processing is finished before completing a frame.

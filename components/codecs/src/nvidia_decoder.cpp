@@ -1,5 +1,5 @@
-#include <ftl/codecs/nvpipe_decoder.hpp>
-#include <ftl/codecs/nvpipe_encoder.hpp>
+#include <ftl/codecs/nvidia_decoder.hpp>
+#include <ftl/codecs/nvidia_encoder.hpp>
 #include <ftl/exception.hpp>
 
 #include <loguru.hpp>
@@ -18,16 +18,16 @@
 #include "Video_Codec_SDK_9.1.23/Samples/NvCodec/NvDecoder/NvDecoder.h"
 #include "../Utils/ColorSpace.h"
 
-using ftl::codecs::NvPipeDecoder;
+using ftl::codecs::NvidiaDecoder;
 using ftl::codecs::codec_t;
 
 
-NvPipeDecoder::NvPipeDecoder() {
+NvidiaDecoder::NvidiaDecoder() {
 	nv_decoder_ = nullptr;
 	seen_iframe_ = false;
 }
 
-NvPipeDecoder::~NvPipeDecoder() {
+NvidiaDecoder::~NvidiaDecoder() {
 	if (nv_decoder_ != nullptr) {
 		delete nv_decoder_;
 	}
@@ -40,7 +40,7 @@ static T readValue(const unsigned char **data) {
 	return *ptr;
 }
 
-bool NvPipeDecoder::_checkIFrame(ftl::codecs::codec_t codec, const unsigned char *data, size_t size) {
+bool NvidiaDecoder::_checkIFrame(ftl::codecs::codec_t codec, const unsigned char *data, size_t size) {
 	if (!seen_iframe_) {
 		if (codec == ftl::codecs::codec_t::HEVC || codec == ftl::codecs::codec_t::HEVC_LOSSLESS) {
 			if (ftl::codecs::hevc::isIFrame(data, size)) seen_iframe_ = true;
@@ -62,22 +62,19 @@ static inline std::string DecErrorCodeToString(CUresult code)
     return "Unknown error code";
 }
 
-bool NvPipeDecoder::_create(const ftl::codecs::Packet &pkt) {
+bool NvidiaDecoder::_create(const ftl::codecs::Packet &pkt) {
 	bool is_float_frame = pkt.flags & ftl::codecs::kFlagFloat;
 
 	// Check existing decoder is valid first and remove if not
-	if (nv_decoder_ != nullptr && (last_definition_ != pkt.definition ||
-			last_codec_ != pkt.codec || is_float_channel_ != is_float_frame ||
-			width_ != last_width_ || height_ != last_height_)) {
+	if (nv_decoder_ != nullptr && (last_codec_ != pkt.codec || is_float_channel_ != is_float_frame)) {
+			//width_ != last_width_ || height_ != last_height_)) {
 		delete nv_decoder_;
 		nv_decoder_ = nullptr;
 	}
 
 	if (!nv_decoder_) {
 		// Ensure we have a CUDA context
-		LOG(INFO) << "Getting cuda context...";
         cudaSafeCall(cudaDeviceSynchronize());
-		LOG(INFO) << "Have cuda context.";
         CUcontext cudaContext;
         cuCtxGetCurrent(&cudaContext);
 
@@ -93,7 +90,7 @@ bool NvPipeDecoder::_create(const ftl::codecs::Packet &pkt) {
 	return true;
 }
 
-uint8_t* NvPipeDecoder::_decode(const uint8_t* src, uint64_t srcSize) {
+uint8_t* NvidiaDecoder::_decode(const uint8_t* src, uint64_t srcSize) {
 	int numFramesDecoded = 0;
 	uint8_t **decodedFrames;
 	int64_t *timeStamps;
@@ -115,7 +112,7 @@ uint8_t* NvPipeDecoder::_decode(const uint8_t* src, uint64_t srcSize) {
 	return decodedFrames[numFramesDecoded - 1];
 }
 
-bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
+bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
 	//cudaSetDevice(0);
 	UNIQUE_LOCK(mutex_,lk);
 	if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264 && pkt.codec != codec_t::HEVC_LOSSLESS && pkt.codec != codec_t::H264_LOSSLESS) return false;
@@ -123,11 +120,6 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	bool is_float_frame = pkt.flags & ftl::codecs::kFlagFloat;
 	bool islossless = ((pkt.codec == ftl::codecs::codec_t::HEVC || pkt.codec == ftl::codecs::codec_t::H264) && is_float_frame &&
 		!(pkt.flags & 0x2)) || pkt.codec == ftl::codecs::codec_t::HEVC_LOSSLESS || pkt.codec == ftl::codecs::codec_t::H264_LOSSLESS; 
-
-	/*if (is_float_frame && !islossless && out.type() != CV_16UC4) {
-		LOG(ERROR) << "Invalid buffer for lossy float frame";
-		return false;
-	}*/
 
 	if (is_float_frame && out.type() != CV_32F) {
 		LOG(ERROR) << "Invalid buffer for float frame";
@@ -139,51 +131,10 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		return false;
 	}
 
-	int width = ftl::codecs::getWidth(pkt.definition);
-	int height = ftl::codecs::getHeight(pkt.definition);
-	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
-
-	//int exp_height = (is_float_frame && !islossless) ? ty*height+((ty*height)/2) : ty*height;
-
-	if (tx*width != out.cols || ty*height != out.rows) {
-		LOG(ERROR) << "Received frame whose size does not match buffer";
-		return false;
-	}
-
-	// Is the previous decoder still valid for current resolution and type?
-	//if (nv_decoder_ != nullptr && (last_definition_ != pkt.definition || last_codec_ != pkt.codec || is_float_channel_ != is_float_frame)) {
-	//	NvPipe_Destroy(nv_decoder_);
-	//	nv_decoder_ = nullptr;
-	//}
-
-	// Create an appropriate NvDecoder instance
-	width_ = tx*width;
-	height_ = ty*height;
-	//if (islossless && is_float_frame) width_ *= 2;  // 16bit = double width 8 bit
 	_create(pkt);
 
 	is_float_channel_ = is_float_frame;
-	last_definition_ = pkt.definition;
 	last_codec_ = pkt.codec;
-	last_width_ = width_;
-	last_height_ = height_;
-
-	// Build a decoder instance of the correct kind
-	/*if (nv_decoder_ == nullptr) {
-		nv_decoder_ = NvPipe_CreateDecoder(
-				(is_float_frame) ? (islossless) ? NVPIPE_UINT16 : NVPIPE_NV12_10bit : NVPIPE_RGBA32,
-				(pkt.codec == codec_t::HEVC || pkt.codec == ftl::codecs::codec_t::HEVC_LOSSLESS) ? NVPIPE_HEVC : NVPIPE_H264,
-				out.cols,
-				out.rows);
-		if (!nv_decoder_) {
-			//LOG(INFO) << "Bitrate=" << (int)bitrate << " width=" << ABRController::getColourWidth(bitrate);
-			LOG(FATAL) << "Could not create decoder: " << NvPipe_GetError(NULL);
-		}
-
-		seen_iframe_ = false;
-	}*/
-	
-	//tmp_.create(cv::Size(ftl::codecs::getWidth(pkt.definition),ftl::codecs::getHeight(pkt.definition)), (!is_float_frame) ? CV_8UC4 : (islossless) ? CV_16U : CV_16UC4);
 
 	// Final checks for validity
 	if (pkt.data.size() == 0) { // || !ftl::codecs::hevc::validNAL(pkt.data)) {
@@ -212,27 +163,28 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 			}
 
 			decodedPtr = _decode(ptr, size);
-			//rc = NvPipe_Decode(nv_decoder_, ptr, size, out.data, tx*width, ty*height, out.step);
-			//if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);
 			ptr += size;
 		}
-
-		//LOG(WARNING) << "Decode of multiple frames: " << count;
 	} else {
 		if (!_checkIFrame(pkt.codec, pkt.data.data(), pkt.data.size())) {
 			LOG(WARNING) << "P-Frame without I-Frame in decoder: " << pkt.data.size();
 			return false;
 		}
 		decodedPtr = _decode(pkt.data.data(), pkt.data.size());
-		//LOG(INFO) << "Decoded size = " << nv_decoder_->GetWidth() << "x" << nv_decoder_->GetHeight() << " - " << nv_decoder_->GetBPP();
-		//rc = NvPipe_Decode(nv_decoder_, pkt.data.data(), pkt.data.size(), out.data, tx*width, ty*height, out.step);
-		//if (rc == 0) LOG(ERROR) << "NvPipe decode error: " << NvPipe_GetError(nv_decoder_);
+	}
+
+	width_ = nv_decoder_->GetWidth();
+	height_ = nv_decoder_->GetHeight();
+
+	if (out.cols != ((is_float_frame && islossless) ? width_/2 : width_) || out.rows != height_) {
+		LOG(ERROR) << "Decoded frame not same size as buffer";
+		return false;
 	}
 
 	// OpenCV GpuMat for YCbCr 4:2:0
 	cv::cuda::GpuMat surface;
 	if (is_float_frame && !islossless) surface = cv::cuda::GpuMat(height_+height_/2, width_, CV_16U, decodedPtr, width_*2);
-	else if (is_float_frame && islossless) surface = cv::cuda::GpuMat(height_+height_/2, width_*2, CV_8U, decodedPtr, width_*2);
+	else if (is_float_frame && islossless) surface = cv::cuda::GpuMat(height_+height_/2, width_, CV_8U, decodedPtr, width_);
 	else surface = cv::cuda::GpuMat(height_+height_/2, width_, CV_8U, decodedPtr, width_);
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream_);
@@ -241,21 +193,16 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		if (!islossless) {
 			cv::cuda::GpuMat sroi = surface(cv::Rect(0,0,width_, height_));
 			cv::cuda::GpuMat csroi = surface(cv::Rect(0,height_,width_, height_/2));
-			//cv::cuda::cvtColor(tmp_, tmp_, cv::COLOR_RGB2YUV, 4, stream_);
-			//LOG(INFO) << "Depth convert: " << out.cols << ", " << out.rows << ", " << out.type();
-			//ftl::cuda::vuya_to_depth(out, tmp_, 16.0f, stream_);
+
 			ftl::cuda::vuya_to_depth(out, sroi, csroi, 16.0f, cvstream);
 		} else {
-			//tmp_.convertTo(out, CV_32FC1, 1.0f/1000.0f, stream_);
-			ftl::cuda::nv12_to_float(decodedPtr, width_*2, (float*)out.data, out.step1(), width_, height_, stream_);
+			ftl::cuda::nv12_to_float(decodedPtr, width_, (float*)out.data, out.step1(), width_/2, height_, stream_);
 		}
 	} else {
 		// Flag 0x1 means frame is in RGB so needs conversion to BGR
 		if (pkt.flags & 0x1) {
-			//cv::cuda::cvtColor(surface, out, cv::COLOR_YUV2BGRA_NV12, 0, cvstream);
 			Nv12ToColor32<BGRA32>(decodedPtr, width_, out.data, out.step1(), width_, height_, 0, stream_);
 		} else {
-			//cv::cuda::cvtColor(surface, out, cv::COLOR_YUV2RGBA_NV12, 0, cvstream);
 			Nv12ToColor32<RGBA32>(decodedPtr, width_, out.data, out.step1(), width_, height_, 0, stream_);
 		}
 	}
@@ -265,6 +212,6 @@ bool NvPipeDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	return true;
 }
 
-bool NvPipeDecoder::accepts(const ftl::codecs::Packet &pkt) {
+bool NvidiaDecoder::accepts(const ftl::codecs::Packet &pkt) {
 	return pkt.codec == codec_t::HEVC || pkt.codec == codec_t::H264 || pkt.codec == codec_t::H264_LOSSLESS || pkt.codec == codec_t::HEVC_LOSSLESS;
 }

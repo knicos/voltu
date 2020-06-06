@@ -151,9 +151,9 @@ class FTLStreamWriter:
 
             elif data.dtype in [np.int8, np.uint8]:
                 if nchans == 3:
-                    ftl_dtype = _imageformat_t.RGB
+                    ftl_dtype = _imageformat_t.BGR
                 elif nchans == 4:
-                    ftl_dtype = _imageformat_t.RGBA
+                    ftl_dtype = _imageformat_t.BGRA
                 else:
                     raise ValueError("Unsupported number of channels: %i" % nchans)
 

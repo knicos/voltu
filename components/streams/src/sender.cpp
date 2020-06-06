@@ -348,7 +348,7 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 		}
 
 		//cudaSafeCall(cudaStreamSynchronize(enc->stream()));
-		enc->stream().waitForCompletion();
+		//enc->stream().waitForCompletion();
 
 		if (enc) {
 			if (reset) enc->reset();
@@ -360,11 +360,6 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 				pkt.definition = definition_t::Any;
 				pkt.bitrate = (!lossless && ftl::codecs::isFloatChannel(cc)) ? max_bitrate : max_bitrate/2;
 				pkt.flags = 0;
-
-				if (!lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth;
-				else if (lossless && ftl::codecs::isFloatChannel(cc)) pkt.flags = ftl::codecs::kFlagFloat;
-				else pkt.flags = ftl::codecs::kFlagFlipRGB;
-				if (is_stereo) pkt.flags |= ftl::codecs::kFlagStereo;
 
 				// In the event of partial frames, add a flag to indicate that
 				if (static_cast<size_t>(fs.count) < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
@@ -449,12 +444,7 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 	int tilecount = tx*ty;
 	uint32_t count = 0;
 
-	int cvtype = CV_8UC4;
-	switch (m.type()) {
-	case CV_32F		:	cvtype = (lossless && m.type() == CV_32F) ? CV_16U : CV_8UC4; break;
-	case CV_8UC1	:	cvtype = CV_8UC1; break;
-	default			:	cvtype = CV_8UC4;
-	}
+	int cvtype = m.type();
 
 	surface.surface.create(height, width, cvtype);
 
@@ -466,46 +456,7 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, (stereo) ? rwidth/2 : rwidth, rheight);
 			cv::cuda::GpuMat sroi = surface.surface(roi);
 
-			if (m.type() == CV_32F) {
-				if (lossless) {
-					m.convertTo(sroi, CV_16UC1, 1000, stream);
-				} else {
-					ftl::cuda::depth_to_vuya(m, sroi, _selectFloatMax(c), stream);
-				}
-			} else if (m.type() == CV_8UC4) {
-				cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
-			} else if (m.type() == CV_8UC3) {
-				cv::cuda::cvtColor(m, sroi, cv::COLOR_BGR2RGBA, 0, stream);
-			} else if (m.type() == CV_8UC1) {
-				m.copyTo(sroi, stream);
-			} else {
-				LOG(ERROR) << "Unsupported colour format: " << m.type();
-				return 0;
-			}
-
-			// Do the right channel
-			if (stereo) {
-				auto &m = cframe->get<cv::cuda::GpuMat>((c == Channel::Colour) ? Channel::Colour2 : Channel::Colour2HighRes);
-				cv::Rect roi((count % tx)*rwidth + (rwidth/2), (count / tx)*rheight, rwidth/2, rheight);
-				cv::cuda::GpuMat sroi = surface.surface(roi);
-
-				if (m.type() == CV_32F) {
-					if (lossless) {
-						m.convertTo(sroi, CV_16UC1, 1000, stream);
-					} else {
-						ftl::cuda::depth_to_vuya(m, sroi, _selectFloatMax(c), stream);
-					}
-				} else if (m.type() == CV_8UC4) {
-					cv::cuda::cvtColor(m, sroi, cv::COLOR_BGRA2RGBA, 0, stream);
-				} else if (m.type() == CV_8UC3) {
-					cv::cuda::cvtColor(m, sroi, cv::COLOR_BGR2RGBA, 0, stream);
-				} else if (m.type() == CV_8UC1) {
-					m.copyTo(sroi, stream);
-				} else {
-					LOG(ERROR) << "Unsupported colour format: " << m.type();
-					return 0;
-				}
-			}
+			m.copyTo(sroi, stream);
 		} else {
 			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
 			cv::cuda::GpuMat sroi = surface.surface(roi);

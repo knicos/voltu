@@ -323,7 +323,7 @@ void Source::inject(const Eigen::Matrix4d &pose) {
 	spkt.channel = Channel::Pose;
 	spkt.streamID = 0;
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;
-	pkt.definition = ftl::codecs::definition_t::Any;
+	//pkt.definition = ftl::codecs::definition_t::Any;
 	pkt.bitrate = 0;
 	pkt.frame_count = 1;
 	pkt.flags = 0;

@@ -1,7 +1,7 @@
 #include <ftl/codecs/decoder.hpp>
 
 #include <ftl/codecs/opencv_decoder.hpp>
-#include <ftl/codecs/nvpipe_decoder.hpp>
+#include <ftl/codecs/nvidia_decoder.hpp>
 
 using ftl::codecs::Decoder;
 using ftl::codecs::codec_t;
@@ -21,7 +21,7 @@ Decoder *ftl::codecs::allocateDecoder(const ftl::codecs::Packet &pkt) {
 	case codec_t::HEVC_LOSSLESS:
 	case codec_t::H264_LOSSLESS:
 	case codec_t::H264		:
-	case codec_t::HEVC		: return new ftl::codecs::NvPipeDecoder;
+	case codec_t::HEVC		: return new ftl::codecs::NvidiaDecoder;
 	default					: return nullptr;
 	}
 }

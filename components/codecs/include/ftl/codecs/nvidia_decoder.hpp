@@ -1,20 +1,18 @@
-#ifndef _FTL_CODECS_NVPIPE_DECODER_HPP_
-#define _FTL_CODECS_NVPIPE_DECODER_HPP_
+#ifndef _FTL_CODECS_NVIDIA_DECODER_HPP_
+#define _FTL_CODECS_NVIDIA_DECODER_HPP_
 
 #include <ftl/codecs/decoder.hpp>
 #include <ftl/threads.hpp>
-
-//#include <NvPipe.h>
 
 class NvDecoder;
 
 namespace ftl {
 namespace codecs {
 
-class NvPipeDecoder : public ftl::codecs::Decoder {
+class NvidiaDecoder : public ftl::codecs::Decoder {
 	public:
-	NvPipeDecoder();
-	~NvPipeDecoder();
+	NvidiaDecoder();
+	~NvidiaDecoder();
 
 	bool decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) override;
 
@@ -42,4 +40,4 @@ class NvPipeDecoder : public ftl::codecs::Decoder {
 }
 }
 
-#endif  // _FTL_CODECS_NVPIPE_DECODER_HPP_
+#endif  // _FTL_CODECS_NVIDIA_DECODER_HPP_

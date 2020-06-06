@@ -22,27 +22,31 @@ __device__ inline float clampC(float v, float t=255.0f) {
  *
  */
 
- // Assumes 8 bit output channels and 14bit depth
- static constexpr float P = (2.0f * 256.0f) / 16384.0f;
+  // Assumes 8 bit output channels and 14bit depth
+  static constexpr float P = (2.0f * 256.0f) / 16384.0f;
+
+ __device__ inline float3 depth2yuv(float depth, float maxdepth) {
+	float d = max(0.0f,depth);
+	if (d >= maxdepth) d = 0.0f;
+	float L = d / maxdepth;
+	const float p = P;
+	
+	float Ha1 = fmodf((L / (p/2.0f)), 2.0f);
+	float Ha = (Ha1 <= 1.0f) ? Ha1 : 2.0f - Ha1;
+
+	float Hb1 = fmodf(((L - (p/4.0f)) / (p/2.0f)), 2.0f);
+	float Hb = (Hb1 <= 1.0f) ? Hb1 : 2.0f - Hb1;
+
+	return {L, Ha, Hb};
+ }
 
 __global__ void depth_to_vuya_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda::PtrStepSz<uchar4> rgba, float maxdepth) {
 	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if (x < depth.cols && y < depth.rows) {
-		//float d = max(0.0f,min(maxdepth,depth(y,x)));
-		float d = max(0.0f,depth(y,x));
-		if (d >= maxdepth) d = 0.0f;
-        float L = d / maxdepth;
-        const float p = P;
-        
-        float Ha1 = fmodf((L / (p/2.0f)), 2.0f);
-        float Ha = (Ha1 <= 1.0f) ? Ha1 : 2.0f - Ha1;
-
-        float Hb1 = fmodf(((L - (p/4.0f)) / (p/2.0f)), 2.0f);
-		float Hb = (Hb1 <= 1.0f) ? Hb1 : 2.0f - Hb1;
-
-        rgba(y,x) = make_uchar4(Hb*255.0f,Ha*255.0f,L*255.0f, 0.0f);
+		float3 yuv = depth2yuv(depth(y,x), maxdepth);
+        rgba(y,x) = make_uchar4(yuv.z*255.0f,yuv.y*255.0f,yuv.x*255.0f, 0.0f);
 	}
 }
 
@@ -53,6 +57,44 @@ void ftl::cuda::depth_to_vuya(const cv::cuda::PtrStepSz<float> &depth, const cv:
 	depth_to_vuya_kernel<<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, rgba, maxdepth);
 	cudaSafeCall( cudaGetLastError() );
 }
+
+// Planar 10bit version
+
+__global__ void depth_to_nv12_10_kernel(cv::cuda::PtrStepSz<float> depth, ushort* luminance, ushort* chroma, int pitch, float maxdepth) {
+	const unsigned int x = (blockIdx.x*blockDim.x + threadIdx.x) * 2;
+	const unsigned int y = (blockIdx.y*blockDim.y + threadIdx.y) * 2;
+
+	if (x < depth.cols && y < depth.rows) {
+		float3 yuv1 = depth2yuv(depth(y,x), maxdepth);
+		float3 yuv2 = depth2yuv(depth(y,x+1), maxdepth);
+		float3 yuv3 = depth2yuv(depth(y+1,x), maxdepth);
+		float3 yuv4 = depth2yuv(depth(y+1,x+1), maxdepth);
+
+		// TODO: Something better than just average!
+		// Bad ones are discarded anyway...
+		float Ha = (yuv1.y+yuv2.y+yuv3.y+yuv4.y) / 4.0f * 255.0f;
+		float Hb = (yuv1.z+yuv2.z+yuv3.z+yuv4.z) / 4.0f * 255.0f;
+		
+		luminance[y*pitch+x] = ushort(yuv1.x*255.0f) << 8;
+		luminance[y*pitch+x+1] = ushort(yuv2.x*255.0f) << 8;
+		luminance[(y+1)*pitch+x] = ushort(yuv3.x*255.0f) << 8;
+		luminance[(y+1)*pitch+x+1] = ushort(yuv4.x*255.0f) << 8;
+
+		chroma[(y/2)*pitch+x] = ushort(Hb) << 8;
+		chroma[(y/2)*pitch+x+1] = ushort(Ha) << 8;
+	}
+}
+
+void ftl::cuda::depth_to_nv12_10(const cv::cuda::PtrStepSz<float> &depth, ushort* luminance, ushort* chroma, int pitch, float maxdepth, cv::cuda::Stream &stream) {
+	const dim3 gridSize((depth.cols/2 + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.rows/2 + T_PER_BLOCK - 1)/T_PER_BLOCK);
+    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	depth_to_nv12_10_kernel<<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, luminance, chroma, pitch, maxdepth);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+
+// =============================================================================
 
 // Decoding
 
@@ -361,7 +403,7 @@ static void SetMatYuv2Rgb(int iMatrix) {
     cudaMemcpyToSymbol(matYuv2Rgb, mat, sizeof(mat));
 }
 
-static void SetMatRgb2Yuv(int iMatrix) {
+/*static void SetMatRgb2Yuv(int iMatrix) {
     float wr, wb;
     int black, white, max;
     GetConstants(iMatrix, wr, wb, black, white, max);
@@ -376,7 +418,7 @@ static void SetMatRgb2Yuv(int iMatrix) {
         }
     }
     cudaMemcpyToSymbol(matRgb2Yuv, mat, sizeof(mat));
-}
+}*/
 
 template<class T>
 __device__ static T Clamp(T x, T lower, T upper) {
@@ -473,4 +515,43 @@ void ftl::cuda::nv12_to_float(const uint8_t* src, uint32_t srcPitch, float* dst,
     dim3 blockSize(THREADS_X, THREADS_Y);
 
 	::nv12_to_float << <gridSize, blockSize, 0, s >> > (src, srcPitch, dst, dstPitch, width, height);
+}
+
+__global__
+void float_to_nv12_16bit(const float* __restrict__ src, uint32_t srcPitch, uint8_t* dst, uint32_t dstPitch, uint32_t width, uint32_t height)
+{
+    const uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x < width && y < height)
+    {
+        const uint32_t i = y * srcPitch + x;
+		const uint32_t j = y * dstPitch + x;
+		
+		float d = src[i];
+		ushort ds = ushort(d*1000.0f);
+
+        // Copy higher byte to left half of Y channel
+        dst[j] = ds & 0xFF;
+
+        // Copy lower byte to right half of Y channel
+        dst[j + width] = ds >> 8;
+
+        // Blank UV channel
+        if (y < height / 2)
+        {
+            uint8_t* UV = dst + dstPitch * (height + y);
+            UV[2 * x + 0] = 0;
+            UV[2 * x + 1] = 0;
+        }
+    }
+}
+
+void ftl::cuda::float_to_nv12_16bit(const float* src, uint32_t srcPitch, uchar* dst, uint32_t dstPitch, uint32_t width, uint32_t height, cudaStream_t s) {
+	static const int THREADS_X = 16;
+	static const int THREADS_Y = 16;
+	dim3 gridSize(width / THREADS_X + 1, height / THREADS_Y + 1);
+    dim3 blockSize(THREADS_X, THREADS_Y);
+
+	::float_to_nv12_16bit << <gridSize, blockSize, 0, s >> > (src, srcPitch, dst, dstPitch, width, height);
 }
