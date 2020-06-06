@@ -29,6 +29,7 @@ class PylonSource : public ftl::rgbd::detail::Source {
 	private:
 	bool ready_;
 	Pylon::CBaslerUniversalInstantCamera *lcam_;
+	Pylon::CBaslerUniversalInstantCamera *rcam_;
 	Frame frames_[2];
 	cv::Mat tmp_;
 };

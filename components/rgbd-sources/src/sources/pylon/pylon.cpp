@@ -16,7 +16,7 @@ using cv::cuda::GpuMat;
 using namespace Pylon;
 
 PylonSource::PylonSource(ftl::rgbd::Source *host)
-        : ftl::rgbd::detail::Source(host), ready_(false), lcam_(nullptr) {
+        : ftl::rgbd::detail::Source(host), ready_(false), lcam_(nullptr), rcam_(nullptr) {
 	capabilities_ = kCapVideo;
 
 	auto &inst = CTlFactory::GetInstance();
@@ -90,13 +90,14 @@ PylonSource::~PylonSource() {
 
 bool PylonSource::capture(int64_t ts) {
 	timestamp_ = ts;
-	if (!lcam_) return false;
+	if (!isReady()) return false;
 
 	try {
-		if ( lcam_->WaitForFrameTriggerReady( 50, Pylon::TimeoutHandling_ThrowException)) {
-			lcam_->ExecuteSoftwareTrigger();
-			//LOG(INFO) << "TRIGGER";
-		}
+		lcam_->WaitForFrameTriggerReady( 30, Pylon::TimeoutHandling_ThrowException);
+		if (rcam_) rcam_->WaitForFrameTriggerReady( 30, Pylon::TimeoutHandling_ThrowException);
+
+		lcam_->ExecuteSoftwareTrigger();
+		if (rcam_) rcam_->ExecuteSoftwareTrigger();
 	} catch (const GenericException &e) {
 		LOG(ERROR) << "Pylon: Trigger exception - " << e.GetDescription();
 	}
@@ -105,7 +106,7 @@ bool PylonSource::capture(int64_t ts) {
 }
 
 bool PylonSource::retrieve() {
-	if (!lcam_) return false;
+	if (!isReady()) return false;
 
 	auto &frame = frames_[0];
 	frame.reset();
@@ -119,24 +120,39 @@ bool PylonSource::retrieve() {
 			return false;
 		}*/
 
-		Pylon::CGrabResultPtr ptrGrabResult;
+		Pylon::CGrabResultPtr result_left;
+		Pylon::CGrabResultPtr result_right;
 
-		int count = 0;
-		if (lcam_->RetrieveResult(0, ptrGrabResult, Pylon::TimeoutHandling_Return)) ++count;
+		int lcount = 0;
+		if (lcam_->RetrieveResult(0, result_left, Pylon::TimeoutHandling_Return)) ++lcount;
 
-		if (count == 0 || !ptrGrabResult->GrabSucceeded()) {
+		int rcount = 0;
+		if (rcam_ && rcam_->RetrieveResult(0, result_right, Pylon::TimeoutHandling_Return)) ++rcount;
+
+		if (lcount == 0 || !result_left->GrabSucceeded()) {
 			LOG(ERROR) << "Retrieve failed";
 			return false;
 		}
 
-		cv::Mat wrap(
-			ptrGrabResult->GetHeight(),
-			ptrGrabResult->GetWidth(),
+		cv::Mat wrap_left(
+			result_left->GetHeight(),
+			result_left->GetWidth(),
 			CV_8UC1,
-			(uint8_t*)ptrGrabResult->GetBuffer());
+			(uint8_t*)result_left->GetBuffer());
 
-		cv::cvtColor(wrap, tmp_, cv::COLOR_BayerBG2BGRA);
+		cv::cvtColor(wrap_left, tmp_, cv::COLOR_BayerBG2BGRA);
 		frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour).upload(tmp_);
+
+		if (rcount > 0 && result_right->GrabSucceeded()) {
+			cv::Mat wrap_right(
+			result_right->GetHeight(),
+			result_right->GetWidth(),
+			CV_8UC1,
+			(uint8_t*)result_right->GetBuffer());
+
+			cv::cvtColor(wrap_right, tmp_, cv::COLOR_BayerBG2BGRA);
+			frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour2).upload(tmp_);
+		}
 
 	} catch (const GenericException &e) {
 		LOG(ERROR) << "Pylon: An exception occurred - " << e.GetDescription();
@@ -158,6 +174,6 @@ bool PylonSource::compute(int n, int b) {
 }
 
 bool PylonSource::isReady() {
-    return true;
+    return lcam_ && lcam_->IsOpen();
 }
 
