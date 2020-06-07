@@ -97,10 +97,6 @@ int Group::streamID(const ftl::rgbd::Source *s) const {
 }
 
 void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
-	//if (latency_ == 0) {
-	//	callback_ = cb;
-	//}
-
 	// 1. Capture camera frames with high precision
 	cap_id_ = ftl::timer::add(ftl::timer::kTimerHighPrecision, [this](int64_t ts) {
 		skip_ = jobs_ != 0;  // Last frame not finished so skip all steps
@@ -108,42 +104,25 @@ void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 		if (skip_) return true;
 
 		for (auto s : sources_) {
-			s->capture(ts);
+			skip_ &= s->capture(ts);
 		}
 
 		return true;
 	});
 
-	// 2. After capture, swap any internal source double buffers
-	/*swap_id_ = ftl::timer::add(ftl::timer::kTimerSwap, [this](int64_t ts) {
-		if (skip_) return true;
-		for (auto s : sources_) {
-			s->swap();
-		}
-		return true;
-	});*/
-
-	// 3. Issue IO retrieve ad compute jobs before finding a valid
+	// 2. Issue IO retrieve ad compute jobs before finding a valid
 	// frame at required latency to pass to callback.
 	main_id_ = ftl::timer::add(ftl::timer::kTimerMain, [this,cb](int64_t ts) {
-		//if (skip_) LOG(ERROR) << "SKIPPING TIMER JOB " << ts;
 		if (skip_) return true;
-		//jobs_++;
 
 		for (auto s : sources_) {
-			jobs_++; // += 2;
+			jobs_++;
 
 			ftl::pool.push([this,s,ts](int id) {
 				_retrieveJob(s);
 				--jobs_;
-				//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Retrieve";
 				_dispatchJob(s, ts);
 			});
-			/*ftl::pool.push([this,s](int id) {
-				_computeJob(s);
-				//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Compute";
-				--jobs_;
-			});*/
 		}
 		return true;
 	});
@@ -153,12 +132,6 @@ void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 		return true;
 	});
 }
-
-/*void Group::removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
-	for (auto s : sources_) {
-		s->removeRawCallback(f);
-	}
-}*/
 
 void Group::setName(const std::string &name) {
 	name_ = name;

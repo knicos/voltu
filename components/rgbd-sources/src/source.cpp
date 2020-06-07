@@ -133,7 +133,7 @@ static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *ho
 }
 
 static ftl::rgbd::BaseSourceImpl *createDeviceImpl(const ftl::URI &uri, Source *host) {
-	if (uri.getPathSegment(0) == "video") {
+	if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "camera") {
 		return new StereoVideoSource(host);
 	} else if (uri.getPathSegment(0) == "pylon") {
 #ifdef HAVE_PYLON
@@ -149,17 +149,6 @@ static ftl::rgbd::BaseSourceImpl *createDeviceImpl(const ftl::URI &uri, Source *
 #endif
 	} else if (uri.getPathSegment(0) == "screen") {
 		return new ScreenCapture(host);
-	} else {
-		/*params_.width = value("width", 1280);
-		params_.height = value("height", 720);
-		params_.fx = value("focal", 700.0f);
-		params_.fy = params_.fx;
-		params_.cx = -(double)params_.width / 2.0;
-		params_.cy = -(double)params_.height / 2.0;
-		params_.minDepth = value("minDepth", 0.1f);
-		params_.maxDepth = value("maxDepth", 20.0f);
-		params_.doffs = 0;
-		params_.baseline = value("baseline", 0.0f);*/
 	}
 	return nullptr;
 }
@@ -253,25 +242,4 @@ void Source::setCallback(const FrameCallback &cb) {
 	callback_ = cb;
 }
 
-/*
- * Scale camera parameters to match resolution.
- */
-Camera Camera::scaled(int width, int height) const {
-	const auto &cam = *this;
-	float scaleX = (float)width / (float)cam.width;
-	float scaleY = (float)height / (float)cam.height;
-
-	//CHECK( abs(scaleX - scaleY) < 0.00000001f );
-
-	Camera newcam = cam;
-	newcam.width = width;
-	newcam.height = height;
-	newcam.fx *= scaleX;
-	newcam.fy *= scaleY;
-	newcam.cx *= scaleX;
-	newcam.cy *= scaleY;
-	newcam.doffs *= scaleX;
-
-	return newcam;
-}
 
