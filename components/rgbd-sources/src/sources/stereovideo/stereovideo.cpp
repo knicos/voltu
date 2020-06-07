@@ -24,10 +24,13 @@
 
 #include "ftl/threads.hpp"
 #include "calibrate.hpp"
-#include "local.hpp"
+#include "opencv.hpp"
+
+#ifdef HAVE_PYLON
+#include "pylon.hpp"
+#endif
 
 using ftl::rgbd::detail::Calibrate;
-using ftl::rgbd::detail::OpenCVDevice;
 using ftl::rgbd::detail::StereoVideoSource;
 using ftl::codecs::Channel;
 using std::string;
@@ -42,7 +45,13 @@ ftl::rgbd::detail::Device::~Device() {
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
-	init("");
+	auto uri = host->get<std::string>("uri");
+	if (uri) {
+		init(*uri);
+	} else {
+		init("");
+	}
+
 }
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file)
@@ -59,27 +68,37 @@ StereoVideoSource::~StereoVideoSource() {
 void StereoVideoSource::init(const string &file) {
 	capabilities_ = kCapVideo | kCapStereo;
 
-	/*if (ftl::is_video(file)) {
-		// Load video file
-		LOG(INFO) << "Using video file...";
-		//lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
-	} else if (ftl::is_directory(file)) {
-		// FIXME: This is not an ideal solution...
-		ftl::config::addPath(file);
+	ftl::URI uri(file);
 
-		auto vid = ftl::locateFile("video.mp4");
-		if (!vid) {
-			LOG(FATAL) << "No video.mp4 file found in provided paths (" << file << ")";
-		} else {
-			LOG(INFO) << "Using test directory...";
-			//lsrc_ = ftl::create<LocalSource>(host_, "feed", *vid);
+	if (uri.getScheme() == ftl::URI::SCHEME_DEVICE) {
+		if (uri.getPathSegment(0) == "pylon") {
+			#ifdef HAVE_PYLON
+			LOG(INFO) << "Using Pylon...";
+			lsrc_ = ftl::create<ftl::rgbd::detail::PylonDevice>(host_, "feed");
+			#else
+			throw FTL_Error("Not built with pylon support");
+			#endif
+		} else if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "video") {
+			// Now detect automatically which device to use
+			#ifdef HAVE_PYLON
+			auto pylon_devices = ftl::rgbd::detail::PylonDevice::listDevices();
+			if (pylon_devices.size() > 0) {
+				LOG(INFO) << "Using Pylon...";
+				lsrc_ = ftl::create<ftl::rgbd::detail::PylonDevice>(host_, "feed");
+			} else {
+				// Use cameras
+				LOG(INFO) << "Using OpenCV cameras...";
+				lsrc_ = ftl::create<ftl::rgbd::detail::OpenCVDevice>(host_, "feed");
+			}
+			#else
+			// Use cameras
+			LOG(INFO) << "Using OpenCV cameras...";
+			lsrc_ = ftl::create<ftl::rgbd::detail::OpenCVDevice>(host_, "feed");
+			#endif
 		}
 	}
-	else {*/
-		// Use cameras
-		LOG(INFO) << "Using cameras...";
-		lsrc_ = ftl::create<OpenCVDevice>(host_, "feed");
-	//}
+
+	if (!lsrc_) return;  // throw?
 
 	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());
 

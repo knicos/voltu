@@ -133,14 +133,8 @@ static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *ho
 }
 
 static ftl::rgbd::BaseSourceImpl *createDeviceImpl(const ftl::URI &uri, Source *host) {
-	if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "camera") {
+	if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "camera" || uri.getPathSegment(0) == "pylon") {
 		return new StereoVideoSource(host);
-	} else if (uri.getPathSegment(0) == "pylon") {
-#ifdef HAVE_PYLON
-		return new PylonSource(host);
-#else
-		LOG(ERROR) << "You did not build with 'pylon'";
-#endif
 	} else if (uri.getPathSegment(0) == "realsense") {
 #ifdef HAVE_REALSENSE
 		return new RealsenseSource(host);

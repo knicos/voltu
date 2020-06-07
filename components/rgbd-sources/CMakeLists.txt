@@ -1,6 +1,6 @@
 set(RGBDSRC
 	src/sources/stereovideo/calibrate.cpp
-	src/sources/stereovideo/local.cpp
+	src/sources/stereovideo/opencv.cpp
 	src/source.cpp
 	src/frame.cpp
 	src/frameset.cpp
@@ -18,15 +18,8 @@ if (HAVE_REALSENSE)
 endif()
 
 if (HAVE_PYLON)
-	list(APPEND RGBDSRC "src/sources/pylon/pylon.cpp")
+	list(APPEND RGBDSRC "src/sources/stereovideo/pylon.cpp")
 endif()
-
-if (LibArchive_FOUND)
-	list(APPEND RGBDSRC
-		src/sources/snapshot/snapshot.cpp
-		src/sources/snapshot/snapshot_source.cpp
-	)
-endif (LibArchive_FOUND)
 
 add_library(ftlrgbd ${RGBDSRC})
 
