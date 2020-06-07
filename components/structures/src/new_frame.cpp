@@ -30,3 +30,38 @@ bool Frame::flush() {
 	changed_.clear();
 	return true;
 }
+
+void Frame::merge(Frame &f) {
+	for (auto x : f) {
+		data_[x.first] = std::move(x.second);
+		touch(x.first);
+	}
+}
+
+void Frame::swapTo(Frame &f) {
+	for (auto x : *this) {
+		f.data_[x.first].swap(x.second);
+		f.changed_.emplace(x.first);
+		changed_.emplace(x.first);
+	}
+}
+
+void Frame::swapChanged(Frame &f) {
+	for (auto x : changed_) {
+		f.data_[x].swap(data_[x]);
+		f.changed_.emplace(x);
+	}
+}
+
+void Frame::swapChannel(ftl::codecs::Channel c, Frame &f) {
+	if (has(c)) {
+		f.data_[c].swap(data_[c]);
+		f.changed_.emplace(c);
+		changed_.emplace(c);
+	}
+}
+
+void Frame::clear() {
+	changed_.clear();
+	data_.clear();
+}

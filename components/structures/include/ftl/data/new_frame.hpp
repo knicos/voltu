@@ -23,6 +23,21 @@ class Frame {
 	explicit Frame(Frame *parent) : parent_(parent) {};
 	~Frame() { flush(); };
 
+	Frame(Frame &&f) {
+		f.swapTo(*this);
+		f.reset();
+	}
+
+	Frame &operator=(Frame &&f) {
+		f.swapTo(*this);
+		f.reset();
+		return *this;
+	}
+
+	// Prevent frame copy, instead use a move.
+	Frame(const Frame &)=delete;
+	Frame &operator=(const Frame &)=delete;
+
 	inline bool has(ftl::codecs::Channel c) {
 		return data_.find(c) != data_.end() || (parent_ && parent_->has(c));
 	}
@@ -79,7 +94,9 @@ class Frame {
 
 	void merge(Frame &);
 
-	void swap(Frame &);
+	void swapTo(Frame &);
+
+	void swapChanged(Frame &);
 
 	void swapChannel(ftl::codecs::Channel, Frame &);
 
