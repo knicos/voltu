@@ -25,7 +25,6 @@
 #include "ftl/threads.hpp"
 #include "calibrate.hpp"
 #include "local.hpp"
-#include "disparity.hpp"
 
 using ftl::rgbd::detail::Calibrate;
 using ftl::rgbd::detail::OpenCVDevice;
