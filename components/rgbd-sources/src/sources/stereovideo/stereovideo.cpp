@@ -78,7 +78,11 @@ void StereoVideoSource::init(const string &file) {
 			#else
 			throw FTL_Error("Not built with pylon support");
 			#endif
-		} else if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "video") {
+		} else if (uri.getPathSegment(0) == "opencv") {
+			// Use cameras
+			LOG(INFO) << "Using OpenCV cameras...";
+			lsrc_ = ftl::create<ftl::rgbd::detail::OpenCVDevice>(host_, "feed");
+		} else if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "camera") {
 			// Now detect automatically which device to use
 			#ifdef HAVE_PYLON
 			auto pylon_devices = ftl::rgbd::detail::PylonDevice::listDevices();
