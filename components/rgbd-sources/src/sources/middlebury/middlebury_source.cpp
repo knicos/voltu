@@ -10,7 +10,7 @@ using ftl::rgbd::detail::Disparity;
 using std::string;
 
 MiddleburySource::MiddleburySource(ftl::rgbd::Source *host)
-		: ftl::rgbd::detail::Source(host), ready_(false) {
+		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
 	// Not VALID
 }
 
@@ -62,7 +62,7 @@ static bool loadMiddleburyCalib(const std::string &filename, ftl::rgbd::Camera &
 }
 
 MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
-		: ftl::rgbd::detail::Source(host), ready_(false) {
+		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
 
 	double scaling = host->value("scaling", 0.5);
 

@@ -12,7 +12,7 @@ namespace rgbd {
 
 namespace detail {
 
-class RealsenseSource : public ftl::rgbd::detail::Source {
+class RealsenseSource : public ftl::rgbd::BaseSourceImpl {
 	public:
 	explicit RealsenseSource(ftl::rgbd::Source *host);
 	~RealsenseSource();

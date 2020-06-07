@@ -79,7 +79,7 @@ cv::Mat Source::cameraMatrix() const {
 	return m;
 }
 
-static ftl::rgbd::detail::Source *createFileImpl(const ftl::URI &uri, Source *host) {
+static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *host) {
 	std::string path = uri.getPath();
 	// Note: This is non standard
 	if (uri.getHost() == "." || uri.getHost() == "~") path = uri.getHost()+path;
@@ -122,7 +122,7 @@ static ftl::rgbd::detail::Source *createFileImpl(const ftl::URI &uri, Source *ho
 	return nullptr;
 }
 
-static ftl::rgbd::detail::Source *createDeviceImpl(const ftl::URI &uri, Source *host) {
+static ftl::rgbd::BaseSourceImpl *createDeviceImpl(const ftl::URI &uri, Source *host) {
 	if (uri.getPathSegment(0) == "video") {
 		return new StereoVideoSource(host);
 	} else if (uri.getPathSegment(0) == "pylon") {
@@ -154,7 +154,7 @@ static ftl::rgbd::detail::Source *createDeviceImpl(const ftl::URI &uri, Source *
 	return nullptr;
 }
 
-static ftl::rgbd::detail::Source *createImplementation(const std::string &uristr, Source *host) {
+static ftl::rgbd::BaseSourceImpl *createImplementation(const std::string &uristr, Source *host) {
 	ftl::URI uri(uristr);
 	if (!uri.isValid()) {
 		LOG(WARNING) << "Invalid URI for source: " << uristr;

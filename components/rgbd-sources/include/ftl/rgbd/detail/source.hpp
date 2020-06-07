@@ -21,16 +21,13 @@ static const capability_t kCapActive	= 0x0004;	// An active depth sensor
 static const capability_t kCapStereo	= 0x0008;	// Has right RGB
 static const capability_t kCapDepth		= 0x0010;	// Has depth capabilities
 
-
-namespace detail {
-
-class Source {
+class BaseSourceImpl {
 	public:
 	friend class ftl::rgbd::Source;
 
 	public:
-	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_(state_.getLeft()) { }
-	virtual ~Source() {}
+	explicit BaseSourceImpl(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_(state_.getLeft()) { }
+	virtual ~BaseSourceImpl() {}
 
 	/**
 	 * Perform hardware data capture. This should be low latency.
@@ -60,7 +57,6 @@ class Source {
 	ftl::rgbd::Camera &params_;
 };
 
-}	
 }
 }
 

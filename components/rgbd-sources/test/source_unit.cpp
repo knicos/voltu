@@ -30,12 +30,12 @@ class Player {
 
 namespace detail {
 
-class ImageSource : public ftl::rgbd::detail::Source {
+class ImageSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	explicit ImageSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit ImageSource(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "image";
 	}
-	ImageSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::detail::Source(host) {
+	ImageSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "image";
 	}
 
@@ -44,9 +44,9 @@ class ImageSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class ScreenCapture : public ftl::rgbd::detail::Source {
+class ScreenCapture : public ftl::rgbd::BaseSourceImpl {
 	public:
-	explicit ScreenCapture(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit ScreenCapture(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "screen";
 	}
 
@@ -55,12 +55,12 @@ class ScreenCapture : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class StereoVideoSource : public ftl::rgbd::detail::Source {
+class StereoVideoSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	explicit StereoVideoSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit StereoVideoSource(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "video";
 	}
-	StereoVideoSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::detail::Source(host) {
+	StereoVideoSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "video";
 	}
 
@@ -69,9 +69,9 @@ class StereoVideoSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class NetSource : public ftl::rgbd::detail::Source {
+class NetSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	explicit NetSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit NetSource(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "net";
 	}
 
@@ -80,9 +80,9 @@ class NetSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class SnapshotSource : public ftl::rgbd::detail::Source {
+class SnapshotSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	SnapshotSource(ftl::rgbd::Source *host, ftl::rgbd::Snapshot &r, const std::string &) : ftl::rgbd::detail::Source(host) {
+	SnapshotSource(ftl::rgbd::Source *host, ftl::rgbd::Snapshot &r, const std::string &) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "snapshot";
 	}
 
@@ -91,9 +91,9 @@ class SnapshotSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class FileSource : public ftl::rgbd::detail::Source {
+class FileSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	FileSource(ftl::rgbd::Source *host, ftl::rgbd::Player *r, int) : ftl::rgbd::detail::Source(host) {
+	FileSource(ftl::rgbd::Source *host, ftl::rgbd::Player *r, int) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "filesource";
 	}
 
@@ -102,9 +102,9 @@ class FileSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class RealsenseSource : public ftl::rgbd::detail::Source {
+class RealsenseSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	explicit RealsenseSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit RealsenseSource(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "realsense";
 	}
 
@@ -113,9 +113,9 @@ class RealsenseSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class PylonSource : public ftl::rgbd::detail::Source {
+class PylonSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	explicit PylonSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit PylonSource(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "pylon";
 	}
 
@@ -124,9 +124,9 @@ class PylonSource : public ftl::rgbd::detail::Source {
 	bool isReady() { return true; };
 };
 
-class MiddleburySource : public ftl::rgbd::detail::Source {
+class MiddleburySource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	MiddleburySource(ftl::rgbd::Source *host, const std::string &dir) : ftl::rgbd::detail::Source(host) {
+	MiddleburySource(ftl::rgbd::Source *host, const std::string &dir) : ftl::rgbd::BaseSourceImpl(host) {
 		last_type = "middlebury";
 	}
 

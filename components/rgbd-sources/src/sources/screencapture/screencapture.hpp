@@ -17,7 +17,7 @@ typedef X11State ImplState;
 typedef int ImplState;
 #endif
 
-class ScreenCapture : public ftl::rgbd::detail::Source {
+class ScreenCapture : public ftl::rgbd::BaseSourceImpl {
 	public:
 	explicit ScreenCapture(ftl::rgbd::Source *host);
 	~ScreenCapture();

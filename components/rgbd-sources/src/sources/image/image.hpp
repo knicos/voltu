@@ -5,12 +5,12 @@ namespace ftl {
 namespace rgbd {
 namespace detail {
 
-class ImageSource : public ftl::rgbd::detail::Source {
+class ImageSource : public ftl::rgbd::BaseSourceImpl {
 	public:
-	explicit ImageSource(ftl::rgbd::Source *host) : ftl::rgbd::detail::Source(host) {
+	explicit ImageSource(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
 	
 	}
-	ImageSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::detail::Source(host) {
+	ImageSource(ftl::rgbd::Source *host, const std::string &f) : ftl::rgbd::BaseSourceImpl(host) {
 
 	}
 

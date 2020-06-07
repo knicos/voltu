@@ -16,7 +16,7 @@ using cv::cuda::GpuMat;
 using namespace Pylon;
 
 PylonSource::PylonSource(ftl::rgbd::Source *host)
-        : ftl::rgbd::detail::Source(host), ready_(false), lcam_(nullptr), rcam_(nullptr) {
+        : ftl::rgbd::BaseSourceImpl(host), ready_(false), lcam_(nullptr), rcam_(nullptr) {
 	capabilities_ = kCapVideo;
 
 	auto &inst = CTlFactory::GetInstance();

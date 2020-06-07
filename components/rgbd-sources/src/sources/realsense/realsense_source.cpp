@@ -9,7 +9,7 @@ using ftl::codecs::Channel;
 using cv::cuda::GpuMat;
 
 RealsenseSource::RealsenseSource(ftl::rgbd::Source *host)
-        : ftl::rgbd::detail::Source(host), align_to_depth_(RS2_STREAM_COLOR) {
+        : ftl::rgbd::BaseSourceImpl(host), align_to_depth_(RS2_STREAM_COLOR) {
 	capabilities_ = kCapVideo;
 
     rs2::config cfg;

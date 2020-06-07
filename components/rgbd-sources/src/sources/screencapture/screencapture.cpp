@@ -55,7 +55,7 @@ static Eigen::Matrix4d matrix(const cv::Vec3d &rvec, const cv::Vec3d &tvec) {
 
 
 ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
-        : ftl::rgbd::detail::Source(host) {
+        : ftl::rgbd::BaseSourceImpl(host) {
 	capabilities_ = kCapVideo;
 
 	ready_ = false;

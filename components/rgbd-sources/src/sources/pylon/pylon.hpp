@@ -15,7 +15,7 @@ namespace rgbd {
 
 namespace detail {
 
-class PylonSource : public ftl::rgbd::detail::Source {
+class PylonSource : public ftl::rgbd::BaseSourceImpl {
 	public:
 	explicit PylonSource(ftl::rgbd::Source *host);
 	~PylonSource();

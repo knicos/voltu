@@ -19,7 +19,7 @@ class Disparity;
  * RGBD source from either a stereo video file with left + right images, or
  * direct from two camera devices. 
  */
-class StereoVideoSource : public detail::Source {
+class StereoVideoSource : public BaseSourceImpl {
 	public:
 	explicit StereoVideoSource(ftl::rgbd::Source*);
 	StereoVideoSource(ftl::rgbd::Source*, const std::string &);

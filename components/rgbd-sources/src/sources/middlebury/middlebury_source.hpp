@@ -13,7 +13,7 @@ namespace detail {
 
 class Disparity;
 
-class MiddleburySource : public detail::Source {
+class MiddleburySource : public BaseSourceImpl {
 	public:
 	explicit MiddleburySource(ftl::rgbd::Source *);
 	MiddleburySource(ftl::rgbd::Source *, const std::string &dir);

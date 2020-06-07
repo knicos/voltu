@@ -143,8 +143,6 @@ class Source : public ftl::Configurable {
 
 	ftl::rgbd::FrameState &state() { return impl_->state_; }
 
-	//void customImplementation(detail::Source *);
-
 	SHARED_MUTEX &mutex() { return mutex_; }
 
 	const FrameCallback &callback() { return callback_; }
@@ -166,7 +164,7 @@ class Source : public ftl::Configurable {
 
 
 	private:
-	detail::Source *impl_;
+	BaseSourceImpl *impl_;
 	Eigen::Matrix4d pose_;
 	ftl::net::Universe *net_;
 	SHARED_MUTEX mutex_;

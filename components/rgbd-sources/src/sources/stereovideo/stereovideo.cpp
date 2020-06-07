@@ -42,12 +42,12 @@ ftl::rgbd::detail::Device::~Device() {
 }
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
-		: ftl::rgbd::detail::Source(host), ready_(false) {
+		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
 	init("");
 }
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file)
-		: ftl::rgbd::detail::Source(host), ready_(false) {
+		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
 
 	init(file);
 }
