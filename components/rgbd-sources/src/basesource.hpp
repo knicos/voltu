@@ -11,15 +11,6 @@ namespace ftl{
 namespace rgbd {
 
 class Source;
-typedef std::function<void(int64_t,ftl::rgbd::Frame&)> FrameCallback;
-
-typedef unsigned int capability_t;
-
-static const capability_t kCapMovable	= 0x0001;	// A movable virtual cam
-static const capability_t kCapVideo		= 0x0002;	// Is a video feed
-static const capability_t kCapActive	= 0x0004;	// An active depth sensor
-static const capability_t kCapStereo	= 0x0008;	// Has right RGB
-static const capability_t kCapDepth		= 0x0010;	// Has depth capabilities
 
 class BaseSourceImpl {
 	public:

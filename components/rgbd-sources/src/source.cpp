@@ -1,5 +1,6 @@
 #include <loguru.hpp>
 #include <ftl/rgbd/source.hpp>
+#include "basesource.hpp"
 #include <ftl/threads.hpp>
 
 //#include "sources/net/net.hpp"
@@ -73,6 +74,15 @@ Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable
 Source::~Source() {
 	if (impl_) delete impl_;
 }
+
+bool Source::isReady() { return (impl_) ? impl_->isReady() : false; }
+
+const Camera &Source::parameters() const {
+	if (impl_) return impl_->params_;
+	else throw FTL_Error("Cannot get parameters for bad source");
+}
+
+ftl::rgbd::FrameState &Source::state() { return impl_->state_; }
 
 cv::Mat Source::cameraMatrix() const {
 	cv::Mat m = (cv::Mat_<float>(3,3) << parameters().fx, 0.0, -parameters().cx, 0.0, parameters().fy, -parameters().cy, 0.0, 0.0, 1.0);

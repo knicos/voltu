@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_STEREOVIDEO_HPP_
 #define _FTL_RGBD_STEREOVIDEO_HPP_
 
-#include <ftl/rgbd/source.hpp>
+#include "../../basesource.hpp"
 #include <ftl/operators/operator.hpp>
 #include <string>
 

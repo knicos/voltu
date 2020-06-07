@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_REALSENSE_HPP_
 #define _FTL_RGBD_REALSENSE_HPP_
 
-#include <ftl/rgbd/detail/source.hpp>
+#include "../../basesource.hpp"
 #include <librealsense2/rs.hpp>
 #include <string>
 

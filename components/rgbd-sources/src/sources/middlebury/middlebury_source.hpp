@@ -4,7 +4,7 @@
 
 #include <loguru.hpp>
 
-#include <ftl/rgbd/source.hpp>
+#include "../../basesource.hpp"
 #include <ftl/cuda_common.hpp>
 
 namespace ftl {

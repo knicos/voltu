@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_PYLON_HPP_
 #define _FTL_RGBD_PYLON_HPP_
 
-#include <ftl/rgbd/detail/source.hpp>
+#include "../../basesource.hpp"
 #include <string>
 
 namespace Pylon {

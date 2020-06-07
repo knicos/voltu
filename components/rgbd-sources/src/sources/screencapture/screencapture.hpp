@@ -1,7 +1,7 @@
 #ifndef _FTL_RGBD_SCREENCAPTURE_HPP_
 #define _FTL_RGBD_SCREENCAPTURE_HPP_
 
-#include <ftl/rgbd/detail/source.hpp>
+#include "../../basesource.hpp"
 #include <ftl/config.h>
 
 namespace ftl {

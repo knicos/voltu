@@ -1,6 +1,8 @@
 #ifndef _FTL_RGBD_IMAGE_HPP_
 #define _FTL_RGBD_IMAGE_HPP_
 
+#include "../../basesource.hpp"
+
 namespace ftl {
 namespace rgbd {
 namespace detail {

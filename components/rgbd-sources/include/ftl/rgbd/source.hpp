@@ -7,8 +7,6 @@
 #include <ftl/net/universe.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/rgbd/camera.hpp>
-#include <ftl/rgbd/detail/source.hpp>
-#include <ftl/codecs/packet.hpp>
 #include <opencv2/core/mat.hpp>
 #include <Eigen/Eigen>
 #include <string>
@@ -24,6 +22,9 @@ class Universe;
 }
 
 namespace rgbd {
+
+class BaseSourceImpl;
+typedef std::function<void(int64_t,ftl::rgbd::Frame&)> FrameCallback;
 
 static inline bool isValidDepth(float d) { return (d > 0.01f) && (d < 39.99f); }
 
@@ -58,7 +59,7 @@ class Source : public ftl::Configurable {
 	/**
 	 * Is this source valid and ready to grab?.
 	 */
-	bool isReady() { return (impl_) ? impl_->isReady() : false; }
+	bool isReady();
 
 	/**
 	 * Change the second channel source.
@@ -105,10 +106,7 @@ class Source : public ftl::Configurable {
 	/**
 	 * Get the source's camera intrinsics.
 	 */
-	const Camera &parameters() const {
-		if (impl_) return impl_->params_;
-		else throw FTL_Error("Cannot get parameters for bad source");
-	}
+	const Camera &parameters() const;
 
 	/**
 	 * Get camera intrinsics for another channel. For example the right camera
@@ -141,7 +139,7 @@ class Source : public ftl::Configurable {
 
 	std::string getURI() { return value("uri", std::string("")); }
 
-	ftl::rgbd::FrameState &state() { return impl_->state_; }
+	ftl::rgbd::FrameState &state();
 
 	SHARED_MUTEX &mutex() { return mutex_; }
 

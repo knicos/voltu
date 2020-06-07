@@ -3,6 +3,7 @@
 //---- Mocks -------------------------------------------------------------------
 
 #include <ftl/rgbd/source.hpp>
+#include "../src/basesource.hpp"
 #include <ftl/config.h>
 
 #include <nlohmann/json.hpp>
