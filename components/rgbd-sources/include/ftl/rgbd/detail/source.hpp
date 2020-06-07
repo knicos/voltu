@@ -42,10 +42,16 @@ class Source {
 	 */
 	virtual bool retrieve(ftl::rgbd::Frame &frame)=0;
 
+	/**
+	 * Is the source ready to capture and retrieve?
+	 */
 	virtual bool isReady() { return false; };
-	virtual void setPose(const Eigen::Matrix4d &pose) { state_.setPose(pose); };
 
-	virtual Camera parameters(ftl::codecs::Channel) { return params_; };
+	[[deprecated]] virtual void setPose(const Eigen::Matrix4d &pose) { state_.setPose(pose); };
+	[[deprecated]] virtual Camera parameters(ftl::codecs::Channel) { return params_; };
+
+	ftl::rgbd::Source *host() { return host_; }
+	ftl::rgbd::FrameState &state() { return state_; }
 
 	protected:
 	ftl::rgbd::FrameState state_;

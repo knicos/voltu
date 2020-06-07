@@ -219,6 +219,7 @@ bool Source::dispatch(int64_t ts) {
 		callback_(ts, frames_[1]);
 		is_dispatching = false;
 	});
+	return true;
 }
 
 void Source::_swap() {
