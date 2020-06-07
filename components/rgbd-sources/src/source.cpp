@@ -9,21 +9,11 @@
 #include "sources/middlebury/middlebury_source.hpp"
 #include "sources/screencapture/screencapture.hpp"
 
-#ifdef HAVE_LIBARCHIVE
-#include <ftl/rgbd/snapshot.hpp>
-#include "sources/snapshot/snapshot_source.hpp"
-#endif
-
 //#include "sources/ftlfile/file_source.hpp"
 
 #ifdef HAVE_REALSENSE
 #include "sources/realsense/realsense_source.hpp"
 using ftl::rgbd::detail::RealsenseSource;
-#endif
-
-#ifdef HAVE_PYLON
-#include "sources/pylon/pylon.hpp"
-using ftl::rgbd::detail::PylonSource;
 #endif
 
 #include <fstream>

@@ -114,17 +114,6 @@ class RealsenseSource : public ftl::rgbd::BaseSourceImpl {
 	bool isReady() { return true; };
 };
 
-class PylonSource : public ftl::rgbd::BaseSourceImpl {
-	public:
-	explicit PylonSource(ftl::rgbd::Source *host) : ftl::rgbd::BaseSourceImpl(host) {
-		last_type = "pylon";
-	}
-
-	bool capture(int64_t ts) { return true; }
-	bool retrieve(ftl::rgbd::Frame &) { return true; }
-	bool isReady() { return true; };
-};
-
 class MiddleburySource : public ftl::rgbd::BaseSourceImpl {
 	public:
 	MiddleburySource(ftl::rgbd::Source *host, const std::string &dir) : ftl::rgbd::BaseSourceImpl(host) {
@@ -149,7 +138,6 @@ class MiddleburySource : public ftl::rgbd::BaseSourceImpl {
 #define _FTL_RGBD_SNAPSHOT_SOURCE_HPP_
 #define _FTL_RGBD_IMAGE_HPP_
 #define _FTL_RGBD_REALSENSE_HPP_
-#define _FTL_RGBD_PYLON_HPP_
 #define _FTL_RGBD_SCREENCAPTURE_HPP_
 #define _FTL_RGBD_MIDDLEBURY_SOURCE_HPP_
 #define _FTL_RGBD_FILE_SOURCE_HPP_
