@@ -11,6 +11,7 @@ namespace ftl{
 namespace rgbd {
 
 class Source;
+typedef std::function<void(int64_t,ftl::rgbd::Frame&)> FrameCallback;
 
 typedef unsigned int capability_t;
 
@@ -28,30 +29,18 @@ class Source {
 	friend class ftl::rgbd::Source;
 
 	public:
-	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_(state_.getLeft()), timestamp_(0) { }
+	explicit Source(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_(state_.getLeft()) { }
 	virtual ~Source() {}
 
 	/**
-	 * Perform hardware data capture.
+	 * Perform hardware data capture. This should be low latency.
 	 */
 	virtual bool capture(int64_t ts)=0;
 
 	/**
-	 * Perform IO operation to get the data.
+	 * Perform slow IO operation to get the data into the given frame object.
 	 */
-	virtual bool retrieve()=0;
-
-	/**
-	 * Do any processing from previously captured frames...
-	 * @param n Number of frames to request in batch. Default -1 means automatic (10)
-	 * @param b Bit rate setting. -1 = automatic, 0 = best quality, 9 = lowest quality
-	 */
-	virtual bool compute(int64_t ts)=0;
-
-	/**
-	 * Between frames, or before next frame, do any buffer swapping operations.
-	 */
-	virtual void swap() {}
+	virtual bool retrieve(ftl::rgbd::Frame &frame)=0;
 
 	virtual bool isReady() { return false; };
 	virtual void setPose(const Eigen::Matrix4d &pose) { state_.setPose(pose); };
@@ -63,9 +52,6 @@ class Source {
 	capability_t capabilities_;
 	ftl::rgbd::Source *host_;
 	ftl::rgbd::Camera &params_;
-	ftl::rgbd::Frame frame_;
-	int64_t timestamp_;
-	//Eigen::Matrix4d &pose_;
 };
 
 }	

@@ -190,14 +190,7 @@ ScreenCapture::~ScreenCapture() {
 	#endif
 }
 
-void ScreenCapture::swap() {
-}
-
-bool ScreenCapture::retrieve() {
-	return true;
-}
-
-bool ScreenCapture::compute(int64_t ts) {
+bool ScreenCapture::retrieve(ftl::rgbd::Frame &frame) {
 	if (!ready_) return false;
 	cv::Mat img;
 
@@ -206,15 +199,14 @@ bool ScreenCapture::compute(int64_t ts) {
     img = cv::Mat(params_.height, params_.width, CV_8UC4, impl_state_->ximg->data);
 	#endif
 
-	frame_.reset();
-	frame_.setOrigin(&state_);
+	frame.reset();
+	frame.setOrigin(&state_);
 
 	if (!img.empty()) {
-		frame_.create<cv::Mat>(Channel::Colour) = img;
+		frame.create<cv::Mat>(Channel::Colour) = img;
 	}
 
-	host_->notify(ts, frame_);
-    return true;
+	return true;
 }
 
 bool ScreenCapture::isReady() {

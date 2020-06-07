@@ -112,7 +112,7 @@ class Group : public ftl::rgbd::Generator {
 	MUTEX mutex_;
 
 	void _retrieveJob(ftl::rgbd::Source *);
-	void _computeJob(ftl::rgbd::Source *, int64_t);
+	void _dispatchJob(ftl::rgbd::Source *, int64_t);
 };
 
 }

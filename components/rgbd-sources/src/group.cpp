@@ -77,15 +77,15 @@ void Group::_retrieveJob(ftl::rgbd::Source *src) {
 	}
 }
 
-void Group::_computeJob(ftl::rgbd::Source *src, int64_t ts) {
+void Group::_dispatchJob(ftl::rgbd::Source *src, int64_t ts) {
 	try {
-		src->compute(ts);
+		src->dispatch(ts);
 	} catch (std::exception &ex) {
-		LOG(ERROR) << "Exception when computing frame";
+		LOG(ERROR) << "Exception when dispatching frame";
 		LOG(ERROR) << ex.what();
 	}
 	catch (...) {
-		LOG(ERROR) << "Unknown exception when computing frame";
+		LOG(ERROR) << "Unknown exception when dispatching frame";
 	}
 }
 
@@ -135,22 +135,9 @@ void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 
 			ftl::pool.push([this,s,ts](int id) {
 				_retrieveJob(s);
-				//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Retrieve";
 				--jobs_;
-
-				if (cjobs_ == 0) {
-					cjobs_++;
-					s->swap();
-					ftl::pool.push([this,s,ts](int id) {
-						_computeJob(s, ts);
-						//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Compute";
-
-						//LOG(INFO) << "Compute time: " << ftl::timer::get_time() - ts;
-						--cjobs_;
-					});
-				} else {
-					//LOG(WARNING) << "Frame drop";
-				}
+				//if (jobs_ == 0) LOG(INFO) << "LAST JOB =  Retrieve";
+				_dispatchJob(s, ts);
 			});
 			/*ftl::pool.push([this,s](int id) {
 				_computeJob(s);
@@ -165,12 +152,6 @@ void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 		cb(fs);
 		return true;
 	});
-}
-
-void Group::addRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {
-	for (auto s : sources_) {
-		s->addRawCallback(f);
-	}
 }
 
 /*void Group::removeRawCallback(const std::function<void(ftl::rgbd::Source*, const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt)> &f) {

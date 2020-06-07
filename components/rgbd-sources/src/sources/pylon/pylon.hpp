@@ -20,17 +20,14 @@ class PylonSource : public ftl::rgbd::detail::Source {
 	explicit PylonSource(ftl::rgbd::Source *host);
 	~PylonSource();
 
-	void swap();
 	bool capture(int64_t ts);
-	bool retrieve();
-	bool compute(int64_t ts);
+	bool retrieve(ftl::rgbd::Frame &frame);
 	bool isReady();
 
 	private:
 	bool ready_;
 	Pylon::CBaslerUniversalInstantCamera *lcam_;
 	Pylon::CBaslerUniversalInstantCamera *rcam_;
-	Frame frames_[2];
 	cv::Mat tmp_;
 
 	void _configureCamera(Pylon::CBaslerUniversalInstantCamera *cam);

@@ -45,8 +45,7 @@ RealsenseSource::~RealsenseSource() {
 
 }
 
-bool RealsenseSource::retrieve() {
-	auto &frame = frames_[0];
+bool RealsenseSource::retrieve(ftl::rgbd::Frame &frame) {
     frame.reset();
 	frame.setOrigin(&state_);
 
@@ -84,18 +83,6 @@ bool RealsenseSource::retrieve() {
     }
 
 	return true;
-}
-
-bool RealsenseSource::compute(int64_t ts) {
-	auto &frame = frames_[1];
-	host_->notify(ts, frame);
-    return true;
-}
-
-void RealsenseSource::swap() {
-	auto tmp = std::move(frames_[0]);
-	frames_[0] = std::move(frames_[1]);
-	frames_[1] = std::move(tmp);
 }
 
 bool RealsenseSource::isReady() {

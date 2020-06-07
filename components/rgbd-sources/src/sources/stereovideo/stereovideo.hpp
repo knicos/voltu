@@ -25,11 +25,9 @@ class StereoVideoSource : public detail::Source {
 	StereoVideoSource(ftl::rgbd::Source*, const std::string &);
 	~StereoVideoSource();
 
-	void swap();
-	bool capture(int64_t ts);
-	bool retrieve();
-	bool compute(int64_t ts);
-	bool isReady();
+	bool capture(int64_t ts) override;
+	bool retrieve(ftl::rgbd::Frame &frame) override;
+	bool isReady() override;
 
 	Camera parameters(ftl::codecs::Channel chan) override;
 
@@ -53,8 +51,6 @@ class StereoVideoSource : public detail::Source {
 	
 	cv::cuda::Stream stream_;
 	cv::cuda::Stream stream2_;
-
-	std::vector<Frame> frames_;
 
 	cv::Mat mask_l_;
 

@@ -60,7 +60,7 @@ StereoVideoSource::~StereoVideoSource() {
 void StereoVideoSource::init(const string &file) {
 	capabilities_ = kCapVideo | kCapStereo;
 
-	if (ftl::is_video(file)) {
+	/*if (ftl::is_video(file)) {
 		// Load video file
 		LOG(INFO) << "Using video file...";
 		//lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
@@ -76,14 +76,13 @@ void StereoVideoSource::init(const string &file) {
 			//lsrc_ = ftl::create<LocalSource>(host_, "feed", *vid);
 		}
 	}
-	else {
+	else {*/
 		// Use cameras
 		LOG(INFO) << "Using cameras...";
 		lsrc_ = ftl::create<OpenCVDevice>(host_, "feed");
-	}
+	//}
 
 	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());
-	frames_ = std::vector<Frame>(2);
 
 	pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
 	#ifdef HAVE_OPTFLOW
@@ -283,16 +282,13 @@ void StereoVideoSource::updateParameters() {
 }
 
 bool StereoVideoSource::capture(int64_t ts) {
-	capts_ = timestamp_;
-	timestamp_ = ts;
 	lsrc_->grab();
 	return true;
 }
 
-bool StereoVideoSource::retrieve() {
+bool StereoVideoSource::retrieve(ftl::rgbd::Frame &frame) {
 	FTL_Profile("Stereo Retrieve", 0.03);
 	
-	auto &frame = frames_[0];
 	frame.reset();
 	frame.setOrigin(&state_);
 
@@ -317,37 +313,6 @@ bool StereoVideoSource::retrieve() {
 	pipeline_input_->apply(frame, frame, cv::cuda::StreamAccessor::getStream(stream2_));
 	stream2_.waitForCompletion();
 
-	return true;
-}
-
-void StereoVideoSource::swap() {
-	auto tmp = std::move(frames_[0]);
-	frames_[0] = std::move(frames_[1]);
-	frames_[1] = std::move(tmp);
-}
-
-bool StereoVideoSource::compute(int64_t ts) {
-	auto &frame = frames_[1];
-
-	if (lsrc_->isStereo()) {
-		if (!frame.hasChannel(Channel::Left) ||
-			!frame.hasChannel(Channel::Right)) {
-
-			return false;
-		}
-
-		cv::cuda::GpuMat& left = frame.get<cv::cuda::GpuMat>(Channel::Left);
-		cv::cuda::GpuMat& right = frame.get<cv::cuda::GpuMat>(Channel::Right);
-
-		if (left.empty() || right.empty()) { return false; }
-		//stream_.waitForCompletion();
-
-	}
-	else {
-		if (!frame.hasChannel(Channel::Left)) { return false; }
-	}
-
-	host_->notify(ts, frame);
 	return true;
 }
 

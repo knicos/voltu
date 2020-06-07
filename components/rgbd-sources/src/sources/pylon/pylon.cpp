@@ -98,7 +98,6 @@ void PylonSource::_configureCamera(CBaslerUniversalInstantCamera *cam) {
 }
 
 bool PylonSource::capture(int64_t ts) {
-	timestamp_ = ts;
 	if (!isReady()) return false;
 
 	try {
@@ -114,10 +113,9 @@ bool PylonSource::capture(int64_t ts) {
 	return true;
 }
 
-bool PylonSource::retrieve() {
+bool PylonSource::retrieve(ftl::rgbd::Frame &frame) {
 	if (!isReady()) return false;
 
-	auto &frame = frames_[0];
 	frame.reset();
 	frame.setOrigin(&state_);
 
@@ -168,18 +166,6 @@ bool PylonSource::retrieve() {
 	}
 
 	return true;
-}
-
-void PylonSource::swap() {
-	auto tmp = std::move(frames_[0]);
-	frames_[0] = std::move(frames_[1]);
-	frames_[1] = std::move(tmp);
-}
-
-bool PylonSource::compute(int64_t ts) {
-	auto &frame = frames_[1];
-	host_->notify(ts, frame);
-    return true;
 }
 
 bool PylonSource::isReady() {

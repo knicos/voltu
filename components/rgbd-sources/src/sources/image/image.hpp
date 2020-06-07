@@ -14,9 +14,8 @@ class ImageSource : public ftl::rgbd::detail::Source {
 
 	}
 
-	bool capture(int64_t ts) { timestamp_ = ts; return true; }
-	bool retrieve() { return true; }
-	bool compute(int64_t ts) { return false; };
+	bool capture(int64_t ts) { return true; }
+	bool retrieve(ftl::rgbd::Frame &) { return true; }
 	bool isReady() { return false; };
 };
 
