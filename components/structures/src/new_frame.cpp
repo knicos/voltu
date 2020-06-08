@@ -1,9 +1,46 @@
 #include <ftl/data/new_frame.hpp>
 
 using ftl::data::Frame;
+using ftl::data::ChannelConfig;
+using ftl::data::ChannelMode;
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
+
+static std::unordered_map<ftl::codecs::Channel, ChannelConfig> reg_channels;
+
+void Frame::registerChannel(ftl::codecs::Channel c, const ChannelConfig &config) {
+	auto i = reg_channels.find(c);
+	if (i != reg_channels.end()) {
+		throw FTL_Error("Channel " << static_cast<unsigned int>(c) << " already registered");
+	}
+
+	reg_channels[c] = config;
+}
+
+void Frame::clearRegistry() {
+	reg_channels.clear();
+}
+
+bool Frame::isPersistent(ftl::codecs::Channel c) {
+	auto i = reg_channels.find(c);
+	return (i != reg_channels.end()) ? i->second.mode == ChannelMode::PERSISTENT : true;
+}
+
+size_t Frame::getChannelType(ftl::codecs::Channel c) {
+	auto i = reg_channels.find(c);
+	return (i != reg_channels.end()) ? i->second.type_id : 0;
+}
+
+std::string Frame::getChannelName(ftl::codecs::Channel c) {
+	auto i = reg_channels.find(c);
+	return (i != reg_channels.end()) ? i->second.name : "";
+}
+
+ftl::codecs::Channel Frame::getChannelByName(const std::string &name) {
+	return ftl::codecs::Channel::Colour;
+}
+
 
 bool Frame::flush() {
 	if (parent_) {

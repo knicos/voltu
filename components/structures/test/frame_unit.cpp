@@ -2,7 +2,7 @@
 
 #include <ftl/data/new_frame.hpp>
 
-
+using ftl::data::Session;
 using ftl::data::Frame;
 using ftl::codecs::Channel;
 
@@ -133,7 +133,7 @@ TEST_CASE("ftl::data::Frame create", "[Frame]") {
 
 TEST_CASE("ftl::data::Frame use of parent", "[Frame]") {
 	SECTION("get from parent") {
-		Frame p;
+		Session p;
 		Frame f(&p);
 
 		p.create<int>(Channel::Pose, 55);
@@ -147,7 +147,7 @@ TEST_CASE("ftl::data::Frame use of parent", "[Frame]") {
 	}
 
 	SECTION("has from parent") {
-		Frame p;
+		Session p;
 		Frame f(&p);
 
 		p.create<int>(Channel::Pose, 55);
@@ -155,7 +155,7 @@ TEST_CASE("ftl::data::Frame use of parent", "[Frame]") {
 	}
 
 	SECTION("no change in parent") {
-		Frame p;
+		Session p;
 		Frame f(&p);
 
 		p.create<int>(Channel::Pose, 55);
@@ -197,7 +197,7 @@ TEST_CASE("ftl::data::Frame flush", "[Frame]") {
 	}
 
 	SECTION("parent event on flush") {
-		Frame p;
+		Session p;
 		Frame f(&p);
 
 		int event = 0;
@@ -214,7 +214,7 @@ TEST_CASE("ftl::data::Frame flush", "[Frame]") {
 	}
 
 	SECTION("parent change on flush") {
-		Frame p;
+		Session p;
 		Frame f(&p);
 
 		p.create<int>(Channel::Pose, 55);
@@ -239,6 +239,33 @@ TEST_CASE("ftl::data::Frame flush", "[Frame]") {
 
 		f.flush();
 		REQUIRE( !f.changed(Channel::Pose) );
+	}
+}
+
+TEST_CASE("ftl::data::Frame register", "[Frame]") {
+	SECTION("register typed channel and valid create") {
+		Frame f;
+
+		Frame::registerChannel(Channel::Colour, ftl::data::make_channel<float>("colour", ftl::data::ChannelMode::PERSISTENT));
+		REQUIRE( f.create<float>(Channel::Colour, 5.0f) == 5.0f );
+
+		Frame::clearRegistry();
+	}
+
+	SECTION("register typed channel and invalid create") {
+		Frame f;
+
+		Frame::registerChannel(Channel::Colour, ftl::data::make_channel<float>("colour", ftl::data::ChannelMode::PERSISTENT));
+
+		bool err = false;
+		try {
+			f.create<int>(Channel::Colour, 5);
+		} catch(const std::exception &e) {
+			err = true;
+		}
+		REQUIRE( err );
+
+		Frame::clearRegistry();
 	}
 }
 

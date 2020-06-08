@@ -13,6 +13,32 @@
 namespace ftl {
 namespace data {
 
+class Session;
+
+/** Kind of channel in terms of data persistence */
+enum class ChannelMode {
+	PERSISTENT,		// Most recent value, even from previous fram
+	IMMEDIATE,		// Only most recent value since last frame
+	SEQUENCE		// All changes since last frame
+};
+
+struct ChannelConfig {
+	std::string name;
+	ChannelMode mode;
+	size_t type_id;
+};
+
+template <typename T>
+ChannelConfig make_channel(const std::string &name, ChannelMode mode) {
+	// TODO: Generate packer + unpacker?
+	return {name, mode, typeid(T).hash_code()};
+}
+
+//template <>
+//ChannelConfig make_channel<void>(const std::string &name, ChannelMode mode) {
+//	return {name, mode, 0};
+//}
+
 class Frame {
 	public:
 	uint32_t id=0;
@@ -20,7 +46,7 @@ class Frame {
 
 	public:
 	Frame() : parent_(nullptr) {};
-	explicit Frame(Frame *parent) : parent_(parent) {};
+	explicit Frame(Session *parent) : parent_(parent) {};
 	~Frame() { flush(); };
 
 	Frame(Frame &&f) {
@@ -38,13 +64,9 @@ class Frame {
 	Frame(const Frame &)=delete;
 	Frame &operator=(const Frame &)=delete;
 
-	inline bool has(ftl::codecs::Channel c) {
-		return data_.find(c) != data_.end() || (parent_ && parent_->has(c));
-	}
+	inline bool has(ftl::codecs::Channel c);
 
-	inline bool changed(ftl::codecs::Channel c) {
-		return changed_.find(c) != changed_.end();
-	}
+	inline bool changed(ftl::codecs::Channel c);
 
 	inline const std::unordered_set<ftl::codecs::Channel> &changed() const { return changed_; }
 
@@ -83,14 +105,9 @@ class Frame {
 	template <typename T>
 	void set(ftl::codecs::Channel c, const T &v);
 
-	inline void on(ftl::codecs::Channel c, const std::function<bool(Frame&,ftl::codecs::Channel)> &cb) {
-		if (parent_) parent_->on(c, cb);
-		else triggers_[c].push_back(cb);  // TODO: Find better way to enable removal
-	}
+	inline void on(ftl::codecs::Channel c, const std::function<bool(Frame&,ftl::codecs::Channel)> &cb);
 
-	inline void on(const std::function<bool(Frame&,ftl::codecs::Channel)> &cb) {
-		any_triggers_.push_back(cb);
-	}
+	inline void on(const std::function<bool(Frame&,ftl::codecs::Channel)> &cb);
 
 	void merge(Frame &);
 
@@ -114,18 +131,45 @@ class Frame {
 	// onEndFlush
 	// onError
 
+	static void registerChannel(ftl::codecs::Channel, const ChannelConfig &config);
+	static void clearRegistry();
+
+	static bool isPersistent(ftl::codecs::Channel);
+	static size_t getChannelType(ftl::codecs::Channel);
+	static std::string getChannelName(ftl::codecs::Channel);
+	static ftl::codecs::Channel getChannelByName(const std::string &name);
+
 	private:
 	std::map<ftl::codecs::Channel, std::any> data_;
 	std::unordered_set<ftl::codecs::Channel> changed_;
 	std::unordered_map<ftl::codecs::Channel, std::list<std::function<bool(Frame&,ftl::codecs::Channel)>>> triggers_;
 	std::list<std::function<bool(Frame&,ftl::codecs::Channel)>> any_triggers_;
-	Frame *parent_;
+	Session *parent_;
 };
+
+class Session : public Frame {};
 
 }
 }
 
 // ==== Implementations ========================================================
+
+bool ftl::data::Frame::has(ftl::codecs::Channel c) {
+	return data_.find(c) != data_.end() || (parent_ && parent_->has(c));
+}
+
+bool ftl::data::Frame::changed(ftl::codecs::Channel c) {
+	return changed_.find(c) != changed_.end();
+}
+
+void ftl::data::Frame::on(ftl::codecs::Channel c, const std::function<bool(Frame&,ftl::codecs::Channel)> &cb) {
+	if (parent_) parent_->on(c, cb);
+	else triggers_[c].push_back(cb);  // TODO: Find better way to enable removal
+}
+
+void ftl::data::Frame::on(const std::function<bool(Frame&,ftl::codecs::Channel)> &cb) {
+	any_triggers_.push_back(cb);
+}
 
 template <typename T>
 bool ftl::data::Frame::isType(ftl::codecs::Channel c) {
@@ -160,6 +204,8 @@ const T &ftl::data::Frame::get(ftl::codecs::Channel c) const {
 template <typename T>
 T &ftl::data::Frame::create(ftl::codecs::Channel c, const T &value) {
 	touch(c);
+	size_t t = getChannelType(c);
+	if (t > 0 && t != typeid(T).hash_code()) throw FTL_Error("Incorrect type for channel " << static_cast<unsigned int>(c));
 	auto &d = data_[c];
 	d = value;
 	return *std::any_cast<T>(&d);
@@ -168,6 +214,8 @@ T &ftl::data::Frame::create(ftl::codecs::Channel c, const T &value) {
 template <typename T>
 T &ftl::data::Frame::create(ftl::codecs::Channel c) {
 	touch(c);
+	size_t t = getChannelType(c);
+	if (t > 0 && t != typeid(T).hash_code()) throw FTL_Error("Incorrect type for channel " << static_cast<unsigned int>(c));
 	if (!isType<T>(c)) return data_[c].emplace<T>();
 	else return *std::any_cast<T>(&data_[c]);
 }
