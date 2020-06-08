@@ -55,7 +55,7 @@ class Frame {
 	const T &get(ftl::codecs::Channel c) const;
 
 	template <typename T>
-	const T *getPtr(ftl::codecs::Channel c) const;
+	const T *getPtr(ftl::codecs::Channel c) const noexcept;
 
 	template <typename T>
 	T *getMutable(ftl::codecs::Channel c);
@@ -136,7 +136,7 @@ bool ftl::data::Frame::isType(ftl::codecs::Channel c) {
 }
 
 template <typename T>
-const T *ftl::data::Frame::getPtr(ftl::codecs::Channel c) const {
+const T *ftl::data::Frame::getPtr(ftl::codecs::Channel c) const noexcept {
 	auto i = data_.find(c);
 	if (i != data_.end()) {
 		return std::any_cast<T>(&i->second);

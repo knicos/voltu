@@ -277,13 +277,13 @@ TestB &ftl::data::Frame::create<TestB>(ftl::codecs::Channel c, const TestB &b) {
 }
 
 template <>
-const TestA *ftl::data::Frame::getPtr<TestA>(ftl::codecs::Channel c) const {
+const TestA *ftl::data::Frame::getPtr<TestA>(ftl::codecs::Channel c) const noexcept {
 	auto *ptr = getPtr<TestC>(c);
 	return (ptr) ? &ptr->a : nullptr;
 }
 
 template <>
-const TestB *ftl::data::Frame::getPtr<TestB>(ftl::codecs::Channel c) const {
+const TestB *ftl::data::Frame::getPtr<TestB>(ftl::codecs::Channel c) const noexcept {
 	auto *ptr = getPtr<TestC>(c);
 	return (ptr) ? &ptr->b : nullptr;
 }
