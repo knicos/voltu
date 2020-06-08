@@ -1,6 +1,6 @@
 set(RGBDSRC
 	src/sources/stereovideo/calibrate.cpp
-	src/sources/stereovideo/local.cpp
+	src/sources/stereovideo/opencv.cpp
 	src/source.cpp
 	src/frame.cpp
 	src/frameset.cpp
@@ -17,12 +17,9 @@ if (HAVE_REALSENSE)
 	list(APPEND RGBDSRC "src/sources/realsense/realsense_source.cpp")
 endif()
 
-if (LibArchive_FOUND)
-	list(APPEND RGBDSRC
-		src/sources/snapshot/snapshot.cpp
-		src/sources/snapshot/snapshot_source.cpp
-	)
-endif (LibArchive_FOUND)
+if (HAVE_PYLON)
+	list(APPEND RGBDSRC "src/sources/stereovideo/pylon.cpp")
+endif()
 
 add_library(ftlrgbd ${RGBDSRC})
 
@@ -38,7 +35,7 @@ if (CUDA_FOUND)
 set_property(TARGET ftlrgbd PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
-target_link_libraries(ftlrgbd ftlcalibration ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen realsense ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators ftldata ${X11_X11_LIB} ${X11_Xext_LIB})
+target_link_libraries(ftlrgbd ftlcalibration ftlcommon ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} Eigen3::Eigen realsense ftlnet ${LibArchive_LIBRARIES} ftlcodecs ftloperators ftldata ${X11_X11_LIB} ${X11_Xext_LIB} Pylon)
 
 if (BUILD_TESTS)
 add_subdirectory(test)

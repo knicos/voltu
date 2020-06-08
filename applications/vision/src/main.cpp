@@ -34,6 +34,10 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/core/utility.hpp"
 
+#ifdef HAVE_PYLON
+#include <pylon/PylonIncludes.h>
+#endif
+
 #ifdef WIN32
 #pragma comment(lib, "Rpcrt4.lib")
 #endif
@@ -193,12 +197,33 @@ static void run(ftl::Configurable *root) {
 	delete net;
 }
 
+static void threadSetCUDADevice() {
+	// Ensure all threads have correct cuda device
+	std::atomic<int> ijobs = 0;
+	for (int i=0; i<ftl::pool.size(); ++i) {
+		ftl::pool.push([&ijobs](int id) {
+			ftl::cuda::setDevice();
+			++ijobs;
+			while (ijobs < ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		});
+	}
+	while (ijobs < ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+}
+
 int main(int argc, char **argv) {
+
+#ifdef HAVE_PYLON
+	Pylon::PylonAutoInitTerm autoInitTerm;
+#endif
+
 #ifdef WIN32
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 #endif
 	std::cout << "FTL Vision Node " << FTL_VERSION_LONG << std::endl;
 	auto root = ftl::configure(argc, argv, "vision_default");
+
+	// Use other GPU if available.
+	//ftl::cuda::setDevice(ftl::cuda::deviceCount()-1);
 	
 	std::cout << "Loading..." << std::endl;
 	run(root);

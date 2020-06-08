@@ -28,6 +28,7 @@
 #cmakedefine HAVE_PORTAUDIO
 #cmakedefine HAVE_X11
 #cmakedefine HAVE_OPUS
+#cmakedefine HAVE_PYLON
 
 #cmakedefine ENABLE_PROFILER
 

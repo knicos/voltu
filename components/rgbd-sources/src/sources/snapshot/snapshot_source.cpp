@@ -15,7 +15,7 @@ using ftl::codecs::Channel;
 using std::string;
 using std::vector;
 
-SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, Snapshot &snapshot, const string &id) : detail::Source(host) {
+SnapshotSource::SnapshotSource(ftl::rgbd::Source *host, Snapshot &snapshot, const string &id) : BaseSourceImpl(host) {
 	snapshot_ = snapshot;
 	camera_idx_ = std::atoi(id.c_str());
 	frame_idx_ = 0;

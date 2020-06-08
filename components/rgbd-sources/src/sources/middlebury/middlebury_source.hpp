@@ -4,7 +4,7 @@
 
 #include <loguru.hpp>
 
-#include <ftl/rgbd/source.hpp>
+#include "../../basesource.hpp"
 #include <ftl/cuda_common.hpp>
 
 namespace ftl {
@@ -13,15 +13,14 @@ namespace detail {
 
 class Disparity;
 
-class MiddleburySource : public detail::Source {
+class MiddleburySource : public BaseSourceImpl {
 	public:
 	explicit MiddleburySource(ftl::rgbd::Source *);
 	MiddleburySource(ftl::rgbd::Source *, const std::string &dir);
 	~MiddleburySource() {};
 
-	bool capture(int64_t ts) { timestamp_ = ts; return true; }
-	bool retrieve() { return true; }
-	bool compute(int n, int b);
+	bool capture(int64_t ts) { return true; }
+	bool retrieve(ftl::rgbd::Frame &) { return true; }
 	bool isReady() { return ready_; }
 
 	private:

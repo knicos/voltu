@@ -1,7 +1,7 @@
 #ifndef _FTL_RGBD_SCREENCAPTURE_HPP_
 #define _FTL_RGBD_SCREENCAPTURE_HPP_
 
-#include <ftl/rgbd/detail/source.hpp>
+#include "../../basesource.hpp"
 #include <ftl/config.h>
 
 namespace ftl {
@@ -17,16 +17,14 @@ typedef X11State ImplState;
 typedef int ImplState;
 #endif
 
-class ScreenCapture : public ftl::rgbd::detail::Source {
+class ScreenCapture : public ftl::rgbd::BaseSourceImpl {
 	public:
 	explicit ScreenCapture(ftl::rgbd::Source *host);
 	~ScreenCapture();
 
-	bool capture(int64_t ts) { timestamp_ = ts; return true; };
-	void swap() override;
-	bool retrieve();
-	bool compute(int n=-1, int b=-1);
-	bool isReady();
+	bool capture(int64_t ts) override { return true; };
+	bool retrieve(ftl::rgbd::Frame &frame) override;
+	bool isReady() override;
 
 	size_t getOffsetX() const { return (offset_x_ > full_width_-params_.width) ? full_width_-params_.width : offset_x_; }
 	size_t getOffsetY() const { return (offset_y_ > full_height_-params_.height) ? full_height_-params_.height : offset_y_; }

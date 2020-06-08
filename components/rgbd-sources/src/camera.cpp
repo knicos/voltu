@@ -25,3 +25,25 @@ cv::Mat Camera::getCameraMatrix() const {
 	K.at<double>(1,2) = -cy;
 	return K;
 }
+
+/*
+ * Scale camera parameters to match resolution.
+ */
+Camera Camera::scaled(int width, int height) const {
+	const auto &cam = *this;
+	float scaleX = (float)width / (float)cam.width;
+	float scaleY = (float)height / (float)cam.height;
+
+	//CHECK( abs(scaleX - scaleY) < 0.00000001f );
+
+	Camera newcam = cam;
+	newcam.width = width;
+	newcam.height = height;
+	newcam.fx *= scaleX;
+	newcam.fy *= scaleY;
+	newcam.cx *= scaleX;
+	newcam.cy *= scaleY;
+	newcam.doffs *= scaleX;
+
+	return newcam;
+}

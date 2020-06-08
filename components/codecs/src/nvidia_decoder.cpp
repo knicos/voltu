@@ -177,7 +177,7 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	height_ = nv_decoder_->GetHeight();
 
 	if (out.cols != ((is_float_frame && islossless) ? width_/2 : width_) || out.rows != height_) {
-		LOG(ERROR) << "Decoded frame not same size as buffer";
+		LOG(ERROR) << "Decoded frame not same size as buffer: " << width_ << "x" << height_ << " -> " << out.cols << "x" << out.rows;
 		return false;
 	}
 

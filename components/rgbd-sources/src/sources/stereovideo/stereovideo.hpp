@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_STEREOVIDEO_HPP_
 #define _FTL_RGBD_STEREOVIDEO_HPP_
 
-#include <ftl/rgbd/source.hpp>
+#include "../../basesource.hpp"
 #include <ftl/operators/operator.hpp>
 #include <string>
 
@@ -11,7 +11,7 @@ namespace ftl {
 namespace rgbd {
 namespace detail {
 
-class LocalSource;
+class Device;
 class Calibrate;
 class Disparity;
 
@@ -19,24 +19,22 @@ class Disparity;
  * RGBD source from either a stereo video file with left + right images, or
  * direct from two camera devices. 
  */
-class StereoVideoSource : public detail::Source {
+class StereoVideoSource : public BaseSourceImpl {
 	public:
 	explicit StereoVideoSource(ftl::rgbd::Source*);
 	StereoVideoSource(ftl::rgbd::Source*, const std::string &);
 	~StereoVideoSource();
 
-	void swap();
-	bool capture(int64_t ts);
-	bool retrieve();
-	bool compute(int n, int b);
-	bool isReady();
+	bool capture(int64_t ts) override;
+	bool retrieve(ftl::rgbd::Frame &frame) override;
+	bool isReady() override;
 
 	Camera parameters(ftl::codecs::Channel chan) override;
 
 	private:
 	void updateParameters();
 
-	LocalSource *lsrc_;
+	Device *lsrc_;
 	Calibrate *calib_;
 	int64_t capts_;
 
@@ -53,8 +51,6 @@ class StereoVideoSource : public detail::Source {
 	
 	cv::cuda::Stream stream_;
 	cv::cuda::Stream stream2_;
-
-	std::vector<Frame> frames_;
 
 	cv::Mat mask_l_;
 

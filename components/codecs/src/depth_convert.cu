@@ -80,8 +80,8 @@ __global__ void depth_to_nv12_10_kernel(cv::cuda::PtrStepSz<float> depth, ushort
 		luminance[(y+1)*pitch+x] = ushort(yuv3.x*255.0f) << 8;
 		luminance[(y+1)*pitch+x+1] = ushort(yuv4.x*255.0f) << 8;
 
-		chroma[(y/2)*pitch+x] = ushort(Hb) << 8;
-		chroma[(y/2)*pitch+x+1] = ushort(Ha) << 8;
+		chroma[(y/2)*pitch+x] = ushort(Ha) << 8;
+		chroma[(y/2)*pitch+x+1] = ushort(Hb) << 8;
 	}
 }
 
