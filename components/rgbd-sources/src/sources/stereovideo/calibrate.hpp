@@ -7,7 +7,6 @@
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/cuda.hpp>
-#include "local.hpp"
 #include <string>
 #include <vector>
 #include <ftl/rgbd/camera.hpp>

@@ -9,7 +9,7 @@ using ftl::codecs::Channel;
 using cv::cuda::GpuMat;
 
 RealsenseSource::RealsenseSource(ftl::rgbd::Source *host)
-        : ftl::rgbd::detail::Source(host), align_to_depth_(RS2_STREAM_COLOR) {
+        : ftl::rgbd::BaseSourceImpl(host), align_to_depth_(RS2_STREAM_COLOR) {
 	capabilities_ = kCapVideo;
 
     rs2::config cfg;
@@ -45,9 +45,9 @@ RealsenseSource::~RealsenseSource() {
 
 }
 
-bool RealsenseSource::compute(int n, int b) {
-    frame_.reset();
-	frame_.setOrigin(&state_);
+bool RealsenseSource::retrieve(ftl::rgbd::Frame &frame) {
+    frame.reset();
+	frame.setOrigin(&state_);
 
     rs2::frameset frames;
 	if (!pipe_.poll_for_frames(&frames)) return false;  //wait_for_frames();
@@ -66,7 +66,7 @@ bool RealsenseSource::compute(int n, int b) {
         }
 
         cv::Mat tmp_rgb(cv::Size(w, h), CV_8UC4, (void*)cframe.get_data(), cv::Mat::AUTO_STEP);
-        frame_.create<GpuMat>(Channel::Colour).upload(tmp_rgb);
+        frame.create<GpuMat>(Channel::Colour).upload(tmp_rgb);
     } else {
         frames = align_to_depth_.process(frames);
 
@@ -77,13 +77,12 @@ bool RealsenseSource::compute(int n, int b) {
 
         cv::Mat tmp_depth(cv::Size((int)w, (int)h), CV_16UC1, (void*)depth.get_data(), depth.get_stride_in_bytes());
         tmp_depth.convertTo(tmp_depth, CV_32FC1, scale_);
-        frame_.create<GpuMat>(Channel::Depth).upload(tmp_depth);
+        frame.create<GpuMat>(Channel::Depth).upload(tmp_depth);
         cv::Mat tmp_rgb(cv::Size(w, h), CV_8UC4, (void*)rscolour_.get_data(), cv::Mat::AUTO_STEP);
-        frame_.create<GpuMat>(Channel::Colour).upload(tmp_rgb);
+        frame.create<GpuMat>(Channel::Colour).upload(tmp_rgb);
     }
 
-	host_->notify(timestamp_, frame_);
-    return true;
+	return true;
 }
 
 bool RealsenseSource::isReady() {

@@ -168,7 +168,7 @@ static void trigger_jobs() {
 		j.job(ts);
 	}
 	const int64_t after = get_time();
-	if (after - before > 0) LOG(WARNING) << "Precision jobs took too long (" << (after-before) << "ms)";
+	if (after - before > 1) LOG(WARNING) << "Precision jobs took too long (" << (after-before) << "ms)";
 
 	// Then do also non-blocking swap callbacks
 	for (auto &j : jobs[kTimerSwap]) {

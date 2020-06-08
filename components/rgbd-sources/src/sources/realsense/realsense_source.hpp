@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_REALSENSE_HPP_
 #define _FTL_RGBD_REALSENSE_HPP_
 
-#include <ftl/rgbd/detail/source.hpp>
+#include "../../basesource.hpp"
 #include <librealsense2/rs.hpp>
 #include <string>
 
@@ -12,14 +12,13 @@ namespace rgbd {
 
 namespace detail {
 
-class RealsenseSource : public ftl::rgbd::detail::Source {
+class RealsenseSource : public ftl::rgbd::BaseSourceImpl {
 	public:
 	explicit RealsenseSource(ftl::rgbd::Source *host);
 	~RealsenseSource();
 
-	bool capture(int64_t ts) { timestamp_ = ts; return true; }
-	bool retrieve() { return true; }
-	bool compute(int n=-1, int b=-1);
+	bool capture(int64_t ts) { return true; }
+	bool retrieve(ftl::rgbd::Frame &frame);
 	bool isReady();
 
 	private:

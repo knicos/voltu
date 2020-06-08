@@ -135,8 +135,10 @@ void DepthChannel::_createPipeline(size_t size) {
 	if (pipe_ != nullptr) return;
 
 	pipe_ = ftl::config::create<ftl::operators::Graph>(config(), "depth");
-	depth_size_ = cv::Size(	config()->value("width", 1280),
-							config()->value("height", 720));
+	//depth_size_ = cv::Size(	config()->value("width", 1280),
+	//						config()->value("height", 720));
+
+	depth_size_ = cv::Size(0,0);
 
 	pipe_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pipe_->append<ftl::operators::CrossSupport>("cross");
@@ -167,6 +169,12 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 
 	rbuf_.resize(in.frames.size());
+
+	if (in.frames.size() > 0) {
+		if (depth_size_.width == 0) {
+			depth_size_ = in.firstFrame().get<cv::cuda::GpuMat>(Channel::Colour).size();
+		}
+	}
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;

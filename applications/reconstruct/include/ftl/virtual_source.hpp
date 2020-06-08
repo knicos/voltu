@@ -19,7 +19,7 @@ namespace rgbd {
  * calculating disparity, before converting to depth.  Calibration of the images
  * is also performed.
  */
-class VirtualSource : public ftl::rgbd::detail::Source {
+class VirtualSource : public ftl::rgbd::BaseSourceImpl {
 	public:
 	VirtualSource(ftl::rgbd::Source*);
 	~VirtualSource();

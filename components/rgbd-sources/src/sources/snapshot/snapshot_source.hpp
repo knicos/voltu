@@ -11,7 +11,7 @@ namespace ftl {
 namespace rgbd {
 namespace detail {
 
-class SnapshotSource : public detail::Source {
+class SnapshotSource : public BaseSourceImpl {
 	public:
 	explicit SnapshotSource(ftl::rgbd::Source *);
 	SnapshotSource(ftl::rgbd::Source *, ftl::rgbd::Snapshot &snapshot, const std::string &id);

@@ -48,6 +48,8 @@ find_package( URIParser REQUIRED )
 find_package( MsgPack REQUIRED )
 find_package( Eigen3 REQUIRED )
 
+find_package( Pylon )
+
 VERSION_STR_TO_INTS(OPENCV_MAJOR OPENCV_MINOR OPENCV_PATCH ${OpenCV_VERSION})
 math(EXPR OPENCV_NUMBER "(${OPENCV_MAJOR} * 10000) + (${OPENCV_MINOR} * 100) + ${OPENCV_PATCH}")
 

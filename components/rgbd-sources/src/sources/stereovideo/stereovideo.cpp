@@ -24,22 +24,38 @@
 
 #include "ftl/threads.hpp"
 #include "calibrate.hpp"
-#include "local.hpp"
-#include "disparity.hpp"
+#include "opencv.hpp"
+
+#ifdef HAVE_PYLON
+#include "pylon.hpp"
+#endif
 
 using ftl::rgbd::detail::Calibrate;
-using ftl::rgbd::detail::LocalSource;
 using ftl::rgbd::detail::StereoVideoSource;
 using ftl::codecs::Channel;
 using std::string;
 
+ftl::rgbd::detail::Device::Device(nlohmann::json &config) : Configurable(config) {
+
+}
+
+ftl::rgbd::detail::Device::~Device() {
+
+}
+
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
-		: ftl::rgbd::detail::Source(host), ready_(false) {
-	init("");
+		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
+	auto uri = host->get<std::string>("uri");
+	if (uri) {
+		init(*uri);
+	} else {
+		init("");
+	}
+
 }
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file)
-		: ftl::rgbd::detail::Source(host), ready_(false) {
+		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
 
 	init(file);
 }
@@ -52,30 +68,43 @@ StereoVideoSource::~StereoVideoSource() {
 void StereoVideoSource::init(const string &file) {
 	capabilities_ = kCapVideo | kCapStereo;
 
-	if (ftl::is_video(file)) {
-		// Load video file
-		LOG(INFO) << "Using video file...";
-		lsrc_ = ftl::create<LocalSource>(host_, "feed", file);
-	} else if (ftl::is_directory(file)) {
-		// FIXME: This is not an ideal solution...
-		ftl::config::addPath(file);
+	ftl::URI uri(file);
 
-		auto vid = ftl::locateFile("video.mp4");
-		if (!vid) {
-			LOG(FATAL) << "No video.mp4 file found in provided paths (" << file << ")";
-		} else {
-			LOG(INFO) << "Using test directory...";
-			lsrc_ = ftl::create<LocalSource>(host_, "feed", *vid);
+	if (uri.getScheme() == ftl::URI::SCHEME_DEVICE) {
+		if (uri.getPathSegment(0) == "pylon") {
+			#ifdef HAVE_PYLON
+			LOG(INFO) << "Using Pylon...";
+			lsrc_ = ftl::create<ftl::rgbd::detail::PylonDevice>(host_, "feed");
+			#else
+			throw FTL_Error("Not built with pylon support");
+			#endif
+		} else if (uri.getPathSegment(0) == "opencv") {
+			// Use cameras
+			LOG(INFO) << "Using OpenCV cameras...";
+			lsrc_ = ftl::create<ftl::rgbd::detail::OpenCVDevice>(host_, "feed");
+		} else if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "camera") {
+			// Now detect automatically which device to use
+			#ifdef HAVE_PYLON
+			auto pylon_devices = ftl::rgbd::detail::PylonDevice::listDevices();
+			if (pylon_devices.size() > 0) {
+				LOG(INFO) << "Using Pylon...";
+				lsrc_ = ftl::create<ftl::rgbd::detail::PylonDevice>(host_, "feed");
+			} else {
+				// Use cameras
+				LOG(INFO) << "Using OpenCV cameras...";
+				lsrc_ = ftl::create<ftl::rgbd::detail::OpenCVDevice>(host_, "feed");
+			}
+			#else
+			// Use cameras
+			LOG(INFO) << "Using OpenCV cameras...";
+			lsrc_ = ftl::create<ftl::rgbd::detail::OpenCVDevice>(host_, "feed");
+			#endif
 		}
 	}
-	else {
-		// Use cameras
-		LOG(INFO) << "Using cameras...";
-		lsrc_ = ftl::create<LocalSource>(host_, "feed");
-	}
+
+	if (!lsrc_) return;  // throw?
 
 	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());
-	frames_ = std::vector<Frame>(2);
 
 	pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
 	#ifdef HAVE_OPTFLOW
@@ -275,16 +304,13 @@ void StereoVideoSource::updateParameters() {
 }
 
 bool StereoVideoSource::capture(int64_t ts) {
-	capts_ = timestamp_;
-	timestamp_ = ts;
 	lsrc_->grab();
 	return true;
 }
 
-bool StereoVideoSource::retrieve() {
+bool StereoVideoSource::retrieve(ftl::rgbd::Frame &frame) {
 	FTL_Profile("Stereo Retrieve", 0.03);
 	
-	auto &frame = frames_[0];
 	frame.reset();
 	frame.setOrigin(&state_);
 
@@ -309,37 +335,6 @@ bool StereoVideoSource::retrieve() {
 	pipeline_input_->apply(frame, frame, cv::cuda::StreamAccessor::getStream(stream2_));
 	stream2_.waitForCompletion();
 
-	return true;
-}
-
-void StereoVideoSource::swap() {
-	auto tmp = std::move(frames_[0]);
-	frames_[0] = std::move(frames_[1]);
-	frames_[1] = std::move(tmp);
-}
-
-bool StereoVideoSource::compute(int n, int b) {
-	auto &frame = frames_[1];
-
-	if (lsrc_->isStereo()) {
-		if (!frame.hasChannel(Channel::Left) ||
-			!frame.hasChannel(Channel::Right)) {
-
-			return false;
-		}
-
-		cv::cuda::GpuMat& left = frame.get<cv::cuda::GpuMat>(Channel::Left);
-		cv::cuda::GpuMat& right = frame.get<cv::cuda::GpuMat>(Channel::Right);
-
-		if (left.empty() || right.empty()) { return false; }
-		//stream_.waitForCompletion();
-
-	}
-	else {
-		if (!frame.hasChannel(Channel::Left)) { return false; }
-	}
-
-	host_->notify(capts_, frame);
 	return true;
 }
 

@@ -10,7 +10,6 @@
 #include <ftl/configuration.hpp>
 #include <ftl/depth_camera.hpp>
 #include <ftl/rgbd.hpp>
-#include <ftl/rgbd/virtual.hpp>
 #include <ftl/master.hpp>
 #include <ftl/rgbd/group.hpp>
 #include <ftl/threads.hpp>
