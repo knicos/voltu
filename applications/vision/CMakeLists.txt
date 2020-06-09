@@ -10,6 +10,7 @@ set(CVNODESRC
 )
 
 add_executable(ftl-vision ${CVNODESRC})
+install(TARGETS ftl-vision DESTINATION bin COMPONENT vision)
 
 target_include_directories(ftl-vision PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
