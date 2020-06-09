@@ -28,6 +28,7 @@ add_definitions(${NANOGUI_EXTRA_DEFS})
 include_directories(${NANOGUI_EXTRA_INCS})
 
 add_executable(ftl-gui ${GUISRC})
+install(TARGETS ftl-gui DESTINATION bin COMPONENT gui)
 
 target_include_directories(ftl-gui PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
