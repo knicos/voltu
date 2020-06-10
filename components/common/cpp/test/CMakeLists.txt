@@ -28,6 +28,15 @@ target_include_directories(timer_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc
 target_link_libraries(timer_unit ftlcommon
 	Threads::Threads ${OS_LIBS})
 
+### Handle Unit ################################################################
+add_executable(handle_unit
+	$<TARGET_OBJECTS:CatchTest>
+	./handle_unit.cpp
+)
+target_include_directories(handle_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(handle_unit ftlcommon
+	Threads::Threads ${OS_LIBS})
+
 ### URI ########################################################################
 add_executable(msgpack_unit
 	$<TARGET_OBJECTS:CatchTest>
