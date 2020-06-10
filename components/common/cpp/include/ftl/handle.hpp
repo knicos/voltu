@@ -26,8 +26,7 @@ struct Handle {
 	friend struct BaseHandler;
 
 	/**
-	 * Cancel the timer job. If currently executing it will block and wait for
-	 * the job to complete.
+	 * Cancel the callback and invalidate the handle.
 	 */
 	inline void cancel() { if (handler_) handler_->remove(*this); handler_ = nullptr; }
 
@@ -62,8 +61,17 @@ struct Handle {
 	Handle(BaseHandler *h, int id) : handler_(h), id_(id) {}
 };
 
+/**
+ * This class is used to manage callbacks. The template parameters are the
+ * arguments to be passed to the callback when triggered. This class is already
+ * thread-safe.
+ */
 template <typename ...ARGS>
 struct Handler : BaseHandler {
+	/**
+	 * Add a new callback function. It returns a `Handle` object that must
+	 * remain in scope, the destructor of the `Handle` will remove the callback.
+	 */
 	Handle on(const std::function<bool(ARGS...)> &f) {
 		std::unique_lock<std::mutex> lk(mutex_);
 		int id = id_++;
@@ -71,6 +79,12 @@ struct Handler : BaseHandler {
 		return make_handle(this, id);
 	}
 
+	/**
+	 * Safely trigger all callbacks. Note that `Handler` is locked when
+	 * triggering so callbacks cannot make modifications to it or they will
+	 * lock up. To remove a callback, return false from the callback, else
+	 * return true.
+	 */
 	void trigger(ARGS ...args) {
 		std::unique_lock<std::mutex> lk(mutex_);
 		try {
@@ -82,6 +96,10 @@ struct Handler : BaseHandler {
 		}
 	}
 
+	/**
+	 * Remove a callback using its `Handle`. This is equivalent to allowing the
+	 * `Handle` to be destroyed or cancelled.
+	 */
 	void remove(const Handle &h) override {
 		std::unique_lock<std::mutex> lk(mutex_);
 		callbacks_.erase(h.id());
