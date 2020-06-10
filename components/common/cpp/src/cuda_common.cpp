@@ -10,6 +10,8 @@ static int dev_count = 0;
 static std::vector<cudaDeviceProp> properties;
 
 bool ftl::cuda::initialise() {
+	if (dev_count > 0) return true;
+	
 	// Do an initial CUDA check
 	cudaSafeCall(cudaGetDeviceCount(&dev_count));
 	CHECK_GE(dev_count, 1) << "No CUDA devices found";
@@ -50,6 +52,7 @@ void ftl::cuda::setDevice(int id) {
 }
 
 void ftl::cuda::setDevice() {
+	LOG(INFO) << "Using CUDA Device " << dev_to_use;
 	cudaSafeCall(cudaSetDevice(dev_to_use));
 }
 

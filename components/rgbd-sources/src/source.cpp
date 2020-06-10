@@ -195,7 +195,10 @@ bool Source::retrieve() {
 
 bool Source::dispatch(int64_t ts) {
 	if (!callback_) return false;
-	if (is_dispatching || is_retrieving) return false;
+	if (is_dispatching || is_retrieving) {
+		LOG(WARNING) << "Previous distance not completed";
+		return false;
+	}
 	is_dispatching = true;
 	_swap();
 	ftl::pool.push([this,ts](int id) {

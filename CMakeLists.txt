@@ -8,6 +8,7 @@ project (ftl.utu.fi VERSION 0.0.4)
 
 include(GNUInstallDirs)
 include(CTest)
+
 enable_testing()
 
 option(WITH_OPTFLOW "Use NVIDIA Optical Flow if available" OFF)
@@ -119,7 +120,7 @@ endif()
 
 if (WITH_OPUS)
 	find_library( OPUS_LIBRARY NAMES opus PATHS ${OPUS_DIR} PATH_SUFFIXES lib)
-	
+
 	if (OPUS_LIBRARY)
 		find_path( OPUS_INCLUDE NAMES opus/opus.h)
 
@@ -184,7 +185,7 @@ if(${CMAKE_VERSION} VERSION_GREATER "3.12.0")
 	cmake_policy(SET CMP0074 NEW)
 endif()
 
-set(CMAKE_CXX_STANDARD 17) # For PCL/VTK https://github.com/PointCloudLibrary/pcl/issues/2686
+set(CMAKE_CXX_STANDARD 17)
 set(HAVE_OPENCV TRUE)
 
 # Readline library is not required on Windows
@@ -487,17 +488,9 @@ configure_file(${CMAKE_SOURCE_DIR}/components/common/cpp/src/config.cpp.in
 			   ${CMAKE_SOURCE_DIR}/components/common/cpp/src/config.cpp
 )
 
-# For issue #17
-# https://gitlab.kitware.com/cmake/cmake/issues/16915#note_456382
-if ( TARGET Qt5::Core )
-	get_property( core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS )
-	string( REPLACE "-fPIC" "" new_core_options "${core_options}" )
-	set_property( TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_core_options} )
-	set_property( TARGET Qt5::Core PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE "ON" )
-	set( CMAKE_CXX_COMPILE_OPTIONS_PIE "-fPIC" )
-endif()
-
 if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${VS_STARTUP_PROJECT})
 	set_property(TARGET ftl-vision PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${VS_DEBUG_WORKING_DIRECTORY})
 endif()
+
+include(ftl_CPack)

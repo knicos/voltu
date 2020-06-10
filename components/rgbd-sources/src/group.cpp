@@ -118,11 +118,12 @@ void Group::onFrameSet(const ftl::rgbd::VideoCallback &cb) {
 		for (auto s : sources_) {
 			jobs_++;
 
-			ftl::pool.push([this,s,ts](int id) {
+			//ftl::pool.push([this,s,ts](int id) {
 				_retrieveJob(s);
+				//LOG(INFO) << "Retrieve latency: " << ftl::timer::get_time()-ts;
 				--jobs_;
 				_dispatchJob(s, ts);
-			});
+			//});
 		}
 		return true;
 	});

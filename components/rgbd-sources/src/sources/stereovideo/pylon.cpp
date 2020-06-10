@@ -4,6 +4,7 @@
 #include <loguru.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/rgbd/source.hpp>
+#include <ftl/profiler.hpp>
 
 #include <pylon/PylonIncludes.h>
 #include <pylon/BaslerUniversalInstantCamera.h>
@@ -49,6 +50,7 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 		if (rcam_) _configureCamera(rcam_);
 
 		lcam_->StartGrabbing( Pylon::GrabStrategy_OneByOne);
+		if (rcam_) rcam_->StartGrabbing( Pylon::GrabStrategy_OneByOne);
 
 		ready_ = true;
 	} catch (const Pylon::GenericException &e) {
@@ -56,8 +58,12 @@ PylonDevice::PylonDevice(nlohmann::json &config)
         LOG(ERROR) << "Pylon: An exception occurred - " << e.GetDescription();
 	}
 
-	width_ = value("depth_width", fullwidth_);
-	height_ = value("depth_height", fullheight_);
+	// Choose a good default depth res
+	width_ = value("depth_width", std::min(1280u,fullwidth_)) & 0xFFFe;
+	float aspect = float(fullheight_) / float(fullwidth_);
+	height_ = value("depth_height", std::min(uint32_t(aspect*float(width_)), fullheight_)) & 0xFFFe;
+
+	LOG(INFO) << "Depth resolution: " << width_ << "x" << height_;
 
 	// Allocate page locked host memory for fast GPU transfer
 	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
@@ -118,9 +124,14 @@ void PylonDevice::_configureCamera(CBaslerUniversalInstantCamera *cam) {
 bool PylonDevice::grab() {
 	if (!isReady()) return false;
 
+	//int dev;
+	//cudaGetDevice(&dev);
+	//LOG(INFO) << "Current cuda device = " << dev;
+
 	try {
-		lcam_->WaitForFrameTriggerReady( 30, Pylon::TimeoutHandling_ThrowException);
+		FTL_Profile("Frame Capture", 0.001);
 		if (rcam_) rcam_->WaitForFrameTriggerReady( 30, Pylon::TimeoutHandling_ThrowException);
+		else lcam_->WaitForFrameTriggerReady( 30, Pylon::TimeoutHandling_ThrowException);
 
 		lcam_->ExecuteSoftwareTrigger();
 		if (rcam_) rcam_->ExecuteSoftwareTrigger();
@@ -145,15 +156,56 @@ bool PylonDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 	Mat &lfull = (!hasHigherRes()) ? l : hres;
 	Mat &rfull = (!hasHigherRes()) ? r : rtmp_;
 
+	//ftl::cuda::setDevice();
+
+	//int dev;
+	//cudaGetDevice(&dev);
+	//LOG(INFO) << "Current cuda device = " << dev;
+
 	try {
+		FTL_Profile("Frame Retrieve", 0.005);
+		std::future<bool> future_b;
+		if (rcam_) {
+			future_b = std::move(ftl::pool.push([this,&rfull,&r,&l,c,&r_out,&h_r,&stream](int id) {
+				Pylon::CGrabResultPtr result_right;
+				int rcount = 0;
+				if (rcam_ && rcam_->RetrieveResult(0, result_right, Pylon::TimeoutHandling_Return)) ++rcount;
+
+				if (rcount == 0 || !result_right->GrabSucceeded()) {
+					LOG(ERROR) << "Retrieve failed";
+					return false;
+				}
+
+				cv::Mat wrap_right(
+				result_right->GetHeight(),
+				result_right->GetWidth(),
+				CV_8UC1,
+				(uint8_t*)result_right->GetBuffer());
+
+				cv::cvtColor(wrap_right, rfull, cv::COLOR_BayerBG2BGRA);
+
+				if (isStereo()) {
+					c->rectifyRight(rfull);
+
+					if (hasHigherRes()) {
+						cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
+						h_r = rfull;
+					}
+					else {
+						h_r = Mat();
+					}
+				}
+
+				r_out.upload(r, stream);
+				return true;
+			}));
+		}
+
 		Pylon::CGrabResultPtr result_left;
-		Pylon::CGrabResultPtr result_right;
-
 		int lcount = 0;
-		if (lcam_->RetrieveResult(0, result_left, Pylon::TimeoutHandling_Return)) ++lcount;
-
-		int rcount = 0;
-		if (rcam_ && rcam_->RetrieveResult(0, result_right, Pylon::TimeoutHandling_Return)) ++rcount;
+		{
+			if (lcam_->RetrieveResult(0, result_left, Pylon::TimeoutHandling_Return)) ++lcount;
+		}
 
 		if (lcount == 0 || !result_left->GrabSucceeded()) {
 			LOG(ERROR) << "Retrieve failed";
@@ -173,7 +225,6 @@ bool PylonDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 		}
 
 		if (hasHigherRes()) {
-			//FTL_Profile("Frame Resize", 0.01);
 			cv::resize(lfull, l, l.size(), 0.0, 0.0, cv::INTER_CUBIC);
 			h_l.upload(hres, stream);
 		} else {
@@ -182,32 +233,8 @@ bool PylonDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda
 
 		l_out.upload(l, stream);
 
-		// TODO Perhaps multithread this as for OpenCV device
-		if (rcount > 0 && result_right->GrabSucceeded()) {
-			cv::Mat wrap_right(
-			result_right->GetHeight(),
-			result_right->GetWidth(),
-			CV_8UC1,
-			(uint8_t*)result_right->GetBuffer());
-
-			cv::cvtColor(wrap_right, rfull, cv::COLOR_BayerBG2BGRA);
-
-			if (isStereo()) {
-				c->rectifyRight(rfull);
-
-				if (hasHigherRes()) {
-					// TODO: Use threads?
-					cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
-					h_r = rfull;
-				}
-				else {
-					h_r = Mat();
-				}
-			}
-
-			r_out.upload(r, stream);
-
-			//frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Colour2).upload(tmp_);
+		if (rcam_) {
+			future_b.wait();
 		}
 
 	} catch (const GenericException &e) {

@@ -20,6 +20,7 @@ linux:
     - linux
   variables:
     FTL_LIB: ../../build/SDK/C/libftl-dev.so
+    LD_LIBRARY_PATH: /opt/pylon/lib/
 #  before_script:
 #    - export DEBIAN_FRONTEND=noninteractive
 #    - apt-get update -qq && apt-get install -y -qq g++ cmake git
@@ -27,8 +28,9 @@ linux:
   script:
     - mkdir build
     - cd build
-    - cmake .. -DWITH_OPTFLOW=TRUE -DUSE_CPPCHECK=FALSE -DBUILD_CALIBRATION=TRUE -DWITH_CERES=TRUE -DCMAKE_BUILD_TYPE=Release
+    - cmake .. -DWITH_OPTFLOW=TRUE -DUSE_CPPCHECK=FALSE -DBUILD_CALIBRATION=TRUE -DWITH_CERES=TRUE -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=DEB
     - make
+    - make package
     - ctest --output-on-failure
     - cd ../SDK/Python
     - python3 -m unittest discover test

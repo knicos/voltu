@@ -49,7 +49,7 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 		in.createTexture<uchar4>(Channel::Right, true);
 	}
 
-	if (in.hasChannel(Channel::Depth)) {
+	/*if (in.hasChannel(Channel::Depth)) {
 		auto &depth = in.get<cv::cuda::GpuMat>(Channel::Depth);
 		if (depth.size() != col.size()) {
 			auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
@@ -71,7 +71,7 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 				throw FTL_Error("Depth and colour channels and different resolutions: " << depth.size() << " vs " << right.size());
 			}
 		}
-	}
+	}*/
 
 	return true;
 }

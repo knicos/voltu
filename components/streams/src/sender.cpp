@@ -229,8 +229,8 @@ void Sender::post(ftl::rgbd::FrameSet &fs) {
 		for (auto c : frame.getChannels()) {
 			if (selected.has(c)) {
 				// FIXME: Sends high res colour, but receive end currently broken
-				auto cc = (c == Channel::Colour && frame.hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : c;
-				//auto cc = c;
+				//auto cc = (c == Channel::Colour && frame.hasChannel(Channel::ColourHighRes)) ? Channel::ColourHighRes : c;
+				auto cc = c;
 
 				StreamPacket spkt;
 				spkt.version = 4;
@@ -300,14 +300,14 @@ void Sender::_encodeChannel(ftl::rgbd::FrameSet &fs, Channel c, bool reset) {
 	uint32_t offset = 0;
 	while (offset < fs.frames.size()) {
 		Channel cc = c;
-		if ((cc == Channel::Colour) && fs.firstFrame().hasChannel(Channel::ColourHighRes)) {
-			cc = Channel::ColourHighRes;
-		}
+		//if ((cc == Channel::Colour) && fs.firstFrame().hasChannel(Channel::ColourHighRes)) {
+		//	cc = Channel::ColourHighRes;
+		//}
 		
-		if ((cc == Channel::Right) && fs.firstFrame().hasChannel(Channel::RightHighRes)) {
-			cc = Channel::RightHighRes;
-			fs.frames[offset].upload(cc);
-		}
+		//if ((cc == Channel::Right) && fs.firstFrame().hasChannel(Channel::RightHighRes)) {
+		//	cc = Channel::RightHighRes;
+		//	fs.frames[offset].upload(cc);
+		//}
 
 		StreamPacket spkt;
 		spkt.version = 4;
