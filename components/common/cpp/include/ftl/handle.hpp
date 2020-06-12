@@ -72,7 +72,7 @@ struct Handler : BaseHandler {
 	 * Add a new callback function. It returns a `Handle` object that must
 	 * remain in scope, the destructor of the `Handle` will remove the callback.
 	 */
-	Handle on(const std::function<bool(ARGS...)> &f) {
+	[[nodiscard]] Handle on(const std::function<bool(ARGS...)> &f) {
 		std::unique_lock<std::mutex> lk(mutex_);
 		int id = id_++;
 		callbacks_[id] = f;
@@ -87,13 +87,15 @@ struct Handler : BaseHandler {
 	 */
 	void trigger(ARGS ...args) {
 		std::unique_lock<std::mutex> lk(mutex_);
-		try {
-			for (auto &f : callbacks_) {
-				f.second(std::forward<ARGS...>(args...));
+		//try {
+			for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
+				bool keep = i->second(std::forward<ARGS>(args)...);
+				if (!keep) i = callbacks_.erase(i);
+				else ++i;
 			}
-		} catch (const std::exception &e) {
-			LOG(ERROR) << "Exception in callback: " << e.what();
-		}
+		//} catch (const std::exception &e) {
+		//	LOG(ERROR) << "Exception in callback: " << e.what();
+		//}
 	}
 
 	/**

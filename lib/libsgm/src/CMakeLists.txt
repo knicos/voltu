@@ -5,6 +5,8 @@ find_package(CUDA REQUIRED)
 include_directories(../include)
 
 if (CMAKE_COMPILER_IS_GNUCXX)
+	set(CMAKE_CUDA_HOST_COMPILER gcc-7)
+	set(CUDA_HOST_COMPILER gcc-7)
 	set(CMAKE_CXX_FLAGS "-O3 -Wall -fPIC")
 	set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
 endif()

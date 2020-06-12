@@ -43,6 +43,10 @@ MACRO( VERSION_STR_TO_INTS major minor patch version )
 
 ENDMACRO( VERSION_STR_TO_INTS )
 
+if (CMAKE_COMPILER_IS_GNUCXX)
+	set(CMAKE_CUDA_HOST_COMPILER gcc-7)
+endif()
+
 find_package( OpenCV REQUIRED COMPONENTS core imgproc highgui cudaimgproc calib3d imgcodecs videoio aruco cudaarithm cudastereo cudaoptflow face tracking quality xfeatures2d)
 find_package( Threads REQUIRED )
 find_package( URIParser REQUIRED )
