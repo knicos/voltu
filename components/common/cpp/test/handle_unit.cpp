@@ -23,6 +23,22 @@ TEST_CASE( "Handle release on cancel" ) {
 	REQUIRE(calls == 5);
 }
 
+TEST_CASE( "Handle release on false return" ) {
+	Handler<int> handler;
+
+	int calls = 0;
+
+	auto h = handler.on([&calls](int i) {
+		calls += i;
+		return false;
+	});
+
+	handler.trigger(5);
+	REQUIRE(calls == 5);
+	handler.trigger(5);
+	REQUIRE(calls == 5);
+}
+
 TEST_CASE( "Handle multiple triggers" ) {
 	Handler<int> handler;
 

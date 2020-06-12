@@ -20,6 +20,7 @@ set(CMAKE_USE_RELATIVE_PATHS ON)
 set(CMAKE_CXX_FLAGS_RELEASE)
 
 if (CMAKE_COMPILER_IS_GNUCXX)
+	set(CMAKE_CUDA_HOST_COMPILER gcc-7)
     set(CMAKE_CUDA_FLAGS "--gpu-architecture=compute_61 -std=c++14 -Xcompiler -fPIC -Xcompiler ${OpenMP_CXX_FLAGS} --expt-relaxed-constexpr")
     set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
 else()
