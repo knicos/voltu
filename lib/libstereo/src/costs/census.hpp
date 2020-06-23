@@ -5,8 +5,8 @@
 #include "array2d.hpp"
 #include "dsbase.hpp"
 #include <stereo_types.hpp>
-
 #include <cuda_runtime.h>
+
 namespace impl {
 	__host__ __device__ static inline uint64_t popcount(const uint64_t bits) {
 		#if defined(__CUDA_ARCH__)

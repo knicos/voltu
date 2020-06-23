@@ -127,6 +127,7 @@ namespace algorithms {
 					// zero if first value, otherwise shift to left
 					if (i % 64 == 0) { *out = 0; }
 					else             { *out = (*out << 1); }
+					// symmetric pattern? also redundant
 					*out |= (im(y-wy,x-wx) < (im(y+wy,x+wx)) ? 1 : 0);
 
 					i += 1;
@@ -249,7 +250,7 @@ void CensusMatchingCost::set(const Array2D<uchar> &l, const Array2D<uchar> &r) {
 		parallel2D<algorithms::GCensusTransformRowMajor<9,7>>({l.data(), ct_l_.data()}, l.width, l.height);
 		parallel2D<algorithms::GCensusTransformRowMajor<9,7>>({r.data(), ct_r_.data()}, r.width, r.height);
 	} else {
-		// TODO: 
+		// TODO:
 	}
 }
 
@@ -327,7 +328,7 @@ void MiniCensusMatchingCost::set(const Array2D<uchar> &l, const Array2D<uchar> &
 		parallel2D<algorithms::GCensusTransformRowMajor<5,3>>({l.data(), ct_l_.data()}, l.width, l.height);
 		parallel2D<algorithms::GCensusTransformRowMajor<5,3>>({r.data(), ct_r_.data()}, r.width, r.height);
 	} else {
-		// TODO: 
+		// TODO:
 	}
 }
 

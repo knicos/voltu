@@ -337,11 +337,30 @@ namespace Impl {
 		}
 	};
 
+	struct GCTSgm : public Algorithm {
+		GCTSgm() { P1 = 12.0f; P2 = 52.0f; }  // Tuned to total error 2.0
+
+		virtual void run(const MiddleburyData &data, cv::Mat &disparity) override {
+			StereoGTCensusSgm stereo;
+			stereo.params.P1 = P1;
+			stereo.params.P2 = P2;
+			stereo.params.subpixel = subpixel;
+			stereo.params.lr_consistency = lr_consistency;
+
+			stereo.params.debug = false;
+			stereo.params.d_min = data.calib.vmin;
+			stereo.params.d_max = data.calib.vmax;
+			stereo.compute(data.imL, data.imR, disparity);
+		}
+	};
+
 }
 
 static const std::map<std::string, Algorithm*> algorithms = {
 	{ "censussgm", new Impl::CensusSGM() },
-	{ "mcensussgm", new Impl::MeanCensusSGM() },
+	{ "gctsgm", new Impl::GCTSgm() },
+
+/*	{ "mcensussgm", new Impl::MeanCensusSGM() },
 	{ "gcensussgm", new Impl::GCensusSGM() },
 	{ "ecensussgm", new Impl::ECensusSGM() },
 	{ "stablesgm", new Impl::StableSGM() },
@@ -354,5 +373,5 @@ static const std::map<std::string, Algorithm*> algorithms = {
 	{ "tcensussgm",  new Impl::TCensusSGM() },
 	{ "wcensussgm",  new Impl::WCensusSGM() },
 	{ "misgm",  new Impl::MiSGM() },
-	{ "varcensus",  new Impl::VarCensusSGM() },
+	{ "varcensus",  new Impl::VarCensusSGM() },*/
 };

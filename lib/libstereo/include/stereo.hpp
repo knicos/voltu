@@ -3,6 +3,36 @@
 #include <opencv2/core/mat.hpp>
 #include <stereo_types.hpp>
 
+class StereoGTCensusSgm {
+public:
+	StereoGTCensusSgm();
+	~StereoGTCensusSgm();
+
+	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp) {};
+	void setEdges();
+
+	struct Parameters {
+		int d_min = 0;
+		int d_max = 0;
+		unsigned short P1 = 5;
+		unsigned short P2 = 25;
+		float uniqueness = std::numeric_limits<unsigned short>::max();
+		int subpixel = 1; // subpixel interpolation method
+		bool lr_consistency = true;
+		int paths = AggregationDirections::HORIZONTAL |
+					AggregationDirections::VERTICAL |
+					AggregationDirections::DIAGONAL;
+		bool debug = false;
+	};
+	Parameters params;
+
+private:
+	struct Impl;
+	Impl *impl_;
+};
+
+
 class StereoADCensusSgm {
 public:
 	StereoADCensusSgm();
@@ -190,7 +220,7 @@ private:
 
 /**
  * STABLE Binary descriptor. This is a general implementation.
- * 
+ *
  * @see K. Valentín, R. Huber-Mörk, and S. Štolc, “Binary descriptor-based dense
  *      line-scan stereo matching,” J. Electron. Imaging, vol. 26, no. 1, 2017.
  */
@@ -410,7 +440,7 @@ private:
  * Ternary census, or 3 moded, where there is a noise threshold and where
  * pixels can be identified as no luminance change in addition to above or
  * below.
- * 
+ *
  * @see "TEXTURE-AWARE DENSE IMAGE MATCHING USING TERNARY CENSUS TRANSFORM" (2016)
  * @see "Local disparity estimation with three-moded cross census and advanced support weight" (2013)
  */

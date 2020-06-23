@@ -1,6 +1,7 @@
 #ifndef _FTL_LIBSTEREO_DSBASE_HPP_
 #define _FTL_LIBSTEREO_DSBASE_HPP_
 
+#include <cstdint>
 #include <cuda_runtime.h>
 #include <type_traits>
 

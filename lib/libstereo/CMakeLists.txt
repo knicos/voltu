@@ -67,6 +67,8 @@ if (LIBSTEREO_SHARED)
                 src/median_filter.cu
                 src/median_filter_fixstars.cu
                 src/dsi_tools.cu
+                src/costs/gct.cu
+                src/algorithms/gct.cu
     )
     set_target_properties(libstereo PROPERTIES PUBLIC_HEADER include/stereo.hpp)
 
@@ -103,6 +105,8 @@ else()
                 src/median_filter.cu
                 src/median_filter_fixstars.cu
                 src/dsi_tools.cu
+                src/costs/gct.cu
+                src/algorithms/gct.cu
     )
 endif()
 
