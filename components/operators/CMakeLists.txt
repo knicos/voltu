@@ -57,4 +57,6 @@ target_include_directories(ftloperators PUBLIC
 
 target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon sgm libstereo Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
 
-#ADD_SUBDIRECTORY(test)
+if (BUILD_TESTS)
+	add_subdirectory(test)
+endif()
