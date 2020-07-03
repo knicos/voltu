@@ -1,18 +1,23 @@
 #pragma once
+#include <opencv2/core.hpp>
 
 #include "../dsbase.hpp"
 #include "../array2d.hpp"
 #include "census.hpp"
 
+/**
+ * Generalized Census Transform
+ */
+
 namespace impl {
-	template<uint8_t WMAX>
-	using GeneralizedCensusMatchingCost = HammingCost<WMAX*WMAX>;
+	template<uint8_t BITS>
+	using GeneralizedCensusMatchingCost = NormalizedHammingCost<BITS>;
 }
 
-class GeneralizedCensusMatchingCost : public DSBase<impl::GeneralizedCensusMatchingCost<11>> {
+class GeneralizedCensusMatchingCost : public DSBase<impl::GeneralizedCensusMatchingCost<128>> {
 public:
-	typedef impl::GeneralizedCensusMatchingCost<11> DataType;
-	typedef unsigned short Type;
+	typedef impl::GeneralizedCensusMatchingCost<128> DataType;
+	typedef float Type;
 
 	GeneralizedCensusMatchingCost() : DSBase<DataType>(0, 0, 0, 0) {};
 	GeneralizedCensusMatchingCost(int width, int height, int disp_min, int disp_max)
@@ -23,10 +28,12 @@ public:
 			data().r = ct_r_.data();
 		}
 
-	// pairs of indices (window size 11x11, origin top left)
-	void setEdges(const std::vector<std::pair<int, int>> &edges);
-	// pairs of (y,x) coordinates (relative to window, origin at center)
-	void setEdges(const std::vector<std::pair<std::pair<int, int>,std::pair<int, int>>> &edges);
+	/** Pairs of (x, y) coordinates (relative to window, origin at center)
+	 *  indices must fit in signed char [-128,127].
+	 *  TODO: Indices must fit within 11x11 window (operator() in
+	 * GeneralizedCensusTransform)
+	 */
+	void setEdges(const std::vector<std::pair<cv::Point2i,cv::Point2i>> &edges);
 
 	void set(cv::InputArray l, cv::InputArray r);
 	void set(const Array2D<uchar>& l, const Array2D<uchar>& r);
@@ -35,5 +42,20 @@ public:
 protected:
 	Array2D<uint64_t> ct_l_;
 	Array2D<uint64_t> ct_r_;
-	Array2D<uchar> edges_;
+	Array2D<char> edges_;
+
+	cv::Point2i pmax;
+	cv::Point2i pmin;
 };
+
+// ==== Pattern generators =====================================================
+
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_dense(const cv::Size size);
+
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_sparse(const cv::Size size, int step=2);
+
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_random(const cv::Size size, int nedges);
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_random(const cv::Size size);
+
+/** patterns presented in the original paper */
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_gct(int nedges);

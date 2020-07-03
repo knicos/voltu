@@ -1,113 +1,130 @@
 #include "gct.hpp"
 #include "../util.hpp"
 
-static const int WX = 11;
-static const int WY = 11;
+#include <random>
+
+static const int NBITS = 128;
 
 namespace algorithms {
 	/** Fife, W. S., & Archibald, J. K. (2012). Improved census transforms for
 	* resource-optimized stereo vision. IEEE Transactions on Circuits and
 	* Systems for Video Technology, 23(1), 60-73.
 	*/
-	template<int WINX, int WINY>
+
+	template<int BITS>
 	struct GeneralizedCensusTransform {
-		__host__ __device__ inline void window(const int y, const int x, uint64_t* __restrict__ out) {
+		static_assert(BITS%64 == 0);
+
+		__host__ __device__ inline void compute(const int y, const int x, uint64_t* __restrict__ out) {
 
 			uint8_t i = 0; // bit counter for *out
+			// BUG in operator(), gets called more than once per pixel; local
+			// variable for sub-bitstring to avoid data race (no read
+			// dependency to out; writes are identical)
+			uint64_t res = 0;
 
 			for (int e = 0; e < nedges; e++) {
 
 				// edges contain window indices, calculate window coordinates
-				const int y1 = y + edges(e,0) % WINY - WINY/2;
-				const int x1 = x + edges(e,0) / WINY - WINX/2;
+				//const int y1 = y + edges(e,0) % WINY - WINY/2;
+				//const int x1 = x + edges(e,0) / WINY - WINX/2;
+				//const int y2 = y + edges(e,1) % WINY - WINY/2;
+				//const int x2 = x + edges(e,1) / WINY - WINX/2;
 
-				const int y2 = y + edges(e,1) % WINY - WINY/2;
-				const int x2 = x + edges(e,1) / WINY - WINX/2;
+				// edges contain relative pixel coordinates
+				const int x1 = x + edges(e,0);
+				const int y1 = y + edges(e,1);
+				const int x2 = x + edges(e,2);
+				const int y2 = y + edges(e,3);
 
-				// zero if first value, otherwise shift to left
-				if (i % 64 == 0) { *out = 0; }
-				else             { *out = (*out << 1); }
-				*out |= (im(y1,x1) < (im(y2,x2)) ? 1 : 0);
+				res = (res << 1);
+				res |= ((im(y1,x1) < im(y2,x2)) ? 1 : 0);
 
-				i += 1;
 				// if all bits set, continue to next element
-				if (i % 64 == 0) { out++; }
+				if (++i % 64 == 0) {
+					*out = res;
+					out++;
+				}
+			}
+
+			// zero remaining bits (less edges than bits in output array)
+			for(i = BITS/64 - i/64; i > 0; i--) {
+				*out++ = res;
+				res = 0;
 			}
 		}
 
 		__host__ __device__  void operator()(ushort2 thread, ushort2 stride, ushort2 size) {
-			for (int y = thread.y+WINY/2; y<size.y-WINY/2-1; y+=stride.y) {
-				for (int x = thread.x+WINX/2; x<size.x-WINX/2-1; x+=stride.x) {
-					window(y, x, &(out(y, x*WSTEP)));
+			for (int y = thread.y+winy/2; y<size.y-winy/2-1; y+=stride.y) {
+				for (int x = thread.x+winx/2; x<size.x-winx/2-1; x+=stride.x) {
+					compute(y, x, &(out(y, x*WSTEP)));
 				}
 			}
 		}
 
 		int nedges;
-		Array2D<uchar>::Data edges;
+		int winx;
+		int winy;
+		Array2D<char>::Data edges;
 		Array2D<uchar>::Data im;
 		Array2D<uint64_t>::Data out;
 
 		// number of uint64_t values for each window
-		static constexpr int WSTEP = (WINX*WINY - 1)/(sizeof(uint64_t)*8) + 1;
+		static constexpr int WSTEP = (BITS - 1)/(sizeof(uint64_t)*8) + 1;
 	};
 }
 
 void GeneralizedCensusMatchingCost::set(const Array2D<uchar> &l, const Array2D<uchar> &r) {
+	if (edges_.height == 0) {
+		printf("edges must be set before processing input images\n");
+		throw std::exception();
+	}
 
-	parallel2D<algorithms::GeneralizedCensusTransform<WX,WY>>({edges_.height, edges_.data(), l.data(), ct_l_.data()}, l.width, l.height);
-	parallel2D<algorithms::GeneralizedCensusTransform<WX,WY>>({edges_.height, edges_.data(), r.data(), ct_r_.data()}, r.width, r.height);
+	int winx = std::max(std::abs(pmin.x), pmax.x)*2 + 1;
+	int winy = std::max(std::abs(pmin.y), pmax.y)*2 + 1;
+	parallel2D<algorithms::GeneralizedCensusTransform<128>>({
+			edges_.height, winx, winy,
+			edges_.data(), l.data(), ct_l_.data()
+		}, l.width, l.height);
+	parallel2D<algorithms::GeneralizedCensusTransform<128>>({
+			edges_.height, winx, winy,
+			edges_.data(), r.data(), ct_r_.data()
+		}, r.width, r.height);
 }
 
-void GeneralizedCensusMatchingCost::setEdges(const std::vector<std::pair<int, int>> &edges) {
-	if (edges.size() >= (WX * WY)) {
+void GeneralizedCensusMatchingCost::setEdges(const std::vector<std::pair<cv::Point2i, cv::Point2i>> &edges) {
+	if (edges.size() > NBITS) {
+		printf("Too many edges %i, maximum number %i\n", int(edges.size()), NBITS);
 		throw std::exception(); // too many edges
 	}
 
-	cv::Mat data(cv::Size(2, edges.size()), CV_8UC1);
+	cv::Mat data_(cv::Size(4, edges.size()), CV_8SC1);
 	for (size_t i = 0; i < edges.size(); i++) {
-		if (edges[i].first < 0 || edges[0].second < 0) {
-			throw std::exception(); // indices must be positive
-		}
+		const auto &p1 = edges[i].first;
+		const auto &p2 = edges[i].second;
 
-		data.at<uchar>(i,0) = edges[i].first;
-		data.at<uchar>(i,1) = edges[i].second;
+		data_.at<char>(i,0) = p1.x;
+		data_.at<char>(i,1) = p1.y;
+		data_.at<char>(i,2) = p2.x;
+		data_.at<char>(i,3) = p2.y;
+
+		pmax.x = std::max(pmax.x, std::max(p1.x, p2.x));
+		pmax.y = std::max(pmax.y, std::max(p1.y, p2.y));
+		pmin.x = std::min(pmax.x, std::min(p1.x, p2.x));
+		pmin.y = std::min(pmax.y, std::min(p1.y, p2.y));
 	}
 
-	edges_.create(2, edges.size());
+	edges_.create(4, edges.size());
 	#ifdef USE_GPU
-	edges_.toGpuMat().upload(data);
+	edges_.toGpuMat().upload(data_);
 	#else
-	data.copyTo(edges_.toMat());
+	data_.copyTo(edges_.toMat());
 	#endif
+
+	// normalization factor: 1.0/(number of comparisons)
+	data().normalize = 1.0f/float(edges.size());
 }
 
-void GeneralizedCensusMatchingCost::setEdges(const std::vector<std::pair<std::pair<int, int>,std::pair<int, int>>> &edges) {
-	std::vector<std::pair<int, int>> edges_idx;
-	for (const auto& p : edges) {
-		const auto& p1 = p.first;
-		const auto& p2 = p.second;
-
-		int i1 = p1.first * WX + p1.second + (WX*WY-1)/2;
-		int i2 = p2.first * WX + p2.second + (WX*WY-1)/2;
-		printf("i1: %i, i2: %i\n", i1, i2);
-		edges_idx.push_back({i1, i2});
-	}
-
-	/* TODO: move to unit test
-	for (int i = 0; i < edges.size(); i++) {
-		auto p = edges_idx[i];
-
-		const int y1 = p.first % WY - WY/2;
-		const int x1 = p.first / WY - WX/2;
-
-		const int y2 = p.second % WY - WY/2;
-		const int x2 = p.second / WY - WX/2;
-		printf("(%i,%i), (%i,%i)\n", y1, x1, y2, x2);
-	}*/
-
-	setEdges(edges_idx);
-}
 
 void GeneralizedCensusMatchingCost::set(cv::InputArray l, cv::InputArray r) {
 	if (l.type() != CV_8UC1 || r.type() != CV_8UC1) { throw std::exception(); }
@@ -126,46 +143,102 @@ void GeneralizedCensusMatchingCost::set(cv::InputArray l, cv::InputArray r) {
 		set(Array2D<uchar>(ml), Array2D<uchar>(mr));
 	}
 	else {
+		printf("Bad input array type\n");
 		throw std::exception();
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////
-/*
-struct StereoCensusSgm::Impl : public StereoSgm<CensusMatchingCost, StereoCensusSgm::Parameters> {
-	Array2D<uchar> l;
-	Array2D<uchar> r;
+// ==== Pattern generators =====================================================
 
-	Impl(StereoCensusSgm::Parameters &params, int width, int height, int dmin, int dmax) :
-		StereoSgm(params, width, height, dmin, dmax), l(width, height), r(width, height) {}
-};
-
-StereoCensusSgm::StereoCensusSgm() : impl_(nullptr) {
-	impl_ = new Impl(params, 0, 0, 0, 0);
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_dense(const cv::Size size) {
+	return pattern_sparse(size, 1);
 }
 
-void StereoCensusSgm::compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity) {
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_sparse(const cv::Size size, int step) {
+	std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern;
 
-	//cudaSetDevice(0);
-
-	if (l.rows() != impl_->cost.height() || r.cols() != impl_->cost.width()) {
-		delete impl_; impl_ = nullptr;
-		impl_ = new Impl(params, l.cols(), l.rows(), params.d_min, params.d_max);
+	for (int y = -size.height/2; y <= size.height/2; y += step) {
+		for (int x = -size.width/2; x <= size.width/2; x += step) {
+			if (cv::Point2i{x, y} == cv::Point2i{0, 0}) { continue; }
+			pattern.push_back({{0, 0}, {x, y}});
+		}
 	}
 
-	mat2gray(l, impl_->l);
-	mat2gray(r, impl_->r);
-	impl_->cost.setPattern(params.pattern);
-	impl_->cost.set(impl_->l, impl_->r);
-
-	cudaSafeCall(cudaDeviceSynchronize());
-	impl_->compute(disparity);
+	return pattern;
 }
 
-StereoCensusSgm::~StereoCensusSgm() {
-	if (impl_) {
-		delete impl_;
-		impl_ = nullptr;
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_random(const cv::Size size, int nedges) {
+	std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern;
+
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> rand_x(-size.width/2, size.width/2);
+	std::uniform_int_distribution<> rand_y(-size.height/2, size.height/2);
+
+	for (int i = 0; i < nedges; i++) {
+		cv::Point2i p1;
+		cv::Point2i p2;
+		do {
+			p1 = {rand_x(gen), rand_y(gen)};
+			p2 = {rand_x(gen), rand_y(gen)};
+		}
+		while (p1 == p2); // try again if points happen to be same
+
+		pattern.push_back({p1, p2});
 	}
+
+	return pattern;
 }
-*/
+
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_random(const cv::Size size) {
+	return pattern_random(size, size.width*size.height);
+}
+
+std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_gct(int nedges) {
+	std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern;
+	pattern.reserve(nedges);
+	switch(nedges) {
+		case 16:
+			pattern.push_back({{-2, -1}, {2, 1}});
+			pattern.push_back({{-2, 1}, {2, -1}});
+			pattern.push_back({{-1, -2}, {1, 2}});
+			pattern.push_back({{1, -2}, {-1, -2}});
+			[[fallthrough]]
+
+		case 12:
+			pattern.push_back({{-1, -1}, {1, 0}});
+			pattern.push_back({{1, -1}, {-1, 0}});
+			pattern.push_back({{-1, 1}, {1, 0}});
+			pattern.push_back({{1, 1}, {-1, 0}});
+			[[fallthrough]]
+
+		case 8:
+			pattern.push_back({{-2, -2}, {2, 2}});
+			pattern.push_back({{-2, 2}, {2, -2}});
+			pattern.push_back({{0, -2}, {0, 2}});
+			pattern.push_back({{-2, 0}, {2, 0}});
+			[[fallthrough]]
+
+		case 4:
+			pattern.push_back({{-1, -1}, {1, 1}});
+			pattern.push_back({{-1, 1}, {1, -1}});
+			[[fallthrough]]
+
+		case 2:
+			pattern.push_back({{0, -1}, {0, 1}});
+			[[fallthrough]]
+
+		case 1:
+			pattern.push_back({{-1, 0}, {1, 0}});
+			break;
+
+		default:
+			printf("Bad number of edges %i, valid values are 1, 2, 4, 8 and 16", nedges);
+			throw std::exception();
+	}
+	if (nedges != pattern.size()) {
+		printf("error (assert): pattern size incorrect");
+		throw std::exception();
+	}
+	return pattern;
+}

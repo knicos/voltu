@@ -27,6 +27,10 @@ namespace algorithms {
 					const int y_ = y + wy;
 					const int x_ = x + wx;
 
+					if (y == 0 && x == 0) {
+						continue;
+					}
+
 					// zero if first value, otherwise shift to left
 					res = (res << 1);
 					res |= (center < (im(y_,x_)) ? 1 : 0);

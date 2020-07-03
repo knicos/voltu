@@ -3,10 +3,10 @@
 #include <opencv2/core/mat.hpp>
 #include <stereo_types.hpp>
 
-class StereoGTCensusSgm {
+class StereoGCensusSgm {
 public:
-	StereoGTCensusSgm();
-	~StereoGTCensusSgm();
+	StereoGCensusSgm();
+	~StereoGCensusSgm();
 
 	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
 	void setPrior(cv::InputArray disp) {};
@@ -15,9 +15,9 @@ public:
 	struct Parameters {
 		int d_min = 0;
 		int d_max = 0;
-		unsigned short P1 = 5;
-		unsigned short P2 = 25;
-		float uniqueness = std::numeric_limits<unsigned short>::max();
+		float P1 = 0.0645;
+		float P2 = 1.2903;
+		float uniqueness = std::numeric_limits<float>::max();
 		int subpixel = 1; // subpixel interpolation method
 		bool lr_consistency = true;
 		int paths = AggregationDirections::HORIZONTAL |
@@ -27,9 +27,31 @@ public:
 	};
 	Parameters params;
 
+	enum Pattern {
+		DENSE,
+		SPARSE,
+		RANDOM,
+		GCT,
+	};
+
+	/**
+	 * Set pattern.
+	 *
+	 * 		DENSE: size required, param ignored
+	 * 		SPARSE: size and parama required, param is step (number of skipped pixels)
+	 * 		RANDOM: size and param required, param is number of edges
+	 * 		GCT: param required, size ignored, param is pattern type (number of edges), see the paper for description
+	 */
+	void setPattern(Pattern type, cv::Size size, int param=-1);
+	/**
+	 * Set custom pattern.
+	 */
+	void setPattern(const std::vector<std::pair<cv::Point2i, cv::Point2i>> &edges);
+
 private:
 	struct Impl;
 	Impl *impl_;
+	std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_;
 };
 
 

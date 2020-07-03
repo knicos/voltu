@@ -10,8 +10,14 @@
 #include <opencv2/cudaimgproc.hpp>
 
 static void mat2gray(const cv::cuda::GpuMat &in, Array2D<unsigned char> &out) {
-	if (in.depth() != CV_8U) { throw std::exception(); }
-	if (out.width != in.cols || out.height != in.rows) { throw std::exception(); }
+	if (in.depth() != CV_8U) {
+		printf("input must be 8-bit\n");
+		throw std::exception();
+	}
+	if (out.width != in.cols || out.height != in.rows) {
+		printf("input and output have different sizes\n");
+		throw std::exception();
+	}
 
 	switch (in.channels()) {
 		case 4:
@@ -27,14 +33,21 @@ static void mat2gray(const cv::cuda::GpuMat &in, Array2D<unsigned char> &out) {
 			break;
 
 		default:
+			printf("bad number of channels\n");
 			throw std::exception();
 	}
 }
 #endif
 
 static void mat2gray(const cv::Mat &in, Array2D<unsigned char> &out) {
-	if (in.depth() != CV_8U) { throw std::exception(); }
-	if (out.width != in.cols || out.height != in.rows) { throw std::exception(); }
+	if (in.depth() != CV_8U) {
+		printf("input must be 8-bit\n");
+		throw std::exception();
+	}
+	if (out.width != in.cols || out.height != in.rows) {
+		printf("input and output have different sizes\n");
+		throw std::exception();
+	}
 
 #ifndef USE_GPU
 	switch (in.channels()) {
@@ -51,6 +64,7 @@ static void mat2gray(const cv::Mat &in, Array2D<unsigned char> &out) {
 			break;
 
 		default:
+			printf("bad number of channels\n");
 			throw std::exception();
 	}
 #else
@@ -69,6 +83,7 @@ static void mat2gray(const cv::Mat &in, Array2D<unsigned char> &out) {
 			break;
 
 		default:
+			printf("bad number of channels\n");
 			throw std::exception();
 	}
 
@@ -86,6 +101,7 @@ static void mat2gray(cv::InputArray in, Array2D<unsigned char> &out) {
 		mat2gray(in.getMat(), out);
 	}
 	else {
+		printf("bad input type\n");
 		throw std::exception();
 	}
 }
