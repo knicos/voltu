@@ -30,16 +30,13 @@ static int pa_speaker_callback(const void *input, void *output,
 
 #endif
 
-Speaker::Speaker(nlohmann::json &config) : ftl::Configurable(config), buffer_(nullptr) {
+Speaker::Speaker(nlohmann::json &config) : ftl::Configurable(config), buffer_(nullptr), stream_(nullptr) {
 	#ifdef HAVE_PORTAUDIO
 	ftl::audio::pa_init();
 	#else  // No portaudio
-
-	active_ = false;
 	LOG(ERROR) << "No audio support";
-
 	#endif
-
+	active_ = false;
 	extra_delay_ = value("delay",0.0f);
 	on("delay", [this](const ftl::config::Event &e) {
 		extra_delay_ = value("delay",0.0f);
