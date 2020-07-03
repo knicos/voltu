@@ -17,6 +17,10 @@ namespace algorithms {
 		__host__ __device__ inline void window(const int y, const int x, uint64_t* __restrict__ out) {
 			short center = im(y, x);
 			uint8_t i = 0; // bit counter for *out
+			// possible BUG in operator(), gets called more than once per pixel;
+			// local variable for sub-bitstring to avoid data race (no read
+			// dependency to out; writes are identical)
+			uint64_t res = 0;
 
 			for (int wy = -WINY/2; wy <= WINY/2; wy++) {
 				for (int wx = -WINX/2; wx <= WINX/2; wx++) {
@@ -24,14 +28,19 @@ namespace algorithms {
 					const int x_ = x + wx;
 
 					// zero if first value, otherwise shift to left
-					if (i % 64 == 0) { *out = 0; }
-					else             { *out = (*out << 1); }
-					*out |= (center < (im(y_,x_)) ? 1 : 0);
+					res = (res << 1);
+					res |= (center < (im(y_,x_)) ? 1 : 0);
 
-					i += 1;
 					// if all bits set, continue to next element
-					if (i % 64 == 0) { out++; }
+					if (++i % 64 == 0) {
+						*out = res;
+						out++;
+					}
 				}
+			}
+			if ((i - 1)%64 != 0) {
+				// write remaining bits
+				*out = res;
 			}
 		}
 

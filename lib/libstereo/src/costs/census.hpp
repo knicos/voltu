@@ -52,6 +52,45 @@ namespace impl {
 	template<uint8_t WW, uint8_t WH, int BPP=1>
 	using CensusMatchingCost = HammingCost<WW*WH*BPP>;
 
+	/**
+	 * Normalized Hamming cost, same as above except float type and normalized
+	 * by number of bits (user set). Cost will always be within range [0, 1].
+	 */
+	template<int SIZE>
+	struct NormalizedHammingCost : DSImplBase<float> {
+		static_assert(SIZE%64 == 0);
+
+		typedef float Type;
+
+		NormalizedHammingCost(ushort w, ushort h, ushort dmin, ushort dmax) : DSImplBase<Type>({w,h,dmin,dmax}) {}
+		NormalizedHammingCost() : DSImplBase<Type>({0,0,0,0}) {}
+
+		__host__ __device__ inline Type operator()(const int y, const int x, const int d) const {
+			if ((x-d) < 0) { return COST_MAX; }
+			float c = 0;
+
+			#pragma unroll
+			for (int i = 0; i < WSTEP; i++) {
+				c+= popcount(l(y, x*WSTEP+i) ^ r(y, (x-d)*WSTEP+i));
+			}
+			return c*normalize;
+		}
+
+		// number of uint64_t values for each window
+		static constexpr int WSTEP = (SIZE - 1)/(sizeof(uint64_t)*8) + 1;
+		static constexpr Type COST_MAX = 1.0f;
+
+		Array2D<uint64_t>::Data l;
+		Array2D<uint64_t>::Data r;
+		float normalize = 1.0f; // set to 1.0f/(number of bits used)
+	};
+
+	template<uint8_t WW, uint8_t WH, int BPP=1>
+	using NormalizedCensusMatchingCost = NormalizedHammingCost<WW*WH*BPP>;
+
+	/**
+	 * WeightedCensusMatchingCost
+	 */
 	template<uint8_t R, uint8_t NBINS>
 	struct WeightedCensusMatchingCost : DSImplBase<unsigned short> {
 		static_assert(R % 2 == 1, "R must be odd");

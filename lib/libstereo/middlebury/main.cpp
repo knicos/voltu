@@ -180,7 +180,7 @@ void main_default(const std::vector<std::string> &paths,
 			}
 			std::cout << "Saved\n";
 		}
-		else if (k == 27) {
+		else if (k == 27 || k == 255) {
 			return;
 		}
 	}
