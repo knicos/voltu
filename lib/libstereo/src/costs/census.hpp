@@ -58,7 +58,7 @@ namespace impl {
 	 */
 	template<int SIZE>
 	struct NormalizedHammingCost : DSImplBase<float> {
-		static_assert(SIZE%64 == 0);
+		static_assert(SIZE%64 == 0, "size must be multiple of 64");
 
 		typedef float Type;
 
