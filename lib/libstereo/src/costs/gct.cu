@@ -13,7 +13,7 @@ namespace algorithms {
 
 	template<int BITS>
 	struct GeneralizedCensusTransform {
-		static_assert(BITS%64 == 0);
+		static_assert(BITS%64 == 0, "size must be multiple of 64");
 
 		__host__ __device__ inline void compute(const int y, const int x, uint64_t* __restrict__ out) {
 
