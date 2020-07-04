@@ -203,30 +203,30 @@ std::vector<std::pair<cv::Point2i, cv::Point2i>> pattern_gct(int nedges) {
 			pattern.push_back({{-2, 1}, {2, -1}});
 			pattern.push_back({{-1, -2}, {1, 2}});
 			pattern.push_back({{1, -2}, {-1, -2}});
-			[[fallthrough]]
+			//[[fallthrough]]
 
 		case 12:
 			pattern.push_back({{-1, -1}, {1, 0}});
 			pattern.push_back({{1, -1}, {-1, 0}});
 			pattern.push_back({{-1, 1}, {1, 0}});
 			pattern.push_back({{1, 1}, {-1, 0}});
-			[[fallthrough]]
+			//[[fallthrough]]
 
 		case 8:
 			pattern.push_back({{-2, -2}, {2, 2}});
 			pattern.push_back({{-2, 2}, {2, -2}});
 			pattern.push_back({{0, -2}, {0, 2}});
 			pattern.push_back({{-2, 0}, {2, 0}});
-			[[fallthrough]]
+			//[[fallthrough]]
 
 		case 4:
 			pattern.push_back({{-1, -1}, {1, 1}});
 			pattern.push_back({{-1, 1}, {1, -1}});
-			[[fallthrough]]
+			//[[fallthrough]]
 
 		case 2:
 			pattern.push_back({{0, -1}, {0, 1}});
-			[[fallthrough]]
+			//[[fallthrough]]
 
 		case 1:
 			pattern.push_back({{-1, 0}, {1, 0}});
