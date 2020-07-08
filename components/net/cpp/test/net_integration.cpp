@@ -12,6 +12,15 @@ using std::chrono::milliseconds;
 
 // --- Support -----------------------------------------------------------------
 
+static bool try_for(int count, const std::function<bool()> &f) {
+	int i=count;
+	while (i-- > 0) {
+		if (f()) return true;
+		sleep_for(milliseconds(10));
+	}
+	return false;
+}
+
 // --- Tests -------------------------------------------------------------------
 
 TEST_CASE("Universe::connect()", "[net]") {
@@ -44,7 +53,7 @@ TEST_CASE("Universe::connect()", "[net]") {
 		auto p = b.connect("http://127.0.0.1:7077");
 		REQUIRE( !p->isValid() );
 		
-		sleep_for(milliseconds(100));
+		sleep_for(milliseconds(50));
 		
 		REQUIRE( a.numberOfPeers() == 0 );
 		REQUIRE( b.numberOfPeers() == 0 );
@@ -91,8 +100,8 @@ TEST_CASE("Universe::onConnect()", "[net]") {
 		});
 
 		b.connect("tcp://localhost:7077")->waitConnection();
-		sleep_for(milliseconds(100));
-		REQUIRE( done );
+
+		REQUIRE( try_for(20, [&done]{ return done; }) );
 	}
 
 	SECTION("single valid init connection") {
@@ -123,10 +132,10 @@ TEST_CASE("Universe::onDisconnect()", "[net]") {
 
 		Peer *p = b.connect("tcp://localhost:7077");
 		p->waitConnection();
-		sleep_for(milliseconds(100));
+		sleep_for(milliseconds(20));
 		p->close();
-		sleep_for(milliseconds(100));
-		REQUIRE( done );
+
+		REQUIRE( try_for(20, [&done]{ return done; }) );
 	}
 
 	SECTION("single valid close") {
@@ -138,10 +147,10 @@ TEST_CASE("Universe::onDisconnect()", "[net]") {
 
 		Peer *p = b.connect("tcp://localhost:7077");
 		p->waitConnection();
-		sleep_for(milliseconds(100));
+		sleep_for(milliseconds(20));
 		p->close();
-		sleep_for(milliseconds(100));
-		REQUIRE( done );
+
+		REQUIRE( try_for(20, [&done]{ return done; }) );
 	}
 }
 
@@ -173,9 +182,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		b.broadcast("hello");
 		
-		while (!done) sleep_for(milliseconds(5));
-		
-		REQUIRE( done );
+		REQUIRE( try_for(20, [&done]{ return done; }) );
 	}
 	
 	SECTION("one argument to one peer") {
@@ -188,9 +195,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		b.broadcast("hello", 676);
 		
-		while (done == 0) sleep_for(milliseconds(5));
-		
-		REQUIRE( done == 676 );
+		REQUIRE( try_for(20, [&done]{ return done == 676; }) );
 	}
 	
 	SECTION("one argument to two peers") {
@@ -214,10 +219,7 @@ TEST_CASE("Universe::broadcast()", "[net]") {
 		
 		a.broadcast("hello", 676);
 		
-		sleep_for(milliseconds(100));
-		
-		REQUIRE( done1 == 676 );
-		REQUIRE( done2 == 676 );
+		REQUIRE( try_for(20, [&done1, &done2]{ return done1 == 676 && done2 == 676; }) );
 	}
 }
 
