@@ -54,7 +54,7 @@ webserver-deploy:
 ### Windows
 
 .build-windows: &build-windows
-    - 'call "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat"'
+    - 'call "D:/Program Files/Visual Studio 2019/VC/Auxiliary/Build/vcvars64.bat"'
     - mkdir build
     - cd build
     - echo cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DNANOGUI_DIR="C:/Program Files (x86)/NanoGUI" ..
