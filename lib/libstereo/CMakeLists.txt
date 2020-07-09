@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+include(CheckLanguage)
 
 project(libstereo)
 
@@ -12,6 +13,7 @@ find_package(OpenMP REQUIRED)
 find_package( Threads REQUIRED )
 #find_package(CUDA REQUIRED)
 
+check_language(CUDA)
 enable_language(CUDA)
 
 set(CMAKE_CXX_CPPCHECK "cppcheck")
