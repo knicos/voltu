@@ -32,6 +32,8 @@ let uri_data = {};
 
 let peer_data = [];
 
+let cfg_to_peer = {};
+
 /**
  * A client stream request object. Each source maintains a list of clients who
  * are wanting frames from that source. Clients can only request N frames at a
@@ -244,16 +246,25 @@ app.get('/stream', (req, res) => {
 
 function checkStreams(peer) {
 	if (!peer.master) {
-		peer.rpc("list_streams", (streams) => {
-			console.log("STREAMS", streams);
-			for (let i=0; i<streams.length; i++) {
-				//uri_to_peer[streams[i]] = peer;
-				let parsedURI = stringSplitter(streams[i])
-				peer_uris[peer.string_id].push(parsedURI);
-				uri_to_peer[parsedURI] = peer;
-				uri_data[streams[i]] = new RGBDStream(streams[i], peer);
-			}
-		});
+		setTimeout(() => {
+			peer.rpc("list_streams", (streams) => {
+				console.log("STREAMS", streams);
+				for (let i=0; i<streams.length; i++) {
+					//uri_to_peer[streams[i]] = peer;
+					let parsedURI = stringSplitter(streams[i])
+					peer_uris[peer.string_id].push(parsedURI);
+					uri_to_peer[parsedURI] = peer;
+					uri_data[streams[i]] = new RGBDStream(streams[i], peer);
+				}
+			});
+
+			peer.rpc("list_configurables", (cfgs) => {
+				console.log("CONFIGS", cfgs);
+				for (let i=0; i<cfgs.length; i++) {
+					if (!cfg_to_peer.hasOwnProperty(cfgs[i])) cfg_to_peer[cfgs[i]] = peer;
+				}
+			});
+		}, 500);  // Give a delay to allow startup
 	}
 }
 
@@ -305,6 +316,11 @@ app.ws('/', (ws, req) => {
 			delete peer_uris[peer.string_id];
 		}
 		if (peer_by_id.hasOwnProperty(peer.string_id)) delete peer_by_id[peer.string_id];
+
+		// Clear configurables
+		for (let c in cfg_to_peer) {
+			if (cfg_to_peer[c] === p) delete cfg_to_peer[c];
+		}
 	});
 
 	p.bind("new_peer", (id) => {
@@ -322,6 +338,25 @@ app.ws('/', (ws, req) => {
 
 	p.bind("list_streams", () => {
 		return Object.keys(uri_data);
+	});
+
+	p.bind("list_configurables", () => {
+		let result = [];
+		for (let c in cfg_to_peer) {
+			if (cfg_to_peer[c] !== p) result.push(c);
+		}
+		console.log("List Configs: ", result);
+		return result;
+	});
+
+	p.proxy("get_configurable", (cb, uri) => {
+		if (cfg_to_peer.hasOwnProperty(uri)) {
+			let peer = cfg_to_peer[uri];
+			peer.rpc("get_configurable", cb, uri);
+		} else {
+			console.log("Failed to get configurable ", uri);
+			return "{}";
+		}
 	});
 
 	p.bind("find_stream", (uri) => {
