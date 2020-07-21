@@ -332,7 +332,7 @@ app.ws('/', (ws, req) => {
 			if (!p.isBound(uri)) {
 				console.log("Adding local stream binding");
 				p.bind(uri, (ttimeoff, spkt, pkt) => {
-					console.log("STREAM: ", ttimeoff, spkt, pkt);
+					//console.log("STREAM: ", ttimeoff, spkt, pkt);
 					let speer = uri_to_peer[parsedURI];
 					if (speer) {
 						try {
