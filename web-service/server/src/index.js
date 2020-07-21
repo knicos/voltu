@@ -276,6 +276,14 @@ function broadcastExcept(exc, name, ...args) {
 	}
 }
 
+function locateConfigPeer(uri) {
+	let cur_uri = uri;
+	while (cur_uri.length > 0 && !cfg_to_peer.hasOwnProperty(cur_uri)) {
+		cur_uri = cur_uri.substring(0, cur_uri.lastIndexOf('/'));
+	}
+	return (cur_uri.length > 0) ? cfg_to_peer[cur_uri] : null;
+}
+
 
 app.ws('/', (ws, req) => {
 	console.log("New web socket request");
@@ -471,11 +479,9 @@ app.ws('/', (ws, req) => {
 	 * Update certain URIs values
 	 */
 	 p.bind("update_cfg", (uri, json) => {
-		const parsedURI = stringSplitter(uri)
-		console.log("URI", uri)
-		console.log("JSON", json)
-		if(uri_to_peer[parsedURI]){
-			let peer = uri_to_peer[parsedURI]
+		let peer = locateConfigPeer(uri);
+
+		if (peer) {
 			peer.send("update_cfg", uri, json)
 		}else{
 			console.log("Failed to update the configuration uri", uri)
