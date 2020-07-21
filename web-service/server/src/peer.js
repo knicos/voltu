@@ -71,8 +71,8 @@ function Peer(ws) {
 		this._notify("disconnect", this);
 	}
 
-	let error = () => {
-		console.error("Socket error");
+	let error = (e) => {
+		console.error("Socket error: ", e);
 		this.sock.close();
 		this.status = kDisconnected;
 	}
