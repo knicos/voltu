@@ -76,8 +76,11 @@ function RGBDStream(uri, peer) {
 	this.rxcount = 10;
 	this.rxmax = 10;
 
+	let ix = uri.indexOf("?");
+	this.base_uri = (ix >= 0) ? uri.substring(0, ix) : uri;
+
 	// Add RPC handler to receive frames from the source
-	peer.bind(uri, (latency, spacket, packet) => {
+	peer.bind(this.base_uri, (latency, spacket, packet) => {
 		// Forward frames to all clients
 		this.pushFrames(latency, spacket, packet);
 		//this.rxcount++;
@@ -129,7 +132,7 @@ RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 	//console.log("Frame = ", packet[0], packet[1]);
 
 	for (let i=0; i < this.clients.length; i++) {
-		this.clients[i].push(this.uri, latency, spacket, packet);
+		this.clients[i].push(this.base_uri, latency, spacket, packet);
 	}
 
 	/*let i=0;
@@ -372,15 +375,18 @@ app.ws('/', (ws, req) => {
 		if (uri_to_peer.hasOwnProperty(parsedURI)) {
 			console.log("Stream found: ", uri, parsedURI);
 
-			if (!p.isBound(uri)) {
-				console.log("Adding local stream binding");
-				p.bind(uri, (ttimeoff, spkt, pkt) => {
+			let ix = uri.indexOf("?");
+			let base_uri = (ix >= 0) ? uri.substring(0, ix) : uri;
+
+			if (!p.isBound(base_uri)) {
+				console.log("Adding local stream binding: ", base_uri);
+				p.bind(base_uri, (ttimeoff, spkt, pkt) => {
 					//console.log("STREAM: ", ttimeoff, spkt, pkt);
 					let speer = uri_to_peer[parsedURI];
 					if (speer) {
 						try {
 						uri_data[parsedURI].addClient(p);
-						speer.send(parsedURI, ttimeoff, spkt, pkt);
+						speer.send(base_uri, ttimeoff, spkt, pkt);
 						} catch(e) {
 							console.error("EXCEPTION", e);
 						}
