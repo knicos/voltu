@@ -154,6 +154,7 @@ Mat Camera::distortionCoefficients() const {
 
 Mat Camera::rvec() const {
 	cv::Mat rvec(cv::Size(3, 1), CV_64FC1);
+	CHECK(rvec.step1() == 3);
 	ceres::QuaternionToAngleAxis(data + Parameter::ROTATION,
 		(double*)(rvec.data));
 	return rvec;
@@ -164,8 +165,11 @@ Mat Camera::tvec() const {
 }
 
 Mat Camera::rmat() const {
-	Mat R;
-	cv::Rodrigues(rvec(), R);
+	cv::Mat R(cv::Size(3, 3), CV_64FC1);
+	CHECK(R.step1() == 3);
+	ceres::QuaternionToRotation<double>(data + Parameter::ROTATION,
+		ceres::RowMajorAdapter3x3<double>((double*)(R.data)));
+
 	return R;
 }
 
@@ -213,8 +217,8 @@ struct ReprojectionError {
 		p[1] += camera[Camera::Parameter::TY];
 		p[2] += camera[Camera::Parameter::TZ];
 
-		T x = T(p[0]) / p[2];
-		T y = T(p[1]) / p[2];
+		T x = p[0] / p[2];
+		T y = p[1] / p[2];
 
 		// Intrinsic parameters
 		const T& f = camera[Camera::Parameter::F];
@@ -604,6 +608,8 @@ void BundleAdjustment::run(const BundleAdjustment::Options &bundle_adjustment_op
 	if (bundle_adjustment_options.num_threads > 0) {
 		options.num_threads = bundle_adjustment_options.num_threads;
 	}
+
+	options.use_nonmonotonic_steps = bundle_adjustment_options.use_nonmonotonic_steps;
 
 	ceres::Solver::Summary summary;
 	ceres::Solve(options, &problem, &summary);

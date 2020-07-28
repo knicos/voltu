@@ -323,6 +323,7 @@ public:
 		FIX_PRINCIPAL_POINT = 16,
 		FIX_DISTORTION = 32,
 		LOSS_CAUCHY = 64,
+		NONMONOTONIC_STEP = 128,
 	};
 
 	void setFlags(int flags);

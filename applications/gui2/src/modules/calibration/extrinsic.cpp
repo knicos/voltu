@@ -94,8 +94,15 @@ void ExtrinsicCalibration::start(unsigned int fsid, std::vector<FrameID> sources
 		running_ = false;
 		filter->remove();
 		if (fs_current_ == nullptr) { return; }
+
+		// change mode only once per frame (cameras contain same frame twice)
+		std::unordered_set<uint32_t> fids;
 		for (const auto camera : state_.cameras) {
-			setCalibrationMode((*fs_current_)[camera.id.source()], true);
+			fids.insert(camera.id.source());
+		}
+
+		for (const auto i : fids) {
+			setCalibrationMode((*fs_current_)[i], true);
 		}
 	});
 	state_.capture = true;
@@ -272,7 +279,7 @@ void ExtrinsicCalibration::stereoRectify(int cl, int cr,
 	CHECK(l.intrinsic.resolution == r.intrinsic.resolution);
 
 	auto size = l.intrinsic.resolution;
-	cv::Mat T = l.extrinsic.matrix() * inverse(r.extrinsic.matrix());
+	cv::Mat T = r.extrinsic.matrix() * inverse(l.extrinsic.matrix());
 	cv::Mat R, t, R1, R2, P1, P2, Q, map1, map2;
 
 	getRotationAndTranslation(T, R, t);
@@ -280,7 +287,7 @@ void ExtrinsicCalibration::stereoRectify(int cl, int cr,
 	cv::stereoRectify(
 		l.intrinsic.matrix(), l.intrinsic.distCoeffs.Mat(),
 		r.intrinsic.matrix(), r.intrinsic.distCoeffs.Mat(), size,
-		R, t, R1, R2, P1, P2, Q, 0, 1.0);
+		R, t, R1, R2, P1, P2, Q, cv::CALIB_ZERO_DISPARITY, 1.0);
 
 	cv::initUndistortRectifyMap(l.intrinsic.matrix(), l.intrinsic.distCoeffs.Mat(),
 		R1, P1, size, CV_32FC1, map1, map2);
@@ -288,7 +295,7 @@ void ExtrinsicCalibration::stereoRectify(int cl, int cr,
 	state_.maps2[cl].upload(map2);
 
 	cv::initUndistortRectifyMap(r.intrinsic.matrix(), r.intrinsic.distCoeffs.Mat(),
-		R1, P1, size, CV_32FC1, map1, map2);
+		R2, P2, size, CV_32FC1, map1, map2);
 	state_.maps1[cr].upload(map1);
 	state_.maps2[cr].upload(map2);
 }
@@ -298,14 +305,6 @@ void ExtrinsicCalibration::run() {
 
 	future_ = ftl::pool.push([this](int id) {
 		try {
-			for (int c = 0; c < cameraCount(); c += 2) {
-				auto t1 = state_.calib.calibration(c).extrinsic.tvec;
-				auto t2 = state_.calib.calibration(c + 1).extrinsic.tvec;
-
-				LOG(INFO) << "baseline (" << c << ", " << c + 1 << "): "
-						  << cv::norm(t1, t2);
-			}
-
 			auto opt = state_.calib.options();
 			opt.optimize_intrinsic = !(state_.flags & Flags::FIX_INTRINSIC);
 			opt.rational_model = state_.flags & Flags::RATIONAL_MODEL;
@@ -316,14 +315,10 @@ void ExtrinsicCalibration::run() {
 			opt.loss = (state_.flags & Flags::LOSS_CAUCHY) ?
 				ftl::calibration::BundleAdjustment::Options::Loss::CAUCHY :
 				ftl::calibration::BundleAdjustment::Options::Loss::SQUARED;
+			opt.use_nonmonotonic_steps = state_.flags & Flags::NONMONOTONIC_STEP;
 
 			state_.calib.setOptions(opt);
 			state_.calib.run();
-
-			for (int c = 0; c < cameraCount(); c += 2) {
-				auto t1 = state_.calib.calibrationOptimized(c).extrinsic.tvec;
-				auto t2 = state_.calib.calibrationOptimized(c + 1).extrinsic.tvec;
-			}
 
 			// Rectification maps for visualization; stereo cameras assumed
 			// if non-stereo cameras added visualization/grouping (by index)
@@ -336,6 +331,9 @@ void ExtrinsicCalibration::run() {
 				auto l = state_.calib.calibrationOptimized(c);
 				auto r = state_.calib.calibrationOptimized(c + 1);
 				stereoRectify(c, c + 1, l, r);
+
+				LOG(INFO) << "baseline (" << c << ", " << c + 1 << "): "
+						  << cv::norm(l.extrinsic.tvec, r.extrinsic.tvec);
 			}
 		}
 		catch (ftl::exception &ex) {

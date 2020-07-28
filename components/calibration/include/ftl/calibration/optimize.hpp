@@ -129,6 +129,8 @@ public:
 
 		Loss loss = Loss::SQUARED;
 
+		bool use_nonmonotonic_steps = false;
+
 		// fix_camera_extrinsic and fix_camera_intrinsic overlap with some of
 		// the generic options. The more generic setting is always used, the
 		// specific extrinsic/intrinsic options are applied on top of those.
@@ -150,7 +152,7 @@ public:
 		bool fix_distortion = true;
 		/// use distortion coefficients k4, k5, and k6; if false, set to zero
 		bool rational_model = true;
-		/// assume zero distortion during optimization
+		/// distortion set to zero
 		bool zero_distortion = false;
 
 		bool optimize_intrinsic = true;
@@ -217,7 +219,6 @@ protected:
 
 	void _buildProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
 	void _buildBundleAdjustmentProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
-	void _buildLengthProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
 
 private:
 	// point to be optimized and corresponding observations

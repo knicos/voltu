@@ -613,7 +613,7 @@ double ExtrinsicCalibration::optimize() {
 				p = {px[m], py[m], pz[m]};
 			}
 
-			// TODO: desgin more meaningful check
+			// TODO: desgin better check
 			if (cv::norm(absdiff(px, py, pz)) > threshold_bad_) {
 				n_points_bad++;
 				continue;
@@ -641,6 +641,8 @@ double ExtrinsicCalibration::optimize() {
 
 	updateStatus_("Bundle adjustment");
 	options_.verbose = true;
+	options_.max_iter = 250; // should converge much earlier
+
 	LOG(INFO) << "fix intrinsics: " << (options_.optimize_intrinsic ? "no" : "yes");
 	LOG(INFO) << "fix focal: " << (options_.fix_focal ? "yes" : "no");
 	LOG(INFO) << "fix principal point: " << (options_.fix_principal_point ? "yes" : "no");
@@ -661,6 +663,7 @@ double ExtrinsicCalibration::optimize() {
 	}
 
 	rmse_total_ = ba.reprojectionError();
+	LOG(INFO) << "reprojection error (all cameras): " << rmse_total_;
 	return rmse_total_;
 }
 

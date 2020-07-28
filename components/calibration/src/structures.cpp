@@ -146,7 +146,7 @@ CalibrationData::Extrinsic::Extrinsic(cv::InputArray R, cv::InputArray t) {
 }
 
 cv::Mat CalibrationData::Extrinsic::matrix() const {
-	cv::Mat T(cv::Size(4, 4), CV_64FC1, cv::Scalar(0));
+	cv::Mat T(cv::Size(4, 4), CV_64FC1, cv::Scalar(0.0));
 	cv::Rodrigues(rvec, T(cv::Rect(0, 0, 3, 3)));
 	T.at<double>(0, 3) = tvec[0];
 	T.at<double>(1, 3) = tvec[1];
@@ -160,7 +160,7 @@ cv::Mat CalibrationData::Extrinsic::matrix() const {
 }
 
 cv::Mat CalibrationData::Extrinsic::rmat() const {
-	cv::Mat R(cv::Size(3, 3), CV_64FC1, cv::Scalar(0));
+	cv::Mat R(cv::Size(3, 3), CV_64FC1, cv::Scalar(0.0));
 	cv::Rodrigues(rvec, R);
 	return R;
 }

@@ -303,9 +303,19 @@ void ExtrinsicCalibrationView::CalibrationWindow::build() {
 		else	{ flags &= ~ExtrinsicCalibration::Flags::LOSS_CAUCHY; }
 	});
 
+	auto* nstep = new nanogui::CheckBox(wfreeze, "Non-monotonic step");
+	nstep->setChecked(flags_ & ExtrinsicCalibration::Flags::NONMONOTONIC_STEP);
+	nstep->setCallback([&flags = flags_](bool v) {
+		if (v)	{ flags |= ExtrinsicCalibration::Flags::NONMONOTONIC_STEP; }
+		else	{ flags &= ~ExtrinsicCalibration::Flags::NONMONOTONIC_STEP; }
+	});
+
 	auto* fall = new nanogui::CheckBox(wfreeze, "Freeze all intrinsic paramters");
 	fall->setChecked(flags_ & ExtrinsicCalibration::Flags::FIX_INTRINSIC);
-	fall->setCallback([&flags = flags_](bool v) {
+	fall->setCallback([&flags = flags_, wfreeze](bool v) {
+		for (int i = 3; i < wfreeze->childCount(); i++) {
+			wfreeze->childAt(i)->setEnabled(!v);
+		}
 		if (v)	{ flags |= ExtrinsicCalibration::Flags::FIX_INTRINSIC; }
 		else	{ flags &= ~ExtrinsicCalibration::Flags::FIX_INTRINSIC; }
 	});
@@ -338,10 +348,11 @@ void ExtrinsicCalibrationView::CalibrationWindow::build() {
 		else	{ flags &= ~ExtrinsicCalibration::Flags::ZERO_DISTORTION; }
 	});
 
-	fall->setCallback([wfreeze](bool value){
-		for (int i = 2; i < wfreeze->childCount(); i++) {
-			wfreeze->childAt(i)->setEnabled(!value);
-		}
+	auto* rdist = new nanogui::CheckBox(wfreeze, "Rational distortion model");
+	rdist->setChecked(flags_ & ExtrinsicCalibration::Flags::RATIONAL_MODEL);
+	rdist->setCallback([&flags = flags_](bool v) {
+		if (v)	{ flags |= ExtrinsicCalibration::Flags::RATIONAL_MODEL; }
+		else	{ flags &= ~ExtrinsicCalibration::Flags::RATIONAL_MODEL; }
 	});
 
 	/* Needs thinking: visualize visibility graph? Use earlier alignment (if
