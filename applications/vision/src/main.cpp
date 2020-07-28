@@ -288,37 +288,44 @@ int main(int argc, char **argv) {
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 #endif
 	std::cout << "FTL Vision Node " << FTL_VERSION_LONG << std::endl;
-	auto root = ftl::configure(argc, argv, "vision_default", {
-		"uri",
-		"fps",
-		"time_master",
-		"time_peer",
-		"quiet"
-	});
 
-	root->value("restart", 0);
+	try {
+		auto root = ftl::configure(argc, argv, "vision_default", {
+			"uri",
+			"fps",
+			"time_master",
+			"time_peer",
+			"quiet"
+		});
 
-	// Allow config controlled restart
-	root->on("restart", [root]() {
-		auto val = root->get<int>("restart");
-		if (val) {
-			ftl::exit_code = *val;
-			ftl::running = false;
-		}
-	});
+		root->value("restart", 0);
 
-	// Use other GPU if available.
-	//ftl::cuda::setDevice(ftl::cuda::deviceCount()-1);
-	
-	std::cout << "Loading..." << std::endl;
-	run(root);
+		// Allow config controlled restart
+		root->on("restart", [root]() {
+			auto val = root->get<int>("restart");
+			if (val) {
+				ftl::exit_code = *val;
+				ftl::running = false;
+			}
+		});
 
-	delete root;
+		// Use other GPU if available.
+		//ftl::cuda::setDevice(ftl::cuda::deviceCount()-1);
+		
+		std::cout << "Loading..." << std::endl;
+		run(root);
 
-	ftl::config::cleanup();
+		delete root;
 
-	LOG(INFO) << "Terminating with code " << ftl::exit_code;
-	LOG(INFO) << "Branch: " << ftl::branch_name;
+		ftl::config::cleanup();
+
+		LOG(INFO) << "Terminating with code " << ftl::exit_code;
+		LOG(INFO) << "Branch: " << ftl::branch_name;
+	} catch (const std::exception &e) {
+		LOG(ERROR) << "Main Exception: " << e.what();
+		return -1;
+	}
+
 	return ftl::exit_code;
 }
 
