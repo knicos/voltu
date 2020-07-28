@@ -82,14 +82,14 @@ renderThumbnails = async () => {
             const encodedURI = encodeURIComponent(thumbnails[i])
             current_data.uri = thumbnails[i]
             try{
-                const someData = await fetch(`./stream/rgb?uri=${encodedURI}`)
-                if(!someData.ok){
-                    throw new Error('Image not found')
-                }
-                const myBlob = await someData.blob();
-                const objectURL = URL.createObjectURL(myBlob);
+                //const someData = await fetch(`./stream/rgb?uri=${encodedURI}`)
+                //if(!someData.ok){
+                //    throw new Error('Image not found')
+                //}
+                //const myBlob = await someData.blob();
+                //const objectURL = URL.createObjectURL(myBlob);
                 // containerDiv.innerHTML += createCard()
-                containerDiv.innerHTML += createCard(objectURL, i+4)
+                containerDiv.innerHTML += createCard(encodedURI, i+4)
             }catch(err){
                 console.log("Couldn't create thumbnail");
                 console.log(err) 
@@ -104,7 +104,7 @@ renderThumbnails = async () => {
  */
 createCard = (url, viewers) => {
     return `<div class='ftlab-card-component' >
-                <img src='${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
+                <img src='stream/rgb?uri=${url}' class="thumbnail-img" alt="Hups" width="250px"></img>
                 <p>Viewers: ${viewers}</p>
                 <button onclick="createVideoPlayer()">button</button>
             </div>`

@@ -12,15 +12,22 @@ using ftl::data::Frame;
 using ftl::codecs::Channel;
 using ftl::data::ChangeType;
 using ftl::data::StorageMode;
+using ftl::data::FrameID;
 
 namespace ftl {
 namespace data {
 
 class Pool {
 	public:
-	static Frame make(Session *s, int id, uint64_t ts) { return Frame(nullptr, s, id, ts); }
+	static Frame make(Session *s, FrameID id, uint64_t ts) { return Frame(nullptr, s, id, ts); }
+	static Frame make(Pool *p, Session *s, FrameID id, uint64_t ts) { return Frame(p, s, id, ts); }
 
 	void release(Frame &f);
+
+	Frame allocate(FrameID id, int64_t ts);
+
+	ftl::Handler<ftl::data::Frame&,ftl::codecs::Channel> flush_;
+	ftl::Handler<ftl::data::FrameSet&,ftl::codecs::Channel> flush_fs_;
 };
 
 }
@@ -30,7 +37,7 @@ namespace streams {
 // Only Pool can create frames so make a mock Feed.
 class Feed {
 	public:
-	static Frame make(Session *s, int id, uint64_t ts) { return ftl::data::Pool::make(s, id, ts); }
+	static Frame make(Session *s, FrameID id, uint64_t ts) { return ftl::data::Pool::make(s, id, ts); }
 };
 
 }
@@ -42,11 +49,21 @@ void ftl::data::Pool::release(Frame &f) {
 
 }
 
+Frame ftl::data::Pool::allocate(FrameID id, int64_t ts) {
+	return make(nullptr, id, ts);
+}
+
+#define _FTL_DATA_FRAMEPOOL_HPP_
+#include <../src/new_frame.cpp>
+
+
+
 /* #1.1.1 */
 static_assert(sizeof(ftl::codecs::Channel) >= 4, "Channel must be at least 32bit");
 
 /* #1.1.2 */
-static_assert(std::is_integral<decltype(ftl::data::Frame::id)>::value, "Integral ID requried in Frame");
+//static_assert(std::is_integral<decltype(ftl::data::Frame::id)>::value, "Integral ID requried in Frame");
+static_assert(std::is_member_function_pointer<decltype(&ftl::data::Frame::id)>::value, "ID is required");
 static_assert(std::is_member_function_pointer<decltype(&ftl::data::Frame::timestamp)>::value, "Timestamp is required");
 
 /* #1.1.3  */
@@ -55,64 +72,75 @@ static_assert(std::is_member_function_pointer<decltype(&ftl::data::Frame::mutex)
 /* #1.1.4 */
 TEST_CASE("ftl::data::Frame encoded data", "[1.1.4]") {
 	SECTION("provide encoded data") {
-		Frame f = Feed::make(nullptr, 0, 0);
-		std::vector<uint8_t> data{44,22,33};
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
+		ftl::codecs::Packet data;
+		data.flags = 45;
 
 		f.createChange<int>(Channel::Pose, ftl::data::ChangeType::FOREIGN, data) = 55;
 		const auto &x = f.get<int>(Channel::Pose);
 		REQUIRE( x == 55 );
 
 		// Data has been moved.
-		REQUIRE(data.size() == 0);
+		//REQUIRE(data.size() == 0);
 	}
 
 	SECTION("get encoded data") {
-		Frame f = Feed::make(nullptr, 0, 0);
-		std::vector<uint8_t> data{44,22,33};
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
+		ftl::codecs::Packet data;
+		data.flags = 45;
 
 		f.createChange<int>(Channel::Pose, ftl::data::ChangeType::FOREIGN, data);
 
 		auto &data2 = f.getEncoded(Channel::Pose);
-		REQUIRE( data2.size() == 3 );
-		REQUIRE( data2[0] == 44 );
+		REQUIRE( data2.size() == 1 );
+		REQUIRE( data2.front().flags == 45 );
 	}
 }
 
 /* #1.1.5 */
 TEST_CASE("ftl::data::Frame clear encoded on change", "[1.1.5]") {
 	SECTION("change by set") {
-		Frame f = Feed::make(nullptr, 0, 0);
-		std::vector<uint8_t> data{44,22,33};
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
+		ftl::codecs::Packet data;
+		data.flags = 45;
 
 		f.createChange<int>(Channel::Pose, ftl::data::ChangeType::FOREIGN, data);
 		f.store();
 
 		auto &data2 = f.getEncoded(Channel::Pose);
-		REQUIRE( data2.size() == 3 );
+		REQUIRE( data2.size() == 1 );
 		
 		f.set<int>(Channel::Pose) = 66;
 		REQUIRE(f.getEncoded(Channel::Pose).size() == 0);
 	}
 
 	SECTION("change by create") {
-		Frame f = Feed::make(nullptr, 0, 0);
-		std::vector<uint8_t> data{44,22,33};
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
+		ftl::codecs::Packet data;
+		data.flags = 45;
 
 		f.createChange<int>(Channel::Pose, ftl::data::ChangeType::FOREIGN, data);
 		f.store();
 
 		auto &data2 = f.getEncoded(Channel::Pose);
-		REQUIRE( data2.size() == 3 );
+		REQUIRE( data2.size() == 1 );
 		
 		f.create<int>(Channel::Pose) = 66;
 		REQUIRE(f.getEncoded(Channel::Pose).size() == 0);
 	}
 }
 
+struct Test {
+	int a=44;
+	float b=33.0f;
+
+	MSGPACK_DEFINE(a,b);
+};
+
 /* #1.2.1 */
 TEST_CASE("ftl::data::Frame create get", "[Frame]") {
 	SECTION("write and read integers") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Pose) = 55;
@@ -122,7 +150,7 @@ TEST_CASE("ftl::data::Frame create get", "[Frame]") {
 	}
 
 	SECTION("write and read floats") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<float>(Channel::Pose) = 44.0f;
@@ -132,11 +160,7 @@ TEST_CASE("ftl::data::Frame create get", "[Frame]") {
 	}
 
 	SECTION("write and read structures") {
-		struct Test {
-			int a=44;
-			float b=33.0f;
-		};
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<Test>(Channel::Pose) = {};
@@ -147,7 +171,7 @@ TEST_CASE("ftl::data::Frame create get", "[Frame]") {
 	}
 
 	SECTION("is int type") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Pose) = 55;
@@ -157,11 +181,7 @@ TEST_CASE("ftl::data::Frame create get", "[Frame]") {
 	}
 
 	SECTION("is struct type") {
-		struct Test {
-			int a; int b;
-		};
-
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<Test>(Channel::Pose) = {3,4};
@@ -171,7 +191,7 @@ TEST_CASE("ftl::data::Frame create get", "[Frame]") {
 	}
 
 	SECTION("missing") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 
 		REQUIRE( !f.isType<float>(Channel::Pose) );
 	}
@@ -180,7 +200,7 @@ TEST_CASE("ftl::data::Frame create get", "[Frame]") {
 /* #1.2.2 */
 TEST_CASE("ftl::data::registerChannel", "[Frame]") {
 	SECTION("register typed channel and valid create") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		ftl::data::make_channel<float>(Channel::Colour, "colour", ftl::data::StorageMode::PERSISTENT);
@@ -191,7 +211,7 @@ TEST_CASE("ftl::data::registerChannel", "[Frame]") {
 	}
 
 	SECTION("register typed channel and invalid create") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		ftl::data::make_channel<float>(Channel::Colour, "colour", ftl::data::StorageMode::PERSISTENT);
@@ -209,7 +229,7 @@ TEST_CASE("ftl::data::registerChannel", "[Frame]") {
 	}
 
 	SECTION("register void for any type") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		ftl::data::make_channel<void>(Channel::Colour, "colour", ftl::data::StorageMode::PERSISTENT);
@@ -224,11 +244,7 @@ TEST_CASE("ftl::data::registerChannel", "[Frame]") {
 /* #1.2.3 */
 TEST_CASE("ftl::data::Frame type failure") {
 	SECTION("write and read fail") {
-		struct Test {
-			int a=44;
-			float b=33.0f;
-		};
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 		f.create<Test>(Channel::Pose) = {};
 
@@ -244,7 +260,7 @@ TEST_CASE("ftl::data::Frame type failure") {
 	}
 
 	SECTION("same value on create") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Pose) = 55;
@@ -257,7 +273,7 @@ TEST_CASE("ftl::data::Frame type failure") {
 	}
 
 	SECTION("change of type by recreate") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Pose) = 55;
@@ -280,7 +296,7 @@ TEST_CASE("ftl::data::Frame persistent data", "[1.2.5]") {
 
 	SECTION("persistent through createChange") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Density, ChangeType::FOREIGN) = 44;
 		f.store();	
@@ -309,18 +325,18 @@ TEST_CASE("ftl::data::Frame persistent data", "[1.2.5]") {
 
 	SECTION("available in other frame") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Density, ChangeType::FOREIGN) = 44;	
 		f.store();	
 
-		Frame f2 = Feed::make(&p, 0, 0);
+		Frame f2 = Feed::make(&p, FrameID(0,0), 0);
 		REQUIRE( f2.get<int>(Channel::Density) == 44 );
 	}
 
 	SECTION("get from parent") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		p.create<int>(Channel::Pose) = 55;
@@ -333,9 +349,20 @@ TEST_CASE("ftl::data::Frame persistent data", "[1.2.5]") {
 		REQUIRE( x == y );
 	}
 
+	SECTION("get from parent not ptr") {
+		Session p;
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
+		f.store();
+
+		p.create<int>(Channel::Pose) = 55;
+
+		auto x = f.get<int>(Channel::Pose);
+		REQUIRE( x == 55 );
+	}
+
 	SECTION("has from parent") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		p.create<int>(Channel::Pose) = 55;
@@ -344,7 +371,7 @@ TEST_CASE("ftl::data::Frame persistent data", "[1.2.5]") {
 
 	SECTION("no change in parent") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		p.create<int>(Channel::Pose) = 55;
@@ -376,7 +403,7 @@ TEST_CASE("ftl::data::Frame transient data", "[1.2.6]") {
 
 	SECTION("not persistent after store") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Density, ChangeType::FOREIGN) = 44;
 		f.store();	
@@ -393,7 +420,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("not persistent after store") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<std::list<int>>(Channel::Density, ChangeType::FOREIGN) = {44};
 		f.store();	
@@ -406,7 +433,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("aggregate channels actually aggregate with createChange") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<std::list<int>>(Channel::Density, ChangeType::FOREIGN) = {34};
 		f.createChange<std::list<int>>(Channel::Density, ChangeType::FOREIGN) = {55};
@@ -422,7 +449,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("non aggregate channels do not aggregate with createChange") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<std::list<int>>(Channel::Colour, ChangeType::FOREIGN) = {34};
 		f.createChange<std::list<int>>(Channel::Colour, ChangeType::FOREIGN) = {55};
@@ -436,7 +463,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("aggregate channels allow move aggregate with createChange") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		std::list<int> data1 = {34};
 		std::list<int> data2 = {55};
@@ -454,7 +481,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("aggregate channels actually aggregate with create") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<std::list<int>>(Channel::Density) = {34};
@@ -470,7 +497,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("non aggregate channels do not aggregate with create") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<std::list<int>>(Channel::Colour) = {34};
@@ -484,7 +511,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("aggregate channels actually aggregate with set") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<std::list<int>>(Channel::Density) = {34};
@@ -500,7 +527,7 @@ TEST_CASE("ftl::data::Frame aggregate data", "[1.2.7]") {
 
 	SECTION("non aggregate channels do not aggregate with set") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<std::list<int>>(Channel::Colour) = {34};
@@ -523,7 +550,7 @@ TEST_CASE("ftl::data::Frame aggregate lists", "[1.2.9]") {
 
 	SECTION("only allow stl list container") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<std::list<int>>(Channel::Density) = {44};
@@ -568,8 +595,8 @@ static_assert(std::is_move_assignable<Frame>::value, "Must allow move assignment
 /* #2.1.8 */
 TEST_CASE("ftl::data::Frame merging", "[2.1.8]") {
 	SECTION("merge replaces data in destination") {
-		Frame f1 = Feed::make(nullptr, 0, 0);
-		Frame f2 = Feed::make(nullptr, 0, 0);
+		Frame f1 = Feed::make(nullptr, FrameID(0,0), 0);
+		Frame f2 = Feed::make(nullptr, FrameID(0,0), 0);
 		f1.store();
 		f2.store();
 
@@ -584,8 +611,8 @@ TEST_CASE("ftl::data::Frame merging", "[2.1.8]") {
 	}
 
 	SECTION("new items are created") {
-		Frame f1 = Feed::make(nullptr, 0, 0);
-		Frame f2 = Feed::make(nullptr, 0, 0);
+		Frame f1 = Feed::make(nullptr, FrameID(0,0), 0);
+		Frame f2 = Feed::make(nullptr, FrameID(0,0), 0);
 		f1.store();
 		f2.store();
 
@@ -600,8 +627,8 @@ TEST_CASE("ftl::data::Frame merging", "[2.1.8]") {
 	}
 
 	SECTION("old items remain") {
-		Frame f1 = Feed::make(nullptr, 0, 0);
-		Frame f2 = Feed::make(nullptr, 0, 0);
+		Frame f1 = Feed::make(nullptr, FrameID(0,0), 0);
+		Frame f2 = Feed::make(nullptr, FrameID(0,0), 0);
 		f1.store();
 		f2.store();
 
@@ -616,8 +643,8 @@ TEST_CASE("ftl::data::Frame merging", "[2.1.8]") {
 	}
 
 	SECTION("flushed status is removed") {
-		Frame f1 = Feed::make(nullptr, 0, 0);
-		Frame f2 = Feed::make(nullptr, 0, 0);
+		Frame f1 = Feed::make(nullptr, FrameID(0,0), 0);
+		Frame f2 = Feed::make(nullptr, FrameID(0,0), 0);
 		f1.store();
 		f2.store();
 
@@ -636,8 +663,8 @@ TEST_CASE("ftl::data::Frame merging", "[2.1.8]") {
 /* #2.1.9 */
 TEST_CASE("ftl::data::Frame merge is change", "[2.1.9]") {
 	SECTION("merges are marked as changes") {
-		Frame f1 = Feed::make(nullptr, 0, 0);
-		Frame f2 = Feed::make(nullptr, 0, 0);
+		Frame f1 = Feed::make(nullptr, FrameID(0,0), 0);
+		Frame f2 = Feed::make(nullptr, FrameID(0,0), 0);
 		f1.store();
 		f2.store();
 
@@ -646,7 +673,7 @@ TEST_CASE("ftl::data::Frame merge is change", "[2.1.9]") {
 		f2.untouch(Channel::Colour2);
 		f2.merge(f1);
 
-		REQUIRE( f2.getChangeType(Channel::Colour) == ChangeType::LOCAL );
+		REQUIRE( f2.getChangeType(Channel::Colour) == ChangeType::PRIMARY );
 		REQUIRE( !f2.changed(Channel::Colour2) );
 	}
 }
@@ -654,14 +681,15 @@ TEST_CASE("ftl::data::Frame merge is change", "[2.1.9]") {
 /* #2.1.10 Unimplemented, merge is move only. This tests for the move instead */
 TEST_CASE("ftl::data::Frame merge moves encoded", "[2.1.10]") {
 	SECTION("encoded data moved") {
-		Frame f1 = Feed::make(nullptr, 0, 0);
-		Frame f2 = Feed::make(nullptr, 0, 0);
+		Frame f1 = Feed::make(nullptr, FrameID(0,0), 0);
+		Frame f2 = Feed::make(nullptr, FrameID(0,0), 0);
 
-		std::vector<uint8_t> data{88,99,100};
+		ftl::codecs::Packet data;
+		data.flags = 45;
 		f1.createChange<int>(Channel::Colour, ChangeType::FOREIGN, data);
 		f2.merge(f1);
 
-		REQUIRE( f2.getEncoded(Channel::Colour).size() == 3 );
+		REQUIRE( f2.getEncoded(Channel::Colour).size() == 1 );
 		REQUIRE( !f1.has(Channel::Colour) );
 	}
 }
@@ -669,7 +697,7 @@ TEST_CASE("ftl::data::Frame merge moves encoded", "[2.1.10]") {
 /* #2.2.1 */
 TEST_CASE("ftl::data::Frame modify after flush", "[2.2.1]") {
 	SECTION("create fails after flush") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Colour) = 89;
@@ -687,7 +715,7 @@ TEST_CASE("ftl::data::Frame modify after flush", "[2.2.1]") {
 	}
 
 	SECTION("set fails after flush") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Colour) = 89;
@@ -705,7 +733,7 @@ TEST_CASE("ftl::data::Frame modify after flush", "[2.2.1]") {
 	}
 
 	SECTION("createChange fails after flush") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Colour) = 89;
@@ -723,7 +751,7 @@ TEST_CASE("ftl::data::Frame modify after flush", "[2.2.1]") {
 	}
 
 	SECTION("channel marked readonly after flush") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Colour) = 89;
@@ -737,7 +765,7 @@ TEST_CASE("ftl::data::Frame modify after flush", "[2.2.1]") {
 /* #2.2.3 */
 TEST_CASE("ftl::data::Frame multiple flush", "[Frame]") {
 	SECTION("fail on multiple frame flush") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Colour) = 89;
@@ -759,9 +787,9 @@ TEST_CASE("ftl::data::Frame multiple flush", "[Frame]") {
 TEST_CASE("ftl::data::Frame locality of changes", "[2.2.4]") {
 	ftl::data::make_channel<int>(Channel::Density, "density", ftl::data::StorageMode::PERSISTENT);
 
-	SECTION("not persistent after flush only") {
+	SECTION("persistent after flush only for primary frame") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Density) = 44;
@@ -775,12 +803,33 @@ TEST_CASE("ftl::data::Frame locality of changes", "[2.2.4]") {
 			e.ignore();
 			err = true;
 		}
-		REQUIRE( err );
+		REQUIRE( !err );
 	}
+
+	// FIXME: Need a way to change frame mode or generate response frame.
+	/*SECTION("not persistent after flush only for response frame") {
+		Session p;
+		Frame ff = Feed::make(&p, FrameID(0,0), 0);
+		ff.store();
+		Frame f = ff.response();
+
+		f.create<int>(Channel::Density) = 44;
+		f.flush();
+
+		bool err=false;
+
+		try {		
+			p.get<int>(Channel::Density);
+		} catch(const ftl::exception &e) {
+			e.ignore();
+			err = true;
+		}
+		REQUIRE( err );
+	}*/
 
 	SECTION("not persistent without store") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Density) = 44;
@@ -802,7 +851,7 @@ TEST_CASE("ftl::data::Frame locality of changes", "[2.2.4]") {
 /* #2.2.5 */
 TEST_CASE("ftl::data::Frame changed status", "[2.2.5]") {
 	SECTION("change on create") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		REQUIRE( !f.changed(Channel::Pose) );
@@ -811,7 +860,7 @@ TEST_CASE("ftl::data::Frame changed status", "[2.2.5]") {
 	}
 
 	SECTION("no change on untouch") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Pose) = 55;
@@ -828,33 +877,33 @@ TEST_CASE("ftl::data::Frame changed status", "[2.2.5]") {
 /* #2.3.3 */
 TEST_CASE("ftl::data::Frame change type", "[2.3.3]") {
 	SECTION("changes are local type") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 
 		REQUIRE( !f.changed(Channel::Pose) );
 		f.create<int>(Channel::Pose) = 55;
-		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::LOCAL );
+		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::PRIMARY );
 	}
 
 	SECTION("local change overrides foreign change") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Pose, ChangeType::FOREIGN) = 55;
 		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::FOREIGN );
 		f.store();
 
 		f.set<int>(Channel::Pose) = 66;
-		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::LOCAL );
+		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::PRIMARY );
 	}
 
 	SECTION("local change overrides completed change") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Pose, ChangeType::COMPLETED) = 55;
 		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::COMPLETED );
 		f.store();
 		f.set<int>(Channel::Pose) = 66;
-		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::LOCAL );
+		REQUIRE( f.getChangeType(Channel::Pose) == ChangeType::PRIMARY );
 	}
 }
 
@@ -876,7 +925,7 @@ TEST_CASE("ftl::data::Frame change type", "[2.3.3]") {
 TEST_CASE("ftl::data::Frame override of persistent", "[3.1.4]") {
 	SECTION("local changes override persistent data") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		p.create<int>(Channel::Colour) = 44;
@@ -910,7 +959,7 @@ TEST_CASE("ftl::data::Frame override of persistent", "[3.1.4]") {
 TEST_CASE("ftl::data::Frame initial store", "[3.2.5]") {
 	SECTION("cannot create before store") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		bool err = false;
 		try {
@@ -924,14 +973,14 @@ TEST_CASE("ftl::data::Frame initial store", "[3.2.5]") {
 
 	SECTION("can createChange before store") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Colour, ChangeType::FOREIGN) = 89;
 	}
 
 	SECTION("cannot createChange after store") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.store();
 
@@ -947,7 +996,7 @@ TEST_CASE("ftl::data::Frame initial store", "[3.2.5]") {
 
 	SECTION("cannot store twice") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.store();
 
@@ -963,7 +1012,7 @@ TEST_CASE("ftl::data::Frame initial store", "[3.2.5]") {
 
 	SECTION("cannot flush before store") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		bool err = false;
 		try {
@@ -988,7 +1037,7 @@ TEST_CASE("ftl::data::Frame initial store", "[3.2.5]") {
 TEST_CASE("ftl::data::Frame change events", "[3.4.1]") {
 	SECTION("event on store of foreign change") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		int event = 0;
 		auto h = f.onChange([&event](Frame &frame, Channel c) {
@@ -1005,7 +1054,7 @@ TEST_CASE("ftl::data::Frame change events", "[3.4.1]") {
 
 	SECTION("event on store of completed change") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		int event = 0;
 		auto h = f.onChange([&event](Frame &frame, Channel c) {
@@ -1019,6 +1068,43 @@ TEST_CASE("ftl::data::Frame change events", "[3.4.1]") {
 		f.store();
 		REQUIRE( event == 1 );
 	}
+
+	SECTION("event on store of foreign change with flush") {
+		Session p;
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
+
+		int event = 0;
+		auto h = f.onChange([&event](Frame &frame, Channel c) {
+			event++;
+			return true;
+		});
+
+		f.createChange<int>(Channel::Pose, ChangeType::FOREIGN);
+		REQUIRE( event == 0 );
+
+		f.store();
+		f.flush();
+		REQUIRE( event == 1 );
+	}
+
+	SECTION("No event on flush of response frame") {
+		ftl::data::Pool p;
+		Session s;
+		Frame f = ftl::data::Pool::make(&p, &s, FrameID(0,0), 0);
+
+		int event = 0;
+		auto h = f.onChange([&event](Frame &frame, Channel c) {
+			event++;
+			return true;
+		});
+
+		{
+			auto response = f.response();
+			REQUIRE( event == 0 );
+			response.create<int>(Channel::Control) = 55;
+		}
+		REQUIRE( event == 0 );
+	}
 }
 
 /* #3.4.2 Not applicable as a unit test of Frame. See #3.2.5 */
@@ -1029,7 +1115,7 @@ TEST_CASE("ftl::data::Frame change events", "[3.4.1]") {
 TEST_CASE("ftl::data::Frame parallel change events", "[3.4.4]") {
 	SECTION("event for each of multiple changes") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		int event = 0;
 		auto h = f.onChange([&event](Frame &frame, Channel c) {
@@ -1055,7 +1141,7 @@ TEST_CASE("ftl::data::Frame aggregate changes", "[3.4.6]") {
 
 	SECTION("multiple changes cause single event") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		int event = 0;
 		auto h = f.onChange([&event](Frame &frame, Channel c) {
@@ -1084,7 +1170,7 @@ TEST_CASE("ftl::data::Frame aggregate changes", "[3.4.6]") {
 TEST_CASE("ftl::data::Frame flush events", "[4.1.1]") {
 	SECTION("event on flush") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		int event = 0;
@@ -1102,7 +1188,7 @@ TEST_CASE("ftl::data::Frame flush events", "[4.1.1]") {
 
 	SECTION("parent event on flush") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		int event = 0;
@@ -1123,7 +1209,7 @@ TEST_CASE("ftl::data::Frame flush events", "[4.1.1]") {
 TEST_CASE("ftl::data::Frame flush per channel", "[4.1.2]") {
 	SECTION("event on flush of channel") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		int event = 0;
@@ -1142,7 +1228,7 @@ TEST_CASE("ftl::data::Frame flush per channel", "[4.1.2]") {
 
 	SECTION("flushed channel readonly") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Pose) = 55;
@@ -1172,7 +1258,7 @@ TEST_CASE("ftl::data::Frame flush on destruct", "[4.1.6]") {
 		});
 
 		{
-			Frame f = Feed::make(&p, 0, 0);
+			Frame f = Feed::make(&p, FrameID(0,0), 0);
 			f.store();
 			f.create<int>(Channel::Pose) = 55;
 			REQUIRE( event == 0 );
@@ -1191,7 +1277,7 @@ TEST_CASE("ftl::data::Frame flush on destruct", "[4.1.6]") {
 		});
 
 		{
-			Frame f = Feed::make(&p, 0, 0);
+			Frame f = Feed::make(&p, FrameID(0,0), 0);
 			f.store();
 			f.create<int>(Channel::Pose) = 55;
 			f.flush();
@@ -1208,7 +1294,7 @@ TEST_CASE("ftl::data::Frame flush foreign", "[4.2.1]") {
 
 	SECTION("event on foreign flush") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Colour, ChangeType::FOREIGN) = 55;
 		f.store();
@@ -1231,7 +1317,7 @@ TEST_CASE("ftl::data::Frame no flush of completed", "[4.2.2]") {
 
 	SECTION("no event on completed flush") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 
 		f.createChange<int>(Channel::Colour, ChangeType::COMPLETED) = 55;
 		f.store();
@@ -1264,7 +1350,7 @@ TEST_CASE("ftl::data::Frame no flush of completed", "[4.2.2]") {
 TEST_CASE("ftl::data::Frame parallel flush events", "[4.4.3]") {
 	SECTION("event for each of multiple changes") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		int event = 0;
@@ -1291,7 +1377,7 @@ TEST_CASE("ftl::data::Frame aggregate flush events", "[4.4.5]") {
 
 	SECTION("multiple changes cause single event") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		int event = 0;
@@ -1319,7 +1405,7 @@ TEST_CASE("ftl::data::Frame aggregate flush events", "[4.4.5]") {
 TEST_CASE("ftl::data::Frame status after flush", "[4.4.7]") {
 	SECTION("still changed after flush") {
 		Session p;
-		Frame f = Feed::make(&p, 0, 0);
+		Frame f = Feed::make(&p, FrameID(0,0), 0);
 		f.store();
 
 		f.create<int>(Channel::Colour) = 55;
@@ -1351,6 +1437,11 @@ struct TestC {
 };
 
 template <>
+bool ftl::data::make_type<TestC>() {
+	return false;
+}
+
+template <>
 TestA &ftl::data::Frame::create<TestA>(ftl::codecs::Channel c) {
 	return create<TestC>(c).a;
 }
@@ -1376,7 +1467,7 @@ TEST_CASE("ftl::data::Frame Complex Overload", "[Frame]") {
 	ftl::data::make_channel<TestC>(Channel::Pose, "pose", ftl::data::StorageMode::PERSISTENT);
 
 	SECTION("Create and get first type with default") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 		f.create<TestA>(Channel::Pose);
 		
@@ -1390,7 +1481,7 @@ TEST_CASE("ftl::data::Frame Complex Overload", "[Frame]") {
 	}
 
 	SECTION("Create and get first type with value") {
-		Frame f = Feed::make(nullptr, 0, 0);
+		Frame f = Feed::make(nullptr, FrameID(0,0), 0);
 		f.store();
 		f.create<TestA>(Channel::Pose) = {77};
 		

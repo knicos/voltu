@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.1.0)
+cmake_minimum_required (VERSION 3.16.0)
 include (CheckIncludeFile)
 include (CheckIncludeFileCXX)
 include (CheckFunctionExists)
@@ -16,6 +16,7 @@ option(WITH_OPENVR "Build with OpenVR support" OFF)
 option(WITH_OPUS "Use Opus audio compression" ON)
 option(WITH_FIXSTARS "Use Fixstars libSGM" ON)
 option(WITH_CERES "Use Ceres solver" ON)
+option(WITH_SDK "Build the C shared SDK" ON)
 option(USE_CPPCHECK "Apply cppcheck during build" ON)
 option(BUILD_VISION "Enable the vision component" ON)
 option(BUILD_RECONSTRUCT "Enable the reconstruction component" ON)
@@ -163,22 +164,17 @@ add_subdirectory(lib/libstereo)
 include_directories(lib/libstereo/include)
 set_property(TARGET libstereo PROPERTY FOLDER "dependencies")
 
-#
-
-if (WITH_FIXSTARS)
-	set(HAVE_LIBSGM true)
-	add_subdirectory(lib/libsgm)
-	include_directories(lib/libsgm/include)
-	set_property(TARGET sgm PROPERTY FOLDER "dependencies")
-else()
-	add_library(sgm INTERFACE)
-endif()
-
 # ==== Ceres ===================================================================
 
 if (WITH_CERES)
+	#find_package(glog QUIET)
 	find_package(Ceres REQUIRED)
 	set(HAVE_CERES true)
+
+	if (WIN32)
+		# Hack to fix missing includes
+		set_property(TARGET ceres PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${Ceres_DIR}/../include)
+	endif()
 else()
 	add_library(ceres INTERFACE)
 endif()
@@ -237,6 +233,7 @@ if (BUILD_GUI)
 	set(NANOGUI_BUILD_EXAMPLE OFF CACHE BOOL " " FORCE)
 	set(NANOGUI_BUILD_PYTHON  OFF CACHE BOOL " " FORCE)
 	set(NANOGUI_INSTALL       OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_EIGEN_INCLUDE_DIR ${EIGEN_INCLUDE_DIR} CACHE STRING " " FORCE)
 
 	# Add the configurations from nanogui
 	add_subdirectory(ext/nanogui)
@@ -305,16 +302,22 @@ endif()
 check_language(CUDA)
 if (CUDA_TOOLKIT_ROOT_DIR)
 enable_language(CUDA)
-set(CMAKE_CUDA_FLAGS "-Xcompiler -fPIC")
+
+if (NOT WIN32)
+	set(CMAKE_CUDA_FLAGS "-Xcompiler -fPIC")
+endif()
+set(CMAKE_CUDA_ARCHITECTURES 61)
 set(CMAKE_CUDA_FLAGS_DEBUG "--gpu-architecture=compute_61 -g -DDEBUG -D_DEBUG")
 set(CMAKE_CUDA_FLAGS_RELEASE "--gpu-architecture=compute_61")
 set(HAVE_CUDA TRUE)
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
 # Some kind of fix for nvcc and -pthread problem on Linux
+if (NOT WIN32)
 set_property(TARGET Threads::Threads
 				 PROPERTY INTERFACE_COMPILE_OPTIONS $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler -pthread>
 													"$<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-pthread>")
+endif()
 
 endif ()
 
@@ -388,14 +391,15 @@ include(ftl_paths)
 
 if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	add_definitions(-DWIN32)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP4 /std:c++17 /wd4996")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /DFTL_DEBUG /Wall")
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
 	set(OS_LIBS "")
 else()
 	add_definitions(-DUNIX)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -msse3 -Wall")
-	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -pg")
+	# -fdiagnostics-color
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -msse3 -Wall -Werror=unused-result -Werror=return-type")
+	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -mfpmath=sse")
 	set(OS_LIBS "dl")
 endif()
@@ -429,9 +433,18 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 #	add_library(nvpipe INTERFACE)
 #endif()
 
+if (WITH_FIXSTARS)
+	set(HAVE_LIBSGM true)
+	add_subdirectory(lib/libsgm)
+	include_directories(lib/libsgm/include)
+	set_property(TARGET sgm PROPERTY FOLDER "dependencies")
+else()
+	add_library(sgm INTERFACE)
+endif()
+
 
 add_subdirectory(components/common/cpp)
-add_subdirectory(applications/calibration)
+#add_subdirectory(applications/calibration)
 add_subdirectory(components/codecs)
 add_subdirectory(components/structures)
 add_subdirectory(components/net)
@@ -448,8 +461,10 @@ add_subdirectory(components/calibration)
 add_subdirectory(applications/tools)
 
 # SDK only compiles on linux currently
-if (NOT WIN32)
-	add_subdirectory(SDK/C)
+if (WITH_SDK)
+	if (NOT WIN32)
+		add_subdirectory(SDK/C)
+	endif()
 endif()
 
 if (HAVE_AVFORMAT)
@@ -465,21 +480,13 @@ if (BUILD_VISION)
 	add_subdirectory(applications/vision)
 endif()
 
-if (BUILD_CALIBRATION)
-	if (NOT HAVE_CERES)
-		message(ERROR "Ceres is required")
-	endif()
-
-	add_subdirectory(applications/calibration-ceres)
-	add_subdirectory(applications/calibration-multi)
-endif()
-
 if (BUILD_RECONSTRUCT)
-	add_subdirectory(applications/reconstruct)
+	add_subdirectory(applications/reconstruct2)
 endif()
 
 if (HAVE_NANOGUI)
-	add_subdirectory(applications/gui)
+	#add_subdirectory(applications/gui)
+	add_subdirectory(applications/gui2)
 endif()
 
 ### Generate Build Configuration Files =========================================

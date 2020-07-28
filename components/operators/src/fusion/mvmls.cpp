@@ -47,8 +47,19 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 	bool show_consistency = config()->value("show_consistency", false);
 	bool show_adjustment = config()->value("show_adjustment", false);
 
-    if (in.frames.size() < 1) return false;
-    auto size = in.firstFrame().get<GpuMat>(Channel::Depth).size();
+    if (in.frames.size() < 1 || in.count == 0) return false;
+	cv::Size size(0,0);
+	for (auto &f : in.frames) {
+		if (f.hasChannel(Channel::Depth)) {
+			size = f.get<GpuMat>(Channel::Depth).size();
+			break;
+		}
+	}
+    
+	if (size.width == 0) {
+		in.firstFrame().message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Depth Channel in MVMLS operator");
+		return false;
+	}
 
     // Make sure we have enough buffers
     while (normals_horiz_.size() < in.frames.size()) {
@@ -62,7 +73,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
     for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
 
-        auto &f = in.frames[i];
+        auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 	    auto size = f.get<GpuMat>(Channel::Depth).size();
 	    centroid_horiz_[i]->create(size.height, size.width);
 	    normals_horiz_[i]->create(size.height, size.width);
@@ -77,12 +88,12 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
         }
 
         // Create required channels
-        f.create<GpuMat>(Channel::Confidence, Format<float>(size));
+        f.create<ftl::rgbd::VideoFrame>(Channel::Confidence).createGPU(Format<float>(size));
         f.createTexture<float>(Channel::Confidence);
-        f.create<GpuMat>(Channel::Screen, Format<short2>(size));
+        f.create<ftl::rgbd::VideoFrame>(Channel::Screen).createGPU(Format<short2>(size));
         f.createTexture<short2>(Channel::Screen);
 
-        f.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
+        f.set<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
     }
 
     //for (int iter=0; iter<iters; ++iter) {
@@ -95,7 +106,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             for (size_t i=0; i<in.frames.size(); ++i) {
 				if (!in.hasFrame(i)) continue;
 
-                auto &f1 = in.frames[i];
+                auto &f1 = in.frames[i].cast<ftl::rgbd::Frame>();
                 //f1.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0.0f), cvstream);
                 //f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
@@ -108,7 +119,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
                     //LOG(INFO) << "Running phase1";
 
-                    auto &f2 = in.frames[j];
+                    auto &f2 = in.frames[j].cast<ftl::rgbd::Frame>();
                     //auto s1 = in.sources[i];
                     //auto s2 = in.sources[j];
 
@@ -345,7 +356,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
             // Redo normals
             for (size_t i=0; i<in.frames.size(); ++i) {
 				if (!in.hasFrame(i)) continue;
-                auto &f = in.frames[i];
+                auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
                 ftl::cuda::normals(
                     f.getTexture<half4>(Channel::Normals),
                     f.getTexture<float>(Channel::Depth),
@@ -411,7 +422,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 			for (size_t i=0; i<in.frames.size(); ++i) {
 				if (!in.hasFrame(i)) continue;
 
-				auto &f = in.frames[i];
+				auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 				//auto *s = in.sources[i];
 
 				// Clear data
@@ -465,7 +476,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 			if (do_aggr) {
 				for (size_t i=0; i<in.frames.size(); ++i) {
 					if (!in.hasFrame(i)) continue;
-					auto &f1 = in.frames[i];
+					auto &f1 = in.frames[i].cast<ftl::rgbd::Frame>();
 					//f1.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0.0f), cvstream);
 					//f1.get<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
 
@@ -478,7 +489,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
 						//LOG(INFO) << "Running phase1";
 
-						auto &f2 = in.frames[j];
+						auto &f2 = in.frames[j].cast<ftl::rgbd::Frame>();
 						//auto s1 = in.sources[i];
 						//auto s2 = in.sources[j];
 
@@ -520,7 +531,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 			// Normalise aggregations and move the points
 			for (size_t i=0; i<in.frames.size(); ++i) {
 				if (!in.hasFrame(i)) continue;
-				auto &f = in.frames[i];
+				auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 				//auto *s = in.sources[i];
 				auto size = f.get<GpuMat>(Channel::Depth).size();
 

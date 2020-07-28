@@ -59,13 +59,13 @@ TEST_CASE( "Timer::add() High Precision Accuracy" ) {
 
 		REQUIRE( (rc.id() >= 0) );
 
-		ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
+		auto h = ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
 			didrun[1] = true;
 			ftl::timer::stop(false);
 			return true;
 		});
 
-		ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
+		auto h2 = ftl::timer::add(ftl::timer::kTimerHighPrecision, [&didrun](int64_t ts) {
 			didrun[2] = true;
 			ftl::timer::stop(false);
 			return true;
@@ -184,7 +184,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 
 		REQUIRE( (rc.id() >= 0) );
 
-		ftl::timer::add(ftl::timer::kTimerMain, [&job2](int64_t ts) {
+		auto h = ftl::timer::add(ftl::timer::kTimerMain, [&job2](int64_t ts) {
 			job2++;
 			return true;
 		});
@@ -212,24 +212,7 @@ TEST_CASE( "Timer::add() Main job" ) {
 	}
 }
 
-TEST_CASE( "TimerHandle::cancel()" ) {
-	SECTION( "Invalid id" ) {
-		bool didjob = false;
-		ftl::timer::reset();
-
-		ftl::timer::add(ftl::timer::kTimerMain, [&didjob](int64_t ts) {
-			didjob = true;
-			ftl::timer::stop(false);
-			return true;
-		});
-
-		// Fake Handle
-		ftl::timer::TimerHandle h(44);
-		h.cancel();
-		ftl::timer::start(true);
-		REQUIRE( didjob );
-	}
-
+TEST_CASE( "Timer Handle::cancel()" ) {
 	SECTION( "Valid id" ) {
 		bool didjob = false;
 		ftl::timer::reset();

@@ -67,7 +67,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     
     if (type == 1) {
     	//DLOG(INFO) << "RPC return for " << id;
-    	s._dispatchResponse(id, args);
+    	s._dispatchResponse(id, name, args);
     } else if (type == 0) {
 		//DLOG(INFO) << "RPC " << name << "() <- " << s.getURI();
 
@@ -77,7 +77,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 			//DLOG(INFO) << "Found binding for " << name;
 		    try {
 		        auto result = (*func)(s, args); //->get();
-		        s._sendResponse(id, result->get());
+		        s._sendResponse(id, name, result->get());
 		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
 				std::stringstream buf;
 				msgpack::pack(buf, res_obj);			
@@ -101,7 +101,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 
 optional<Dispatcher::adaptor_type> ftl::net::Dispatcher::_locateHandler(const std::string &name) const {
 	auto it_func = funcs_.find(name);
-	if (it_func == end(funcs_)) {
+	if (it_func == funcs_.end()) {
 		if (parent_ != nullptr) {
 			return parent_->_locateHandler(name);
 		} else {

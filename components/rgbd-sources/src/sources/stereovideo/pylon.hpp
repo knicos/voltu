@@ -7,6 +7,7 @@
 
 namespace Pylon {
 class CBaslerUniversalInstantCamera;
+class CGrabResultPtr;
 }
 
 namespace ftl {
@@ -21,19 +22,21 @@ class PylonDevice : public ftl::rgbd::detail::Device {
 	static std::vector<DeviceDetails> listDevices();
 
 	bool grab() override;
-	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, Calibrate *c, cv::cuda::Stream &stream) override;
+	bool get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, StereoRectification *c, cv::cuda::Stream &stream) override;
 
 	unsigned int width() const override { return width_; }
 	unsigned int height() const override { return height_; };
 
 	unsigned int fullWidth() const override { return fullwidth_; }
 	unsigned int fullHeight() const override { return fullheight_; }
-	
+
 	double getTimestamp() const override { return 0.0; }
-	
+
 	bool isStereo() const override { return lcam_ && rcam_; }
 
 	bool isReady() const;
+
+	void populateMeta(std::map<std::string,std::string> &meta) const override;
 
 	private:
 	bool ready_;
@@ -44,6 +47,10 @@ class PylonDevice : public ftl::rgbd::detail::Device {
 	uint32_t fullheight_;
 	uint32_t width_;
 	uint32_t height_;
+	std::string name_;
+	std::string serial_;
+	int left_fail_=0;
+	int right_fail_=0;
 
 	cv::cuda::HostMem left_hm_;
 	cv::cuda::HostMem right_hm_;
@@ -51,6 +58,7 @@ class PylonDevice : public ftl::rgbd::detail::Device {
 	cv::Mat rtmp_;
 
 	void _configureCamera(Pylon::CBaslerUniversalInstantCamera *cam);
+	bool _retrieveFrames(Pylon::CGrabResultPtr &result, Pylon::CBaslerUniversalInstantCamera *cam);
 };
 
 }

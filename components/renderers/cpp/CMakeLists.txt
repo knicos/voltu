@@ -10,6 +10,8 @@ add_library(ftlrender
 	src/colouriser.cpp
 	src/colour_util.cu
 	src/overlay.cpp
+	src/gltexture.cpp
+	src/touch.cu
 	#src/assimp_render.cpp
 	#src/assimp_scene.cpp
 )
@@ -26,5 +28,9 @@ target_include_directories(ftlrender PUBLIC
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
 target_link_libraries(ftlrender ftlrgbd ftlcommon Eigen3::Eigen Threads::Threads nanogui ${NANOGUI_EXTRA_LIBS} ${OpenCV_LIBS})
+
+target_precompile_headers(ftlrender REUSE_FROM ftldata)
+
+set_property(TARGET ftlrender PROPERTY CUDA_ARCHITECTURES OFF)
 
 #ADD_SUBDIRECTORY(test)

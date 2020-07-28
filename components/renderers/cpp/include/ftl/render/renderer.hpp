@@ -32,7 +32,7 @@ class Renderer : public ftl::Configurable {
 	 * frame given as parameter is where the output channels are rendered to.
 	 * The channel parameter is the render output channel which can either be
 	 * Left (Colour) or Right (Colour 2). Using "Right" will also adjust the
-	 * pose to the right eye position and use the right camera intrinsics. 
+	 * pose to the right eye position and use the right camera intrinsics.
 	 */
 	virtual void begin(ftl::rgbd::Frame &, ftl::codecs::Channel)=0;
 
@@ -64,13 +64,13 @@ class FSRenderer : public ftl::render::Renderer {
 	 * multiple times between `begin` and `end` to combine multiple framesets.
 	 * Note that the frameset pointer must remain valid until `end` is called,
 	 * and ideally should not be swapped between.
-	 * 
+	 *
 	 * The channels parameter gives all of the source channels that will be
 	 * rendered into the single colour output. These will be blended
 	 * together by some undefined method. Non colour channels will be converted
 	 * to RGB colour appropriately.
      */
-    virtual bool submit(ftl::rgbd::FrameSet *, ftl::codecs::Channels<0>, const Eigen::Matrix4d &)=0;
+    virtual bool submit(ftl::data::FrameSet *, ftl::codecs::Channels<0>, const Eigen::Matrix4d &)=0;
 };
 
 }

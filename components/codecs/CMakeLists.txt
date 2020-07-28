@@ -14,6 +14,7 @@ target_include_directories(BaseCodec PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/src/Video_Codec_SDK_9.1.23/Samples/NvCodec
 	$<TARGET_PROPERTY:ftlcommon,INTERFACE_INCLUDE_DIRECTORIES>
 )
+set_property(TARGET BaseCodec PROPERTY CUDA_ARCHITECTURES OFF)
 
 add_library(OpenCVCodec OBJECT	
 	src/opencv_encoder.cpp
@@ -23,6 +24,8 @@ target_include_directories(OpenCVCodec PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 	$<TARGET_PROPERTY:ftlcommon,INTERFACE_INCLUDE_DIRECTORIES>
 )
+
+set_property(TARGET OpenCVCodec PROPERTY CUDA_ARCHITECTURES OFF)
 
 set(CODECSRC
 $<TARGET_OBJECTS:BaseCodec>
@@ -44,6 +47,8 @@ target_include_directories(NvidiaCodec PUBLIC
 )
 list(APPEND CODECSRC $<TARGET_OBJECTS:NvidiaCodec>)
 
+set_property(TARGET NvidiaCodec PROPERTY CUDA_ARCHITECTURES OFF)
+
 add_library(ftlcodecs ${CODECSRC})
 
 if (WIN32)
@@ -61,6 +66,10 @@ target_include_directories(ftlcodecs PUBLIC
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(ftlcodecs ftlcommon ${OpenCV_LIBS} ${CUDA_LIBRARIES} Eigen3::Eigen nvcuvid cuda)
+
+target_precompile_headers(ftlcodecs REUSE_FROM ftlcommon)
+
+set_property(TARGET ftlcodecs PROPERTY CUDA_ARCHITECTURES OFF)
 
 if (BUILD_TESTS)
 add_subdirectory(test)

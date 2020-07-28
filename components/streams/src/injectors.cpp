@@ -5,17 +5,17 @@ using ftl::codecs::Channel;
 using ftl::util::FTLVectorBuffer;
 
 void ftl::stream::injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd::FrameSet &fs, int ix, bool right) {
-	ftl::stream::injectCalibration(stream, fs.frames[ix], fs.timestamp, fs.id, ix, right);
+	ftl::stream::injectCalibration(stream, fs.frames[ix].cast<ftl::rgbd::Frame>(), fs.timestamp(), fs.frameset(), ix, right);
 }
 
 void ftl::stream::injectPose(ftl::stream::Stream *stream, const ftl::rgbd::FrameSet &fs, int ix) {
-	ftl::stream::injectPose(stream, fs.frames[ix], fs.timestamp, ix);
+	ftl::stream::injectPose(stream, fs.frames[ix].cast<ftl::rgbd::Frame>(), fs.timestamp(), ix);
 }
 
 void ftl::stream::injectConfig(ftl::stream::Stream *stream, const ftl::rgbd::FrameSet &fs, int ix) {
 	ftl::codecs::StreamPacket spkt = {
 		4,
-		fs.timestamp,
+		fs.timestamp(),
 		0,
 		static_cast<uint8_t>(ix),
 		Channel::Configuration
@@ -29,7 +29,7 @@ void ftl::stream::injectConfig(ftl::stream::Stream *stream, const ftl::rgbd::Fra
 	pkt.flags = 0;
 
 	FTLVectorBuffer buf(pkt.data);
-	msgpack::pack(buf, fs.frames[ix].getConfigString());
+	//msgpack::pack(buf, fs.frames[ix].getConfigString());
 
 	stream->post(spkt, pkt);
 }
@@ -70,6 +70,8 @@ void ftl::stream::injectCalibration(ftl::stream::Stream *stream, const ftl::rgbd
 	auto data = (right) ?
 		std::make_tuple(f.getRightCamera(), Channel::Right, 0) :
 		std::make_tuple(f.getLeftCamera(), Channel::Left, 0);
+
+	//auto data = (right) ? f.getRightCamera() : f.getLeftCamera();
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = ftl::codecs::codec_t::MSGPACK;

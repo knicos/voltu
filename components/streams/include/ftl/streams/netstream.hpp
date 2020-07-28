@@ -6,6 +6,7 @@
 #include <ftl/threads.hpp>
 #include <ftl/codecs/packet.hpp>
 #include <ftl/streams/stream.hpp>
+#include <ftl/handle.hpp>
 #include <string>
 
 namespace ftl {
@@ -48,7 +49,7 @@ class Net : public Stream {
 	Net(nlohmann::json &config, ftl::net::Universe *net);
 	~Net();
 
-	bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &) override;
+	//bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &) override;
 
 	bool post(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &) override;
 
@@ -59,6 +60,8 @@ class Net : public Stream {
 	void reset() override;
 
 	inline const ftl::UUID &getPeer() const { return peer_; }
+
+	inline ftl::Handle onClientConnect(const std::function<bool(ftl::net::Peer*)> &cb) { return connect_cb_.on(cb); }
 
 	/**
 	 * Return the average bitrate of all streams since the last call to this
@@ -78,10 +81,13 @@ class Net : public Stream {
 	int64_t frame_no_;
 	int64_t last_ping_;
 	std::string uri_;
+	std::string base_uri_;
 	bool host_;
 	int tally_;
 	std::array<std::atomic<int>,32> reqtally_;
-	ftl::codecs::Channels<0> last_selected_;
+	std::unordered_set<ftl::codecs::Channel> last_selected_;
+
+	ftl::Handler<ftl::net::Peer*> connect_cb_;
 
 	static float req_bitrate__;
 	static float sample_count__;
@@ -90,7 +96,7 @@ class Net : public Stream {
 
 	std::list<detail::StreamClient> clients_;
 
-	StreamCallback cb_;
+	//StreamCallback cb_;
 
 	bool _processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt);
 	void _checkDataRate(size_t tx_size, int64_t tx_latency, int64_t ts);

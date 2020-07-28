@@ -76,7 +76,7 @@ Universe::Universe(nlohmann::json &config) :
 	// Add an idle timer job to garbage collect peer objects
 	// Note: Important to be a timer job to ensure no other timer jobs are
 	// using the object.
-	ftl::timer::add(ftl::timer::kTimerIdle10, [this](int64_t ts) {
+	garbage_timer_ = ftl::timer::add(ftl::timer::kTimerIdle10, [this](int64_t ts) {
 		if (garbage_.size() > 0) {
 			UNIQUE_LOCK(net_mutex_,lk);
 			if (ftl::pool.n_idle() == ftl::pool.size()) {
@@ -148,13 +148,43 @@ bool Universe::listen(const string &addr) {
 	return l->isListening();
 }
 
+bool Universe::isConnected(const ftl::URI &uri) {
+	UNIQUE_LOCK(net_mutex_,lk);
+	return (peer_by_uri_.find(uri.getBaseURI()) != peer_by_uri_.end());
+}
+
+bool Universe::isConnected(const std::string &s) {
+	ftl::URI uri(s);
+	return isConnected(uri);
+}
+
 Peer *Universe::connect(const string &addr) {
+	ftl::URI u(addr);
+
+	// Check if already connected or if self
+	{
+		UNIQUE_LOCK(net_mutex_,lk);
+		if (peer_by_uri_.find(u.getBaseURI()) != peer_by_uri_.end()) {
+			return peer_by_uri_.at(u.getBaseURI());
+		}
+
+		if (u.getHost() == "localhost" || u.getHost() == "127.0.0.1") {
+			for (const auto *l : listeners_) {
+				if (l->port() == u.getPort()) {
+					throw FTL_Error("Cannot connect to self");
+				}
+			}
+		}
+	}
+
+
 	auto p = new Peer(addr.c_str(), this, &disp_);
 	if (!p) return nullptr;
 	
 	if (p->status() != Peer::kInvalid) {
 		UNIQUE_LOCK(net_mutex_,lk);
 		peers_.push_back(p);
+		peer_by_uri_[u.getBaseURI()] = p;
 	}
 	
 	_installBindings(p);
@@ -174,7 +204,7 @@ int Universe::waitConnections() {
 	return count;
 }
 
-int Universe::_setDescriptors() {
+SOCKET Universe::_setDescriptors() {
 	//Reset all file descriptors
 	FD_ZERO(&impl_->sfdread_);
 	FD_ZERO(&impl_->sfderror_);
@@ -230,6 +260,13 @@ void Universe::_cleanupPeers() {
 			auto ix = peer_ids_.find(p->id());
 			if (ix != peer_ids_.end()) peer_ids_.erase(ix);
 
+			for (auto i=peer_by_uri_.begin(); i != peer_by_uri_.end(); ++i) {
+				if (i->second == p) {
+					peer_by_uri_.erase(i);
+					break;
+				}
+			}
+
 			i = peers_.erase(i);
 
 			if (p->status() == ftl::net::Peer::kReconnecting) {
@@ -254,6 +291,29 @@ Peer *Universe::getPeer(const UUID &id) const {
 void Universe::_periodic() {
 	auto i = reconnects_.begin();
 	while (i != reconnects_.end()) {
+
+		std::string addr = i->peer->getURI();
+
+		{
+			UNIQUE_LOCK(net_mutex_,lk);
+			ftl::URI u(addr);
+			bool removed = false;
+
+			if (u.getHost() == "localhost" || u.getHost() == "127.0.0.1") {
+				for (const auto *l : listeners_) {
+					if (l->port() == u.getPort()) {
+						LOG(ERROR) << "Cannot connect to self";
+						garbage_.push_back((*i).peer);
+						i = reconnects_.erase(i);
+						removed = true;
+						break;
+					}
+				}
+			}
+
+			if (removed) continue;
+		}
+
 		if ((*i).peer->reconnect()) {
 			UNIQUE_LOCK(net_mutex_,lk);
 			peers_.push_back((*i).peer);
@@ -292,7 +352,7 @@ void Universe::_run() {
 	auto start = std::chrono::high_resolution_clock::now();
 
 	while (active_) {
-		int n = _setDescriptors();
+		SOCKET n = _setDescriptors();
 		int selres = 1;
 
 		// Do periodics
@@ -312,7 +372,7 @@ void Universe::_run() {
 		//Wait for a network event or timeout in 3 seconds
 		block.tv_sec = 0;
 		block.tv_usec = 100000;
-		selres = select(n+1, &impl_->sfdread_, 0, &impl_->sfderror_, &block);
+		selres = select(n+1u, &impl_->sfdread_, 0, &impl_->sfderror_, &block);
 
 		// NOTE Nick: Is it possible that not all the recvs have been called before I
 		// again reach a select call!? What are the consequences of this? A double recv attempt?

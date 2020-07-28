@@ -22,4 +22,14 @@ class Audio {
 }
 }
 
+template <>
+inline bool ftl::data::make_type<std::list<ftl::audio::Audio>>() {
+	return false;
+}
+
+template <>
+inline bool ftl::data::decode_type<std::list<ftl::audio::Audio>>(std::any &a, const std::vector<uint8_t> &data) {
+	return false;
+}
+
 #endif  // _FTL_AUDIO_AUDIO_HPP_

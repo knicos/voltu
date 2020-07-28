@@ -73,32 +73,39 @@ bool Poser::set(const std::string &name, const Eigen::Matrix4d &pose) {
 
 bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) {
     if (in.hasChannel(Channel::Shapes3D)) {
-        std::vector<ftl::codecs::Shape3D> transforms;
-        in.get(Channel::Shapes3D, transforms);
+        const auto &transforms = in.get<std::list<ftl::codecs::Shape3D>>(Channel::Shapes3D);
 
 		//LOG(INFO) << "Found shapes 3D global: " << (int)transforms.size();
 
         for (auto &t : transforms) {
         //    LOG(INFO) << "Have FS transform: " << t.label;
-			add(t, in.id, 255);
+			add(t, in.frameset(), 255);
         }
     }
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
-        if (in.hasFrame(i)) {
-            auto &f = in.frames[i];
+        //if (in.hasFrame(i)) {
+            auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 
             if (f.hasChannel(Channel::Shapes3D)) {
-                std::vector<ftl::codecs::Shape3D> transforms;
-                f.get(Channel::Shapes3D, transforms);
+                const auto &transforms = f.get<std::list<ftl::codecs::Shape3D>>(Channel::Shapes3D);
 
 				//LOG(INFO) << "Found shapes 3D: " << (int)transforms.size();
 
                 for (auto &t : transforms) {
-                    add(t, in.id, i);
+                    add(t, in.frameset(), i);
                 }
             }
-        }
+
+			if (f.hasChannel(Channel::Pose)) {
+				ftl::codecs::Shape3D cam;
+				cam.id = 0;
+				cam.label = f.name();
+				cam.pose = f.getPose().cast<float>();
+				cam.type = ftl::codecs::Shape3DType::CAMERA;
+				add(cam, in.frameset(), i);
+			}
+        //}
     }
 
     string pose_ident = config()->value("pose_ident",string("default"));
@@ -106,7 +113,7 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
         auto p = pose_db__.find(pose_ident);
         if (p != pose_db__.end()) {
 			(*p).second.locked = config()->value("locked",false);
-            in.pose = (*p).second.pose;
+            in.cast<ftl::rgbd::Frame>().setPose() = (config()->value("inverse",false)) ? (*p).second.pose.inverse() : (*p).second.pose;
         } else {
             LOG(WARNING) << "Pose not found: " << pose_ident;
         }

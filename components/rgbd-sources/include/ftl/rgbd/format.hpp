@@ -18,7 +18,7 @@ struct FormatBase {
 	int cvType;			// OpenCV Mat type
 
 	inline bool empty() const { return width == 0 || height == 0; }
-	inline cv::Size size() const { return cv::Size(width, height); }
+	inline cv::Size size() const { return cv::Size(static_cast<int>(width), static_cast<int>(height)); }
 };
 
 template <typename T>

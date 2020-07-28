@@ -17,16 +17,24 @@ class RealsenseSource : public ftl::rgbd::BaseSourceImpl {
 	explicit RealsenseSource(ftl::rgbd::Source *host);
 	~RealsenseSource();
 
-	bool capture(int64_t ts) { return true; }
-	bool retrieve(ftl::rgbd::Frame &frame);
-	bool isReady();
+	bool capture(int64_t ts) override;
+	bool retrieve(ftl::rgbd::Frame &frame) override;
+	bool isReady() override;
+
+	static bool supported();
 
 	private:
 	bool ready_;
+	bool do_update_params_ = false;
     float scale_;
     rs2::pipeline pipe_;
     rs2::align align_to_depth_;
 	rs2::frame rscolour_;
+	ftl::rgbd::Camera params_;
+	std::string name_;
+	std::string serial_;
+	cv::cuda::GpuMat tmp_depth_;
+	cv::cuda::Stream stream_;
 };
 
 }

@@ -47,7 +47,7 @@ SCENARIO( "Configurable::on()" ) {
 		Configurable cfg(json);
 		bool trig = false;
 
-		cfg.on("test", [&trig](const ftl::config::Event &e) {
+		cfg.on("test", [&trig]() {
 			trig = true;
 		});
 
@@ -63,10 +63,10 @@ SCENARIO( "Configurable::on()" ) {
 		bool trig1 = false;
 		bool trig2 = false;
 
-		cfg.on("test", [&trig1](const ftl::config::Event &e) {
+		cfg.on("test", [&trig1]() {
 			trig1 = true;
 		});
-		cfg.on("test", [&trig2](const ftl::config::Event &e) {
+		cfg.on("test", [&trig2]() {
 			trig2 = true;
 		});
 

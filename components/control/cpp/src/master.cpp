@@ -15,7 +15,7 @@ using std::function;
 using ftl::ctrl::LogEvent;
 
 Master::Master(Configurable *root, Universe *net)
-		: root_(root), net_(net) {
+		: root_(root), net_(net), active_(false) {
 	// Init system state
 	state_.paused = false;
 
@@ -34,6 +34,18 @@ Master::Master(Configurable *root, Universe *net)
 
 	net->bind("pause", [this]() {
 		state_.paused = !state_.paused;
+	});
+
+	net->bind("list_streams", []() {
+		return std::list<std::string>();
+	});
+
+	net->bind("find_stream", [](const std::string &uri, bool proxy) {
+		return std::optional<ftl::UUID>{};
+	});
+
+	net->bind("add_stream", [](const std::string &uri) {
+
 	});
 
 	net->bind("update_cfg", [](const std::string &uri, const std::string &value) {
@@ -82,6 +94,8 @@ Master::Master(Configurable *root, Universe *net)
 		ftl::UUID peer = p->id();
 		auto cs = getConfigurables(peer);
 		for (auto c : cs) {
+			if (ftl::config::find(c) != nullptr) continue;
+
 			//LOG(INFO) << "NET CONFIG: " << c;
 			ftl::config::json_t *configuration = new ftl::config::json_t;
 			*configuration = getConfigurable(peer, c);
@@ -101,6 +115,8 @@ Master::Master(Configurable *root, Universe *net)
 		}
 		peerConfigurables_[peer].clear();
 	});
+
+	active_ = true;
 }
 
 Master::~Master() {
@@ -156,9 +172,9 @@ vector<string> Master::getConfigurables() {
 
 vector<string> Master::getConfigurables(const ftl::UUID &peer) {
 	try {
-		LOG(INFO) << "LISTING CONFIGS";
 		return net_->call<vector<string>>(peer, "list_configurables");
-	} catch (...) {
+	} catch (const ftl::exception &e) {
+		e.ignore();
 		return {};
 	}
 }

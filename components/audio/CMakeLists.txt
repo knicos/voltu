@@ -1,6 +1,5 @@
 set(AUDIOSRC
 	src/source.cpp
-	src/frame.cpp
 	src/portaudio.cpp
 	src/speaker.cpp
 	src/software_encoder.cpp

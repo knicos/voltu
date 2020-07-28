@@ -15,3 +15,4 @@ endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(middlebury-gen ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlrender ftloperators ftlstreams)
+set_property(TARGET middlebury-gen PROPERTY CUDA_ARCHITECTURES OFF)

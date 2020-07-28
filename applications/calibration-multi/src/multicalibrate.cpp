@@ -26,15 +26,15 @@ using std::pair;
 using std::make_pair;
 
 double CalibrationTarget::estimateScale(vector<Point3d> points) {
-	
-	// 1. calculate statistics 
-	// 2. reject possible outliers 
+
+	// 1. calculate statistics
+	// 2. reject possible outliers
 	// 3. calculate scale factor
 
 	double f = 0.0;
 	double S = 0.0;
 	double m = 0.0;
-	
+
 	vector<double> d(points.size() / 2, 0.0);
 
 	for (size_t i = 0; i < points.size(); i += 2) {
@@ -87,7 +87,7 @@ double CalibrationTarget::estimateScale(vector<Point3d> points) {
 MultiCameraCalibrationNew::MultiCameraCalibrationNew(
 			size_t n_cameras, size_t reference_camera, Size resolution,
 			CalibrationTarget target, int fix_intrinsics) :
-		
+
 	target_(target),
 	visibility_graph_(n_cameras),
 	is_calibrated_(false),
@@ -122,7 +122,6 @@ Mat MultiCameraCalibrationNew::getCameraMat(size_t idx) {
 	return K;
 }
 
-
 Mat MultiCameraCalibrationNew::getCameraMatNormalized(size_t idx, double scale_x, double scale_y)
 {
 	Mat K = getCameraMat(idx);
@@ -135,7 +134,7 @@ Mat MultiCameraCalibrationNew::getCameraMatNormalized(size_t idx, double scale_x
 	scale.at<double>(0, 0) = scale_x;
 	scale.at<double>(1, 1) = scale_y;
 	scale.at<double>(2, 2) = 1.0;
-	
+
 	return (scale * K);
 }
 
@@ -212,18 +211,18 @@ void MultiCameraCalibrationNew::loadInput(const std::string &filename, const vec
 	fs["visible"] >> visible;
 	fs["resolution"] >> resolution_;
 	fs.release();
-	
+
 	vector<size_t> cameras;
 	if (cameras_in.size() == 0) {
 		cameras.resize(K.size());
 		size_t i = 0;
 		for (auto &c : cameras) { c = i++; }
-	} 
+	}
 	else {
 		cameras.reserve(cameras_in.size());
 		for (auto &c : cameras_in) { cameras.push_back(c); }
 	}
-	
+
 	n_cameras_ = cameras.size();
 
 	points2d_.resize(n_cameras_);
@@ -262,7 +261,7 @@ void MultiCameraCalibrationNew::loadInput(const std::string &filename, const vec
 		}
 	}
 	reset();
-	
+
 	DCHECK(points2d_.size() == n_cameras_);
 	DCHECK(points2d_.size() == visible_.size());
 	size_t len = visible_[0].size();
@@ -296,14 +295,14 @@ bool MultiCameraCalibrationNew::isValid(size_t idx) {
 }
 
 vector<Point2d> MultiCameraCalibrationNew::getPoints(size_t camera, size_t idx) {
-	return vector<Point2d> (points2d_[camera].begin() + idx * (target_.n_points), 
+	return vector<Point2d> (points2d_[camera].begin() + idx * (target_.n_points),
 							points2d_[camera].begin() + idx * (target_.n_points + 1));
 }
 
 
 void MultiCameraCalibrationNew::updatePoints3D(size_t camera, Point3d new_point,
 		size_t idx, const Mat &R, const Mat &t) {
-	
+
 	int &f = inlier_[camera][idx];
 	Point3d &point = points3d_[camera][idx];
 	new_point = transformPoint(new_point, R, t);
@@ -315,7 +314,7 @@ void MultiCameraCalibrationNew::updatePoints3D(size_t camera, Point3d new_point,
 		//			would most likely suggest very bad triangulation (sync? wrong match?)
 		// 			instead store all triangulations and handle outliers
 		//			(perhaps inverse variance weighted mean?)
-		
+
 		if (euclideanDistance(point, new_point) > 10.0) {
 			LOG(ERROR) << "bad value (skipping) " << "(" << point << " vs " << new_point << ")";
 			f = -1;
@@ -333,7 +332,7 @@ void MultiCameraCalibrationNew::updatePoints3D(size_t camera, Point3d new_point,
 
 void MultiCameraCalibrationNew::updatePoints3D(size_t camera, vector<Point3d> points,
 		vector<size_t> idx, const Mat &R, const Mat &t) {
-	
+
 	for (size_t i = 0; i < idx.size(); i++) {
 		updatePoints3D(camera, points[i], idx[i], R, t);
 	}
@@ -341,16 +340,16 @@ void MultiCameraCalibrationNew::updatePoints3D(size_t camera, vector<Point3d> po
 
 void MultiCameraCalibrationNew::getVisiblePoints(
 		vector<size_t> cameras, vector<vector<Point2d>> &points, vector<size_t> &idx) {
-	
+
 	size_t n_points_total = points2d_[0].size();
 	DCHECK(cameras.size() <= n_cameras_);
 	DCHECK(n_points_total % target_.n_points == 0);
-	
+
 	idx.clear();
 	idx.reserve(n_points_total);
 	points.clear();
 	points.resize(cameras.size(), {});
-	
+
 	for (size_t i = 0; i < n_points_total; i += target_.n_points) {
 		bool visible_all = true;
 
@@ -359,7 +358,7 @@ void MultiCameraCalibrationNew::getVisiblePoints(
 				visible_all &= isVisible(c, i + j);
 			}
 		}
-		
+
 		if (!visible_all) { continue; }
 
 		for (size_t j = 0; j < target_.n_points; j++) {
@@ -378,7 +377,7 @@ void MultiCameraCalibrationNew::getVisiblePoints(
 }
 
 double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camera_to, Mat &rmat, Mat &tvec) {
-	
+
 
 	vector<size_t> idx;
 	vector<Point2d> points1, points2;
@@ -394,146 +393,19 @@ double MultiCameraCalibrationNew::calibratePair(size_t camera_from, size_t camer
 
 	// cameras possibly lack line of sight?
 	DCHECK(points1.size() > 8);
-	
+
 	Mat &K1 = K_[camera_from];
 	Mat &K2 = K_[camera_to];
-	/*
-	vector<uchar> inliers;
-	Mat F, E;
-	F = cv::findFundamentalMat(points1, points2, fm_method_, fm_ransac_threshold_, fm_confidence_, inliers);
-
-	if (F.empty())
-	{
-		LOG(ERROR) << "Fundamental matrix estimation failed. Possibly degenerate configuration?";
-		return INFINITY;
-	}
-
-	E = K2.t() * F * K1;
-
-	// Only include inliers
-	if (fm_method_ == cv::FM_LMEDS || fm_method_ == cv::FM_RANSAC) {
-		vector<Point2d> inliers1, inliers2;
-		vector<size_t> inliers_idx;
-
-		inliers1.reserve(points1.size());
-		inliers2.reserve(points1.size());
-		inliers_idx.reserve(points1.size());
-
-		for (size_t i = 0; i < inliers.size(); i += target_.n_points) {
-			bool inlier = true;
-			
-			for (size_t j = 0; j < target_.n_points; j++) {
-				inlier &= inliers[i+j];
-			}
-
-			if (inlier) {
-				inliers1.insert(inliers1.end(), points1.begin() + i, points1.begin() + i + target_.n_points);
-				inliers2.insert(inliers2.end(), points2.begin() + i, points2.begin() + i + target_.n_points);
-				inliers_idx.insert(inliers_idx.end(), idx.begin() + i, idx.begin() + i + target_.n_points);
-			}
-		}
-		
-		LOG(INFO) << "Total points: " << points1.size() << ", inliers: " << inliers1.size();
-		double ratio_good_points = (double) inliers1.size() / (double) points1.size();
-		if (ratio_good_points < 0.66) {
-			// TODO: ... 
-			LOG(WARNING) << "Over 1/3 of points rejected!";
-			if (ratio_good_points < 0.33) { LOG(FATAL) << "Over 2/3 points rejected!"; }
-		}
-		
-		DCHECK(inliers1.size() == inliers_idx.size());
-		DCHECK(inliers2.size() == inliers_idx.size());
-
-		std::swap(inliers1, points1);
-		std::swap(inliers2, points2);
-		std::swap(inliers_idx, idx);
-	}
-	
-	// Estimate initial rotation matrix and translation vector and triangulate
-	// points (in camera 1 coordinate system).
 
 	Mat R1, R2, t1, t2;
 	R1 = Mat::eye(Size(3, 3), CV_64FC1);
 	t1 = Mat(Size(1, 3), CV_64FC1, Scalar(0.0));
 
 	vector<Point3d> points3d;
-	// Convert homogeneous coordinates 
-	{
-		Mat points3dh;
-		recoverPose(E, points1, points2, K1, K2, R2, t2, 1000.0, points3dh);
-		points3d.reserve(points3dh.cols);
 
-		for (int col = 0; col < points3dh.cols; col++) {
-			Point3d p = Point3d(points3dh.at<double>(0, col),
-								points3dh.at<double>(1, col),
-								points3dh.at<double>(2, col))
-								/ points3dh.at<double>(3, col);
-			points3d.push_back(p);
-		}
-	}
-	DCHECK(points3d.size() == points1.size());
-
-	// Estimate and apply scale factor
-	{
-		double scale = ftl::calibration::optimizeScale(object_points_, points3d);
-		t1 = t1 * scale;
-		t2 = t2 * scale;
-	}
-
-	// Reprojection error before BA
-	{
-		// SBA should report squared mean error
-		const double err1 = reprojectionError(points3d, points1, K1, R1, t1);
-		const double err2 = reprojectionError(points3d, points2, K2, R2, t2);
-		
-		if (abs(err1 - err2) > 2.0) {
-			LOG(INFO) << "Initial reprojection error (camera " << camera_from << "): " << err1;
-			LOG(INFO) << "Initial reprojection error (camera " << camera_to << "): " << err2;
-		}
-		LOG(INFO)	<< "Initial reprojection error (" << camera_from << ", " << camera_to << "): "
-					<< sqrt(err1 * err1 + err2 * err2);
-		
-	}
-	
-	// Bundle Adjustment
-	
-	double err = INFINITY;
-	{
-		auto cameras = vector<ftl::calibration::Camera> {
-			ftl::calibration::Camera(K1, dist_coeffs_[camera_from], R1, t1),
-			ftl::calibration::Camera(K2, dist_coeffs_[camera_to], R2, t2)
-		};
-
-		ftl::calibration::BundleAdjustment ba;
-		ba.addCameras(cameras);
-		for (size_t i = 0; i < points3d.size(); i++) {
-			ba.addPoint({points1[i], points2[i]}, points3d[i]);
-		}
-
-		ftl::calibration::BundleAdjustment::Options options;
-		options.fix_camera_extrinsic = {0};
-		options.optimize_intrinsic = false;
-
-		ba.run(options);
-		// TODO: ... 
-		err = sqrt(ba.reprojectionError(0) * ba.reprojectionError(1));
-
-		R2 = cameras[1].rmat();
-		t2 = Mat(cameras[1].tvec());
-	}
-
-	calculateTransform(R2, t2, R1, t1, rmat, tvec);
-	*/
-	
-	Mat R1, R2, t1, t2;
-	R1 = Mat::eye(Size(3, 3), CV_64FC1);
-	t1 = Mat(Size(1, 3), CV_64FC1, Scalar(0.0));
-	
-	vector<Point3d> points3d;
-	
 	double err = ftl::calibration::computeExtrinsicParameters(K1, dist_coeffs_[camera_from], K2, dist_coeffs_[camera_to], points1, points2, object_points_, R2, t2, points3d);
 	calculateTransform(R2, t2, R1, t1, rmat, tvec);
-	
+
 
 	// Store and average 3D points for both cameras (skip garbage)
 	if (err < 10.0) {
@@ -598,7 +470,7 @@ double MultiCameraCalibrationNew::getReprojectionError(size_t c_from, size_t c_t
 }
 
 double MultiCameraCalibrationNew::getReprojectionErrorOptimized(size_t c_from, const Mat &K, const Mat &R, const Mat &t) {
-	
+
 	vector<Point2d> points2d;
 	vector<Point3d> points3d;
 
@@ -615,7 +487,7 @@ double MultiCameraCalibrationNew::getReprojectionErrorOptimized(size_t c_from, c
 double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 	if (reference_camera != -1) {
 		DCHECK(reference_camera >= 0 && reference_camera < static_cast<int>(n_cameras_));
-		reference_camera_ = reference_camera; 
+		reference_camera_ = reference_camera;
 	}
 
 	for (const auto &K : K_) {
@@ -623,17 +495,17 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 	}
 
 	reset(); // remove all old calibration results
-	map<pair<size_t, size_t>, pair<Mat, Mat>> transformations; 
-	
+	map<pair<size_t, size_t>, pair<Mat, Mat>> transformations;
+
 	// All cameras should be calibrated pairwise; otherwise all possible 3D
 	// points are not necessarily triangulated
 
 	auto paths = visibility_graph_.findShortestPaths(reference_camera_);
-	
+
 	for (size_t c1 = 0; c1 < n_cameras_; c1++) {
 	for (size_t c2 = c1; c2 < n_cameras_; c2++) {
 		if (c1 == c2) {
-			transformations[make_pair(c1, c2)] = 
+			transformations[make_pair(c1, c2)] =
 				make_pair(Mat::eye(Size(3, 3), CV_64FC1),
 				Mat(Size(1, 3), CV_64FC1, Scalar(0.0))
 			);
@@ -691,9 +563,9 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 		DCHECK(R_[c].size() == Size(3, 3));
 		DCHECK(t_[c].size() == Size(1, 3));*/
 	}
-	
+
 	calculateMissingPoints3D();
-	
+
 	for (size_t c_from = 0; c_from < n_cameras_; c_from++) {
 		if (c_from == reference_camera_) continue;
 		Mat R, t;
@@ -705,7 +577,7 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 	double err;
 	{
 		auto cameras = vector<ftl::calibration::Camera>();
-		
+
 		for (size_t i = 0; i < n_cameras_; i++) {
 			calculateInverse(R_[i], t_[i], R_[i], t_[i]);
 			cameras.push_back(ftl::calibration::Camera(K_[i], dist_coeffs_[i], R_[i], t_[i]));
@@ -715,7 +587,7 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 		ba.addCameras(cameras);
 
 		for (size_t i = 0; i < points3d_optimized_.size(); i++) {
-			
+
 			auto &p = points3d_optimized_[i];
 			DCHECK(!isnanl(p.x) && !isnanl(p.y) && !isnanl(p.z));
 
@@ -723,9 +595,9 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 			for (size_t c = 0; c < n_cameras_; c++) {
 				if (isVisible(c, i) && isValid(c, i)) { count++; }
 			}
-			
+
 			if (count < 2) continue;
-			
+
 			vector<bool> visible(n_cameras_);
 			vector<Point2d> points2d(n_cameras_);
 
@@ -748,7 +620,7 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 		options.fix_camera_extrinsic = {reference_camera};
 		options.verbose = true;
 		options.max_iter = 500;
-		
+
 		err = ba.reprojectionError();
 		ba.run(options);
 
@@ -767,7 +639,7 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 		calculateInverse(R_[c_from], t_[c_from], R, t);
 		LOG(INFO)	<< "Error (RMS) after BA, cameras " << reference_camera_ << " and " << c_from << ": "
 					<< getReprojectionErrorOptimized(c_from, K_[c_from], R, t);
-	
+
 	}
 
 	is_calibrated_ = true;
@@ -775,7 +647,7 @@ double MultiCameraCalibrationNew::calibrateAll(int reference_camera) {
 }
 
 void MultiCameraCalibrationNew::projectPointsOriginal(size_t camera_src, size_t camera_dst, size_t idx, vector<Point2d> &points) {
-	
+
 }
 
 void MultiCameraCalibrationNew::projectPointsOptimized(size_t camera_dst, size_t idx, vector<Point2d> &points) {
@@ -783,7 +655,7 @@ void MultiCameraCalibrationNew::projectPointsOptimized(size_t camera_dst, size_t
 
 	points.clear();
 	size_t i = target_.n_points * idx;
-	
+
 	if (!isValid(i)) return;
 
 	Point3d p1(points3d_optimized_[i]);
@@ -792,12 +664,12 @@ void MultiCameraCalibrationNew::projectPointsOptimized(size_t camera_dst, size_t
 	if (!std::isfinite(p1.x) || !std::isfinite(p2.x)) {
 		// DEBUG: should not happen
 		LOG(ERROR) << "Bad point! (no valid triangulation)";
-		return; 
+		return;
 	}
-	
+
 	Mat R, tvec, rvec;
 	calculateTransform(R_[reference_camera_], t_[reference_camera_], R_[camera_dst], t_[camera_dst], R, tvec);
-	
+
 	cv::Rodrigues(R, rvec);
 	cv::projectPoints(	vector<Point3d> { p1, p2 },
 						rvec, tvec, K_[camera_dst], dist_coeffs_[camera_dst], points);

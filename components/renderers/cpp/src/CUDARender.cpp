@@ -25,13 +25,14 @@ using ftl::render::CUDARender;
 using ftl::codecs::Channel;
 using ftl::codecs::Channels;
 using ftl::rgbd::Format;
+using ftl::rgbd::VideoFrame;
 using cv::cuda::GpuMat;
 using std::stoul;
 using ftl::cuda::Mask;
 using ftl::render::parseCUDAColour;
 using ftl::render::parseCVColour;
 
-CUDARender::CUDARender(nlohmann::json &config) : ftl::render::FSRenderer(config), scene_(nullptr) {
+CUDARender::CUDARender(nlohmann::json &config) : ftl::render::FSRenderer(config), temp_d_(ftl::data::Frame::make_standalone()), temp_(temp_d_.cast<ftl::rgbd::Frame>()), scene_(nullptr) {
 	/*if (config["clipping"].is_object()) {
 		auto &c = config["clipping"];
 		float rx = c.value("pitch", 0.0f);
@@ -59,27 +60,29 @@ CUDARender::CUDARender(nlohmann::json &config) : ftl::render::FSRenderer(config)
 
 	colouriser_ = ftl::create<ftl::render::Colouriser>(this, "colouriser");
 
-	on("clipping_enabled", [this](const ftl::config::Event &e) {
+	on("touch_sensitivity", touch_dist_, 0.04f);
+
+	on("clipping_enabled", [this]() {
 		clipping_ = value("clipping_enabled", true);
 	});
 
 	norm_filter_ = value("normal_filter", -1.0f);
-	on("normal_filter", [this](const ftl::config::Event &e) {
+	on("normal_filter", [this]() {
 		norm_filter_ = value("normal_filter", -1.0f);
 	});
 
 	backcull_ = value("back_cull", true);
-	on("back_cull", [this](const ftl::config::Event &e) {
+	on("back_cull", [this]() {
 		backcull_ = value("back_cull", true);
 	});
 
 	mesh_ = value("meshing", true);
-	on("meshing", [this](const ftl::config::Event &e) {
+	on("meshing", [this]() {
 		mesh_ = value("meshing", true);
 	});
 
 	background_ = parseCVColour(value("background", std::string("#4c4c4c")));
-	on("background", [this](const ftl::config::Event &e) {
+	on("background", [this]() {
 		background_ = parseCVColour(value("background", std::string("#4c4c4c")));
 	});
 
@@ -98,10 +101,15 @@ CUDARender::CUDARender(nlohmann::json &config) : ftl::render::FSRenderer(config)
 
 	cudaSafeCall(cudaStreamCreate(&stream_));
 	last_frame_ = -1;
+
+	temp_.store();
+	// Allocate collisions buffer
+	cudaSafeCall(cudaMalloc(&collisions_, 1024*sizeof(ftl::cuda::Collision)));
 }
 
 CUDARender::~CUDARender() {
-
+	delete colouriser_;
+	cudaFree(collisions_);
 }
 
 void CUDARender::_renderChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel in, const Eigen::Matrix4d &t, cudaStream_t stream) {
@@ -110,12 +118,12 @@ void CUDARender::_renderChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel i
 	if (in == Channel::None) return;
 
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
-		if (!scene_->hasFrame(i)) continue;
-		auto &f = scene_->frames[i];
+		//if (!scene_->hasFrame(i)) continue;
+		auto &f = scene_->frames[i].cast<ftl::rgbd::Frame>();
 
 		if (!f.hasChannel(in)) {
-			LOG(ERROR) << "Reprojecting unavailable channel";
-			return;
+			//LOG(ERROR) << "Reprojecting unavailable channel";
+			continue;
 		}
 
 		_adjustDepthThresholds(f.getLeftCamera());
@@ -169,14 +177,14 @@ void CUDARender::_renderChannel(ftl::rgbd::Frame &output, ftl::codecs::Channel i
 
 void CUDARender::_dibr(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStream_t stream) {
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-	temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+	temp_.set<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
 		if (!scene_->hasFrame(i)) continue;
-		auto &f = scene_->frames[i];
+		auto &f = scene_->frames[i].cast<ftl::rgbd::Frame>();
 		//auto *s = scene_->sources[i];
 
-		if (f.empty(Channel::Colour)) {
+		if (!f.has(Channel::Colour)) {
 			LOG(ERROR) << "Missing required channel";
 			continue;
 		}
@@ -233,22 +241,26 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 	bool do_blend = value("mesh_blend", false);
 	float blend_alpha = value("blend_alpha", 0.02f);
 	if (do_blend) {
-		temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-		temp_.get<GpuMat>(Channel::Weights).setTo(cv::Scalar(0.0f), cvstream);
+		temp_.set<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+		temp_.set<GpuMat>(Channel::Weights).setTo(cv::Scalar(0.0f), cvstream);
 	} else {
-		temp_.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+		temp_.set<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 	}
+
+	int valid_count = 0;
 
 	// For each source depth map
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
-		if (!scene_->hasFrame(i)) continue;
-		auto &f = scene_->frames[i];
+		//if (!scene_->hasFrame(i)) continue;
+		auto &f = scene_->frames[i].cast<ftl::rgbd::Frame>();
 		//auto *s = scene_->sources[i];
 
-		if (f.empty(Channel::Colour)) {
-			LOG(ERROR) << "Missing required channel";
+		if (!f.has(Channel::Colour)) {
+			//LOG(ERROR) << "Missing required channel";
 			continue;
 		}
+
+		++valid_count;
 
 		//auto pose = MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
 		auto transform = pose_ * MatrixConversion::toCUDA(t.cast<float>() * f.getPose().cast<float>());
@@ -285,8 +297,10 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		// Must reset depth channel if blending
 		if (do_blend) {
-			temp_.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+			temp_.set<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
 		}
+
+		depth_out_.to_gpumat().setTo(cv::Scalar(1000.0f), cvstream);
 
 		// Decide on and render triangles around each point
 		ftl::cuda::triangle_render1(
@@ -303,7 +317,8 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 			// Blend this sources mesh with previous meshes
 			ftl::cuda::mesh_blender(
 				temp_.getTexture<int>(Channel::Depth),
-				out.createTexture<float>(_getDepthChannel()),
+				//out.createTexture<float>(_getDepthChannel()),
+				depth_out_,
 				f.createTexture<short>(Channel::Weights),
 				temp_.createTexture<float>(Channel::Weights),
 				params_,
@@ -315,19 +330,27 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		}
 	}
 
+	if (valid_count == 0) return;
+
 	// Convert from int depth to float depth
 	//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 
 	if (do_blend) {
 		ftl::cuda::dibr_normalise(
-			out.getTexture<float>(_getDepthChannel()),
-			out.getTexture<float>(_getDepthChannel()),
+			//out.getTexture<float>(_getDepthChannel()),
+			//out.getTexture<float>(_getDepthChannel()),
+			depth_out_,
+			depth_out_,
 			temp_.getTexture<float>(Channel::Weights),
 			stream_
 		);
 	} else {
-		ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), out.createTexture<float>(_getDepthChannel()), 1.0f / 100000.0f, stream_);
+		//ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), out.createTexture<float>(_getDepthChannel()), 1.0f / 100000.0f, stream_);
+		ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), depth_out_, 1.0f / 100000.0f, stream_);
 	}
+
+	// Now merge new render to any existing frameset render, detecting collisions
+	ftl::cuda::touch_merge(depth_out_, out.createTexture<float>(_getDepthChannel()), collisions_, 1024, touch_dist_, stream_);
 
 	//filters_->filter(out, src, stream);
 
@@ -347,29 +370,30 @@ void CUDARender::_allocateChannels(ftl::rgbd::Frame &out, ftl::codecs::Channel c
 	// Allocate left channel buffers and clear them
 	if (chan == Channel::Colour) {
 		//if (!out.hasChannel(Channel::Depth)) {
-			out.create<GpuMat>(Channel::Depth, Format<float>(camera.width, camera.height));
-			out.create<GpuMat>(Channel::Colour, Format<uchar4>(camera.width, camera.height));
-			out.create<GpuMat>(Channel::Normals, Format<half4>(camera.width, camera.height));
-			out.createTexture<uchar4>(Channel::Colour, true);  // Force interpolated colour
-			out.get<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
+			out.create<VideoFrame>(Channel::Depth).createGPU(Format<float>(camera.width, camera.height));
+			out.create<VideoFrame>(Channel::Colour).createGPU(Format<uchar4>(camera.width, camera.height));
+			out.create<VideoFrame>(Channel::Normals).createGPU(Format<half4>(camera.width, camera.height));
+			out.createTexture<uchar4>(Channel::Colour, ftl::rgbd::Format<uchar4>(camera.width, camera.height), true);  // Force interpolated colour
+			out.set<GpuMat>(Channel::Depth).setTo(cv::Scalar(1000.0f), cvstream);
 		//}
 	// Allocate right channel buffers and clear them
 	} else {
 		if (!out.hasChannel(Channel::Depth2)) {
-			out.create<GpuMat>(Channel::Depth2, Format<float>(camera.width, camera.height));
-			out.create<GpuMat>(Channel::Colour2, Format<uchar4>(camera.width, camera.height));
-			out.create<GpuMat>(Channel::Normals2, Format<half4>(camera.width, camera.height));
-			out.createTexture<uchar4>(Channel::Colour2, true);  // Force interpolated colour
-			out.get<GpuMat>(Channel::Depth2).setTo(cv::Scalar(1000.0f), cvstream);
+			out.create<VideoFrame>(Channel::Depth2).createGPU(Format<float>(camera.width, camera.height));
+			out.create<VideoFrame>(Channel::Colour2).createGPU(Format<uchar4>(camera.width, camera.height));
+			out.create<VideoFrame>(Channel::Normals2).createGPU(Format<half4>(camera.width, camera.height));
+			out.createTexture<uchar4>(Channel::Colour2, ftl::rgbd::Format<uchar4>(camera.width, camera.height), true);  // Force interpolated colour
+			out.set<GpuMat>(Channel::Depth2).setTo(cv::Scalar(1000.0f), cvstream);
 		}
 	}
-
-	temp_.create<GpuMat>(Channel::Depth, Format<int>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Depth2, Format<int>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Normals, Format<half4>(camera.width, camera.height));
-	temp_.create<GpuMat>(Channel::Weights, Format<float>(camera.width, camera.height));
+	
+	temp_.create<VideoFrame>(Channel::Depth).createGPU(Format<int>(camera.width, camera.height));
+	temp_.create<VideoFrame>(Channel::Depth2).createGPU(Format<int>(camera.width, camera.height));
+	temp_.create<VideoFrame>(Channel::Normals).createGPU(Format<half4>(camera.width, camera.height));
+	temp_.create<VideoFrame>(Channel::Weights).createGPU(Format<float>(camera.width, camera.height));
 	temp_.createTexture<int>(Channel::Depth);
 
+	depth_out_.create(camera.width, camera.height);
 	accum_.create(camera.width, camera.height);
 	contrib_.create(camera.width, camera.height);
 
@@ -418,7 +442,7 @@ void CUDARender::_postprocessColours(ftl::rgbd::Frame &out) {
 			out.getTexture<half4>(_getNormalsChannel()),
 			out.getTexture<uchar4>(out_chan_),
 			col, pose,
-			stream_	
+			stream_
 		);
 	}
 
@@ -438,7 +462,7 @@ void CUDARender::_postprocessColours(ftl::rgbd::Frame &out) {
 			params_.camera,
 			stream_
 		);
-	} else if (out.hasChannel(_getDepthChannel()) && out.hasChannel(out_chan_)) {
+	} else if (mesh_ && out.hasChannel(_getDepthChannel()) && out.hasChannel(out_chan_)) {
 		ftl::cuda::fix_bad_colour(
 			out.getTexture<float>(_getDepthChannel()),
 			out.getTexture<uchar4>(out_chan_),
@@ -467,7 +491,8 @@ void CUDARender::_renderPass2(Channels<0> chans, const Eigen::Matrix4d &t) {
 	for (auto chan : chans) {
 		ftl::codecs::Channel mapped = chan;
 
-		if (chan == Channel::Colour && scene_->firstFrame().hasChannel(Channel::ColourHighRes)) mapped = Channel::ColourHighRes;
+		// FIXME: Doesn't seem to work
+		//if (chan == Channel::Colour && scene_->firstFrame().hasChannel(Channel::ColourHighRes)) mapped = Channel::ColourHighRes;
 
 		_renderChannel(*out_, mapped, t, stream_);
 	}
@@ -492,7 +517,7 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 
 	// Apply a colour background
 	if (env_image_.empty() || !value("environment_enabled", false)) {
-		out.get<GpuMat>(chan).setTo(background_, cvstream);
+		out.set<GpuMat>(chan).setTo(background_, cvstream);
 	} else {
 		auto pose = poseInverse_.getFloat3x3();
 		ftl::cuda::equirectangular_reproject(
@@ -503,6 +528,9 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 
 	sets_.clear();
 	stage_ = Stage::ReadySubmit;
+
+	// Reset collision data.
+	cudaSafeCall(cudaMemsetAsync(collisions_, 0, sizeof(int), stream_));
 }
 
 void CUDARender::render() {
@@ -567,14 +595,45 @@ void CUDARender::_endSubmit() {
 void CUDARender::_end() {
 	_postprocessColours(*out_);
 
-	// Final OpenGL flip
-	ftl::cuda::flip(out_->getTexture<uchar4>(out_chan_), stream_);
-	ftl::cuda::flip(out_->getTexture<float>(_getDepthChannel()), stream_);
+	// Final OpenGL flip (easier to do in shader?)
+	/*ftl::cuda::flip(out_->getTexture<uchar4>(out_chan_), stream_);*/
+	/*ftl::cuda::flip(out_->getTexture<float>(_getDepthChannel()), stream_);*/
 
+	cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
 	cudaSafeCall(cudaStreamSynchronize(stream_));
+
+	// Convert collisions into camera coordinates.
+	collision_points_.resize(collisions_host_[0].screen);
+	for (uint i=1; i<collisions_host_[0].screen+1; ++i) {
+		collision_points_[i-1] = make_float4(collisions_host_[i].x(), collisions_host_[i].y(), collisions_host_[i].depth, collisions_host_[i].strength());
+	}
+
+	// Do something with the collisions
+	/*if (collisions_host_[0].screen > 0) {
+		float x = 0.0f;
+		float y = 0.0f;
+		float d = 0.0f;
+		float w = 0.0f;
+
+		for (uint i=1; i<collisions_host_[0].screen+1; ++i) {
+			float inum = collisions_host_[i].strength();
+			int ix = collisions_host_[i].x();
+			int iy = collisions_host_[i].y();
+			x += float(ix)*inum;
+			y += float(iy)*inum;
+			d += collisions_host_[i].depth*inum;
+			w += inum;
+		}
+
+		x /= w;
+		y /= w;
+		d /= w;
+
+		LOG(INFO) << "Collision at: " << x << "," << y << ", " << d;
+	}*/
 }
 
-bool CUDARender::submit(ftl::rgbd::FrameSet *in, Channels<0> chans, const Eigen::Matrix4d &t) {
+bool CUDARender::submit(ftl::data::FrameSet *in, Channels<0> chans, const Eigen::Matrix4d &t) {
 	if (stage_ != Stage::ReadySubmit) {
 		throw FTL_Error("Renderer not ready for submits");
 	}
@@ -588,9 +647,9 @@ bool CUDARender::submit(ftl::rgbd::FrameSet *in, Channels<0> chans, const Eigen:
 	bool success = true;
 
 	try {
-		_renderPass1(in->pose);
+		_renderPass1(t);
 		//cudaSafeCall(cudaStreamSynchronize(stream_));
-	} catch (std::exception &e) {
+	} catch (const ftl::exception &e) {
 		LOG(ERROR) << "Exception in render: " << e.what();
 		success = false;
 	}
@@ -598,9 +657,9 @@ bool CUDARender::submit(ftl::rgbd::FrameSet *in, Channels<0> chans, const Eigen:
 	auto &s = sets_.emplace_back();
 	s.fs = in;
 	s.channels = chans;
-	s.transform = in->pose;
+	s.transform = t;
 
-	last_frame_ = scene_->timestamp;
+	last_frame_ = scene_->timestamp();
 	scene_ = nullptr;
 	return success;
 }

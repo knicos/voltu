@@ -7,6 +7,7 @@
 #include <ftl/streams/stream.hpp>
 #include <ftl/codecs/decoder.hpp>
 #include <ftl/audio/decoder.hpp>
+#include <ftl/streams/builder.hpp>
 
 namespace ftl {
 namespace stream {
@@ -14,66 +15,66 @@ namespace stream {
 /**
  * Convert packet streams into framesets.
  */
-class Receiver : public ftl::Configurable, public ftl::rgbd::Generator {
+class Receiver : public ftl::Configurable, public ftl::data::Generator {
 	public:
-	explicit Receiver(nlohmann::json &config);
+	explicit Receiver(nlohmann::json &config, ftl::data::Pool *);
 	~Receiver();
 
 	void setStream(ftl::stream::Stream*);
 
 	/**
-	 * Encode and transmit an entire frame set. Frames may already contain
-	 * an encoded form, in which case that is used instead.
+	 * Loop a response frame back into a local buffer. Should only be called
+	 * for local builder framesets and probably only by `Feed`. It takes all
+	 * changes in the frame and puts them as `createChange` in the next
+	 * buffered frame in builder. The response frame is empty afterwards as
+	 * the data is moved, not copied.
 	 */
-	//void post(const ftl::rgbd::FrameSet &fs);
-
-	// void write(const ftl::audio::FrameSet &f);
-
-	size_t size() override;
-
-	ftl::rgbd::FrameState &state(size_t ix) override;
+	void loopback(ftl::data::Frame &, ftl::codecs::Channel);
 
 	/**
 	 * Register a callback for received framesets. Sources are automatically
 	 * created to match the data received.
 	 */
-	void onFrameSet(const ftl::rgbd::VideoCallback &cb) override;
+	ftl::Handle onFrameSet(const ftl::data::FrameSetCallback &cb) override;
 
-	/**
-	 * Add a frameset handler to a specific stream ID.
-	 */
-	void onFrameSet(size_t s, const ftl::rgbd::VideoCallback &cb);
+	ftl::streams::BaseBuilder &builder(uint32_t id);
 
-	void onAudio(const ftl::audio::FrameSet::Callback &cb);
+	void registerBuilder(const std::shared_ptr<ftl::streams::BaseBuilder> &b);
+
+	void processPackets(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
+
+	void removeBuilder(uint32_t id);
 
 	private:
 	ftl::stream::Stream *stream_;
-	ftl::rgbd::VideoCallback fs_callback_;
-	ftl::audio::FrameSet::Callback audio_cb_;
-	ftl::rgbd::Builder builder_[ftl::stream::kMaxStreams];
+	ftl::data::Pool *pool_;
+	ftl::SingletonHandler<const ftl::data::FrameSetPtr&> callback_;
+	std::unordered_map<uint32_t, std::shared_ptr<ftl::streams::BaseBuilder>> builders_;
+	std::unordered_map<uint32_t, ftl::Handle> handles_;
 	ftl::codecs::Channel second_channel_;
 	int64_t timestamp_;
 	SHARED_MUTEX mutex_;
 	unsigned int frame_mask_;
+	ftl::Handle handle_;
 
 	struct InternalVideoStates {
 		InternalVideoStates();
 
 		int64_t timestamp;
-		ftl::rgbd::FrameState state;
-		ftl::rgbd::Frame frame;
+		//ftl::rgbd::Frame frame;
 		ftl::codecs::Decoder* decoders[32];
 		cv::cuda::GpuMat surface[32];
 		MUTEX mutex;
 		ftl::codecs::Channels<0> completed;
+		int width=0;
+		int height=0;
 	};
 
 	struct InternalAudioStates {
 		InternalAudioStates();
 
 		int64_t timestamp;
-		ftl::audio::FrameState state;
-		ftl::audio::Frame frame;
+		//ftl::audio::Frame frame;
 		MUTEX mutex;
 		ftl::codecs::Channels<0> completed;
 		ftl::audio::Decoder *decoder;

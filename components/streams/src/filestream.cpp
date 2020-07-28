@@ -1,5 +1,6 @@
 #include <fstream>
 #include <ftl/streams/filestream.hpp>
+#include <ftl/timer.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -16,7 +17,7 @@ File::File(nlohmann::json &config) : Stream(config), ostream_(nullptr), istream_
 	checked_ = false;
 	save_data_ = value("save_data", false);
 
-	on("save_data", [this](const ftl::config::Event &e) {
+	on("save_data", [this]() {
 		save_data_ = value("save_data", false);
 	});
 }
@@ -34,7 +35,7 @@ File::File(nlohmann::json &config, std::ofstream *os) : Stream(config), ostream_
 	checked_ = false;
 	save_data_ = value("save_data", false);
 
-	on("save_data", [this](const ftl::config::Event &e) {
+	on("save_data", [this]() {
 		save_data_ = value("save_data", false);
 	});
 }
@@ -54,6 +55,8 @@ bool File::_checkFile() {
 	int min_ts_diff = 1000;
 	first_ts_ = 10000000000000ll;
 
+	std::unordered_set<ftl::codecs::codec_t> codecs_found;
+
 	while (count > 0) {
 		std::tuple<ftl::codecs::StreamPacket,ftl::codecs::Packet> data;
 		if (!readPacket(data)) {
@@ -61,7 +64,9 @@ bool File::_checkFile() {
 		}
 
 		auto &spkt = std::get<0>(data);
-		//auto &pkt = std::get<1>(data);
+		auto &pkt = std::get<1>(data);
+
+		codecs_found.emplace(pkt.codec);
 
 		if (spkt.timestamp < first_ts_) first_ts_ = spkt.timestamp;
 
@@ -88,12 +93,14 @@ bool File::_checkFile() {
 
 	LOG(INFO) << " -- Frame rate = " << (1000 / min_ts_diff);
 	if (!is_video_) LOG(INFO) << " -- Static image";
-	interval_ = min_ts_diff;
-	return true;
-}
 
-bool File::onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &f) {
-	cb_ = f;
+	std::string codec_str = "";
+	for (auto c : codecs_found) {
+		codec_str += std::string(" ") + std::to_string(int(c));
+	}
+	LOG(INFO) << " -- Codecs:" << codec_str;
+
+	interval_ = min_ts_diff;
 	return true;
 }
 
@@ -152,31 +159,58 @@ bool File::readPacket(std::tuple<ftl::codecs::StreamPacket,ftl::codecs::Packet> 
 		msgpack::object obj = msg.get();
 
 		try {
-			obj.convert(data);
+			// Older versions have a different SPKT structure.
+			if (version_ < 5) {
+				std::tuple<ftl::codecs::StreamPacketV4, ftl::codecs::Packet> datav4;
+				obj.convert(datav4);
+
+				auto &spkt = std::get<0>(data);
+				auto &spktv4 = std::get<0>(datav4);
+				spkt.streamID = spktv4.streamID;
+				spkt.channel = spktv4.channel;
+				spkt.frame_number = spktv4.frame_number;
+				spkt.timestamp = spktv4.timestamp;
+				spkt.flags = 0;
+
+				std::get<1>(data) = std::move(std::get<1>(datav4));
+			} else {
+				obj.convert(data);
+			}
 		} catch (std::exception &e) {
 			LOG(INFO) << "Corrupt message: " << buffer_in_.nonparsed_size() << " - " << e.what();
 			//active_ = false;
 			return false;
 		}
 
-		// Fix to clear flags for version 2.
-		if (version_ <= 2) {
-			std::get<1>(data).flags = 0;
-		}
-		if (version_ < 4) {
-			std::get<0>(data).frame_number = std::get<0>(data).streamID;
-			std::get<0>(data).streamID = 0;
-			if (isFloatChannel(std::get<0>(data).channel)) std::get<1>(data).flags |= ftl::codecs::kFlagFloat;
-
-			auto codec = std::get<1>(data).codec;
-			if (codec == ftl::codecs::codec_t::HEVC) std::get<1>(data).codec = ftl::codecs::codec_t::HEVC_LOSSLESS;
-		}
-		std::get<0>(data).version = 4;
+		// Correct for older version differences.
+		_patchPackets(std::get<0>(data), std::get<1>(data));
 
 		return true;
 	}
 
 	return false;
+}
+
+void File::_patchPackets(ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt) {
+	// Fix to clear flags for version 2.
+	if (version_ <= 2) {
+		pkt.flags = 0;
+	}
+	if (version_ < 4) {
+		spkt.frame_number = spkt.streamID;
+		spkt.streamID = 0;
+		if (isFloatChannel(spkt.channel)) pkt.flags |= ftl::codecs::kFlagFloat;
+
+		auto codec = pkt.codec;
+		if (codec == ftl::codecs::codec_t::HEVC) pkt.codec = ftl::codecs::codec_t::HEVC_LOSSLESS;
+	}
+
+	spkt.version = 5;
+
+	// Fix for flags corruption
+	if (pkt.data.size() == 0) {
+		pkt.flags = 0;
+	}
 }
 
 bool File::tick(int64_t ts) {
@@ -194,13 +228,16 @@ bool File::tick(int64_t ts) {
 	#endif
 
 	if (jobs_ > 0) {
-		//LOG(ERROR) << "STILL HAS JOBS";
 		return true;
 	}
+
+	bool has_data = false;
 
 	// Check buffer first for frames already read
 	{
 		UNIQUE_LOCK(data_mutex_, dlk);
+		if (data_.size() > 0) has_data = true;
+
 		for (auto i = data_.begin(); i != data_.end(); ++i) {
 			if (std::get<0>(*i).timestamp <= timestamp_) {
 				++jobs_;
@@ -209,8 +246,12 @@ bool File::tick(int64_t ts) {
 					auto &spkt = std::get<0>(*i);
 					auto &pkt = std::get<1>(*i);
 
+					spkt.localTimestamp = spkt.timestamp;
+
 					try {
-						if (cb_) cb_(spkt, pkt);
+						cb_.trigger(spkt, pkt);
+					} catch (const ftl::exception &e) {
+						LOG(ERROR) << "Exception in packet callback: " << e.what() << e.trace();
 					} catch (std::exception &e) {
 						LOG(ERROR) << "Exception in packet callback: " << e.what();
 					}
@@ -227,6 +268,7 @@ bool File::tick(int64_t ts) {
 
 	while ((active_ && istream_->good()) || buffer_in_.nonparsed_size() > 0u) {
 		UNIQUE_LOCK(data_mutex_, dlk);
+		auto *lastData = (data_.size() > 0) ? &data_.back() : nullptr;
 		auto &data = data_.emplace_back();
 		dlk.unlock();
 
@@ -240,7 +282,7 @@ bool File::tick(int64_t ts) {
 		// Adjust timestamp
 		// FIXME: A potential bug where multiple times are merged into one?
 		std::get<0>(data).timestamp = (((std::get<0>(data).timestamp) - first_ts_) / interval_) * interval_ + timestart_;
-		std::get<0>(data).hint_capability = (is_video_) ? 0 : ftl::codecs::kStreamCap_Static;
+		std::get<0>(data).hint_capability = ((is_video_) ? 0 : ftl::codecs::kStreamCap_Static) | ftl::codecs::kStreamCap_Recorded;
 
 		// Maintain availability of channels.
 		available(0) += std::get<0>(data).channel;
@@ -248,23 +290,30 @@ bool File::tick(int64_t ts) {
 		// This should only occur for first few frames, generally otherwise
 		// the data buffer is already several frames ahead so is processed
 		// above. Hence, no need to bother parallelising this bit.
-		if (std::get<0>(data).timestamp <= timestamp_) {
+		/*if (std::get<0>(data).timestamp <= timestamp_) {
 			std::get<0>(data).timestamp = ts;
-			if (cb_) {
+			//if (cb_) {
 				dlk.lock();
 				try {
-					cb_(std::get<0>(data),std::get<1>(data));
+					LOG(INFO) << "EARLY TRIGGER: " << std::get<0>(data).timestamp << " - " << int(std::get<0>(data).channel);
+					cb_.trigger(std::get<0>(data),std::get<1>(data));
 				} catch (std::exception &e) {
 					LOG(ERROR) << "Exception in packet callback: " << e.what();
 				}
 				data_.pop_back();
-			}
-		} else if (std::get<0>(data).timestamp > extended_ts) {
+			//}
+		}*/
+		if (version_ < 5 && lastData) {
+			// For versions < 5, add completed flag to previous data
+			std::get<0>(*lastData).flags |= ftl::codecs::kFlagCompleted;
+		}
+
+		if (std::get<0>(data).timestamp > extended_ts) {
 			break;
 		}
 	}
 
-	timestamp_ += interval_;
+	if (has_data) timestamp_ += interval_;
 
 	if (data_.size() == 0 && value("looping", true)) {
 		buffer_in_.reset();
@@ -315,6 +364,7 @@ bool File::run() {
 }
 
 bool File::begin(bool dorun) {
+	if (active_) return true;
 	if (mode_ == Mode::Read) {
 		if (!checked_) _checkFile();
 		_open();
@@ -355,10 +405,16 @@ bool File::begin(bool dorun) {
 }
 
 bool File::end() {
-	UNIQUE_LOCK(mutex_, lk);
 	if (!active_) return false;
 	active_ = false;
+	
 	timer_.cancel();
+
+	UNIQUE_LOCK(mutex_, lk);
+
+	while (jobs_ > 0) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
 
 	if (mode_ == Mode::Read) {
 		if (istream_) {

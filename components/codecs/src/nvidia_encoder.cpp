@@ -1,5 +1,5 @@
 #include <ftl/codecs/nvidia_encoder.hpp>
-#include <loguru.hpp>
+//#include <loguru.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/codecs/codecs.hpp>
 #include <ftl/cuda_util.hpp>
@@ -117,7 +117,7 @@ static uint64_t calculateBitrate(int64_t pixels, float ratescale) {
 	default						: bitrate = 16.0f;
 	}*/
 
-	float bitrate = 8.0f * float(pixels);
+	float bitrate = 16.0f * float(pixels);
 
 	//bitrate *= 1000.0f*1000.0f;
 	float minrate = 0.05f * bitrate;
@@ -144,7 +144,7 @@ static bool validate(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
 	}
 
 	if (pkt.codec == codec_t::H264 && in.type() == CV_32F) {
-		LOG(ERROR) << "Lossy compression not supported with H264 currently";
+		//LOG(ERROR) << "Lossy compression not supported with H264 currently";
 		return false;
 	}
 
@@ -152,16 +152,13 @@ static bool validate(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) {
 		return false;
 	}
 
-	auto width = in.cols;
-	auto height = in.rows;
-
 	if (in.empty()) {
-		LOG(WARNING) << "No data";
+		//LOG(WARNING) << "No data";
 		return false;
 	}
 
 	if (in.type() != CV_32F && in.type() != CV_8UC4) {
-		LOG(ERROR) << "Input type does not match given format";
+		//LOG(ERROR) << "Input type does not match given format";
 		pkt.flags = 0;
 		return false;
 	}
@@ -188,7 +185,7 @@ bool NvidiaEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 	} else if (params_.isLossy()) {
 		ftl::cuda::depth_to_nv12_10(in, (ushort*)f->inputPtr, (ushort*)(((uchar*)f->inputPtr)+(nvenc_->GetEncodeHeight()*f->pitch)), f->pitch/2, 16.0f, stream_);
 	} else {
-		ftl::cuda::float_to_nv12_16bit((float*)in.data, in.step1(), (uchar*)f->inputPtr, f->pitch, nvenc_->GetEncodeWidth()/2, nvenc_->GetEncodeHeight(), cv::cuda::StreamAccessor::getStream(stream_));
+		ftl::cuda::float_to_nv12_16bit((float*)in.data, static_cast<uint32_t>(in.step1()), (uchar*)f->inputPtr, f->pitch, nvenc_->GetEncodeWidth()/2, nvenc_->GetEncodeHeight(), cv::cuda::StreamAccessor::getStream(stream_));
 	}
 
 	// TODO: Use page locked memory?
@@ -202,7 +199,7 @@ bool NvidiaEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 	was_reset_ = false;
 
 	if (cs == 0 || cs >= ftl::codecs::kVideoBufferSize) {
-		LOG(ERROR) << "Could not encode video frame";
+		//LOG(ERROR) << "Could not encode video frame";
 		return false;
 	} else {
 		return true;
@@ -214,7 +211,7 @@ bool NvidiaEncoder::_createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs
 	if (nvenc_ && (params == params_)) return true;
 
 	uint64_t bitrate = calculateBitrate(in.cols*in.rows, float(pkt.bitrate)/255.0f) * pkt.frame_count;
-	LOG(INFO) << "Calculated bitrate " << ((params.is_float) ? "(float)" : "(rgb)") << ": " << bitrate;
+	//LOG(INFO) << "Calculated bitrate " << ((params.is_float) ? "(float)" : "(rgb)") << ": " << bitrate;
 	
 	params_ = params;
 
@@ -229,7 +226,7 @@ bool NvidiaEncoder::_createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs
 	cuCtxGetCurrent(&cudaContext);    
 
 	if (nvenc_) {
-		LOG(INFO) << "Destroying old NVENC encoder";
+		//LOG(INFO) << "Destroying old NVENC encoder";
 		std::vector<std::vector<uint8_t>> tmp;
 		nvenc_->EndEncode(tmp);
 		nvenc_->DestroyEncoder();
@@ -284,7 +281,7 @@ bool NvidiaEncoder::_createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs
 
 		if (params.isLossy())
 		{
-			encodeConfig.rcParams.averageBitRate = bitrate;
+			encodeConfig.rcParams.averageBitRate = static_cast<uint32_t>(bitrate);
 			encodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR_LOWDELAY_HQ;
 			encodeConfig.rcParams.vbvBufferSize = encodeConfig.rcParams.averageBitRate * initializeParams.frameRateDen / initializeParams.frameRateNum; // bitrate / framerate = one frame
 			encodeConfig.rcParams.maxBitRate = encodeConfig.rcParams.averageBitRate;
@@ -302,7 +299,7 @@ bool NvidiaEncoder::_createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs
 		//LOG(ERROR) << "Could not create video encoder";
 		return false;
 	} else {
-		LOG(INFO) << "NVENC encoder created";
+		//LOG(INFO) << "NVENC encoder created";
 
 		//nvenc_->SetIOCudaStreams(cv::cuda::StreamAccessor::getStream(stream_), cv::cuda::StreamAccessor::getStream(stream_));
 

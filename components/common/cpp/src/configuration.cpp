@@ -30,9 +30,11 @@
 #include <string>
 #include <map>
 #include <iostream>
+#include <iomanip>
 
 using ftl::config::json_t;
 using std::ifstream;
+using std::ofstream;
 using std::string;
 using std::map;
 using std::vector;
@@ -175,6 +177,42 @@ optional<string> ftl::config::locateFile(const string &name) {
 	return {};
 }
 
+nlohmann::json ftl::loadJSON(const std::string &path) {
+	ifstream i(path.c_str());
+	//i.open(path);
+	if (i.is_open()) {
+		try {
+			nlohmann::json t;
+			i >> t;
+			return t;
+		} catch (nlohmann::json::parse_error& e) {
+			LOG(ERROR) << "Parse error in loading JSON: "  << e.what();
+			return {};
+		} catch (...) {
+			LOG(ERROR) << "Unknown error opening JSON file: " << path;
+		}
+		return {};
+	} else {
+		return {};
+	}
+}
+
+bool ftl::saveJSON(const std::string &path, nlohmann::json &json) {
+	ofstream o(path.c_str());
+	//i.open(path);
+	if (o.is_open()) {
+		try {
+			o << std::setw(4) << json << std::endl;
+			return true;
+		} catch (...) {
+			LOG(ERROR) << "Unknown error saving JSON file: " << path;
+		}
+		return false;
+	} else {
+		return false;
+	}
+}
+
 /**
  * Combine one json config with another patch json config.
  */
@@ -199,9 +237,25 @@ static bool mergeConfig(const string path) {
 	}
 }
 
+static SHARED_MUTEX mutex;
 static std::map<std::string, json_t*> config_index;
 static std::map<std::string, ftl::Configurable*> config_instance;
+static std::map<std::string, ftl::Configurable*> config_alias;
 static std::map<std::string, std::vector<ftl::Configurable*>> tag_index;
+
+static std::string cfg_root_str;
+static nlohmann::json config_restore;
+static nlohmann::json config_defaults;
+
+nlohmann::json &ftl::config::getRestore(const std::string &key) {
+	UNIQUE_LOCK(mutex, lk);
+	return config_restore[key];
+}
+
+nlohmann::json &ftl::config::getDefault(const std::string &key) {
+	UNIQUE_LOCK(mutex, lk);
+	return config_defaults[key];
+}
 
 /*
  * Recursively URI index the JSON structure.
@@ -222,6 +276,7 @@ static void _indexConfig(json_t &cfg) {
 }
 
 ftl::Configurable *ftl::config::find(const std::string &uri) {
+	if (uri.size() == 0) return nullptr;
 	std::string actual_uri = uri;
 	if (uri[0] == '/') {
 		if (uri.size() == 1) {
@@ -230,10 +285,21 @@ ftl::Configurable *ftl::config::find(const std::string &uri) {
 			actual_uri = rootCFG->getID() + uri;
 		}
 	}
+
+	SHARED_LOCK(mutex, lk);
 	
 	auto ix = config_instance.find(actual_uri);
-	if (ix == config_instance.end()) return nullptr;
+	if (ix == config_instance.end()) {
+		auto ix = config_alias.find(actual_uri);
+		if (ix == config_alias.end()) return nullptr;
+		else return (*ix).second;
+	}
 	else return (*ix).second;
+}
+
+void ftl::config::alias(const std::string &uri, Configurable *cfg) {
+	UNIQUE_LOCK(mutex, lk);
+	config_alias[uri] = cfg;
 }
 
 const std::vector<Configurable*> &ftl::config::findByTag(const std::string &tag) {
@@ -242,6 +308,7 @@ const std::vector<Configurable*> &ftl::config::findByTag(const std::string &tag)
 
 std::vector<std::string> ftl::config::list() {
 	vector<string> r;
+	SHARED_LOCK(mutex, lk);
 	for (auto i : config_instance) {
 		r.push_back(i.first);
 	}
@@ -250,6 +317,7 @@ std::vector<std::string> ftl::config::list() {
 
 const std::vector<Configurable *> ftl::config::getChildren(const string &uri) {
 	std::vector<Configurable *> children;
+	SHARED_LOCK(mutex, lk);
 	for (const auto &[curi, c] : config_instance) {
 		auto mismatch = std::mismatch(uri.begin(), uri.end(), curi.begin());
 		if (mismatch.first == uri.end()) {
@@ -265,15 +333,19 @@ void ftl::config::registerConfigurable(ftl::Configurable *cfg) {
 		LOG(ERROR) << "Configurable object is missing $id property: " << cfg->getConfig();
 		return;
 	}
+
+	UNIQUE_LOCK(mutex, lk);
 	auto ix = config_instance.find(*uri);
 	if (ix != config_instance.end()) {
 		// FIXME: HACK NOTE TODO SHOULD BE FATAL
 		LOG(ERROR) << "Attempting to create a duplicate object: " << *uri;
 	} else {
 		config_instance[*uri] = cfg;
-		LOG(INFO) << "Registering instance: " << *uri;
+		//LOG(INFO) << "Registering instance: " << *uri;
 
+		lk.unlock();
 		auto tags = cfg->get<vector<string>>("tags");
+		lk.lock();
 		if (tags) {
 			for (auto &t : *tags) {
 				//LOG(INFO) << "REGISTER TAG: " << t;
@@ -314,20 +386,22 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 	string tail = "";
 	string head = "";
 	string uri = preprocessURI(puri);
-	size_t last_hash = uri.find_last_of('#');
-	if (last_hash != string::npos) {
+	//size_t last_hash = uri.find_last_of('/');
+	//if (last_hash != string::npos) {
 		size_t last = uri.find_last_of('/');
-		if (last != string::npos && last > last_hash) {
+		if (last != string::npos) {
 			tail = uri.substr(last+1);
 			head = uri.substr(0, last);
 		} else {
-			tail = uri.substr(last_hash+1);
-			head = uri.substr(0, last_hash);
+		//	tail = uri.substr(last_hash+1);
+		//	head = uri.substr(0, last_hash);
+			LOG(WARNING) << "Expected a URI path: " << uri;
+			return false;
 		}
-	} else {
-		LOG(WARNING) << "Expected a # in an update URI: " << uri;
-		return false;
-	}
+	//} else {
+	//	LOG(WARNING) << "Expected a # in an update URI: " << uri;
+	//	return false;
+	//}
 
 	Configurable *cfg = find(head);
 
@@ -399,6 +473,8 @@ json_t &ftl::config::resolve(const std::string &puri, bool eager) {
 			uri_str = id_str + uri_str;
 		//}
 	}
+
+	SHARED_LOCK(mutex, lk);
 
 	ftl::URI uri(uri_str);
 	if (uri.isValid()) {
@@ -532,6 +608,7 @@ map<string, string> ftl::config::read_options(char ***argv, int *argc) {
  */
 static void process_options(Configurable *root, const map<string, string> &opts) {
 	for (auto opt : opts) {
+		if (opt.first == "") continue;
 		if (opt.first == "config") continue;
 		if (opt.first == "root") continue;
 
@@ -558,7 +635,7 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 			auto v = nlohmann::json::parse(opt.second);
 			ftl::config::update(*root->get<string>("$id") + string("/") + opt.first, v);
 		} catch(...) {
-			LOG(ERROR) << "Unrecognised option: " << *root->get<string>("$id") << "#" << opt.first;
+			LOG(ERROR) << "Unrecognised option: " << *root->get<string>("$id") << "/" << opt.first;
 		}
 	}
 }
@@ -594,19 +671,46 @@ Configurable *ftl::config::configure(ftl::config::json_t &cfg) {
 	return rootcfg;
 }
 
-static bool doing_cleanup = false;
+// Remove all $ keys from json
+static void stripJSON(nlohmann::json &j) {
+	for (auto i=j.begin(); i != j.end(); ) {
+		if (i.key()[0] == '$') {
+			i = j.erase(i);
+			continue;
+		}
+        if ((*i).is_structured()) {
+            stripJSON(*i);
+        }
+		++i;
+	}
+}
+
+static std::atomic_bool doing_cleanup = false;
 void ftl::config::cleanup() {
 	if (doing_cleanup) return;
 	doing_cleanup = true;
-	for (auto f : config_instance) {
-		delete f.second;
+
+	//UNIQUE_LOCK(mutex, lk);
+
+	for (auto &f : config_instance) {
+		LOG(WARNING) << "Not deleted properly: " << f.second->getID();
+		//delete f.second;
+	//	f.second->save();
+	}
+	while (config_instance.begin() != config_instance.end()) {
+		delete config_instance.begin()->second;
 	}
 	config_instance.clear();
+
+	stripJSON(config_restore);
+	ftl::saveJSON(std::string(FTL_LOCAL_CONFIG_ROOT "/")+cfg_root_str+std::string("_session.json"), config_restore);
+
 	doing_cleanup = false;
 }
 
 void ftl::config::removeConfigurable(Configurable *cfg) {
-	if (doing_cleanup) return;
+	//if (doing_cleanup) return;
+	UNIQUE_LOCK(mutex, lk);
 
 	auto i = config_instance.find(cfg->getID());
 	if (i != config_instance.end()) {
@@ -634,22 +738,22 @@ std::vector<nlohmann::json*> ftl::config::_createArray(ftl::Configurable *parent
 			if (entity.is_object()) {
 				if (!entity["$id"].is_string()) {
 					std::string id_str = *parent->get<std::string>("$id");
-					if (id_str.find('#') != std::string::npos) {
+					//if (id_str.find('#') != std::string::npos) {
 						entity["$id"] = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
-					} else {
-						entity["$id"] = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
-					}
+					//} else {
+					//	entity["$id"] = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
+					//}
 				}
 
 				result.push_back(&entity);
 			} else if (entity.is_null()) {
 				// Must create the object from scratch...
 				std::string id_str = *parent->get<std::string>("$id");
-				if (id_str.find('#') != std::string::npos) {
+				//if (id_str.find('#') != std::string::npos) {
 					id_str = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
-				} else {
-					id_str = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
-				}
+				//} else {
+				//	id_str = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
+				//}
 				parent->getConfig()[name] = {
 					// cppcheck-suppress constStatement
 					{"$id", id_str}
@@ -664,7 +768,7 @@ std::vector<nlohmann::json*> ftl::config::_createArray(ftl::Configurable *parent
 		//LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();
 	}
 
-	return std::move(result);
+	return result;
 }
 
 nlohmann::json &ftl::config::_create(ftl::Configurable *parent, const std::string &name) {
@@ -675,22 +779,22 @@ nlohmann::json &ftl::config::_create(ftl::Configurable *parent, const std::strin
 	if (entity.is_object()) {
 		if (!entity["$id"].is_string()) {
 			std::string id_str = *parent->get<std::string>("$id");
-			if (id_str.find('#') != std::string::npos) {
+			//if (id_str.find('#') != std::string::npos) {
 				entity["$id"] = id_str + std::string("/") + name;
-			} else {
-				entity["$id"] = id_str + std::string("#") + name;
-			}
+			//} else {
+			//	entity["$id"] = id_str + std::string("#") + name;
+			//}
 		}
 
 		return entity;
 	} else if (entity.is_null()) {
 		// Must create the object from scratch...
 		std::string id_str = *parent->get<std::string>("$id");
-		if (id_str.find('#') != std::string::npos) {
+		//if (id_str.find('#') != std::string::npos) {
 			id_str = id_str + std::string("/") + name;
-		} else {
-			id_str = id_str + std::string("#") + name;
-		}
+		//} else {
+		//	id_str = id_str + std::string("#") + name;
+		//}
 		parent->getConfig()[name] = {
 			// cppcheck-suppress constStatement
 			{"$id", id_str}
@@ -745,7 +849,7 @@ template void ftl::config::setJSON<float>(nlohmann::json *config, const std::str
 template void ftl::config::setJSON<int>(nlohmann::json *config, const std::string &name, int value);
 template void ftl::config::setJSON<std::string>(nlohmann::json *config, const std::string &name, std::string value);
 
-Configurable *ftl::config::configure(int argc, char **argv, const std::string &root) {
+Configurable *ftl::config::configure(int argc, char **argv, const std::string &root, const std::unordered_set<std::string> &restoreable) {
 	loguru::g_preamble_date = false;
 	loguru::g_preamble_uptime = false;
 	loguru::g_preamble_thread = false;
@@ -771,19 +875,31 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	}
 
 	string root_str = (options.find("root") != options.end()) ? nlohmann::json::parse(options["root"]).get<string>() : root;
+	cfg_root_str = root_str;
 
 	if (options.find("id") != options.end()) config["$id"] = nlohmann::json::parse(options["id"]).get<string>();
 	_indexConfig(config);
 
-	Configurable *rootcfg = create<Configurable>(config);
-	if (root_str.size() > 0) {
-		LOG(INFO) << "Setting root to " << root_str;
-		rootcfg = create<Configurable>(rootcfg, root_str);
+	config_restore = std::move(ftl::loadJSON(std::string(FTL_LOCAL_CONFIG_ROOT "/")+cfg_root_str+std::string("_session.json")));
+
+	Configurable *rootcfg = nullptr;
+
+	try {
+		if (!config.contains("$id")) config["$id"] = "ftl://utu.fi";
+		rootcfg = create<Configurable>(config);
+		rootCFG = rootcfg;
+		if (root_str.size() > 0) {
+			LOG(INFO) << "Setting root to " << root_str;
+			rootcfg = create<Configurable>(rootcfg, root_str);
+		}
+	} catch (const std::exception &e) {
+		LOG(FATAL) << "Exception setting root: " << e.what();
 	}
 
 	//root_config = rootcfg->getConfig();
 	rootCFG = rootcfg;
 	rootcfg->set("paths", paths);
+	rootcfg->restore("root", restoreable);
 	process_options(rootcfg, options);
 
 	if (rootcfg->get<int>("profiler")) {
@@ -793,9 +909,9 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	if (rootcfg->get<std::string>("branch")) {
 		ftl::branch_name = *rootcfg->get<std::string>("branch");
 	}
-	rootcfg->on("branch", [](const ftl::config::Event &e) {
-		if (e.entity->get<std::string>("branch")) {
-			ftl::branch_name = *e.entity->get<std::string>("branch");
+	rootcfg->on("branch", [rootcfg]() {
+		if (rootcfg->get<std::string>("branch")) {
+			ftl::branch_name = *rootcfg->get<std::string>("branch");
 		}
 	});
 
@@ -805,7 +921,7 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 	// Check CUDA
 	ftl::cuda::initialise();
 
-	int pool_size = rootcfg->value("thread_pool_factor", 2.0f)*std::thread::hardware_concurrency();
+	int pool_size = int(rootcfg->value("thread_pool_factor", 2.0f)*float(std::thread::hardware_concurrency()));
 	if (pool_size != ftl::pool.size()) ftl::pool.resize(pool_size);
 
 

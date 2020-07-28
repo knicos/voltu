@@ -116,7 +116,7 @@ void visualizeCalibration(	MultiCameraCalibrationNew &calib, Mat &out,
 		Scalar(64, 255, 64),
 		Scalar(64, 255, 64),
 	};
-	
+
 	vector<int> markers = {cv::MARKER_SQUARE, cv::MARKER_DIAMOND};
 
 	for (size_t c = 0; c < rgb.size(); c++) {
@@ -211,7 +211,7 @@ void calibrateRPC(	ftl::net::Universe* net,
 		Mat P1, P2, Q;
 		Mat R1, R2;
 		Mat R_c1c2, T_c1c2;
-		
+
 		calculateTransform(R[c], t[c], R[c + 1], t[c + 1], R_c1c2, T_c1c2);
 		cv::stereoRectify(K1, D1, K2, D2, params.size, R_c1c2, T_c1c2, R1, R2, P1, P2, Q, 0, params.alpha);
 
@@ -275,12 +275,12 @@ std::vector<cv::Point2d> findCalibrationTarget(const cv::Mat &im, const cv::Mat 
 
 	if (corners.size() > 2) { LOG(ERROR) << "Too many ArUco tags in image"; }
 	if (corners.size() != 2) { return {}; }
-	
+
 	const size_t ncorners = 4;
 	const size_t ntags = ids.size();
 
 	std::vector<cv::Point2d> points;
-	
+
 	if (ids[0] == 1) {
 		std::swap(ids[0], ids[1]);
 		std::swap(corners[0], corners[1]);
@@ -314,7 +314,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	net->start();
 	net->waitConnections();
-	
+
 	ftl::stream::Muxer *stream = ftl::create<ftl::stream::Muxer>(root, "muxstream");
 	ftl::stream::Receiver *gen = ftl::create<ftl::stream::Receiver>(root, "receiver");
 	gen->setStream(stream);
@@ -330,10 +330,10 @@ void runCameraCalibration(	ftl::Configurable* root,
 		nstream->set("uri", s);
 		nstreams.push_back(nstream);
 		stream->add(nstream);
-		
+
 		++count;
 	}
-	
+
 	const size_t n_sources = nstreams.size();
 	const size_t n_cameras = n_sources * 2;
 	size_t reference_camera = 0;
@@ -349,7 +349,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 		if (fs.frames.size() != (rgb_new.size()/2)) {
 			// nstreams.size() == (rgb_new.size()/2)
 			LOG(ERROR)	<< "frames.size() != nstreams.size(), "
-						<< fs.frames.size() << " != " << (rgb_new.size()/2); 
+						<< fs.frames.size() << " != " << (rgb_new.size()/2);
 		}
 
 		UNIQUE_LOCK(mutex, CALLBACK);
@@ -370,28 +370,28 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 				auto idx = stream->originStream(0, i);
 				CHECK(idx >= 0) << "negative index";
-				
+
 				fs.frames[i].download(Channel::Left+Channel::Right);
 				Mat &left = fs.frames[i].get<Mat>(Channel::Left);
 				Mat &right = fs.frames[i].get<Mat>(Channel::Right);
-				
+
 				/*
-				// note: also returns empty sometimes 
+				// note: also returns empty sometimes
 				fs.frames[i].upload(Channel::Left+Channel::Right);
 				Mat left, right;
 				fs.frames[i].get<cv::cuda::GpuMat>(Channel::Left).download(left);
 				fs.frames[i].get<cv::cuda::GpuMat>(Channel::Right).download(right);
 				*/
-				
+
 				CHECK(!left.empty() && !right.empty());
 
 				cv::cvtColor(left, rgb_new[2*idx], cv::COLOR_BGRA2BGR);
 				cv::cvtColor(right, rgb_new[2*idx+1], cv::COLOR_BGRA2BGR);
-				
+
 				camera_parameters[2*idx] = ftl::calibration::scaleCameraMatrix(createCameraMatrix(fs.frames[i].getLeftCamera()),
-					rgb_new[2*idx].size(), Size(fs.frames[i].getLeftCamera().width, fs.frames[i].getLeftCamera().height));
+					Size(fs.frames[i].getLeftCamera().width, fs.frames[i].getLeftCamera().height), rgb_new[2*idx].size());
 				camera_parameters[2*idx+1] = ftl::calibration::scaleCameraMatrix(createCameraMatrix(fs.frames[i].getRightCamera()),
-					rgb_new[2*idx].size(), Size(fs.frames[i].getRightCamera().width, fs.frames[i].getRightCamera().height));
+					Size(fs.frames[i].getRightCamera().width, fs.frames[i].getRightCamera().height), rgb_new[2*idx].size());
 
 				if (res.empty()) res = rgb_new[2*idx].size();
 			}
@@ -410,7 +410,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 
 	stream->begin();
 	ftl::timer::start(false);
-	
+
 	while(true) {
 		if (!res.empty()) {
 			params.size = res;
@@ -455,7 +455,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 	while(calib.getMinVisibility() < static_cast<size_t>(n_views)) {
 		loop:
 		cv::waitKey(10);
-		
+
 		while (true) {
 			if (new_frames) {
 				UNIQUE_LOCK(mutex, LOCK);
@@ -465,7 +465,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 			}
 			cv::waitKey(10);
 		}
-		
+
 		for (Mat &im : rgb) {
 			if (im.empty()) {
 				LOG(ERROR) << "EMPTY";
@@ -488,10 +488,10 @@ void runCameraCalibration(	ftl::Configurable* root,
 				n_found++;
 			}
 		}
-		
+
 		if (n_found >= min_visible) {
 			calib.addPoints(points, visible);
-			
+
 			if (save_input) {
 				for (size_t i = 0; i < n_cameras; i++) {
 					cv::imwrite(path + std::to_string(i) + "_" + std::to_string(iter) + ".jpg", rgb[i]);
@@ -508,13 +508,13 @@ void runCameraCalibration(	ftl::Configurable* root,
 						cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, Scalar(64, 64, 255), 1);
 				}
 			}
-			
+
 			// index
 			cv::putText(rgb[i],
 						"Camera " + std::to_string(i),
 						Point2i(10, 30),
 						cv::FONT_HERSHEY_COMPLEX_SMALL, 1.0, Scalar(64, 64, 255), 1);
-			
+
 			// resolution
 			cv::putText(rgb[i],
 						"[" + std::to_string(rgb[i].size().width) + "x" + std::to_string(rgb[i].size().height) + "]",
@@ -542,7 +542,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 		cv::imshow("Cameras", show);
 	}
 	cv::destroyWindow("Cameras");
-	
+
 	for (size_t i = 0; i < nstreams.size(); i++) {
 		while(true) {
 			try {
@@ -558,7 +558,7 @@ void runCameraCalibration(	ftl::Configurable* root,
 			catch (...) {}
 		}
 	}
-	
+
 	Mat out;
 	vector<Mat> map1, map2;
 	vector<cv::Rect> roi;
@@ -614,7 +614,7 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 
 	net->start();
 	net->waitConnections();
-	
+
 	ftl::stream::Muxer *stream = ftl::create<ftl::stream::Muxer>(root, "muxstream");
 	ftl::stream::Receiver *gen = ftl::create<ftl::stream::Receiver>(root, "receiver");
 	gen->setStream(stream);
@@ -630,10 +630,10 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 		nstream->set("uri", s);
 		nstreams.push_back(nstream);
 		stream->add(nstream);
-		
+
 		++count;
 	}
-	
+
 	const size_t n_sources = nstreams.size();
 	const size_t n_cameras = n_sources * 2;
 	size_t reference_camera = 0;
@@ -649,7 +649,7 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 		if (fs.frames.size() != (rgb_new.size()/2)) {
 			// nstreams.size() == (rgb_new.size()/2)
 			LOG(ERROR)	<< "frames.size() != nstreams.size(), "
-						<< fs.frames.size() << " != " << (rgb_new.size()/2); 
+						<< fs.frames.size() << " != " << (rgb_new.size()/2);
 		}
 
 		UNIQUE_LOCK(mutex, CALLBACK);
@@ -670,11 +670,11 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 
 				auto idx = stream->originStream(0, i);
 				CHECK(idx >= 0) << "negative index";
-				
+
 				fs.frames[i].download(Channel::Left+Channel::Right);
 				Mat &left = fs.frames[i].get<Mat>(Channel::Left);
 				Mat &right = fs.frames[i].get<Mat>(Channel::Right);
-				
+
 				CHECK(!left.empty() && !right.empty());
 
 				cv::cvtColor(left, rgb_new[2*idx], cv::COLOR_BGRA2BGR);
@@ -684,7 +684,7 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 					rgb_new[2*idx].size(), Size(fs.frames[i].getLeftCamera().width, fs.frames[i].getLeftCamera().height));
 				camera_parameters[2*idx+1] = ftl::calibration::scaleCameraMatrix(createCameraMatrix(fs.frames[i].getRightCamera()),
 					rgb_new[2*idx].size(), Size(fs.frames[i].getRightCamera().width, fs.frames[i].getRightCamera().height));
-				
+
 				if (res.empty()) res = rgb_new[2*idx].size();*/
 			}
 		}
@@ -726,7 +726,7 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 	calib.object_points_ = calibration_target;
 
 	cv::FileStorage fs(path + filename, cv::FileStorage::READ);
-	fs["resolution"] >> params.size; 
+	fs["resolution"] >> params.size;
 	params.idx_cameras.resize(n_cameras);
 	std::iota(params.idx_cameras.begin(), params.idx_cameras.end(), 0);
 	calib.loadInput(path + filename, params.idx_cameras);
@@ -798,7 +798,7 @@ void runCameraCalibrationPath(	ftl::Configurable* root,
 int main(int argc, char **argv) {
 	auto options = ftl::config::read_options(&argv, &argc);
 	auto root = ftl::configure(argc, argv, "registration_default");
-	
+
 	// run calibration from saved input?
 	const bool load_input = root->value<bool>("load_input", false);
 	// should calibration input be saved
@@ -822,7 +822,7 @@ int main(int argc, char **argv) {
 	const string registration_file = root->value<string>("registration_file", FTL_LOCAL_CONFIG_ROOT "/registration.json");
 	// location where extrinsic calibration files saved
 	const string output_directory = root->value<string>("output_directory", "./");
-	
+
 	const bool offline = root->value<bool>("offline", false);
 
 	CalibrationParams params;
@@ -833,7 +833,7 @@ int main(int argc, char **argv) {
 	params.output_path = output_directory;
 	params.registration_file = registration_file;
 	params.reference_camera = ref_camera;
-	
+
 	LOG(INFO)	<< "\n"
 				<< "\n"
 				<< "\n                save_input: " << (int) save_input

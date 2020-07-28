@@ -28,7 +28,7 @@ class BaseSourceImpl {
 	friend class ftl::rgbd::Source;
 
 	public:
-	explicit BaseSourceImpl(ftl::rgbd::Source *host) : capabilities_(0), host_(host), params_(state_.getLeft()) { }
+	explicit BaseSourceImpl(ftl::rgbd::Source *host) : capabilities_(0), host_(host) { }
 	virtual ~BaseSourceImpl() {}
 
 	/**
@@ -49,18 +49,11 @@ class BaseSourceImpl {
 	 */
 	virtual bool isReady() { return false; };
 
-	// These should be accessed via the state object in a frame.
-	[[deprecated]] virtual void setPose(const Eigen::Matrix4d &pose) { state_.setPose(pose); };
-	[[deprecated]] virtual Camera parameters(ftl::codecs::Channel) { return params_; };
-
 	ftl::rgbd::Source *host() { return host_; }
-	ftl::rgbd::FrameState &state() { return state_; }
 
 	protected:
-	ftl::rgbd::FrameState state_;
 	capability_t capabilities_;    // To be deprecated
 	ftl::rgbd::Source *host_;
-	ftl::rgbd::Camera &params_;
 };
 
 }

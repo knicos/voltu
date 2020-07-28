@@ -59,16 +59,16 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 	bool no_clip = config()->value("no_clip", false);
 	bool clip_colour = config()->value("clip_colour", false);
 
-	std::vector<ftl::codecs::Shape3D> shapes;
+	std::list<ftl::codecs::Shape3D> shapes;
 	if (in.hasChannel(Channel::Shapes3D)) {
-		in.get(Channel::Shapes3D, shapes);
+		shapes = in.get<std::list<ftl::codecs::Shape3D>>(Channel::Shapes3D);
 	}
 	shapes.push_back(shape);
-	in.create(Channel::Shapes3D, shapes);
+	in.create<std::list<ftl::codecs::Shape3D>>(Channel::Shapes3D).list = shapes;
 		
 	for (size_t i=0; i<in.frames.size(); ++i) {	
 		if (!in.hasFrame(i)) continue;
-		auto &f = in.frames[i];
+		auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 		//auto *s = in.sources[i];
 
 		if (f.hasChannel(Channel::Depth)) {
@@ -78,11 +78,11 @@ bool ClipScene::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStr
 			sclip.origin = sclip.origin.getInverse() * pose;
 			if (!no_clip) {
 				if (clip_colour) {
-					f.clearPackets(Channel::Colour);
-					f.clearPackets(Channel::Depth);
+					f.set<ftl::rgbd::VideoFrame>(Channel::Colour);
+					f.set<ftl::rgbd::VideoFrame>(Channel::Depth);
 					ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getTexture<uchar4>(Channel::Colour), f.getLeftCamera(), sclip, stream);
 				} else {
-					f.clearPackets(Channel::Depth);
+					f.set<ftl::rgbd::VideoFrame>(Channel::Depth);
 					ftl::cuda::clipping(f.createTexture<float>(Channel::Depth), f.getLeftCamera(), sclip, stream);
 				}
 			}

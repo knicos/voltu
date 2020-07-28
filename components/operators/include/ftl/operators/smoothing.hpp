@@ -23,7 +23,7 @@ class HFSmoother : public ftl::operators::Operator {
 
 	private:
 	cv::cuda::GpuMat temp_;
-	ftl::rgbd::Frame frames_[4];
+	//ftl::rgbd::Frame frames_[4];
 };
 
 /**
@@ -43,7 +43,7 @@ class SmoothChannel : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
-	ftl::rgbd::Frame temp_[6];
+	ftl::cuda::TextureObject<uchar4> temp_[6];
 };
 
 /**
@@ -61,7 +61,7 @@ class SimpleMLS : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
-	ftl::rgbd::Frame temp_;
+	ftl::data::Frame temp_;
 };
 
 /**
@@ -78,7 +78,7 @@ class ColourMLS : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
-	ftl::rgbd::Frame temp_;
+	ftl::data::Frame temp_;
 };
 
 /**
@@ -125,7 +125,7 @@ class AggreMLS : public ftl::operators::Operator {
 	ftl::cuda::TextureObject<float4> centroid_vert_;
 	ftl::cuda::TextureObject<half4> normals_horiz_;
 
-	ftl::rgbd::Frame temp_;
+	ftl::data::Frame temp_;
 };
 
 /**
@@ -145,7 +145,7 @@ class AdaptiveMLS : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	private:
-	ftl::rgbd::Frame temp_;
+	ftl::data::Frame temp_;
 };
 
 }

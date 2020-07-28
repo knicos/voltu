@@ -4,126 +4,27 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 
-using ftl::rgbd::Frame;
-using ftl::rgbd::FrameState;
 using ftl::codecs::Channels;
 using ftl::codecs::Channel;
-using ftl::rgbd::VideoData;
+using ftl::rgbd::VideoFrame;
 
-static cv::Mat none;
-static cv::cuda::GpuMat noneGPU;
-static std::atomic<int> frame_count = 0;
-
-template <>
-cv::Mat &VideoData::as<cv::Mat>() {
-	if (isgpu) throw FTL_Error("Host request for GPU data without download");
-	return host;
+VideoFrame::VideoFrame(const VideoFrame &f) {
+	gpu = f.gpu;
+	host = f.host;
+	isgpu = f.isgpu;
+	validhost = f.validhost;
 }
 
-template <>
-const cv::Mat &VideoData::as<cv::Mat>() const {
-	if (isgpu) throw FTL_Error("Host request for GPU data without download");
-	return host;
-}
-
-template <>
-cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>() {
-	if (!isgpu) throw FTL_Error("GPU request for Host data without upload");
-	return gpu;
-}
-
-template <>
-const cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>() const {
-	if (!isgpu) throw FTL_Error("GPU request for Host data without upload");
-	return gpu;
-}
-
-template <>
-cv::Mat &VideoData::make<cv::Mat>() {
-	validhost = true;
-	isgpu = false;
-	encoded.clear();
-	return host;
-}
-
-template <>
-cv::cuda::GpuMat &VideoData::make<cv::cuda::GpuMat>() {
-	isgpu = true;
-	encoded.clear();
-	return gpu;
-}
-
-// =============================================================================
-
-/*void Frame::reset() {
-	origin_ = nullptr;
-	channels_.clear();
-	gpu_.clear();
-	data_channels_.clear();
-	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
-		data_[i].encoded.clear();
-	}
-}*/
-
-/*void Frame::resetFull() {
-	origin_ = nullptr;
-	channels_.clear();
-	gpu_.clear();
-	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
-		data_[i].gpu = cv::cuda::GpuMat();
-		data_[i].host = cv::Mat();
-		data_[i].encoded.clear();
-	}
-}*/
-
-Frame::Frame() {
-	++frame_count;
-	//LOG(INFO) << "Frames: " << frame_count;
-}
-
-Frame::Frame(Frame &&f) : ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>(std::move(f)) {
-
-}
-
-Frame &Frame::operator=(Frame &&f) {
-	ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>::operator=(std::move(f));
+VideoFrame &VideoFrame::operator=(const VideoFrame &f) {
+	gpu = f.gpu;
+	host = f.host;
+	isgpu = f.isgpu;
+	validhost = f.validhost;
 	return *this;
 }
 
-Frame::~Frame() {
-	--frame_count;
-}
 
-void Frame::download(Channel c, cv::cuda::Stream stream) {
-	download(Channels(c), stream);
-}
-
-void Frame::upload(Channel c, cv::cuda::Stream stream) {
-	upload(Channels(c), stream);
-}
-
-void Frame::download(Channels<0> c, cv::cuda::Stream stream) {
-	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
-		if (c.has(i) && hasChannel(static_cast<Channel>(i)) && isGPU(static_cast<Channel>(i))) {
-			auto &data = getData(static_cast<Channel>(i));
-			data.validhost = true;
-			data.gpu.download(data.host, stream);
-			data.isgpu = false;
-		}
-	}
-}
-
-void Frame::upload(Channels<0> c, cv::cuda::Stream stream) {
-	for (size_t i=0u; i<Channels<0>::kMax; ++i) {
-		if (c.has(i) && hasChannel(static_cast<Channel>(i)) && !isGPU(static_cast<Channel>(i))) {
-			auto &data = getData(static_cast<Channel>(i));
-			data.gpu.upload(data.host, stream);
-			data.isgpu = true;
-		}
-	}
-}
-
-cv::Mat &Frame::fastDownload(ftl::codecs::Channel c, cv::cuda::Stream stream) {
+/*cv::Mat &Frame::fastDownload(ftl::codecs::Channel c, cv::cuda::Stream stream) {
 	if (hasChannel(c)) {
 		auto &data = getData(static_cast<Channel>(c));
 		if (!data.isgpu) return data.host;
@@ -136,86 +37,166 @@ cv::Mat &Frame::fastDownload(ftl::codecs::Channel c, cv::cuda::Stream stream) {
 		return data.host;
 	}
 	throw FTL_Error("Fast download channel does not exist: " << (int)c);
+}*/
+
+cv::Mat &VideoFrame::createCPU() {
+	isgpu = false;
+	return host;
 }
 
-void Frame::pushPacket(ftl::codecs::Channel c, ftl::codecs::Packet &pkt) {
-	if (hasChannel(c)) {
-		auto &m1 = getData(c);
-		m1.encoded.emplace_back() = std::move(pkt);
-	} else {
-		throw FTL_Error("Channel " << (int)c << " doesn't exist for packet push");
+cv::cuda::GpuMat &VideoFrame::createGPU() {
+	isgpu = true;
+	validhost = false;
+	return gpu;
+}
+
+cv::Mat &VideoFrame::createCPU(const ftl::rgbd::FormatBase &f) {
+	if (!f.empty()) {
+		host.create(f.size(), f.cvType);
 	}
+	isgpu = false;
+
+	return host;
 }
 
-const std::list<ftl::codecs::Packet> &Frame::getPackets(ftl::codecs::Channel c) const {
-	if (!hasChannel(c)) {
-		throw FTL_Error("Frame channel does not exist: " << (int)c);
+cv::cuda::GpuMat &VideoFrame::createGPU(const ftl::rgbd::FormatBase &f) {
+	if (!f.empty()) {
+		gpu.create(f.size(), f.cvType);
 	}
+	isgpu = true;
+	validhost = false;
 
-	auto &m1 = getData(c);
-	return m1.encoded;
+	return gpu;
 }
 
-void Frame::mergeEncoding(ftl::rgbd::Frame &f) {
-	//LOG(INFO) << "MERGE " << (unsigned int)f.channels_;
-	for (auto c : getChannels()) {
-		//if (!f.hasChannel(c)) f.create<cv::cuda::GpuMat>(c);
-		if (f.hasChannel(c)) {
-			auto &m1 = getData(c);
-			auto &m2 = f.getData(c);
-			m1.encoded.splice(m1.encoded.begin(), m2.encoded);
-			//LOG(INFO) << "SPLICED: " << m1.encoded.size();
-		}
+const cv::Mat &VideoFrame::getCPU() const {
+	if (!validhost) {
+		// TODO: Use stream and page locked mem.
+		gpu.download(host);
+		validhost = true;
 	}
+	return host;
 }
 
-bool Frame::empty(ftl::codecs::Channels<0> channels) {
-	for (auto c : channels) {
-		if (empty(c)) return true;
+const cv::cuda::GpuMat &VideoFrame::getGPU() const {
+	// TODO: Upload?
+	return gpu;
+}
+
+cv::Mat &VideoFrame::setCPU() {
+	return host;
+}
+
+cv::cuda::GpuMat &VideoFrame::setGPU() {
+	validhost = false;
+	return gpu;
+}
+
+void ftl::rgbd::Frame::upload(ftl::codecs::Channel c) {
+	auto &vframe = set<VideoFrame>(c);
+	const auto &cpumat = vframe.getCPU();
+	vframe.createGPU().upload(cpumat);
+}
+
+bool ftl::rgbd::Frame::isGPU(ftl::codecs::Channel c) const {
+	const auto &vframe = get<VideoFrame>(c);
+	return vframe.isGPU();
+}
+
+bool ftl::rgbd::Frame::hasOpenGL(ftl::codecs::Channel c) const {
+	const auto &vframe = get<VideoFrame>(c);
+	return vframe.hasOpenGL();
+}
+
+unsigned int ftl::rgbd::Frame::getOpenGL(ftl::codecs::Channel c) const {
+	const auto &vframe = get<VideoFrame>(c);
+	return vframe.getOpenGL();
+}
+
+
+const ftl::rgbd::Camera &ftl::rgbd::Frame::getLeftCamera() const {
+	return std::get<0>(this->get<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(ftl::codecs::Channel::Calibration));
+}
+
+const ftl::rgbd::Camera &ftl::rgbd::Frame::getRightCamera() const {
+	return std::get<0>(this->get<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(ftl::codecs::Channel::Calibration2));
+}
+
+const Eigen::Matrix4d &ftl::rgbd::Frame::getPose() const {
+	return this->get<Eigen::Matrix4d>(ftl::codecs::Channel::Pose);
+}
+
+ftl::rgbd::Camera &ftl::rgbd::Frame::setLeft() {
+	return std::get<0>(this->create<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(ftl::codecs::Channel::Calibration));
+}
+
+ftl::rgbd::Camera &ftl::rgbd::Frame::setRight() {
+	return std::get<0>(this->create<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(ftl::codecs::Channel::Calibration2));
+}
+
+Eigen::Matrix4d &ftl::rgbd::Frame::setPose() {
+	return this->create<Eigen::Matrix4d>(ftl::codecs::Channel::Pose);
+}
+
+std::string ftl::rgbd::Frame::serial() const {
+	if (hasChannel(Channel::MetaData)) {
+		const auto &meta = get<std::map<std::string,std::string>>(Channel::MetaData);
+		auto i = meta.find("serial");
+		if (i != meta.end()) return i->second;
+	}
+	return "";
+}
+
+std::string ftl::rgbd::Frame::device() const {
+	if (hasChannel(Channel::MetaData)) {
+		const auto &meta = get<std::map<std::string,std::string>>(Channel::MetaData);
+		auto i = meta.find("device");
+		if (i != meta.end()) return i->second;
+	}
+	return "";
+}
+
+const std::unordered_set<ftl::rgbd::Capability> &ftl::rgbd::Frame::capabilities() const {
+	return get<std::unordered_set<ftl::rgbd::Capability>>(Channel::Capabilities);
+}
+
+bool ftl::rgbd::Frame::hasCapability(ftl::rgbd::Capability c) const {
+	if (hasChannel(Channel::Capabilities)) {
+		const auto &cap = get<std::unordered_set<ftl::rgbd::Capability>>(Channel::Capabilities);
+		return cap.count(c) > 0;
 	}
 	return false;
 }
 
-template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
-	if (c == Channel::None) {
-		throw FTL_Error("Cannot create a None channel");
-	}
-	
-	create<cv::Mat>(c);
-	auto &m = getData(c);
 
-	m.encoded.clear();  // Remove all old encoded data
-
-	if (!f.empty()) {
-		m.host.create(f.size(), f.cvType);
-	}
-
-	return m.host;
+template <>
+cv::Mat &ftl::data::Frame::create<cv::Mat, 0>(ftl::codecs::Channel c) {
+	return create<ftl::rgbd::VideoFrame>(c).createCPU();
 }
 
-template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f) {
-	if (c == Channel::None) {
-		throw FTL_Error("Cannot create a None channel");
-	}
-
-	create<cv::cuda::GpuMat>(c);
-	auto &m = getData(c);
-
-	m.encoded.clear();  // Remove all old encoded data
-
-	if (!f.empty()) {
-		m.gpu.create(f.size(), f.cvType);
-	}
-
-	return m.gpu;
+template <>
+cv::cuda::GpuMat &ftl::data::Frame::create<cv::cuda::GpuMat, 0>(ftl::codecs::Channel c) {
+	return create<ftl::rgbd::VideoFrame>(c).createGPU();
 }
 
-void Frame::clearPackets(ftl::codecs::Channel c) {
-	auto &m = getData(c);
-	m.encoded.clear();
+template <>
+const cv::Mat &ftl::data::Frame::get<cv::Mat>(ftl::codecs::Channel c) const {
+	return get<ftl::rgbd::VideoFrame>(c).getCPU();
 }
 
-void Frame::resetTexture(ftl::codecs::Channel c) {
-	auto &m = getData(c);
-	m.tex.free();
+template <>
+const cv::cuda::GpuMat &ftl::data::Frame::get<cv::cuda::GpuMat>(ftl::codecs::Channel c) const {
+	return get<ftl::rgbd::VideoFrame>(c).getGPU();
 }
+
+template <>
+cv::Mat &ftl::data::Frame::set<cv::Mat, 0>(ftl::codecs::Channel c) {
+	return set<ftl::rgbd::VideoFrame>(c).setCPU();
+}
+
+template <>
+cv::cuda::GpuMat &ftl::data::Frame::set<cv::cuda::GpuMat, 0>(ftl::codecs::Channel c) {
+	return set<ftl::rgbd::VideoFrame>(c).setGPU();
+}
+
+

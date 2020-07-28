@@ -15,6 +15,11 @@ ColourChannels::~ColourChannels() {
 }
 
 bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
+	if (!in.hasChannel(Channel::Colour)) {
+		in.message(ftl::data::Message::Warning_MISSING_CHANNEL, "No colour channel found");
+		return false;
+	}
+
 	auto &col = in.get<cv::cuda::GpuMat>(Channel::Colour);
 
 	// Convert colour from BGR to BGRA if needed
@@ -25,6 +30,7 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 		cv::cuda::swap(col, temp_);
 		cv::cuda::cvtColor(temp_,col, cv::COLOR_BGR2BGRA, 0, cvstream);*/
 
+		in.message(ftl::data::Message::Error_BAD_FORMAT, "Bad colour format");
 		throw FTL_Error("Left colour must be 4 channels");
 	}
 
@@ -39,14 +45,22 @@ bool ColourChannels::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStre
 			cv::cuda::swap(col, temp_);
 			cv::cuda::cvtColor(temp_,col, cv::COLOR_BGR2BGRA, 0, cvstream);*/
 
+			in.message(ftl::data::Message::Error_BAD_FORMAT, "Bad colour format");
 			throw FTL_Error("Right colour must be 4 channels");
 		}
 	}
 
 	//in.resetTexture(Channel::Colour);
-	in.createTexture<uchar4>(Channel::Colour, true);
+	const auto &vf = in.get<ftl::rgbd::VideoFrame>(Channel::Colour);
+	if (vf.isGPU()) {
+		in.createTexture<uchar4>(Channel::Colour, true);
+	}
+
 	if (in.hasChannel(Channel::Right)) {
-		in.createTexture<uchar4>(Channel::Right, true);
+		const auto &vf = in.get<ftl::rgbd::VideoFrame>(Channel::Right);
+		if (vf.isGPU()) {
+			in.createTexture<uchar4>(Channel::Right, true);
+		}
 	}
 
 	/*if (in.hasChannel(Channel::Depth)) {

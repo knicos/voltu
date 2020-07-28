@@ -6,6 +6,8 @@
 #include <ftl/rgbd/frameset.hpp>
 #include <nanogui/glutil.h>
 
+struct NVGcontext;
+
 namespace ftl {
 namespace overlay {
 
@@ -24,7 +26,7 @@ class Overlay : public ftl::Configurable {
 
 	//void apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState &state);
 
-	void draw(ftl::rgbd::FrameSet &fs, ftl::rgbd::FrameState &state, const Eigen::Vector2f &);
+	void draw(NVGcontext *, ftl::data::FrameSet &fs, ftl::rgbd::Frame &frame, const Eigen::Vector2f &);
 
 	private:
 	nanogui::GLShader oShader;

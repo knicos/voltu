@@ -60,13 +60,16 @@ namespace net {
 
 class Dispatcher {
 	public:
-	explicit Dispatcher(Dispatcher *parent=nullptr) : parent_(parent) {}
-	
+	explicit Dispatcher(Dispatcher *parent=nullptr) : parent_(parent) {
+		// FIXME threading and funcs_; hack use large size
+		funcs_.reserve(1024);
+	}
+
 	//void dispatch(Peer &, const std::string &msg);
 	void dispatch(Peer &, const msgpack::object &msg);
 
 	// Without peer object =====================================================
-	
+
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::void_result const &,
@@ -221,11 +224,11 @@ class Dispatcher {
 			funcs_.erase(i);
 		}
 	}
-	
+
 	std::vector<std::string> getBindings() const;
 
 	bool isBound(const std::string &name) const;
-	
+
 	using adaptor_type = std::function<std::unique_ptr<msgpack::object_handle>(
         ftl::net::Peer &, msgpack::object const &)>;
 
@@ -234,16 +237,16 @@ class Dispatcher {
 
     //! \brief This is the type of notification messages.
     using notification_t = std::tuple<int8_t, std::string, msgpack::object>;
-    
+
     using response_t =
         std::tuple<uint32_t, uint32_t, std::string, msgpack::object>;
-	
+
 	private:
 	Dispatcher *parent_;
 	std::unordered_map<std::string, adaptor_type> funcs_;
-	
+
 	std::optional<adaptor_type> _locateHandler(const std::string &name) const;
-	
+
 	static void enforce_arg_count(std::string const &func, std::size_t found,
                                   std::size_t expected);
 

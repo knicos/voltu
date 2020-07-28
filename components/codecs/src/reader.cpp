@@ -80,7 +80,7 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 			stream_->read(buffer_.buffer(), buffer_.buffer_capacity());
 			//if (stream_->bad()) return false;
 
-			int bytes = stream_->gcount();
+			size_t bytes = static_cast<size_t>(stream_->gcount());
 			if (bytes == 0) break;
 			buffer_.buffer_consumed(bytes);
 			partial = false;

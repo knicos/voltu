@@ -3,6 +3,11 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 
+#ifndef WIN32
+#include <unistd.h>
+#include <limits.h>
+#endif
+
 using ftl::stream::Net;
 using ftl::codecs::StreamPacket;
 using ftl::codecs::Packet;
@@ -22,25 +27,37 @@ float Net::sample_count__ = 0.0f;
 int64_t Net::last_msg__ = 0;
 MUTEX Net::msg_mtx__;
 
-Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net), clock_adjust_(0), last_ping_(0) {
-	// TODO: Install "find_stream" binding if not installed...
-	if (!net_->isBound("find_stream")) {
-		net_->bind("find_stream", [this](const std::string &uri) -> optional<ftl::UUID> {
-			LOG(INFO) << "REQUEST FIND STREAM: " << uri;
-			if (uri_ == uri) {
-				return net_->id();
-			} else {
-				return {};
-			}
-		});
-	}
+static std::list<std::string> net_streams;
+static std::atomic_flag has_bindings = ATOMIC_FLAG_INIT;
+static SHARED_MUTEX stream_mutex;
 
-	if (!net_->isBound("list_streams")) {
+Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), active_(false), net_(net), clock_adjust_(0), last_ping_(0) {
+	if (!has_bindings.test_and_set()) {
+		if (net_->isBound("find_stream")) net_->unbind("find_stream");
+		net_->bind("find_stream", [net = net_](const std::string &uri, bool proxy) -> optional<ftl::UUID> {
+			LOG(INFO) << "REQUEST FIND STREAM: " << uri;
+
+			ftl::URI u1(uri);
+			std::string base = u1.getBaseURI();
+
+			SHARED_LOCK(stream_mutex, lk);
+			for (const auto &s : net_streams) {
+				ftl::URI u2(s);
+				// Don't compare query string components.
+				if (base == u2.getBaseURI()) {
+					return net->id();
+				}
+			}
+			return {};
+		});
+
+		if (net_->isBound("list_streams")) net_->unbind("list_streams");
 		net_->bind("list_streams", [this]() {
 			LOG(INFO) << "REQUEST LIST STREAMS";
-			vector<string> streams;
-			streams.push_back(uri_);
-			return streams;
+			SHARED_LOCK(stream_mutex, lk);
+			//vector<string> streams;
+			//streams.push_back(uri_);  // Send full original URI
+			return net_streams;
 		});
 	}
 
@@ -52,21 +69,17 @@ Net::~Net() {
 	end();
 }
 
-bool Net::onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &f) {
-	cb_ = f;
-	return true;
-}
-
 bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	if (!active_) return false;
 
 	// Check if the channel has been requested recently enough. If not then disable it.
 	if (host_ && pkt.data.size() > 0 && spkt.frame_number == 0 && static_cast<int>(spkt.channel) >= 0 && static_cast<int>(spkt.channel) < 32) {
 		if (reqtally_[static_cast<int>(spkt.channel)] == 0) {
+			--reqtally_[static_cast<int>(spkt.channel)];
 			auto sel = selected(0);
 			sel -= spkt.channel;
 			select(0, sel);
-			LOG(INFO) << "Unselect Channel: " << (int)spkt.channel;
+			LOG(INFO) << "Unselect Channel: " << (int)spkt.channel << " (" << (int)spkt.streamID << ")";
 		} else {
 			--reqtally_[static_cast<int>(spkt.channel)];
 		}
@@ -91,9 +104,10 @@ bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet 
 
 				try {
 					// FIXME: This doesn't work for file sources with file relative timestamps...
-					short pre_transmit_latency = short(ftl::timer::get_time() - spkt.timestamp);
+					short pre_transmit_latency = short(ftl::timer::get_time() - spkt.localTimestamp);
+
 					if (!net_->send(client.peerid,
-							uri_,
+							base_uri_,
 							pre_transmit_latency,  // Time since timestamp for tx
 							spkt,
 							pkt)) {
@@ -111,9 +125,9 @@ bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet 
 			}
 		} else {
 			try {
-				short pre_transmit_latency = short(ftl::timer::get_time() - spkt.timestamp);
+				short pre_transmit_latency = short(ftl::timer::get_time() - spkt.localTimestamp);
 				if (!net_->send(peer_,
-						uri_,
+						base_uri_,
 						pre_transmit_latency,  // Time since timestamp for tx
 						spkt,
 						pkt)) {
@@ -135,17 +149,20 @@ bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet 
 bool Net::begin() {
 	if (active_) return true;
 	if (!get<string>("uri")) return false;
-	active_ = true;
 
 	uri_ = *get<string>("uri");
 
-	if (net_->isBound(uri_)) {
+	ftl::URI u(uri_);
+	if (!u.isValid() || !(u.getScheme() == ftl::URI::SCHEME_FTL)) return false;
+	base_uri_ = u.getBaseURI();
+
+	if (net_->isBound(base_uri_)) {
 		LOG(ERROR) << "Stream already exists! - " << uri_;
 		active_ = false;
 		return false;
 	}
 
-	net_->bind(uri_, [this](ftl::net::Peer &p, short ttimeoff, const ftl::codecs::StreamPacket &spkt_raw, const ftl::codecs::Packet &pkt) {
+	net_->bind(base_uri_, [this](ftl::net::Peer &p, short ttimeoff, const ftl::codecs::StreamPacket &spkt_raw, const ftl::codecs::Packet &pkt) {
 		int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
 
 		if (!active_) return;
@@ -153,7 +170,7 @@ bool Net::begin() {
 		StreamPacket spkt = spkt_raw;
 		// FIXME: see #335
 		//spkt.timestamp -= clock_adjust_;
-		spkt.originClockDelta = clock_adjust_;
+		spkt.localTimestamp = now - int64_t(ttimeoff);
 		spkt.hint_capability = 0;
 		spkt.hint_source_total = 0;
 		//LOG(INFO) << "LATENCY: " << ftl::timer::get_time() - spkt.localTimestamp() << " : " << spkt.timestamp << " - " << clock_adjust_;
@@ -166,6 +183,7 @@ bool Net::begin() {
 				last_frame_ = spkt.timestamp;
 
 				if (size() > 0) {
+					// TODO: For all framesets
 					auto sel = selected(0);
 
 					// A change in channel selections, so send those requests now
@@ -173,10 +191,8 @@ bool Net::begin() {
 						auto changed = sel - last_selected_;
 						last_selected_ = sel;
 
-						if (size() > 0) {
-							for (auto c : changed) {
-								_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
-							}
+						for (auto c : changed) {
+							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
 						}
 					}
 				}
@@ -185,7 +201,7 @@ bool Net::begin() {
 				if (tally_ <= 5) {
 					// Yes, so send new requests
 					if (size() > 0) {
-						auto sel = selected(0);
+						const auto &sel = selected(0);
 						
 						for (auto c : sel) {
 							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
@@ -201,7 +217,7 @@ bool Net::begin() {
 		// If hosting and no data then it is a request for data
 		// Note: a non host can receive empty data, meaning data is available
 		// but that you did not request it
-		if (host_ && pkt.data.size() == 0) {
+		if (host_ && pkt.data.size() == 0 && (spkt.flags & ftl::codecs::kFlagRequest)) {
 			// FIXME: Allow unselecting ...?
 			if (spkt.frameSetID() == 255) {
 				for (size_t i=0; i<size(); ++i) {
@@ -213,6 +229,7 @@ bool Net::begin() {
 			} else {
 				select(spkt.frameSetID(), selected(spkt.frameSetID()) + spkt.channel);
 			}
+
 			_processRequest(p, pkt);
 		} else {
 			// FIXME: Allow availability to change...
@@ -220,18 +237,46 @@ bool Net::begin() {
 			//LOG(INFO) << "AVAILABLE: " << (int)spkt.channel;
 		}
 
-		if (cb_) {
-			cb_(spkt, pkt);
+		//if (cb_) {
+			cb_.trigger(spkt, pkt);
 			if (pkt.data.size() > 0) _checkDataRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
-		}
+		//}
 	});
 
-	auto p = net_->findOne<ftl::UUID>("find_stream", uri_);
+	// First find non-proxy version, then check for proxy version if no match
+	auto p = net_->findOne<ftl::UUID>("find_stream", uri_, false);
+	if (!p) p = net_->findOne<ftl::UUID>("find_stream", uri_, true);
+
 	if (!p) {
 		LOG(INFO) << "Hosting stream: " << uri_;
 		// TODO: Register URI as available.
 		host_ = true;
 
+		// Alias the URI to the configurable if not already
+		// Allows the URI to be used to get config data.
+		if (ftl::config::find(uri_) == nullptr) {
+			ftl::config::alias(uri_, this);
+		}
+
+		{
+			UNIQUE_LOCK(stream_mutex, lk);
+			net_streams.push_back(uri_);
+		}
+
+		// Automatically set name if missing
+		if (!get<std::string>("name")) {
+			char hostname[1024] = {0};
+			#ifdef WIN32
+			DWORD size = 1024;
+			GetComputerName(hostname, &size);
+			#else
+			gethostname(hostname, 1024);
+			#endif
+
+			set("name", std::string(hostname));
+		}
+
+		active_ = true;
 		net_->broadcast("add_stream", uri_);
 
 		return true;
@@ -243,6 +288,8 @@ bool Net::begin() {
 	peer_ = *p;
 	tally_ = 30*kTallyScale;
 	for (size_t i=0; i<reqtally_.size(); ++i) reqtally_[i] = 0;
+
+	active_ = true;
 	
 	// Initially send a colour request just to create the connection
 	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 0);
@@ -270,23 +317,25 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 
 	Packet pkt = {
 		codec_t::Any,			// TODO: Allow specific codec requests
-		definition_t::Any,		// TODO: Allow specific definition requests
+		0,
 		count,
-		bitrate
+		bitrate,
+		0
 	};
 
 	StreamPacket spkt = {
-		4,
+		5,
 		ftl::timer::get_time(),
 		frameset,
 		frames,
 		c,
+		ftl::codecs::kFlagRequest,
 		0,
 		0,
 		0
 	};
 
-	net_->send(peer_, uri_, (short)0, spkt, pkt);
+	net_->send(peer_, base_uri_, (short)0, spkt, pkt);
 
 	// FIXME: Find a way to use this for correct stream latency info
 	if (false) { //if (c == Channel::Colour) {  // TODO: Not every time
@@ -353,6 +402,12 @@ bool Net::_processRequest(ftl::net::Peer &p, const ftl::codecs::Packet &pkt) {
 			client.quality = 255;  // TODO: Use quality given in packet
 			client.txcount = 0;
 			client.txmax = static_cast<int>(pkt.frame_count)*kTallyScale;
+
+			try {
+				connect_cb_.trigger(&p);
+			} catch (const ftl::exception &e) {
+				LOG(ERROR) << "Exception in stream connect callback: " << e.what();
+			}
 		}
 
 		// First connected peer (or reconnecting peer) becomes a time server
@@ -394,6 +449,13 @@ float Net::getRequiredBitrate() {
 
 bool Net::end() {
 	if (!active_) return false;
+
+	{
+		UNIQUE_LOCK(stream_mutex, lk);
+		auto i = std::find(net_streams.begin(), net_streams.end(), uri_);
+		if (i != net_streams.end()) net_streams.erase(i);
+	}
+
 	active_ = false;
 	net_->unbind(uri_);
 	return true;

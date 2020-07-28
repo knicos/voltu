@@ -9,7 +9,10 @@
 
 #include <ftl/config.h>
 
+#ifdef HAVE_CERES
 #include <ceres/ceres.h>
+#endif
+
 #include <opencv2/core/core.hpp>
 
 // BundleAdjustment uses Point3d instances via double*
@@ -21,7 +24,77 @@ static_assert(std::is_standard_layout<cv::Point3d>());
 namespace ftl {
 namespace calibration {
 
+/**
+ * Camera paramters (Ceres)
+ */
+struct Camera {
+	Camera() {}
+	Camera(const cv::Mat& K, const cv::Mat& D, const cv::Mat& R, const cv::Mat& tvec, cv::Size size);
+	Camera(const CalibrationData::Calibration& calib);
+
+	CalibrationData::Intrinsic intrinsic() const;
+	CalibrationData::Extrinsic extrinsic() const;
+
+	void setRotation(const cv::Mat& R);
+	void setTranslation(const cv::Mat& tvec);
+	void setExtrinsic(const cv::Mat& R, const cv::Mat& t) {
+		setRotation(R);
+		setTranslation(t);
+	}
+
+	void setIntrinsic(const cv::Mat& K, cv::Size sz);
+	void setDistortion(const cv::Mat &D);
+	void setIntrinsic(const cv::Mat& K, const cv::Mat& D, cv::Size sz) {
+		setIntrinsic(K, sz);
+		setDistortion(D);
+	}
+
+	cv::Mat intrinsicMatrix() const;
+	cv::Mat distortionCoefficients() const;
+
+	cv::Mat rvec() const;
+	cv::Mat tvec() const;
+	cv::Mat rmat() const;
+
+	cv::Mat extrinsicMatrix() const;
+	cv::Mat extrinsicMatrixInverse() const;
+
+	cv::Size size;
+
+	const static int n_parameters = 18;
+	const static int n_distortion_parameters = 8;
+
+	double data[n_parameters] = {0.0};
+
+	enum Parameter {
+		ROTATION = 0,
+		Q1 = 0,
+		Q2 = 1,
+		Q3 = 2,
+		Q4 = 3,
+		TRANSLATION = 4,
+		TX = 4,
+		TY = 5,
+		TZ = 6,
+		F = 7,
+		CX = 8,
+		CY = 9,
+		DISTORTION = 10,
+		K1 = 10,
+		K2 = 11,
+		P1 = 12,
+		P2 = 13,
+		K3 = 14,
+		K4 = 15,
+		K5 = 16,
+		K6 = 17
+	};
+};
+
 #ifdef HAVE_CERES
+
+/** Project point using camera model implemented for Ceres */
+cv::Point2d projectPoint(const Camera& camera, const cv::Point3d &p);
 
 /**
  * @brief Optimize scale.
@@ -41,9 +114,6 @@ double optimizeScale(const std::vector<cv::Point3d>& object, std::vector<cv::Poi
  * - rotation and translation rx, ry, rz, tx, ty, tz,
  * - focal legth and principal point: f, cx, cy
  * - radial distortion (first three cofficients): k1, k2, k3
- *
- * @note: Distortion paramters are used in reprojection error, but they are
- *        not not optimized.
  */
 class BundleAdjustment {
 public:
@@ -74,11 +144,14 @@ public:
 
 		/**
 		 * @todo Radial distortion must be monotonic. This constraint is not
-		 *       included in the model, thus distortion parameters are always
-		 *       fixed.
+		 *       included in the model.
 		 */
-		// distortion coefficient optimization is not supported
+		/// fix all distortion coefficients to constant (initial values)
 		bool fix_distortion = true;
+		/// use distortion coefficients k4, k5, and k6; if false, set to zero
+		bool rational_model = true;
+		/// assume zero distortion during optimization
+		bool zero_distortion = false;
 
 		bool optimize_intrinsic = true;
 		bool optimize_motion = true;
@@ -90,7 +163,7 @@ public:
 	};
 
 	/**
-	 * Add camera(s)
+	 * Add camera(s). Stored as pointers. TODO: copy instead
 	 */
 	void addCamera(Camera &K);
 	void addCameras(std::vector<Camera> &K);
@@ -99,15 +172,19 @@ public:
 	 * @brief Add points
 	 */
 	void addPoint(const std::vector<bool>& visibility, const std::vector<cv::Point2d>& observations, cv::Point3d& point);
+	/**
+	 * @brief Vector for each camera TODO: verify this works
+	 */
 	void addPoints(const std::vector<std::vector<bool>>& visibility, const std::vector<std::vector<cv::Point2d>>& observations,
 		std::vector<cv::Point3d>& points);
 
 	/**
-	 * @brief Add points, all assumed visible
+	 * @brief Add points, all assumed visible. Values copied.
 	 */
 	void addPoint(const std::vector<cv::Point2d>& observations, cv::Point3d& point);
 	void addPoints(const std::vector<std::vector<cv::Point2d>>& observations, std::vector<cv::Point3d>& points);
 
+	/** TODO: estimate pose for each view which to optimize */
 	void addObject(const std::vector<cv::Point3d>& object_points);
 
 	/** @brief Perform bundle adjustment with custom options.
@@ -118,20 +195,20 @@ public:
 	 */
 	void run();
 
-	/** @brief Calculate MSE error (for one camera)
+	/** @brief Calculate RMSE error (for one camera)
 	 */
 	double reprojectionError(const int camera) const;
 
-	/** @brief Calculate MSE error for all cameras
+	/** @brief Calculate RMSE error for all cameras
 	 */
 	double reprojectionError() const;
 
 protected:
-	double* getCameraPtr(int i) { return cameras_[i]->data; }
+	double* getCameraPtr(int i) { return cameras_.at(i)->data; }
 
-	/** @brief Calculate MSE error
+	/** @brief Calculate squared error
 	 */
-	void _reprojectionErrorMSE(const int camera, double &error, double &npoints) const;
+	void _reprojectionErrorSE(const int camera, double &error, double &npoints) const;
 
 	/** @brief Set camera parametrization (fixed parameters/cameras)
 	 */
@@ -150,8 +227,8 @@ private:
 		// pixel coordinates: x, y
 		std::vector<cv::Point2d> observations;
 
-		// world coordinates: x, y, z
-		double* point;
+		// point in world coordinates
+		cv::Point3d point;
 	};
 
 	// group of points with known structure; from idx_start to idx_end

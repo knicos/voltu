@@ -56,7 +56,7 @@ bool DisparityBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
-	GpuMat &disp_in = in.get<GpuMat>(Channel::Disparity);
+	const GpuMat &disp_in = in.get<GpuMat>(Channel::Disparity);
 	GpuMat &disp_out = out.create<GpuMat>(Channel::Disparity);
 	disp_int_.create(disp_in.size(), disp_in.type());
 

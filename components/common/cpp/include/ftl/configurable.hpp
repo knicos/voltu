@@ -12,6 +12,7 @@
 #include <list>
 #include <functional>
 #include <optional>
+#include <unordered_set>
 
 #define REQUIRED(...) required(__func__, __VA_ARGS__)
 
@@ -92,7 +93,23 @@ class Configurable {
 	 * @param prop Name of property to watch
 	 * @param callback A function object that will be called on change.
 	 */
-	void on(const std::string &prop, std::function<void(const config::Event&)>);
+	void on(const std::string &prop, std::function<void()>);
+
+	/**
+	 * Same callback for all properties in set.
+	 */
+	void onAny(const std::unordered_set<std::string> &props, std::function<void()>);
+
+	template <typename T>
+	void on(const std::string &prop, T &v) {
+		on(prop, [&v,this,prop]() { v = *this->get<T>(prop); });
+	}
+
+	template <typename T>
+	void on(const std::string &prop, T &v, const T &def) {
+		v = this->value(prop, def);
+		on(prop, [&v,this,prop]() { v = *this->get<T>(prop); });
+	}
 
 	void patchPtr(nlohmann::json &newcfg) { config_ = &newcfg; }
 
@@ -102,13 +119,40 @@ class Configurable {
 	 */
 	virtual void refresh();
 
+	/**
+	 * Restore configurable properties from session storage using this key.
+	 * The key could be the same as configurable ID or perhaps uses another
+	 * property such as URI. If restore is used it will also result in a save
+	 * when the configurable is destroyed. The key should ideally be unique.
+	 * 
+	 * The allowed parameter specifies the set of properties that can be saved.
+	 */
+	void restore(const std::string &key, const std::unordered_set<std::string> &allowed);
+
+	/**
+	 * Load defaults from config file. The key represents type information and
+	 * many configurables can load from the same key. If load defaults has been
+	 * used by the configurable, then it is also called again when the
+	 * configurable is reset.
+	 */
+	void loadDefaults(const std::string &key);
+
+	virtual void reset() {};
+
+	void save();
+
 	protected:
 	nlohmann::json *config_;
 
 	virtual void inject(const std::string &name, nlohmann::json &value) {}
 
 	private:
-	std::map<std::string, std::list<std::function<void(const config::Event&)>>> observers_; 
+	std::string restore_;
+	std::string defaults_;
+	std::unordered_set<std::string> save_allowed_;
+
+	typedef std::list<std::function<void()>> ObserverList;
+	std::unordered_map<std::string,ObserverList> observers_; 
 
 	void _trigger(const std::string &name);
 };

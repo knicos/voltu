@@ -22,11 +22,37 @@ Configurable::Configurable(nlohmann::json &config) : config_(&config) {
 		LOG(FATAL) << "Configurable json is not an object: " << config;
 	}
 
+	/*if (!config.contains("$id")) {
+		config["$id"] = "ftl://utu.fi";
+	}*/
+
 	ftl::config::registerConfigurable(this);
 }
 
 Configurable::~Configurable() {
+	save();
 	ftl::config::removeConfigurable(this);
+}
+
+void Configurable::save() {
+	if (restore_.size() > 0) {
+		auto &r = ftl::config::getRestore(restore_);
+		for (auto &i : save_allowed_) {
+			r[i] = (*config_)[i];
+		}
+	}
+}
+
+void Configurable::restore(const std::string &key, const std::unordered_set<std::string> &allowed) {
+	save();
+	
+	auto &r = ftl::config::getRestore(key);
+	if (r.is_object()) {
+		config_->merge_patch(r);
+		
+	}
+	restore_ = key;
+	save_allowed_ = allowed;
 }
 
 template <typename T>
@@ -114,7 +140,7 @@ void Configurable::_trigger(const string &name) {
 	if (ix != observers_.end()) {
 		for (auto &f : (*ix).second) {
 			try {
-				f({this, name});
+				f();
 			} catch(...) {
 				LOG(ERROR) << "Exception in event handler for '" << name << "'";
 			}
@@ -122,7 +148,13 @@ void Configurable::_trigger(const string &name) {
 	}
 }
 
-void Configurable::on(const string &prop, function<void(const ftl::config::Event&)> f) {
+void Configurable::onAny(const std::unordered_set<string> &props, function<void()> f) {
+	for (const auto &p : props) {
+		on(p, f);
+	}
+}
+
+void Configurable::on(const string &prop, function<void()> f) {
 	auto ix = observers_.find(prop);
 	if (ix == observers_.end()) {
 		observers_[prop] = {f};

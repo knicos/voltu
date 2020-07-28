@@ -1,6 +1,12 @@
-#include "ftl/calibration/parameters.hpp"
+
+#include <loguru.hpp>
+
+#include <ftl/calibration/parameters.hpp>
+#include <ftl/exception.hpp>
 
 #include <opencv2/calib3d/calib3d.hpp>
+
+#include <ceres/rotation.h>
 
 using cv::Mat;
 using cv::Size;
@@ -12,141 +18,6 @@ using cv::Rect;
 using std::vector;
 
 using namespace ftl::calibration;
-
-using ftl::calibration::Camera;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Camera::setRotation(const Mat& R) {
-	if (((R.size() != Size(3, 3)) &&
-		(R.size() != Size(3, 1)) &&
-		(R.size() != Size(1, 3))) ||
-		(R.type() != CV_64FC1)) { throw std::exception(); }
-
-	Mat rvec;
-	if (R.size() == cv::Size(3, 3)) { cv::Rodrigues(R, rvec); }
-	else { rvec = R; }
-
-	data[Parameter::RX] = rvec.at<double>(0);
-	data[Parameter::RY] = rvec.at<double>(1);
-	data[Parameter::RZ] = rvec.at<double>(2);
-}
-
-void Camera::setTranslation(const Mat& t) {
-	if ((t.type() != CV_64FC1) ||
-		(t.size() != cv::Size(1, 3))) { throw std::exception(); }
-
-	data[Parameter::TX] = t.at<double>(0);
-	data[Parameter::TY] = t.at<double>(1);
-	data[Parameter::TZ] = t.at<double>(2);
-}
-
-
-void Camera::setIntrinsic(const Mat& K) {
-	if ((K.type() != CV_64FC1) || (K.size() != cv::Size(3, 3))) {
-		throw std::exception();
-	}
-
-	data[Parameter::F] = K.at<double>(0, 0);
-	data[Parameter::CX] = K.at<double>(0, 2);
-	data[Parameter::CY] = K.at<double>(1, 2);
-}
-
-void Camera::setDistortion(const Mat& D) {
-	if ((D.type() != CV_64FC1)) { throw std::exception(); }
-	switch(D.total()) {
-		case 12:
-			/*
-			data[Parameter::S1] = D.at<double>(8);
-			data[Parameter::S2] = D.at<double>(9);
-			data[Parameter::S3] = D.at<double>(10);
-			data[Parameter::S4] = D.at<double>(11);
-			*/
-			[[fallthrough]];
-		
-		case 8:
-			/*
-			data[Parameter::K4] = D.at<double>(5);
-			data[Parameter::K5] = D.at<double>(6);
-			data[Parameter::K6] = D.at<double>(7);
-			*/
-			[[fallthrough]];
-
-		case 5:
-			data[Parameter::K3] = D.at<double>(4);
-			[[fallthrough]];
-
-		default:
-			data[Parameter::K1] = D.at<double>(0);
-			data[Parameter::K2] = D.at<double>(1);
-			/*
-			data[Parameter::P1] = D.at<double>(2);
-			data[Parameter::P2] = D.at<double>(3);
-			*/
-	}
-}
-
-Camera::Camera(const Mat &K, const Mat &D, const Mat &R, const Mat &tvec) {
-	setIntrinsic(K, D);
-	if (!R.empty()) { setRotation(R); }
-	if (!tvec.empty()) { setTranslation(tvec); }
-}
-
-Mat Camera::intrinsicMatrix() const {
-	Mat K = Mat::eye(3, 3, CV_64FC1);
-	K.at<double>(0, 0) = data[Parameter::F];
-	K.at<double>(1, 1) = data[Parameter::F];
-	K.at<double>(0, 2) = data[Parameter::CX];
-	K.at<double>(1, 2) = data[Parameter::CY];
-	return K;
-}
-
-Mat Camera::distortionCoefficients() const {
-	Mat D;
-	if      (Camera::n_distortion_parameters <= 4)  { D = Mat::zeros(4, 1, CV_64FC1); }
-	else if (Camera::n_distortion_parameters <= 5)  { D = Mat::zeros(5, 1, CV_64FC1); }
-	else if (Camera::n_distortion_parameters <= 8)  { D = Mat::zeros(8, 1, CV_64FC1); }
-	else if (Camera::n_distortion_parameters <= 12) { D = Mat::zeros(12, 1, CV_64FC1); }
-	else if (Camera::n_distortion_parameters <= 14) { D = Mat::zeros(14, 1, CV_64FC1); }
-
-	switch(Camera::n_distortion_parameters) {
-		case 14:
-		case 12:
-		case 8:
-		case 5:
-			D.at<double>(4) = data[Parameter::K3];
-		case 4:
-			D.at<double>(0) = data[Parameter::K1];
-			D.at<double>(1) = data[Parameter::K2];
-	}
-
-	return D;
-}
-
-Mat Camera::rvec() const {
-	return Mat(Vec3d(data[Parameter::RX], data[Parameter::RY], data[Parameter::RZ]));
-}
-
-Mat Camera::tvec() const {
-	return Mat(Vec3d(data[Parameter::TX], data[Parameter::TY], data[Parameter::TZ]));
-}
-
-Mat Camera::rmat() const {
-	Mat R;
-	cv::Rodrigues(rvec(), R);
-	return R;
-}
-
-Mat Camera::extrinsicMatrix() const {
-	Mat T = Mat::eye(4, 4, CV_64FC1);
-	rmat().copyTo(T(Rect(0, 0, 3, 3)));
-	tvec().copyTo(T(Rect(3, 0, 1, 3)));
-	return T;
-}
-
-Mat Camera::extrinsicMatrixInverse() const {
-	return extrinsicMatrix().inv();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,7 +41,7 @@ bool validate::rotationMatrix(const Mat &M) {
 	// rotation matrix is orthogonal: M.T * M == M * M.T == I
 	//if (cv::countNonZero((M.t() * M) != Mat::eye(Size(3, 3), CV_64FC1)) != 0)
 	//									{ return false; }
-	
+
 	return true;
 }
 
@@ -178,9 +49,9 @@ bool validate::pose(const Mat &M) {
 	if (M.size() != Size(4, 4))			{ return false; }
 	if (!validate::rotationMatrix(M(cv::Rect(0 , 0, 3, 3))))
 										{ return false; }
-	if (!(	(M.at<double>(3, 0) == 0.0) && 
-			(M.at<double>(3, 1) == 0.0) && 
-			(M.at<double>(3, 2) == 0.0) && 
+	if (!(	(M.at<double>(3, 0) == 0.0) &&
+			(M.at<double>(3, 1) == 0.0) &&
+			(M.at<double>(3, 2) == 0.0) &&
 			(M.at<double>(3, 3) == 1.0))) { return false; }
 
 	return true;
@@ -190,11 +61,11 @@ bool validate::cameraMatrix(const Mat &M) {
 	if (M.type() != CV_64F)				{ return false; }
 	if (M.channels() != 1)				{ return false; }
 	if (M.size() != Size(3, 3))			{ return false; }
-	
-	if (!(	(M.at<double>(2, 0) == 0.0) && 
-			(M.at<double>(2, 1) == 0.0) && 
+
+	if (!(	(M.at<double>(2, 0) == 0.0) &&
+			(M.at<double>(2, 1) == 0.0) &&
 			(M.at<double>(2, 2) == 1.0))) { return false; }
-	
+
 	return true;
 }
 
@@ -223,7 +94,7 @@ bool ftl::calibration::validate::distortionCoefficients(const Mat &D, Size size)
 			s[3] = D.at<double>(11);
 			*/
 			[[fallthrough]];
-		
+
 		case 8:
 			k[3] = D.at<double>(5);
 			k[4] = D.at<double>(6);
@@ -242,7 +113,7 @@ bool ftl::calibration::validate::distortionCoefficients(const Mat &D, Size size)
 			p[1] = D.at<double>(3);
 			*/
 	}
-	
+
 	int diagonal = sqrt(size.width*size.width+size.height*size.height) + 1.0;
 
 	bool is_n = true;
@@ -274,11 +145,11 @@ bool ftl::calibration::validate::distortionCoefficients(const Mat &D, Size size)
 
 		if (!is_n && !is_p) { return false; }
 	}
-	
+
 	return true;
 }
 
-Mat ftl::calibration::scaleCameraMatrix(const Mat &K, const Size &size_new, const Size &size_old) {
+Mat ftl::calibration::scaleCameraMatrix(const Mat &K, const Size &size_old, const Size &size_new) {
 	Mat S(cv::Size(3, 3), CV_64F, 0.0);
 	double scale_x = ((double) size_new.width) / ((double) size_old.width);
 	double scale_y = ((double) size_new.height) / ((double) size_old.height);

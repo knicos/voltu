@@ -34,7 +34,7 @@ struct convert<cv::Size_<T>> {
 	msgpack::object const& operator()(msgpack::object const& o, cv::Size_<T>& v) const {
 		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
 		if (o.via.array.size != 2) { throw msgpack::type_error(); }
-		
+
 		T width = o.via.array.ptr[0].as<T>();
 		T height = o.via.array.ptr[1].as<T>();
 		v = cv::Size_<T>(width, height);
@@ -79,7 +79,7 @@ struct convert<cv::Rect_<T>> {
 	msgpack::object const& operator()(msgpack::object const& o, cv::Rect_<T> &v) const {
 		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
 		if (o.via.array.size != 4) { throw msgpack::type_error(); }
-		
+
 		T height = o.via.array.ptr[0].as<T>();
 		T width = o.via.array.ptr[1].as<T>();
 		T x = o.via.array.ptr[2].as<T>();
@@ -126,7 +126,7 @@ struct convert<cv::Vec<T, SIZE>> {
 	msgpack::object const& operator()(msgpack::object const& o, cv::Vec<T, SIZE> &v) const {
 		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
 		if (o.via.array.size != SIZE) { throw msgpack::type_error(); }
-		
+
 		for (int i = 0; i < SIZE; i++) { v[i] = o.via.array.ptr[i].as<T>(); }
 
 		return o;
@@ -149,6 +149,93 @@ struct object_with_zone<cv::Vec<T, SIZE>> {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// cv::Point_
+
+template<typename T>
+struct pack<cv::Point_<T>> {
+	template <typename Stream>
+	packer<Stream>& operator()(msgpack::packer<Stream>& o, cv::Point_<T> const& p) const {
+
+		o.pack_array(2);
+		o.pack(p.x);
+		o.pack(p.y);
+		return o;
+	}
+};
+
+template<typename T>
+struct convert<cv::Point_<T>> {
+	msgpack::object const& operator()(msgpack::object const& o, cv::Point_<T> &p) const {
+		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+		if (o.via.array.size != 2) { throw msgpack::type_error(); }
+
+		p.x = o.via.array.ptr[0].as<T>();
+		p.y = o.via.array.ptr[1].as<T>();
+
+		return o;
+	}
+};
+
+template <typename T>
+struct object_with_zone<cv::Point_<T>> {
+	void operator()(msgpack::object::with_zone& o, cv::Point_<T> const& p) const {
+		o.type = type::ARRAY;
+		o.via.array.size = 2;
+		o.via.array.ptr = static_cast<msgpack::object*>(
+			o.zone.allocate_align(	sizeof(msgpack::object) * o.via.array.size,
+									MSGPACK_ZONE_ALIGNOF(msgpack::object)));
+
+		o.via.array.ptr[0] = msgpack::object(p.x, o.zone);
+		o.via.array.ptr[1] = msgpack::object(p.y, o.zone);
+	}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// cv::Point3_
+
+template<typename T>
+struct pack<cv::Point3_<T>> {
+	template <typename Stream>
+	packer<Stream>& operator()(msgpack::packer<Stream>& o, cv::Point3_<T> const& p) const {
+
+		o.pack_array(3);
+		o.pack(p.x);
+		o.pack(p.y);
+		o.pack(p.z);
+		return o;
+	}
+};
+
+template<typename T>
+struct convert<cv::Point3_<T>> {
+	msgpack::object const& operator()(msgpack::object const& o, cv::Point3_<T> &p) const {
+		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+		if (o.via.array.size != 3) { throw msgpack::type_error(); }
+
+		p.x = o.via.array.ptr[0].as<T>();
+		p.y = o.via.array.ptr[1].as<T>();
+		p.z = o.via.array.ptr[2].as<T>();
+
+		return o;
+	}
+};
+
+template <typename T>
+struct object_with_zone<cv::Point3_<T>> {
+	void operator()(msgpack::object::with_zone& o, cv::Point3_<T> const& p) const {
+		o.type = type::ARRAY;
+		o.via.array.size = 3;
+		o.via.array.ptr = static_cast<msgpack::object*>(
+			o.zone.allocate_align(	sizeof(msgpack::object) * o.via.array.size,
+									MSGPACK_ZONE_ALIGNOF(msgpack::object)));
+
+		o.via.array.ptr[0] = msgpack::object(p.x, o.zone);
+		o.via.array.ptr[1] = msgpack::object(p.y, o.zone);
+		o.via.array.ptr[2] = msgpack::object(p.z, o.zone);
+	}
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // cv::Mat
 
 template<>
@@ -160,7 +247,7 @@ struct pack<cv::Mat> {
 		o.pack_array(3);
 		o.pack(v.type());
 		o.pack(v.size());
-		
+
 		auto size = v.total() * v.elemSize();
 		o.pack(msgpack::type::raw_ref(reinterpret_cast<char*>(v.data), size));
 
@@ -181,11 +268,11 @@ struct convert<cv::Mat> {
 		if (o.via.array.ptr[2].via.bin.size != (v.total() * v.elemSize())) {
 			throw msgpack::type_error();
 		}
-	
+
 		memcpy(	v.data,
 				reinterpret_cast<const uchar*>(o.via.array.ptr[2].via.bin.ptr),
 				o.via.array.ptr[2].via.bin.size);
-		
+
 		return o;
 	}
 };
@@ -198,7 +285,7 @@ struct object_with_zone<cv::Mat> {
 		o.via.array.ptr = static_cast<msgpack::object*>(
 			o.zone.allocate_align(	sizeof(msgpack::object) * o.via.array.size,
 									MSGPACK_ZONE_ALIGNOF(msgpack::object)));
-		
+
 		auto size = v.total() * v.elemSize();
 		o.via.array.ptr[0] = msgpack::object(v.type(), o.zone);
 		o.via.array.ptr[1] = msgpack::object(v.size(), o.zone);
@@ -206,7 +293,7 @@ struct object_with_zone<cv::Mat> {
 		// https://github.com/msgpack/msgpack-c/wiki/v2_0_cpp_object#conversion
 		// raw_ref not copied to zone (is this a problem?)
 		o.via.array.ptr[2] = msgpack::object(
-			msgpack::type::raw_ref(reinterpret_cast<char*>(v.data), size),
+			msgpack::type::raw_ref(reinterpret_cast<char*>(v.data), static_cast<uint32_t>(size)),
 			o.zone);
 	}
 };
@@ -231,7 +318,7 @@ struct convert<Eigen::Matrix<T, X, Y>> {
 	msgpack::object const& operator()(msgpack::object const& o, Eigen::Matrix<T, X, Y> &v) const {
 		if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
 		if (o.via.array.size != X*Y) { throw msgpack::type_error(); }
-		
+
 		for (int i = 0; i < X*Y; i++) { v.data()[i] = o.via.array.ptr[i].as<T>(); }
 
 		return o;

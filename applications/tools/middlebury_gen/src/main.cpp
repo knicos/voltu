@@ -4,6 +4,8 @@
 #include <ftl/codecs/opencv_encoder.hpp>
 #include <ftl/streams/injectors.hpp>
 
+#include <ftl/data/framepool.hpp>
+
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -212,8 +214,10 @@ int main(int argc, char **argv) {
 	// For each middlebury test folder
 	auto paths = (*root->get<nlohmann::json>("paths"));
 
-	ftl::rgbd::Frame frame;
-	ftl::rgbd::FrameState state;
+	ftl::data::Pool pool(1,1);
+	ftl::data::Frame dframe = pool.allocate(ftl::data::FrameID(0,0), 10);
+	ftl::rgbd::Frame &frame = dframe.cast<ftl::rgbd::Frame>();
+	frame.store();
 
 	ftl::operators::DisparityToDepth disp2depth(ftl::create<ftl::Configurable>(root, "disparity"));
 
@@ -249,7 +253,7 @@ int main(int argc, char **argv) {
 			// Load the ground truth
 			//frame.create<cv::Mat>(Channel::Disparity) = cv::imread(path+"/disp0.pfm", cv::IMREAD_UNCHANGED);
 			readFilePFM(frame.create<cv::Mat>(Channel::Disparity), path+"/disp0.pfm");
-			cv::Mat &disp = frame.get<cv::Mat>(Channel::Disparity);
+			cv::Mat &disp = frame.set<cv::Mat>(Channel::Disparity);
 			float aspect = float(disp.cols) / float(disp.rows);
 			float scaling = float(height) / float(disp.rows);
 			cv::resize(disp, disp, cv::Size(int(aspect*float(height)),height), 0.0, 0.0, cv::INTER_NEAREST);
@@ -277,14 +281,16 @@ int main(int argc, char **argv) {
 			intrin1.width = c1.cols;
 			intrin2.width = c2.cols;
 
-			state.setLeft(intrin1);
-			state.setRight(intrin2);
-			frame.setOrigin(&state);
-			ftl::stream::injectCalibration(out, frame, 0, 0, i, false);
-			ftl::stream::injectCalibration(out, frame, 0, 0, i, true);
+			frame.setLeft() = intrin1;
+			frame.setRight() = intrin2;
+			//ftl::stream::injectCalibration(out, frame, 0, 0, i, false);
+			//ftl::stream::injectCalibration(out, frame, 0, 0, i, true);
 
 			// Convert disparity to depth
-			frame.upload(Channel::Disparity + Channel::Colour + Channel::Colour2);
+			frame.upload(Channel::Disparity);
+			frame.upload(Channel::Colour);
+			frame.upload(Channel::Colour2);
+
 
 			disp2depth.apply(frame, frame, 0);
 

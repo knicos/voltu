@@ -5,7 +5,7 @@
 #include <vector>
 #include <ftl/codecs/codecs.hpp>
 #include <ftl/codecs/channels.hpp>
-#include <ftl/utility/msgpack.hpp>
+#include <msgpack.hpp>
 
 namespace ftl {
 namespace codecs {
@@ -18,7 +18,7 @@ static constexpr uint8_t kAllFramesets = 255;
  */
 struct Header {
 	const char magic[4] = {'F','T','L','F'};
-	uint8_t version = 4;
+	uint8_t version = 5;
 };
 
 /**
@@ -36,12 +36,7 @@ struct IndexHeader {
  */
 struct Packet {
 	ftl::codecs::codec_t codec;
-
-	union {
-	[[deprecated]] ftl::codecs::definition_t definition;	// Data resolution
-	uint8_t reserved=7;
-	};
-
+	uint8_t reserved=0;
 	uint8_t frame_count;	// v4+ Frames included in this packet
 	uint8_t bitrate=0;	// v4+ For multi-bitrate encoding, 0=highest
 	uint8_t flags;			// Codec dependent flags (eg. I-Frame or P-Frame)
@@ -51,6 +46,28 @@ struct Packet {
 };
 
 static constexpr unsigned int kStreamCap_Static = 0x01;
+static constexpr unsigned int kStreamCap_Recorded = 0x02;
+
+/** V4 packets have no stream flags field */
+struct StreamPacketV4 {
+	int version;			// FTL version, Not encoded into stream
+
+	int64_t timestamp;
+	uint8_t streamID;  		// Source number [or v4 frameset id]
+	uint8_t frame_number;	// v4+ First frame number (packet may include multiple frames)
+	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
+
+	inline int frameNumber() const { return (version >= 4) ? frame_number : streamID; }
+	inline size_t frameSetID() const { return (version >= 4) ? streamID : 0; }
+
+	int64_t localTimestamp;  		// Not message packet / saved
+	unsigned int hint_capability;	// Is this a video stream, for example
+	size_t hint_source_total;		// Number of tracks per frame to expect
+
+	MSGPACK_DEFINE(timestamp, streamID, frame_number, channel);
+
+	operator std::string() const;
+};
 
 /**
  * Add timestamp and channel information to a raw encoded frame packet. This
@@ -62,23 +79,19 @@ struct StreamPacket {
 
 	int64_t timestamp;
 	uint8_t streamID;  		// Source number [or v4 frameset id]
-
-	union {
-		[[deprecated]] uint8_t channel_count;	// v1-3 Number of channels to expect for this frame(set) to complete (usually 1 or 2)
-		uint8_t frame_number;	// v4+ First frame number (packet may include multiple frames)
-	};
-
+	uint8_t frame_number;	// v4+ First frame number (packet may include multiple frames)
 	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
+	uint8_t flags=0;
 
 	inline int frameNumber() const { return (version >= 4) ? frame_number : streamID; }
 	inline size_t frameSetID() const { return (version >= 4) ? streamID : 0; }
-	inline int64_t localTimestamp() const { return timestamp + originClockDelta; }
 
-	int64_t originClockDelta;  		// Not message packet / saved
+	int64_t localTimestamp;  		// Not message packet / saved
 	unsigned int hint_capability;	// Is this a video stream, for example
 	size_t hint_source_total;		// Number of tracks per frame to expect
+	int retry_count = 0;			// Decode retry count
 
-	MSGPACK_DEFINE(timestamp, streamID, frame_number, channel);
+	MSGPACK_DEFINE(timestamp, streamID, frame_number, channel, flags);
 
 	operator std::string() const;
 };

@@ -60,7 +60,7 @@ bool GTAnalysis::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 	}
 
 	std::vector<std::string> msgs;
-	if (in.hasChannel(Channel::Messages)) { in.get(Channel::Messages, msgs); }
+	if (in.hasChannel(Channel::Messages)) { msgs = in.get<std::vector<std::string>>(Channel::Messages); }
 
 	bool use_disp = config()->value("use_disparity", true);
 	auto &dmat = in.get<cv::cuda::GpuMat>(Channel::Depth);
@@ -103,7 +103,7 @@ bool GTAnalysis::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 		else 			{ report(msgs, err, o, npixels, "mm", 1000.0); }
 	}
 
-	in.create(Channel::Messages, msgs);
+	in.create<std::vector<std::string>>(Channel::Messages) = msgs;
 
 	return true;
 }

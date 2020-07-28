@@ -301,13 +301,7 @@ void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv:
 
 	if (x >= RADIUS && y >= RADIUS && x < vuya.cols-RADIUS-1 && y < vuya.rows-RADIUS-1) {
         ushort4 in = vuya(y,x);
-        bool isdiscon = false;
-		//int minerr = 65000;
 		ushort best = in.z;
-		//ushort miny = 65000;
-
-		//float sumY = 0.0f;
-		//float weights = 0.0f;
 		float mcost = 1.e10f;
 
 		// 1) In small radius, is there a discontinuity?
@@ -323,7 +317,6 @@ void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv:
 					ushort4 inn = vuya(y+v,x+u);
 					if (inn.w == 0) {
 						float err = fabsf(float(in.z) - float(inn.z));
-						float dist = v*v + u*u;
 						float cost = err*err; //err*err*dist;
 						if (mcost > cost) {
 							mcost = cost;

@@ -113,9 +113,15 @@ Colouriser::~Colouriser() {
 }
 
 TextureObject<uchar4> &Colouriser::colourise(ftl::rgbd::Frame &f, Channel c, cudaStream_t stream) {
+	const auto &vf = f.get<ftl::rgbd::VideoFrame>(c);
+	if (!vf.isGPU()) {
+		f.upload(c);
+	}
+
 	switch (c) {
 	case Channel::Overlay		: return f.createTexture<uchar4>(c);
 	case Channel::ColourHighRes	:
+	case Channel::RightHighRes	:
 	case Channel::Colour		:
 	case Channel::Colour2		: return _processColour(f,c,stream);
 	case Channel::GroundTruth	:
@@ -183,7 +189,7 @@ TextureObject<uchar4> &Colouriser::_processColour(ftl::rgbd::Frame &f, Channel c
 	bool colour_sources = value("colour_sources", false);
 
 	if (!colour_sources && show_mask == 0) {
-		return f.createTexture<uchar4>(c);
+		return f.createTexture<uchar4>(c, true);
 	}
 
 	cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
@@ -192,7 +198,7 @@ TextureObject<uchar4> &Colouriser::_processColour(ftl::rgbd::Frame &f, Channel c
 	auto &buf = _getBuffer(size.width, size.height);
 
 	if (colour_sources) {
-		auto colour = HSVtoRGB(360 / 8 * f.id, 0.6, 0.85);
+		auto colour = HSVtoRGB(360 / 8 * f.source(), 0.6, 0.85);
 		buf.to_gpumat().setTo(colour, cvstream);
 	}
 

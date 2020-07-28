@@ -32,7 +32,8 @@ namespace ftl {
 			SCHEME_IPC,
 			SCHEME_FILE,
 			SCHEME_OTHER,
-			SCHEME_DEVICE
+			SCHEME_DEVICE,
+			SCHEME_GROUP
 		};
 
 		bool isValid() const { return m_valid; };
@@ -51,21 +52,28 @@ namespace ftl {
 		 * Get the URI without query parameters, and limit path to length N.
 		 * If N is negative then it is taken from full path length.
 		 */
-		std::string getBaseURI(int n);
+		std::string getBaseURI(int n) const;
+
+		std::string getBaseURIWithUser() const;
 
 		std::string getPathSegment(int n) const;
+
+		inline size_t getPathLength() const { return m_pathseg.size(); }
 
 		void setAttribute(const std::string &key, const std::string &value);
 		void setAttribute(const std::string &key, int value);
 
 		template <typename T>
-		T getAttribute(const std::string &key) {
-			return T(m_qmap[key]);
+		T getAttribute(const std::string &key) const {
+			auto i = m_qmap.find(key);
+			return (i != m_qmap.end()) ? T(i->second) : T();
 		}
+
+		bool hasAttribute(const std::string &a) const { return m_qmap.count(a) > 0; }
 
 		std::string to_string() const;
 
-		void to_json(nlohmann::json &);
+		void to_json(nlohmann::json &) const;
 
 		private:
 		void _parse(uri_t puri);
@@ -86,13 +94,15 @@ namespace ftl {
 	};
 
 	template <>
-	inline int URI::getAttribute<int>(const std::string &key) {
-		return std::stoi(m_qmap[key]);
+	inline int URI::getAttribute<int>(const std::string &key) const {
+		auto i = m_qmap.find(key);
+		return (i != m_qmap.end()) ? std::stoi(i->second) : 0;
 	}
 
 	template <>
-	inline std::string URI::getAttribute<std::string>(const std::string &key) {
-		return m_qmap[key];
+	inline std::string URI::getAttribute<std::string>(const std::string &key) const {
+		auto i = m_qmap.find(key);
+		return (i != m_qmap.end()) ? i->second : "";
 	}
 }
 

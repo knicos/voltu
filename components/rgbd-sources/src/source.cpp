@@ -26,36 +26,16 @@ using ftl::rgbd::detail::StereoVideoSource;
 using ftl::rgbd::detail::ImageSource;
 using ftl::rgbd::detail::MiddleburySource;
 using ftl::rgbd::detail::ScreenCapture;
-using ftl::rgbd::capability_t;
 using ftl::codecs::Channel;
-//using ftl::rgbd::detail::FileSource;
 using ftl::rgbd::Camera;
-using ftl::rgbd::FrameCallback;
 
-
-Source::Source(ftl::config::json_t &cfg) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(nullptr) {
+Source::Source(ftl::config::json_t &cfg) : Configurable(cfg) {
 	impl_ = nullptr;
-	//params_ = {};
 	stream_ = 0;
-	is_dispatching = false;
 	is_retrieving = false;
 	reset();
 
-	on("uri", [this](const ftl::config::Event &e) {
-		LOG(INFO) << "URI change for source: " << getURI();
-		reset();
-	});
-}
-
-Source::Source(ftl::config::json_t &cfg, ftl::net::Universe *net) : Configurable(cfg), pose_(Eigen::Matrix4d::Identity()), net_(net) {
-	impl_ = nullptr;
-	//params_ = {};
-	stream_ = 0;
-	is_dispatching = false;
-	is_retrieving = false;
-	reset();
-
-	on("uri", [this](const ftl::config::Event &e) {
+	on("uri", [this]() {
 		LOG(INFO) << "URI change for source: " << getURI();
 		reset();
 	});
@@ -66,18 +46,6 @@ Source::~Source() {
 }
 
 bool Source::isReady() { return (impl_) ? impl_->isReady() : false; }
-
-const Camera &Source::parameters() const {
-	if (impl_) return impl_->params_;
-	else throw FTL_Error("Cannot get parameters for bad source");
-}
-
-ftl::rgbd::FrameState &Source::state() { return impl_->state_; }
-
-cv::Mat Source::cameraMatrix() const {
-	cv::Mat m = (cv::Mat_<float>(3,3) << parameters().fx, 0.0, -parameters().cx, 0.0, parameters().fy, -parameters().cy, 0.0, 0.0, 1.0);
-	return m;
-}
 
 static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *host) {
 	std::string path = uri.getPath();
@@ -123,7 +91,7 @@ static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *ho
 }
 
 static ftl::rgbd::BaseSourceImpl *createDeviceImpl(const ftl::URI &uri, Source *host) {
-	if (uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "camera" || uri.getPathSegment(0) == "pylon") {
+	if (uri.getPathSegment(0) == "stereo" || uri.getPathSegment(0) == "video" || uri.getPathSegment(0) == "camera" || uri.getPathSegment(0) == "pylon") {
 		return new StereoVideoSource(host);
 	} else if (uri.getPathSegment(0) == "realsense") {
 #ifdef HAVE_REALSENSE
@@ -154,79 +122,68 @@ static ftl::rgbd::BaseSourceImpl *createImplementation(const std::string &uristr
 	return nullptr;
 }
 
-void Source::setPose(const Eigen::Matrix4d &pose) {
-	pose_ = pose;
-	if (impl_) impl_->setPose(pose);
-}
-
-bool Source::hasCapabilities(capability_t c) {
-	return (getCapabilities() & c) == c;
-}
-
-capability_t Source::getCapabilities() const {
-	if (impl_) return impl_->capabilities_;
-	else return kCapMovable | kCapVideo | kCapStereo;  // FIXME: Don't assume these
-}
-
 void Source::reset() {
 	UNIQUE_LOCK(mutex_,lk);
-	channel_ = Channel::None;
 	if (impl_) delete impl_;
 	impl_ = nullptr;
 
 	auto uristr = get<string>("uri");
 	if (!uristr) return;
+
+	ftl::URI uri(*uristr);
+
+	restore(uri.getBaseURI(), {
+		"min_depth",
+		"max_depth",
+		"name",
+		"offset_z",
+		"size",
+		"focal",
+		"device_left",
+		"enable_touch",
+		"feed",
+		"pipeline"
+	});
+
+	uri.to_json(getConfig());
+
 	impl_ = createImplementation(*uristr, this);
 }
 
 bool Source::capture(int64_t ts) {
-	//timestamp_ = ts;
 	if (impl_) return impl_->capture(ts);
 	else return true;
 }
 
-bool Source::retrieve() {
+bool Source::retrieve(ftl::data::Frame &f) {
+	if (is_retrieving) return false;
 	is_retrieving = true;
 	bool status = false;
-	if (impl_) status = impl_->retrieve(frames_[0]);
+	if (impl_) status = impl_->retrieve(f.cast<ftl::rgbd::Frame>());
 	is_retrieving = false;
 	return status;
 }
 
-bool Source::dispatch(int64_t ts) {
-	if (!callback_) return false;
-	if (is_dispatching || is_retrieving) {
-		LOG(WARNING) << "Previous distance not completed";
-		return false;
+bool Source::supports(const std::string &puri) {
+	ftl::URI uri(puri);
+
+	if (uri.getPathSegment(0) == "video") {
+		return StereoVideoSource::supported(uri.getPathSegment(0));
+	} else if (uri.getPathSegment(0) == "camera" || uri.getPathSegment(0) == "stereo") {
+		return StereoVideoSource::supported(uri.getPathSegment(0));
+	} else if (uri.getPathSegment(0) == "pylon") {
+		return StereoVideoSource::supported(uri.getPathSegment(0));
+	} else if (uri.getPathSegment(0) == "realsense") {
+		#ifdef HAVE_REALSENSE
+		return RealsenseSource::supported();
+		#endif
+	} else if (uri.getPathSegment(0) == "screen") {
+		#ifndef WIN32
+		return true;
+		#endif
 	}
-	is_dispatching = true;
-	_swap();
-	ftl::pool.push([this,ts](int id) {
-		callback_(ts, frames_[1]);
-		is_dispatching = false;
-	});
-	return true;
-}
 
-void Source::_swap() {
-	auto tmp = std::move(frames_[0]);
-	frames_[0] = std::move(frames_[1]);
-	frames_[1] = std::move(tmp);
-}
-
-bool Source::setChannel(ftl::codecs::Channel c) {
-	channel_ = c;
-	// FIXME:(Nick) Verify channel is supported by this source...
-	return true;
-}
-
-const ftl::rgbd::Camera Source::parameters(ftl::codecs::Channel chan) const {
-	return (impl_) ? impl_->parameters(chan) : parameters();
-}
-
-void Source::setCallback(const FrameCallback &cb) {
-	if (bool(callback_)) LOG(ERROR) << "Source already has a callback: " << getURI();
-	callback_ = cb;
+	return false;
 }
 
 

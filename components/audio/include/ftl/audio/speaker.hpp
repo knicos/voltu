@@ -21,11 +21,14 @@ class Speaker : public ftl::Configurable {
 	void queue(int64_t ts, ftl::audio::Frame &fs);
 
 	void setDelay(int64_t ms);
+	void setVolume(float value);
+	float volume();
 
 	private:
 	ftl::audio::Buffer<short> *buffer_;
 	bool active_;
 	float extra_delay_;
+	float volume_;
 	int64_t latency_;
 
 	#ifdef HAVE_PORTAUDIO

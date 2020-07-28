@@ -2,7 +2,7 @@
 #ifndef _FTL_RGBD_MIDDLEBURY_SOURCE_HPP_
 #define _FTL_RGBD_MIDDLEBURY_SOURCE_HPP_
 
-#include <loguru.hpp>
+//#include <loguru.hpp>
 
 #include "../../basesource.hpp"
 #include <ftl/cuda_common.hpp>

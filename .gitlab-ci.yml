@@ -6,7 +6,7 @@
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
-  CMAKE_ARGS_WINDOWS: '-DCMAKE_GENERATOR_PLATFORM=x64 -DPORTAUDIO_DIR="D:/Build/portaudio" -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/Build/opencv/build/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.2" -DWITH_OPENVR=TRUE -DOPENVR_DIR="D:/Build/OpenVRSDK" -DWITH_CERES=FALSE'
+  CMAKE_ARGS_WINDOWS: '-DCMAKE_GENERATOR_PLATFORM=x64 -DCeres_DIR="D:/Program Files/Ceres" -DPORTAUDIO_DIR="D:/Build/portaudio" -DPYLON_DIR="D:/Program Files/pylon6/Development" -DEigen3_DIR="C:/Program Files (x86)/Eigen3/share/eigen3/cmake" -DOpenCV_DIR="D:/Build/opencv/build/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.2" -DWITH_OPENVR=TRUE -DOPENVR_DIR="D:/Build/OpenVRSDK" -DWITH_CERES=TRUE'
 
 stages:
  - all
@@ -28,9 +28,9 @@ linux:
   script:
     - mkdir build
     - cd build
-    - cmake .. -DWITH_OPTFLOW=TRUE -DUSE_CPPCHECK=FALSE -DBUILD_CALIBRATION=TRUE -DWITH_CERES=TRUE -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=DEB
-    - make
-    - make package
+    - /snap/bin/cmake .. -GNinja -DCMAKE_CXX_FLAGS="-fdiagnostics-color" -DWITH_OPTFLOW=TRUE -DUSE_CPPCHECK=FALSE -DBUILD_CALIBRATION=TRUE -DWITH_CERES=TRUE -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=DEB
+    - ninja
+    - ninja package
     - ctest --output-on-failure
     - cd ../SDK/Python
     - python3 -m unittest discover test
@@ -63,8 +63,7 @@ webserver-deploy:
     - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - mkdir "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - 'copy "applications\vision\Release\ftl-vision.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
-    - 'copy "applications\calibration\Release\ftl-calibrate.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
-    - 'copy "applications\gui\Release\ftl-gui.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
+    - 'copy "applications\gui2\Release\ftl-gui2.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
 
 windows-vision:
   except:

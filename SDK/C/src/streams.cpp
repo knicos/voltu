@@ -8,6 +8,7 @@
 #include <ftl/operators/operator.hpp>
 #include <ftl/operators/disparity.hpp>
 #include <ftl/operators/mvmls.hpp>
+#include <ftl/data/framepool.hpp>
 
 #include <opencv2/imgproc.hpp>
 
@@ -18,6 +19,8 @@ static ftlError_t last_error = FTLERROR_OK;
 static ftl::Configurable *root = nullptr;
 
 struct FTLStream {
+	FTLStream() : pool(2,5) {}
+
 	bool readonly;
 	ftl::stream::Sender *sender;
 	ftl::stream::Stream *stream;
@@ -27,8 +30,8 @@ struct FTLStream {
 
 	ftl::operators::Graph *pipelines;
 
-	std::vector<ftl::rgbd::FrameState> video_states;
-	ftl::rgbd::FrameSet video_fs;
+	ftl::data::Pool pool;
+	std::shared_ptr<ftl::rgbd::FrameSet> video_fs;
 };
 
 ftlError_t ftlGetLastStreamError(ftlStream_t stream) {
@@ -39,7 +42,7 @@ static void createFileWriteStream(FTLStream *s, const ftl::URI &uri) {
 	if (!root) {
 		int argc = 1;
 		const char *argv[] = {"SDK",0};
-		root = ftl::configure(argc, const_cast<char**>(argv), "sdk_default");
+		root = ftl::configure(argc, const_cast<char**>(argv), "sdk_default", {});
 	}
 
 	auto *fs = ftl::create<ftl::stream::File>(root, "ftlfile");
@@ -62,12 +65,11 @@ ftlStream_t ftlCreateWriteStream(const char *uri) {
 	s->stream = nullptr;
 	s->sender = nullptr;
 	s->pipelines = nullptr;
-	s->video_fs.id = 0;
-	s->video_fs.count = 0;
-	s->video_fs.mask = 0;
+	s->video_fs = std::make_shared<ftl::data::FrameSet>(&s->pool, ftl::data::FrameID(0,0), ftl::timer::get_time());
+	s->video_fs->count = 0;
+	s->video_fs->mask = 0;
 	s->interval = 40;
-	s->video_fs.frames.reserve(32);
-	s->video_states.resize(32);
+	//s->video_fs->frames.reserve(32);
 	s->has_fresh_data = false;
 
 	switch (u.getScheme()) {
@@ -87,7 +89,7 @@ ftlStream_t ftlCreateWriteStream(const char *uri) {
 	}
 	last_error = FTLERROR_OK;
 
-	s->video_fs.timestamp = ftl::timer::get_time();
+	//s->video_fs.timestamp = ftl::timer::get_time();
 
 	return s;
 }
@@ -106,10 +108,10 @@ ftlError_t ftlImageWrite(
 		return FTLERROR_STREAM_INVALID_PARAMETER;
 	if (static_cast<int>(channel) < 0 || static_cast<int>(channel) > 32)
 		return FTLERROR_STREAM_BAD_CHANNEL;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 	if (!data) return FTLERROR_STREAM_NO_DATA;
-	if (stream->video_fs.hasChannel(static_cast<ftl::codecs::Channel>(channel)))
+	if (stream->video_fs->hasChannel(static_cast<ftl::codecs::Channel>(channel)))
 		return FTLERROR_STREAM_DUPLICATE;
 
 	stream->sender->set("codec", 1);
@@ -117,9 +119,9 @@ ftlError_t ftlImageWrite(
 	stream->sender->set("lossless", true);
 
 	try {
-		auto &frame = stream->video_fs.frames[sourceId];
+		auto &frame = stream->video_fs->frames[sourceId];
 		auto &img = frame.create<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
-		auto &intrin = frame.getLeft();
+		auto &intrin = frame.cast<ftl::rgbd::Frame>().getLeft();
 
 		LOG(INFO) << "INTRIN: " << intrin.width << "x" << intrin.height << " for " << sourceId << ", " << (int)channel;
 
@@ -155,10 +157,10 @@ ftlError_t ftlImageWrite(
 		if (tmp2.empty()) return FTLERROR_STREAM_NO_DATA;
 		img.upload(tmp2);
 
-		ftl::codecs::Channels<0> channels;
-		if (stream->stream->size() > static_cast<unsigned int>(stream->video_fs.id)) channels = stream->stream->selected(stream->video_fs.id);
+		std::unordered_set<ftl::codecs::Channel> channels;
+		if (stream->stream->size() > static_cast<unsigned int>(stream->video_fs->id().frameset())) channels = stream->stream->selected(stream->video_fs->id().frameset());
 		channels += static_cast<ftl::codecs::Channel>(channel);
-		stream->stream->select(stream->video_fs.id, channels, true);
+		stream->stream->select(stream->video_fs->id().frameset(), channels, true);
 
 	} catch (const std::exception &e) {
 		return FTLERROR_UNKNOWN;
@@ -174,12 +176,16 @@ ftlError_t ftlIntrinsicsWriteLeft(ftlStream_t stream, int32_t sourceId, int32_t 
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
 
-	while (stream->video_fs.frames.size() <= static_cast<unsigned int>(sourceId)) {
-		stream->video_fs.frames.emplace_back();
+	//while (stream->video_fs->frames.size() < static_cast<unsigned int>(sourceId)) {
+		stream->video_fs->resize(static_cast<unsigned int>(sourceId)+1);
+	//}
+
+	if (stream->video_fs->hasFrame(sourceId)) {
+		return FTLERROR_STREAM_DUPLICATE;
 	}
 
-	if (stream->video_fs.hasFrame(sourceId)) {
-		return FTLERROR_STREAM_DUPLICATE;
+	if (stream->video_fs->frames[sourceId].status() == ftl::data::FrameStatus::CREATED) {
+		stream->video_fs->frames[sourceId].store();
 	}
 
 	ftl::rgbd::Camera cam;
@@ -193,12 +199,12 @@ ftlError_t ftlIntrinsicsWriteLeft(ftlStream_t stream, int32_t sourceId, int32_t 
 	cam.maxDepth = maxDepth;
 	cam.baseline = baseline;
 	cam.doffs = 0.0f;
-	stream->video_fs.mask |= 1 << sourceId;
-	stream->video_fs.count++;
-	if (!stream->video_fs.frames[sourceId].origin()) {
-		stream->video_fs.frames[sourceId].setOrigin(&stream->video_states[sourceId]);
-	}
-	stream->video_fs.frames[sourceId].setLeft(cam);
+	stream->video_fs->mask |= 1 << sourceId;
+	stream->video_fs->count++;
+	//if (!stream->video_fs->frames[sourceId].origin()) {
+	//	stream->video_fs.frames[sourceId].setOrigin(&stream->video_states[sourceId]);
+	//}
+	stream->video_fs->frames[sourceId].cast<ftl::rgbd::Frame>().setLeft() = cam;
 	stream->has_fresh_data = true;
 
 	return FTLERROR_OK;
@@ -209,7 +215,7 @@ ftlError_t ftlIntrinsicsWriteRight(ftlStream_t stream, int32_t sourceId, int32_t
 		return FTLERROR_STREAM_INVALID_STREAM;
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 
 	ftl::rgbd::Camera cam;
@@ -223,7 +229,7 @@ ftlError_t ftlIntrinsicsWriteRight(ftlStream_t stream, int32_t sourceId, int32_t
 	cam.maxDepth = maxDepth;
 	cam.baseline = baseline;
 	cam.doffs = 0.0f;
-	stream->video_fs.frames[sourceId].setRight(cam);
+	stream->video_fs->frames[sourceId].cast<ftl::rgbd::Frame>().setRight() = cam;
 	stream->has_fresh_data = true;
 
 	return FTLERROR_OK;
@@ -234,15 +240,15 @@ ftlError_t ftlPoseWrite(ftlStream_t stream, int32_t sourceId, const float *data)
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 	if (!data) return FTLERROR_STREAM_NO_DATA;
 
 	Eigen::Matrix4f pose;
 	for (int i=0; i<16; ++i) pose.data()[i] = data[i];
 
-	auto &frame = stream->video_fs.frames[sourceId];
-	frame.setPose(pose.cast<double>());
+	auto &frame = stream->video_fs->frames[sourceId].cast<ftl::rgbd::Frame>();
+	frame.setPose() = pose.cast<double>();
 
 	return FTLERROR_OK;
 }
@@ -252,16 +258,16 @@ ftlError_t ftlRemoveOcclusion(ftlStream_t stream, int32_t sourceId, ftlChannel_t
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 	if (static_cast<int>(channel) < 0 || static_cast<int>(channel) > 32)
 		return FTLERROR_STREAM_BAD_CHANNEL;
-	if (!stream->video_fs.frames[sourceId].hasChannel(static_cast<ftl::codecs::Channel>(channel)))
+	if (!stream->video_fs->frames[sourceId].hasChannel(static_cast<ftl::codecs::Channel>(channel)))
 		return FTLERROR_STREAM_BAD_CHANNEL;
 
-	auto &frame = stream->video_fs.frames[sourceId];
+	auto &frame = stream->video_fs->frames[sourceId].cast<ftl::rgbd::Frame>();
 	//auto &mask = frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Mask);
-	auto &depth = frame.get<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
+	auto &depth = frame.set<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
 	auto &intrin = frame.getLeft();
 
 	cv::Mat depthR(intrin.height, intrin.width, CV_32F, const_cast<float*>(data), pitch);
@@ -277,14 +283,14 @@ ftlError_t ftlMaskOcclusion(ftlStream_t stream, int32_t sourceId, ftlChannel_t c
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 	if (static_cast<int>(channel) < 0 || static_cast<int>(channel) > 32)
 		return FTLERROR_STREAM_BAD_CHANNEL;
-	if (!stream->video_fs.frames[sourceId].hasChannel(static_cast<ftl::codecs::Channel>(channel)))
+	if (!stream->video_fs->frames[sourceId].hasChannel(static_cast<ftl::codecs::Channel>(channel)))
 		return FTLERROR_STREAM_BAD_CHANNEL;
 
-	auto &frame = stream->video_fs.frames[sourceId];
+	auto &frame = stream->video_fs->frames[sourceId].cast<ftl::rgbd::Frame>();
 	auto &mask = frame.create<cv::cuda::GpuMat>(ftl::codecs::Channel::Mask);
 	auto &depth = frame.get<cv::cuda::GpuMat>(static_cast<ftl::codecs::Channel>(channel));
 	auto &intrin = frame.getLeft();
@@ -330,10 +336,10 @@ ftlError_t ftlSelect(ftlStream_t stream, ftlChannel_t channel) {
 	if (static_cast<int>(channel) < 0 || static_cast<int>(channel) > 32)
 		return FTLERROR_STREAM_BAD_CHANNEL;
 
-	ftl::codecs::Channels<0> channels;
-	if (stream->stream->size() > static_cast<unsigned int>(stream->video_fs.id)) channels = stream->stream->selected(stream->video_fs.id);
+	std::unordered_set<ftl::codecs::Channel> channels;
+	if (stream->stream->size() > static_cast<unsigned int>(stream->video_fs->id().frameset())) channels = stream->stream->selected(stream->video_fs->id().frameset());
 	channels += static_cast<ftl::codecs::Channel>(channel);
-	stream->stream->select(stream->video_fs.id, channels, true);
+	stream->stream->select(stream->video_fs->id().frameset(), channels, true);
 	return FTLERROR_OK;
 }
 
@@ -354,26 +360,17 @@ ftlError_t ftlNextFrame(ftlStream_t stream) {
 	try {
 		cudaSetDevice(0);
 		if (stream->pipelines) {
-			stream->pipelines->apply(stream->video_fs, stream->video_fs, 0);
+			stream->pipelines->apply(*stream->video_fs, *stream->video_fs, 0);
 		}
-		stream->sender->post(stream->video_fs);
+
+		for (auto &c : stream->video_fs->firstFrame().changed()) {
+			stream->sender->post(*stream->video_fs, c.first);
+		}
 	} catch (const std::exception &e) {
 		return FTLERROR_STREAM_ENCODE_FAILED;
 	}
 
-	// Reset the frameset.
-	for (size_t i=0; i<stream->video_fs.frames.size(); ++i) {
-		if (!stream->video_fs.hasFrame(i)) continue;
-
-		auto &f = stream->video_fs.frames[i];
-		f.reset();
-		f.setOrigin(&stream->video_states[i]);
-	}
-
-	// FIXME: These should be reset each time
-	//stream->video_fs.count = 0;
-	//stream->video_fs.mask = 0;
-	stream->video_fs.timestamp += stream->interval;
+	stream->video_fs = std::make_shared<ftl::data::FrameSet>(&stream->pool, ftl::data::FrameID(0,0), stream->video_fs->timestamp()+stream->interval);
 	stream->has_fresh_data = false;
 	return FTLERROR_OK;
 }
@@ -389,9 +386,11 @@ ftlError_t ftlDestroyStream(ftlStream_t stream) {
 			try {
 				cudaSetDevice(0);
 				if (stream->pipelines) {
-					stream->pipelines->apply(stream->video_fs, stream->video_fs, 0);
+					stream->pipelines->apply(*stream->video_fs, *stream->video_fs, 0);
 				}
-				stream->sender->post(stream->video_fs);
+				for (auto &c : stream->video_fs->firstFrame().changed()) {
+					stream->sender->post(*stream->video_fs, c.first);
+				}
 			} catch (const std::exception &e) {
 				err = FTLERROR_STREAM_ENCODE_FAILED;
 				LOG(ERROR) << "Sender exception: " << e.what();
@@ -418,12 +417,12 @@ ftlError_t ftlSetPropertyString(ftlStream_t stream, int32_t sourceId, const char
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 	if (!value) return FTLERROR_STREAM_INVALID_PARAMETER;
 	if (!prop) return FTLERROR_STREAM_INVALID_PARAMETER;
 
-	stream->video_fs.frames[sourceId].set(std::string(prop), std::string(value));
+	//stream->video_fs.frames[sourceId].set(std::string(prop), std::string(value));
 	return FTLERROR_OK;
 }
 
@@ -432,12 +431,12 @@ ftlError_t ftlSetPropertyInt(ftlStream_t stream, int32_t sourceId, const char *p
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 	if (!value) return FTLERROR_STREAM_INVALID_PARAMETER;
 	if (!prop) return FTLERROR_STREAM_INVALID_PARAMETER;
 
-	stream->video_fs.frames[sourceId].set(std::string(prop), value);
+	//stream->video_fs.frames[sourceId].set(std::string(prop), value);
 	return FTLERROR_OK;
 }
 
@@ -446,11 +445,11 @@ ftlError_t ftlSetPropertyFloat(ftlStream_t stream, int32_t sourceId, const char 
 	if (!stream->stream) return FTLERROR_STREAM_INVALID_STREAM;
 	if (sourceId < 0 || sourceId >= 32)
 		return FTLERROR_STREAM_INVALID_PARAMETER;
-	if (!stream->video_fs.hasFrame(sourceId))
+	if (!stream->video_fs->hasFrame(sourceId))
 		return FTLERROR_STREAM_NO_INTRINSICS;
 	if (!value) return FTLERROR_STREAM_INVALID_PARAMETER;
 	if (!prop) return FTLERROR_STREAM_INVALID_PARAMETER;
 
-	stream->video_fs.frames[sourceId].set(std::string(prop), value);
+	//stream->video_fs.frames[sourceId].set(std::string(prop), value);
 	return FTLERROR_OK;
 }

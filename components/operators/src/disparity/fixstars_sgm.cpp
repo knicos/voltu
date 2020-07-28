@@ -87,7 +87,7 @@ FixstarsSGM::FixstarsSGM(ftl::Configurable* cfg) :
 		LOG(WARNING) << "Invalid value for max_disp, using default value (256)";
 	}
 
-	cfg->on("P1", [this, cfg](const ftl::config::Event&) {
+	cfg->on("P1", [this, cfg]() {
 		int P1 = cfg->value("P1", 0);
 		if (P1 <= 0) {
 			LOG(WARNING) << "Invalid value for P1 (" << P1 << ")";
@@ -98,7 +98,7 @@ FixstarsSGM::FixstarsSGM(ftl::Configurable* cfg) :
 		}
 	});
 
-	cfg->on("P2", [this, cfg](const ftl::config::Event&) {
+	cfg->on("P2", [this, cfg]() {
 		int P2 = cfg->value("P2", 0);
 		if (P2 < P1_) {
 			LOG(WARNING) << "Invalid value for P2 (" << P2 << ")";
@@ -109,7 +109,7 @@ FixstarsSGM::FixstarsSGM(ftl::Configurable* cfg) :
 		}
 	});
 
-	cfg->on("uniqueness", [this, cfg](const ftl::config::Event&) {
+	cfg->on("uniqueness", [this, cfg]() {
 		double uniqueness = cfg->value("uniqueness", 0.0);
 		if (uniqueness < 0.0 || uniqueness > 1.0) {
 			LOG(WARNING) << "Invalid value for uniqueness (" << uniqueness << ")";
@@ -122,11 +122,11 @@ FixstarsSGM::FixstarsSGM(ftl::Configurable* cfg) :
 
 	updateP2Parameters();
 
-	cfg->on("canny_low", [this, cfg](const ftl::config::Event&) {
+	cfg->on("canny_low", [this, cfg]() {
 		updateP2Parameters();
 	});
 
-	cfg->on("canny_high", [this, cfg](const ftl::config::Event&) {
+	cfg->on("canny_high", [this, cfg]() {
 		updateP2Parameters();
 	});
 }
@@ -186,7 +186,7 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	}
 
 	bool has_estimate = in.hasChannel(Channel::Disparity);
-	auto &disp = (!has_estimate) ? out.create<GpuMat>(Channel::Disparity, Format<short>(l.size())) : in.get<GpuMat>(Channel::Disparity);
+	const auto &disp = (!has_estimate) ? out.create<ftl::rgbd::VideoFrame>(Channel::Disparity).createGPU(Format<short>(l.size())) : in.get<GpuMat>(Channel::Disparity);
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	cv::cuda::cvtColor(l, lbw_, cv::COLOR_BGRA2GRAY, 0, cvstream);
@@ -227,10 +227,10 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		cv::cuda::cvtColor(P2_map_, out.get<GpuMat>(Channel::Colour), cv::COLOR_GRAY2BGRA);
 	}
 	if (config()->value("show_rpe", false)) {
-		ftl::cuda::show_rpe(disp, l, r, 100.0f, stream);
+		ftl::cuda::show_rpe(disp, in.set<GpuMat>(Channel::Left), r, 100.0f, stream);
 	}
 	if (config()->value("show_disp_density", false)) {
-		ftl::cuda::show_disp_density(disp, l, 100.0f, stream);
+		ftl::cuda::show_disp_density(disp, in.set<GpuMat>(Channel::Left), 100.0f, stream);
 	}
 
 	//disp_int_.convertTo(disp, CV_32F, 1.0f / 16.0f, cvstream);

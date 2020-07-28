@@ -13,14 +13,9 @@ class TestStream : public ftl::stream::Stream {
 	TestStream(nlohmann::json &config) : ftl::stream::Stream(config) {};
 	~TestStream() {};
 
-	bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &cb) {
-		cb_ = cb;
-		return true;
-	}
-
 	bool post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		available(spkt.streamID) += spkt.channel;
-		if (cb_) cb_(spkt, pkt);
+		cb_.trigger(spkt, pkt);
 		return true;
 	}
 
@@ -29,7 +24,7 @@ class TestStream : public ftl::stream::Stream {
 	bool active() override { return true; }
 
 	private:
-	std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> cb_;
+	//std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> cb_;
 };
 
 TEST_CASE("ftl::stream::Muxer()::write", "[stream]") {
@@ -55,8 +50,9 @@ TEST_CASE("ftl::stream::Muxer()::write", "[stream]") {
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};;
 
-		s->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = s->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
+			return true;
 		});
 
 		REQUIRE( !mux->post({4,100,0,1,ftl::codecs::Channel::Colour},{}) );
@@ -80,8 +76,9 @@ TEST_CASE("ftl::stream::Muxer()::write", "[stream]") {
 		mux->add(s2);
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
-		mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
+			return true;
 		});
 
 		REQUIRE( s1->post({4,100,0,0,ftl::codecs::Channel::Colour},{}) );
@@ -94,11 +91,13 @@ TEST_CASE("ftl::stream::Muxer()::write", "[stream]") {
 
 		ftl::codecs::StreamPacket tspkt2 = {4,0,0,1,ftl::codecs::Channel::Colour};
 		ftl::codecs::StreamPacket tspkt3 = {4,0,0,1,ftl::codecs::Channel::Colour};
-		s1->onPacket([&tspkt2](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h2 = s1->onPacket([&tspkt2](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt2 = spkt;
+			return true;
 		});
-		s2->onPacket([&tspkt3](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h3 = s2->onPacket([&tspkt3](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt3 = spkt;
+			return true;
 		});
 
 		REQUIRE( mux->post({4,200,0,1,ftl::codecs::Channel::Colour},{}) );
@@ -135,8 +134,9 @@ TEST_CASE("ftl::stream::Muxer()::post multi-frameset", "[stream]") {
 		mux->add(s2,1);
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
-		mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
+			return true;
 		});
 
 		REQUIRE( s1->post({4,100,0,0,ftl::codecs::Channel::Colour},{}) );
@@ -149,11 +149,13 @@ TEST_CASE("ftl::stream::Muxer()::post multi-frameset", "[stream]") {
 
 		ftl::codecs::StreamPacket tspkt2 = {4,0,0,1,ftl::codecs::Channel::Colour};
 		ftl::codecs::StreamPacket tspkt3 = {4,0,0,1,ftl::codecs::Channel::Colour};
-		s1->onPacket([&tspkt2](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h2 = s1->onPacket([&tspkt2](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt2 = spkt;
+			return true;
 		});
-		s2->onPacket([&tspkt3](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h3 = s2->onPacket([&tspkt3](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt3 = spkt;
+			return true;
 		});
 
 		REQUIRE( mux->post({4,200,1,0,ftl::codecs::Channel::Colour},{}) );
@@ -190,8 +192,9 @@ TEST_CASE("ftl::stream::Muxer()::read", "[stream]") {
 		mux->add(s2);
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
-		mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
+			return true;
 		});
 
 		REQUIRE( s1->post({4,100,0,0,ftl::codecs::Channel::Colour},{}) );
@@ -228,8 +231,9 @@ TEST_CASE("ftl::stream::Muxer()::read", "[stream]") {
 		mux->add(s2);
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
-		mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
+			return true;
 		});
 
 		REQUIRE( s1->post({4,100,0,0,ftl::codecs::Channel::Colour},{}) );
@@ -290,8 +294,9 @@ TEST_CASE("ftl::stream::Muxer()::read multi-frameset", "[stream]") {
 		mux->add(s4,1);
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
-		mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
+			return true;
 		});
 
 		REQUIRE( s1->post({4,100,0,0,ftl::codecs::Channel::Colour},{}) );
@@ -342,11 +347,13 @@ TEST_CASE("ftl::stream::Broadcast()::write", "[stream]") {
 		ftl::codecs::StreamPacket tspkt1 = {4,0,0,1,ftl::codecs::Channel::Colour};
 		ftl::codecs::StreamPacket tspkt2 = {4,0,0,1,ftl::codecs::Channel::Colour};
 
-		s1->onPacket([&tspkt1](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h1 = s1->onPacket([&tspkt1](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt1 = spkt;
+			return true;
 		});
-		s2->onPacket([&tspkt2](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h2 = s2->onPacket([&tspkt2](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt2 = spkt;
+			return true;
 		});
 
 		REQUIRE( mux->post({4,100,0,1,ftl::codecs::Channel::Colour},{}) );

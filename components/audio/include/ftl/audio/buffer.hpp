@@ -4,8 +4,8 @@
 #include <vector>
 #include <cmath>
 
-#define LOGURU_REPLACE_GLOG 1
-#include <loguru.hpp>
+//#define LOGURU_REPLACE_GLOG 1
+//#include <loguru.hpp>
 
 namespace ftl {
 namespace audio {
@@ -102,7 +102,6 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 	void reset() override {
 		Buffer<T>::reset();
 		write_position_ = 0; //int(this->cur_delay_);
-		LOG(INFO) << "RESET AUDIO: " << write_position_;
 		read_position_ = 0;
 	}
 
@@ -120,7 +119,7 @@ static T fracIndex(const std::vector<T> &in, float ix, int c) {
 	const auto i1 = static_cast<unsigned int>(ix);
 	const auto i2 = static_cast<unsigned int>(ix+1.0f);
 	const float alpha = ix - static_cast<float>(i1);
-	return (i2*CHAN+CHAN >= in.size()) ? in[i1*CHAN+c] : in[i1*CHAN+c]*(1.0f-alpha) + in[i2*CHAN+c]*alpha;
+	return static_cast<T>((i2*CHAN+CHAN >= in.size()) ? in[i1*CHAN+c] : in[i1*CHAN+c]*(1.0f-alpha) + in[i2*CHAN+c]*alpha);
 }
 
 inline float clamp(float v, float c) { return (v < -c) ? -c : (v > c) ? c : v; }

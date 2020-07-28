@@ -14,6 +14,7 @@ using ftl::rgbd::Projection;
 /*
  * DIBR point cloud with a depth check
  */
+ template <Projection PROJECT>
  __global__ void dibr_merge_kernel(TextureObject<float> depth,
 		TextureObject<int> depth_out,
 		float4x4 transform,
@@ -30,7 +31,7 @@ using ftl::rgbd::Projection;
 	//const float d = camPos.z;
 
 	//const uint2 screenPos = params.camera.camToScreen<uint2>(camPos);
-	const float3 screenPos = params.camera.project<Projection::PERSPECTIVE>(camPos);
+	const float3 screenPos = params.camera.project<PROJECT>(camPos);
 	const unsigned int cx = (unsigned int)(screenPos.x+0.5f);
 	const unsigned int cy = (unsigned int)(screenPos.y+0.5f);
 	const float d = screenPos.z;
@@ -70,7 +71,11 @@ void ftl::cuda::dibr_merge(TextureObject<float> &depth, TextureObject<int> &dept
     const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	dibr_merge_kernel<<<gridSize, blockSize, 0, stream>>>(depth, depth_out, transform, cam, params);
+	if (params.projection == Projection::PERSPECTIVE) {
+		dibr_merge_kernel<Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, transform, cam, params);
+	} else {
+		dibr_merge_kernel<Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, transform, cam, params);
+	}
     cudaSafeCall( cudaGetLastError() );
 }
 

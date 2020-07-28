@@ -21,7 +21,7 @@ class ConfigWindow : public nanogui::Window {
 
 	private:
 	ftl::ctrl::Master *ctrl_;
-	
+
 	void _buildForm(const std::string &uri);
 	void _addElements(nanogui::FormHelper *form, const std::string &suri);
 	bool exists(const std::string &uri);

@@ -7,8 +7,6 @@
 
 using ftl::audio::Source;
 using ftl::audio::Frame;
-using ftl::audio::FrameSet;
-using ftl::audio::FrameState;
 using ftl::audio::Audio;
 using ftl::codecs::Channel;
 
@@ -135,51 +133,10 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 
 	to_read_ = 0;
 
-	ftl::audio::AudioSettings settings;
-	settings.channels = channels;
-	settings.sample_rate = 48000;
-	settings.frame_size = 960;
-	state_.setLeft(settings);
-
-    timer_hp_ = ftl::timer::add(ftl::timer::kTimerHighPrecision, [this](int64_t ts) {
-        if (buffer_) to_read_ = buffer_->size();
-        return true;
-    });
-
-	timer_main_ = ftl::timer::add(ftl::timer::kTimerMain, [this](int64_t ts) {
-
-        // Remove one interval since the audio starts from the last frame
-		frameset_.timestamp = ts - ftl::timer::getInterval() + latency_;
-
-		frameset_.id = 0;
-		frameset_.count = 1;
-		//frameset_.stale = false;
-		frameset_.clear(ftl::data::FSFlag::STALE);
-
-        if (to_read_ < 1 || !buffer_) return true;
-
-		if (frameset_.frames.size() < 1) frameset_.frames.emplace_back();
-
-		auto &frame = frameset_.frames[0];
-		frame.reset();
-		frame.setOrigin(&state_);
-        std::vector<short> &data = frame.create<Audio>((buffer_->channels() == 2) ? Channel::AudioStereo : Channel::AudioMono).data();
-
-		/*data.resize(ftl::audio::kFrameSize*to_read_*channels_);  // For stereo * 2
-		short *ptr = data.data();
-		for (int i=0; i<to_read_; ++i) {
-			if (channels_ == 1) mono_buffer_.readFrame(ptr);
-			else stereo_buffer_.readFrame(ptr);
-			ptr += ftl::audio::kFrameSize*channels_;  // For stereo * 2
-		}*/
-		buffer_->read(data, to_read_);
-
-		// Then do something with the data!
-		//LOG(INFO) << "Audio Frames Sent: " << to_read_ << " - " << ltime;
-		if (cb_) cb_(frameset_);
-
-        return true;
-    }); 
+	settings_.channels = channels;
+	settings_.sample_rate = 48000;
+	settings_.frame_size = 960;
+	//state_.setLeft(settings);
 
 	LOG(INFO) << "Microphone ready.";
 
@@ -196,7 +153,7 @@ Source::~Source() {
         active_ = false;
 
 		#ifdef HAVE_PORTAUDIO
-        auto err = Pa_StopStream(stream_);
+        auto err = Pa_AbortStream(stream_);
 
         if (err != paNoError) {
             LOG(ERROR) << "Portaudio stop stream error: " << Pa_GetErrorText(err);
@@ -216,15 +173,20 @@ Source::~Source() {
 	#endif
 }
 
-size_t Source::size() {
-    return 1;
+bool Source::capture(int64_t ts) {
+	if (buffer_) to_read_ = buffer_->size();
+	return true;
 }
 
-ftl::audio::FrameState &Source::state(size_t ix) {
-    if (ix >= 1) throw FTL_Error("State index out-of-bounds");
-    return state_;
-}
+bool Source::retrieve(ftl::data::Frame &frame) {
+	// Remove one interval since the audio starts from the last frame
+		//frameset_.timestamp = ts - ftl::timer::getInterval() + latency_;
 
-void Source::onFrameSet(const ftl::audio::FrameSet::Callback &cb) {
-	cb_ = cb;
+    if (to_read_ < 1 || !buffer_) return true;
+	auto alist = frame.create<std::list<Audio>>((buffer_->channels() == 2) ? Channel::AudioStereo : Channel::AudioMono);
+	Audio aframe;
+    std::vector<short> &data = aframe.data();
+	buffer_->read(data, to_read_);
+	alist = std::move(aframe);
+	return true;
 }

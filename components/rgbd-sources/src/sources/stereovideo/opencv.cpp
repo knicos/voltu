@@ -8,12 +8,14 @@
 #include <chrono>
 #include <ftl/threads.hpp>
 #include <ftl/profiler.hpp>
+#include <ftl/rgbd/frame.hpp>
 
 #include "opencv.hpp"
-#include "calibrate.hpp"
+#include "rectification.hpp"
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/xphoto.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #include <ftl/timer.hpp>
 
@@ -31,7 +33,8 @@
 #endif
 
 using ftl::rgbd::detail::OpenCVDevice;
-using ftl::rgbd::detail::Calibrate;
+using ftl::rgbd::detail::StereoRectification;
+using ftl::codecs::Channel;
 using cv::Mat;
 using cv::VideoCapture;
 using cv::Rect;
@@ -42,18 +45,18 @@ using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
-OpenCVDevice::OpenCVDevice(nlohmann::json &config)
+OpenCVDevice::OpenCVDevice(nlohmann::json &config, bool stereo)
 		: ftl::rgbd::detail::Device(config), timestamp_(0.0) {
 
-	std::vector<ftl::rgbd::detail::DeviceDetails> devices = _selectDevices();
+	std::vector<ftl::rgbd::detail::DeviceDetails> devices_ = getDevices();
 
 	int device_left = 0;
 	int device_right = -1;
 
-	LOG(INFO) << "Found " << devices.size() << " cameras";
+	LOG(INFO) << "Found " << devices_.size() << " cameras";
 
 	if (Configurable::get<std::string>("device_left")) {
-		for (auto &d : devices) {
+		for (auto &d : devices_) {
 			if (d.name.find(*Configurable::get<std::string>("device_left")) != std::string::npos) {
 				device_left = d.id;
 				LOG(INFO) << "Device left = " << device_left;
@@ -61,11 +64,11 @@ OpenCVDevice::OpenCVDevice(nlohmann::json &config)
 			}
 		}
 	} else {
-		device_left = value("device_left", (devices.size() > 0) ? devices[0].id : 0);
+		device_left = value("device_left", (devices_.size() > 0) ? devices_[0].id : 0);
 	}
 
 	if (Configurable::get<std::string>("device_right")) {
-		for (auto &d : devices) {
+		for (auto &d : devices_) {
 			if (d.name.find(*Configurable::get<std::string>("device_right")) != std::string::npos) {
 				if (d.id == device_left) continue;
 				device_right = d.id;
@@ -73,15 +76,18 @@ OpenCVDevice::OpenCVDevice(nlohmann::json &config)
 			}
 		}
 	} else {
-		device_right = value("device_right", (devices.size() > 1) ? devices[1].id : 1);
+		device_right = value("device_right", (devices_.size() > 1) ? devices_[1].id : 1);
 	}
 
-	nostereo_ = value("nostereo", false);
+	nostereo_ = value("nostereo", !stereo);
 
 	if (device_left < 0) {
 		LOG(ERROR) << "No available cameras";
 		return;
 	}
+
+	dev_ix_left_ = device_left;
+	dev_ix_right_ = device_right;
 
 	// Use cameras
 	camera_a_ = new VideoCapture;
@@ -125,7 +131,7 @@ OpenCVDevice::OpenCVDevice(nlohmann::json &config)
 	camera_a_->set(cv::CAP_PROP_FRAME_HEIGHT, value("height", 720));
 	camera_a_->set(cv::CAP_PROP_FPS, 1000 / ftl::timer::getInterval());
 	//camera_a_->set(cv::CAP_PROP_BUFFERSIZE, 0);  // Has no effect
-	
+
 	Mat frame;
 	if (!camera_a_->grab()) LOG(ERROR) << "Could not grab a video frame";
 	camera_a_->retrieve(frame);
@@ -134,7 +140,8 @@ OpenCVDevice::OpenCVDevice(nlohmann::json &config)
 	height_ = frame.rows;
 
 	dwidth_ = value("depth_width", width_);
-	dheight_ = value("depth_height", height_);
+	float aspect = float(height_) / float(width_);
+	dheight_ = value("depth_height", std::min(uint32_t(aspect*float(dwidth_)), height_)) & 0xFFFe;
 
 	// Allocate page locked host memory for fast GPU transfer
 	left_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC4);
@@ -146,7 +153,13 @@ OpenCVDevice::~OpenCVDevice() {
 
 }
 
-std::vector<ftl::rgbd::detail::DeviceDetails> OpenCVDevice::_selectDevices() {
+static std::vector<ftl::rgbd::detail::DeviceDetails> opencv_devices;
+static bool opencv_dev_init = false;
+
+std::vector<ftl::rgbd::detail::DeviceDetails> OpenCVDevice::getDevices() {
+	if (opencv_dev_init) return opencv_devices;
+	opencv_dev_init = true;
+
 	std::vector<ftl::rgbd::detail::DeviceDetails> devices;
 
 #ifdef WIN32
@@ -207,7 +220,7 @@ std::vector<ftl::rgbd::detail::DeviceDetails> OpenCVDevice::_selectDevices() {
 		}
 		else
 		{
-			
+
 		}
 	}
 
@@ -219,7 +232,7 @@ std::vector<ftl::rgbd::detail::DeviceDetails> OpenCVDevice::_selectDevices() {
 #else
 
 	int fd;
-    v4l2_capability video_cap;
+	v4l2_capability video_cap;
 	v4l2_frmsizeenum video_fsize;
 
 	LOG(INFO) << "Video Devices:";
@@ -290,6 +303,7 @@ std::vector<ftl::rgbd::detail::DeviceDetails> OpenCVDevice::_selectDevices() {
 
 #endif
 
+	opencv_devices = devices;
 	return devices;
 }
 
@@ -311,9 +325,9 @@ bool OpenCVDevice::grab() {
 	return true;
 }
 
-bool OpenCVDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
-	cv::cuda::GpuMat &l_hres_out, cv::Mat &r_hres_out, Calibrate *c, cv::cuda::Stream &stream) {
-	
+bool OpenCVDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
+	cv::cuda::GpuMat &l_hres_out, cv::Mat &r_hres_out, StereoRectification *c, cv::cuda::Stream &stream) {
+
 	Mat l, r ,hres;
 
 	// Use page locked memory
@@ -337,7 +351,7 @@ bool OpenCVDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
 			cv::cvtColor(frame_r_, rfull, cv::COLOR_BGR2BGRA);
 
 			if (stereo_) {
-				c->rectifyRight(rfull);
+				c->rectify(rfull, Channel::Right);
 
 				if (hasHigherRes()) {
 					// TODO: Use threads?
@@ -378,8 +392,8 @@ bool OpenCVDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
 	if (stereo_) {
 		//FTL_Profile("Rectification", 0.01);
 		//c->rectifyStereo(lfull, rfull);
-		c->rectifyLeft(lfull);
-		
+		c->rectify(lfull, Channel::Left);
+
 		// Need to resize
 		//if (hasHigherRes()) {
 			// TODO: Use threads?
@@ -401,6 +415,14 @@ bool OpenCVDevice::get(cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
 	}
 	//r_out.upload(r, stream);
 
+	if (!frame.hasChannel(Channel::Thumbnail)) {
+		cv::Mat thumb;
+		cv::resize(l, thumb, cv::Size(320,240));
+		auto &thumbdata = frame.create<std::vector<uint8_t>>(Channel::Thumbnail);
+		std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 70};
+		cv::imencode(".jpg", thumb, thumbdata, params);
+	}
+
 	if (camera_b_) {
 		//FTL_Profile("WaitCamB", 0.05);
 		future_b.wait();
@@ -415,5 +437,11 @@ double OpenCVDevice::getTimestamp() const {
 
 bool OpenCVDevice::isStereo() const {
 	return stereo_ && !nostereo_;
+}
+
+void OpenCVDevice::populateMeta(std::map<std::string,std::string> &meta) const {
+	if (dev_ix_left_ >= 0 && dev_ix_left_ < static_cast<int>(opencv_devices.size())) {
+		meta["device"] = opencv_devices[dev_ix_left_].name;
+	}
 }
 
