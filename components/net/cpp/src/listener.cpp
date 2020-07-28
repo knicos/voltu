@@ -102,7 +102,7 @@ Listener::Listener(const char *pUri) : default_proto_(NULL) {
 
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
 		descriptor_ = tcpListen(uri);
-		std::cout << "Listening: " << pUri << " - " << descriptor_ << std::endl;
+		port_ = uri.getPort();
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
 		descriptor_ = wsListen(uri);
 	} else {

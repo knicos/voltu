@@ -239,7 +239,7 @@ __global__ void reprojection_kernel(
 	const float d = depth_in.tex2D((int)x, (int)y);
 	if (d > params.camera.minDepth && d < params.camera.maxDepth) {
 		//const float2 rpt = convertScreen<VPMODE>(params, x, y);
-		const float3 camPos = transform * params.camera.project<PROJECT>(make_float3(x, y, d));
+		const float3 camPos = transform * params.camera.unproject<PROJECT>(make_float3(x, y, d));
 		if (camPos.z > camera.minDepth && camPos.z < camera.maxDepth) {
 			const float3 screenPos = camera.project<Projection::PERSPECTIVE>(camPos);
 
@@ -250,7 +250,8 @@ __global__ void reprojection_kernel(
 
 				// Boolean match (0 or 1 weight). 1.0 if depths are sufficiently close
 				float weight = depthMatching(params, camPos.z, d2);
-				weight *= float(weights.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f))) / 32767.0f;
+				if (params.m_flags & ftl::render::kUseWeightsChannel)
+					weight *= float(weights.tex2D(int(screenPos.x+0.5f), int(screenPos.y+0.5f))) / 32767.0f;
 
 				const B output = make<B>(input);  // * weight; //weightInput(input, weight);
 
@@ -282,30 +283,35 @@ void ftl::cuda::reproject(
 		if (params.accumulationMode == AccumulationFunction::CloseWeights) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::CloseWeights, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::CloseWeights, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::CloseWeights, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::BestWeight) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::BestWeight, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::BestWeight, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::BestWeight, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::Simple) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::Simple, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::Simple, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::Simple, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscard) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::ColourDiscard, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::ColourDiscard, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::ColourDiscard, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscardSmooth) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::ColourDiscardSmooth, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::ColourDiscardSmooth, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::ColourDiscardSmooth, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, *normals, out, contrib, params, camera, transform, transformR); break;
 			}
@@ -314,30 +320,35 @@ void ftl::cuda::reproject(
 		if (params.accumulationMode == AccumulationFunction::CloseWeights) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::CloseWeights, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::CloseWeights, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::CloseWeights, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::CloseWeights><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::BestWeight) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::BestWeight, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::BestWeight, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::BestWeight, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::BestWeight><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::Simple) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::Simple, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::Simple, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::Simple, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::Simple><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscard) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::ColourDiscard, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::ColourDiscard, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::ColourDiscard, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscard><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}
 		} else if (params.accumulationMode == AccumulationFunction::ColourDiscardSmooth) {
 			switch (params.projection) {
 			case Projection::PERSPECTIVE: reprojection_kernel<A,B,AccumulationFunction::ColourDiscardSmooth, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
+			case Projection::ORTHOGRAPHIC: reprojection_kernel<A,B,AccumulationFunction::ColourDiscardSmooth, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			case Projection::EQUIRECTANGULAR: reprojection_kernel<A,B,AccumulationFunction::ColourDiscardSmooth, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			//case ViewPortMode::Stretch: reprojection_kernel<A,B,ViewPortMode::Stretch,AccumulationFunction::ColourDiscardSmooth><<<gridSize, blockSize, 0, stream>>>(in, depth_src, depth_in, weights, out, contrib, params, camera, transform, transformR); break;
 			}

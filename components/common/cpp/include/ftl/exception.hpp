@@ -65,6 +65,6 @@ class exception : public std::exception
 
 }
 
-#define FTL_Error(A) (ftl::exception(ftl::Formatter() << __FILE__ << ":" << __LINE__ << ": " << A))
+#define FTL_Error(A) (ftl::exception(ftl::Formatter() << A << " [" << __FILE__ << ":" << __LINE__ << "]"))
 
 #endif  // _FTL_EXCEPTION_HPP_

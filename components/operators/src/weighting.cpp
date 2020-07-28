@@ -33,7 +33,14 @@ bool PixelWeights::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 	params.normals = config()->value("use_normals", true);
 	bool output_normals = config()->value("output_normals", params.normals);
 
-	if ((!in.hasChannel(Channel::Depth) && !in.hasChannel(Channel::GroundTruth)) || !in.hasChannel(Channel::Support1)) return false;
+	if (!in.hasChannel(Channel::Depth) && !in.hasChannel(Channel::GroundTruth)) {
+		out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Depth channel in Weights operators");
+		return false;
+	}
+	if (!in.hasChannel(Channel::Support1)) {
+		out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Support channel in Weights operators");
+		return false;
+	}
 
 	Channel dchan = (in.hasChannel(Channel::Depth)) ? Channel::Depth : Channel::GroundTruth;
 
@@ -82,7 +89,7 @@ bool CullWeight::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 
 	float weight = config()->value("weight", 0.1f);
 	
-	out.clearPackets(Channel::Depth);  // Force reset
+	out.set<ftl::rgbd::VideoFrame>(Channel::Depth);  // Force reset
 	ftl::cuda::cull_weight(
 		in.createTexture<short>(Channel::Weights),
 		out.createTexture<float>(Channel::Depth),

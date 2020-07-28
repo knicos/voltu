@@ -2,7 +2,7 @@
 #define _FTL_RGBD_CHANNELS_HPP_
 
 #include <bitset>
-#include <ftl/utility/msgpack.hpp>
+#include <msgpack.hpp>
 
 namespace ftl {
 namespace codecs {
@@ -53,12 +53,17 @@ enum struct Channel : int {
 	Index           = 68,
 	Control			= 69,	// For stream and encoder control
 	Settings3		= 70,
+	MetaData		= 71,	// Map of string pairs (key, value)
+	Capabilities	= 72,	// Unordered set of int capabilities
+	CalibrationData = 73,	// Just for stereo intrinsics/extrinsics etc
+	Thumbnail		= 74,	// Small JPG thumbnail, sometimes updated
 
 	Data			= 2048,	// Custom data, any codec.
 	Faces			= 2049, // Data about detected faces
 	Transforms		= 2050,	// Transformation matrices for framesets
 	Shapes3D		= 2051,	// Labeled 3D shapes
-	Messages		= 2052	// Vector of Strings
+	Messages		= 2052,	// Vector of Strings
+	Touch			= 2053  // List of touch data type (each touch point)
 };
 
 inline bool isVideo(Channel c) { return (int)c < 32; };
@@ -166,7 +171,7 @@ inline bool isFloatChannel(ftl::codecs::Channel chan) {
 
 MSGPACK_ADD_ENUM(ftl::codecs::Channel);
 
-template <int BASE=0>
+/*template <int BASE=0>
 inline ftl::codecs::Channels<BASE> operator|(ftl::codecs::Channel a, ftl::codecs::Channel b) {
 	return ftl::codecs::Channels<BASE>(a) | b;
 }
@@ -174,6 +179,6 @@ inline ftl::codecs::Channels<BASE> operator|(ftl::codecs::Channel a, ftl::codecs
 template <int BASE=0>
 inline ftl::codecs::Channels<BASE> operator+(ftl::codecs::Channel a, ftl::codecs::Channel b) {
 	return ftl::codecs::Channels<BASE>(a) | b;
-}
+}*/
 
 #endif  // _FTL_RGBD_CHANNELS_HPP_

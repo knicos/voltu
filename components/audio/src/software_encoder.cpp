@@ -16,7 +16,7 @@ using ftl::codecs::codec_t;
 #define FRAME_SIZE 960
 #define MAX_PACKET_SIZE (3*2*FRAME_SIZE)
 
-SoftwareEncoder::SoftwareEncoder() : ftl::audio::Encoder(), opus_encoder_(nullptr), cur_bitrate_(0) {
+SoftwareEncoder::SoftwareEncoder() : ftl::audio::Encoder(), opus_encoder_(nullptr), cur_stereo_(false), cur_bitrate_(0) {
 
 }
 
@@ -44,9 +44,8 @@ bool SoftwareEncoder::encode(const std::vector<short> &in, ftl::codecs::Packet &
 bool SoftwareEncoder::_createOpus(ftl::codecs::Packet &pkt) {
 	#ifdef HAVE_OPUS
 	bool stereo = pkt.flags & ftl::codecs::kFlagStereo;
-	if (pkt.definition == cur_definition_ && stereo == cur_stereo_ && opus_encoder_) return true;
+	if (opus_encoder_ && stereo == cur_stereo_) return true;
 
-	cur_definition_ = pkt.definition;
 	cur_stereo_ = stereo;
 
 	if (opus_encoder_) {
@@ -54,12 +53,7 @@ bool SoftwareEncoder::_createOpus(ftl::codecs::Packet &pkt) {
 		opus_encoder_ = nullptr;
 	}
 
-	int sample_rate;
-	switch (pkt.definition) {
-	case ftl::codecs::definition_t::hz48000		: sample_rate = 48000; break;
-	case ftl::codecs::definition_t::hz44100		: sample_rate = 44100; break;
-	default: return false;
-	}
+	int sample_rate = 48000;  // TODO: Allow it to be different
 
 	int errcode = 0;
 	int channels = (stereo) ? 2 : 1;
@@ -92,11 +86,12 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<short> &in, ftl::codecs::Pac
 	int channels = (cur_stereo_) ? 2 : 1;
 
 	int frame_est = (in.size() / (channels*FRAME_SIZE))+1;
-	pkt.data.resize(MAX_PACKET_SIZE*frame_est);
+	size_t insize = pkt.data.size();
+	pkt.data.resize(insize+MAX_PACKET_SIZE*frame_est);
 	int count = 0;
 	int frames = 0;
 
-	unsigned char *outptr = pkt.data.data();
+	unsigned char *outptr = pkt.data.data()+insize;
 
 	//LOG(INFO) << "Encode " << (in.size() / (channels*FRAME_SIZE)) << " audio frames";
 
@@ -104,7 +99,6 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<short> &in, ftl::codecs::Pac
 		short *len = (short*)outptr;
 		outptr += 2;
 		int nbBytes = opus_multistream_encode(opus_encoder_, &in.data()[i], FRAME_SIZE, outptr, MAX_PACKET_SIZE);
-		//LOG(INFO) << "Opus encode: " << nbBytes << ", " << (in.size()-i);
 		if (nbBytes <= 0) return false;
 
 		//if (nbBytes > 32000) LOG(WARNING) << "Packet exceeds size limit";
@@ -116,7 +110,7 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<short> &in, ftl::codecs::Pac
 		++frames;
 	}
 
-	pkt.data.resize(count);
+	pkt.data.resize(insize+count);
 	//LOG(INFO) << "Opus Encode = " << pkt.data.size() << ", " << frames;
 	return true;
 

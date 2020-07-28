@@ -31,6 +31,8 @@
 #define SHARED_LOCK(M,L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M);
 #endif  // DEBUG_MUTEX
 
+#define SHARED_LOCK_TYPE(M) std::shared_lock<M>
+
 namespace ftl {
 	extern ctpl::thread_pool pool;
 }

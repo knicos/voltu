@@ -1,6 +1,24 @@
 #include <ftl/rgbd/camera.hpp>
+#include <ftl/rgbd/capabilities.hpp>
 
 using ftl::rgbd::Camera;
+using ftl::rgbd::Capability;
+
+// TODO: Put in better place?
+std::string ftl::rgbd::capabilityName(Capability c) {
+	switch (c) {
+	case Capability::MOVABLE		: return "movable";
+	case Capability::ACTIVE			: return "active";
+	case Capability::VIDEO			: return "video";
+	case Capability::ADJUSTABLE		: return "adjustable";
+	case Capability::VIRTUAL		: return "virtual";
+	case Capability::TOUCH			: return "touch";
+	case Capability::VR				: return "vr";
+	case Capability::LIVE			: return "live";
+	case Capability::FUSED			: return "fused";
+	default: return "Unknown";
+	}
+}
 
 Camera Camera::from(ftl::Configurable *cfg) {
 	Camera r;

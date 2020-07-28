@@ -74,7 +74,7 @@ bool NVOpticalFlow::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	auto &flow1 = out.create<GpuMat>(channel_out_[0]);
 
 	cv::cuda::cvtColor(in.get<GpuMat>(channel_in_[0]), left_gray_, cv::COLOR_BGRA2GRAY, 0, cvstream);
-	cv::cuda::cvtColor(in.get<GpuMat>(channel_in_[1]), right_gray_, cv::COLOR_BGRA2GRAY, 0, cvstream);
+	if (both_channels) cv::cuda::cvtColor(in.get<GpuMat>(channel_in_[1]), right_gray_, cv::COLOR_BGRA2GRAY, 0, cvstream);
 
 	// TODO: Use optical flow confidence output, perhaps combined with a
 	// sensitivity adjustment

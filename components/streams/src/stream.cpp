@@ -8,26 +8,56 @@ using ftl::stream::Broadcast;
 using ftl::stream::Intercept;
 using ftl::stream::Stream;
 
-const ftl::codecs::Channels<0> &Stream::available(int fs) const {
+std::unordered_set<ftl::codecs::Channel> operator&(const std::unordered_set<ftl::codecs::Channel> &a, const std::unordered_set<ftl::codecs::Channel> &b) {
+	std::unordered_set<ftl::codecs::Channel> result;
+	for (auto &i : a) {
+		if (b.find(i) != b.end()) result.insert(i);
+	}
+	return result;
+}
+
+std::unordered_set<ftl::codecs::Channel> operator-(const std::unordered_set<ftl::codecs::Channel> &a, const std::unordered_set<ftl::codecs::Channel> &b) {
+	std::unordered_set<ftl::codecs::Channel> result;
+	for (auto &i : a) {
+		if (b.find(i) == b.end()) result.insert(i);
+	}
+	return result;
+}
+
+bool operator!=(const std::unordered_set<ftl::codecs::Channel> &a, const std::unordered_set<ftl::codecs::Channel> &b) {
+	if (a.size() != b.size()) return true;
+	for (auto &i : a) {
+		if (b.count(i) == 0) return true;
+	}
+	return false;
+}
+
+const std::unordered_set<ftl::codecs::Channel> &Stream::available(int fs) const {
 	SHARED_LOCK(mtx_, lk);
 	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	return state_[fs].available;
 }
 
-const ftl::codecs::Channels<0> &Stream::selected(int fs) const {
+const std::unordered_set<ftl::codecs::Channel> &Stream::selected(int fs) const {
 	SHARED_LOCK(mtx_, lk);
 	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	return state_[fs].selected;
 }
 
-void Stream::select(int fs, const ftl::codecs::Channels<0> &s, bool make) {
+std::unordered_set<ftl::codecs::Channel> Stream::selectedNoExcept(int fs) const {
+	SHARED_LOCK(mtx_, lk);
+	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) return {};
+	return state_[fs].selected;
+}
+
+void Stream::select(int fs, const std::unordered_set<ftl::codecs::Channel> &s, bool make) {
 	UNIQUE_LOCK(mtx_, lk);
 	if (fs < 0 || (!make && static_cast<uint32_t>(fs) >= state_.size())) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	if (static_cast<uint32_t>(fs) >= state_.size()) state_.resize(fs+1);
 	state_[fs].selected = s;
 }
 
-ftl::codecs::Channels<0> &Stream::available(int fs) {
+std::unordered_set<ftl::codecs::Channel> &Stream::available(int fs) {
 	UNIQUE_LOCK(mtx_, lk);
 	if (fs < 0) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	if (static_cast<uint32_t>(fs) >= state_.size()) state_.resize(fs+1);
@@ -45,7 +75,10 @@ Muxer::Muxer(nlohmann::json &config) : Stream(config), nid_{0} {
 }
 
 Muxer::~Muxer() {
-
+	UNIQUE_LOCK(mutex_,lk);
+	for (auto &se : streams_) {
+		se.handle.cancel();
+	}
 }
 
 
@@ -54,54 +87,80 @@ void Muxer::add(Stream *s, size_t fsid) {
 	if (fsid < 0u || fsid >= ftl::stream::kMaxStreams) return;
 
 	auto &se = streams_.emplace_back();
-	int i = streams_.size()-1;
+	//int i = streams_.size()-1;
 	se.stream = s;
+	ftl::stream::Muxer::StreamEntry *ptr = &se;
 
-	s->onPacket([this,s,i,fsid](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	se.handle = std::move(s->onPacket([this,s,fsid,ptr](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		//TODO: Allow input streams to have other streamIDs
 		// Same fsid means same streamIDs map together in the end
-	
+
+		/*ftl::stream::Muxer::StreamEntry *ptr = nullptr;
+		{
+			SHARED_LOCK(mutex_,lk);
+			ptr = &streams_[i];
+		}*/
+
 		ftl::codecs::StreamPacket spkt2 = spkt;
+		ptr->original_fsid = spkt.streamID;
 		spkt2.streamID = fsid;
 
 		if (spkt2.frame_number < 255) {
-			int id = _lookup(fsid, i, spkt.frame_number);
+			int id = _lookup(fsid, ptr, spkt.frame_number, pkt.frame_count);
 			spkt2.frame_number = id;
 		}
 
 		_notify(spkt2, pkt);
 		s->select(spkt.streamID, selected(fsid));
-	});
+		return true;
+	}));
 }
 
-bool Muxer::onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &cb) {
+void Muxer::remove(Stream *s) {
 	UNIQUE_LOCK(mutex_,lk);
-	cb_ = cb;
-	return true;
+	for (auto i = streams_.begin(); i != streams_.end(); ++i) {
+		if (i->stream == s) {
+			i->handle.cancel();
+			auto *se = &(*i);
+
+			for (size_t j=0; j<kMaxStreams; ++j) {
+				for (auto &k : revmap_[j]) {
+					if (k.first == se) {
+						k.first = nullptr;
+					}
+				}
+			}
+
+			streams_.erase(i);
+			return;
+		}
+	}
 }
 
-int Muxer::originStream(size_t fsid, int fid) {
+ftl::stream::Stream *Muxer::originStream(size_t fsid, int fid) {
 	if (fsid < ftl::stream::kMaxStreams && static_cast<uint32_t>(fid) < revmap_[fsid].size()) {
-		return std::get<0>(revmap_[fsid][fid]);
+		return std::get<0>(revmap_[fsid][fid])->stream;
 	}
-	return -1;
+	return nullptr;
 }
 
 bool Muxer::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 	SHARED_LOCK(mutex_, lk);
-	available(spkt.frameSetID()) += spkt.channel;
-	
+	if (pkt.data.size() > 0 || !(spkt.flags & ftl::codecs::kFlagRequest)) available(spkt.frameSetID()) += spkt.channel;
+
 	if (spkt.streamID < ftl::stream::kMaxStreams && spkt.frame_number < revmap_[spkt.streamID].size()) {
-		auto [sid, ssid] = revmap_[spkt.streamID][spkt.frame_number];
-		auto &se = streams_[sid];
+		auto [se, ssid] = revmap_[spkt.streamID][spkt.frame_number];
+		//auto &se = streams_[sid];
+
+		if (!se) return false;
 
 		//LOG(INFO) << "POST " << spkt.frame_number;
 
 		ftl::codecs::StreamPacket spkt2 = spkt;
-		spkt2.streamID = 0;
+		spkt2.streamID = se->original_fsid;
 		spkt2.frame_number = ssid;
-		se.stream->select(0, selected(spkt.frameSetID()));
-		return se.stream->post(spkt2, pkt);
+		se->stream->select(spkt2.streamID, selected(spkt.frameSetID()));
+		return se->stream->post(spkt2, pkt);
 	} else {
 		return false;
 	}
@@ -137,22 +196,27 @@ void Muxer::reset() {
 	}
 }
 
-int Muxer::_lookup(size_t fsid, int sid, int ssid) {
+int Muxer::_lookup(size_t fsid, ftl::stream::Muxer::StreamEntry *se, int ssid, int count) {
 	SHARED_LOCK(mutex_, lk);
-	auto &se = streams_[sid];
-	if (static_cast<uint32_t>(ssid) >= se.maps.size()) {
+	//auto &se = streams_[sid];
+	if (static_cast<uint32_t>(ssid) >= se->maps.size()) {
 		lk.unlock();
 		{
 			UNIQUE_LOCK(mutex_, lk2);
-			if (static_cast<uint32_t>(ssid) >= se.maps.size()) {
+			while (static_cast<uint32_t>(ssid) >= se->maps.size()) {
 				int nid = nid_[fsid]++;
-				se.maps.push_back(nid);
-				revmap_[fsid].push_back({sid,ssid});
+				revmap_[fsid].push_back({se, static_cast<uint32_t>(se->maps.size())});
+				se->maps.push_back(nid);
+				for (int i=1; i<count; ++i) {
+					int nid = nid_[fsid]++;
+					revmap_[fsid].push_back({se, static_cast<uint32_t>(se->maps.size())});
+					se->maps.push_back(nid);
+				}
 			}
 		}
 		lk.lock();
 	}
-	return se.maps[ssid];
+	return se->maps[ssid];
 }
 
 void Muxer::_notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
@@ -160,7 +224,7 @@ void Muxer::_notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Pa
 	available(spkt.frameSetID()) += spkt.channel;
 
 	try {
-		if (cb_) cb_(spkt, pkt);  // spkt.frame_number < 255 && 
+		cb_.trigger(spkt, pkt);  // spkt.frame_number < 255 &&
 	} catch (std::exception &e) {
 		LOG(ERROR) << "Exception in packet handler: " << e.what();
 	}
@@ -180,33 +244,26 @@ void Broadcast::add(Stream *s) {
 	UNIQUE_LOCK(mutex_,lk);
 
 	streams_.push_back(s);
-	s->onPacket([this,s](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		LOG(INFO) << "BCAST Request: " << (int)spkt.streamID << " " << (int)spkt.channel << " " << spkt.timestamp;
+	handles_.push_back(std::move(s->onPacket([this,s](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		//LOG(INFO) << "BCAST Request: " << (int)spkt.streamID << " " << (int)spkt.channel << " " << spkt.timestamp;
 		SHARED_LOCK(mutex_, lk);
 		if (spkt.frameSetID() < 255) available(spkt.frameSetID()) += spkt.channel;
-		if (cb_) cb_(spkt, pkt);
+		cb_.trigger(spkt, pkt);
 		if (spkt.streamID < 255) s->select(spkt.streamID, selected(spkt.streamID));
-	});
+		return true;
+	})));
 }
 
 void Broadcast::remove(Stream *s) {
 	UNIQUE_LOCK(mutex_,lk);
-	s->onPacket(nullptr);
+	// TODO: Find and remove handle also
 	streams_.remove(s);
 }
 
 void Broadcast::clear() {
 	UNIQUE_LOCK(mutex_,lk);
-	for (auto s : streams_) {
-		s->onPacket(nullptr);
-	}
+	handles_.clear();
 	streams_.clear();
-}
-
-bool Broadcast::onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &cb) {
-	UNIQUE_LOCK(mutex_,lk);
-	cb_ = cb;
-	return true;
 }
 
 bool Broadcast::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
@@ -266,22 +323,17 @@ void Intercept::setStream(Stream *s) {
 	UNIQUE_LOCK(mutex_,lk);
 
 	stream_ = s;
-	s->onPacket([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	handles_.push_back(std::move(s->onPacket([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		SHARED_LOCK(mutex_, lk);
 		available(spkt.frameSetID()) += spkt.channel;
-		if (cb_) cb_(spkt, pkt);
+		cb_.trigger(spkt, pkt);
 		if (intercept_) intercept_(spkt, pkt);
 		stream_->select(spkt.streamID, selected(spkt.streamID));
-	});
+		return true;
+	})));
 }
 
-bool Intercept::onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &cb) {
-	UNIQUE_LOCK(mutex_,lk);
-	cb_ = cb;
-	return true;
-}
-
-bool Intercept::onIntercept(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &cb) {
+bool Intercept::onIntercept(const std::function<bool(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &cb) {
 	UNIQUE_LOCK(mutex_,lk);
 	intercept_ = cb;
 	return true;

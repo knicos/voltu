@@ -3,6 +3,7 @@
 
 #include "../../basesource.hpp"
 #include <ftl/config.h>
+#include <ftl/codecs/touch.hpp>
 
 namespace ftl {
 
@@ -33,14 +34,27 @@ class ScreenCapture : public ftl::rgbd::BaseSourceImpl {
 	bool ready_;
 	int64_t cap_ts_;
 	int64_t cur_ts_;
-	ftl::rgbd::Frame sframe_;
+	//ftl::rgbd::Frame sframe_;
 
 	size_t full_width_;
 	size_t full_height_;
 	size_t offset_x_;
 	size_t offset_y_;
+	Eigen::Matrix4d pose_;
+	bool do_update_params_ = false;
+	bool pressed_ = false;
+	ftl::codecs::Touch primary_touch_;
 
 	ImplState *impl_state_;
+	ftl::rgbd::Camera params_;
+	//void _mouseClick(int button, int x, int y);
+
+	void _singleTouch(const ftl::codecs::Touch &t);
+	void _press();
+	void _release();
+	void _move(int x, int y);
+	void _noTouch();
+	void _multiTouch(const std::vector<ftl::codecs::Touch> &);
 };
 
 }

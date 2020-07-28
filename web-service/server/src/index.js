@@ -7,7 +7,11 @@ const config = require('./utils/config')
 const User = require('./models/users')
 const Configs = require('./models/generic')
 const bodyParser = require('body-parser')
-const Url = require('url-parse')
+const Url = require('url-parse');
+const { LogLuvEncoding } = require('three');
+const msgpack = require('msgpack5')()
+  , encode  = msgpack.encode
+  , decode  = msgpack.decode;
 
 // ---- INDEXES ----------------------------------------------------------------
 app.use(express.static(__dirname + '/../../public'));
@@ -76,6 +80,8 @@ function RGBDStream(uri, peer) {
 	this.rxcount = 10;
 	this.rxmax = 10;
 
+	this.data = {};
+
 	let ix = uri.indexOf("?");
 	this.base_uri = (ix >= 0) ? uri.substring(0, ix) : uri;
 
@@ -87,6 +93,7 @@ function RGBDStream(uri, peer) {
 		//if (this.rxcount >= this.rxmax && this.clients.length > 0) {
 		//	this.subscribe();
 		//}
+		//console.log("Got frame: ", spacket);
 	});
 
 	/*peer.bind(uri, (frame, ttime, chunk, rgb, depth) => {
@@ -97,6 +104,9 @@ function RGBDStream(uri, peer) {
 			this.subscribe();
 		}
 	});*/
+
+	console.log("Sending request");
+	this.peer.send(this.base_uri, 0, [1,255,255,74,1],[7,0,1,255,0,new Uint8Array(0)]);
 }
 
 RGBDStream.prototype.addClient = function(peer) {
@@ -124,9 +134,8 @@ RGBDStream.prototype.subscribe = function() {
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 	//Checks that the type is jpg
-	if (packet[0] === 0){
-		if (spacket[3] > 0) this.depth = packet[5];
-		else this.rgb = packet[5];
+	if (spacket[3] >= 64) {
+		this.data[spacket[3]] = decode(packet[5]);
 	}
 
 	//console.log("Frame = ", packet[0], packet[1]);
@@ -161,24 +170,29 @@ app.get('/streams', (req, res) => {
  * binded to that 
  */
 app.get('/stream/rgb', (req, res) => {
-	let uri = req.query.uri;
+	let uri = decodeURI(req.query.uri);
+	let ix = uri.indexOf("?");
+	let base_uri = (ix >= 0) ? uri.substring(0, ix) : uri;
+
 	if (uri_data.hasOwnProperty(uri)) {
 		//uri_data[uri].peer.send("get_stream", uri, 3, 9, [Peer.uuid], uri);
 		res.writeHead(200, {'Content-Type': 'image/jpeg'});
-		res.end(uri_data[uri].rgb);
+		res.end(uri_data[uri].data[74]);
 	}
 	res.end();
 });
 
 
-app.get('/stream/depth', (req, res) => {
+app.get('/stream/data', (req, res) => {
 	let uri = req.query.uri;
+	let channel = parseInt(req.query.channel);
 	const parsedURI = stringSplitter(uri)
 	if (uri_data.hasOwnProperty(parsedURI)) {
-		res.writeHead(200, {'Content-Type': 'image/png'});
-    	res.end(uri_data[parsedURI].depth);
+		//res.writeHead(200, {'Content-Type': 'image/png'});
+    	res.status(200).json(uri_data[parsedURI].data[channel]);
+	} else {
+		res.end();
 	}
-	res.end();
 });
 
 app.post('/stream/config', async (req, res) => {
@@ -220,23 +234,19 @@ app.get('/stream/config', async(req, res) => {
 	
 	//example of uri ftlab.utu.fi/stream/config?uri=ftl://utu.fi#reconstruction_snap10/merge
 	const settings = req.query.settings;
-	const uri = req.query.uri;
-	const parsedURI = stringSplitter(uri)
+	const uri = decodeURI(req.query.uri);
+	//const parsedURI = stringSplitter(uri)
 
-	// //Checks if DB has data
-	// let dbData = await Configs.find({Settings: settings});
-	// if(dbData[0].data){
-	// 	return res.status(200).json(dbData[0]);
-	// }else{
-		let peer = uri_data[parsedURI].peer
-		if(peer){
-			peer.rpc("get_cfg", (response) => {
+	if (uri_data.hasOwnProperty(uri)) {
+		let peer = uri_data[uri].peer
+		if (peer){
+			peer.rpc("get_configurable", (response) => {
 				if(response){
-					return res.status(200).json(response);
+					return res.status(200).json(JSON.parse(response));
 				}
-			}, settings)
+			}, uri);
 		}
-	// }
+	}
 })
 
 
@@ -370,7 +380,9 @@ app.ws('/', (ws, req) => {
 		}
 	});
 
-	p.bind("find_stream", (uri) => {
+	p.bind("find_stream", (uri, proxy) => {
+		if (!proxy) return null;
+		
 		const parsedURI = stringSplitter(uri)
 		if (uri_to_peer.hasOwnProperty(parsedURI)) {
 			console.log("Stream found: ", uri, parsedURI);

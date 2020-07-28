@@ -22,6 +22,6 @@ set_property(TARGET ftl-vision PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-vision ftlrgbd ftlcommon ftlstreams ftlctrl ${OpenCV_LIBS} ${LIBSGM_LIBRARIES} ${CUDA_LIBRARIES} ftlnet ftlaudio)
+target_link_libraries(ftl-vision ftlrgbd ftlcommon ftlstreams ftlctrl ${OpenCV_LIBS} ${CUDA_LIBRARIES} ftlnet ftlaudio)
 
-
+target_precompile_headers(ftl-vision REUSE_FROM ftldata)

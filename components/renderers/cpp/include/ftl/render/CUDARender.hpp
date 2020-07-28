@@ -5,6 +5,7 @@
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/render/render_params.hpp>
 #include <ftl/cuda/points.hpp>
+#include <ftl/cuda/touch.hpp>
 #include <ftl/codecs/channels.hpp>
 //#include <ftl/filters/filter.hpp>
 
@@ -25,12 +26,17 @@ class CUDARender : public ftl::render::FSRenderer {
 	void begin(ftl::rgbd::Frame &, ftl::codecs::Channel) override;
 	void end() override;
 
-	bool submit(ftl::rgbd::FrameSet *in, ftl::codecs::Channels<0>, const Eigen::Matrix4d &t) override;
+	bool submit(ftl::data::FrameSet *in, ftl::codecs::Channels<0>, const Eigen::Matrix4d &t) override;
 	//void setOutputDevice(int);
 
 	void render() override;
 
 	void blend(ftl::codecs::Channel) override;
+
+	/**
+	 * Returns all inter-frameset collisions in camera coordinates.
+	 */
+	inline const std::vector<float4> &getCollisions() const { return collision_points_; }
 
 	void setViewPort(ftl::render::ViewPortMode mode, const ftl::render::ViewPort &vp) {
 		params_.viewport = vp;
@@ -44,7 +50,8 @@ class CUDARender : public ftl::render::FSRenderer {
 
 	private:
 	int device_;
-	ftl::rgbd::Frame temp_;
+	ftl::data::Frame temp_d_;
+	ftl::rgbd::Frame &temp_;
 	//ftl::rgbd::Frame accum_;
 	ftl::cuda::TextureObject<float4> accum_;		// 2 is number of channels can render together
 	ftl::cuda::TextureObject<int> contrib_;
@@ -52,9 +59,15 @@ class CUDARender : public ftl::render::FSRenderer {
 
 	std::list<ftl::cuda::TextureObject<short2>*> screen_buffers_;
 	std::list<ftl::cuda::TextureObject<float>*> depth_buffers_;
+	ftl::cuda::TextureObject<float> depth_out_;
+
+	ftl::cuda::Collision *collisions_;
+	ftl::cuda::Collision collisions_host_[1024];
+	std::vector<float4> collision_points_;
+	float touch_dist_;
 
 	ftl::rgbd::Frame *out_;
-	ftl::rgbd::FrameSet *scene_;
+	ftl::data::FrameSet *scene_;
 	ftl::cuda::ClipSpace clip_;
 	ftl::render::Colouriser *colouriser_;
 	bool clipping_;
@@ -100,7 +113,7 @@ class CUDARender : public ftl::render::FSRenderer {
 	void _end();
 	void _endSubmit();
 
-	bool _alreadySeen() const { return last_frame_ == scene_->timestamp; }
+	bool _alreadySeen() const { return last_frame_ == scene_->timestamp(); }
 	void _adjustDepthThresholds(const ftl::rgbd::Camera &fcam);
 
 	ftl::cuda::TextureObject<float> &_getDepthBuffer(const cv::Size &);

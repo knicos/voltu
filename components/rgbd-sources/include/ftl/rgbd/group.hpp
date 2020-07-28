@@ -105,9 +105,9 @@ class Group : public ftl::rgbd::Generator {
 	std::atomic<int> jobs_;
 	std::atomic<int> cjobs_;
 	volatile bool skip_;
-	ftl::timer::TimerHandle cap_id_;
-	ftl::timer::TimerHandle swap_id_;
-	ftl::timer::TimerHandle main_id_;
+	ftl::Handle cap_id_;
+	ftl::Handle swap_id_;
+	ftl::Handle main_id_;
 	std::string name_;
 	MUTEX mutex_;
 

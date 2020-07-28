@@ -89,7 +89,7 @@ bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
 	float scale = 1.0f;
 
 	// Clear to max smoothing
-	out.create<GpuMat>(Channel::Smoothing, Format<float>(width, height)).setTo(cv::Scalar(1.0f));
+	out.create<ftl::rgbd::VideoFrame>(Channel::Smoothing).createGPU(Format<float>(width, height)).setTo(cv::Scalar(1.0f));
 
 	// Reduce to nearest
 	ftl::cuda::smooth_channel(
@@ -108,14 +108,16 @@ bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
 		height /= 2;
 		scale *= 2.0f;
 
+		temp_[i].create(width,height);
+
 		ftl::rgbd::Camera scaledCam = in.getLeftCamera().scaled(width, height);
 
 		// Downscale images for next pass
-		cv::cuda::resize(in.get<GpuMat>(Channel::Colour), temp_[i].create<GpuMat>(Channel::Colour), cv::Size(width, height), 0.0, 0.0, cv::INTER_LINEAR);
+		cv::cuda::resize(in.get<GpuMat>(Channel::Colour), temp_[i].to_gpumat(), cv::Size(width, height), 0.0, 0.0, cv::INTER_LINEAR);
 		//cv::cuda::resize(in.get<GpuMat>(Channel::Depth), temp_[i].create<GpuMat>(Channel::Depth), cv::Size(width, height), 0.0, 0.0, cv::INTER_NEAREST);
 
 		ftl::cuda::smooth_channel(
-			temp_[i].createTexture<uchar4>(Channel::Colour),
+			temp_[i],
 			//temp_[i].createTexture<float>(Channel::Depth),
 			out.getTexture<float>(Channel::Smoothing),
 			scaledCam,
@@ -133,7 +135,7 @@ bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
 
 // ===== MLS ===================================================================
 
-SimpleMLS::SimpleMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+SimpleMLS::SimpleMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
 
 }
 
@@ -145,6 +147,8 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 	float thresh = config()->value("mls_threshold", 0.04f);
 	int iters = config()->value("mls_iterations", 1);
 	int radius = config()->value("mls_radius",2);
+
+	auto &temp = temp_.cast<ftl::rgbd::Frame>();
 
 	if (!in.hasChannel(Channel::Normals)) {
 		/*ftl::cuda::normals(
@@ -160,9 +164,9 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 	for (int i=0; i<iters; ++i) {
 		ftl::cuda::mls_smooth(
 			in.createTexture<half4>(Channel::Normals),
-			temp_.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 			in.createTexture<float>(Channel::Depth),
-			temp_.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 			thresh,
 			radius,
 			in.getLeftCamera(),
@@ -171,7 +175,8 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 
 		//in.swapChannels(Channel::Depth, Channel::Depth2);
 		//in.swapChannels(Channel::Normals, Channel::Points);
-		temp_.swapChannels(Channel::Normals + Channel::Depth, in);
+		temp.swapChannel(Channel::Normals, in);
+		temp.swapChannel(Channel::Depth, in);
 	}
 
 	return true;
@@ -179,7 +184,7 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 
 
 
-ColourMLS::ColourMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+ColourMLS::ColourMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
 
 }
 
@@ -200,14 +205,16 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 		return false;
 	}
 
+	auto &temp = temp_.cast<ftl::rgbd::Frame>();
+
 	// FIXME: Assume in and out are the same frame.
 	for (int i=0; i<iters; ++i) {
 		if (!crosssup) {
 			ftl::cuda::colour_mls_smooth(
 				in.createTexture<half4>(Channel::Normals),
-				temp_.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<float>(Channel::Depth),
-				temp_.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<uchar4>(Channel::Colour),
 				thresh,
 				col_smooth,
@@ -219,9 +226,9 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 			ftl::cuda::colour_mls_smooth_csr(
 				in.createTexture<uchar4>(Channel::Support1),
 				in.createTexture<half4>(Channel::Normals),
-				temp_.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<float>(Channel::Depth),
-				temp_.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<uchar4>(Channel::Colour),
 				thresh,
 				col_smooth,
@@ -233,7 +240,8 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 
 		//in.swapChannels(Channel::Depth, Channel::Depth2);
 		//in.swapChannels(Channel::Normals, Channel::Points);
-		temp_.swapChannels(Channel::Normals + Channel::Depth, in);
+		temp_.swapChannel(Channel::Depth, in);
+		temp_.swapChannel(Channel::Normals, in);
 	}
 
 	return true;
@@ -242,8 +250,8 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 
 // ====== Aggregating MLS ======================================================
 
-AggreMLS::AggreMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
-
+AggreMLS::AggreMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
+	temp_.store();
 }
 
 AggreMLS::~AggreMLS() {
@@ -266,6 +274,8 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 		LOG(ERROR) << "Required support channel missing for MLS";
 		return false;
 	}
+
+	auto &temp = temp_.cast<ftl::rgbd::Frame>();
 
 	auto size = in.get<GpuMat>(Channel::Depth).size();
 	centroid_horiz_.create(size.height, size.width);
@@ -306,7 +316,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 			ftl::cuda::mls_adjust_depth(
 				in.createTexture<half4>(Channel::Normals),
 				centroid_vert_,
-				temp_.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(size)),
+				temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(size)),
 				in.getTexture<float>(Channel::Depth),
 				in.getLeftCamera(),
 				stream
@@ -314,15 +324,15 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 
 			//in.swapChannels(Channel::Depth, Channel::Depth2);
 			//in.swapChannels(Channel::Normals, Channel::Points);
-			temp_.swapChannels(ftl::codecs::Channels<0>(Channel::Depth), in);
+			temp_.swapChannel(Channel::Depth, in);
 
 		} else {
 			ftl::cuda::colour_mls_smooth_csr(
 				in.createTexture<uchar4>(Channel::Support1),
 				in.createTexture<half4>(Channel::Normals),
-				temp_.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<float>(Channel::Depth),
-				temp_.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+				temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<uchar4>(Channel::Colour),
 				thresh,
 				col_smooth,
@@ -331,7 +341,8 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 				stream
 			);
 
-			temp_.swapChannels(Channel::Normals + Channel::Depth, in);
+			temp_.swapChannel(Channel::Depth, in);
+			temp_.swapChannel(Channel::Normals, in);
 		}
 	}
 
@@ -341,7 +352,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 
 // ====== Adaptive MLS =========================================================
 
-AdaptiveMLS::AdaptiveMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+AdaptiveMLS::AdaptiveMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
 
 }
 
@@ -358,20 +369,23 @@ bool AdaptiveMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_
 		return false;
 	}
 
+	auto &temp = temp_.cast<ftl::rgbd::Frame>();
+
 	// FIXME: Assume in and out are the same frame.
 	for (int i=0; i<iters; ++i) {
 		ftl::cuda::adaptive_mls_smooth(
 			in.createTexture<half4>(Channel::Normals),
-			temp_.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 			in.createTexture<float>(Channel::Depth),
-			temp_.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 			in.createTexture<float>(Channel::Smoothing),
 			radius,
 			in.getLeftCamera(),
 			stream
 		);
 
-		temp_.swapChannels(Channel::Normals + Channel::Depth, in);
+		temp_.swapChannel(Channel::Depth, in);
+		temp_.swapChannel(Channel::Normals, in);
 
 	}
 

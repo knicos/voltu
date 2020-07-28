@@ -14,25 +14,32 @@ namespace detail {
 
 class OpenCVDevice : public ftl::rgbd::detail::Device {
 	public:
-	explicit OpenCVDevice(nlohmann::json &config);
+	explicit OpenCVDevice(nlohmann::json &config, bool stereo);
 	~OpenCVDevice();
 
 	static std::vector<DeviceDetails> listDevices();
-	
+
 	bool grab() override;
-	bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, Calibrate *c, cv::cuda::Stream &stream) override;
+	bool get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, StereoRectification *c, cv::cuda::Stream &stream) override;
 
 	unsigned int width() const override { return dwidth_; }
 	unsigned int height() const override { return dheight_; }
 
 	unsigned int fullWidth() const override { return width_; }
 	unsigned int fullHeight() const override { return height_; }
-	
+
 	double getTimestamp() const override;
-	
+
 	bool isStereo() const override;
-	
+
+	void populateMeta(std::map<std::string,std::string> &meta) const override;
+
+	static std::vector<DeviceDetails> getDevices();
+
 	private:
+	std::vector<ftl::rgbd::detail::DeviceDetails> devices_;
+	int dev_ix_left_ = -1;
+	int dev_ix_right_ = -1;
 	double timestamp_;
 	//double tps_;
 	bool stereo_;
@@ -55,8 +62,6 @@ class OpenCVDevice : public ftl::rgbd::detail::Device {
 
 	cv::Mat frame_l_;
 	cv::Mat frame_r_;
-
-	std::vector<DeviceDetails> _selectDevices();
 };
 
 }

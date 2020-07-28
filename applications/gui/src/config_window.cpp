@@ -1,4 +1,5 @@
 #include "config_window.hpp"
+#include "../screen.hpp"
 
 #include <nanogui/layout.h>
 #include <nanogui/label.h>
@@ -190,7 +191,7 @@ void ConfigWindow::_addElements(nanogui::FormHelper *form, const std::string &su
 			});
 		} else if (i.value().is_object()) {
 			string key = i.key();
-		
+
 			// Checking the URI with exists() prevents unloaded local configurations from being shown.
 			if (suri.find('#') != string::npos && exists(suri+string("/")+key)) {
 				form->addButton(key, [this,suri,key]() {
@@ -213,7 +214,8 @@ void ConfigWindow::_buildForm(const std::string &suri) {
 	FormHelper *form = new FormHelper(this->screen());
 	//form->setWindow(this);
 	form->addWindow(Vector2i(100,50), uri.getFragment());
-	form->window()->setTheme(theme());
+	auto* theme = dynamic_cast<ftl::gui2::Screen*>(screen())->getTheme("window_light");
+	form->window()->setTheme(theme);
 
 	_addElements(form, suri);
 

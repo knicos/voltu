@@ -2,7 +2,7 @@
 #include <nlohmann/json.hpp>
 // #include <filesystem>  TODO When available
 #include <cstdlib>
-//#include <loguru.hpp>
+#include <loguru.hpp>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -72,7 +72,7 @@ void URI::_parse(uri_t puri) {
 		m_frag = "";
 	} else {
 		m_host = std::string(uri.hostText.first, uri.hostText.afterLast - uri.hostText.first);
-		
+
 		std::string prototext = std::string(uri.scheme.first, uri.scheme.afterLast - uri.scheme.first);
 		if (prototext == "tcp") m_proto = SCHEME_TCP;
 		else if (prototext == "udp") m_proto = SCHEME_UDP;
@@ -82,6 +82,7 @@ void URI::_parse(uri_t puri) {
 		else if (prototext == "ipc") m_proto = SCHEME_IPC;
 		else if (prototext == "device") m_proto = SCHEME_DEVICE;
 		else if (prototext == "file") m_proto = SCHEME_FILE;
+		else if (prototext == "group") m_proto = SCHEME_GROUP;
 		else m_proto = SCHEME_OTHER;
 		m_protostr = prototext;
 
@@ -106,7 +107,7 @@ void URI::_parse(uri_t puri) {
 					uri.query.afterLast) != URI_SUCCESS) {
 				// Failure
 			}
-			
+
 			UriQueryListA *item = queryList;
 			while (item) {
 				m_qmap[item->key] = item->value;
@@ -140,8 +141,11 @@ void URI::_parse(uri_t puri) {
 			else if (uri.fragment.first != NULL) {
 				m_base += std::string(start, uri.fragment.first - start - 1);
 			}
-			else {
+			else if (start) {
 				m_base += std::string(start);
+			}
+			else {
+				m_base += std::string("");
 			}
 		}
 	}
@@ -157,7 +161,7 @@ string URI::getPathSegment(int n) const {
 	else return m_pathseg[N];
 }
 
-string URI::getBaseURI(int n) {
+string URI::getBaseURI(int n) const {
 	if (n >= (int)m_pathseg.size()) return m_base;
 	if (n >= 0) {
 		string r = m_protostr + string("://") + m_host + ((m_port != 0) ? string(":") + std::to_string(m_port) : "");
@@ -172,11 +176,25 @@ string URI::getBaseURI(int n) {
 		size_t N = m_pathseg.size()+n;
 		for (size_t i=0; i<N; i++) {
 			r += "/";
-			r += getPathSegment(i);
+			r += getPathSegment(static_cast<int>(i));
 		}
 
 		return r;
 	} else return "";
+}
+
+std::string URI::getBaseURIWithUser() const {
+	std::string result;
+
+	result += m_protostr + "://";
+	if (m_userinfo.size() > 0) {
+		result += getUserInfo();
+		result += "@";
+	}
+	result += m_host;
+	if (m_port > 0) result += std::string(":") + std::to_string(m_port);
+	result += m_path;
+	return result;
 }
 
 string URI::getQuery() const {
@@ -196,8 +214,8 @@ void URI::setAttribute(const string &key, int value) {
 	m_qmap[key] = std::to_string(value);
 }
 
-void URI::to_json(nlohmann::json &json) {
-	std::string uri = getBaseURI();
+void URI::to_json(nlohmann::json &json) const {
+	std::string uri = to_string();
 	if (m_frag.size() > 0) uri += std::string("#") + getFragment();
 
 	json["uri"] = uri;
@@ -207,14 +225,18 @@ void URI::to_json(nlohmann::json &json) {
 		size_t pos = 0;
 		size_t lpos = 0;
 		while ((pos = i.first.find('/', lpos)) != std::string::npos) {
-			current = &((*current)[i.first.substr(lpos, pos-lpos)]);
+			std::string subobj = i.first.substr(lpos, pos-lpos);
+			current = &((*current)[subobj]);
 			lpos = pos+1;
 		}
+
+		std::string obj = i.first.substr(lpos);
+
 		auto p = nlohmann::json::parse(i.second, nullptr, false);
 		if (!p.is_discarded()) {
-			(*current)[i.first.substr(lpos)] = p;
+			(*current)[obj] = p;
 		} else {
-			(*current)[i.first.substr(lpos)] = i.second;
+			(*current)[obj] = i.second;
 		}
 	}
 }

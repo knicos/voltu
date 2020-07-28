@@ -28,7 +28,7 @@ bool DetectAndTrack::init() {
 	fname_ = config()->value<string>("filename", FTL_LOCAL_DATA_ROOT "/haarcascades/haarcascade_frontalface_default.xml");
 	debug_ = config()->value<bool>("debug", false);
 
-	config()->on("debug", [this](const ftl::config::Event &e) {
+	config()->on("debug", [this]() {
 		debug_ = config()->value<bool>("debug", false);
 	});
 
@@ -229,7 +229,7 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		Mat im;  // TODO: Keep this as an internal buffer? Perhaps page locked.
 
 		// FIXME: Use internal stream here.
-		cv::cvtColor(in.fastDownload(channel_in_, cv::cuda::Stream::Null()), im, cv::COLOR_BGRA2BGR);
+		cv::cvtColor(in.get<cv::Mat>(channel_in_), im, cv::COLOR_BGRA2BGR);
 
 		if (im.empty()) {
 			throw FTL_Error("Empty image in face detection");
@@ -272,7 +272,7 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 		cv::Mat depth;
 		if (in.hasChannel(Channel::Depth)) {
-			depth = in.fastDownload(Channel::Depth, cv::cuda::Stream::Null());
+			depth = in.get<cv::Mat>(Channel::Depth);
 		}
 
 		std::vector<ftl::codecs::Face> result;
@@ -292,15 +292,15 @@ bool DetectAndTrack::apply(Frame &in, Frame &out, cudaStream_t stream) {
 				cv::rectangle(im, tracked.object, cv::Scalar(0, 0, 255), 1);
 			}
 		}
-		out.create(channel_out_, result);
+		out.create<std::vector<ftl::codecs::Face>>(channel_out_) = result;
 
 		//in.upload(channel_in_);
 		// FIXME: This is a bad idea.
 		if (debug_) {
-			if (in.isGPU(channel_in_)) {
+			//if (in.isGPU(channel_in_)) {
 				cv::cvtColor(im, im, cv::COLOR_BGR2BGRA);
-				out.get<cv::cuda::GpuMat>(channel_in_).upload(im);
-			} else cv::cvtColor(im, in.get<cv::Mat>(channel_in_), cv::COLOR_BGR2BGRA);
+				out.set<cv::cuda::GpuMat>(channel_in_).upload(im);
+			//} else cv::cvtColor(im, in.get<cv::Mat>(channel_in_), cv::COLOR_BGR2BGRA);
 		}
 
 		return true;

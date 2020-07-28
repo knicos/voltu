@@ -1,6 +1,7 @@
 #ifndef _FTL_COMMON_TIMER_HPP_
 #define _FTL_COMMON_TIMER_HPP_
 
+#include <ftl/handle.hpp>
 #include <functional>
 
 namespace ftl {
@@ -15,6 +16,11 @@ namespace ftl {
  */
 namespace timer {
 
+/**
+ * Timer level determines in what order and when a timer callback is called.
+ * This allows some timers to operate at higher precision / lower latency
+ * than others, as well as having idle callbacks.
+ */
 enum timerlevel_t {
 	kTimerHighPrecision = 0,
 	kTimerSwap,
@@ -22,44 +28,6 @@ enum timerlevel_t {
 	kTimerIdle1,	// 1ms jobs to optionally do whilst idle
 	kTimerIdle10,	// 10ms jobs to optionally do whilst idle
 	kTimerMAXLEVEL
-};
-
-/**
- * Represents a timer job for control purposes. Use to remove timer jobs in
- * a destructor, for example.
- */
-struct TimerHandle {
-	TimerHandle() : id_(-1) {}
-	explicit TimerHandle(int i) : id_(i) {}
-	TimerHandle(const TimerHandle &t) : id_(t.id()) {}
-
-	/**
-	 * Cancel the timer job. If currently executing it will block and wait for
-	 * the job to complete.
-	 */
-	void cancel() const;
-	void pause() const;
-	void unpause() const;
-
-	/**
-	 * Do the timer job every N frames.
-	 */
-	void setMultiplier(unsigned int) const;
-
-	/**
-	 * Give the timer job a name for logging output.
-	 */
-	void setName(const std::string &) const;
-
-	/**
-	 * Allow copy assignment.
-	 */
-	TimerHandle &operator=(const TimerHandle &h) { id_ = h.id(); return *this; }
-
-	inline int id() const { return id_; }
-
-	private:
-	int id_;
 };
 
 int64_t get_time();
@@ -114,7 +82,7 @@ void setClockSlave(bool);
  * If all high precision callbacks together take more than 1ms to complete, a
  * warning is produced.
  */
-const TimerHandle add(timerlevel_t, const std::function<bool(int64_t ts)> &);
+ftl::Handle add(timerlevel_t, const std::function<bool(int64_t ts)> &);
 
 /**
  * Initiate the timer and optionally block the current process.

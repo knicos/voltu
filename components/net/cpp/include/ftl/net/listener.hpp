@@ -27,10 +27,13 @@ class Listener {
 	
 	void connection(std::shared_ptr<Peer> &s);
 	void onConnection(connecthandler_t h) { handler_connect_.push_back(h); };
+
+	inline int port() const { return port_; }
 	
 	private:
 	SOCKET descriptor_;
 	Protocol *default_proto_;
+	int port_;
 	//sockaddr_in slocalAddr;
 	std::vector<connecthandler_t> handler_connect_;
 };

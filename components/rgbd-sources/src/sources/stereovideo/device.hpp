@@ -7,9 +7,11 @@
 
 namespace ftl {
 namespace rgbd {
+class Frame;
+
 namespace detail {
 
-class Calibrate;
+class StereoRectification;
 
 struct DeviceDetails {
 	std::string name;
@@ -21,7 +23,7 @@ struct DeviceDetails {
 /**
  * Abstract base class for camera or stereo camera sources. Just wraps the
  * basic grab and retrieve functionality with rectification.
- * 
+ *
  * @see OpenCVDevice
  * @see PylonDevice
  */
@@ -33,7 +35,7 @@ class Device : public Configurable {
 	//virtual const std::vector<DeviceDetails> &listDevices()=0;
 
 	virtual bool grab()=0;
-	virtual bool get(cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, Calibrate *c, cv::cuda::Stream &stream)=0;
+	virtual bool get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, StereoRectification *c, cv::cuda::Stream &stream)=0;
 
 	virtual unsigned int width() const =0;
 	virtual unsigned int height() const =0;
@@ -42,10 +44,12 @@ class Device : public Configurable {
 	virtual unsigned int fullHeight() const =0;
 
 	inline bool hasHigherRes() const { return fullWidth() != width(); }
-	
+
 	virtual double getTimestamp() const =0;
-	
+
 	virtual bool isStereo() const =0;
+
+	virtual void populateMeta(std::map<std::string,std::string> &meta) const {}
 };
 
 }

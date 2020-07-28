@@ -100,7 +100,7 @@ uint8_t* NvidiaDecoder::_decode(const uint8_t* src, uint64_t srcSize) {
 		// Some cuvid implementations have one frame latency. Refeed frame into pipeline in this case.
 		const uint32_t DECODE_TRIES = 3;
 		for (uint32_t i = 0; (i < DECODE_TRIES) && (numFramesDecoded <= 0); ++i)
-			nv_decoder_->Decode(src, srcSize, &decodedFrames, &numFramesDecoded, CUVID_PKT_ENDOFPICTURE, &timeStamps, n_++, stream_);
+			nv_decoder_->Decode(src, static_cast<int32_t>(srcSize), &decodedFrames, &numFramesDecoded, CUVID_PKT_ENDOFPICTURE, &timeStamps, n_++, stream_);
 	} catch (NVDECException& e) {
 		throw FTL_Error("Decode failed (" << e.getErrorString() << ", error " << std::to_string(e.getErrorCode()) << " = " + DecErrorCodeToString(e.getErrorCode()) << ")");
 	}
@@ -142,7 +142,6 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 		return false;
 	}
 
-	int rc = 0;
 	uint8_t *decodedPtr = nullptr;
 
 	if (pkt.flags & ftl::codecs::kFlagMultiple) {
@@ -196,14 +195,14 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 
 			ftl::cuda::vuya_to_depth(out, sroi, csroi, 16.0f, cvstream);
 		} else {
-			ftl::cuda::nv12_to_float(decodedPtr, width_, (float*)out.data, out.step1(), width_/2, height_, stream_);
+			ftl::cuda::nv12_to_float(decodedPtr, width_, (float*)out.data, static_cast<uint32_t>(out.step1()), width_/2, height_, stream_);
 		}
 	} else {
 		// Flag 0x1 means frame is in RGB so needs conversion to BGR
 		if (pkt.flags & 0x1) {
-			Nv12ToColor32<BGRA32>(decodedPtr, width_, out.data, out.step1(), width_, height_, 0, stream_);
+			Nv12ToColor32<BGRA32>(decodedPtr, width_, out.data, static_cast<int>(out.step1()), width_, height_, 0, stream_);
 		} else {
-			Nv12ToColor32<RGBA32>(decodedPtr, width_, out.data, out.step1(), width_, height_, 0, stream_);
+			Nv12ToColor32<RGBA32>(decodedPtr, width_, out.data, static_cast<int>(out.step1()), width_, height_, 0, stream_);
 		}
 	}
 

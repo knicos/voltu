@@ -10,14 +10,3 @@ target_link_libraries(source_unit
 
 add_test(SourceUnitTest source_unit)
 
-### Frame Unit #################################################################
-add_executable(frame_unit
-$<TARGET_OBJECTS:CatchTest>
-	./frame_unit.cpp
-	../src/frame.cpp
-)
-target_include_directories(frame_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(frame_unit
-	ftlcommon ftlcodecs ftldata)
-
-add_test(FrameUnitTest frame_unit)

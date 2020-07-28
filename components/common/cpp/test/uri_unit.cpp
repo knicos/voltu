@@ -189,3 +189,15 @@ SCENARIO( "URI::getBaseURI(N)" ) {
 	}
 }
 
+SCENARIO( "URI::getBaseURIWithUser()" ) {
+	GIVEN( "both username and password" ) {
+		URI uri("http://nick:test@localhost:1000/hello/world?group=test2");
+		REQUIRE( uri.getBaseURIWithUser() == "http://nick:test@localhost:1000/hello/world" );
+	}
+
+	GIVEN( "missing username and password" ) {
+		URI uri("http://localhost:1000/hello/world?group=test2");
+		REQUIRE( uri.getBaseURIWithUser() == "http://localhost:1000/hello/world" );
+	}
+}
+

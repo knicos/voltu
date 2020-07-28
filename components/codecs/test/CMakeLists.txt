@@ -39,6 +39,8 @@ ${CMAKE_CURRENT_SOURCE_DIR}/../src/Video_Codec_SDK_9.1.23/Samples/NvCodec)
 target_link_libraries(nvidia_codec_unit
 	Threads::Threads ${OS_LIBS} ${OpenCV_LIBS} ${CUDA_LIBRARIES} ftlcommon nvcuvid cuda)
 
+set_property(TARGET nvidia_codec_unit PROPERTY CUDA_ARCHITECTURES OFF)
+
 
 add_test(NvidiaCodecUnitTest nvidia_codec_unit)
 
@@ -57,12 +59,12 @@ add_test(NvidiaCodecUnitTest nvidia_codec_unit)
 #add_test(RWUnitTest rw_unit)
 
 ### Channel Unit ###############################################################
-add_executable(channel_unit
-$<TARGET_OBJECTS:CatchTest>
-	./channel_unit.cpp
-)
-target_include_directories(channel_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(channel_unit
-	ftlcommon)
+#add_executable(channel_unit
+#$<TARGET_OBJECTS:CatchTest>
+#	./channel_unit.cpp
+#)
+#target_include_directories(channel_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+#target_link_libraries(channel_unit
+#	ftlcommon)
 
-add_test(ChannelUnitTest channel_unit)
+#add_test(ChannelUnitTest channel_unit)

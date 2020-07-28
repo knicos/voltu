@@ -20,10 +20,10 @@ public:
 	 * @brief	For all cameras, find shortest (optimal) paths to reference
 	 * 			camera
 	 * @param	Id of reference camera
-	 * 
+	 *
 	 * Calculates shortest path in weighted graph using Dijstra's
 	 * algorithm. Weights are inverse of views between cameras (nodes)
-	 * 
+	 *
 	 * @todo	Add constant weight for each edge (prefer less edges)
 	 */
 	vector<vector<pair<int, int>>> findShortestPaths(int reference);
@@ -32,11 +32,11 @@ public:
 	void deleteEdge(int camera1, int camera2);
 
 	int getOptimalCamera();
-	
+
 	/** @brief Returns the smallest visibility count (any camera)
 	 */
 	int getMinVisibility();
-	
+
 	/** @brief Returns the visibility camera's value
 	 */
 	int getViewsCount(int camera);
@@ -51,6 +51,6 @@ protected:
 
 private:
 	int n_cameras_;		// @brief number of cameras
-	Mat visibility_;	// @brief adjacency matrix
+	cv::Mat visibility_;	// @brief adjacency matrix
 	vector<int> count_;
 };

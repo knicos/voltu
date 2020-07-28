@@ -62,7 +62,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 
 	// assume no tangential and thin prism distortion and only estimate first
 	// three radial distortion coefficients
-	
+
 	int calibrate_flags = 	cv::CALIB_FIX_K4 | cv::CALIB_FIX_K5 | cv::CALIB_FIX_K6 |
 							cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_S1_S2_S3_S4 | cv::CALIB_FIX_ASPECT_RATIO;
 
@@ -76,13 +76,13 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 		camera_matrix.clear();
 		vector<Mat> tmp;
 		Size tmp_size;
-		
+
 		loadIntrinsics(filename_intrinsics, camera_matrix, tmp, tmp_size);
 		CHECK(camera_matrix.size() == static_cast<unsigned int>(n_cameras));
 
 		if ((tmp_size != image_size) && (!tmp_size.empty())) {
 			for (Mat &K : camera_matrix) {
-				K = ftl::calibration::scaleCameraMatrix(K, image_size, tmp_size);
+				K = ftl::calibration::scaleCameraMatrix(K, tmp_size, image_size);
 			}
 		}
 
@@ -104,13 +104,13 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 			LOG(ERROR) << "Could not open camera device";
 			return;
 		}
-		camera.set(cv::CAP_PROP_FRAME_WIDTH, image_size.width); 
+		camera.set(cv::CAP_PROP_FRAME_WIDTH, image_size.width);
 		camera.set(cv::CAP_PROP_FRAME_HEIGHT, image_size.height);
 	}
 
 	vector<vector<vector<Vec2f>>> image_points(n_cameras);
 	vector<vector<vector<Vec3f>>> object_points(n_cameras);
-	
+
 	vector<Mat> img(n_cameras);
 	vector<Mat> img_display(n_cameras);
 	vector<int> count(n_cameras, 0);
@@ -124,7 +124,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	std::atomic<bool> ready = false;
 	auto capture = std::thread(
 		[n_cameras, delay, &m, &ready, &count, &calib, &img, &image_points, &object_points]() {
-		
+
 		vector<Mat> tmp(n_cameras);
 		while(true) {
 			if (!ready) {
@@ -138,7 +138,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 				img[c].copyTo(tmp[c]);
 			}
 			m.unlock();
-			
+
 			for (int c = 0; c < n_cameras; c++) {
 				vector<Vec2f> points;
 				if (calib.findPoints(tmp[c], points)) {
@@ -168,13 +168,13 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 			ready = true;
 			m.unlock();
 		}
-		
+
 		for (int c = 0; c < n_cameras; c++) {
 			img[c].copyTo(img_display[c]);
 			m.lock();
 
 			if (image_points[c].size() > 0) {
-				
+
 				for (auto &points : image_points[c]) {
 					calib.drawCorners(img_display[c], points);
 				}
@@ -192,13 +192,13 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 	}
 
 	cv::destroyAllWindows();
-	
+
 	//bool calib_ok = true;
 
 	for (int c = 0; c < n_cameras; c++) {
 		LOG(INFO) << "Calculating intrinsic paramters for camera " << std::to_string(c);
 		vector<Mat> rvecs, tvecs;
-		
+
 		double rms = cv::calibrateCamera(
 							object_points[c], image_points[c],
 							image_size, camera_matrix[c], dist_coeffs[c],
@@ -208,9 +208,9 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 		LOG(INFO) << "final reprojection RMS error: " << rms;
 
 		if (!ftl::calibration::validate::distortionCoefficients(dist_coeffs[c], image_size)) {
-			LOG(ERROR)	<< "Calibration failed: invalid distortion coefficients:\n" 
+			LOG(ERROR)	<< "Calibration failed: invalid distortion coefficients:\n"
 						<< dist_coeffs[c];
-			
+
 			LOG(WARNING) << "Estimating only intrinsic parameters for camera " << std::to_string(c);
 
 			dist_coeffs[c] = Mat(Size(8, 1), CV_64FC1, cv::Scalar(0.0));
@@ -228,7 +228,7 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 		// TODO: check for valid aperture width/height; do not run if not valid values
 		cv::calibrationMatrixValues(camera_matrix[c], image_size, aperture_width, aperture_height,
 									fovx, fovy, focal_length, principal_point, aspect_ratio);
-		
+
 		LOG(INFO) << "";
 		LOG(INFO) << "            fovx (deg): " << fovx;
 		LOG(INFO) << "            fovy (deg): " << fovy;
@@ -243,13 +243,13 @@ void ftl::calibration::intrinsic(map<string, string> &opt) {
 
 	saveIntrinsics(filename_intrinsics, camera_matrix, dist_coeffs, image_size);
 	LOG(INFO) << "intrinsic paramaters saved to: " << filename_intrinsics;
-	
+
 	vector<Mat> map1(n_cameras), map2(n_cameras);
 	for (int c = 0; c < n_cameras; c++) {
 		cv::initUndistortRectifyMap(camera_matrix[c], dist_coeffs[c], Mat::eye(3,3, CV_64F), camera_matrix[c],
 									image_size, CV_16SC2, map1[c], map2[c]);
 	}
-	
+
 	while (cv::waitKey(25) != 27) {
 		for (auto &camera : cameras ) {	camera.grab(); }
 		for (int c = 0; c < n_cameras; c++) {

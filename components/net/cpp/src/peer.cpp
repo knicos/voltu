@@ -59,7 +59,7 @@ using std::vector;
     return ss.str();
 }*/
 
-volatile int Peer::rpcid__ = 0;
+std::atomic_int Peer::rpcid__ = 0;
 
 // Global peer UUID
 ftl::UUID ftl::net::this_peer;
@@ -67,7 +67,7 @@ ftl::UUID ftl::net::this_peer;
 //static ctpl::thread_pool pool(5);
 
 // TODO:(nick) Move to tcp_internal.cpp
-static SOCKET tcpConnect(URI &uri, int ssize, int rsize) {
+static SOCKET tcpConnect(URI &uri, size_t ssize, size_t rsize) {
 	int rc;
 	//sockaddr_in destAddr;
 
@@ -90,11 +90,11 @@ static SOCKET tcpConnect(URI &uri, int ssize, int rsize) {
 	int flags =1; 
     if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 
-	int a = rsize;
+	int a = static_cast<int>(rsize);
 	if (setsockopt(csocket, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
-	a = ssize;
+	a = static_cast<int>(ssize);
 	if (setsockopt(csocket, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -130,21 +130,29 @@ static SOCKET tcpConnect(URI &uri, int ssize, int rsize) {
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {
 			// FIXME:(Nick) Move to main select thread to prevent blocking
-			fd_set myset; 
+			fd_set myset;
+			fd_set errset; 
 			struct timeval tv;
 			tv.tv_sec = 1; 
 			tv.tv_usec = 0; 
 			FD_ZERO(&myset); 
-			FD_SET(csocket, &myset); 
-			rc = select(csocket+1, NULL, &myset, NULL, &tv); 
-			if (rc <= 0) { //} && errno != EINTR) { 
+			FD_SET(csocket, &myset);
+			FD_ZERO(&errset); 
+			FD_SET(csocket, &errset); 
+
+			rc = select(csocket+1u, NULL, &myset, &errset, &tv); 
+			if (rc <= 0 || FD_ISSET(csocket, &errset)) { //} && errno != EINTR) { 
+				if (rc <= 0) {
+					LOG(ERROR) << "Could not connect to " << uri.getBaseURI();
+				} else {
+					LOG(ERROR) << "Could not connect (" << errno << ") " << uri.getBaseURI(); 	
+				}
+
 				#ifndef WIN32
 				close(csocket);
 				#else
 				closesocket(csocket);
 				#endif
-
-				LOG(ERROR) << "Could not connect to " << uri.getBaseURI();
 
 				return INVALID_SOCKET;
 			}
@@ -179,14 +187,15 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	
 	is_waiting_ = true;
 	scheme_ = ftl::URI::SCHEME_TCP;
+	outgoing_ = false;
 
 	int flags =1; 
     if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
-	int a = u->getRecvBufferSize();
+	int a = static_cast<int>(u->getRecvBufferSize());
 	if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
-	a = u->getSendBufferSize();
+	a = static_cast<int>(u->getSendBufferSize());
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -232,6 +241,7 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 	
 	status_ = kInvalid;
 	sock_ = INVALID_SOCKET;
+	outgoing_ = true;
 	
 	disp_ = new Dispatcher(d);
 
@@ -252,7 +262,7 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 				_badClose(false);
 			} else {
 				status_ = kConnecting;
-				LOG(INFO) << "WEB SOCK CONNECTED";
+				LOG(INFO) << "Websocket connected: " << pUri;
 			}
 		} else {
 			LOG(ERROR) << "Connection refused to " << uri.getHost() << ":" << uri.getPort();
@@ -371,7 +381,7 @@ void Peer::close(bool retry) {
 		send("__disconnect__");
 
 		_badClose(retry);
-		LOG(INFO) << "Deliberate disconnect of peer.";
+		LOG(INFO) << "Deliberate disconnect of peer: " << uri_;
 	}
 }
 
@@ -383,12 +393,12 @@ void Peer::_badClose(bool retry) {
 		closesocket(sock_);
 		#endif
 		sock_ = INVALID_SOCKET;
-		status_ = kDisconnected;
 		
 		//auto i = find(sockets.begin(),sockets.end(),this);
 		//sockets.erase(i);
 
 		universe_->_notifyDisconnect(this);
+		status_ = kDisconnected;
 
 		// Attempt auto reconnect?
 		if (retry && can_reconnect_) {
@@ -410,7 +420,7 @@ void Peer::socketError() {
 	// more socket errors...
 	_badClose();
 
-	LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
+	if (err != 0) LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
 }
 
 void Peer::error(int e) {
@@ -434,7 +444,7 @@ void Peer::data() {
 			return;
 		}
 
-		int cap = recv_buf_.buffer_capacity();
+		int cap = static_cast<int>(recv_buf_.buffer_capacity());
 		auto buf = recv_buf_.buffer();
 		lk.unlock();
 
@@ -560,7 +570,7 @@ bool Peer::_data() {
 	return true;
 }
 
-void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {	
+void Peer::_dispatchResponse(uint32_t id, const std::string &name, msgpack::object &res) {	
 	// TODO: Handle error reporting...
 	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
@@ -577,7 +587,7 @@ void Peer::_dispatchResponse(uint32_t id, msgpack::object &res) {
 			LOG(ERROR) << "Exception in RPC response: " << e.what();
 		}
 	} else {
-		LOG(WARNING) << "Missing RPC callback for result - discarding";
+		LOG(WARNING) << "Missing RPC callback for result - discarding: " << name;
 	}
 }
 
@@ -588,8 +598,8 @@ void Peer::cancelCall(int id) {
 	}
 }
 
-void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
-	Dispatcher::response_t res_obj = std::make_tuple(1,id,std::string(""),res);
+void Peer::_sendResponse(uint32_t id, const std::string &name, const msgpack::object &res) {
+	Dispatcher::response_t res_obj = std::make_tuple(1,id,name,res);
 	UNIQUE_LOCK(send_mtx_,lk);
 	if (scheme_ == ftl::URI::SCHEME_WS) send_buf_.append_ref(nullptr,0);
 	msgpack::pack(send_buf_, res_obj);
@@ -656,6 +666,8 @@ void Peer::_connected() {
 int Peer::_send() {
 	if (sock_ == INVALID_SOCKET) return -1;
 
+	int c=0;
+
 	// Are we using a websocket?
 	if (scheme_ == ftl::URI::SCHEME_WS) {
 		// Create a websocket header as well.
@@ -682,24 +694,42 @@ int Peer::_send() {
 		// Patch the first io vector to be ws header
 		const_cast<iovec*>(&sendvec[0])->iov_base = buf;
 		const_cast<iovec*>(&sendvec[0])->iov_len = rc;
-	}
 	
 #ifdef WIN32
-	auto send_vec = send_buf_.vector();
-	auto send_size = send_buf_.vector_size();
-	vector<WSABUF> wsabuf(send_size);
+		auto send_vec = send_buf_.vector();
+		auto send_size = send_buf_.vector_size();
+		vector<WSABUF> wsabuf(send_size);
 
-	for (int i = 0; i < send_size; i++) {
-		wsabuf[i].len = (ULONG)send_vec[i].iov_len;
-		wsabuf[i].buf = (char*)send_vec[i].iov_base;
-		//c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, (int)send_vec[i].iov_len, 0);
-	}
+		for (int i = 0; i < send_size; i++) {
+			wsabuf[i].len = (ULONG)send_vec[i].iov_len;
+			wsabuf[i].buf = (char*)send_vec[i].iov_base;
+			//c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, (int)send_vec[i].iov_len, 0);
+		}
 
-	DWORD bytessent;
-	int c = WSASend(sock_, wsabuf.data(), send_size, (LPDWORD)&bytessent, 0, NULL, NULL);
+		DWORD bytessent;
+		c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
 #else
-	int c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
+		c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
 #endif
+
+	} else {
+#ifdef WIN32
+		auto send_vec = send_buf_.vector();
+		auto send_size = send_buf_.vector_size();
+		vector<WSABUF> wsabuf(send_size);
+
+		for (int i = 0; i < send_size; i++) {
+			wsabuf[i].len = (ULONG)send_vec[i].iov_len;
+			wsabuf[i].buf = (char*)send_vec[i].iov_base;
+			//c += ftl::net::internal::send(sock_, (char*)send_vec[i].iov_base, (int)send_vec[i].iov_len, 0);
+		}
+
+		DWORD bytessent;
+		c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
+#else
+		c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
+#endif
+	} 
 
 	send_buf_.clear();
 	

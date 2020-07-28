@@ -59,10 +59,10 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
 	max_disc_ = cfg->value("max_discontinuity", 0.1f);
 	channel_ = Channel::Depth;
 
-	cfg->on("edge_discontinuity", [this](const ftl::config::Event &e) {
+	cfg->on("edge_discontinuity", [this]() {
 		edge_disc_ = config()->value("edge_discontinuity", 0.04f);
 	});
-	cfg->on("max_discontinuity", [this](const ftl::config::Event &e) {
+	cfg->on("max_discontinuity", [this]() {
 		max_disc_ = config()->value("max_discontinuity", 0.1f);
 	});
 
@@ -82,10 +82,10 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg, const std::tu
 	max_disc_ = cfg->value("max_discontinuity", 0.1f);
 	channel_ = std::get<0>(p);
 
-	cfg->on("edge_discontinuity", [this](const ftl::config::Event &e) {
+	cfg->on("edge_discontinuity", [this]() {
 		edge_disc_ = config()->value("edge_discontinuity", 0.04f);
 	});
-	cfg->on("max_discontinuity", [this](const ftl::config::Event &e) {
+	cfg->on("max_discontinuity", [this]() {
 		max_disc_ = config()->value("max_discontinuity", 0.1f);
 	});
 
@@ -105,7 +105,7 @@ bool DepthBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
-	GpuMat &depth = in.get<GpuMat>(channel_);
+	const GpuMat &depth = in.get<GpuMat>(channel_);
 
 	UNUSED(rgb);
 	UNUSED(depth);
@@ -128,7 +128,7 @@ DepthChannel::DepthChannel(ftl::Configurable *cfg) : ftl::operators::Operator(cf
 }
 
 DepthChannel::~DepthChannel() {
-
+	if (pipe_) delete pipe_;
 }
 
 void DepthChannel::_createPipeline(size_t size) {
@@ -178,12 +178,12 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
-		auto &f = in.frames[i];
+		auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 		if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
 			_createPipeline(in.frames.size());
 
-			cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
-			cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
+			const cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
+			const cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
 			cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
 			depth.create(left.size(), CV_32FC1);
 
@@ -217,8 +217,8 @@ bool DepthChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 	if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
 		_createPipeline(1);
 
-		cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
-		cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
+		const cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
+		const cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
 		cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
 		depth.create(depth_size_, CV_32FC1);
 

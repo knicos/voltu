@@ -85,6 +85,9 @@ class Universe : public ftl::Configurable {
 	 * @param addr URI giving protocol, interface and port
 	 */
 	Peer *connect(const std::string &addr);
+
+	bool isConnected(const ftl::URI &uri);
+	bool isConnected(const std::string &s);
 	
 	size_t numberOfPeers() const { return peers_.size(); }
 
@@ -214,7 +217,7 @@ class Universe : public ftl::Configurable {
 	
 	private:
 	void _run();
-	int _setDescriptors();
+	SOCKET _setDescriptors();
 	void _installBindings();
 	void _installBindings(Peer *);
 	//bool _subscribe(const std::string &res);
@@ -236,6 +239,7 @@ class Universe : public ftl::Configurable {
 	
 	std::vector<ftl::net::Listener*> listeners_;
 	std::vector<ftl::net::Peer*> peers_;
+	std::unordered_map<std::string, ftl::net::Peer*> peer_by_uri_;
 	//std::map<std::string, std::vector<ftl::UUID>> subscribers_;
 	//std::unordered_set<std::string> owned_;
 	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
@@ -244,6 +248,7 @@ class Universe : public ftl::Configurable {
 	std::list<ReconnectInfo> reconnects_;
 	size_t phase_;
 	std::list<ftl::net::Peer*> garbage_;
+	ftl::Handle garbage_timer_;
 
 	size_t send_size_;
 	size_t recv_size_;
@@ -306,95 +311,74 @@ void Universe::broadcast(const std::string &name, ARGS... args) {
 
 template <typename R, typename... ARGS>
 std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
-	bool hasreturned = false;
-	std::mutex m;
-	std::condition_variable cv;
-	std::atomic<int> count = 0;
-	std::optional<R> result;
-
-	auto handler = [&](const std::optional<R> &r) {
-		count--;
-		std::unique_lock<std::mutex> lk(m);
-		if (hasreturned || !r) return;
-		hasreturned = true;
-		result = r;
-		lk.unlock();
-		cv.notify_one();
+	struct SharedData {
+		std::atomic_bool hasreturned = false;
+		std::mutex m;
+		std::condition_variable cv;
+		std::optional<R> result;
 	};
 
-	std::map<Peer*, int> record;
-	SHARED_LOCK(net_mutex_,lk);
+	auto sdata = std::make_shared<SharedData>();
 
-	for (auto p : peers_) {
-		if (!p->waitConnection()) continue;
-		count++;
-		record[p] = p->asyncCall<std::optional<R>>(name, handler, args...);
-	}
-	lk.unlock();
-	
-	{	// Block thread until async callback notifies us
-		std::unique_lock<std::mutex> llk(m);
-		// FIXME: what happens if one clients does not return (count != 0)?
-		cv.wait_for(llk, std::chrono::seconds(1), [&hasreturned, &count] {
-			return hasreturned && count == 0;
-		});
+	auto handler = [sdata](const std::optional<R> &r) {
+		std::unique_lock<std::mutex> lk(sdata->m);
+		if (r && !sdata->hasreturned) {
+			sdata->hasreturned = true;
+			sdata->result = r;
+		}
+		lk.unlock();
+		sdata->cv.notify_one();
+	};
 
-		// Cancel any further results
-		lk.lock();
+	{
+		SHARED_LOCK(net_mutex_,lk);
 		for (auto p : peers_) {
-			auto m = record.find(p);
-			if (m != record.end()) {
-				p->cancelCall(m->second);
-			}
+			if (!p->waitConnection()) continue;
+			p->asyncCall<std::optional<R>>(name, handler, args...);
 		}
 	}
+	
+	// Block thread until async callback notifies us
+	std::unique_lock<std::mutex> llk(sdata->m);
+	sdata->cv.wait_for(llk, std::chrono::seconds(1), [sdata] {
+		return (bool)sdata->hasreturned;
+	});
 
-	return result;
+	return sdata->result;
 }
 
 template <typename R, typename... ARGS>
 std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
-	int returncount = 0;
-	int sentcount = 0;
-	std::mutex m;
-	std::condition_variable cv;
-	
-	std::vector<R> results;
-
-	auto handler = [&](const std::vector<R> &r) {
-		//UNIQUE_LOCK(m,lk);
-		std::unique_lock<std::mutex> lk(m);
-		returncount++;
-		results.insert(results.end(), r.begin(), r.end());
-		lk.unlock();
-		cv.notify_one();
+	struct SharedData {
+		std::atomic_int returncount = 0;
+		std::atomic_int sentcount = 0;
+		std::mutex m;
+		std::condition_variable cv;
+		std::vector<R> results;
 	};
 
-	std::map<Peer*, int> record;
-	SHARED_LOCK(net_mutex_,lk);
-	for (auto p : peers_) {
-		if (!p->waitConnection()) continue;
-		sentcount++;
-		record[p] = p->asyncCall<std::vector<R>>(name, handler, args...);
-	}
-	lk.unlock();
-	
-	{  // Block thread until async callback notifies us
-		//UNIQUE_LOCK(m,llk);
-		std::unique_lock<std::mutex> llk(m);
-		cv.wait_for(llk, std::chrono::seconds(1), [&returncount,&sentcount]{return returncount == sentcount;});
+	auto sdata = std::make_shared<SharedData>();
 
-		// Cancel any further results
-		lk.lock();
+	auto handler = [sdata](const std::vector<R> &r) {
+		std::unique_lock<std::mutex> lk(sdata->m);
+		++sdata->returncount;
+		sdata->results.insert(sdata->results.end(), r.begin(), r.end());
+		lk.unlock();
+		sdata->cv.notify_one();
+	};
+
+	{
+		SHARED_LOCK(net_mutex_,lk);
 		for (auto p : peers_) {
-			auto m = record.find(p);
-			if (m != record.end()) {
-				p->cancelCall(m->second);
-			}
+			if (!p->waitConnection()) continue;
+			++sdata->sentcount;
+			p->asyncCall<std::vector<R>>(name, handler, args...);
 		}
 	}
-
-	return results;
+	
+	std::unique_lock<std::mutex> llk(sdata->m);
+	sdata->cv.wait_for(llk, std::chrono::seconds(1), [sdata]{return sdata->returncount == sdata->sentcount; });
+	return sdata->results;
 }
 
 template <typename R, typename... ARGS>

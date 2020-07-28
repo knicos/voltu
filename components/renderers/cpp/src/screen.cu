@@ -91,6 +91,12 @@ void ftl::cuda::screen_coord(TextureObject<float> &depth, TextureObject<float> &
 		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
 		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
 		}
+	} else if (params.projection == Projection::ORTHOGRAPHIC) {
+		switch (params.viewPortMode) {
+		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		}
 	}
 	cudaSafeCall( cudaGetLastError() );
 }

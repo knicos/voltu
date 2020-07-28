@@ -25,7 +25,10 @@ bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 	float noiseThresh = config()->value("noise_thresh", 0.8f);
 	float areaMax = config()->value("area_max", 26.0f);  // Cross support radius squared + 1
 
-	if (!in.hasChannel(Channel::Depth) || !in.hasChannel(Channel::Support1)) return false;
+	if (!in.hasChannel(Channel::Depth) || !in.hasChannel(Channel::Support1)) {
+		out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Depth or Support Channel in Mask Operator");
+		return false;
+	}
 
 	if (!out.hasChannel(Channel::Mask)) {
 		auto &m = out.create<cv::cuda::GpuMat>(Channel::Mask);
@@ -99,7 +102,7 @@ bool CullDiscontinuity::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 	unsigned int radius = config()->value("radius", 0);
 	bool inverted = config()->value("invert", false);
 	
-	out.clearPackets(Channel::Depth);  // Force reset
+	out.set<ftl::rgbd::VideoFrame>(Channel::Depth);  // Force reset
 	ftl::cuda::cull_mask(
 		in.createTexture<uint8_t>(Channel::Mask),
 		out.createTexture<float>(Channel::Depth),

@@ -56,7 +56,7 @@ bool StereoDisparity::apply(Frame &in, Frame &out, cudaStream_t stream) {
 	disp32f_.create(l.size(), CV_32FC1);
 
 	bool has_estimate = in.hasChannel(Channel::Disparity);
-	auto &disp = (!has_estimate) ? out.create<GpuMat>(Channel::Disparity, Format<short>(l.size())) : in.get<GpuMat>(Channel::Disparity);
+	auto &disp = (!has_estimate) ? out.create<ftl::rgbd::VideoFrame>(Channel::Disparity).createGPU(Format<short>(l.size())) : in.get<GpuMat>(Channel::Disparity);
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 

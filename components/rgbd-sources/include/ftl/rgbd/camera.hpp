@@ -143,6 +143,22 @@ inline float3 ftl::rgbd::Camera::unproject<ftl::rgbd::Projection::PERSPECTIVE>(c
 }
 
 template <> __device__ __host__
+inline float3 ftl::rgbd::Camera::project<ftl::rgbd::Projection::ORTHOGRAPHIC>(const float3 &pos) const {
+	return make_float3(
+		static_cast<float>(pos.x*fx - cx),			
+		static_cast<float>(pos.y*fy - cy),
+		pos.z
+	);
+}
+
+template <> __device__ __host__
+inline float3 ftl::rgbd::Camera::unproject<ftl::rgbd::Projection::ORTHOGRAPHIC>(const float3 &pos) const {
+	const float x = static_cast<float>((pos.x+cx) / fx);
+	const float y = static_cast<float>((pos.y+cy) / fy);
+	return make_float3(x, y, pos.z);
+}
+
+template <> __device__ __host__
 inline float2 ftl::rgbd::Camera::camToScreen<float2>(const float3 &pos) const {
 	return make_float2(
 		static_cast<float>(pos.x*fx/pos.z - cx),			

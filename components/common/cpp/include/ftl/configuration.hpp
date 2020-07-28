@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <unordered_set>
 
 namespace ftl {
 
@@ -24,6 +25,10 @@ bool create_directory(const std::string &path);
 bool is_video(const std::string &file);
 std::vector<std::string> directory_listing(const std::string &path);
 
+nlohmann::json loadJSON(const std::string &path);
+
+bool saveJSON(const std::string &path, nlohmann::json &json);
+
 namespace config {
 
 typedef nlohmann::json json_t;
@@ -34,9 +39,12 @@ std::optional<std::string> locateFile(const std::string &name);
 
 std::map<std::string, std::string> read_options(char ***argv, int *argc);
 
-Configurable *configure(int argc, char **argv, const std::string &root);
+Configurable *configure(int argc, char **argv, const std::string &root, const std::unordered_set<std::string> &restoreable={});
 
 Configurable *configure(json_t &);
+
+nlohmann::json &getRestore(const std::string &key);
+nlohmann::json &getDefault(const std::string &key);
 
 void cleanup();
 
@@ -74,6 +82,11 @@ json_t &resolveWait(const std::string &);
  * object for that reference. Or return nullptr if not found.
  */
 Configurable *find(const std::string &uri);
+
+/**
+ * Add an alternative URI for a configurable.
+ */
+void alias(const std::string &uri, Configurable *cfg);
 
 /**
  * Get all configurables that contain a specified tag. Tags are given under the
@@ -172,11 +185,12 @@ T *ftl::config::create(json_t &link, ARGS ...args) {
 		cfg->patchPtr(link);
 	}
 
-	try {
-		return dynamic_cast<T*>(cfg);
-	} catch(...) {
+	T* ptr = dynamic_cast<T*>(cfg);
+	if (ptr) {
+		return ptr;
+	}
+	else {
 		throw FTL_Error("Configuration URI object is of wrong type: " << id);
-		//return nullptr;
 	}
 }
 

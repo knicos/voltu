@@ -101,6 +101,8 @@ class Peer {
 	 * Make a reconnect attempt. Called internally by Universe object.
 	 */
 	bool reconnect();
+
+	inline bool isOutgoing() const { return outgoing_; }
 	
 	/**
 	 * Test if the connection is valid. This returns true in all conditions
@@ -193,6 +195,8 @@ class Peer {
 	bool isWaiting() const { return is_waiting_; }
 
 	void rawClose() { _badClose(false); }
+
+	inline void noReconnect() { can_reconnect_ = false; }
 	
 	public:
 	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently
@@ -206,8 +210,8 @@ class Peer {
 
 	void _badClose(bool retry=true);
 	
-	void _dispatchResponse(uint32_t id, msgpack::object &obj);
-	void _sendResponse(uint32_t id, const msgpack::object &obj);
+	void _dispatchResponse(uint32_t id, const std::string &name, msgpack::object &obj);
+	void _sendResponse(uint32_t id, const std::string &name, const msgpack::object &obj);
 	
 	/**
 	 * Get the internal OS dependent socket.
@@ -261,6 +265,7 @@ class Peer {
 	
 	std::string uri_;				// Original connection URI, or assumed URI
 	ftl::UUID peerid_;				// Received in handshake or allocated
+	bool outgoing_;
 	
 	ftl::net::Dispatcher *disp_;	// For RPC call dispatch
 	//std::vector<std::function<void(Peer &)>> open_handlers_;
@@ -268,7 +273,7 @@ class Peer {
 	//std::vector<std::function<void(Peer &)>> close_handlers_;
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 	
-	static volatile int rpcid__;				// Return ID for RPC calls
+	static std::atomic_int rpcid__;				// Return ID for RPC calls
 };
 
 // --- Inline Template Implementations -----------------------------------------

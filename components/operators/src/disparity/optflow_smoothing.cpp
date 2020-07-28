@@ -47,7 +47,7 @@ void OpticalFlowTemporalSmoothing::_init(ftl::Configurable* cfg) {
 
 	threshold_ = cfg->value("threshold", 5.0f);
 
-	cfg->on("threshold", [this](const ftl::config::Event&) {
+	cfg->on("threshold", [this]() {
 		float threshold = config()->value("threshold", 5.0f);
 		if (threshold < 0.0) {
 			LOG(WARNING) << "invalid threshold " << threshold << ", value must be positive";
@@ -58,7 +58,7 @@ void OpticalFlowTemporalSmoothing::_init(ftl::Configurable* cfg) {
 		}
 	});
 
-	cfg->on("history_size", [this, &cfg](const ftl::config::Event&) {
+	cfg->on("history_size", [this, &cfg]() {
 		int n_max = cfg->value("history_size", 7);
 
 		if (n_max < 1) {
@@ -89,14 +89,14 @@ bool OpticalFlowTemporalSmoothing::apply(Frame &in, Frame &out, cudaStream_t str
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 	const cv::cuda::GpuMat &optflow = in.get<cv::cuda::GpuMat>(Channel::Flow);
-	cv::cuda::GpuMat &data = out.get<cv::cuda::GpuMat>(channel_);
+	cv::cuda::GpuMat &data = out.set<cv::cuda::GpuMat>(channel_);
 	
 	if (data.size() != size_) {
 		size_ = data.size();
 		if (!init()) { return false; }
 	}
 
-	ftl::cuda::optflow_filter(data, optflow, history_, in.get<cv::cuda::GpuMat>(Channel::Support1), n_max_, threshold_, config()->value("filling", false), cvstream);
+	ftl::cuda::optflow_filter(data, optflow, history_, in.set<cv::cuda::GpuMat>(Channel::Support1), n_max_, threshold_, config()->value("filling", false), cvstream);
 	
 	return true;
 }

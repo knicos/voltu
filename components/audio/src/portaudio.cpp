@@ -1,17 +1,19 @@
 #include <ftl/audio/portaudio.hpp>
 #include <ftl/config.h>
+#include <ftl/threads.hpp>
 #include <loguru.hpp>
 
 #include <atomic>
 
 static std::atomic<int> counter = 0;
+static MUTEX pa_mutex;
 
 #ifdef HAVE_PORTAUDIO
 
 #include <portaudio.h>
 
 void ftl::audio::pa_init() {
-    // TODO: Mutex lock?
+    UNIQUE_LOCK(pa_mutex, lk);
     if (counter == 0) {
         auto err = Pa_Initialize();
         if (err != paNoError) {
@@ -34,7 +36,7 @@ void ftl::audio::pa_init() {
 }
 
 void ftl::audio::pa_final() {
-    // TODO: Mutex lock?
+    UNIQUE_LOCK(pa_mutex, lk);
     --counter;
     if (counter == 0) {
         auto err = Pa_Terminate();

@@ -2,6 +2,7 @@
 
 #include <ftl/streams/filestream.hpp>
 #include <nlohmann/json.hpp>
+#include <ftl/timer.hpp>
 
 using ftl::stream::File;
 using ftl::stream::Stream;
@@ -29,19 +30,21 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		REQUIRE( writer->begin() );
 
-		REQUIRE( writer->post({4,ftl::timer::get_time(),2,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, ftl::codecs::definition_t::Any, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({4,ftl::timer::get_time(),2,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
 
 		writer->end();
 
 		reader->set("filename", "/tmp/ftl_file_stream_test.ftl");
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
-		REQUIRE( reader->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = reader->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
-		}) );
+			return true;
+		});
 		REQUIRE( reader->begin(false) );
 
-		//reader->tick();
+		reader->tick(100);
+		reader->end();
 
 		//REQUIRE( tspkt.timestamp == 0 );
 		REQUIRE( tspkt.streamID == (uint8_t)2 );
@@ -54,9 +57,9 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		REQUIRE( writer->begin() );
 
-		REQUIRE( writer->post({4,0,0,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, ftl::codecs::definition_t::Any, 0, 0, 0, {'f'}}) );
-		REQUIRE( writer->post({4,0,1,1,ftl::codecs::Channel::Depth},{ftl::codecs::codec_t::Any, ftl::codecs::definition_t::Any, 0, 0, 0, {'f'}}) );
-		REQUIRE( writer->post({4,0,2,1,ftl::codecs::Channel::Screen},{ftl::codecs::codec_t::Any, ftl::codecs::definition_t::Any, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({4,0,0,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({4,0,1,1,ftl::codecs::Channel::Depth},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({4,0,2,1,ftl::codecs::Channel::Screen},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
 
 		writer->end();
 
@@ -64,13 +67,15 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
 		int count = 0;
-		REQUIRE( reader->onPacket([&tspkt,&count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = reader->onPacket([&tspkt,&count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
 			++count;
-		}) );
+			return true;
+		});
 		REQUIRE( reader->begin(false) );
 
-		//reader->tick();
+		reader->tick(100);
+		reader->end();
 
 		REQUIRE( count == 3 );
 		REQUIRE( tspkt.timestamp > 0 );
@@ -85,9 +90,9 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 		REQUIRE( writer->begin() );
 
 		auto time = ftl::timer::get_time();
-		REQUIRE( writer->post({4,time,0,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, ftl::codecs::definition_t::Any, 0, 0, 0, {'f'}}) );
-		REQUIRE( writer->post({4,time+ftl::timer::getInterval(),0,1,ftl::codecs::Channel::Depth},{ftl::codecs::codec_t::Any, ftl::codecs::definition_t::Any, 0, 0, 0, {'f'}}) );
-		REQUIRE( writer->post({4,time+2*ftl::timer::getInterval(),0,1,ftl::codecs::Channel::Screen},{ftl::codecs::codec_t::Any, ftl::codecs::definition_t::Any, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({4,time,0,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({4,time+ftl::timer::getInterval(),0,1,ftl::codecs::Channel::Depth},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({4,time+2*ftl::timer::getInterval(),0,1,ftl::codecs::Channel::Screen},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
 
 		writer->end();
 
@@ -95,27 +100,29 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
 		int count = 0;
-		REQUIRE( reader->onPacket([&tspkt,&count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		auto h = reader->onPacket([&tspkt,&count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
 			++count;
-		}) );
+			return true;
+		});
 		REQUIRE( reader->begin(false) );
 
-		//reader->tick();
+		reader->tick(100);
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		REQUIRE( count == 1 );
 		//REQUIRE( tspkt.timestamp == 0 );
 		//auto itime = tspkt.timestamp;
 
 		count = 0;
-		reader->tick(0);
+		reader->tick(101);
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		REQUIRE( count == 1 );
 		//REQUIRE( tspkt.timestamp == itime+ftl::timer::getInterval() );
 
 		count = 0;
-		reader->tick(0);
+		reader->tick(102);
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		REQUIRE( count == 1 );

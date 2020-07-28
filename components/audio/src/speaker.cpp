@@ -8,7 +8,6 @@
 using ftl::audio::Speaker;
 using ftl::audio::Frame;
 using ftl::audio::FrameSet;
-using ftl::audio::FrameState;
 using ftl::audio::Audio;
 using ftl::codecs::Channel;
 
@@ -36,9 +35,10 @@ Speaker::Speaker(nlohmann::json &config) : ftl::Configurable(config), buffer_(nu
 	#else  // No portaudio
 	LOG(ERROR) << "No audio support";
 	#endif
+	volume_ = 1.0f;
 	active_ = false;
 	extra_delay_ = value("delay",0.0f);
-	on("delay", [this](const ftl::config::Event &e) {
+	on("delay", [this]() {
 		extra_delay_ = value("delay",0.0f);
 	});
 }
@@ -48,7 +48,7 @@ Speaker::~Speaker() {
 		active_ = false;
 
 		#ifdef HAVE_PORTAUDIO
-		auto err = Pa_StopStream(stream_);
+		auto err = Pa_AbortStream(stream_);
 
 		if (err != paNoError) {
 			LOG(ERROR) << "Portaudio stop stream error: " << Pa_GetErrorText(err);
@@ -83,12 +83,12 @@ void Speaker::_open(int fsize, int sample, int channels) {
 	}
 
 	PaStreamParameters outputParameters;
-    //bzero( &inputParameters, sizeof( inputParameters ) );
-    outputParameters.channelCount = channels;
-    outputParameters.device = Pa_GetDefaultOutputDevice();
-    outputParameters.sampleFormat = paInt16;
-    outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
-    outputParameters.hostApiSpecificStreamInfo = NULL;
+	//bzero( &inputParameters, sizeof( inputParameters ) );
+	outputParameters.channelCount = channels;
+	outputParameters.device = Pa_GetDefaultOutputDevice();
+	outputParameters.sampleFormat = paInt16;
+	outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
+	outputParameters.hostApiSpecificStreamInfo = NULL;
 
 	//LOG(INFO) << "OUTPUT LATENCY: " << outputParameters.suggestedLatency;
 	latency_ = int64_t(outputParameters.suggestedLatency * 1000.0);
@@ -97,8 +97,8 @@ void Speaker::_open(int fsize, int sample, int channels) {
 		&stream_,
 		NULL,
 		&outputParameters,
-		sample,  // Sample rate
-		960,    // Size of single frame
+		sample,	// Sample rate
+		960,	// Size of single frame
 		paNoFlag,
 		(channels == 1) ? pa_speaker_callback<ftl::audio::MonoBuffer16<2000>> : pa_speaker_callback<ftl::audio::StereoBuffer16<2000>>,
 		this->buffer_
@@ -127,15 +127,27 @@ void Speaker::_open(int fsize, int sample, int channels) {
 }
 
 void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
-	auto &audio = frame.get<ftl::audio::Audio>((frame.hasChannel(Channel::AudioStereo)) ? Channel::AudioStereo : Channel::AudioMono);
+	const auto &audio = frame.get<std::list<ftl::audio::Audio>>
+		((frame.hasChannel(Channel::AudioStereo)) ? Channel::AudioStereo : Channel::AudioMono);
 
 	if (!buffer_) {
-		_open(960, frame.getSettings().sample_rate, frame.getSettings().channels);
+		_open(960, 48000, (frame.hasChannel(Channel::AudioStereo)) ? 2 : 1);
 	}
 	if (!buffer_) return;
 
 	//LOG(INFO) << "Buffer Fullness (" << ts << "): " << buffer_->size() << " - " << audio.size();
-	buffer_->write(audio.data());
+	for (const auto &d : audio) {
+		if (volume_ != 1.0) {
+			auto data = d.data();
+			for (auto &v : data) {
+				v = v * volume_;
+			}
+			buffer_->write(data);
+		}
+		else {
+			buffer_->write(d.data());
+		}
+	}
 	//LOG(INFO) << "Audio delay: " << buffer_.delay() << "s";
 }
 
@@ -147,4 +159,13 @@ void Speaker::setDelay(int64_t ms) {
 		buffer_->setDelay(d);
 		//LOG(INFO) << "Audio delay: " << buffer_->delay();
 	}
+}
+
+void Speaker::setVolume(float value) {
+	// TODO: adjust volume using system mixer
+	volume_ = std::max(0.0f, std::min(1.0f, value));
+}
+
+float Speaker::volume() {
+	return volume_;
 }

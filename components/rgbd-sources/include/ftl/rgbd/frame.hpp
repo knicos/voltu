@@ -8,7 +8,7 @@
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
-#include <ftl/data/frame.hpp>
+#include <ftl/data/new_frame.hpp>
 
 #include <ftl/codecs/channels.hpp>
 #include <ftl/rgbd/format.hpp>
@@ -16,8 +16,8 @@
 #include <ftl/codecs/codecs.hpp>
 #include <ftl/codecs/packet.hpp>
 #include <ftl/utility/vectorbuffer.hpp>
-#include <ftl/data/framestate.hpp>
 #include <ftl/cuda_common.hpp>
+#include <ftl/rgbd/capabilities.hpp>
 
 #include <type_traits>
 #include <array>
@@ -28,264 +28,201 @@
 namespace ftl {
 namespace rgbd {
 
-typedef ftl::data::FrameState<ftl::rgbd::Camera,2> FrameState;
+//typedef ftl::data::Frame Frame;
 
-struct VideoData {
-	ftl::cuda::TextureObjectBase tex;
+/*inline const ftl::rgbd::Camera &getLeftCamera(const Frame &f) { return f.get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration); }
+inline const ftl::rgbd::Camera &getRightCamera(const Frame &f) { return f.get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration2); }
+inline const ftl::rgbd::Camera &getLeft(const Frame &f) { return f.get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration); }
+inline const ftl::rgbd::Camera &getRight(const Frame &f) { return f.get<ftl::rgbd::Camera>(ftl::codecs::Channel::Calibration2); }
+inline const Eigen::Matrix4d &getPose(const Frame &f) { return f.get<Eigen::Matrix4d>(ftl::codecs::Channel::Pose); }*/
+
+class VideoFrame {
+	public:
+	VideoFrame() {}
+
+	// Manually add copy constructor since default is removed
+	VideoFrame(const VideoFrame &);
+	VideoFrame &operator=(const VideoFrame &);
+
+	template <typename T>
+	ftl::cuda::TextureObject<T> &createTexture(const ftl::rgbd::Format<T> &f, bool interpolated);
+
+	template <typename T>
+	ftl::cuda::TextureObject<T> &createTexture(bool interpolated=false) const;
+
+	cv::cuda::GpuMat &createGPU();
+	cv::cuda::GpuMat &createGPU(const ftl::rgbd::FormatBase &f);
+
+	template <typename T> ftl::cuda::TextureObject<T> &getTexture(ftl::codecs::Channel) const;
+
+	cv::Mat &createCPU();
+	cv::Mat &createCPU(const ftl::rgbd::FormatBase &f);
+
+	const cv::Mat &getCPU() const;
+	const cv::cuda::GpuMat &getGPU() const;
+
+	cv::Mat &setCPU();
+	cv::cuda::GpuMat &setGPU();
+
+	inline bool isGPU() const { return isgpu; };
+
+	inline bool hasOpenGL() const { return opengl_id != 0; }
+	inline void setOpenGL(unsigned int id) { opengl_id = id; }
+	inline unsigned int getOpenGL() const { return opengl_id; }
+
+
+	private:
+	mutable ftl::cuda::TextureObjectBase tex;
 	cv::cuda::GpuMat gpu;
-	cv::Mat host;
-	bool isgpu;
-	bool validhost;
-	std::list<ftl::codecs::Packet> encoded;
-
-	template <typename T>
-	T &as() {
-		throw FTL_Error("Unsupported type for Video data channel");
-	};
-
-	template <typename T>
-	const T &as() const {
-		throw FTL_Error("Unsupported type for Video data channel");
-	};
-
-	template <typename T>
-	T &make() {
-		throw FTL_Error("Unsupported type for Video data channel");
-	};
-
-	inline void reset() {
-		validhost = false;
-		encoded.clear();
-	}
+	mutable cv::Mat host;
+	unsigned int opengl_id=0;
+	bool isgpu=false;
+	mutable bool validhost=false;
 };
 
-// Specialisations for cv mat types
-template <> cv::Mat &VideoData::as<cv::Mat>();
-template <> const cv::Mat &VideoData::as<cv::Mat>() const;
-template <> cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>();
-template <> const cv::cuda::GpuMat &VideoData::as<cv::cuda::GpuMat>() const;
+class Frame : public ftl::data::Frame {
+	public:
+	const ftl::rgbd::Camera &getLeftCamera() const;
+	const ftl::rgbd::Camera &getRightCamera() const;
+	inline const ftl::rgbd::Camera &getLeft() const { return getLeftCamera(); }
+	inline const ftl::rgbd::Camera &getRight() const { return getRightCamera(); }
+	const Eigen::Matrix4d &getPose() const;
+	ftl::rgbd::Camera &setLeft();
+	ftl::rgbd::Camera &setRight();
+	Eigen::Matrix4d &setPose();
 
-template <> cv::Mat &VideoData::make<cv::Mat>();
-template <> cv::cuda::GpuMat &VideoData::make<cv::cuda::GpuMat>();
+	std::string serial() const;
+	std::string device() const;
 
-/**
- * Manage a set of image channels corresponding to a single camera frame.
- */
-class Frame : public ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData> {
-//class Frame {
-public:
-	using ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>::create;
+	/** Note, this throws exception if channel is missing */
+	const std::unordered_set<ftl::rgbd::Capability> &capabilities() const;
 
-	Frame();
-	Frame(Frame &&f);
-	~Frame();
+	/** Does not throw exception */
+	bool hasCapability(ftl::rgbd::Capability) const;
 
-	Frame &operator=(Frame &&f);
+	inline bool isLive() const { return hasCapability(ftl::rgbd::Capability::LIVE); }
+	inline bool isVirtual() const { return hasCapability(ftl::rgbd::Capability::VIRTUAL); }
+	inline bool isMovable() const { return hasCapability(ftl::rgbd::Capability::MOVABLE); }
+	inline bool isTouchable() const { return hasCapability(ftl::rgbd::Capability::TOUCH); }
+	inline bool isVR() const { return hasCapability(ftl::rgbd::Capability::VR); }
+	inline bool is360() const { return hasCapability(ftl::rgbd::Capability::EQUI_RECT); }
+	inline bool isSideBySideStereo() const { return hasCapability(ftl::rgbd::Capability::STEREO); }
 
-	// Prevent frame copy, instead use a move.
-	//Frame(const Frame &)=delete;
-	//Frame &operator=(const Frame &)=delete;
+	void upload(ftl::codecs::Channel c);
 
-	void download(ftl::codecs::Channel c, cv::cuda::Stream stream);
-	void upload(ftl::codecs::Channel c, cv::cuda::Stream stream);
-	void download(ftl::codecs::Channels<0> c, cv::cuda::Stream stream);
-	void upload(ftl::codecs::Channels<0> c, cv::cuda::Stream stream);
+	bool isGPU(ftl::codecs::Channel c) const;
+	bool hasOpenGL(ftl::codecs::Channel c) const;
+	unsigned int getOpenGL(ftl::codecs::Channel c) const;
 
-	inline void download(ftl::codecs::Channel c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
-	inline void upload(ftl::codecs::Channel c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
-	inline void download(const ftl::codecs::Channels<0> &c, cudaStream_t stream=0) { download(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
-	inline void upload(const ftl::codecs::Channels<0> &c, cudaStream_t stream=0) { upload(c, cv::cuda::StreamAccessor::wrapStream(stream)); };
-
-	/**
-	 * Special case optional download. If a host memory version still exists,
-	 * use that. Only download if no host version exists. This assumes that
-	 * the GPU version has not been modified since the host version was created,
-	 * in otherwords that both version are still the same. It also does not
-	 * actually mark the channel as downloaded.
-	 */
-	cv::Mat &fastDownload(ftl::codecs::Channel c, cv::cuda::Stream stream);
-
-	/**
-	 * Get an existing CUDA texture object.
-	 */
-	template <typename T> const ftl::cuda::TextureObject<T> &getTexture(ftl::codecs::Channel) const;
-
-	/**
-	 * Get an existing CUDA texture object.
-	 */
-	template <typename T> ftl::cuda::TextureObject<T> &getTexture(ftl::codecs::Channel);
-
-	/**
-	 * Create a channel with a given format. This will discard any existing
-	 * data associated with the channel and ensure all data structures and
-	 * memory allocations match the new format.
-	 */
-	template <typename T> T &create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &f);
-
-	/**
-	 * Create a CUDA texture object for a channel. This version takes a format
-	 * argument to also create (or recreate) the associated GpuMat.
-	 */
 	template <typename T>
-	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, const ftl::rgbd::Format<T> &f, bool interpolated=false);
+	ftl::cuda::TextureObject<T> &getTexture(ftl::codecs::Channel c) { return this->get<VideoFrame>(c).getTexture<T>(c); }
 
-	/**
-	 * Create a CUDA texture object for a channel. With this version the GpuMat
-	 * must already exist and be of the correct type.
-	 */
 	template <typename T>
-	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, bool interpolated=false);
+	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, bool interpolated=false) { return this->get<VideoFrame>(c).createTexture<T>(interpolated); }
 
-	/**
-	 * Append encoded data for a channel. This will move the data, invalidating
-	 * the original packet structure. It is to be used to allow data that is
-	 * already encoded to be transmitted or saved again without re-encoding.
-	 * A called to `create` will clear all encoded data for that channel.
-	 */
-	void pushPacket(ftl::codecs::Channel c, ftl::codecs::Packet &pkt);
+	template <typename T>
+	ftl::cuda::TextureObject<T> &createTexture(ftl::codecs::Channel c, const ftl::rgbd::Format<T> &fmt, bool interpolated=false) { return this->create<VideoFrame>(c).createTexture<T>(fmt, interpolated); }
 
-	/**
-	 * Obtain a list of any existing encodings for this channel.
-	 */
-	const std::list<ftl::codecs::Packet> &getPackets(ftl::codecs::Channel c) const;
-
-	/**
-	 * Clear any existing encoded packets. Used when the channel data is
-	 * modified and the encodings are therefore out-of-date.
-	 */
-	void clearPackets(ftl::codecs::Channel c);
-
-	/**
-	 * Packets from multiple frames are merged together in sequence. An example
-	 * case is if a frame gets dropped but the original encoding is inter-frame
-	 * and hence still requires the dropped frames encoding data.
-	 */
-	void mergeEncoding(ftl::rgbd::Frame &f);
-
-	void resetTexture(ftl::codecs::Channel c);
-
-	/**
-	 * Check if any specified channels are empty or missing.
-	 */
-	bool empty(ftl::codecs::Channels<0> c);
-
-	/**
-	 * Check if a specific channel is missing or has no memory allocated.
-	 */
-	inline bool empty(ftl::codecs::Channel c) {
-		auto &m = getData(c);
-		return !hasChannel(c) || (m.host.empty() && m.gpu.empty());
-	}
-
-	/**
-	 * Obtain a mask of all available channels in the frame.
-	 */
-	inline ftl::codecs::Channels<0> getVideoChannels() const { return getChannels(); }
-
-	inline const ftl::rgbd::Camera &getLeftCamera() const { return getLeft(); }
-	inline const ftl::rgbd::Camera &getRightCamera() const { return getRight(); }
-
-	/**
-	 * Is the channel data currently located on GPU. This also returns false if
-	 * the channel does not exist.
-	 */
-	inline bool isGPU(ftl::codecs::Channel channel) const {
-		return hasChannel(channel) && getData(channel).isgpu;
-	}
-
-	/**
-	 * Is the channel data currently located on CPU memory. This also returns
-	 * false if the channel does not exist.
-	 */
-	inline bool isCPU(ftl::codecs::Channel channel) const {
-		return hasChannel(channel) && !getData(channel).isgpu;
-	}
 };
 
-// Specialisations
-
-template <> cv::Mat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &);
-template <> cv::cuda::GpuMat &Frame::create(ftl::codecs::Channel c, const ftl::rgbd::FormatBase &);
 
 template <typename T>
-ftl::cuda::TextureObject<T> &Frame::getTexture(ftl::codecs::Channel c) {
-	if (!hasChannel(c)) throw FTL_Error("Texture channel does not exist: " << (int)c);
+ftl::cuda::TextureObject<T> &VideoFrame::getTexture(ftl::codecs::Channel c) const {
+	if (!isgpu) throw FTL_Error("Texture channel is not on GPU");
 
-	auto &m = getData(c);
-	if (!m.isgpu) throw FTL_Error("Texture channel is not on GPU");
-
-	if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != static_cast<size_t>(m.gpu.cols) || m.tex.height() != static_cast<size_t>(m.gpu.rows) || m.gpu.type() != m.tex.cvType()) {
-		throw FTL_Error("Texture has not been created properly for this channel: " << (int)c);
+	if (tex.cvType() != ftl::traits::OpenCVType<T>::value || tex.width() != static_cast<size_t>(gpu.cols) || tex.height() != static_cast<size_t>(gpu.rows) || gpu.type() != tex.cvType()) {
+		throw FTL_Error("Texture has not been created properly " << int(c));
 	}
 
-	return ftl::cuda::TextureObject<T>::cast(m.tex);
+	return ftl::cuda::TextureObject<T>::cast(tex);
 }
 
 template <typename T>
-ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, const ftl::rgbd::Format<T> &f, bool interpolated) {
-	//if (!hasChannel(c)) channels_ += c;
-	//using ftl::data::Frame<0,32,ftl::rgbd::FrameState,VideoData>::create;
-
-	create<cv::cuda::GpuMat>(c);
-	auto &m = getData(c);
+ftl::cuda::TextureObject<T> &VideoFrame::createTexture(const ftl::rgbd::Format<T> &f, bool interpolated) {
+	createGPU();
 
 	if (f.empty()) {
 		throw FTL_Error("createTexture needs a non-empty format");
 	} else {
-		m.gpu.create(f.size(), f.cvType);
+		gpu.create(f.size(), f.cvType);
 	}
 
-	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
-		throw FTL_Error("Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value);
+	if (gpu.type() != ftl::traits::OpenCVType<T>::value) {
+		throw FTL_Error("Texture type mismatch: " << gpu.type() << " != " << ftl::traits::OpenCVType<T>::value);
 	}
 
 	// TODO: Check tex cvType
 
-	if (m.tex.devicePtr() == nullptr) {
+	if (tex.devicePtr() == nullptr) {
 		//LOG(INFO) << "Creating texture object";
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
-	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != static_cast<size_t>(m.gpu.cols) || m.tex.height() != static_cast<size_t>(m.gpu.rows)) {
+		tex = ftl::cuda::TextureObject<T>(gpu, interpolated);
+	} else if (tex.cvType() != ftl::traits::OpenCVType<T>::value || tex.width() != static_cast<size_t>(gpu.cols) || tex.height() != static_cast<size_t>(gpu.rows)) {
 		//LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'";
-		m.tex.free();
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
+		tex.free();
+		tex = ftl::cuda::TextureObject<T>(gpu, interpolated);
 	}
 
-	return ftl::cuda::TextureObject<T>::cast(m.tex);
+	return ftl::cuda::TextureObject<T>::cast(tex);
 }
 
 template <typename T>
-ftl::cuda::TextureObject<T> &Frame::createTexture(ftl::codecs::Channel c, bool interpolated) {
-	if (!hasChannel(c)) throw FTL_Error("createTexture needs a format if the channel does not exist: " << (int)c);
-
-	auto &m = getData(c);
-
-	if (!m.isgpu && !m.host.empty()) {
-		m.gpu.create(m.host.size(), m.host.type());
+ftl::cuda::TextureObject<T> &VideoFrame::createTexture(bool interpolated) const {
+	if (!isgpu && !host.empty()) {
+		//gpu.create(host.size(), host.type());
 		// TODO: Should this upload to GPU or not?
 		//gpu_ += c;
-	} else if (!m.isgpu || (m.isgpu && m.gpu.empty())) {
+		throw FTL_Error("Cannot create a texture on a host frame");
+	} else if (!isgpu || (isgpu && gpu.empty())) {
 		throw FTL_Error("createTexture needs a format if no memory is allocated");
 	}
 
-	if (m.gpu.type() != ftl::traits::OpenCVType<T>::value) {
-		throw FTL_Error("Texture type mismatch: " << (int)c << " " << m.gpu.type() << " != " << ftl::traits::OpenCVType<T>::value);
+	if (gpu.type() != ftl::traits::OpenCVType<T>::value) {
+		throw FTL_Error("Texture type mismatch: " << gpu.type() << " != " << ftl::traits::OpenCVType<T>::value);
 	}
 
 	// TODO: Check tex cvType
 
-	if (m.tex.devicePtr() == nullptr) {
+	if (tex.devicePtr() == nullptr) {
 		//LOG(INFO) << "Creating texture object";
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
-	} else if (m.tex.cvType() != ftl::traits::OpenCVType<T>::value || m.tex.width() != static_cast<size_t>(m.gpu.cols) || m.tex.height() != static_cast<size_t>(m.gpu.rows) || m.tex.devicePtr() != m.gpu.data) {
+		tex = ftl::cuda::TextureObject<T>(gpu, interpolated);
+	} else if (tex.cvType() != ftl::traits::OpenCVType<T>::value || tex.width() != static_cast<size_t>(gpu.cols) || tex.height() != static_cast<size_t>(gpu.rows) || tex.devicePtr() != gpu.data) {
 		//LOG(INFO) << "Recreating texture object for '" << ftl::codecs::name(c) << "'.";
-		m.tex.free();
-		m.tex = ftl::cuda::TextureObject<T>(m.gpu, interpolated);
+		tex.free();
+		tex = ftl::cuda::TextureObject<T>(gpu, interpolated);
 	}
 
-	return ftl::cuda::TextureObject<T>::cast(m.tex);
+	return ftl::cuda::TextureObject<T>::cast(tex);
 }
 
 }
+}
+
+template <>
+cv::Mat &ftl::data::Frame::create<cv::Mat, 0>(ftl::codecs::Channel c);
+
+template <>
+cv::cuda::GpuMat &ftl::data::Frame::create<cv::cuda::GpuMat, 0>(ftl::codecs::Channel c);
+
+template <>
+const cv::Mat &ftl::data::Frame::get<cv::Mat>(ftl::codecs::Channel c) const;
+
+template <>
+const cv::cuda::GpuMat &ftl::data::Frame::get<cv::cuda::GpuMat>(ftl::codecs::Channel c) const;
+
+template <>
+cv::Mat &ftl::data::Frame::set<cv::Mat, 0>(ftl::codecs::Channel c);
+
+template <>
+cv::cuda::GpuMat &ftl::data::Frame::set<cv::cuda::GpuMat, 0>(ftl::codecs::Channel c);
+
+template <>
+inline bool ftl::data::make_type<ftl::rgbd::VideoFrame>() {
+	return false;
+}
+
+template <>
+inline bool ftl::data::decode_type<ftl::rgbd::VideoFrame>(std::any &a, const std::vector<uint8_t> &data) {
+	return false;
 }
 
 #endif // _FTL_RGBD_FRAME_HPP_

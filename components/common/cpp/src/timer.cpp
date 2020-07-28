@@ -29,9 +29,9 @@ static int last_id = 0;
 static bool clock_slave = true;
 
 struct TimerJob {
-	int id;
-	function<bool(int64_t)> job;
-	volatile bool active;
+	int id=0;
+	ftl::SingletonHandler<int64_t> job;
+	std::atomic_bool active=false;
 	// TODO: (Nick) Implement richer forms of timer
 	//bool paused;
 	//int multiplier;
@@ -76,10 +76,34 @@ static void waitTimePoint() {
 		auto idle_job = jobs[kTimerIdle10].begin();
 		while (idle_job != jobs[kTimerIdle10].end() && msdelay >= 10 && sincelast != mspf) {
 			(*idle_job).active = true;
-			bool doremove = !(*idle_job).job(now);
+			bool doremove = !(*idle_job).job.trigger(now);
 
 			if (doremove) {
 				idle_job = jobs[kTimerIdle10].erase(idle_job);
+				LOG(INFO) << "Timer job removed";
+			} else {
+				(*idle_job++).active = false;
+			}
+			now = get_time();
+			msdelay = mspf - (now % mspf);
+		}
+	}
+
+	/*while (msdelay >= 10 && sincelast != mspf) {
+		sleep_for(milliseconds(5));
+		now = get_time();
+		msdelay = mspf - (now % mspf);
+	}*/
+
+	if (msdelay >= 2 && sincelast != mspf) {
+		UNIQUE_LOCK(mtx, lk);
+		auto idle_job = jobs[kTimerIdle1].begin();
+		while (idle_job != jobs[kTimerIdle1].end() && msdelay >= 2 && sincelast != mspf) {
+			(*idle_job).active = true;
+			bool doremove = !(*idle_job).job.trigger(now);
+
+			if (doremove) {
+				idle_job = jobs[kTimerIdle1].erase(idle_job);
 				LOG(INFO) << "Timer job removed";
 			} else {
 				(*idle_job++).active = false;
@@ -106,6 +130,8 @@ static void waitTimePoint() {
 		now = get_time();
 	}
 	last_frame = now/mspf;
+	int64_t over = now - (last_frame*mspf);
+	if (over > 1) LOG(WARNING) << "Timer off by " << over << "ms";
 }
 
 void ftl::timer::setInterval(int ms) {
@@ -117,7 +143,7 @@ void ftl::timer::setHighPrecision(bool hp) {
 }
 
 int ftl::timer::getInterval() {
-	return mspf;
+	return static_cast<int>(mspf);
 }
 
 void ftl::timer::setClockAdjustment(int64_t ms) {
@@ -132,13 +158,16 @@ bool ftl::timer::isClockSlave() {
 	return clock_slave;
 }
 
-const TimerHandle ftl::timer::add(timerlevel_t l, const std::function<bool(int64_t ts)> &f) {
+ftl::Handle ftl::timer::add(timerlevel_t l, const std::function<bool(int64_t ts)> &f) {
 	if (l < 0 || l >= kTimerMAXLEVEL) return {};
 
 	UNIQUE_LOCK(mtx, lk);
 	int newid = last_id++;
-	jobs[l].push_back({newid, f, false, "NoName"});
-	return TimerHandle(newid);
+	auto &j = jobs[l].emplace_back();
+	j.id = newid;
+	j.name = "NoName";
+	ftl::Handle h = j.job.on(f);
+	return h;
 }
 
 static void removeJob(int id) {
@@ -162,23 +191,28 @@ static void trigger_jobs() {
 	UNIQUE_LOCK(mtx, lk);
 	const int64_t ts = last_frame*mspf;
 
+	if (active_jobs > 1) {
+		LOG(WARNING) << "Previous timer incomplete, skipping " << ts;
+		return;
+	}
+
 	// First do non-blocking high precision callbacks
 	const int64_t before = get_time();
 	for (auto &j : jobs[kTimerHighPrecision]) {
-		j.job(ts);
+		j.job.trigger(ts);
 	}
 	const int64_t after = get_time();
 	if (after - before > 1) LOG(WARNING) << "Precision jobs took too long (" << (after-before) << "ms)";
 
 	// Then do also non-blocking swap callbacks
 	for (auto &j : jobs[kTimerSwap]) {
-		j.job(ts);
+		j.job.trigger(ts);
 	}
 
 	// Now use thread jobs to do more intensive callbacks
 	for (auto &j : jobs[kTimerMain]) {
 		if (j.active) {
-			//LOG(WARNING) << "Timer job too slow ... skipped for " << ts;
+			LOG(WARNING) << "Timer job too slow ... skipped for " << ts;
 			continue;
 		}
 		j.active = true;
@@ -186,12 +220,32 @@ static void trigger_jobs() {
 
 		auto *pj = &j;
 
-		ftl::pool.push([pj,ts](int id) {
-			bool doremove = !pj->job(ts);
+		// If last job in list then do in this thread
+		if (active_jobs == static_cast<int>(jobs[kTimerMain].size())+1) {
+			lk.unlock();
+			bool doremove = !pj->job.trigger(ts);
 			pj->active = false;
 			active_jobs--;
 			if (doremove) removeJob(pj->id);
-		});
+			lk.lock();
+			break;
+		} else {
+			ftl::pool.push([pj,ts](int id) {
+				bool doremove = !pj->job.trigger(ts);
+				pj->active = false;
+				active_jobs--;
+				if (doremove) removeJob(pj->id);
+			});
+		}
+	}
+
+	// Final cleanup of stale jobs
+	for (size_t j=0; j<kTimerMAXLEVEL; ++j) {
+		for (auto i=jobs[j].begin(); i!=jobs[j].end(); i++) {
+			if ((bool)((*i).job) == false) {
+				i = jobs[j].erase(i);
+			}
+		}
 	}
 }
 
@@ -245,26 +299,4 @@ void ftl::timer::reset() {
 	for (int i=0; i<ftl::timer::kTimerMAXLEVEL; i++) {
 		jobs[i].clear();
 	}
-}
-
-// ===== TimerHandle ===========================================================
-
-void ftl::timer::TimerHandle::cancel() const {
-	removeJob(id());
-}
-
-void ftl::timer::TimerHandle::pause() const {
-
-}
-
-void ftl::timer::TimerHandle::unpause() const {
-
-}
-
-void ftl::timer::TimerHandle::setMultiplier(unsigned int N) const {
-
-}
-
-void ftl::timer::TimerHandle::setName(const std::string &name) const {
-
 }

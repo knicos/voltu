@@ -191,7 +191,7 @@ TEST_CASE( "NvidiaEncoder::encode() - A large tiled lossy float image" ) {
 	SECTION("auto codec and definition, 4x2 frame") {
 		ftl::codecs::Packet pkt;
 		pkt.codec = codec_t::Any;
-		pkt.bitrate = 255;
+		pkt.bitrate = 128;
 		pkt.flags = 0;
 		pkt.frame_count = 7;
 

@@ -2,6 +2,7 @@
 #define _FTL_STREAM_INJECTORS_HPP_
 
 #include <ftl/streams/stream.hpp>
+#include <ftl/rgbd/frameset.hpp>
 
 namespace ftl {
 namespace stream {

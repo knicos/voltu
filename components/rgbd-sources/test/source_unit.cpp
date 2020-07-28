@@ -68,6 +68,8 @@ class StereoVideoSource : public ftl::rgbd::BaseSourceImpl {
 	bool capture(int64_t ts) { return true; }
 	bool retrieve(ftl::rgbd::Frame &) { return true; }
 	bool isReady() { return true; };
+
+	static bool supported(const std::string &dev) { return true; }
 };
 
 class NetSource : public ftl::rgbd::BaseSourceImpl {
@@ -112,6 +114,8 @@ class RealsenseSource : public ftl::rgbd::BaseSourceImpl {
 	bool capture(int64_t ts) { return true; }
 	bool retrieve(ftl::rgbd::Frame &) { return true; }
 	bool isReady() { return true; };
+
+	static bool supported() { return true; }
 };
 
 class MiddleburySource : public ftl::rgbd::BaseSourceImpl {

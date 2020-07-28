@@ -12,7 +12,7 @@ using ftl::rgbd::Source;
 Operator::Operator(ftl::Configurable *config) : config_(config) {
 	enabled_ = config_->value("enabled", true);
 
-	config_->on("enabled", [this](const ftl::config::Event &e) {
+	config_->on("enabled", [this]() {
 		enabled_ = config_->value("enabled", true);
 	});
 }
@@ -38,6 +38,15 @@ Graph::Graph(nlohmann::json &config) : ftl::Configurable(config) {
 }
 
 Graph::~Graph() {
+	// Cleanup configurables
+	for (auto &c : configs_) {
+		delete c.second;
+	}
+	for (auto &o : operators_) {
+		for (auto *i : o.instances) {
+			delete i;
+		}
+	}
 	cudaStreamDestroy(stream_);
 }
 
@@ -64,16 +73,17 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 			}
 
 			for (size_t j=0; j<in.frames.size(); ++j) {
-				if (!in.hasFrame(j)) continue;
+				if (!in.hasFrame(j)) in.frames[j].message(ftl::data::Message::Warning_INCOMPLETE_FRAME, "Frame not complete in Pipeline");
 				
 				int iix = (i.instances[0]->isMemoryHeavy()) ? 0 : j&0x1;
 				auto *instance = i.instances[iix];
 
 				if (instance->enabled()) {
 					try {
-						instance->apply(in.frames[j], out.frames[j], stream_actual);
+						instance->apply(in.frames[j].cast<ftl::rgbd::Frame>(), out.frames[j].cast<ftl::rgbd::Frame>(), stream_actual);
 					} catch (const std::exception &e) {
 						LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
+						in.frames[j].message(ftl::data::Message::Error_OPERATOR_EXCEPTION, "Operator exception");
 						success = false;
 						break;
 					}
@@ -88,6 +98,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 					instance->apply(in, out, stream_actual);
 				} catch (const std::exception &e) {
 					LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
+					if (in.frames.size() > 0) in.frames[0].message(ftl::data::Message::Error_OPERATOR_EXCEPTION, "Operator exception");
 					success = false;
 					break;
 				}
@@ -138,6 +149,7 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 			} catch (const std::exception &e) {
 				LOG(ERROR) << "Operator exception for '" << instance->config()->getID() << "': " << e.what();
 				success = false;
+				out.message(ftl::data::Message::Error_OPERATOR_EXCEPTION, "Operator exception");
 				break;
 			}
 		}

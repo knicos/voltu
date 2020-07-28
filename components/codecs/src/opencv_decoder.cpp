@@ -30,14 +30,12 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	cv::Rect roi(cx,cy,chunk_width,chunk_height);
 	cv::cuda::GpuMat chunkHead = out(roi);
 
-	//LOG(INFO) << "DECODE JPEG " << (int)pkt.block_number << "/" << chunk_dim;
-
 	cv::Mat tmp2_, tmp_;
 	// Decode in temporary buffers to prevent long locks
 	cv::imdecode(pkt.data, cv::IMREAD_UNCHANGED, &tmp2_);
 
 	if (tmp2_.type() == CV_8UC3) {
-		cv::cvtColor(tmp2_, tmp_, cv::COLOR_BGR2BGRA);
+		cv::cvtColor(tmp2_, tmp_, cv::COLOR_RGB2BGRA);
 	} else {
 		tmp_ = tmp2_;
 	}

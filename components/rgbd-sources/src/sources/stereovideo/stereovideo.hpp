@@ -4,7 +4,9 @@
 
 #include "../../basesource.hpp"
 #include <ftl/operators/operator.hpp>
+#include <ftl/calibration/structures.hpp>
 #include <string>
+#include <memory>
 
 namespace ftl {
 
@@ -12,15 +14,15 @@ namespace rgbd {
 namespace detail {
 
 class Device;
-class Calibrate;
+class StereoRectification;
 class Disparity;
 
 /**
  * RGBD source from either a stereo video file with left + right images, or
- * direct from two camera devices. 
+ * direct from two camera devices.
  */
 class StereoVideoSource : public BaseSourceImpl {
-	public:
+public:
 	explicit StereoVideoSource(ftl::rgbd::Source*);
 	StereoVideoSource(ftl::rgbd::Source*, const std::string &);
 	~StereoVideoSource();
@@ -29,30 +31,37 @@ class StereoVideoSource : public BaseSourceImpl {
 	bool retrieve(ftl::rgbd::Frame &frame) override;
 	bool isReady() override;
 
-	Camera parameters(ftl::codecs::Channel chan) override;
+	static bool supported(const std::string &dev);
 
-	private:
-	void updateParameters();
+private:
+	void updateParameters(ftl::rgbd::Frame &);
 
 	Device *lsrc_;
-	Calibrate *calib_;
+	std::unique_ptr<StereoRectification> rectification_;
+	ftl::calibration::CalibrationData calibration_;
+
 	int64_t capts_;
 
 	cv::Size color_size_;
 	cv::Size depth_size_;
 
-	ftl::operators::Graph *pipeline_input_;
+	ftl::operators::Graph *pipeline_input_=nullptr;
 	ftl::operators::Graph *pipeline_depth_;
 
 	cv::cuda::GpuMat fullres_left_;
 	cv::cuda::GpuMat fullres_right_;
 
 	bool ready_;
-	
+	bool do_update_params_ = false;
+	bool cap_status_ = false;
+
 	cv::cuda::Stream stream_;
 	cv::cuda::Stream stream2_;
 
 	cv::Mat mask_l_;
+
+	ftl::Handle calibration_change_;
+	std::string fname_calib_;
 
 	void init(const std::string &);
 };

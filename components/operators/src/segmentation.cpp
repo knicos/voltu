@@ -16,9 +16,16 @@ CrossSupport::~CrossSupport() {
 bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	bool use_mask = config()->value("discon_support", false);
 
+	if (!in.hasChannel(Channel::Colour)) {
+		out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Colour channel in Support operator");
+		return false;
+	}
 
 	if (use_mask && !in.hasChannel(Channel::Support2)) {
-		if (!in.hasChannel(Channel::Mask)) return false;
+		if (!in.hasChannel(Channel::Mask)) {
+			out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Mask channel in Support operator");
+			return false;
+		}
 		ftl::cuda::support_region(
 			in.createTexture<uint8_t>(Channel::Mask),
 			out.createTexture<uchar4>(Channel::Support2, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),

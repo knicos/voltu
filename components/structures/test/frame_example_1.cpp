@@ -1,12 +1,18 @@
 #include "catch.hpp"
 
+#include <ftl/codecs/packet.hpp>
 #include <ftl/data/new_frame.hpp>
+#include <ftl/data/framepool.hpp>
+#include <ftl/timer.hpp>
+
+#include <loguru.hpp>
 
 using ftl::data::Session;
 using ftl::data::Frame;
 using ftl::codecs::Channel;
 using ftl::data::ChangeType;
 using ftl::data::StorageMode;
+using ftl::data::FrameID;
 
 namespace ftl {
 namespace streams {
@@ -14,48 +20,68 @@ namespace streams {
 /* Mock Feed class */
 class Feed {
 	public:
-	Feed() : buffer0_(nullptr, &session_,0,0), buffer1_(nullptr, &session_,0,0) {
-		flush_handle_ = session_.onFlush([this](Frame &f, Channel c) {
+	Feed() : pool_(5,10), buffer0_(std::move(pool_.allocate(FrameID(0,0),0))), buffer1_(std::move(pool_.allocate(FrameID(0,0),0))) {
+		flush_handle_ = pool_.session(FrameID(0,0)).onFlush([this](Frame &f, Channel c) {
 			// Loop changes back to buffer.
 			// Normally transmitted somewhere first.
-			//buffer_.swapChannel(c, f);
+			// buffer1_.swapChannel(c, f);
 			ChangeType cc = f.getChangeType(c);
-			buffer0_.createAnyChange(c, (cc == ChangeType::LOCAL) ? ChangeType::FOREIGN : ChangeType::COMPLETED) = f.getAnyMutable(c);
+			if (cc == ChangeType::RESPONSE) {
+				ftl::codecs::Packet pkt;
+				pkt.frame_count = 1;
+				pkt.codec = ftl::codecs::codec_t::MSGPACK;
+				pkt.bitrate = 255;
+				pkt.flags = 0;
+				
+				auto encoder = ftl::data::getTypeEncoder(f.type(c));
+				if (encoder) {
+					if (encoder(f, c, pkt.data)) {
+						buffer1_.informChange(c, ChangeType::FOREIGN, pkt);
+					}
+				} else {
+					LOG(WARNING) << "Missing msgpack encoder";
+				}
+			} else if (cc == ChangeType::PRIMARY) {
+				//ftl::codecs::Packet pkt(f.getEncoded(c).front());
+				//buffer0_.informChange(c, (cc == ChangeType::PRIMARY) ? ChangeType::FOREIGN : ChangeType::COMPLETED, ???);
+				buffer0_.swapChannel(c, f);
+			}
 			return true;
 		});
 	}
 
 	inline Frame &buffer() { return buffer0_; }
-	inline Session &session() { return session_; }
 
 	inline void fakeDispatch() {
-		buffer0_.moveTo(buffer1_);
-		buffer0_ = Frame(nullptr, &session_,0,0);
+		Frame f = std::move(buffer0_);
+		buffer0_ = pool_.allocate(FrameID(0,0),ftl::timer::get_time());
 
 		// Save any persistent changes
-		buffer1_.store();
+		f.store();
 		// Transmit any forwarding changes and prevent further changes
-		buffer1_.flush();  // TODO: use special dispatched function
+		//f.flush();  // TODO: use special dispatched function
 
 		// Call the onFrame handler.
 		// Would be in another thread in real version of this class.
-		frame_handler_.trigger(buffer1_);
+		frame_handler_.trigger(f);
+	}
+
+	inline Frame getFrame() {
+		Frame f = std::move(buffer1_);
+		buffer1_ = pool_.allocate(FrameID(0,0),ftl::timer::get_time());
+
+		// Save any persistent changes
+		f.store();
+		return f;
 	}
 
 	inline ftl::Handle onFrame(const std::function<bool(Frame&)> &cb) {
 		return frame_handler_.on(cb);
 	}
 
-	Frame createFrame(int id) {
-		// TODO: Give it the id and a timestamp
-		Frame f(nullptr, &session_,0,0);
-		f.store();
-		return f;
-	}
-
 	private:
+	ftl::data::Pool pool_;
 	ftl::Handler<Frame&> frame_handler_;
-	Session session_;
 	Frame buffer0_;
 	Frame buffer1_;
 	ftl::Handle flush_handle_;
@@ -72,7 +98,85 @@ struct VideoFrame {
 	int matdata;
 };
 
+// Disable msgpack
+template <>
+inline bool ftl::data::make_type<VideoFrame>() {
+	return false;
+}
+
+template <>
+inline bool ftl::data::decode_type<VideoFrame>(std::any &a, const std::vector<uint8_t> &data) {
+	return false;
+}
+
 TEST_CASE("ftl::data::Frame full non-owner example", "[example]") {
+	// Register channels somewhere at startup
+	ftl::data::make_channel<VideoFrame>(Channel::Colour, "colour", StorageMode::TRANSIENT);
+	ftl::data::make_channel<VideoFrame>(Channel::Depth, "depth", StorageMode::TRANSIENT);
+	ftl::data::make_channel<std::list<std::string>>(Channel::Messages, "messages", StorageMode::AGGREGATE);
+	ftl::data::make_channel<float>(Channel::Pose, "pose", StorageMode::PERSISTENT);
+
+	Feed feed;
+
+	int i=0;
+	int changed = 0;
+	ftl::Handle myhandle;
+
+	auto h = feed.onFrame([&i,&feed,&myhandle,&changed](Frame &f) {
+		i++;
+
+		// First frame received
+		// User of Frame makes changes or reads values from state
+		REQUIRE( f.get<float>(Channel::Pose) == 6.0f );
+		REQUIRE( f.get<VideoFrame>(Channel::Depth).gpudata == 1 );
+
+		// Create a new frame for same source for some return state
+		Frame nf = f.response();
+		nf.create<std::list<std::string>>(Channel::Messages) = "First Message";
+		nf.create<std::list<std::string>>(Channel::Messages) = "Second Message";
+		nf.create<int>(Channel::Control) = 3456;
+		//nf.set<float>(Channel::Pose) = 7.0f;
+
+		// Listen for this `Control` change to be confirmed
+		myhandle = nf.onChange(Channel::Control, [&changed](Frame &f, Channel c) {
+			changed++;
+			return false;  // Call once only
+		});
+
+		// Either by destruction or manually, final action is flush to send
+		nf.flush();
+
+		return true;
+	});
+
+	// Generate some incoming changes from network
+	// Usually this is done inside the Feed class...
+	feed.buffer().createChange<VideoFrame>(Channel::Colour, ChangeType::FOREIGN).gpudata = 1;
+	feed.buffer().createChange<VideoFrame>(Channel::Depth, ChangeType::COMPLETED).gpudata = 1;
+	feed.buffer().createChange<float>(Channel::Pose, ChangeType::FOREIGN) = 6.0f;
+
+	// Fake a frame being completely received on network or from file
+	feed.fakeDispatch();
+
+	// Now pretend to be an owner and create a new frame... it should have the
+	// response data in it, so check for that.
+	{
+		Frame f = feed.getFrame();
+		REQUIRE( changed == 1 );  // Change notified before `onFrame`
+		REQUIRE( f.get<float>(Channel::Pose) == 6.0f );
+		REQUIRE( f.get<int>(Channel::Control) == 3456 );
+		REQUIRE( (*f.get<std::list<std::string>>(Channel::Messages).begin()) == "First Message" );
+	}
+	// We wont bother dispatching this new frame
+	//feed.fakeDispatch();
+
+	REQUIRE( i == 1 );
+
+	// For testing only...
+	ftl::data::clearRegistry();
+}
+
+TEST_CASE("ftl::data::Frame full owner example", "[example]") {
 	// Register channels somewhere at startup
 	ftl::data::make_channel<VideoFrame>(Channel::Colour, "colour", StorageMode::TRANSIENT);
 	ftl::data::make_channel<VideoFrame>(Channel::Depth, "depth", StorageMode::TRANSIENT);
@@ -93,39 +197,45 @@ TEST_CASE("ftl::data::Frame full non-owner example", "[example]") {
 			REQUIRE( f.get<VideoFrame>(Channel::Depth).gpudata == 1 );
 
 			// Create a new frame for same source for some return state
-			Frame nf = feed.createFrame(f.id);
-			nf.create<std::list<std::string>>(Channel::Messages) = {"First Message"};
-			nf.create<std::list<std::string>>(Channel::Messages) = {"Second Message"};
+			Frame nf = f.response();
+			nf.create<std::list<std::string>>(Channel::Messages) = "First Message";
+			nf.create<std::list<std::string>>(Channel::Messages) = "Second Message";
 			nf.create<int>(Channel::Control) = 3456;
-			//nf.set<float>(Channel::Pose) = 7.0f;
+			nf.set<float>(Channel::Pose) = 7.0f;
 
 			// Listen for this `Control` change to be confirmed
 			myhandle = nf.onChange(Channel::Control, [&changed](Frame &f, Channel c) {
 				changed++;
 				return false;  // Call once only
 			});
-			
+
 			// Either by destruction or manually, final action is flush to send
 			nf.flush();
 		// Second frame received
 		} else {
-			REQUIRE( changed == 1 );  // Change notified before `onFrame`
-			REQUIRE( f.get<float>(Channel::Pose) == 6.0f );
-			REQUIRE( f.get<int>(Channel::Control) == 3456 );
-			REQUIRE( (*f.get<std::list<std::string>>(Channel::Messages).begin()) == "First Message" );
+
 		}
 		return true;
 	});
 
-	// Generate some incoming changes from network
-	// Usually this is done inside the Feed class...
-	feed.buffer().createChange<VideoFrame>(Channel::Colour, ChangeType::FOREIGN).gpudata = 1;
-	feed.buffer().createChange<VideoFrame>(Channel::Depth, ChangeType::COMPLETED).gpudata = 1;
-	feed.buffer().createChange<float>(Channel::Pose, ChangeType::FOREIGN) = 6.0f;
-
-	// Fake a frame being received on network or from file
+	// Create an entirely new frame, destruction will send it.
+	{
+		Frame f = feed.getFrame();
+		f.create<VideoFrame>(Channel::Colour).gpudata = 1;
+		f.create<VideoFrame>(Channel::Depth).gpudata = 1;
+		f.create<float>(Channel::Pose) = 6.0f;
+	}
+	// Trigger local onFrame callback with the above frame.
 	feed.fakeDispatch();
-	// And dispatch the response frame also
+
+	// Create next new frame, now includes response changes
+	{
+		Frame f = feed.getFrame();
+		REQUIRE( changed == 1 );  // Change notified before `onFrame`
+		REQUIRE( f.get<float>(Channel::Pose) == 7.0f );
+		REQUIRE( f.get<int>(Channel::Control) == 3456 );
+		REQUIRE( (*f.get<std::list<std::string>>(Channel::Messages).begin()) == "First Message" );
+	}
 	feed.fakeDispatch();
 
 	REQUIRE( i == 2 );

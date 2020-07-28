@@ -4,10 +4,12 @@
 #include <string>
 #include <ftl/codecs/channels.hpp>
 #include <ftl/exception.hpp>
+#include <ftl/utility/vectorbuffer.hpp>
 
 namespace ftl {
 namespace data {
 
+class Frame;
 
 /** Kind of channel in terms of data persistence */
 enum class StorageMode {
@@ -19,7 +21,8 @@ enum class StorageMode {
 /** If a channel has changed, what is the current status of that change. */
 enum class ChangeType {
 	UNCHANGED,
-	LOCAL,			// Explicit local modification occurred
+	PRIMARY,		// Explicit local primary modification occurred
+	RESPONSE,		// Explicit local response change
 	FOREIGN,		// Received externally, to be forwarded
 	COMPLETED		// Received externally, not to be forwarded
 };
@@ -29,7 +32,8 @@ enum class ChannelStatus {
 	INVALID,		// Any data is stale and should not be referenced
 	VALID,			// Contains currently valid data
 	FLUSHED,		// Has already been transmitted, now read-only
-	DISPATCHED		// Externally received, can't be flushed but can be modified locally
+	DISPATCHED,		// Externally received, can't be flushed but can be modified locally
+	ENCODED			// Still in an encoded form
 };
 
 /* Internal structure for channel configurations. */
@@ -78,17 +82,27 @@ std::string getChannelName(ftl::codecs::Channel);
 ftl::codecs::Channel getChannelByName(const std::string &name);
 
 /**
+ * Attempts to get a msgpack encoder for this channel. Such encoders are
+ * registered by typeid basis when creating channels.
+ */
+std::function<bool(const ftl::data::Frame &, ftl::codecs::Channel, std::vector<uint8_t> &)> getTypeEncoder(size_t type);
+
+void setTypeEncoder(size_t type, const std::function<bool(const ftl::data::Frame &, ftl::codecs::Channel, std::vector<uint8_t> &)> &e);
+
+/**
  * Helper to register a channel using a template specified type.
  */
 template <typename T>
-void make_channel(ftl::codecs::Channel c, const std::string &name, StorageMode mode) {
+bool make_channel(ftl::codecs::Channel c, const std::string &name, StorageMode mode) {
 	// TODO: Generate packer + unpacker?
 	registerChannel(c, {name, mode, typeid(T).hash_code()});
+	return true;
 }
 
 template <>
-inline void make_channel<void>(ftl::codecs::Channel c, const std::string &name, StorageMode mode) {
+inline bool make_channel<void>(ftl::codecs::Channel c, const std::string &name, StorageMode mode) {
 	registerChannel(c, {name, mode, 0});
+	return true;
 }
 
 }

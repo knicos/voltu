@@ -26,9 +26,8 @@ SoftwareDecoder::~SoftwareDecoder() {
 bool SoftwareDecoder::_createOpus(const ftl::codecs::Packet &pkt) {
 	#ifdef HAVE_OPUS
 	bool stereo = pkt.flags & ftl::codecs::kFlagStereo;
-	if (pkt.definition == cur_definition_ && stereo == cur_stereo_ && opus_decoder_) return true;
+	if (opus_decoder_ && stereo == cur_stereo_) return true;
 
-	cur_definition_ = pkt.definition;
 	cur_stereo_ = stereo;
 
 	if (opus_decoder_) {
@@ -36,12 +35,7 @@ bool SoftwareDecoder::_createOpus(const ftl::codecs::Packet &pkt) {
 		opus_decoder_ = nullptr;
 	}
 
-	int sample_rate;
-	switch (pkt.definition) {
-	case ftl::codecs::definition_t::hz48000		: sample_rate = 48000; break;
-	case ftl::codecs::definition_t::hz44100		: sample_rate = 44100; break;
-	default: return false;
-	}
+	int sample_rate = 48000;  // TODO: Allow it to be different
 
 	int errcode = 0;
 	int channels = (stereo) ? 2 : 1;
@@ -78,6 +72,9 @@ bool SoftwareDecoder::_decodeOpus(const ftl::codecs::Packet &pkt, std::vector<sh
 
 	for (size_t i=0; i<pkt.data.size(); ) {
 		const short *len = (const short*)inptr;
+		if (*len == 0) break;
+		if (frames == 10) break;
+
 		inptr += 2;
 		i += (*len)+2;
 		int samples = opus_multistream_decode(opus_decoder_, inptr, *len, outptr, FRAME_SIZE, 0);

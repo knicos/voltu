@@ -18,7 +18,9 @@ Normals::~Normals() {
 
 bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(Channel::Depth)) {
-		throw FTL_Error("Missing depth channel in Normals operator");
+		out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Depth Channel in Normals operator");
+		//throw FTL_Error("Missing depth channel in Normals operator");
+		return false;
 	}
 
 	if (out.hasChannel(Channel::Normals)) {
@@ -47,7 +49,9 @@ NormalDot::~NormalDot() {
 
 bool NormalDot::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
 	if (!in.hasChannel(Channel::Depth)) {
-		throw FTL_Error("Missing depth channel in Normals operator");
+		out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Depth Channel in Normals operator");
+		//throw FTL_Error("Missing depth channel in Normals operator");
+		return false;
 	}
 
 	if (out.hasChannel(Channel::Normals)) {
@@ -80,6 +84,7 @@ bool SmoothNormals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
     int radius = max(0, min(config()->value("radius",1), 5));
 
 	if (!in.hasChannel(Channel::Depth)) {
+		out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Depth Channel in Normals operator");
 		throw FTL_Error("Missing depth channel in SmoothNormals operator");
 	}
 

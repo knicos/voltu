@@ -2,6 +2,7 @@
 #define _FTL_STREAM_FILESTREAM_HPP_
 
 #include <ftl/streams/stream.hpp>
+#include <ftl/handle.hpp>
 
 namespace ftl {
 namespace stream {
@@ -20,7 +21,7 @@ class File : public Stream {
 	File(nlohmann::json &config, std::ofstream *);
 	~File();
 
-	bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &) override;
+	//bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &) override;
 
 	bool post(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &) override;
 
@@ -71,17 +72,20 @@ class File : public Stream {
 	int64_t first_ts_;
 	bool active_;
 	int version_;
-	ftl::timer::TimerHandle timer_;
+	ftl::Handle timer_;
 	bool is_video_;
 	bool save_data_;
 
-	StreamCallback cb_;
+	//StreamCallback cb_;
 	MUTEX mutex_;
 	MUTEX data_mutex_;
 	std::atomic<int> jobs_;
 
 	bool _open();
 	bool _checkFile();
+
+	/* Apply version patches etc... */
+	void _patchPackets(ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &pkt);
 };
 
 }

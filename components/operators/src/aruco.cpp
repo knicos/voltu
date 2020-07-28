@@ -19,6 +19,7 @@ using cv::Point2f;
 using cv::Vec3d;
 
 using std::vector;
+using std::list;
 
 static cv::Mat rmat(cv::Vec3d &rvec) {
 	cv::Mat R(cv::Size(3, 3), CV_64FC1);
@@ -55,7 +56,7 @@ ArUco::ArUco(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
 	channel_in_ = Channel::Colour;
 	channel_out_ = Channel::Shapes3D;
 
-	cfg->on("dictionary", [this,cfg](const ftl::config::Event &e) {
+	cfg->on("dictionary", [this,cfg]() {
 		dictionary_ = cv::aruco::getPredefinedDictionary(cfg->value("dictionary", 0));
 	});
 }
@@ -80,7 +81,7 @@ bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		//Mat im = in.get<Mat>(channel_in_);
 		// FIXME: Use internal stream here.
 		Mat im; // = in.fastDownload(channel_in_, cv::cuda::Stream::Null());
-		cv::cvtColor(in.fastDownload(channel_in_, cv::cuda::Stream::Null()), im, cv::COLOR_BGRA2BGR);
+		cv::cvtColor(in.get<cv::Mat>(channel_in_), im, cv::COLOR_BGRA2BGR);
 
 		Mat K = in.getLeftCamera().getCameraMatrix();
 		Mat dist = cv::Mat::zeros(cv::Size(5, 1), CV_64FC1);
@@ -98,9 +99,9 @@ bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 			cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, K, dist, rvecs, tvecs);
 		}
 
-		vector<Shape3D> result;
+		list<Shape3D> result;
 		if (out.hasChannel(channel_out_)) {
-			out.get(channel_out_, result);
+			result = out.get<list<Shape3D>>(channel_out_);
 		}
 
 		for (size_t i = 0; i < rvecs.size(); i++) {
@@ -114,7 +115,7 @@ bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 			}
 		}
 
-		out.create(channel_out_, result);
+		out.create<list<Shape3D>>(channel_out_).list = result;
 
 		if (debug_) {
 			cv::aruco::drawDetectedMarkers(im, corners, ids);
@@ -128,10 +129,10 @@ bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		// TODO: should be uploaded by operator which requires data on GPU
 		//in.upload(channel_in_);
 		if (debug_) {
-			if (in.isGPU(channel_in_)) {
+			//if (in.isGPU(channel_in_)) {
 				cv::cvtColor(im, im, cv::COLOR_BGR2BGRA);
-				out.get<cv::cuda::GpuMat>(channel_in_).upload(im);
-			} else cv::cvtColor(im, in.get<cv::Mat>(channel_in_), cv::COLOR_BGR2BGRA);
+				out.set<cv::cuda::GpuMat>(channel_in_).upload(im);
+			//} else cv::cvtColor(im, in.get<cv::Mat>(channel_in_), cv::COLOR_BGR2BGRA);
 		}
 		return true;
 	}));

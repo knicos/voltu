@@ -60,17 +60,25 @@ TEST_CASE( "msgpack cv::Mat" ) {
 	SECTION( "Mat::ones(Size(1, 5), CV_8UC3)" ) {
 		Mat A = Mat::ones(Size(1, 5), CV_8UC3);
 		Mat B = msgpack_unpack<Mat>(msgpack_pack(A));
-		
+
 		REQUIRE(A.size() == B.size());
 		REQUIRE(A.type() == B.type());
-		REQUIRE(cv::countNonZero(A != B) == 0);
+
+		cv::Mat diff;
+		cv::absdiff(A, B, diff);
+		REQUIRE(cv::countNonZero(diff.reshape(1, diff.total())) == 0);
+
+		// how is it possible this REQUIRE() passed earlier? Multi-channel
+		// images can not be used in countNonZero() and A != B returns multi
+		// channel result. (test fixed by comparison above)
+		//REQUIRE(cv::countNonZero(A != B) == 0);
 	}
 
 	SECTION ( "Mat 10x10 CV_64FC1 with random values [-1000, 1000]" ) {
 		Mat A(Size(10, 10), CV_64FC1);
 		cv::randu(A, -1000, 1000);
 		Mat B = msgpack_unpack<Mat>(msgpack_pack(A));
-		
+
 		REQUIRE(A.size() == B.size());
 		REQUIRE(A.type() == B.type());
 		REQUIRE(cv::countNonZero(A != B) == 0);
@@ -82,9 +90,9 @@ TEST_CASE( "msgpack cv::Mat" ) {
 
 		msgpack::zone z;
 		auto obj = msgpack::object(A, z);
-		
+
 		Mat B = msgpack_unpack<Mat>(msgpack_pack(obj));
-		
+
 		REQUIRE(A.size() == B.size());
 		REQUIRE(A.type() == B.type());
 		REQUIRE(cv::countNonZero(A != B) == 0);
@@ -97,12 +105,12 @@ TEST_CASE( "msgpack cv::Mat" ) {
 			A.setTo(0);
 
 			Mat B = msgpack_unpack<Mat>(msgpack_pack(A));
-		
+
 			REQUIRE(A.size() == B.size());
 			REQUIRE(A.type() == B.type());
 			REQUIRE(cv::countNonZero(A != B) == 0);
 		}
-		catch (msgpack::type_error) {
+		catch (const msgpack::type_error &e) {
 			// if not supported, throws exception
 		}
 	}
@@ -111,7 +119,7 @@ TEST_CASE( "msgpack cv::Mat" ) {
 		auto res = msgpack_unpack<cv::Rect2d>(msgpack_pack(cv::Rect2d(1,2,3,4)));
 		REQUIRE(res == cv::Rect2d(1,2,3,4));
 	}
-	
+
 	SECTION( "Vec<T, SIZE>" ) {
 		auto res = msgpack_unpack<cv::Vec4d>(msgpack_pack(cv::Vec4d(1,2,3,4)));
 		REQUIRE(res == cv::Vec4d(1,2,3,4));

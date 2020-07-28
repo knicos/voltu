@@ -119,6 +119,7 @@ endif()
 target_include_directories(libstereo PRIVATE src/ include/)
 target_include_directories(libstereo PUBLIC ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(libstereo Threads::Threads ${OpenCV_LIBS} ${CUDA_LIBRARIES})
+set_property(TARGET libstereo PROPERTY CUDA_ARCHITECTURES OFF)
 
 if (BUILD_MIDDLEBURY)
     add_subdirectory(middlebury/)

@@ -90,7 +90,6 @@ TEST_CASE( "OpenCVDecoder::decode() - A colour test image no resolution change" 
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
-	pkt.definition = definition_t::Any;
 	pkt.bitrate = 255;
 	pkt.flags = 0;
 	pkt.frame_count = 1;

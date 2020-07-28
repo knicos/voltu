@@ -3,26 +3,27 @@
 
 #include <ftl/configuration.hpp>
 #include <ftl/configurable.hpp>
-#include <ftl/rgbd/source.hpp>
-#include <ftl/rgbd/group.hpp>
-#include <ftl/net/universe.hpp>
+//#include <ftl/rgbd/source.hpp>
+//#include <ftl/rgbd/group.hpp>
 #include <ftl/codecs/encoder.hpp>
+#include <ftl/handle.hpp>
 #include <ftl/threads.hpp>
 #include <string>
 #include <vector>
 #include <map>
+#include <unordered_set>
 #include <atomic>
 
 namespace ftl {
 namespace stream {
 
-typedef std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> StreamCallback;
+typedef std::function<bool(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> StreamCallback;
 
 /**
  * Base stream class to be implemented. Provides encode and decode functionality
  * around a generic packet read and write mechanism. Some specialisations will
  * provide and automatically handle control signals.
- * 
+ *
  * Streams are bidirectional, frames can be both received and written.
  */
 class Stream : public ftl::Configurable {
@@ -36,7 +37,7 @@ class Stream : public ftl::Configurable {
 	 * callback even after the read function returns, for example with a
 	 * NetStream.
 	 */
-	virtual bool onPacket(const StreamCallback &)=0;
+	ftl::Handle onPacket(const StreamCallback &cb) { return cb_.on(cb); };
 
 	virtual bool post(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)=0;
 
@@ -65,18 +66,20 @@ class Stream : public ftl::Configurable {
 	/**
 	 * Query available video channels for a frameset.
 	 */
-	const ftl::codecs::Channels<0> &available(int fs) const;
+	const std::unordered_set<ftl::codecs::Channel> &available(int fs) const;
 
 	/**
 	 * Query selected channels for a frameset. Channels not selected may not
 	 * be transmitted, received or decoded.
 	 */
-	const ftl::codecs::Channels<0> &selected(int fs) const;
+	const std::unordered_set<ftl::codecs::Channel> &selected(int fs) const;
+
+	std::unordered_set<ftl::codecs::Channel> selectedNoExcept(int fs) const;
 
 	/**
 	 * Change the video channel selection for a frameset.
 	 */
-	void select(int fs, const ftl::codecs::Channels<0> &, bool make=false);
+	void select(int fs, const std::unordered_set<ftl::codecs::Channel> &, bool make=false);
 
 	/**
 	 * Number of framesets in stream.
@@ -84,17 +87,18 @@ class Stream : public ftl::Configurable {
 	inline size_t size() const { return state_.size(); }
 
 	protected:
+	ftl::Handler<const ftl::codecs::StreamPacket&, const ftl::codecs::Packet&> cb_;
 
 	/**
 	 * Allow modification of available channels. Calling this with an invalid
 	 * fs number will create that frameset and increase the size.
 	 */
-	ftl::codecs::Channels<0> &available(int fs);
+	std::unordered_set<ftl::codecs::Channel> &available(int fs);
 
 	private:
 	struct FSState {
-		ftl::codecs::Channels<0> selected;
-		ftl::codecs::Channels<0> available;
+		std::unordered_set<ftl::codecs::Channel> selected;
+		std::unordered_set<ftl::codecs::Channel> available;
 	};
 
 	std::vector<FSState> state_;
@@ -115,8 +119,9 @@ class Muxer : public Stream {
 	virtual ~Muxer();
 
 	void add(Stream *, size_t fsid=0);
+	void remove(Stream *);
 
-	bool onPacket(const StreamCallback &) override;
+	//bool onPacket(const StreamCallback &) override;
 
 	bool post(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &) override;
 
@@ -126,22 +131,25 @@ class Muxer : public Stream {
 
 	void reset() override;
 
-	int originStream(size_t fsid, int fid);
+	ftl::stream::Stream *originStream(size_t fsid, int fid);
 
 	private:
 	struct StreamEntry {
 		Stream *stream;
 		std::vector<int> maps;
+		uint32_t original_fsid = 0;
+		ftl::Handle handle;
 	};
 
-	std::vector<StreamEntry> streams_;
-	std::vector<std::pair<size_t,int>> revmap_[kMaxStreams];
+	std::list<StreamEntry> streams_;
+	std::vector<std::pair<StreamEntry*,int>> revmap_[kMaxStreams];
+	//std::list<ftl::Handle> handles_;
 	int nid_[kMaxStreams];
-	StreamCallback cb_;
+	//StreamCallback cb_;
 	SHARED_MUTEX mutex_;
 
 	void _notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
-	int _lookup(size_t fsid, int sid, int ssid);
+	int _lookup(size_t fsid, StreamEntry *se, int ssid, int count);
 };
 
 /**
@@ -158,7 +166,7 @@ class Broadcast : public Stream {
 	void remove(Stream *);
 	void clear();
 
-	bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &) override;
+	//bool onPacket(const std::function<void(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &)> &) override;
 
 	bool post(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &) override;
 
@@ -168,9 +176,12 @@ class Broadcast : public Stream {
 
 	void reset() override;
 
+	const std::list<Stream*> &streams() const { return streams_; }
+
 	private:
 	std::list<Stream*> streams_;
-	StreamCallback cb_;
+	std::list<ftl::Handle> handles_;
+	//StreamCallback cb_;
 	SHARED_MUTEX mutex_;
 };
 
@@ -184,7 +195,7 @@ class Intercept : public Stream {
 
 	void setStream(Stream *);
 
-	bool onPacket(const StreamCallback &) override;
+	//bool onPacket(const StreamCallback &) override;
 	bool onIntercept(const StreamCallback &);
 
 	bool post(const ftl::codecs::StreamPacket &, const ftl::codecs::Packet &) override;
@@ -197,12 +208,43 @@ class Intercept : public Stream {
 
 	private:
 	Stream *stream_;
-	StreamCallback cb_;
+	std::list<ftl::Handle> handles_;
+	//StreamCallback cb_;
 	StreamCallback intercept_;
 	SHARED_MUTEX mutex_;
 };
 
 }
 }
+
+std::unordered_set<ftl::codecs::Channel> operator&(const std::unordered_set<ftl::codecs::Channel> &a, const std::unordered_set<ftl::codecs::Channel> &b);
+
+std::unordered_set<ftl::codecs::Channel> operator-(const std::unordered_set<ftl::codecs::Channel> &a, const std::unordered_set<ftl::codecs::Channel> &b);
+
+inline std::unordered_set<ftl::codecs::Channel> &operator+=(std::unordered_set<ftl::codecs::Channel> &t, ftl::codecs::Channel c) {
+	t.insert(c);
+	return t;
+}
+
+inline std::unordered_set<ftl::codecs::Channel> &operator-=(std::unordered_set<ftl::codecs::Channel> &t, ftl::codecs::Channel c) {
+	t.erase(c);
+	return t;
+}
+
+inline std::unordered_set<ftl::codecs::Channel> operator+(const std::unordered_set<ftl::codecs::Channel> &t, ftl::codecs::Channel c) {
+	auto r = t;
+	r.insert(c);
+	return r;
+}
+
+inline std::unordered_set<ftl::codecs::Channel> operator+(ftl::codecs::Channel a, ftl::codecs::Channel b) {
+	std::unordered_set<ftl::codecs::Channel> r;
+	r.insert(a);
+	r.insert(b);
+	return r;
+}
+
+bool operator!=(const std::unordered_set<ftl::codecs::Channel> &a, const std::unordered_set<ftl::codecs::Channel> &b);
+
 
 #endif  // _FTL_STREAM_STREAM_HPP_

@@ -57,6 +57,10 @@ target_include_directories(ftloperators PUBLIC
 
 target_link_libraries(ftloperators ftlrender ftlrgbd ftlcommon sgm libstereo Eigen3::Eigen Threads::Threads ${OpenCV_LIBS})
 
+target_precompile_headers(ftloperators REUSE_FROM ftldata)
+
+set_property(TARGET ftloperators PROPERTY CUDA_ARCHITECTURES OFF)
+
 if (BUILD_TESTS)
 	add_subdirectory(test)
 endif()

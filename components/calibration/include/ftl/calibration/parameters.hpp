@@ -2,65 +2,12 @@
 #ifndef _FTL_CALIBRATION_PARAMETERS_HPP_
 #define _FTL_CALIBRATION_PARAMETERS_HPP_
 
+#include <ftl/calibration/structures.hpp>
+
 #include <opencv2/core/core.hpp>
 
 namespace ftl {
 namespace calibration {
-
-/**
- * Camera paramters
- */
-struct Camera {
-	Camera() {}
-	Camera(const cv::Mat& K, const cv::Mat& D, const cv::Mat& R, const cv::Mat& tvec);
-
-	void setRotation(const cv::Mat& R);
-	void setTranslation(const cv::Mat& tvec);
-	void setExtrinsic(const cv::Mat& R, const cv::Mat& t) {
-		setRotation(R);
-		setTranslation(t);
-	}
-
-	void setIntrinsic(const cv::Mat& K);
-	void setDistortion(const cv::Mat &D);
-	void setIntrinsic(const cv::Mat& K, const cv::Mat& D) {
-		setIntrinsic(K);
-		setDistortion(D);
-	}
-
-	cv::Mat intrinsicMatrix() const;
-	cv::Mat distortionCoefficients() const;
-
-	cv::Mat rvec() const;
-	cv::Mat tvec() const;
-	cv::Mat rmat() const;
-
-	cv::Mat extrinsicMatrix() const;
-	cv::Mat extrinsicMatrixInverse() const;
-
-	const static int n_parameters = 12;
-	const static int n_distortion_parameters = 3;
-
-	double data[n_parameters] = {0.0};
-
-	enum Parameter {
-		ROTATION = 0,
-		RX = 0,
-		RY = 1,
-		RZ = 2,
-		TRANSLATION = 3,
-		TX = 3,
-		TY = 4,
-		TZ = 5,
-		F = 6,
-		CX = 7,
-		CY = 8,
-		DISTORTION = 9,
-		K1 = 9,
-		K2 = 10,
-		K3 = 11
-	};
-};
 
 namespace validate {
 
@@ -80,11 +27,11 @@ bool cameraMatrix(const cv::Mat &M);
  * @param D    distortion coefficients
  * @param size resolution
  * @note Tangential and prism distortion coefficients are not validated.
- * 
+ *
  * Radial distortion is always monotonic for real lenses and distortion
  * function has to be bijective. This is verified by evaluating the distortion
  * function for integer values from 0 to sqrt(width^2+height^2).
- * 
+ *
  * Camera model documented in
  * https://docs.opencv.org/master/d9/d0c/group__calib3d.html#details
  */
@@ -92,11 +39,9 @@ bool distortionCoefficients(const cv::Mat &D, cv::Size size);
 
 }
 
-
 namespace transform {
 
-// TODO: Some of the methods can be directly replace with OpenCV
-//       (opencv2/calib3d.hpp)
+// TODO: Some of the methods can be directly replace with OpenCV (opencv2/calib3d.hpp)
 
 /**
  * @brief Get rotation matrix and translation vector from transformation matrix.
@@ -126,19 +71,20 @@ inline void inverse(cv::Mat &R, cv::Mat &t) {
 }
 
 /**
- * @brief Inverse transform inplace
+ * @brief Inverse transform
  * @param T   transformation matrix (4x4)
  */
-inline void inverse(cv::Mat &T) {
+[[nodiscard]] inline cv::Mat inverse(const cv::Mat &T) {
 	cv::Mat rmat;
 	cv::Mat tvec;
 	getRotationAndTranslation(T, rmat, tvec);
-	T = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat T_ = cv::Mat::eye(4, 4, CV_64FC1);
 
-	T(cv::Rect(3, 0, 1, 1)) = -rmat.col(0).dot(tvec);
-	T(cv::Rect(3, 1, 1, 1)) = -rmat.col(1).dot(tvec);
-	T(cv::Rect(3, 2, 1, 1)) = -rmat.col(2).dot(tvec);
-	T(cv::Rect(0, 0, 3, 3)) = rmat.t();
+	T_(cv::Rect(3, 0, 1, 1)) = -rmat.col(0).dot(tvec);
+	T_(cv::Rect(3, 1, 1, 1)) = -rmat.col(1).dot(tvec);
+	T_(cv::Rect(3, 2, 1, 1)) = -rmat.col(2).dot(tvec);
+	T_(cv::Rect(0, 0, 3, 3)) = rmat.t();
+	return T_;
 }
 
 inline cv::Point3d apply(const cv::Point3d& point, const cv::InputArray& R, const cv::InputArray& t) {
@@ -160,10 +106,10 @@ inline cv::Point3d apply(const cv::Point3d& point, const cv::InputArray& T) {
 
 /**
  * @brief Scale camera intrinsic matrix
- * @param size_new	New resolution
  * @param size_old	Original (camera matrix) resolution
+ * @param size_new	New resolution
  */
-cv::Mat scaleCameraMatrix(const cv::Mat &K, const cv::Size &size_new, const cv::Size &size_old);
+[[nodiscard]] cv::Mat scaleCameraMatrix(const cv::Mat &K, const cv::Size &size_old, const cv::Size &size_new);
 
 /**
  * @brief Calculate MSE reprojection error

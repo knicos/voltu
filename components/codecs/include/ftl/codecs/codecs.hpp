@@ -2,7 +2,7 @@
 #define _FTL_CODECS_BITRATES_HPP_
 
 #include <cstdint>
-#include <ftl/utility/msgpack.hpp>
+#include <msgpack.hpp>
 
 namespace ftl {
 namespace codecs {
@@ -21,6 +21,9 @@ static constexpr uint8_t kFlagFloat = 0x04;			// Floating point output
 static constexpr uint8_t kFlagPartial = 0x10;		// This frameset is not complete
 static constexpr uint8_t kFlagStereo = 0x20;		// Left-Right stereo in single channel
 static constexpr uint8_t kFlagMultiple = 0x80;		// Multiple video frames in single packet
+
+static constexpr uint8_t kFlagRequest = 0x01;		// Used for empty data packets to mark a request for data
+static constexpr uint8_t kFlagCompleted = 0x02;		// Last packet for timestamp
 
 /**
  * Compression format used.

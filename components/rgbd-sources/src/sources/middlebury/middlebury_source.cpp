@@ -91,20 +91,20 @@ MiddleburySource::MiddleburySource(ftl::rgbd::Source *host, const string &dir)
 	host_->getConfig()["doffs"] = params_.doffs;
 
 	// Add event handlers to allow calibration changes...
-	host_->on("baseline", [this](const ftl::config::Event &e) {
+	host_->on("baseline", [this]() {
 		params_.baseline = host_->value("baseline", params_.baseline);
 	});
 
-	host_->on("focal", [this](const ftl::config::Event &e) {
+	host_->on("focal", [this]() {
 		params_.fx = host_->value("focal", params_.fx);
 		params_.fy = params_.fx;
 	});
 
-	host_->on("doffs", [this](const ftl::config::Event &e) {
+	host_->on("doffs", [this]() {
 		params_.doffs = host_->value("doffs", params_.doffs);
 	});
 
-	host_->on("centre_x", [this](const ftl::config::Event &e) {
+	host_->on("centre_x", [this]() {
 		params_.cx = host_->value("centre_x", params_.cx);
 	});
 
