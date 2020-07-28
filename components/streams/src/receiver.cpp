@@ -236,7 +236,7 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 
 	auto &build = builder(spkt.streamID);
 	auto fs = build.get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
-	auto &frame = fs->frames[0];
+	auto &frame = fs->frames[spkt.frame_number];
 
 	auto &audiolist = frame.createChange<std::list<ftl::audio::Audio>>(spkt.channel, build.changeType(), pkt);
 	auto &audio = audiolist.emplace_back();
