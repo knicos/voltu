@@ -13,7 +13,7 @@ class SoftwareEncoder : public ftl::audio::Encoder {
 	SoftwareEncoder();
 	~SoftwareEncoder();
 
-	bool encode(const std::vector<short> &in, ftl::codecs::Packet &pkt) override;
+	bool encode(const std::vector<float> &in, ftl::codecs::Packet &pkt) override;
 
 	void reset() override;
 
@@ -25,8 +25,8 @@ class SoftwareEncoder : public ftl::audio::Encoder {
 	ftl::codecs::definition_t cur_definition_;
 	uint8_t cur_bitrate_;
 
-	bool _encodeRaw(const std::vector<short> &in, ftl::codecs::Packet &pkt);
-	bool _encodeOpus(const std::vector<short> &in, ftl::codecs::Packet &pkt);
+	bool _encodeRaw(const std::vector<float> &in, ftl::codecs::Packet &pkt);
+	bool _encodeOpus(const std::vector<float> &in, ftl::codecs::Packet &pkt);
 	bool _createOpus(ftl::codecs::Packet &pkt);
 };
 

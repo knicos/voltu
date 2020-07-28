@@ -13,7 +13,7 @@ class Encoder {
 	Encoder() {};
 	virtual ~Encoder() {};
 
-	virtual bool encode(const std::vector<short> &in, ftl::codecs::Packet &pkt)=0;
+	virtual bool encode(const std::vector<float> &in, ftl::codecs::Packet &pkt)=0;
 
 	virtual void reset() {}
 

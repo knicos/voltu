@@ -49,7 +49,7 @@ bool SoftwareDecoder::_createOpus(const ftl::codecs::Packet &pkt) {
 	return true;
 }
 
-bool SoftwareDecoder::decode(const ftl::codecs::Packet &pkt, std::vector<short> &out) {
+bool SoftwareDecoder::decode(const ftl::codecs::Packet &pkt, std::vector<float> &out) {
 	switch (pkt.codec) {
 	case codec_t::OPUS		: return _decodeOpus(pkt, out);
 	case codec_t::RAW		: return _decodeRaw(pkt, out);
@@ -57,7 +57,7 @@ bool SoftwareDecoder::decode(const ftl::codecs::Packet &pkt, std::vector<short> 
 	}
 }
 
-bool SoftwareDecoder::_decodeOpus(const ftl::codecs::Packet &pkt, std::vector<short> &out) {
+bool SoftwareDecoder::_decodeOpus(const ftl::codecs::Packet &pkt, std::vector<float> &out) {
 	#ifdef HAVE_OPUS
 	if (!_createOpus(pkt)) return false;
 
@@ -66,7 +66,7 @@ bool SoftwareDecoder::_decodeOpus(const ftl::codecs::Packet &pkt, std::vector<sh
 	out.resize(10*FRAME_SIZE*channels);
 
 	const unsigned char *inptr = pkt.data.data();
-	short *outptr = out.data();
+	float *outptr = out.data();
 	int count = 0;
 	int frames = 0;
 
@@ -77,7 +77,7 @@ bool SoftwareDecoder::_decodeOpus(const ftl::codecs::Packet &pkt, std::vector<sh
 
 		inptr += 2;
 		i += (*len)+2;
-		int samples = opus_multistream_decode(opus_decoder_, inptr, *len, outptr, FRAME_SIZE, 0);
+		int samples = opus_multistream_decode_float(opus_decoder_, inptr, *len, outptr, FRAME_SIZE, 0);
 
 		if (samples != FRAME_SIZE) {
 			LOG(ERROR) << "Failed to Opus decode: " << samples;
@@ -101,10 +101,10 @@ bool SoftwareDecoder::_decodeOpus(const ftl::codecs::Packet &pkt, std::vector<sh
 	#endif
 }
 
-bool SoftwareDecoder::_decodeRaw(const ftl::codecs::Packet &pkt, std::vector<short> &out) {
-	size_t size = pkt.data.size()/sizeof(short);
+bool SoftwareDecoder::_decodeRaw(const ftl::codecs::Packet &pkt, std::vector<float> &out) {
+	size_t size = pkt.data.size()/sizeof(float);
 	out.resize(size);
-	auto *ptr = (short*)pkt.data.data();
+	auto *ptr = (float*)pkt.data.data();
 	for (size_t i=0; i<size; i++) out.data()[i] = ptr[i];
 	return true;
 }

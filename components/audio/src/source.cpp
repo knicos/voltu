@@ -21,7 +21,7 @@ static int pa_source_callback(const void *input, void *output,
         PaStreamCallbackFlags statusFlags, void *userData) {
 
     auto *buffer = (BUFFER*)userData;
-    short *in = (short*)input;
+    float *in = (float*)input;
 	buffer->writeFrame(in);
     return 0;
 }
@@ -74,16 +74,16 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 	//}
 
 	if (channels >= 2) {
-		buffer_ = new ftl::audio::StereoBuffer16<100>(48000);
+		buffer_ = new ftl::audio::StereoBufferF<100>(48000);
 	} else {
-		buffer_ = new ftl::audio::MonoBuffer16<100>(48000);
+		buffer_ = new ftl::audio::MonoBufferF<100>(48000);
 	}
 
     PaStreamParameters inputParameters;
     //bzero( &inputParameters, sizeof( inputParameters ) );
     inputParameters.channelCount = channels;
     inputParameters.device = device;
-    inputParameters.sampleFormat = paInt16;
+    inputParameters.sampleFormat = paFloat32;
     inputParameters.suggestedLatency = (device >= 0) ? Pa_GetDeviceInfo(device)->defaultLowInputLatency : 0;
     inputParameters.hostApiSpecificStreamInfo = NULL;
 
@@ -99,7 +99,7 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 			48000,  // Sample rate
 			ftl::audio::kFrameSize,    // Size of single frame
 			paNoFlag,
-			(buffer_->channels() == 1) ? pa_source_callback<ftl::audio::MonoBuffer16<100>> : pa_source_callback<ftl::audio::StereoBuffer16<100>>,
+			(buffer_->channels() == 1) ? pa_source_callback<ftl::audio::MonoBufferF<100>> : pa_source_callback<ftl::audio::StereoBufferF<100>>,
 			this->buffer_
 		);
 	} else {
@@ -107,10 +107,10 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 			&stream_,
 			channels,
 			0,
-			paInt16,
+			paFloat32,
 			48000,  // Sample rate
 			ftl::audio::kFrameSize,    // Size of single frame
-			(buffer_->channels() == 1) ? pa_source_callback<ftl::audio::MonoBuffer16<100>> : pa_source_callback<ftl::audio::StereoBuffer16<100>>,
+			(buffer_->channels() == 1) ? pa_source_callback<ftl::audio::MonoBufferF<100>> : pa_source_callback<ftl::audio::StereoBufferF<100>>,
 			this->buffer_
 		);
 	}
@@ -185,7 +185,7 @@ bool Source::retrieve(ftl::data::Frame &frame) {
     if (to_read_ < 1 || !buffer_) return true;
 	auto alist = frame.create<std::list<Audio>>((buffer_->channels() == 2) ? Channel::AudioStereo : Channel::AudioMono);
 	Audio aframe;
-    std::vector<short> &data = aframe.data();
+    std::vector<float> &data = aframe.data();
 	buffer_->read(data, to_read_);
 	alist = std::move(aframe);
 	return true;

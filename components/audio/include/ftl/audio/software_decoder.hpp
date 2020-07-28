@@ -13,7 +13,7 @@ class SoftwareDecoder : public ftl::audio::Decoder {
 	SoftwareDecoder();
 	~SoftwareDecoder();
 
-	bool decode(const ftl::codecs::Packet &pkt, std::vector<short> &out) override;
+	bool decode(const ftl::codecs::Packet &pkt, std::vector<float> &out) override;
 
 	bool accepts(const ftl::codecs::Packet &) override;
 
@@ -22,8 +22,8 @@ class SoftwareDecoder : public ftl::audio::Decoder {
 	bool cur_stereo_;
 	ftl::codecs::definition_t cur_definition_;
 
-	bool _decodeOpus(const ftl::codecs::Packet &pkt, std::vector<short> &out);
-	bool _decodeRaw(const ftl::codecs::Packet &pkt, std::vector<short> &out);
+	bool _decodeOpus(const ftl::codecs::Packet &pkt, std::vector<float> &out);
+	bool _decodeRaw(const ftl::codecs::Packet &pkt, std::vector<float> &out);
 	bool _createOpus(const ftl::codecs::Packet &pkt);
 };
 

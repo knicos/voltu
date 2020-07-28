@@ -174,6 +174,12 @@ using StereoBuffer16 = ftl::audio::FixedBuffer<short,2,960,SIZE>;
 template <int SIZE>
 using MonoBuffer16 = ftl::audio::FixedBuffer<short,1,960,SIZE>;
 
+template <int SIZE>
+using StereoBufferF = ftl::audio::FixedBuffer<float,2,960,SIZE>;
+
+template <int SIZE>
+using MonoBufferF = ftl::audio::FixedBuffer<float,1,960,SIZE>;
+
 }
 }
 

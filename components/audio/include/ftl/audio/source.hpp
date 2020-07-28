@@ -27,7 +27,7 @@ class Source : public ftl::Configurable, public ftl::data::DiscreteSource {
     bool active_;
 	ftl::audio::AudioSettings settings_;
 
-	ftl::audio::Buffer<short> *buffer_;
+	ftl::audio::Buffer<float> *buffer_;
 	int to_read_;
 	int64_t latency_;
 
