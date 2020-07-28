@@ -24,7 +24,7 @@ SoftwareEncoder::~SoftwareEncoder() {
 
 }
 
-bool SoftwareEncoder::encode(const std::vector<short> &in, ftl::codecs::Packet &pkt) {
+bool SoftwareEncoder::encode(const std::vector<float> &in, ftl::codecs::Packet &pkt) {
 	auto codec = (pkt.codec == codec_t::Any) ? codec_t::OPUS : pkt.codec;
 
 	// Force RAW if no opus
@@ -67,7 +67,7 @@ bool SoftwareEncoder::_createOpus(ftl::codecs::Packet &pkt) {
 	return true;
 }
 
-bool SoftwareEncoder::_encodeOpus(const std::vector<short> &in, ftl::codecs::Packet &pkt) {
+bool SoftwareEncoder::_encodeOpus(const std::vector<float> &in, ftl::codecs::Packet &pkt) {
 	#ifdef HAVE_OPUS
 	static const float MAX_BITRATE = 128000.0f;
 	static const float MIN_BITRATE = 24000.0f;
@@ -98,7 +98,7 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<short> &in, ftl::codecs::Pac
 	for (unsigned int i=0; i<in.size(); i+=channels*FRAME_SIZE) {
 		short *len = (short*)outptr;
 		outptr += 2;
-		int nbBytes = opus_multistream_encode(opus_encoder_, &in.data()[i], FRAME_SIZE, outptr, MAX_PACKET_SIZE);
+		int nbBytes = opus_multistream_encode_float(opus_encoder_, &in.data()[i], FRAME_SIZE, outptr, MAX_PACKET_SIZE);
 		if (nbBytes <= 0) return false;
 
 		//if (nbBytes > 32000) LOG(WARNING) << "Packet exceeds size limit";
@@ -119,9 +119,9 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<short> &in, ftl::codecs::Pac
 	#endif
 }
 
-bool SoftwareEncoder::_encodeRaw(const std::vector<short> &in, ftl::codecs::Packet &pkt) {
+bool SoftwareEncoder::_encodeRaw(const std::vector<float> &in, ftl::codecs::Packet &pkt) {
 	const unsigned char *ptr = (unsigned char*)in.data();
-	pkt.data = std::move(std::vector<unsigned char>(ptr, ptr+in.size()*sizeof(short)));
+	pkt.data = std::move(std::vector<unsigned char>(ptr, ptr+in.size()*sizeof(float)));
 	return true;
 }
 

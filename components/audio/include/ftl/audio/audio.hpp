@@ -12,11 +12,11 @@ class Audio {
 
 	size_t size() const { return data_.size()*sizeof(short); }
 
-	std::vector<short> &data() { return data_; }
-	const std::vector<short> &data() const { return data_; }
+	std::vector<float> &data() { return data_; }
+	const std::vector<float> &data() const { return data_; }
 
 	private:
-	std::vector<short> data_;
+	std::vector<float> data_;
 };
 
 }

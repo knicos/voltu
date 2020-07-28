@@ -20,7 +20,7 @@ static int pa_speaker_callback(const void *input, void *output,
 		PaStreamCallbackFlags statusFlags, void *userData) {
 
 	auto *buffer = (BUFFER*)userData;  // ftl::audio::MonoBuffer16<2000>
-	short *out = (short*)output;
+	float *out = (float*)output;
 
 	buffer->readFrame(out);
 
@@ -77,16 +77,16 @@ void Speaker::_open(int fsize, int sample, int channels) {
 	if (sample == 0 || channels == 0) return;
 
 	if (channels >= 2) {
-		buffer_ = new ftl::audio::StereoBuffer16<2000>(sample);
+		buffer_ = new ftl::audio::StereoBufferF<2000>(sample);
 	} else {
-		buffer_ = new ftl::audio::MonoBuffer16<2000>(sample);
+		buffer_ = new ftl::audio::MonoBufferF<2000>(sample);
 	}
 
 	PaStreamParameters outputParameters;
 	//bzero( &inputParameters, sizeof( inputParameters ) );
 	outputParameters.channelCount = channels;
 	outputParameters.device = Pa_GetDefaultOutputDevice();
-	outputParameters.sampleFormat = paInt16;
+	outputParameters.sampleFormat = paFloat32;
 	outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
 	outputParameters.hostApiSpecificStreamInfo = NULL;
 
@@ -100,7 +100,7 @@ void Speaker::_open(int fsize, int sample, int channels) {
 		sample,	// Sample rate
 		960,	// Size of single frame
 		paNoFlag,
-		(channels == 1) ? pa_speaker_callback<ftl::audio::MonoBuffer16<2000>> : pa_speaker_callback<ftl::audio::StereoBuffer16<2000>>,
+		(channels == 1) ? pa_speaker_callback<ftl::audio::MonoBufferF<2000>> : pa_speaker_callback<ftl::audio::StereoBufferF<2000>>,
 		this->buffer_
 	);
 

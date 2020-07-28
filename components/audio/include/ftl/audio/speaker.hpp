@@ -25,7 +25,7 @@ class Speaker : public ftl::Configurable {
 	float volume();
 
 	private:
-	ftl::audio::Buffer<short> *buffer_;
+	ftl::audio::Buffer<float> *buffer_;
 	bool active_;
 	float extra_delay_;
 	float volume_;
