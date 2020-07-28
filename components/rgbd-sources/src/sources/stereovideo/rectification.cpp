@@ -66,6 +66,7 @@ void StereoRectification::calculateParameters() {
 		valid &= calib_right_.intrinsic.resolution != cv::Size{0, 0};
 		valid &= validate::cameraMatrix(calib_left_.intrinsic.matrix());
 		valid &= validate::cameraMatrix(calib_right_.intrinsic.matrix());
+		valid &= (calib_left_.extrinsic.tvec != calib_right_.extrinsic.tvec);
 		if (!valid) { return; }
 	}
 
@@ -73,13 +74,9 @@ void StereoRectification::calculateParameters() {
 
 	// create temporary buffers for rectification
 	if (tmp_l_.size() != image_resolution_) {
-		//using cv::cuda::HostMem;
-		//tmp_l_ = HostMem(image_resolution_, CV_8UC4, HostMem::AllocType::PAGE_LOCKED);
 		tmp_l_ = cv::Mat(image_resolution_, CV_8UC4);
 	}
 	if (tmp_l_.size() != image_resolution_) {
-		//using cv::cuda::HostMem;
-		//tmp_r_ = HostMem(image_resolution_, CV_8UC4, HostMem::AllocType::PAGE_LOCKED);
 		tmp_r_ = cv::Mat(image_resolution_, CV_8UC4);
 	}
 
@@ -91,7 +88,7 @@ void StereoRectification::calculateParameters() {
 	// calculate rotation and translation from left to right using calibration
 	cv::Mat T_l = calib_left_.extrinsic.matrix();
 	cv::Mat T_r = calib_right_.extrinsic.matrix();
-	cv::Mat T = T_l * transform::inverse(T_r);
+	cv::Mat T = T_r * transform::inverse(T_l);
 	cv::Mat R, t;
 
 	transform::getRotationAndTranslation(T, R, t);
