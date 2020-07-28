@@ -308,12 +308,15 @@ void ExtrinsicCalibration::run() {
 
 			auto opt = state_.calib.options();
 			opt.optimize_intrinsic = !(state_.flags & Flags::FIX_INTRINSIC);
+			opt.rational_model = state_.flags & Flags::RATIONAL_MODEL;
 			opt.fix_focal = state_.flags & Flags::FIX_FOCAL;
 			opt.fix_distortion = state_.flags & Flags::FIX_DISTORTION;
+			opt.zero_distortion = state_.flags & Flags::ZERO_DISTORTION;
 			opt.fix_principal_point = state_.flags & Flags::FIX_PRINCIPAL_POINT;
 			opt.loss = (state_.flags & Flags::LOSS_CAUCHY) ?
 				ftl::calibration::BundleAdjustment::Options::Loss::CAUCHY :
 				ftl::calibration::BundleAdjustment::Options::Loss::SQUARED;
+
 			state_.calib.setOptions(opt);
 			state_.calib.run();
 

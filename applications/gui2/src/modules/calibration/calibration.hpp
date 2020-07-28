@@ -317,11 +317,12 @@ public:
 
 	enum Flags {
 		ZERO_DISTORTION = 1,
-		FIX_INTRINSIC = 2,
-		FIX_FOCAL = 4,
-		FIX_PRINCIPAL_POINT = 8,
-		FIX_DISTORTION = 16,
-		LOSS_CAUCHY = 32,
+		RATIONAL_MODEL = 2,
+		FIX_INTRINSIC = 4,
+		FIX_FOCAL = 8,
+		FIX_PRINCIPAL_POINT = 16,
+		FIX_DISTORTION = 32,
+		LOSS_CAUCHY = 64,
 	};
 
 	void setFlags(int flags);
