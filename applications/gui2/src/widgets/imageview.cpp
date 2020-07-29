@@ -568,12 +568,6 @@ bool StereoImageView::scrollEvent(const nanogui::Vector2i& p, const nanogui::Vec
 		((p.x() >= posr.x()) && (orientation_ == nanogui::Orientation::Horizontal)) ||
 		((p.y() >= posr.y()) && (orientation_ == nanogui::Orientation::Vertical));
 
-	LOG(INFO) << "zoom_right: " << zoom_right;
-	LOG(INFO) << "pos: " << pos.x() << ", " << pos.y();
-	LOG(INFO) << "posl: " << posl.x() << ", " << posl.y();
-	LOG(INFO) << "posr: " << posr.x() << ", " << posr.y();
-	LOG(INFO) << "p: " << p.x() << ", " << p.y();
-
 	if (orientation_ == nanogui::Orientation::Horizontal) {
 		if (zoom_right) {
 			left_->zoom(v, pf - nanogui::Vector2f{float(left_->width()), 0.0f} - posl);
