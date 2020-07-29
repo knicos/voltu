@@ -38,6 +38,8 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		return false;
 	}
 
+	LOG(WARNING) << "Using Software Encoder!";
+
 	in.download(tmp_);
 
 	if (!is_colour && in.type() == CV_32F) {
