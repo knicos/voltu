@@ -224,10 +224,11 @@ std::vector<std::pair<std::string, unsigned int>> ExtrinsicCalibration::listFram
 
 std::vector<std::pair<std::string, ftl::data::FrameID>> ExtrinsicCalibration::listSources(unsigned int fsid, bool all) {
 	std::vector<std::pair<std::string, FrameID>> cameras;
+	auto fs = io->feed()->getFrameSet(fsid);
 	for (auto id : io->feed()->listFrames()) {
 		if (id.frameset() != fsid) { continue; }
 		if (all || io->feed()->availableChannels(id).count(Channel::CalibrationData)) {
-			auto name = io->feed()->getURI(id.frameset()) + "#" + std::to_string(id.source());
+			std::string name = (*fs)[id.source()].name();
 			cameras.push_back({name, id});
 		}
 	}

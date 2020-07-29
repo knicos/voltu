@@ -89,6 +89,9 @@ public:
 	uint32_t getID(const std::string &source);
 	std::string getURI(uint32_t fsid);
 
+	/** Get current frameset (cached) */
+	ftl::data::FrameSetPtr getFrameSet(uint32_t);
+
 	/**
 	 * Get the configurable ID that corresponds to the original source. For
 	 * net stream sources this may be a remote configurable.

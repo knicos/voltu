@@ -512,7 +512,7 @@ void Feed::_updateNetSources(ftl::net::Peer *p, bool autoadd) {
 	// Peer may not have a list_streams binding yet
 	try {
 		auto peerstreams = p->call<std::vector<std::string>>("list_streams");
-	
+
 
 		UNIQUE_LOCK(mtx_, lk);
 		//netcams_ = std::move(netcams);
@@ -532,7 +532,7 @@ void Feed::_updateNetSources(ftl::net::Peer *p, bool autoadd) {
 		});
 
 	} catch (const ftl::exception &e) {
-		
+
 	}
 
 	/* done by add()
@@ -779,7 +779,7 @@ uint32_t Feed::add(const std::string &path) {
 
 uint32_t Feed::add(const ftl::URI &uri) {
 	UNIQUE_LOCK(mtx_, lk);
-	
+
 	//if (!uri.isValid()) throw FTL_Error("Invalid URI: " << path);
 
 	if (fsid_lookup_.count(uri.getBaseURI()) > 0) return fsid_lookup_[uri.getBaseURI()];
@@ -1139,4 +1139,11 @@ bool Feed::isRecording() {
 
 bool Feed::_isRecording() {
 	return record_stream_->streams().size() != 0;
+}
+
+ftl::data::FrameSetPtr Feed::getFrameSet(uint32_t fsid) {
+	if (latest_.count(fsid) == 0) {
+		throw ftl::exception("No FrameSet with given ID");
+	}
+	return std::atomic_load(&latest_[fsid]);
 }

@@ -367,9 +367,9 @@ std::vector<std::pair<std::string, FrameID>> IntrinsicCalibration::listSources(b
 	std::vector<std::pair<std::string, FrameID>> cameras;
 	for (auto id : io->feed()->listFrames()) {
 		auto channels = io->feed()->availableChannels(id);
-		// TODO: doesn't work
 		if (all || (channels.count(Channel::CalibrationData) == 1)) {
-			auto name = io->feed()->getURI(id.frameset()) + "#" + std::to_string(id.source());
+			auto name = (*(io->feed()->getFrameSet(id.frameset())))[id.source()].name();
+			//auto name = io->feed()->getURI(id.frameset()) + "#" + std::to_string(id.source());
 			cameras.push_back({name, id});
 		}
 	}
