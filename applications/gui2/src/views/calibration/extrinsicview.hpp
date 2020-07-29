@@ -69,6 +69,9 @@ public:
 	void setRectify(bool v) { rectify_ = v; };
 	void setMode(Mode m);
 
+	bool paused() { return paused_; }
+	void pause(bool v) { paused_ = v; }
+
 protected:
 	int rows(); // calculate optimum number of rows;
 	void setRows(int rows);
@@ -84,7 +87,7 @@ private:
 	int rows_;
 	bool draw_number_;
 	bool rectify_;
-
+	bool paused_;
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };

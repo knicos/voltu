@@ -166,6 +166,7 @@ private:
 	nanogui::Button* bsave_;
 	nanogui::Button* bupload_;
 	nanogui::Button* bapply_;
+	nanogui::Button* bfreeze_;
 	nanogui::Button* bcalibrate_;
 	nanogui::Button* bpause_;
 	nanogui::Button* bresults_;
@@ -208,11 +209,18 @@ ExtrinsicCalibrationView::ControlWindow::ControlWindow(nanogui::Widget* parent, 
 	bapply_ = new nanogui::Button(buttons, "");
 	bapply_->setFixedWidth(40);
 	bapply_->setTooltip("Rectify stereo images");
-
 	bapply_->setFlags(nanogui::Button::Flags::ToggleButton);
 	bapply_->setPushed(view_->rectify());
 	bapply_->setChangeCallback([button = bapply_, view = view_](bool v){
 		view->setRectify(v);
+	});
+
+	bfreeze_ = new nanogui::Button(buttons, "", ENTYPO_ICON_CONTROLLER_PLAY);
+	bfreeze_->setFixedWidth(40);
+	bfreeze_->setTooltip("Freeze view");
+	bfreeze_->setCallback([button=bapply_, view=view_, ctrl=ctrl_](){
+		ctrl->setCapture(view->paused());
+		view->pause(!view->paused());
 	});
 
 	bresults_ = new nanogui::Button(buttons, "Show Calibration");
@@ -244,6 +252,7 @@ void ExtrinsicCalibrationView::ControlWindow::draw(NVGcontext* ctx) {
 	}
 	bapply_->setIcon(view_->rectify() ? ENTYPO_ICON_EYE : ENTYPO_ICON_EYE_WITH_LINE);
 	bapply_->setPushed(view_->rectify());
+	bfreeze_->setIcon(view_->paused() ? ENTYPO_ICON_CONTROLLER_PLAY : ENTYPO_ICON_CONTROLLER_PAUS);
 	//bcalibrate_->setEnabled(ctrl_->calib().nFrames() > 0);
 	//bresults_->setEnabled(ctrl_->calib().calibrated());
 	FixedWindow::draw(ctx);
@@ -454,7 +463,7 @@ ExtrinsicCalibrationView::ExtrinsicCalibrationView(Screen* widget, ExtrinsicCali
 	for (int i = 0; i < ctrl_->cameraCount(); i += 2) {
 		new StereoImageView(frames_, nanogui::Orientation::Vertical);
 	}
-
+	paused_ = false;
 	wcontrol_ = new ControlWindow(screen(), this);
 	wcalibration_ = new CalibrationWindow(screen(), this);
 	wresults_ = new ResultsWindow(screen(), this);
@@ -484,7 +493,7 @@ void ExtrinsicCalibrationView::performLayout(NVGcontext* ctx) {
 
 void ExtrinsicCalibrationView::draw(NVGcontext* ctx) {
 
-	if (ctrl_->next()) {
+	if (ctrl_->next() && !paused_) {
 		for (int i = 0; i < ctrl_->cameraCount(); i += 2) {
 			auto* imview = dynamic_cast<StereoImageView*>(frames_->childAt(i/2));
 
