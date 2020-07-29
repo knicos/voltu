@@ -72,7 +72,7 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 
 	inline void writeFrame(const T *d) {
 		const T *in = d;
-		T *out = &data_[(write_position_++) % SIZE][0];
+		T *out = data_[(write_position_++) % SIZE];
 		for (size_t i=0; i<CHAN*FRAME; ++i) *out++ = *in++;
 		if (write_position_ > 5 && read_position_ < 0) read_position_ = 0;
 	}
@@ -105,11 +105,17 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 		read_position_ = 0;
 	}
 
+	inline T *data() { return (T*)data_; }
+	inline T *data(int f) { return data_[f]; }
+
+	inline int writePosition() const { return write_position_; }
+	inline void setWritePosition(int p) { write_position_ = p; }
+
 	private:
 	int write_position_;
 	int read_position_;
 	int offset_;
-	T data_[SIZE][CHAN*FRAME];
+	alignas(32) T data_[SIZE][CHAN*FRAME];
 };
 
 // ==== Implementations ========================================================
@@ -153,7 +159,7 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 			++write_position_;
 		}
 	}
-	if (write_position_ > 20 && read_position_ < 0) read_position_ = 0;
+	if (write_position_ > 5 && read_position_ < 0) read_position_ = 0;
 }
 
 template <typename T, int CHAN, int FRAME, int SIZE>
