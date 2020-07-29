@@ -51,6 +51,7 @@ class PylonDevice : public ftl::rgbd::detail::Device {
 	std::string serial_;
 	int left_fail_=0;
 	int right_fail_=0;
+	int buffer_size_=1;
 
 	cv::cuda::HostMem left_hm_;
 	cv::cuda::HostMem right_hm_;
