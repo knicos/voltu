@@ -155,17 +155,18 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 			for (auto &s : sets) {
 				if (s->frameset() == my_id_) continue;  // Skip self
 
-				auto &mixmap = mixmap_[s->id().id];
-				if (mixmap.track == -1) mixmap.track = tracks_++;
-
 				// TODO: Render audio also...
 				// Use another thread to merge all audio channels along with
 				// some degree of volume adjustment. Later, do 3D audio.
-				mixer_.resize(tracks_);
+				//mixer_.resize(tracks_);
 
 				// Inject and copy data items
 				for (size_t i=0; i<s->frames.size(); ++i) {
 					auto &f = s->frames[i];
+
+					auto &mixmap = mixmap_[f.id().id];
+					if (mixmap.track == -1) mixmap.track = tracks_++;
+					mixer_.resize(tracks_);
 
 					if (mixmap.last_timestamp != f.timestamp() && f.hasChannel(Channel::AudioStereo)) {
 						const auto &audio = f.get<std::list<ftl::audio::Audio>>(Channel::AudioStereo).front();
