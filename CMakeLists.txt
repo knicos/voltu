@@ -487,6 +487,8 @@ if (HAVE_NANOGUI)
 	add_subdirectory(applications/gui2)
 endif()
 
+add_subdirectory(applications/aruco)
+
 ### Generate Build Configuration Files =========================================
 
 configure_file(${CMAKE_SOURCE_DIR}/components/common/cpp/include/ftl/config.h.in
