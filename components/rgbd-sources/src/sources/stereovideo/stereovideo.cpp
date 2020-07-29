@@ -181,6 +181,7 @@ void StereoVideoSource::init(const string &file) {
 
 	host_->on("rectify", [this]() {
 		calibration_.enabled = host_->value("rectify", true);
+		rectification_->setEnabled(calibration_.enabled);
 		do_update_params_ = true;
 	});
 
