@@ -158,9 +158,22 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 				// TODO: Render audio also...
 				// Use another thread to merge all audio channels along with
 				// some degree of volume adjustment. Later, do 3D audio.
+				//mixer_.resize(tracks_);
 
 				// Inject and copy data items
-				for (const auto &f : s->frames) {
+				for (size_t i=0; i<s->frames.size(); ++i) {
+					auto &f = s->frames[i];
+
+					auto &mixmap = mixmap_[f.id().id];
+					if (mixmap.track == -1) mixmap.track = tracks_++;
+					mixer_.resize(tracks_);
+
+					if (mixmap.last_timestamp != f.timestamp() && f.hasChannel(Channel::AudioStereo)) {
+						const auto &audio = f.get<std::list<ftl::audio::Audio>>(Channel::AudioStereo).front();
+						mixer_.write(mixmap.track, audio.data());
+					}
+					mixmap.last_timestamp = f.timestamp();
+
 					// Add pose as a camera shape
 					auto &shape = shapes.list.emplace_back();
 					shape.id = f.id().id;
@@ -175,6 +188,17 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 						shapes.list.insert(shapes.list.end(), fshapes.begin(), fshapes.end());
 					}
 				}
+			}
+
+			mixer_.mix();
+
+			// Write mixed audio to frame.
+			if (mixer_.frames() > 0) {
+				auto &list = frame_out.create<std::list<ftl::audio::Audio>>(Channel::AudioStereo).list;
+				list.clear();
+
+				int fcount = mixer_.frames();
+				mixer_.read(list.emplace_front().data(), fcount);
 			}
 
 			// This waits for GPU also

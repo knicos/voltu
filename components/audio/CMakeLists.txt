@@ -15,5 +15,6 @@ target_include_directories(ftlaudio PUBLIC
 
 target_link_libraries(ftlaudio ftlcommon Eigen3::Eigen ftlstreams ftldata portaudio Opus)
 
-#add_subdirectory(test)
-
+if (BUILD_TESTS)
+add_subdirectory(test)
+endif()

@@ -222,25 +222,6 @@ else()
 	add_library(realsense INTERFACE)
 endif()
 
-# ==============================================================================
-
-if (BUILD_GUI)
-	set(HAVE_NANOGUI TRUE)
-
-	# Disable building extras we won't need (pure C++ project)
-	set(NANOGUI_BUILD_SHARED OFF CACHE BOOL " " FORCE)
-	set(NANOGUI_BUILD_EXAMPLE OFF CACHE BOOL " " FORCE)
-	set(NANOGUI_BUILD_PYTHON  OFF CACHE BOOL " " FORCE)
-	set(NANOGUI_INSTALL       OFF CACHE BOOL " " FORCE)
-	set(NANOGUI_EIGEN_INCLUDE_DIR ${EIGEN_INCLUDE_DIR} CACHE STRING " " FORCE)
-
-	# Add the configurations from nanogui
-	add_subdirectory(ext/nanogui)
-
-	# For reliability of parallel build, make the NanoGUI targets dependencies
-	set_property(TARGET glfw glfw_objects nanogui PROPERTY FOLDER "dependencies")
-endif()
-
 # ==== Portaudio v19 ===========================================================
 
 # Portaudio v19 library
@@ -390,16 +371,16 @@ include(ftl_paths)
 
 if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	add_definitions(-DWIN32)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP4 /std:c++17 /wd4996")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX512 /MP4 /std:c++17 /wd4996")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /DFTL_DEBUG /Wall")
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
 	set(OS_LIBS "")
 else()
 	add_definitions(-DUNIX)
 	# -fdiagnostics-color
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -msse3 -Wall -Werror=unused-result -Werror=return-type")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -march=native -mfpmath=sse -Wall -Werror=unused-result -Werror=return-type")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
-	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -mfpmath=sse")
+	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 	set(OS_LIBS "dl")
 endif()
 
@@ -440,6 +421,27 @@ if (WITH_FIXSTARS)
 else()
 	add_library(sgm INTERFACE)
 endif()
+
+# ==============================================================================
+
+if (BUILD_GUI)
+	set(HAVE_NANOGUI TRUE)
+
+	# Disable building extras we won't need (pure C++ project)
+	set(NANOGUI_BUILD_SHARED OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_BUILD_EXAMPLE OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_BUILD_PYTHON  OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_INSTALL       OFF CACHE BOOL " " FORCE)
+	set(NANOGUI_EIGEN_INCLUDE_DIR ${EIGEN_INCLUDE_DIR} CACHE STRING " " FORCE)
+
+	# Add the configurations from nanogui
+	add_subdirectory(ext/nanogui)
+
+	# For reliability of parallel build, make the NanoGUI targets dependencies
+	set_property(TARGET glfw glfw_objects nanogui PROPERTY FOLDER "dependencies")
+endif()
+
+# =============================================================================
 
 
 add_subdirectory(components/common/cpp)
