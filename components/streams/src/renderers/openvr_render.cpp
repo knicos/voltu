@@ -379,12 +379,25 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			for (auto &s : sets) {
 				if (s->frameset() == my_id_) continue;  // Skip self
 
-				// TODO: Render audio also...
-				// Use another thread to merge all audio channels along with
-				// some degree of volume adjustment. Later, do 3D audio.
+				// Inject and copy data items and mix audio
+				for (size_t i=0; i<s->frames.size(); ++i) {
+					auto &f = s->frames[i];
 
-				// Inject and copy data items
-				for (const auto &f : s->frames) {
+					// If audio is present, mix with the other frames
+					if (f.hasChannel(Channel::AudioStereo)) {
+						// Map a mixer track to this frame
+						auto &mixmap = mixmap_[f.id().id];
+						if (mixmap.track == -1) mixmap.track = tracks_++;
+						mixer_.resize(tracks_);
+
+						// Do mix but must not mix same frame multiple times
+						if (mixmap.last_timestamp != f.timestamp()) {
+							const auto &audio = f.get<std::list<ftl::audio::Audio>>(Channel::AudioStereo).front();
+							mixer_.write(mixmap.track, audio.data());
+							mixmap.last_timestamp = f.timestamp();
+						}
+					}
+
 					// Add pose as a camera shape
 					auto &shape = shapes.list.emplace_back();
 					shape.id = f.id().id;
@@ -399,6 +412,17 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 						shapes.list.insert(shapes.list.end(), fshapes.begin(), fshapes.end());
 					}
 				}
+			}
+
+			mixer_.mix();
+
+			// Write mixed audio to frame.
+			if (mixer_.frames() > 0) {
+				auto &list = frame_out.create<std::list<ftl::audio::Audio>>(Channel::AudioStereo).list;
+				list.clear();
+
+				int fcount = mixer_.frames();
+				mixer_.read(list.emplace_front().data(), fcount);
 			}
 
 			// TODO: Blend option

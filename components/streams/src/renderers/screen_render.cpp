@@ -155,24 +155,24 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 			for (auto &s : sets) {
 				if (s->frameset() == my_id_) continue;  // Skip self
 
-				// TODO: Render audio also...
-				// Use another thread to merge all audio channels along with
-				// some degree of volume adjustment. Later, do 3D audio.
-				//mixer_.resize(tracks_);
-
-				// Inject and copy data items
+				// Inject and copy data items and mix audio
 				for (size_t i=0; i<s->frames.size(); ++i) {
 					auto &f = s->frames[i];
 
-					auto &mixmap = mixmap_[f.id().id];
-					if (mixmap.track == -1) mixmap.track = tracks_++;
-					mixer_.resize(tracks_);
+					// If audio is present, mix with the other frames
+					if (f.hasChannel(Channel::AudioStereo)) {
+						// Map a mixer track to this frame
+						auto &mixmap = mixmap_[f.id().id];
+						if (mixmap.track == -1) mixmap.track = tracks_++;
+						mixer_.resize(tracks_);
 
-					if (mixmap.last_timestamp != f.timestamp() && f.hasChannel(Channel::AudioStereo)) {
-						const auto &audio = f.get<std::list<ftl::audio::Audio>>(Channel::AudioStereo).front();
-						mixer_.write(mixmap.track, audio.data());
+						// Do mix but must not mix same frame multiple times
+						if (mixmap.last_timestamp != f.timestamp()) {
+							const auto &audio = f.get<std::list<ftl::audio::Audio>>(Channel::AudioStereo).front();
+							mixer_.write(mixmap.track, audio.data());
+							mixmap.last_timestamp = f.timestamp();
+						}
 					}
-					mixmap.last_timestamp = f.timestamp();
 
 					// Add pose as a camera shape
 					auto &shape = shapes.list.emplace_back();

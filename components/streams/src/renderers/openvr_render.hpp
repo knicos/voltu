@@ -7,6 +7,7 @@
 #include <ftl/render/CUDARender.hpp>
 #include <ftl/streams/feed.hpp>
 #include <ftl/utility/gltexture.hpp>
+#include <ftl/audio/mixer.hpp>
 
 #include "../baserender.hpp"
 
@@ -54,6 +55,15 @@ class OpenVRRender : public ftl::render::BaseSourceImpl {
 	#ifdef HAVE_OPENVR
 	vr::TrackedDevicePose_t rTrackedDevicePose_[ vr::k_unMaxTrackedDeviceCount ];
 	#endif
+
+	struct AudioMixerMapping {
+		int64_t last_timestamp=0;
+		int track=-1;
+	};
+
+	int tracks_=0;
+	ftl::audio::StereoMixerF<100> mixer_;
+	std::unordered_map<uint32_t, AudioMixerMapping> mixmap_;
 
 	bool initVR();
 };
