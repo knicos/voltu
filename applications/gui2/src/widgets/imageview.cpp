@@ -552,35 +552,46 @@ bool StereoImageView::mouseMotionEvent(const nanogui::Vector2i &p, const nanogui
 	}
 	return false;
 }
-
+#include <loguru.hpp>
 bool StereoImageView::scrollEvent(const nanogui::Vector2i& p, const nanogui::Vector2f& rel) {
 	// synchronized zoom
 
 	float v = rel.y();
 
+	nanogui::Vector2f pos = position().cast<float>();
+	nanogui::Vector2f posl = pos + left_->position().cast<float>();
+	nanogui::Vector2f posr = pos + right_->position().cast<float>();
+	nanogui::Vector2f pf = p.cast<float>();
+
 	// zooming on right image?
 	bool zoom_right =
-		((p.x() >= left_->absolutePosition().x()) && (orientation_ == nanogui::Orientation::Horizontal)) ||
-		((p.y() >= left_->absolutePosition().y()) && (orientation_ == nanogui::Orientation::Vertical));
+		((p.x() >= posr.x()) && (orientation_ == nanogui::Orientation::Horizontal)) ||
+		((p.y() >= posr.y()) && (orientation_ == nanogui::Orientation::Vertical));
+
+	LOG(INFO) << "zoom_right: " << zoom_right;
+	LOG(INFO) << "pos: " << pos.x() << ", " << pos.y();
+	LOG(INFO) << "posl: " << posl.x() << ", " << posl.y();
+	LOG(INFO) << "posr: " << posr.x() << ", " << posr.y();
+	LOG(INFO) << "p: " << p.x() << ", " << p.y();
 
 	if (orientation_ == nanogui::Orientation::Horizontal) {
 		if (zoom_right) {
-			left_->zoom(v, (p - nanogui::Vector2i{left_->width(), 0} - left_->position()).cast<float>());
-			right_->zoom(v, (p - right_->position()).cast<float>());
+			left_->zoom(v, pf - nanogui::Vector2f{float(left_->width()), 0.0f} - posl);
+			right_->zoom(v, pf - posr);
 		}
 		else {
-			left_->zoom(v, (p - left_->position()).cast<float>());
-			right_->zoom(v, (nanogui::Vector2i{right_->width(), 0} + p - right_->position()).cast<float>());
+			left_->zoom(v, pf - posl);
+			right_->zoom(v, nanogui::Vector2f{float(right_->width()), 0.0f} + pf - posr);
 		}
 	}
 	else { // same as above, flip x/y
 		if (zoom_right) {
-			left_->zoom(v, (p - nanogui::Vector2i{0, left_->height()} - left_->position()).cast<float>());
-			right_->zoom(v, (p - right_->position()).cast<float>());
+			left_->zoom(v, pf - nanogui::Vector2f{0.0f, float(left_->height())} - posl);
+			right_->zoom(v, pf - posr);
 		}
 		else {
-			left_->zoom(v, (p - left_->position()).cast<float>());
-			right_->zoom(v, (nanogui::Vector2i{0, right_->height()} + p - right_->position()).cast<float>());
+			left_->zoom(v, pf - posl);
+			right_->zoom(v, nanogui::Vector2f{0.0f, float(right_->height())} + pf - posr);
 		}
 	}
 	return true;
