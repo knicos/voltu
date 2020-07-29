@@ -371,7 +371,7 @@ include(ftl_paths)
 
 if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	add_definitions(-DWIN32)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX512 /MP4 /std:c++17 /wd4996")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2 /MP4 /std:c++17 /wd4996")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /DFTL_DEBUG /Wall")
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
 	set(OS_LIBS "")

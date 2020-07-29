@@ -112,6 +112,8 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 			rcam_->ExposureTime.SetValue(value("exposure", 24000.0f));  // Exposure time in microseconds
 		}
 	});
+
+	on("buffer_size", buffer_size_, 1);
 }
 
 PylonDevice::~PylonDevice() {
@@ -250,20 +252,20 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 			rcam_->RetrieveResult(0, tmp_result, Pylon::TimeoutHandling_Return);
 		}*/
 
-		if (rcount == 0 || lcount == 0) {
+		if (rcount < buffer_size_ || lcount < buffer_size_) {
 			LOG(WARNING) << "Retrieve failed for L+R";
 			return false;
 		}
 
-		if (rcount > 1 && lcount > 1) {
+		if (rcount > buffer_size_ && lcount > buffer_size_) {
 			LOG(WARNING) << "Pylon buffer latency problem : " << lcount << " vs " << rcount << " frames";
 			Pylon::CGrabResultPtr tmp_result;
 			//lcam_->RetrieveResult(0, tmp_result, Pylon::TimeoutHandling_Return);
 			//rcam_->RetrieveResult(0, tmp_result, Pylon::TimeoutHandling_Return);
 			_retrieveFrames(tmp_result, lcam_);
 			_retrieveFrames(tmp_result, rcam_);
-		} else if (rcount > 1) LOG(ERROR) << "Buffers (R) out of sync by " << rcount;
-		else if (lcount > 1) LOG(ERROR) << "Buffers (L) out of sync by " << lcount;
+		} else if (rcount > buffer_size_) LOG(ERROR) << "Buffers (R) out of sync by " << rcount;
+		else if (lcount > buffer_size_) LOG(ERROR) << "Buffers (L) out of sync by " << lcount;
 	} else {
 		if (lcam_->NumReadyBuffers.GetValue() == 0) {
 			LOG(INFO) << "Retrieve failed for L";
