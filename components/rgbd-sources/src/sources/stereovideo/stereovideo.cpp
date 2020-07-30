@@ -185,6 +185,14 @@ void StereoVideoSource::init(const string &file) {
 		do_update_params_ = true;
 	});
 
+	rectification_->setInterpolation(
+		host_->value("rectify_inter_cubic", false) ? cv::INTER_CUBIC : cv::INTER_LINEAR);
+
+	host_->on("rectify_inter_cubic", [this]() {
+		bool v = host_->value("rectify_inter_cubic", false);
+		rectification_->setInterpolation(v ? cv::INTER_CUBIC : cv::INTER_LINEAR);
+	});
+
 	host_->on("offset_z", [this]() {
 		do_update_params_ = true;
 	});

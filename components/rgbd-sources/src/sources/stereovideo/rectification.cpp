@@ -24,13 +24,10 @@ StereoRectification::StereoRectification(nlohmann::json &config, cv::Size image_
 	enabled_(false), valid_(false), interpolation_(cv::INTER_LINEAR),
 	baseline_(0.0) {
 
-}
-
-void StereoRectification::setSize(cv::Size size) {
-	image_resolution_ = size;
-	if (calibrated()) {
-		calculateParameters();
-	}
+	map_l_.first.create(image_resolution_, map_format_);
+	map_l_.second.create(image_resolution_, map_format_);
+	map_r_.first.create(image_resolution_, map_format_);
+	map_r_.second.create(image_resolution_, map_format_);
 }
 
 void StereoRectification::setInterpolation(int interpolation) {
@@ -53,11 +50,11 @@ void StereoRectification::setCalibration(CalibrationData &calib) {
 	if (calib.hasCalibration(Channel::Left) && calib.hasCalibration(Channel::Right)) {
 		calib_left_ = calib.get(Channel::Left);
 		calib_right_ = calib.get(Channel::Right);
-		calculateParameters();
+		updateCalibration_();
 	}
 }
 
-void StereoRectification::calculateParameters() {
+void StereoRectification::updateCalibration_() {
 	using namespace ftl::calibration;
 	// TODO: lock
 	{
@@ -80,34 +77,36 @@ void StereoRectification::calculateParameters() {
 		tmp_r_ = cv::Mat(image_resolution_, CV_8UC4);
 	}
 
+	// calculate rotation and translation from left to right using calibration
+	cv::Mat T_l = calib_left_.extrinsic.matrix();
+	cv::Mat T_r = calib_right_.extrinsic.matrix();
+	cv::Mat T = T_r * transform::inverse(T_l);
+
+	transform::getRotationAndTranslation(T, R_, t_);
+	baseline_ = cv::norm(t_);
+
+	if (baseline_ == 0.0) { return; }
+	valid_ = true;
+	calculateParameters_();
+}
+
+void StereoRectification::calculateParameters_() {
+	if (!valid_) { return; }
+
 	cv::Mat K_l = calib_left_.intrinsic.matrix(image_resolution_);
 	cv::Mat K_r = calib_right_.intrinsic.matrix(image_resolution_);
 	cv::Mat dc_l = calib_left_.intrinsic.distCoeffs.Mat();
 	cv::Mat dc_r = calib_right_.intrinsic.distCoeffs.Mat();
 
-	// calculate rotation and translation from left to right using calibration
-	cv::Mat T_l = calib_left_.extrinsic.matrix();
-	cv::Mat T_r = calib_right_.extrinsic.matrix();
-	cv::Mat T = T_r * transform::inverse(T_l);
-	cv::Mat R, t;
-
-	transform::getRotationAndTranslation(T, R, t);
-	baseline_ = cv::norm(t);
-
-	if (baseline_ == 0.0) { return; }
-
 	// calculate rectification parameters
 	cv::stereoRectify(	K_l, dc_l, K_r, dc_r, image_resolution_,
-						R, t, R_l_, R_r_, P_l_, P_r_, Q_, 0, 0);
+						R_, t_, R_l_, R_r_, P_l_, P_r_, Q_, 0, 0);
 
-	// for CPU remap, CV_16SC2 should give best performance
-	// https://docs.opencv.org/master/da/d54/group__imgproc__transform.html
 	cv::initUndistortRectifyMap(K_l, dc_l, R_l_, P_l_, image_resolution_,
-								CV_16SC2, map_l_.first, map_l_.second);
+								map_format_, map_l_.first, map_l_.second);
 	cv::initUndistortRectifyMap(K_r, dc_r, R_r_, P_r_, image_resolution_,
-								CV_16SC2, map_r_.first, map_r_.second);
+								map_format_, map_r_.first, map_r_.second);
 
-	valid_ = true;
 }
 
 void StereoRectification::rectify(cv::InputOutputArray im, Channel c) {
