@@ -313,7 +313,7 @@ void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &f
 			textpos.z = tpose(2,3);
 
 			float2 textscreen = f.getLeft().camToScreen<float2>(textpos);
-			nvgText(ctx, textscreen.x, textscreen.y, name.c_str(), nullptr);
+			if (textpos.z > 0.1f) nvgText(ctx, textscreen.x, textscreen.y, name.c_str(), nullptr);
 
 			//ftl::overlay::drawCamera(state.getLeft(), out, over_depth_, fs.frames[i].getLeftCamera(), pose, cv::Scalar(0,0,255,255), 0.2,value("show_frustrum", false));
 			//if (name) ftl::overlay::drawText(state.getLeft(), out, over_depth_, *name, pos, 0.5, cv::Scalar(0,0,255,255));
@@ -383,7 +383,7 @@ void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &f
 						textpos.z = tpose(2,3);
 
 						float2 textscreen = frame.getLeft().camToScreen<float2>(textpos);
-						nvgText(ctx, textscreen.x, textscreen.y, s.label.c_str(), nullptr);
+						if (textpos.z > 0.1f) nvgText(ctx, textscreen.x, textscreen.y, s.label.c_str(), nullptr);
 					}
 
 					//ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
