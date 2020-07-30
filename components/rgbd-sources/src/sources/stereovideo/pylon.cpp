@@ -24,7 +24,8 @@ using cv::Mat;
 using namespace Pylon;
 
 PylonDevice::PylonDevice(nlohmann::json &config)
-		: ftl::rgbd::detail::Device(config), ready_(false), lcam_(nullptr), rcam_(nullptr) {
+		: ftl::rgbd::detail::Device(config), ready_(false), lcam_(nullptr), rcam_(nullptr),
+		interpolation_(cv::INTER_CUBIC) {
 
 	auto &inst = CTlFactory::GetInstance();
 
@@ -114,6 +115,12 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 	});
 
 	on("buffer_size", buffer_size_, 1);
+
+	interpolation_ = value("inter_cubic", false) ? cv::INTER_CUBIC : cv::INTER_LINEAR;
+	on("inter_cubic", [this](){
+		interpolation_ = value("inter_cubic", false) ?
+			cv::INTER_CUBIC : cv::INTER_LINEAR;
+	});
 }
 
 PylonDevice::~PylonDevice() {
@@ -298,7 +305,7 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 					c->rectify(rfull, Channel::Right);
 
 					if (hasHigherRes()) {
-						cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
+						cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
 						h_r = rfull;
 					}
 					else {
@@ -338,7 +345,7 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 			}
 
 			if (hasHigherRes()) {
-				cv::resize(lfull, l, l.size(), 0.0, 0.0, cv::INTER_CUBIC);
+				cv::resize(lfull, l, l.size(), 0.0, 0.0, interpolation_);
 				h_l.upload(hres, stream);
 			} else {
 				h_l = cv::cuda::GpuMat();

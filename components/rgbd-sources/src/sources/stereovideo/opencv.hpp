@@ -62,6 +62,7 @@ class OpenCVDevice : public ftl::rgbd::detail::Device {
 
 	cv::Mat frame_l_;
 	cv::Mat frame_r_;
+	int interpolation_;
 };
 
 }

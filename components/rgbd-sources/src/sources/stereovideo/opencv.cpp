@@ -46,7 +46,8 @@ using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
 OpenCVDevice::OpenCVDevice(nlohmann::json &config, bool stereo)
-		: ftl::rgbd::detail::Device(config), timestamp_(0.0) {
+		: ftl::rgbd::detail::Device(config), timestamp_(0.0),
+		interpolation_(cv::INTER_CUBIC) {
 
 	std::vector<ftl::rgbd::detail::DeviceDetails> devices_ = getDevices();
 
@@ -147,6 +148,12 @@ OpenCVDevice::OpenCVDevice(nlohmann::json &config, bool stereo)
 	left_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC4);
 	right_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC4);
 	hres_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
+
+	interpolation_ = value("inter_cubic", false) ? cv::INTER_CUBIC : cv::INTER_LINEAR;
+	on("inter_cubic", [this](){
+		interpolation_ = value("inter_cubic_", false) ?
+			cv::INTER_CUBIC : cv::INTER_LINEAR;
+	});
 }
 
 OpenCVDevice::~OpenCVDevice() {
@@ -355,7 +362,7 @@ bool OpenCVDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cud
 
 				if (hasHigherRes()) {
 					// TODO: Use threads?
-					cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
+					cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
 					r_hres_out = rfull;
 				}
 				else {
@@ -397,13 +404,13 @@ bool OpenCVDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cud
 		// Need to resize
 		//if (hasHigherRes()) {
 			// TODO: Use threads?
-		//	cv::resize(rfull, r, r.size(), 0.0, 0.0, cv::INTER_CUBIC);
+		//	cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
 		//}
 	}
 
 	if (hasHigherRes()) {
 		//FTL_Profile("Frame Resize", 0.01);
-		cv::resize(lfull, l, l.size(), 0.0, 0.0, cv::INTER_CUBIC);
+		cv::resize(lfull, l, l.size(), 0.0, 0.0, interpolation_);
 		l_hres_out.upload(hres, stream);
 	} else {
 		l_hres_out = cv::cuda::GpuMat();
