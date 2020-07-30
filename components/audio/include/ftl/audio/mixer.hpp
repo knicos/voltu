@@ -21,20 +21,19 @@ namespace audio {
 template <typename T, int CHAN, int FRAME, int SIZE>
 class FixedMixer : public ftl::audio::Buffer<T> {
 	public:
-	FixedMixer() : Buffer<T>(CHAN, FRAME, 44100), write_position_(0), read_position_(0), offset_(0) { resize(1); }
-	explicit FixedMixer(int tracks) : Buffer<T>(CHAN, FRAME, 44100), write_position_(0), read_position_(0), offset_(0) { resize(tracks); }
-	FixedMixer(int tracks, int rate) : Buffer<T>(CHAN, FRAME, rate), write_position_(0), read_position_(0), offset_(0) { resize(tracks); }
+	FixedMixer() : Buffer<T>(CHAN, FRAME, 44100) { }
+	explicit FixedMixer(int rate) : Buffer<T>(CHAN, FRAME, rate) { }
 
 
 	inline int maxFrames() const { return SIZE; }
 
 	inline void readFrame(T *d) {
-		T *out = d;
+		T* __restrict out = d;
 		if (read_position_ >= write_position_) {
-			for (size_t i=0; i<CHAN*FRAME; ++i) *out++ = 0;
+			std::fill(out, out+CHAN*FRAME, T(0));
 		} else {
-			T *in = data_[(read_position_++) % SIZE];
-			for (size_t i=0; i<CHAN*FRAME; ++i) *out++ = *in++;
+			const T* __restrict in = data_[(read_position_++) % SIZE];
+			std::copy(in, in+CHAN*FRAME, out);
 		}
 	}
 
@@ -49,7 +48,7 @@ class FixedMixer : public ftl::audio::Buffer<T> {
 	void write(const std::vector<T> &in) override;
 
 	inline void write(int track, const std::vector<T> &in) {
-		tracks_[track].write(in);
+		tracks_.at(track).write(in);
 	}
 
 	void mix();
@@ -58,7 +57,7 @@ class FixedMixer : public ftl::audio::Buffer<T> {
 
 	void reset() override {
 		Buffer<T>::reset();
-		write_position_ = 0; //int(this->cur_delay_);
+		write_position_ = 0;
 		read_position_ = 0;
 	}
 
@@ -66,22 +65,25 @@ class FixedMixer : public ftl::audio::Buffer<T> {
 	inline int readPosition() const { return read_position_; }
 	inline int tracks() const { return track_num_; }
 
-	inline void setDelay(int track, float d) { tracks_[track].setDelay(d); }
-	inline float delay(int track) const { return tracks_[track].delay(); }
+	inline void setDelay(int track, float d) { tracks_.at(track).setDelay(d); }
+	inline float delay(int track) const { return tracks_.at(track).delay(); }
 
-	inline void setGain(float g) { gain_ = g; }
-	inline float gain() const { return gain_; }
+	inline void setGain(int track, float g) { tracks_.at(track).setGain(g); }
+	inline float gain(int track) const { return tracks_.at(track).gain(); }
 
-	void resize(int tracks);
+	//void resize(int tracks);
+
+	int add(const std::string &name);
+
+	const std::string &name(int track) const { return names_.at(track); }
 
 	private:
 	int track_num_=0;
-	int write_position_;
-	int read_position_;
-	int offset_;
-	float gain_ = 1.0f;
+	int write_position_=0;
+	int read_position_=0;
 	alignas(32) T data_[SIZE][CHAN*FRAME];
 	std::vector<ftl::audio::FixedBuffer<T,CHAN,FRAME,SIZE>> tracks_;
+	std::vector<std::string> names_;
 };
 
 // ==== Implementations ========================================================
@@ -93,6 +95,8 @@ void FixedMixer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 
 template <typename T, int CHAN, int FRAME, int SIZE>
 void FixedMixer<T,CHAN,FRAME,SIZE>::mix() {
+	if (track_num_ == 0) return;
+
 	// Add together up to most recent frame
 	int min_write = std::numeric_limits<int>::max();
 	for (auto &t : tracks_) {
@@ -112,10 +116,10 @@ void FixedMixer<T,CHAN,FRAME,SIZE>::mix() {
 			// For each track, accumulate the samples
 			for (auto &t : tracks_) {
 				const Eigen::Map<Eigen::Matrix<float,8,1>,Eigen::Aligned32> v2(&t.data(wp)[i]);
-				v1 += v2;
+				v1 += t.gain()*v2;
 			}
 
-			v1 *= gain_;
+			v1 *= this->gain_;
 		}
 
 		++write_position_;
@@ -127,12 +131,13 @@ void FixedMixer<T,CHAN,FRAME,SIZE>::read(std::vector<T> &out, int count) {
 	out.resize(FRAME*count*CHAN);
 	T *ptr = out.data();
 	for (int i=0; i<count; ++i) {
+		// TODO: Do mix here directly
 		readFrame(ptr);
 		ptr += FRAME*CHAN;
 	}
 }
 
-template <typename T, int CHAN, int FRAME, int SIZE>
+/*template <typename T, int CHAN, int FRAME, int SIZE>
 void FixedMixer<T,CHAN,FRAME,SIZE>::resize(int t) {
 	if (track_num_ == t) return;
 	
@@ -142,6 +147,14 @@ void FixedMixer<T,CHAN,FRAME,SIZE>::resize(int t) {
 		auto &tr = tracks_.emplace_back();
 		tr.setWritePosition(write_position_);
 	}
+}*/
+
+template <typename T, int CHAN, int FRAME, int SIZE>
+int FixedMixer<T,CHAN,FRAME,SIZE>::add(const std::string &name) {
+	names_.push_back(name);
+	auto &tr = tracks_.emplace_back();
+	tr.setWritePosition(write_position_);
+	return track_num_++;
 }
 
 // ==== Common forms ===========================================================

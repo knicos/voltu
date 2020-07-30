@@ -5,6 +5,7 @@
 #include <ftl/cuda_util.hpp>
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/rgbd/frame.hpp>
+#include <ftl/audio/mixer.hpp>
 
 namespace ftl{
 namespace render {
@@ -27,8 +28,11 @@ class BaseSourceImpl {
 
 	ftl::render::Source *host() { return host_; }
 
+	inline ftl::audio::StereoMixerF<100> &mixer() { return mixer_; }
+
 	protected:
 	ftl::render::Source *host_;
+	ftl::audio::StereoMixerF<100> mixer_;
 };
 
 }

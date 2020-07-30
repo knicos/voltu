@@ -27,6 +27,11 @@ Source::~Source() {
 	if (impl_) delete impl_;
 }
 
+ftl::audio::StereoMixerF<100> &Source::mixer() {
+	if (!impl_) throw FTL_Error("No implementation");
+	return impl_->mixer();
+}
+
 bool Source::supports(const std::string &puri) {
 	ftl::URI uri(puri);
 	if (!uri.isValid() || uri.getScheme() != ftl::URI::SCHEME_DEVICE) return false;

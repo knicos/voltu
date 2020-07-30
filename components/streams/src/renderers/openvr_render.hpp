@@ -61,8 +61,6 @@ class OpenVRRender : public ftl::render::BaseSourceImpl {
 		int track=-1;
 	};
 
-	int tracks_=0;
-	ftl::audio::StereoMixerF<100> mixer_;
 	std::unordered_map<uint32_t, AudioMixerMapping> mixmap_;
 
 	bool initVR();

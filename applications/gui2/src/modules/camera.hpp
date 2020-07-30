@@ -7,6 +7,7 @@
 #include <ftl/render/colouriser.hpp>
 #include <ftl/render/overlay.hpp>
 #include <ftl/codecs/touch.hpp>
+#include <ftl/audio/mixer.hpp>
 
 namespace ftl {
 namespace gui2 {
@@ -49,6 +50,7 @@ public:
 
 	ftl::render::Colouriser* colouriser() { return colouriser_.get(); };
 	ftl::overlay::Overlay* overlay() { return overlay_.get(); }
+	ftl::audio::StereoMixerF<100> *mixer();
 
 	void drawOverlay(NVGcontext *ctx);
 
@@ -90,6 +92,7 @@ private:
 	std::map<ftl::data::Message,std::string> messages_;
 
 	CameraView* view = nullptr;
+	ftl::audio::StereoMixerF<100> *mixer_ = nullptr;
 
 	MUTEX mtx_;
 

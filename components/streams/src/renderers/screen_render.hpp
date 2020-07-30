@@ -6,7 +6,6 @@
 #include <ftl/render/renderer.hpp>
 #include <ftl/render/CUDARender.hpp>
 #include <ftl/streams/feed.hpp>
-#include <ftl/audio/mixer.hpp>
 
 #include "../baserender.hpp"
 
@@ -42,8 +41,6 @@ class ScreenRender : public ftl::render::BaseSourceImpl {
 		int track=-1;
 	};
 
-	int tracks_=0;
-	ftl::audio::StereoMixerF<100> mixer_;
 	std::unordered_map<uint32_t, AudioMixerMapping> mixmap_;
 };
 

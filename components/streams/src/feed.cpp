@@ -966,6 +966,15 @@ void Feed::render() {
 	}
 }
 
+ftl::render::Source *Feed::getRenderer(ftl::data::FrameID id) {
+	auto i = renderers_.find(id.frameset());
+	if (i != renderers_.end()) {
+		return i->second;
+	} else {
+		return nullptr;
+	}
+}
+
 uint32_t Feed::getID(const std::string &source) {
 	return fsid_lookup_.at(source);
 }

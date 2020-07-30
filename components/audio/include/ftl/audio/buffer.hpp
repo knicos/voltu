@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cmath>
+#include <Eigen/Eigen>
 
 //#define LOGURU_REPLACE_GLOG 1
 //#include <loguru.hpp>
@@ -36,6 +37,9 @@ class Buffer {
 
 	float delay() const { return cur_delay_ / static_cast<float>(rate_); }
 
+	inline void setGain(float g) { gain_ = g; }
+	inline float gain() const { return gain_; }
+
 	virtual void reset() {
 		cur_delay_ = req_delay_;
 	}
@@ -49,6 +53,7 @@ class Buffer {
 	float req_delay_;
 	int channels_;
 	int frame_size_;
+	float gain_ = 1.0f;
 };
 
 //static constexpr int kBufferCount = 100;
@@ -78,12 +83,27 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 	}
 
 	inline void readFrame(T *d) {
-		T *out = d;
+		T* __restrict out = d;
+		//if ((size_t(out) & 0x1f) == 0) out_alignment_ = 32;
+		//else if ((size_t(out) & 0xf) == 0) out_alignment_ = 16;
+		//else if ((size_t(out) & 0x7) == 0) out_alignment_ = 8;
+
 		if (read_position_ < 0 || read_position_ >= write_position_-1) {
 			for (size_t i=0; i<CHAN*FRAME; ++i) *out++ = 0;
 		} else {
-			T *in = &data_[(read_position_++) % SIZE][0];
-			for (size_t i=0; i<CHAN*FRAME; ++i) *out++ = *in++;
+			const T* __restrict in = data_[(read_position_++) % SIZE];
+
+			// 16 byte aligned, use SIMD intrinsics
+			if ((size_t(out) & 0xf) == 0) {
+				for (size_t i=0; i<CHAN*FRAME; i += 4) {
+					Eigen::Map<Eigen::Matrix<float,4,1>,Eigen::Aligned16> vout(out+i);
+					const Eigen::Map<const Eigen::Matrix<float,4,1>,Eigen::Aligned16> vin(in+i);
+					vout = vin*this->gain_;
+				}
+			// Not aligned
+			} else {
+				for (size_t i=0; i<CHAN*FRAME; ++i) *out++ = this->gain_ * (*in++);
+			}
 		}
 	}
 
