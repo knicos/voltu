@@ -1,5 +1,5 @@
 #include <ftl/codecs/nvidia_encoder.hpp>
-//#include <loguru.hpp>
+#include <loguru.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/codecs/codecs.hpp>
 #include <ftl/cuda_util.hpp>
@@ -211,7 +211,7 @@ bool NvidiaEncoder::_createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs
 	if (nvenc_ && (params == params_)) return true;
 
 	uint64_t bitrate = calculateBitrate(in.cols*in.rows, float(pkt.bitrate)/255.0f) * pkt.frame_count;
-	//LOG(INFO) << "Calculated bitrate " << ((params.is_float) ? "(float)" : "(rgb)") << ": " << bitrate;
+	LOG(INFO) << "Calculated bitrate " << (float(bitrate) / 1024.0f / 1024.0f) << "Mbps (" << int(pkt.bitrate) << ")";
 	
 	params_ = params;
 

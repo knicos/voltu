@@ -395,11 +395,21 @@ void Sender::setActiveEncoders(uint32_t fsid, const std::unordered_set<Channel> 
 }
 
 void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset, bool last_flush) {
-	bool lossless = value("lossless", false);
-	int max_bitrate = std::max(0, std::min(255, value("max_bitrate", 128)));
+	bool isfloat = ftl::codecs::type(c) == CV_32F;
+
+	bool lossless = (isfloat) ? value("lossless_float", true) : value("lossless_colour", false);
+	int bitrate = std::max(0, std::min(255, (isfloat) ? value("bitrate_float", 200) : value("bitrate_colour", 64)));
+
 	//int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));  // TODO: Use this
-	codec_t codec = static_cast<codec_t>(value("codec", static_cast<int>(codec_t::Any)));
+	codec_t codec = static_cast<codec_t>(
+		(isfloat) ?	value("codec_float", static_cast<int>(codec_t::Any)) :
+					value("codec_colour", static_cast<int>(codec_t::Any)));
+
 	device_t device = static_cast<device_t>(value("encoder_device", static_cast<int>(device_t::Any)));
+
+	if (codec == codec_t::Any) {
+		codec = (lossless) ? codec_t::HEVC_LOSSLESS : codec_t::HEVC;
+	}
 
 	// TODO: Support high res
 	bool is_stereo = value("stereo", false) && c == Channel::Colour && fs.firstFrame().hasChannel(Channel::Colour2);
@@ -457,7 +467,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 			//}
 		}
 
-		int count = _generateTiles(fs, offset, cc, enc->stream(), lossless, is_stereo);
+		int count = _generateTiles(fs, offset, cc, enc->stream(), is_stereo);
 		if (count <= 0) {
 			LOG(ERROR) << "Could not generate tiles.";
 			break;
@@ -473,7 +483,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 				ftl::codecs::Packet pkt;
 				pkt.frame_count = count;
 				pkt.codec = codec;
-				pkt.bitrate = (!lossless && ftl::codecs::isFloatChannel(cc)) ? max_bitrate : max_bitrate/2;
+				pkt.bitrate = bitrate;
 				pkt.flags = 0;
 
 				// In the event of partial frames, add a flag to indicate that
@@ -668,7 +678,7 @@ float Sender::_selectFloatMax(Channel c) {
 	}
 }
 
-int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool lossless, bool stereo) {
+int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool stereo) {
 	auto &surface = _getTile(fs.id(), c);
 
 	const ftl::data::Frame *cframe = nullptr; //&fs.frames[offset];
