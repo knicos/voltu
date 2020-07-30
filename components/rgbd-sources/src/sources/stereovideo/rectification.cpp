@@ -140,25 +140,29 @@ void StereoRectification::rectify(cv::InputOutputArray im, Channel c) {
 }
 
 cv::Mat StereoRectification::getPose(Channel c) {
+	// NOTE: FTL poses are camera-to-world transformations while the parameters
+	//		 in calibration are world-to-camera. cv::stereoRectify() rotation
+	//		 is unrectified-to-rectified.
+
 	using ftl::calibration::transform::inverse;
 
 	if (enabled_ && valid_) {
-		cv::Mat T = cv::Mat::eye(4, 4, CV_64FC1);
+		cv::Mat R = cv::Mat::eye(4, 4, CV_64FC1);
 		if (c == Channel::Left) {
-			R_l_.copyTo(T(cv::Rect(0, 0, 3, 3)));
-			return calib_left_.extrinsic.matrix() * inverse(T);
+			R_l_.copyTo(R(cv::Rect(0, 0, 3, 3)));
+			return inverse(R * calib_left_.extrinsic.matrix());
 		}
 		else if (c == Channel::Right) {
-			R_r_.copyTo(T(cv::Rect(0, 0, 3, 3)));
-			return calib_right_.extrinsic.matrix() * inverse(T);
+			R_r_.copyTo(R(cv::Rect(0, 0, 3, 3)));
+			return inverse(R * calib_right_.extrinsic.matrix());
 		}
 	}
 	else {
 		if (c == Channel::Left) {
-			return calib_left_.extrinsic.matrix();
+			return inverse(calib_left_.extrinsic.matrix());
 		}
 		else if (c == Channel::Right) {
-			return calib_right_.extrinsic.matrix();
+			return inverse(calib_right_.extrinsic.matrix());
 		}
 	}
 	throw ftl::exception("Invalid channel, expected Left or Right");
