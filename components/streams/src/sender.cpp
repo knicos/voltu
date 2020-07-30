@@ -212,6 +212,7 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 				StreamPacket spkt;
 				spkt.version = 5;
 				spkt.timestamp = fs.timestamp();
+				spkt.localTimestamp = fs.localTimestamp;
 				spkt.streamID = fs.frameset(); //fs.id;
 				spkt.frame_number = i;
 				spkt.channel = c;
@@ -235,6 +236,7 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 		StreamPacket spkt;
 		spkt.version = 5;
 		spkt.timestamp = fs.timestamp();
+		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
 		spkt.frame_number = 255;
 		spkt.channel = c;
@@ -257,6 +259,7 @@ void Sender::forceAvailable(ftl::data::FrameSet &fs, ftl::codecs::Channel c) {
 	StreamPacket spkt;
 	spkt.version = 5;
 	spkt.timestamp = fs.timestamp();
+	spkt.localTimestamp = fs.localTimestamp;
 	spkt.streamID = fs.frameset();
 	spkt.frame_number = 255;
 	spkt.channel = c;
@@ -305,6 +308,7 @@ void Sender::post(ftl::data::Frame &frame, ftl::codecs::Channel c) {
 				StreamPacket spkt;
 				spkt.version = 5;
 				spkt.timestamp = frame.timestamp();
+				spkt.localTimestamp = spkt.timestamp;
 				spkt.streamID = frame.frameset(); //fs.id;
 				spkt.frame_number = frame.source();
 				spkt.channel = c;
@@ -335,6 +339,7 @@ void Sender::post(ftl::data::Frame &frame, ftl::codecs::Channel c) {
 		StreamPacket spkt;
 		spkt.version = 5;
 		spkt.timestamp = frame.timestamp();
+		spkt.localTimestamp = spkt.timestamp;
 		spkt.streamID = frame.frameset();
 		spkt.frame_number = 255;
 		spkt.channel = c;
@@ -419,6 +424,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 		StreamPacket spkt;
 		spkt.version = 5;
 		spkt.timestamp = fs.timestamp();
+		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
 		spkt.frame_number = offset;
 		spkt.channel = c;
@@ -513,6 +519,7 @@ void Sender::_encodeAudioChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 		StreamPacket spkt;
 		spkt.version = 5;
 		spkt.timestamp = fs.timestamp();
+		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
 		spkt.frame_number = i;
 		spkt.channel = c;
@@ -552,6 +559,7 @@ void Sender::_encodeDataChannel(ftl::data::FrameSet &fs, Channel c, bool reset, 
 		StreamPacket spkt;
 		spkt.version = 5;
 		spkt.timestamp = fs.timestamp();
+		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
 		spkt.frame_number = i++;
 		spkt.channel = c;
@@ -578,6 +586,7 @@ void Sender::_encodeDataChannel(ftl::data::Frame &f, Channel c, bool reset) {
 	StreamPacket spkt;
 	spkt.version = 5;
 	spkt.timestamp = f.timestamp();
+	spkt.localTimestamp = spkt.timestamp;
 	spkt.streamID = f.frameset();
 	spkt.frame_number = f.source();
 	spkt.channel = c;

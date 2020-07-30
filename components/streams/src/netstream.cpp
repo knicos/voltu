@@ -67,6 +67,10 @@ Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), acti
 
 Net::~Net() {
 	end();
+
+	// FIXME: Wait to ensure no net callbacks are active.
+	// Do something better than this
+	std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
 bool Net::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
@@ -173,7 +177,6 @@ bool Net::begin() {
 		spkt.localTimestamp = now - int64_t(ttimeoff);
 		spkt.hint_capability = 0;
 		spkt.hint_source_total = 0;
-		//LOG(INFO) << "LATENCY: " << ftl::timer::get_time() - spkt.localTimestamp() << " : " << spkt.timestamp << " - " << clock_adjust_;
 		spkt.version = 4;
 
 		// Manage recuring requests
@@ -457,7 +460,7 @@ bool Net::end() {
 	}
 
 	active_ = false;
-	net_->unbind(uri_);
+	net_->unbind(base_uri_);
 	return true;
 }
 

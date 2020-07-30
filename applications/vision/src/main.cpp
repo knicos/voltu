@@ -165,18 +165,14 @@ static void run(ftl::Configurable *root) {
 
 	// Send channels on flush
 	auto flushhandle = pool.onFlushSet([sender,&encodable](ftl::data::FrameSet &fs, ftl::codecs::Channel c) {
+		// Always send data channels
 		if ((int)c >= 32) sender->post(fs, c);
 		else {
+			// Only encode some of the video channels
 			if (encodable.count(c)) {
 				sender->post(fs, c);
 			} else {
-				//switch (c) {
-				//case Channel::Colour		:
-				//case Channel::Colour2		:
-				//case Channel::Depth			: 
-				sender->post(fs, c, true); //break;
-				//default						: sender->fakePost(fs, c);
-				//}
+				sender->post(fs, c, true);
 			}
 		}
 		return true;
@@ -198,15 +194,18 @@ static void run(ftl::Configurable *root) {
 	busy.clear();
 
 	auto h = creator->onFrameSet([sender,outstream,&stats_count,&latency,&frames,&stats_time,pipeline,&busy,&encodable,&previous_encodable](const ftl::data::FrameSetPtr &fs) {
-		encodable.clear();
-		// Decide what to encode here.
+
+		// Decide what to encode here, based upon what remote users select
 		const auto sel = outstream->selectedNoExcept(fs->frameset());
+		encodable.clear();
 		encodable.insert(sel.begin(), sel.end());
 
-		// Only allow the two encoders to exist
-		if (encodable.size() > 2) {
+		// Only allow the two encoders to exist, remove the rest
+		int max_encodeable = sender->value("max_encodeable", 2);
+
+		if (encodable.size() > max_encodeable) {
 			auto enciter = encodable.begin();
-			std::advance(enciter, 2);
+			std::advance(enciter, max_encodeable);
 			encodable.erase(enciter, encodable.end());
 		}
 
@@ -214,45 +213,40 @@ static void run(ftl::Configurable *root) {
 		if (encodable != previous_encodable) sender->resetEncoders(fs->frameset());
 		previous_encodable = encodable;
 
-		// Do all processing in another thread... only if encoding of depth
-		//if (encodable.find(Channel::Depth) != encodable.end()) {
-			ftl::pool.push([sender,&stats_count,&latency,&frames,&stats_time,pipeline,&busy,fs](int id) mutable {
-				// Do pipeline here... if not still busy doing it
-				if (busy.test_and_set()) {
-					LOG(WARNING) << "Depth pipeline drop: " << fs->timestamp();
-					fs->firstFrame().message(ftl::data::Message::Warning_PIPELINE_DROP, "Depth pipeline drop");
-					return;
-				}
-				pipeline->apply(*fs, *fs);
-				busy.clear();
+		// Do all processing in another thread...
+		ftl::pool.push([sender,&stats_count,&latency,&frames,&stats_time,pipeline,&busy,fs](int id) mutable {
+			// Do pipeline here... if not still busy doing it
+			if (busy.test_and_set()) {
+				LOG(WARNING) << "Depth pipeline drop: " << fs->timestamp();
+				fs->firstFrame().message(ftl::data::Message::Warning_PIPELINE_DROP, "Depth pipeline drop");
+				return;
+			}
+			pipeline->apply(*fs, *fs);
+			busy.clear();
 
-				++frames;
-				latency += float(ftl::timer::get_time() - fs->timestamp());
+			++frames;
+			latency += float(ftl::timer::get_time() - fs->timestamp());
 
-				// Destruct frameset as soon as possible to send the data...
-				if (fs->hasAnyChanged(Channel::Depth)) fs->flush(Channel::Depth);
-				const_cast<ftl::data::FrameSetPtr&>(fs).reset();
+			// Destruct frameset as soon as possible to send the data...
+			if (fs->hasAnyChanged(Channel::Depth)) fs->flush(Channel::Depth);
+			const_cast<ftl::data::FrameSetPtr&>(fs).reset();
 
-				if (!quiet && --stats_count <= 0) {
-					latency /= float(frames);
-					int64_t nowtime = ftl::timer::get_time();
-					stats_time = nowtime - stats_time;
-					float fps = float(frames) / (float(stats_time) / 1000.0f);
-					LOG(INFO) << "Frame rate: " << fps << ", Latency: " << latency;
-					stats_count = 20;
-					frames = 0;
-					latency = 0.0f;
-					stats_time = nowtime;
-				}
-			});
-		//} else {
-			//LOG(INFO) << "NOT DOING DEPTH";
-		//	sender->forceAvailable(*fs, Channel::Depth);
-		//	busy = false;
-		//}
+			if (!quiet && --stats_count <= 0) {
+				latency /= float(frames);
+				int64_t nowtime = ftl::timer::get_time();
+				stats_time = nowtime - stats_time;
+				float fps = float(frames) / (float(stats_time) / 1000.0f);
+				LOG(INFO) << "Frame rate: " << fps << ", Latency: " << latency;
+				stats_count = 20;
+				frames = 0;
+				latency = 0.0f;
+				stats_time = nowtime;
+			}
+		});
 
-		// Lock colour right now to encode in parallel
+		// Lock colour right now to encode in parallel, same for audio
 		ftl::pool.push([fs](int id){ fs->flush(ftl::codecs::Channel::Colour); });
+
 		if (fs->hasAnyChanged(Channel::Audio)) {
 			ftl::pool.push([fs](int id){ fs->flush(ftl::codecs::Channel::Audio); });
 		}
