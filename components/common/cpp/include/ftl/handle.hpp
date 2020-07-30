@@ -76,6 +76,11 @@ struct [[nodiscard]] Handle {
  */
 template <typename ...ARGS>
 struct Handler : BaseHandler {
+	Handler() {}
+	~Handler() {
+		// Ensure all thread pool jobs are done
+		while (jobs_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
 
 	/**
 	 * Add a new callback function. It returns a `Handle` object that must
@@ -96,15 +101,47 @@ struct Handler : BaseHandler {
 	 */
 	void trigger(ARGS ...args) {
 		std::unique_lock<std::mutex> lk(mutex_);
-		//try {
+		for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
+			bool keep = i->second(std::forward<ARGS>(args)...);
+			if (!keep) i = callbacks_.erase(i);
+			else ++i;
+		}
+	}
+
+	/**
+	 * Call all the callbacks in another thread. The callbacks are done in a
+	 * single thread, not in parallel.
+	 */
+	void triggerAsync(ARGS ...args) {
+		ftl::pool.push([this, args...](int id) {
+			std::unique_lock<std::mutex> lk(mutex_);
 			for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
 				bool keep = i->second(std::forward<ARGS>(args)...);
 				if (!keep) i = callbacks_.erase(i);
 				else ++i;
 			}
-		//} catch (const std::exception &e) {
-		//	LOG(ERROR) << "Exception in callback: " << e.what();
-		//}
+		});
+	}
+
+	/**
+	 * Each callback is called in its own thread job. Note: the return value
+	 * of the callback is ignored in this case and does not allow callback
+	 * removal via the return value.
+	 */
+	void triggerParallel(ARGS ...args) {
+		std::unique_lock<std::mutex> lk(mutex_);
+		jobs_ += callbacks_.size();
+		for (auto i=callbacks_.begin(); i!=callbacks_.end(); ++i) {
+			ftl::pool.push([this, f = i->second, args...](int id) {
+				try {
+					f(std::forward<ARGS>(args)...);
+				} catch (const ftl::exception &e) {
+					--jobs_;
+					throw e;
+				}
+				--jobs_;
+			});
+		}
 	}
 
 	/**
@@ -112,12 +149,17 @@ struct Handler : BaseHandler {
 	 * `Handle` to be destroyed or cancelled.
 	 */
 	void remove(const Handle &h) override {
-		std::unique_lock<std::mutex> lk(mutex_);
-		callbacks_.erase(h.id());
+		{
+			std::unique_lock<std::mutex> lk(mutex_);
+			callbacks_.erase(h.id());
+		}
+		// Make sure any possible call to removed callback has finished.
+		while (jobs_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
 	private:
 	std::unordered_map<int, std::function<bool(ARGS...)>> callbacks_;
+	std::atomic_int jobs_=0;
 };
 
 /**

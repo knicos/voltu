@@ -194,7 +194,7 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 
 				if (filter->sources().empty()) {
 					//filter->channels_available_ = fs->channels();
-					filter->handler_.trigger(fs);
+					filter->handler_.triggerParallel(fs);
 				}
 				else {
 					// TODO: process partial/complete sets here (drop), that is
@@ -206,7 +206,7 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 						//if (fs->hasFrame(src)) {
 						if (fs->frameset() == src) {
 							//filter->channels_available_ = fs->channels();
-							filter->handler_.trigger(fs);
+							filter->handler_.triggerParallel(fs);
 							break;
 						}
 					}
@@ -499,10 +499,8 @@ void Feed::_updateNetSources(ftl::net::Peer *p, const std::string &s, bool autoa
 		add(uri);
 	}
 
-	ftl::pool.push([this, s](int id) {
-		std::vector<std::string> srcs{s};
-		new_sources_cb_.trigger(srcs);
-	});
+	std::vector<std::string> srcs{s};
+	new_sources_cb_.triggerAsync(srcs);
 }
 
 void Feed::_updateNetSources(ftl::net::Peer *p, bool autoadd) {
@@ -527,10 +525,7 @@ void Feed::_updateNetSources(ftl::net::Peer *p, bool autoadd) {
 			}
 		}
 
-		ftl::pool.push([this, peerstreams](int id) {
-			new_sources_cb_.trigger(peerstreams);
-		});
-
+		new_sources_cb_.triggerAsync(peerstreams);
 	} catch (const ftl::exception &e) {
 
 	}
