@@ -5,7 +5,10 @@ using ftl::audio::StereoMixerF;
 
 TEST_CASE("Audio Mixer Stereo Float", "") {
 	SECTION("Add two in sync tracks") {
-		StereoMixerF<100> mixer(2);
+		StereoMixerF<100> mixer;
+
+		mixer.add("Track1");
+		mixer.add("Track2");
 
 		// Three 960 sample stereo frames
 		std::vector<float> in1(960*2*3);
@@ -36,7 +39,10 @@ TEST_CASE("Audio Mixer Stereo Float", "") {
 	}
 
 	SECTION("Add two out of sync tracks") {
-		StereoMixerF<100> mixer(2);
+		StereoMixerF<100> mixer;
+
+		mixer.add("Track1");
+		mixer.add("Track2");
 
 		// Three 960 sample stereo frames
 		std::vector<float> in1(960*2*3);
@@ -89,7 +95,9 @@ TEST_CASE("Audio Mixer Stereo Float", "") {
 
 TEST_CASE("Audio Mixer Stereo Float Dynamic Tracks", "") {
 	SECTION("Add one track after write") {
-		StereoMixerF<100> mixer(1);
+		StereoMixerF<100> mixer;
+
+		mixer.add("Track1");
 
 		// Three 960 sample stereo frames
 		std::vector<float> in1(960*2*3);
@@ -104,7 +112,7 @@ TEST_CASE("Audio Mixer Stereo Float Dynamic Tracks", "") {
 		std::vector<float> in2(960*2*3);
 		for (int i=0; i<960*2*3; ++i) in2[i] = float(i)+2.0f;
 
-		mixer.resize(2);
+		mixer.add("Track2");
 		mixer.write(0, in1);
 		mixer.write(1, in2);
 		mixer.mix();

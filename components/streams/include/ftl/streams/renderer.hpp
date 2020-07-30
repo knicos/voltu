@@ -6,6 +6,7 @@
 #include <ftl/render/renderer.hpp>
 #include <ftl/render/CUDARender.hpp>
 #include <ftl/streams/feed.hpp>
+#include <ftl/audio/mixer.hpp>
 
 namespace ftl {
 namespace render {
@@ -27,6 +28,8 @@ class Source : public ftl::Configurable, public ftl::data::DiscreteSource {
 	bool retrieve(ftl::data::Frame &) override;
 
 	static bool supports(const std::string &uri);
+
+	ftl::audio::StereoMixerF<100> &mixer();
 
 	private:
 	ftl::stream::Feed *feed_;

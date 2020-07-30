@@ -3,6 +3,7 @@
 
 #include "../views/camera3d.hpp"
 #include <ftl/rgbd/capabilities.hpp>
+#include <ftl/streams/renderer.hpp>
 #include <chrono>
 
 #include <opencv2/imgproc.hpp>
@@ -328,6 +329,18 @@ std::string Camera::getActiveSourceURI() {
 	}
 
 	return "";
+}
+
+ftl::audio::StereoMixerF<100> *Camera::mixer() {
+	if (mixer_) return mixer_;
+	if (movable_) {
+		auto *rend = io->feed()->getRenderer(frame_id_);
+		if (rend) {
+			mixer_ = &(rend->mixer());
+			return mixer_;
+		}
+	}
+	return nullptr;
 }
 
 bool Camera::isRecording() {

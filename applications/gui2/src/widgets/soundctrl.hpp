@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nanogui/entypo.h>
+#include <ftl/audio/mixer.hpp>
 
 #include "popupbutton.hpp"
 
@@ -9,7 +10,7 @@ namespace gui2 {
 
 class VolumeButton : public ftl::gui2::PopupButton {
 public:
-	VolumeButton(nanogui::Widget *parent);
+	VolumeButton(nanogui::Widget *parent, ftl::audio::StereoMixerF<100> *mixer);
 	virtual ~VolumeButton();
 
 	// callback, new value passed in argument
@@ -37,6 +38,8 @@ private:
 
 	nanogui::Slider* slider_;
 	std::function<void(float)> cb_;
+
+	ftl::audio::StereoMixerF<100> *mixer_;
 
 	float scroll_step_ = 0.02f;
 	float value_;

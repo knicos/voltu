@@ -204,7 +204,7 @@ MediaPanel::MediaPanel(nanogui::Widget *parent, ftl::gui2::Camera* ctrl) :
 	this->setTheme(theme);
 
 	// Volume control
-	button_volume = new ftl::gui2::VolumeButton(this);
+	button_volume = new ftl::gui2::VolumeButton(this, ctrl_->mixer());
 	button_volume->setValue(ctrl_->volume());
 	button_volume->setCallback([ctrl = ctrl_](float v){ ctrl->setVolume(v); });
 

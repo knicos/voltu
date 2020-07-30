@@ -9,8 +9,8 @@ using ftl::gui2::PopupButton;
 using ftl::gui2::VolumeButton;
 using ftl::gui2::Screen;
 
-VolumeButton::VolumeButton(nanogui::Widget *parent) :
-	ftl::gui2::PopupButton(parent, "", ENTYPO_ICON_SOUND) {
+VolumeButton::VolumeButton(nanogui::Widget *parent, ftl::audio::StereoMixerF<100> *mixer) :
+	ftl::gui2::PopupButton(parent, "", ENTYPO_ICON_SOUND), mixer_(mixer) {
 	setChevronIcon(-1);
 
 	muted_ = false;
@@ -27,6 +27,42 @@ VolumeButton::VolumeButton(nanogui::Widget *parent) :
 		setValue(value);
 		if (cb_) { cb_(value); }
 	});
+
+	if (mixer) {
+		auto *mixbut = new nanogui::Button(mPopup, "Mixer", ENTYPO_ICON_SOUND_MIX);
+		mPopup->setAnchorHeight(70);
+
+		auto *mixer_widget = new nanogui::Widget(mPopup);
+		mixer_widget->setLayout(new nanogui::GroupLayout(0, 6, 14, 0));
+		mixer_widget->setVisible(false);
+
+		// Add mixer slider for each track in mixer.
+		for (int t=0; t<mixer->tracks(); ++t) {
+			auto *label = new nanogui::Label(mixer_widget, mixer->name(t));
+			label->setFontSize(12);
+			auto *mixslider = new nanogui::Slider(mixer_widget);
+			mixslider->setHighlightColor(dynamic_cast<Screen*>(screen())->getColor("highlight1"));
+			mixslider->setHeight(20);
+			mixslider->setValue(mixer->gain(t));
+			mixslider->setHighlightedRange({0.0f, mixer->gain(t)});
+
+			mixslider->setCallback([this,t,mixslider](float value) {
+				mixslider->setValue(value);
+				mixslider->setHighlightedRange({0.0f, value});
+				mixer_->setGain(t, value);
+			});
+		}
+
+		mixbut->setCallback([this,mixer_widget]() {
+			mixer_widget->setVisible(!mixer_widget->visible());
+			if (mixer_widget->visible()) {
+				mPopup->setAnchorHeight(70+mixer_widget->childCount()*20);
+			} else {
+				mPopup->setAnchorHeight(70);
+			}
+			screen()->performLayout();
+		});
+	}
 }
 
 VolumeButton::~VolumeButton() {

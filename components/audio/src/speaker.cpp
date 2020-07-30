@@ -137,16 +137,7 @@ void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
 
 	//LOG(INFO) << "Buffer Fullness (" << ts << "): " << buffer_->size() << " - " << audio.size();
 	for (const auto &d : audio) {
-		if (volume_ != 1.0) {
-			auto data = d.data();
-			for (auto &v : data) {
-				v = v * volume_;
-			}
-			buffer_->write(data);
-		}
-		else {
-			buffer_->write(d.data());
-		}
+		buffer_->write(d.data());
 	}
 	//LOG(INFO) << "Audio delay: " << buffer_.delay() << "s";
 }
@@ -164,6 +155,7 @@ void Speaker::setDelay(int64_t ms) {
 void Speaker::setVolume(float value) {
 	// TODO: adjust volume using system mixer
 	volume_ = std::max(0.0f, std::min(1.0f, value));
+	if (buffer_) buffer_->setGain(volume_);
 }
 
 float Speaker::volume() {

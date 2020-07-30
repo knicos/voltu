@@ -163,8 +163,9 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 					if (f.hasChannel(Channel::AudioStereo)) {
 						// Map a mixer track to this frame
 						auto &mixmap = mixmap_[f.id().id];
-						if (mixmap.track == -1) mixmap.track = tracks_++;
-						mixer_.resize(tracks_);
+						if (mixmap.track == -1) {
+							mixmap.track = mixer_.add(f.name());
+						}
 
 						// Do mix but must not mix same frame multiple times
 						if (mixmap.last_timestamp != f.timestamp()) {

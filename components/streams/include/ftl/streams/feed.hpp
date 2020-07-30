@@ -98,6 +98,18 @@ public:
 	 */
 	std::string getSourceURI(ftl::data::FrameID id);
 
+	/**
+	 * Get the renderer used to generate a frameset. This will return a nullptr
+	 * if the frameset is not from a local renderer.
+	 */
+	ftl::render::Source *getRenderer(ftl::data::FrameID id);
+
+	/**
+	 * Get the RGB-Depth source for a frame, if the source is a local device.
+	 * It will return a nullptr if there is no local source object.
+	 */
+	ftl::rgbd::Source *getRGBD(ftl::data::FrameID id);
+
 	void remove(const std::string &str);
 	void remove(uint32_t id);
 
