@@ -11,7 +11,7 @@ using ftl::codecs::OpenCVEncoder;
 using std::vector;
 
 OpenCVEncoder::OpenCVEncoder(ftl::codecs::definition_t maxdef,
-			ftl::codecs::definition_t mindef) : Encoder(maxdef, mindef, ftl::codecs::device_t::Software) {
+			ftl::codecs::definition_t mindef) : Encoder(maxdef, mindef, ftl::codecs::device_t::OpenCV) {
 	jobs_ = 0;
 }
 
@@ -37,8 +37,6 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		LOG(ERROR) << "OpenCV Encoder doesn't support lossy depth";
 		return false;
 	}
-
-	LOG(WARNING) << "Using Software Encoder!";
 
 	in.download(tmp_);
 

@@ -60,6 +60,8 @@ class Sender : public ftl::Configurable {
 	 */
 	void setActiveEncoders(uint32_t fsid, const std::unordered_set<ftl::codecs::Channel> &);
 
+	void resetEncoders(uint32_t fsid);
+
 	private:
 	ftl::stream::Stream *stream_;
 	int64_t timestamp_;

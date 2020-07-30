@@ -40,9 +40,9 @@ enum struct Channel : int {
 	Overlay			= 21,   // 8UC4
 	GroundTruth		= 22,	// 32F
 
-	Audio			= 32,
-	AudioMono		= 32,
+	AudioMono		= 32,	// Deprecated, will always be stereo
 	AudioStereo		= 33,
+	Audio			= 33,
 
 	Configuration	= 64,	// JSON Data
 	Settings1		= 65,

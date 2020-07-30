@@ -61,7 +61,7 @@ static inline std::string EncErrorCodeToString(NVENCSTATUS code)
 }
 
 NvidiaEncoder::NvidiaEncoder(definition_t maxdef,
-			definition_t mindef) : Encoder(maxdef, mindef, ftl::codecs::device_t::Hardware) {
+			definition_t mindef) : Encoder(maxdef, mindef, ftl::codecs::device_t::NVIDIA) {
 	nvenc_ = nullptr;
 	was_reset_ = false;
 }

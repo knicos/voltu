@@ -75,13 +75,15 @@ class Encoder {
 
 	virtual bool supports(ftl::codecs::codec_t codec)=0;
 
+	inline ftl::codecs::device_t device() const { return device_; };
+
 	cv::cuda::Stream &stream() { return stream_; }
 
 	protected:
 	bool available;
 	const ftl::codecs::definition_t max_definition;
 	const ftl::codecs::definition_t min_definition;
-	const ftl::codecs::device_t device;
+	const ftl::codecs::device_t device_;
 	cv::cuda::Stream stream_;
 };
 

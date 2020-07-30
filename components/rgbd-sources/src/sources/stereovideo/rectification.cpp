@@ -109,22 +109,30 @@ void StereoRectification::calculateParameters_() {
 
 }
 
-void StereoRectification::rectify(cv::InputOutputArray im, Channel c) {
+void StereoRectification::rectify(cv::InputArray im, cv::OutputArray im_out, Channel c) {
 
-	if (!enabled_ || !valid_) { return; }
+	if (!enabled_ || !valid_) {
+		im.copyTo(im_out);
+		return;
+	}
 
 	if (im.size() != image_resolution_) {
 		throw ftl::exception("Input has wrong size");
 	}
+
 	if (im.isMat()) {
-		cv::Mat &in = im.getMatRef();
+		if (!im_out.isMat()) {
+			throw ftl::exception(	"Input and Output arrays must have same "
+									"type (cv::Mat expected)");
+		}
+		cv::Mat in = im.getMat();
+		cv::Mat &out = im_out.getMatRef(); // assumes valid size/type
+
 		if (c == Channel::Left) {
-			cv::remap(in, tmp_l_, map_l_.first, map_l_.second, interpolation_);
-			cv::swap(in, tmp_l_);
+			cv::remap(in, out, map_l_.first, map_l_.second, interpolation_);
 		}
 		else if (c == Channel::Right) {
-			cv::remap(in, tmp_r_, map_r_.first, map_r_.second, interpolation_);
-			cv::swap(in, tmp_r_);
+			cv::remap(in, out, map_r_.first, map_r_.second, interpolation_);
 		}
 		else {
 			throw ftl::exception("Bad channel for rectification");
