@@ -104,6 +104,7 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
 	right_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
 	hres_hm_ = cv::cuda::HostMem(fullheight_, fullwidth_, CV_8UC4);
+	rtmp_.create(fullheight_, fullwidth_, CV_8UC4);
 
 	on("exposure", [this]() {
 		if (lcam_->GetDeviceInfo().GetModelName() != "Emulation") {
@@ -116,9 +117,9 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 
 	on("buffer_size", buffer_size_, 1);
 
-	interpolation_ = value("inter_cubic", false) ? cv::INTER_CUBIC : cv::INTER_LINEAR;
+	interpolation_ = value("inter_cubic", true) ? cv::INTER_CUBIC : cv::INTER_LINEAR;
 	on("inter_cubic", [this](){
-		interpolation_ = value("inter_cubic", false) ?
+		interpolation_ = value("inter_cubic", true) ?
 			cv::INTER_CUBIC : cv::INTER_LINEAR;
 	});
 }
@@ -282,47 +283,49 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 
 	try {
 		FTL_Profile("Frame Retrieve", 0.005);
-		std::future<bool> future_b;
+		//std::future<bool> future_b;
+		bool res_r = false;
 		if (rcam_) {
-			future_b = std::move(ftl::pool.push([this,&rfull,&r,&l,c,&r_out,&h_r,&stream](int id) {
+			//future_b = std::move(ftl::pool.push([this,&rfull,&r,&l,c,&r_out,&h_r,&stream](int id) {
 				Pylon::CGrabResultPtr result_right;
 
-				if (!_retrieveFrames(result_right, rcam_)) return false;
+				if (_retrieveFrames(result_right, rcam_)) {
 
-				cv::Mat wrap_right(
-				result_right->GetHeight(),
-				result_right->GetWidth(),
-				CV_8UC1,
-				(uint8_t*)result_right->GetBuffer());
+					cv::Mat wrap_right(
+					result_right->GetHeight(),
+					result_right->GetWidth(),
+					CV_8UC1,
+					(uint8_t*)result_right->GetBuffer());
 
-				{
-					FTL_Profile("Bayer Colour (R)", 0.005);
-					cv::cvtColor(wrap_right, rfull, cv::COLOR_BayerRG2BGRA);
-				}
-
-				if (isStereo()) {
-					FTL_Profile("Rectify and Resize (R)", 0.005);
-					c->rectify(rfull, Channel::Right);
-
-					if (hasHigherRes()) {
-						cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
-						h_r = rfull;
+					{
+						FTL_Profile("Bayer Colour (R)", 0.005);
+						cv::cvtColor(wrap_right, rtmp2_, cv::COLOR_BayerRG2BGRA);
 					}
-					else {
-						h_r = Mat();
-					}
-				}
 
-				r_out.upload(r, stream);
-				return true;
-			}));
+					//if (isStereo()) {
+						FTL_Profile("Rectify and Resize (R)", 0.005);
+						c->rectify(rtmp2_, rfull, Channel::Right);
+
+						if (hasHigherRes()) {
+							cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
+							h_r = rfull;
+						}
+						else {
+							h_r = Mat();
+						}
+					//}
+
+					r_out.upload(r, stream);
+					res_r = true;
+				}
+			//}));
 		}
 
 		Pylon::CGrabResultPtr result_left;
 
 		if (!_retrieveFrames(result_left, lcam_)) {
 			if (rcam_) {
-				future_b.wait();
+				//future_b.wait();
 			}
 			return false;
 		}
@@ -335,13 +338,14 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 
 		{
 			FTL_Profile("Bayer Colour (L)", 0.005);
-			cv::cvtColor(wrap_left, lfull, cv::COLOR_BayerRG2BGRA);
+			if (isStereo()) cv::cvtColor(wrap_left, ltmp_, cv::COLOR_BayerRG2BGRA);
+			else cv::cvtColor(wrap_left, lfull, cv::COLOR_BayerRG2BGRA);
 		}
 
 		{
 			FTL_Profile("Rectify and Resize (L)", 0.005);
 			if (isStereo()) {
-				c->rectify(lfull, Channel::Left);
+				c->rectify(ltmp_, lfull, Channel::Left);
 			}
 
 			if (hasHigherRes()) {
@@ -355,8 +359,9 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 		l_out.upload(l, stream);
 
 		if (rcam_) {
-			future_b.wait();
-			if (!future_b.get()) return false;
+			//future_b.wait();
+			//if (!future_b.get()) return false;
+			if (!res_r) return false;
 		}
 
 	} catch (const GenericException &e) {

@@ -57,6 +57,8 @@ class PylonDevice : public ftl::rgbd::detail::Device {
 	cv::cuda::HostMem right_hm_;
 	cv::cuda::HostMem hres_hm_;
 	cv::Mat rtmp_;
+	cv::Mat rtmp2_;
+	cv::Mat ltmp_;
 	int interpolation_;
 
 	void _configureCamera(Pylon::CBaslerUniversalInstantCamera *cam);

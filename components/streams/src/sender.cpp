@@ -354,6 +354,24 @@ void Sender::post(ftl::data::Frame &frame, ftl::codecs::Channel c) {
 	//do_inject_ = false;
 }
 
+void Sender::resetEncoders(uint32_t fsid) {
+	LOG(INFO) << "Reset encoders for " << fsid;
+	for (auto &t : state_) {
+		if ((t.first >> 16) == static_cast<int>(fsid)) {
+			if (t.second.encoder[0]) {
+				// Remove unwanted encoder
+				ftl::codecs::free(t.second.encoder[0]);
+				t.second.encoder[0] = nullptr;
+				if (t.second.encoder[1]) {
+					ftl::codecs::free(t.second.encoder[1]);
+					t.second.encoder[1] = nullptr;
+				}
+				LOG(INFO) << "Removing encoder for channel " << (t.first & 0xFF);
+			}
+		}
+	}
+}
+
 void Sender::setActiveEncoders(uint32_t fsid, const std::unordered_set<Channel> &ec) {
 	for (auto &t : state_) {
 		if ((t.first >> 8) == static_cast<int>(fsid)) {
@@ -418,6 +436,9 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 		if (!enc) {
 			LOG(ERROR) << "No encoder";
 			return;
+		}
+		if (enc->device() == device_t::OpenCV) {
+			LOG(WARNING) << "Software encoder for " << ftl::codecs::name(c);
 		}
 
 		// Upload if in host memory

@@ -9,6 +9,7 @@
 #include "ftl/operators/depth.hpp"
 #include "ftl/operators/mask.hpp"
 #include "ftl/operators/opticalflow.hpp"
+#include <ftl/calibration/structures.hpp>
 
 #include "./disparity/opencv/disparity_bilateral_filter.hpp"
 
@@ -179,7 +180,14 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
 		auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
+
 		if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
+
+			if (f.hasChannel(Channel::CalibrationData)) {
+				auto &cdata = f.get<ftl::calibration::CalibrationData>(Channel::CalibrationData);
+				if (!cdata.enabled) continue;
+			}
+
 			_createPipeline(in.frames.size());
 
 			const cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
@@ -188,19 +196,6 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 			depth.create(left.size(), CV_32FC1);
 
 			if (left.empty() || right.empty()) continue;
-
-			/*if (depth_size_ != left.size()) {
-				auto &col2 = f.create<cv::cuda::GpuMat>(Channel::ColourHighRes);
-				cv::cuda::resize(left, col2, depth_size_, 0.0, 0.0, cv::INTER_CUBIC, cvstream);
-				f.createTexture<uchar4>(Channel::ColourHighRes, true);
-				f.swapChannels(Channel::Colour, Channel::ColourHighRes);
-			}
-
-			if (depth_size_ != right.size()) {
-				cv::cuda::resize(right, rbuf_[i], depth_size_, 0.0, 0.0, cv::INTER_CUBIC, cvstream);
-				cv::cuda::swap(right, rbuf_[i]);
-			}*/
-
 			pipe_->apply(f, f, stream);
 		}
 	}

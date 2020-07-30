@@ -41,7 +41,7 @@ public:
 	void setCalibration(ftl::calibration::CalibrationData &calib);
 	bool calibrated();
 
-	void rectify(cv::InputOutputArray im, ftl::codecs::Channel c);
+	void rectify(cv::InputArray im, cv::OutputArray out, ftl::codecs::Channel c);
 
 	/** Enable/disable rectification. TODO: move outside (to stereovideo)?
 	 */
