@@ -209,7 +209,7 @@ TEST_CASE( "Sender::post() video frames" ) {
 		fs.frames[1].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[1].set<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
 
-		sender->set("codec", (int)codec_t::HEVC_LOSSLESS);
+		sender->set("codec_float", (int)codec_t::HEVC_LOSSLESS);
 		sender->post(fs, Channel::Depth);
 
 		REQUIRE( count == 1 );

@@ -32,6 +32,8 @@ Sender::Sender(nlohmann::json &config) : ftl::Configurable(config), stream_(null
 	on("iframes", [this]() {
 		add_iframes_ = value("iframes", 50);
 	});
+
+	on("bitrate_timeout", bitrate_timeout_, 10000);
 }
 
 Sender::~Sender() {
@@ -48,16 +50,33 @@ void Sender::setStream(ftl::stream::Stream*s) {
 	handle_ = stream_->onPacket([this](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		if (pkt.data.size() > 0 || !(spkt.flags & ftl::codecs::kFlagRequest)) return true;
 
-		LOG(INFO) << "SENDER REQUEST : " << (int)spkt.channel;
+		if (int(spkt.channel) < 32) {
+			auto now = ftl::timer::get_time();
+
+			// Update the min bitrate selection
+			UNIQUE_LOCK(bitrate_mtx_, lk);
+			if (bitrate_map_.size() > 0) {
+				if (now - bitrate_map_.begin()->second > bitrate_timeout_) {
+					bitrate_map_.erase(bitrate_map_.begin());
+				}
+			}
+			bitrate_map_[pkt.bitrate] = now;
+		}
 
 		//if (state_cb_) state_cb_(spkt.channel, spkt.streamID, spkt.frame_number);
 		if (reqcb_) reqcb_(spkt,pkt);
 
 		// Inject state packets
-		//do_inject_ = true;
 		do_inject_.clear();
+
 		return true;
 	});
+}
+
+uint8_t Sender::_getMinBitrate() {
+	SHARED_LOCK(bitrate_mtx_, lk);
+	if (bitrate_map_.size() > 0) return bitrate_map_.begin()->first;
+	else return 255;
 }
 
 void Sender::onRequest(const ftl::stream::StreamCallback &cb) {
@@ -83,28 +102,6 @@ static void writeValue(std::vector<unsigned char> &data, T value) {
 	unsigned char *pvalue_start = (unsigned char*)&value;
 	data.insert(data.end(), pvalue_start, pvalue_start+sizeof(T));
 }
-
-/*static void mergeNALUnits(const std::list<ftl::codecs::Packet> &pkts, ftl::codecs::Packet &pkt) {
-	size_t size = 0;
-	for (auto i=pkts.begin(); i!=pkts.end(); ++i) size += (*i).data.size();
-
-	// TODO: Check Codec, jpg etc can just use last frame.
-	// TODO: Also if iframe, can just use that instead
-
-	const auto &first = pkts.front();
-	pkt.codec = first.codec;
-	//pkt.definition = first.definition;
-	pkt.frame_count = first.frame_count;
-	pkt.bitrate = first.bitrate;
-	pkt.flags = first.flags | ftl::codecs::kFlagMultiple;  // means merged packets
-	pkt.data.reserve(size+pkts.size()*sizeof(int));
-
-	for (auto i=pkts.begin(); i!=pkts.end(); ++i) {
-		writeValue<int>(pkt.data, (*i).data.size());
-		//LOG(INFO) << "NAL Count = " << (*i).data.size();
-		pkt.data.insert(pkt.data.end(), (*i).data.begin(), (*i).data.end());
-	}
-}*/
 
 void Sender::_sendPersistent(ftl::data::Frame &frame) {
 	auto *session = frame.parent();
@@ -379,7 +376,7 @@ void Sender::resetEncoders(uint32_t fsid) {
 
 void Sender::setActiveEncoders(uint32_t fsid, const std::unordered_set<Channel> &ec) {
 	for (auto &t : state_) {
-		if ((t.first >> 8) == static_cast<int>(fsid)) {
+		if ((t.first >> 16) == static_cast<int>(fsid)) {
 			if (t.second.encoder[0] && ec.count(static_cast<Channel>(t.first & 0xFF)) == 0) {
 				// Remove unwanted encoder
 				ftl::codecs::free(t.second.encoder[0]);
@@ -395,11 +392,23 @@ void Sender::setActiveEncoders(uint32_t fsid, const std::unordered_set<Channel> 
 }
 
 void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset, bool last_flush) {
-	bool lossless = value("lossless", false);
-	int max_bitrate = std::max(0, std::min(255, value("max_bitrate", 128)));
+	bool isfloat = ftl::codecs::type(c) == CV_32F;
+
+	bool lossless = (isfloat) ? value("lossless_float", false) : value("lossless_colour", false);
+	int bitrate = std::max(0, std::min(255, (isfloat) ? value("bitrate_float", 200) : value("bitrate_colour", 64)));
+
+	bitrate = std::min(static_cast<uint8_t>(bitrate), _getMinBitrate());
+
 	//int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));  // TODO: Use this
-	codec_t codec = static_cast<codec_t>(value("codec", static_cast<int>(codec_t::Any)));
+	codec_t codec = static_cast<codec_t>(
+		(isfloat) ?	value("codec_float", static_cast<int>(codec_t::Any)) :
+					value("codec_colour", static_cast<int>(codec_t::Any)));
+
 	device_t device = static_cast<device_t>(value("encoder_device", static_cast<int>(device_t::Any)));
+
+	if (codec == codec_t::Any) {
+		codec = (lossless) ? codec_t::HEVC_LOSSLESS : codec_t::HEVC;
+	}
 
 	// TODO: Support high res
 	bool is_stereo = value("stereo", false) && c == Channel::Colour && fs.firstFrame().hasChannel(Channel::Colour2);
@@ -457,7 +466,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 			//}
 		}
 
-		int count = _generateTiles(fs, offset, cc, enc->stream(), lossless, is_stereo);
+		int count = _generateTiles(fs, offset, cc, enc->stream(), is_stereo);
 		if (count <= 0) {
 			LOG(ERROR) << "Could not generate tiles.";
 			break;
@@ -473,7 +482,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 				ftl::codecs::Packet pkt;
 				pkt.frame_count = count;
 				pkt.codec = codec;
-				pkt.bitrate = (!lossless && ftl::codecs::isFloatChannel(cc)) ? max_bitrate : max_bitrate/2;
+				pkt.bitrate = bitrate;
 				pkt.flags = 0;
 
 				// In the event of partial frames, add a flag to indicate that
@@ -668,7 +677,7 @@ float Sender::_selectFloatMax(Channel c) {
 	}
 }
 
-int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool lossless, bool stereo) {
+int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c, cv::cuda::Stream &stream, bool stereo) {
 	auto &surface = _getTile(fs.id(), c);
 
 	const ftl::data::Frame *cframe = nullptr; //&fs.frames[offset];

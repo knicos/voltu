@@ -1,5 +1,5 @@
 #include <ftl/codecs/nvidia_encoder.hpp>
-//#include <loguru.hpp>
+#include <loguru.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/codecs/codecs.hpp>
 #include <ftl/cuda_util.hpp>
@@ -104,23 +104,27 @@ static ftl::codecs::NvidiaEncoder::Parameters generateParams(const cv::cuda::Gpu
 	return params;
 }
 
+/*
+ * Using image height and a 0 to 1 rate scale, calculate a Mbps value to be
+ * used.
+ */
 static uint64_t calculateBitrate(int64_t pixels, float ratescale) {
-	/*float bitrate = 1.0f;  // Megabits
-	switch (def) {
-	case definition_t::UHD4k	: bitrate = 40.0f; break;
-	case definition_t::HTC_VIVE	: bitrate = 32.0f; break;
-	case definition_t::HD1080	: bitrate = 12.0f; break;
-	case definition_t::HD720	: bitrate = 8.0f; break;
-	case definition_t::SD576	:
-	case definition_t::SD480	: bitrate = 4.0f; break;
-	case definition_t::LD360	: bitrate = 2.0f; break;
-	default						: bitrate = 16.0f;
-	}*/
+	static constexpr float kTopResolution = 2160.0f;
+	static constexpr float kBottomResolution = 360.0f;
+	static constexpr float kTopBitrate = 40.0f;  // Mbps
+	static constexpr float kBottomBitrate = 2.0f;  // Mbps
+	static constexpr float kBitrateScale = 1024.0f*1024.0f;
+	static constexpr float kMinBitrateFactor = 0.05f;  // 5% of max for resolution
 
-	float bitrate = 16.0f * float(pixels);
+	float resolution = (float(pixels) - kBottomResolution) / (kTopResolution - kBottomResolution);
+	float bitrate = (kTopBitrate - kBottomBitrate) * resolution + kBottomBitrate;
 
-	//bitrate *= 1000.0f*1000.0f;
-	float minrate = 0.05f * bitrate;
+	// Limit to 80Mbps.
+	if (bitrate > 80.0f) bitrate = 80.0f;
+
+	bitrate *= kBitrateScale;
+
+	float minrate = kMinBitrateFactor * bitrate;
 	return uint64_t((bitrate - minrate)*ratescale + minrate);
 }
 
@@ -210,8 +214,8 @@ bool NvidiaEncoder::_createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs
 	Parameters params = generateParams(in, pkt);
 	if (nvenc_ && (params == params_)) return true;
 
-	uint64_t bitrate = calculateBitrate(in.cols*in.rows, float(pkt.bitrate)/255.0f) * pkt.frame_count;
-	//LOG(INFO) << "Calculated bitrate " << ((params.is_float) ? "(float)" : "(rgb)") << ": " << bitrate;
+	uint64_t bitrate = calculateBitrate(in.rows, float(pkt.bitrate)/255.0f);
+	LOG(INFO) << "Calculated bitrate " << (float(bitrate) / 1024.0f / 1024.0f) << "Mbps (" << int(pkt.bitrate) << ")";
 	
 	params_ = params;
 

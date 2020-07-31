@@ -87,6 +87,9 @@ class Sender : public ftl::Configurable {
 
 	std::unordered_map<int, EncodingState> state_;
 	std::unordered_map<int, AudioState> audio_state_;
+	std::map<uint8_t, int64_t> bitrate_map_;
+	SHARED_MUTEX bitrate_mtx_;
+	int bitrate_timeout_;
 
 	//ftl::codecs::Encoder *_getEncoder(int fsid, int fid, ftl::codecs::Channel c);
 	void _encodeChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset, bool last_flush);
@@ -96,7 +99,7 @@ class Sender : public ftl::Configurable {
 	void _encodeDataChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset, bool last_flush);
 	void _encodeDataChannel(ftl::data::Frame &fs, ftl::codecs::Channel c, bool reset);
 
-	int _generateTiles(const ftl::rgbd::FrameSet &fs, int offset, ftl::codecs::Channel c, cv::cuda::Stream &stream, bool, bool);
+	int _generateTiles(const ftl::rgbd::FrameSet &fs, int offset, ftl::codecs::Channel c, cv::cuda::Stream &stream, bool);
 	EncodingState &_getTile(int fsid, ftl::codecs::Channel c);
 	cv::Rect _generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset, bool stereo);
 	float _selectFloatMax(ftl::codecs::Channel c);
@@ -105,6 +108,7 @@ class Sender : public ftl::Configurable {
 	void _sendPersistent(ftl::data::Frame &frame);
 
 	bool _checkNeedsIFrame(int64_t ts, bool injecting);
+	uint8_t _getMinBitrate();
 };
 
 }
