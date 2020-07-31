@@ -86,6 +86,7 @@ class Net : public Stream {
 	int tally_;
 	std::array<std::atomic<int>,32> reqtally_;
 	std::unordered_set<ftl::codecs::Channel> last_selected_;
+	uint8_t bitrate_=255;
 
 	ftl::Handler<ftl::net::Peer*> connect_cb_;
 
