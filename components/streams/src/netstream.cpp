@@ -63,6 +63,12 @@ Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), acti
 
 	last_frame_ = 0;
 	time_peer_ = ftl::UUID(0);
+
+	bitrate_ = static_cast<uint8_t>(std::max(0, std::min(255, value("bitrate", 255))));
+	on("bitrate", [this]() {
+		bitrate_ = static_cast<uint8_t>(std::max(0, std::min(255, value("bitrate", 255))));
+		tally_ = 0;
+	});
 }
 
 Net::~Net() {
@@ -195,7 +201,7 @@ bool Net::begin() {
 						last_selected_ = sel;
 
 						for (auto c : changed) {
-							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
+							_sendRequest(c, kAllFramesets, kAllFrames, 30, 255);
 						}
 					}
 				}
@@ -207,7 +213,7 @@ bool Net::begin() {
 						const auto &sel = selected(0);
 						
 						for (auto c : sel) {
-							_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
+							_sendRequest(c, kAllFramesets, kAllFrames, 30, 255);
 						}
 					}
 					tally_ = 30*kTallyScale;
@@ -295,7 +301,7 @@ bool Net::begin() {
 	active_ = true;
 	
 	// Initially send a colour request just to create the connection
-	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 0);
+	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 255);
 
 	return true;
 }
@@ -307,7 +313,7 @@ void Net::reset() {
 		auto sel = selected(0);
 		
 		for (auto c : sel) {
-			_sendRequest(c, kAllFramesets, kAllFrames, 30, 0);
+			_sendRequest(c, kAllFramesets, kAllFrames, 30, 255);
 		}
 	}
 	tally_ = 30*kTallyScale;
@@ -322,7 +328,8 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 		codec_t::Any,			// TODO: Allow specific codec requests
 		0,
 		count,
-		bitrate,
+		//bitrate,
+		bitrate_,
 		0
 	};
 
