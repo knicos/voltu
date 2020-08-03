@@ -63,6 +63,7 @@ static bool quiet = false;
 
 static void run(ftl::Configurable *root) {
 	Universe *net = ftl::create<Universe>(root, "net");
+	ftl::ctrl::Master ctrl(root, net);
 
 	ftl::timer::setHighPrecision(true);
 
@@ -88,8 +89,6 @@ static void run(ftl::Configurable *root) {
 		LOG(INFO) << "Found a time master: " << time_peer.to_string();
 	}
 	int sync_counter = 0;
-
-	ftl::ctrl::Master ctrl(root, net);
 
 	// Sync clocks!
 	auto timer = ftl::timer::add(ftl::timer::kTimerMain, [&time_peer,&sync_counter,net](int64_t ts) {

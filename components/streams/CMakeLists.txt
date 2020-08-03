@@ -12,6 +12,7 @@ set(STREAMSRC
 	src/sender.cpp
 	src/feed.cpp
 	src/netstream.cpp
+	src/adaptive.cpp
 	src/injectors.cpp
 	src/parsers.cpp
 	src/builder.cpp

@@ -47,6 +47,7 @@ struct Packet {
 
 static constexpr unsigned int kStreamCap_Static = 0x01;
 static constexpr unsigned int kStreamCap_Recorded = 0x02;
+static constexpr unsigned int kStreamCap_NewConnection = 0x04;
 
 /** V4 packets have no stream flags field */
 struct StreamPacketV4 {
@@ -90,6 +91,7 @@ struct StreamPacket {
 	unsigned int hint_capability;	// Is this a video stream, for example
 	size_t hint_source_total;		// Number of tracks per frame to expect
 	int retry_count = 0;			// Decode retry count
+	unsigned int hint_peerid=0;
 
 	MSGPACK_DEFINE(timestamp, streamID, frame_number, channel, flags);
 

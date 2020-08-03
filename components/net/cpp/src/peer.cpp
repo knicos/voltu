@@ -48,18 +48,8 @@ using ftl::net::Universe;
 using ftl::net::callback_t;
 using std::vector;
 
-/*static std::string hexStr(const std::string &s)
-{
-	const char *data = s.data();
-	int len = s.size();
-    std::stringstream ss;
-    ss << std::hex;
-    for(int i=0;i<len;++i)
-        ss << std::setw(2) << std::setfill('0') << (int)data[i];
-    return ss.str();
-}*/
-
 std::atomic_int Peer::rpcid__ = 0;
+std::atomic_int Peer::local_peer_ids__ = 0;
 
 // Global peer UUID
 ftl::UUID ftl::net::this_peer;
@@ -188,6 +178,7 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	is_waiting_ = true;
 	scheme_ = ftl::URI::SCHEME_TCP;
 	outgoing_ = false;
+	local_id_ = local_peer_ids__++;
 
 	int flags =1; 
     if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
@@ -242,6 +233,7 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 	status_ = kInvalid;
 	sock_ = INVALID_SOCKET;
 	outgoing_ = true;
+	local_id_ = local_peer_ids__++;
 	
 	disp_ = new Dispatcher(d);
 

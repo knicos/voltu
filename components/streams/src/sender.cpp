@@ -56,18 +56,19 @@ void Sender::setStream(ftl::stream::Stream*s) {
 			// Update the min bitrate selection
 			UNIQUE_LOCK(bitrate_mtx_, lk);
 			if (bitrate_map_.size() > 0) {
-				if (now - bitrate_map_.begin()->second > bitrate_timeout_) {
+				while (bitrate_map_.size() > 0 && (now - bitrate_map_.begin()->second.first > bitrate_timeout_ || (bitrate_map_.begin()->second.second == spkt.hint_peerid && pkt.bitrate != bitrate_map_.begin()->first))) {
+					LOG(INFO) << "Remove bitrate " << int(bitrate_map_.begin()->first);
 					bitrate_map_.erase(bitrate_map_.begin());
 				}
 			}
-			bitrate_map_[pkt.bitrate] = now;
+			bitrate_map_[pkt.bitrate] = std::make_pair(now, spkt.hint_peerid);
 		}
 
 		//if (state_cb_) state_cb_(spkt.channel, spkt.streamID, spkt.frame_number);
 		if (reqcb_) reqcb_(spkt,pkt);
 
 		// Inject state packets
-		do_inject_.clear();
+		if (spkt.hint_capability & ftl::codecs::kStreamCap_NewConnection) do_inject_.clear();
 
 		return true;
 	});
@@ -395,9 +396,9 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 	bool isfloat = ftl::codecs::type(c) == CV_32F;
 
 	bool lossless = (isfloat) ? value("lossless_float", false) : value("lossless_colour", false);
-	int bitrate = std::max(0, std::min(255, (isfloat) ? value("bitrate_float", 200) : value("bitrate_colour", 64)));
-
-	bitrate = std::min(static_cast<uint8_t>(bitrate), _getMinBitrate());
+	int max_bitrate = std::max(0, std::min(255, value("bitrate", 64)));
+	int bitrate = std::min(static_cast<uint8_t>(max_bitrate), _getMinBitrate());
+	if (isfloat) bitrate = std::min(255, int(float(bitrate)*value("bitrate_float_scale", 1.5f)));
 
 	//int min_bitrate = std::max(0, std::min(255, value("min_bitrate", 0)));  // TODO: Use this
 	codec_t codec = static_cast<codec_t>(
