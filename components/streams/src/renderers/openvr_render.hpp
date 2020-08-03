@@ -44,6 +44,7 @@ class OpenVRRender : public ftl::render::BaseSourceImpl {
 	ftl::operators::Graph *post_pipe_;
 
 	std::atomic_flag pose_calibrated_;
+	int64_t pose_calibration_start_=-1;
 
 	float baseline_;
 	Eigen::Matrix4d initial_pose_;

@@ -68,6 +68,7 @@ OpenVRRender::OpenVRRender(ftl::render::Source *host, ftl::stream::Feed *feed)
 	rotmat_.setIdentity();
 	initial_pose_.setIdentity();
 
+	host_->value("reset_pose", false);
 	host_->on("reset_pose", [this]() {
 		pose_calibrated_.clear();
 	});
@@ -314,7 +315,22 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			auto viewPose = t.matrix() * rotmat_;
 
 			if (!pose_calibrated_.test_and_set()) {
-				initial_pose_ = viewPose.inverse();
+				if (pose_calibration_start_ == -1) pose_calibration_start_ = ftl::timer::get_time();
+
+				std::string headset_origin = host_->value("headset_origin", std::string(""));
+				Eigen::Matrix4d horigin;
+				horigin.setIdentity();
+
+				if (headset_origin.size() > 0) {
+					ftl::operators::Poser::get(headset_origin, horigin);
+				}
+				initial_pose_ = horigin*viewPose.inverse();
+
+				if (host_->value("reset_pose", false) && ftl::timer::get_time() < pose_calibration_start_ + host_->value("calibration_time",10000)) {
+					pose_calibrated_.clear();
+				} else {
+					pose_calibration_start_ = -1;
+				}
 			}
 
 			rgbdframe.setPose() = initial_pose_*viewPose;

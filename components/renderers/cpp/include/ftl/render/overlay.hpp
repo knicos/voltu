@@ -26,7 +26,7 @@ class Overlay : public ftl::Configurable {
 
 	//void apply(ftl::rgbd::FrameSet &fs, cv::Mat &out, ftl::rgbd::FrameState &state);
 
-	void draw(NVGcontext *, ftl::data::FrameSet &fs, ftl::rgbd::Frame &frame, const Eigen::Vector2f &);
+	void draw(NVGcontext *, ftl::data::FrameSet &fs, ftl::rgbd::Frame &frame, const Eigen::Vector2f &, const Eigen::Vector2f &, const Eigen::Vector2f &offset);
 
 	private:
 	nanogui::GLShader oShader;
