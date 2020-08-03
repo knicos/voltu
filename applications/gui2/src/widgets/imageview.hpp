@@ -55,6 +55,8 @@ public:
 	float scale() const { return mScale; }
 	void setScale(float scale) { mScale = scale > 0.01f ? scale : 0.01f; }
 
+	inline void setFlipped(bool flipped) { flipped_ = flipped; }
+
 	bool fixedOffset() const { return mFixedOffset; }
 	void setFixedOffset(bool fixedOffset) { mFixedOffset = fixedOffset; }
 	bool fixedScale() const { return mFixedScale; }
@@ -166,6 +168,7 @@ protected:
 	nanogui::Vector2f mOffset;
 	bool mFixedScale;
 	bool mFixedOffset;
+	bool flipped_ = false;
 
 	// Fine-tuning parameters.
 	float mZoomSensitivity = 1.1f;

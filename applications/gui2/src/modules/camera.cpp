@@ -416,10 +416,10 @@ bool Camera::hasFrame() {
 	return false;
 }
 
-void Camera::drawOverlay(NVGcontext *ctx) {
+void Camera::drawOverlay(NVGcontext *ctx, const nanogui::Vector2f &s, const nanogui::Vector2f &is, const Eigen::Vector2f &offset) {
 	auto ptr = std::atomic_load(&latest_);
 	// TODO: Need all the source framesets here or all data dumped in by renderer
-	overlay_->draw(ctx, *ptr, ptr->frames[frame_idx].cast<ftl::rgbd::Frame>(), view->size().cast<float>());
+	overlay_->draw(ctx, *ptr, ptr->frames[frame_idx].cast<ftl::rgbd::Frame>(), s, is, offset);  // , view->size().cast<float>()
 }
 
 void Camera::sendPose(const Eigen::Matrix4d &pose) {

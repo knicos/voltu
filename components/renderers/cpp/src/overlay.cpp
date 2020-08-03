@@ -22,6 +22,8 @@ namespace {
 		uniform float height;
 		uniform float far;
 		uniform float near;
+		//uniform float offset_x;
+		//uniform float offset_y;
 		uniform mat4 pose;
 		uniform vec3 scale;
 
@@ -33,8 +35,8 @@ namespace {
 			//	(vert.z-near) / (far-near) * 2.0 - 1.0, 1.0);
 
 			vec4 pos = vec4(
-				vert.x*focal / (width/2.0),
-				-vert.y*focal / (height/2.0),
+				(vert.x*focal) / (width/2.0),
+				(-vert.y*focal) / (height/2.0),
 				-vert.z * ((far+near) / (far-near)) + (2.0 * near * far / (far-near)),
 				//((vert.z - near) / (far - near) * 2.0 - 1.0) * vert.z,
 				vert.z
@@ -242,12 +244,12 @@ void Overlay::_drawAxis(const Eigen::Matrix4d &pose, const Eigen::Vector3f &scal
 				(const void *)(loffset * sizeof(uint32_t)));
 }
 
-void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &frame, const Eigen::Vector2f &screenSize) {
+void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &frame, const Eigen::Vector2f &screenSize, const Eigen::Vector2f &imageSize, const Eigen::Vector2f &offset) {
 	if (!value("enabled", false)) return;
 
 	double zfar = 8.0f;
 	auto intrin = frame.getLeft();
-	intrin = intrin.scaled(screenSize[0], screenSize[1]);
+	intrin = intrin.scaled(imageSize[0], imageSize[1]);
 
 	if (!init_) {
 		oShader.init("OverlayShader", overlayVertexShader, overlayFragmentShader);
@@ -279,10 +281,12 @@ void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &f
 	glEnable(GL_LINE_SMOOTH);
 
 	oShader.setUniform("focal", intrin.fx);
-	oShader.setUniform("width", float(intrin.width));
-	oShader.setUniform("height", float(intrin.height));
+	oShader.setUniform("width", screenSize[0]);
+	oShader.setUniform("height", screenSize[1]);
 	oShader.setUniform("far", zfar);
 	oShader.setUniform("near", 0.1f);  // TODO: but make sure CUDA depth is also normalised like this
+	//oShader.setUniform("offset_x", offset[0]);
+	//oShader.setUniform("offset_y", offset[1]);
 
 	/*oShader.setUniform("blockColour", Eigen::Vector4f(1.0f,1.0f,0.0f,0.5f));
 	oShader.uploadAttrib("vertex", sizeof(tris), 3, sizeof(float), GL_FLOAT, false, tris);

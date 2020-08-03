@@ -377,6 +377,8 @@ CameraView::CameraView(ftl::gui2::Screen* parent, ftl::gui2::Camera* ctrl) :
 	imview_ = new ftl::gui2::FTLImageView(this);
 	panel_ = new ftl::gui2::MediaPanel(screen(), ctrl, this);
 
+	imview_->setFlipped(ctrl->isVR());
+
 	auto *mod = ctrl_->screen->getModule<ftl::gui2::Statistics>();
 	if (ctrl_->isMovable()) {
 		imview_->setCursor(nanogui::Cursor::Hand);
@@ -504,6 +506,8 @@ bool CameraView::mouseButtonEvent(const Eigen::Vector2i &p, int button, bool dow
 }
 
 void CameraView::draw(NVGcontext*ctx) {
+	using namespace nanogui;
+
 	if (ctrl_->hasFrame()) {
 		try {
 			// TODO: Select shader to flip if VR capability found...
@@ -518,7 +522,8 @@ void CameraView::draw(NVGcontext*ctx) {
 	}
 	View::draw(ctx);
 
-	ctrl_->drawOverlay(ctx);
+	auto osize = imview_->scaledImageSizeF();
+	ctrl_->drawOverlay(ctx, screen()->size().cast<float>(), osize, imview_->offset());
 
 	auto mouse = screen()->mousePos();
 	auto pos = imview_->imageCoordinateAt((mouse - mPos).cast<float>());

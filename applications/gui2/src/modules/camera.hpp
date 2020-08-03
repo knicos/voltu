@@ -49,12 +49,13 @@ public:
 	inline bool isLive() const { return live_; }
 	inline bool isTouchable() const { return touch_; }
 	inline bool isMovable() const { return movable_; }
+	inline bool isVR() const { return vr_; }
 
 	ftl::render::Colouriser* colouriser() { return colouriser_.get(); };
 	ftl::overlay::Overlay* overlay() { return overlay_.get(); }
 	ftl::audio::StereoMixerF<100> *mixer();
 
-	void drawOverlay(NVGcontext *ctx);
+	void drawOverlay(NVGcontext *ctx, const nanogui::Vector2f &size, const nanogui::Vector2f &is, const Eigen::Vector2f &offset);
 
 	std::string getActiveSourceURI();
 

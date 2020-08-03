@@ -49,13 +49,14 @@ namespace {
 		R"(#version 330
 		uniform vec2 scaleFactor;
 		uniform vec2 position;
+		uniform float flip_y;
 		in vec2 vertex;
 		out vec2 uv;
 		void main() {
 			uv = vertex;
 			vec2 scaledVertex = (vertex * scaleFactor) + position;
 			gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
-								1.0 - 2.0*scaledVertex.y,
+								flip_y*(1.0 - 2.0*scaledVertex.y),
 								0.0, 1.0);
 
 		})";
@@ -322,6 +323,7 @@ void ftl::gui2::ImageView::draw(NVGcontext* ctx) {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, mImageID);
 		mShader.setUniform("image", 0);
+		mShader.setUniform("flip_y", (flipped_) ? -1.0f : 1.0f);
 		mShader.setUniform("scaleFactor", scaleFactor);
 		mShader.setUniform("position", imagePosition);
 		mShader.drawIndexed(GL_TRIANGLES, 0, 2);
