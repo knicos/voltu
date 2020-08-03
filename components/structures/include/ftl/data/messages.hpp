@@ -13,6 +13,7 @@ enum class Message : int {
 	Error_FRAME_GRAB,
 	Error_BAD_FORMAT,
 	Error_OPENVR,
+	Error_RENDER,
 	Warning_UNKNOWN = 1024,
 	Warning_FRAME_DROP,
 	Warning_PIPELINE_DROP,
