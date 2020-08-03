@@ -166,7 +166,7 @@ void RecordOptions::show(const std::function<void(bool)> &cb) {
 
 class MediaPanel : public FixedWindow {
 public:
-	MediaPanel(nanogui::Widget *parent, Camera* ctrl);
+	MediaPanel(nanogui::Widget *parent, Camera* ctrl, CameraView* view);
 	virtual ~MediaPanel();
 
 	void setAvailableChannels(const std::unordered_set<ftl::codecs::Channel> &channels);
@@ -183,14 +183,15 @@ public:
 private:
 	std::vector<nanogui::Widget*> buttons(); // channel buttons
 	Camera* ctrl_;
+	CameraView* view_;
 	RecordOptions *record_opts_=nullptr;
 
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
-MediaPanel::MediaPanel(nanogui::Widget *parent, ftl::gui2::Camera* ctrl) :
-	ftl::gui2::FixedWindow(parent, ""), ctrl_(ctrl) {
+MediaPanel::MediaPanel(nanogui::Widget *parent, ftl::gui2::Camera* ctrl, CameraView* view) :
+	ftl::gui2::FixedWindow(parent, ""), ctrl_(ctrl), view_(view) {
 
 	LOG(INFO) << __func__ << " (" << this << ")";
 	using namespace nanogui;
@@ -266,6 +267,12 @@ MediaPanel::MediaPanel(nanogui::Widget *parent, ftl::gui2::Camera* ctrl) :
 				if (rec) button_record->setTextColor(nanogui::Color(1.0f,0.1f,0.1f,1.0f));
 			});
 		}
+	});
+
+	auto button_stereo = new nanogui::Button(this, "", ENTYPO_ICON_GRID);
+	button_stereo->setFlags(nanogui::Button::Flags::ToggleButton);
+	button_stereo->setChangeCallback([view = view_](bool v){
+		view->setStereo(v);
 	});
 
 	// Channel select. Creates buttons for 32 channels and sets available ones
@@ -364,10 +371,11 @@ nanogui::Button* MediaPanel::addButton(int pos) {
 // ==== CameraView =============================================================
 
 CameraView::CameraView(ftl::gui2::Screen* parent, ftl::gui2::Camera* ctrl) :
-		View(parent), enable_zoom_(false), enable_pan_(false), ctrl_(ctrl) {
+		View(parent), enable_zoom_(false), enable_pan_(false), ctrl_(ctrl),
+		stereoim_(nullptr) {
 
 	imview_ = new ftl::gui2::FTLImageView(this);
-	panel_ = new ftl::gui2::MediaPanel(screen(), ctrl);
+	panel_ = new ftl::gui2::MediaPanel(screen(), ctrl, this);
 
 	auto *mod = ctrl_->screen->getModule<ftl::gui2::Statistics>();
 	if (ctrl_->isMovable()) {
@@ -412,6 +420,25 @@ CameraView::~CameraView() {
 	if (context_menu_->parent()->getRefCount() > 0) {
 		context_menu_->setVisible(false);
 		context_menu_->dispose();
+	}
+}
+
+void CameraView::setStereo(bool v) {
+	if (v) {
+		if (!stereoim_) {
+			removeChild(imview_);
+			stereoim_ = new StereoImageView(this);
+			imview_ = stereoim_->right();
+			performLayout(screen()->nvgContext());
+		}
+	}
+	else {
+		if (stereoim_) {
+			removeChild(stereoim_);
+			imview_ = new FTLImageView(this);
+			stereoim_ = nullptr;
+			performLayout(screen()->nvgContext());
+		}
 	}
 }
 
@@ -481,6 +508,9 @@ void CameraView::draw(NVGcontext*ctx) {
 		try {
 			// TODO: Select shader to flip if VR capability found...
 			imview_->copyFrom(ctrl_->getFrame());
+			if (stereoim_) {
+				stereoim_->left()->copyFrom(ctrl_->getFrame(Channel::Left));
+			}
 		}
 		catch (std::exception& e) {
 			gui()->showError("Exception", e.what());
@@ -500,9 +530,17 @@ void CameraView::draw(NVGcontext*ctx) {
 }
 
 void CameraView::performLayout(NVGcontext* ctx) {
-	imview_->setSize(size());
-	if (!(enable_zoom_ && enable_pan_)) {
-		imview_->fit();
+	if (stereoim_) {
+		stereoim_->setFixedSize(size());
+		if (!(enable_zoom_ && enable_pan_)) {
+			stereoim_->fit();
+		}
+	}
+	else {
+		imview_->setSize(size());
+		if (!(enable_zoom_ && enable_pan_)) {
+			imview_->fit();
+		}
 	}
 	View::performLayout(ctx);
 }

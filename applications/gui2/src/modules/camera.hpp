@@ -21,8 +21,8 @@ public:
 
 	virtual void activate(ftl::data::FrameID id);
 	void setChannel(ftl::codecs::Channel c);
-	void setPaused(bool set) { paused = set; };
-	bool isPaused() { return paused; }
+	void setPaused(bool set) { paused_ = set; };
+	bool isPaused() { return paused_; }
 
 	float volume();
 	void setVolume(float v);
@@ -31,7 +31,9 @@ public:
 	 * will stay valid until getFrame() is called again. Always returns a
 	 * reference to internal buffer. */
 	ftl::cuda::TextureObject<uchar4>& getFrame();
+	ftl::cuda::TextureObject<uchar4>& getFrame(ftl::codecs::Channel channel);
 	bool getFrame(ftl::cuda::TextureObject<uchar4>&);
+	bool getFrame(ftl::cuda::TextureObject<uchar4>&, ftl::codecs::Channel channel);
 
 	std::unordered_set<ftl::codecs::Channel> availableChannels();
 
@@ -68,9 +70,9 @@ public:
 private:
 	int frame_idx = -1;
 	ftl::data::FrameID frame_id_;
-	ftl::codecs::Channel channel = ftl::codecs::Channel::Colour;
-	ftl::stream::Feed::Filter *filter = nullptr;
-	std::atomic_bool paused = false; // TODO: implement in InputOutput
+	ftl::codecs::Channel channel_ = ftl::codecs::Channel::Colour;
+	ftl::stream::Feed::Filter *filter_ = nullptr;
+	std::atomic_bool paused_ = false; // TODO: implement in InputOutput
 	bool has_seen_frame_ = false;
 	ftl::codecs::Touch point_;
 	bool live_=false;
@@ -85,6 +87,7 @@ private:
 	ftl::data::FrameSetPtr current_fs_;
 	ftl::data::FrameSetPtr latest_;
 	ftl::cuda::TextureObject<uchar4> current_frame_;
+	ftl::cuda::TextureObject<uchar4> current_frame_colour_;
 
 	std::unique_ptr<ftl::render::Colouriser> colouriser_;
 	std::unique_ptr<ftl::overlay::Overlay> overlay_;

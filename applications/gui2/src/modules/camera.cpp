@@ -179,8 +179,8 @@ void Camera::initiate_(ftl::data::Frame &frame) {
 	if (!view) return;
 
 	view->onClose([this](){
-		filter->remove();
-		filter = nullptr;
+		filter_->remove();
+		filter_ = nullptr;
 		nframes_ = -1;
 
 		auto *mod = this->screen->getModule<ftl::gui2::Statistics>();
@@ -191,7 +191,7 @@ void Camera::initiate_(ftl::data::Frame &frame) {
 		mod->getJSON(StatisticsPanel::CAMERA_DETAILS).clear();
 	});
 
-	setChannel(channel);
+	setChannel(channel_);
 
 	screen->setView(view);
 	view->refresh();
@@ -239,10 +239,10 @@ void Camera::activate(ftl::data::FrameID id) {
 	//std::mutex m;
 	//std::condition_variable cv;
 
-	filter = io->feed()->filter(std::unordered_set<unsigned int>{id.frameset()}, {Channel::Left});
-	filter->on(
+	filter_ = io->feed()->filter(std::unordered_set<unsigned int>{id.frameset()}, {Channel::Left});
+	filter_->on(
 		[this, speaker = io->speaker()](ftl::data::FrameSetPtr fs){
-			if (paused) return true;
+			if (paused_) return true;
 
 			std::atomic_store(&current_fs_, fs);
 			std::atomic_store(&latest_, fs);
@@ -294,7 +294,7 @@ void Camera::activate(ftl::data::FrameID id) {
 		}
 	);
 
-	auto sets = filter->getLatestFrameSets();
+	auto sets = filter_->getLatestFrameSets();
 	if (sets.size() > 0) {
 		std::atomic_store(&current_fs_, sets.front());
 		std::atomic_store(&latest_, sets.front());
@@ -311,8 +311,8 @@ void Camera::activate(ftl::data::FrameID id) {
 }
 
 void Camera::setChannel(Channel c) {
-	channel = c;
-	filter->select({c});
+	channel_ = c;
+	filter_->select({Channel::Colour, c});
 }
 
 std::string Camera::getActiveSourceURI() {
@@ -349,25 +349,25 @@ bool Camera::isRecording() {
 
 void Camera::stopRecording() {
 	io->feed()->stopRecording();
-	filter->select({channel});
+	filter_->select({channel_});
 }
 
 void Camera::startRecording(const std::string &filename, const std::unordered_set<ftl::codecs::Channel> &channels) {
-	filter->select(channels);
-	io->feed()->startRecording(filter, filename);
+	filter_->select(channels);
+	io->feed()->startRecording(filter_, filename);
 }
 
 void Camera::startStreaming(const std::unordered_set<ftl::codecs::Channel> &channels) {
-	filter->select(channels);
-	io->feed()->startStreaming(filter);
+	filter_->select(channels);
+	io->feed()->startStreaming(filter_);
 }
 
 void Camera::snapshot(const std::string &filename) {
 	auto ptr = std::atomic_load(&latest_);
 	if (ptr) {
 		auto &frame = ptr->frames[frame_idx];
-		if (frame.hasChannel(channel)) {
-			const auto &snap = frame.get<cv::Mat>(channel);
+		if (frame.hasChannel(channel_)) {
+			const auto &snap = frame.get<cv::Mat>(channel_);
 			cv::Mat output;
 			cv::cvtColor(snap, output, cv::COLOR_BGRA2BGR);
 			cv::imwrite(filename, output);
@@ -376,8 +376,15 @@ void Camera::snapshot(const std::string &filename) {
 }
 
 ftl::cuda::TextureObject<uchar4>& Camera::getFrame() {
+	return getFrame(channel_);
+}
+
+ftl::cuda::TextureObject<uchar4>& Camera::getFrame(ftl::codecs::Channel channel) {
 	if (std::atomic_load(&current_fs_)) {
 		auto& frame = current_fs_->frames[frame_idx].cast<ftl::rgbd::Frame>();
+
+		current_frame_colour_ = frame.getTexture<uchar4>(Channel::Left);
+
 		if (frame.hasChannel(channel)) {
 			current_frame_ = colouriser_->colourise(frame, channel, 0);
 		} else {
@@ -385,10 +392,11 @@ ftl::cuda::TextureObject<uchar4>& Camera::getFrame() {
 		}
 		std::atomic_store(&current_fs_, {});
 	}
-	return current_frame_;
+	if (channel == Channel::Left) { return current_frame_colour_; }
+	else { return current_frame_; }
 }
 
-bool Camera::getFrame(ftl::cuda::TextureObject<uchar4>& frame) {
+bool Camera::getFrame(ftl::cuda::TextureObject<uchar4>& frame, ftl::codecs::Channel channel) {
 	if (std::atomic_load(&current_fs_).get() != nullptr) {
 		frame = getFrame();
 		return true;
@@ -396,10 +404,14 @@ bool Camera::getFrame(ftl::cuda::TextureObject<uchar4>& frame) {
 	return false;
 }
 
+bool Camera::getFrame(ftl::cuda::TextureObject<uchar4>& frame) {
+	return getFrame(frame, channel_);
+}
+
 bool Camera::hasFrame() {
 	auto ptr = std::atomic_load(&current_fs_);
 	if (ptr && ptr->frames.size() > (unsigned int)(frame_idx)) {
-		return ptr->frames[frame_idx].hasChannel(channel);
+		return ptr->frames[frame_idx].hasChannel(channel_);
 	}
 	return false;
 }

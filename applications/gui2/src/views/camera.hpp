@@ -28,6 +28,8 @@ public:
 	void setZoom(bool enable);
 	void setPan(bool enable);
 
+	void setStereo(bool v);
+
 protected:
 	bool enable_zoom_;
 	bool enable_pan_;
@@ -35,6 +37,9 @@ protected:
 	MediaPanel* panel_;
 	FTLImageView* imview_;
 	nanogui::Window *context_menu_;
+
+private:
+	StereoImageView* stereoim_;
 
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
