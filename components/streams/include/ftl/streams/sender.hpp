@@ -87,7 +87,7 @@ class Sender : public ftl::Configurable {
 
 	std::unordered_map<int, EncodingState> state_;
 	std::unordered_map<int, AudioState> audio_state_;
-	std::map<uint8_t, int64_t> bitrate_map_;
+	std::map<uint8_t, std::pair<int64_t,unsigned int>> bitrate_map_;
 	SHARED_MUTEX bitrate_mtx_;
 	int bitrate_timeout_;
 

@@ -197,6 +197,8 @@ class Peer {
 	void rawClose() { _badClose(false); }
 
 	inline void noReconnect() { can_reconnect_ = false; }
+
+	inline unsigned int localID() const { return local_id_; }
 	
 	public:
 	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently
@@ -266,6 +268,7 @@ class Peer {
 	std::string uri_;				// Original connection URI, or assumed URI
 	ftl::UUID peerid_;				// Received in handshake or allocated
 	bool outgoing_;
+	unsigned int local_id_;
 	
 	ftl::net::Dispatcher *disp_;	// For RPC call dispatch
 	//std::vector<std::function<void(Peer &)>> open_handlers_;
@@ -274,6 +277,7 @@ class Peer {
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 	
 	static std::atomic_int rpcid__;				// Return ID for RPC calls
+	static std::atomic_int local_peer_ids__;
 };
 
 // --- Inline Template Implementations -----------------------------------------
