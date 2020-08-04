@@ -538,6 +538,24 @@ StereoImageView::StereoImageView(nanogui::Widget* parent, nanogui::Orientation o
 	right_->setFixedScale(true);
 }
 
+
+nanogui::Vector2f StereoImageView::imageCoordinateAt(const nanogui::Vector2f& p) const {
+
+	nanogui::Vector2f pos = position().cast<float>();
+	nanogui::Vector2f posr = pos + right_->position().cast<float>();
+
+	bool is_right =
+		((p.x() >= posr.x()) && (orientation_ == nanogui::Orientation::Horizontal)) ||
+		((p.y() >= posr.y()) && (orientation_ == nanogui::Orientation::Vertical));
+
+	if (is_right) {
+		return right_->imageCoordinateAt(p - right_->position().cast<float>());
+	}
+	else {
+		return left_->imageCoordinateAt(p);
+	}
+}
+
 bool StereoImageView::mouseMotionEvent(const nanogui::Vector2i &p, const nanogui::Vector2i &rel, int button, int modifiers) {
 	if ((button & (1 << GLFW_MOUSE_BUTTON_RIGHT)) != 0) {
 		nanogui::Vector2f posl = left_->imageCoordinateAt(p.cast<float>());
@@ -554,7 +572,7 @@ bool StereoImageView::mouseMotionEvent(const nanogui::Vector2i &p, const nanogui
 	}
 	return false;
 }
-#include <loguru.hpp>
+
 bool StereoImageView::scrollEvent(const nanogui::Vector2i& p, const nanogui::Vector2f& rel) {
 	// synchronized zoom
 

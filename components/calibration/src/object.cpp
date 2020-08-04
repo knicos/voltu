@@ -19,7 +19,7 @@ ArUCoObject::ArUCoObject(cv::aruco::PREDEFINED_DICTIONARY_NAME dictionary,
 	params_ = cv::aruco::DetectorParameters::create();
 	params_->cornerRefinementMinAccuracy = 0.01;
 	// cv::aruco::CORNER_REFINE_CONTOUR memory issues? intrinsic quality?
-	params_->cornerRefinementMethod = cv::aruco::CORNER_REFINE_APRILTAG;
+	params_->cornerRefinementMethod = cv::aruco::CORNER_REFINE_CONTOUR;
 }
 
 std::vector<cv::Point3d> ArUCoObject::object() {
@@ -42,7 +42,9 @@ int ArUCoObject::detect(cv::InputArray im, std::vector<cv::Point2d>& result, con
 	std::vector<std::vector<cv::Point2f>> corners;
 	std::vector<int> ids;
 	cv::Mat im_gray;
-
+	// OpenCV bug: detectMarkers consumes all available memory when any
+	// distortion parameters are passes
+	const cv::Mat d;
 	if (im.size() == cv::Size(0, 0)) {
 		return -1;
 	}
@@ -59,7 +61,7 @@ int ArUCoObject::detect(cv::InputArray im, std::vector<cv::Point2d>& result, con
 	}
 
 	cv::aruco::detectMarkers(im_gray, dict_, corners, ids, params_,
-								cv::noArray(), K, distCoeffs);
+								cv::noArray(), K, d);
 
 
 	if (ids.size() < 2) { return 0; }

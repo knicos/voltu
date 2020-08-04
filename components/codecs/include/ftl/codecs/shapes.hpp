@@ -21,8 +21,6 @@ enum class Shape3DType {
 };
 
 struct Shape3D {
-	Shape3D() {};
-
 	int id;
 	Shape3DType type;
 	Eigen::Vector3f size;

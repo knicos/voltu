@@ -1,5 +1,7 @@
 #include "extrinsicview.hpp"
 #include "visualization.hpp"
+#include "widgets.hpp"
+
 #include "../../screen.hpp"
 #include "../../widgets/window.hpp"
 
@@ -10,6 +12,7 @@
 #include <nanogui/checkbox.h>
 #include <nanogui/label.h>
 #include <nanogui/formhelper.h>
+#include <nanogui/tabwidget.h>
 
 using ftl::gui2::ExtrinsicCalibrationStart;
 using ftl::gui2::ExtrinsicCalibrationView;
@@ -76,7 +79,7 @@ ExtrinsicCalibrationStart::~ExtrinsicCalibrationStart() {
 
 void ExtrinsicCalibrationStart::draw(NVGcontext* ctx) {
 	window_->center();
-	bcontinue_->setEnabled(sources_ != 0);
+	bcontinue_->setEnabled((lssources_->childCount() != 0));
 	ftl::gui2::View::draw(ctx);
 }
 
@@ -212,6 +215,7 @@ ExtrinsicCalibrationView::ControlWindow::ControlWindow(nanogui::Widget* parent, 
 	bapply_->setFlags(nanogui::Button::Flags::ToggleButton);
 	bapply_->setPushed(view_->rectify());
 	bapply_->setChangeCallback([button = bapply_, view = view_](bool v){
+		view->setMode(Mode::VIDEO); // stop capture
 		view->setRectify(v);
 	});
 
@@ -404,14 +408,19 @@ class ExtrinsicCalibrationView::ResultsWindow : public FixedWindow {
 public:
 	ResultsWindow(nanogui::Widget* parent, ExtrinsicCalibrationView* view);
 	virtual void draw(NVGcontext* ctx) override;
+	virtual void performLayout(NVGcontext* ctx);
+	//virtual nanogui::Vector2i preferredSize(NVGcontext* ctx) const override;
+
+	void update();
 
 private:
 	ExtrinsicCalibrationView* view_;
 	ExtrinsicCalibration* ctrl_;
 
-	nanogui::Button* bcalibrate_;
-	nanogui::Button* bpause_;
-	nanogui::Button* bresults_;
+	std::vector<ftl::calibration::CalibrationData::Calibration> calib_;
+	std::vector<std::string> names_;
+
+	nanogui::TabWidget* tabs_ = nullptr;
 
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -420,25 +429,60 @@ public:
 ExtrinsicCalibrationView::ResultsWindow::ResultsWindow(nanogui::Widget* parent, ExtrinsicCalibrationView* view) :
 	FixedWindow(parent, "Results"), view_(view), ctrl_(view->ctrl_) {
 
+	setLayout(new nanogui::BoxLayout
+		(nanogui::Orientation::Vertical, nanogui::Alignment::Maximum));
+
 	(new nanogui::Button(buttonPanel(), "", ENTYPO_ICON_CROSS))->setCallback(
 		[view = view_]() {
 		view->setMode(Mode::VIDEO);
 	});
-	setSize({300, 300});
+
+	tabs_ = new nanogui::TabWidget(this);
+	tabs_->createTab("Extrinsic");
+}
+
+/*nanogui::Vector2i ExtrinsicCalibrationView::ResultsWindow::preferredSize(NVGcontext* ctx) const {
+	return {600, 400};
+}*/
+
+void ExtrinsicCalibrationView::ResultsWindow::ResultsWindow::performLayout(NVGcontext* ctx) {
+	setFixedSize({600, 400});
+	tabs_->setFixedWidth(width());
+	FixedWindow::performLayout(ctx);
+}
+
+void ExtrinsicCalibrationView::ResultsWindow::ResultsWindow::update() {
+	calib_.resize(ctrl_->cameraCount());
+	while (tabs_->tabCount() > 1) {
+		// bug in nanogui: incorrect assert in removeTab(int).
+		// workaround: use tabLabelAt()
+		tabs_->removeTab(tabs_->tabLabelAt(tabs_->tabCount() - 1));
+	}
+
+	for (int i = 0; i < ctrl_->cameraCount(); i++) {
+		calib_[i] = ctrl_->calibration(i);
+		// nanogui issue: too many tabs/long names header goes outside of widget
+		// use just idx for now
+		auto* tab = tabs_->createTab(std::to_string(i));
+		new nanogui::Label(tab, ctrl_->cameraName(i), "sans-bold", 18);
+		tab->setLayout(new nanogui::BoxLayout
+			(nanogui::Orientation::Vertical, nanogui::Alignment::Middle, 0, 8));
+
+		auto* display = new IntrinsicDetails(tab);
+		display->update(calib_[i].intrinsic);
+	}
 }
 
 void ExtrinsicCalibrationView::ResultsWindow::draw(NVGcontext* ctx) {
 	FixedWindow::draw(ctx);
-	std::vector<ftl::calibration::CalibrationData::Extrinsic> calib(ctrl_->cameraCount());
-	for (int i = 0; i < ctrl_->cameraCount(); i++) {
-		calib[i] = ctrl_->calibration(i).extrinsic;
+	if (tabs_->activeTab() == 0) { // create a widget and move there
+		drawFloorPlan(ctx, tabs_->tab(0), calib_);
 	}
-	drawFloorPlan(ctx, this, calib);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void drawText(NVGcontext* ctx, nanogui::Vector2f &pos, const std::string& text,
+static void  drawText(NVGcontext* ctx, const nanogui::Vector2f &pos, const std::string& text,
 		float size=12.0f, int align=NVG_ALIGN_MIDDLE|NVG_ALIGN_CENTER) {
 	nvgFontSize(ctx, size);
 	nvgFontFace(ctx, "sans-bold");
@@ -448,6 +492,98 @@ static void drawText(NVGcontext* ctx, nanogui::Vector2f &pos, const std::string&
 	nvgFillColor(ctx, nanogui::Color(244, 244, 244, 255));
 	nvgText(ctx, pos.x() + 1, pos.y() + 1, text.c_str(), nullptr);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class StereoCalibrationImageView : public ftl::gui2::StereoImageView {
+public:
+	using ftl::gui2::StereoImageView::StereoImageView;
+
+	virtual bool keyboardCharacterEvent(unsigned int codepoint) override;
+	virtual bool mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) override;
+	virtual void draw(NVGcontext* ctx) override;
+
+	void reset();
+
+private:
+	std::set<int> rows_;
+	std::map<int, nanogui::Color> colors_;
+
+	int n_colors_ = 16;
+	float alpha_threshold_ = 2.0f;
+
+public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+};
+
+void StereoCalibrationImageView::reset() {
+	rows_.clear();
+}
+
+bool StereoCalibrationImageView::keyboardCharacterEvent(unsigned int codepoint) {
+	if (codepoint == 'r') {
+		reset();
+		return true;
+	}
+	return StereoImageView::keyboardCharacterEvent(codepoint);
+}
+
+bool StereoCalibrationImageView::mouseButtonEvent(const nanogui::Vector2i &p, int button, bool down, int modifiers) {
+	nanogui::Widget::mouseButtonEvent(p, button, down, modifiers);
+	if (button == GLFW_MOUSE_BUTTON_1 && !down) {
+		// half a pixel offset to match "square pixel" visualization
+		nanogui::Vector2f offset{left()->scale()/2.0f, left()->scale()/2.0f};
+		float row = round(imageCoordinateAt(p.cast<float>() + offset).y());
+
+		if (rows_.count(row))	{ rows_.erase(row); }
+		else					{ rows_.insert(row); }
+	}
+	return true;
+}
+
+void StereoCalibrationImageView::draw(NVGcontext* ctx) {
+	StereoImageView::draw(ctx);
+	// assumes vertical alignment (horizontal not implemented)
+	CHECK(orientation() == nanogui::Orientation::Vertical);
+
+	int x = position().x();
+	int y = position().y();
+	int w = width();
+	int h = left()->height();
+	float swidth = std::max(1.0f, left()->scale());
+	int c = 0; // color
+
+	for (int row : rows_) {
+		int y_im = y;
+		nanogui::Vector2f l = left()->positionForCoordinate({0.0f, row}) + left()->position().cast<float>();
+		nanogui::Vector2f r = right()->positionForCoordinate({0.0f, row}) + right()->position().cast<float>();
+		auto color = nvgHSLA(float(c%n_colors_)/float(n_colors_), 0.9, 0.5, (swidth < alpha_threshold_) ? 255 : 96);
+
+		for (auto& p : {l, r}) {
+			nvgScissor(ctx, x, y_im, w, h);
+			nvgBeginPath(ctx);
+			nvgMoveTo(ctx, x, p.y() - swidth*0.5f);
+			nvgLineTo(ctx, x + w, p.y() - swidth*0.5f);
+			nvgStrokeColor(ctx, color);
+			nvgStrokeWidth(ctx, swidth);
+			nvgStroke(ctx);
+
+			if (swidth*0.5f > alpha_threshold_) {
+				nvgBeginPath(ctx);
+				nvgMoveTo(ctx, x, p.y() - swidth*0.5f);
+				nvgLineTo(ctx, x + w, p.y() - swidth*0.5f);
+				nvgStrokeColor(ctx, nvgRGBA(0, 0, 0, 196));
+				nvgStrokeWidth(ctx, 1.0f);
+				nvgStroke(ctx);
+			}
+			nvgResetScissor(ctx);
+			y_im += h;
+		}
+		c++;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 ExtrinsicCalibrationView::ExtrinsicCalibrationView(Screen* widget, ExtrinsicCalibration* ctrl) :
 		ftl::gui2::View(widget), ctrl_(ctrl), rows_(0) {
@@ -461,7 +597,7 @@ ExtrinsicCalibrationView::ExtrinsicCalibrationView(Screen* widget, ExtrinsicCali
 
 	// assumes all cameras stereo cameras, indexed in order
 	for (int i = 0; i < ctrl_->cameraCount(); i += 2) {
-		new StereoImageView(frames_, nanogui::Orientation::Vertical);
+		new StereoCalibrationImageView(frames_, nanogui::Orientation::Vertical);
 	}
 	paused_ = false;
 	wcontrol_ = new ControlWindow(screen(), this);
@@ -483,7 +619,7 @@ void ExtrinsicCalibrationView::performLayout(NVGcontext* ctx) {
 
 	nanogui::Vector2i fsize = { width()/(frames_->childCount()), height() };
 	for (int i = 0; i < frames_->childCount(); i++) {
-		auto* stereo = dynamic_cast<StereoImageView*>(frames_->childAt(i));
+		auto* stereo = dynamic_cast<StereoCalibrationImageView*>(frames_->childAt(i));
 		stereo->setFixedSize(fsize);
 		stereo->fit();
 	}
@@ -562,9 +698,29 @@ void ExtrinsicCalibrationView::draw(NVGcontext* ctx) {
 				drawText(ctx, paths[p], std::to_string(p), 14.0f);
 			}
 		}*/
-		nanogui::Vector2f cpos = wpos + nanogui::Vector2f{10.0f, 10.0f};
-		drawText(ctx, cpos, std::to_string(ctrl_->getFrameCount(i)), 20.0f, NVG_ALIGN_TOP|NVG_ALIGN_LEFT);
+
+		// TODO: move to stereocalibrateimageview
+		nanogui::Vector2f tpos = wpos + nanogui::Vector2f{10.0f, 10.0f};
+		drawText(ctx, tpos, std::to_string(ctrl_->getFrameCount(i)), 20.0f, NVG_ALIGN_TOP|NVG_ALIGN_LEFT);
+
+		tpos = wpos + nanogui::Vector2f{10.0f, wsize.y() - 30.0f};
+		drawText(ctx, tpos, ctrl_->cameraName(i), 20.0f, NVG_ALIGN_TOP|NVG_ALIGN_LEFT);
+
 		nvgResetScissor(ctx);
+	}
+
+	{
+		float h = 14.0f;
+		for (const auto& text : {"Left click: draw line",
+								 "Right click: pan",
+								 "Scroll: zoom",
+								 "C center",
+								 "F fit",
+								 "R clear lines"
+				}) {
+			drawText(ctx, {float(width()) - 60.0, h}, text, 14, NVGalign::NVG_ALIGN_BOTTOM | NVG_ALIGN_MIDDLE);
+			h += 20.0;
+		}
 	}
 }
 
@@ -602,7 +758,7 @@ void ExtrinsicCalibrationView::setMode(Mode mode) {
 			wcontrol_->setVisible(false);
 			wcalibration_->setVisible(false);
 			wresults_->setVisible(true);
-			//wresults_->update();
+			wresults_->update();
 			break;
 	}
 	screen()->performLayout();

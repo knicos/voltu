@@ -126,17 +126,23 @@ void IntrinsicDetails::update(const ftl::calibration::CalibrationData::Intrinsic
 		"(" + to_string(values.cx) + ", " +
 			  to_string(values.cy) + ")");
 
+	new nanogui::Widget(params_);
+	new nanogui::Label(params_,
+			"(" + to_string(100.0*(2.0*values.cx/double(imsize.width) - 1.0)) + "% , " +
+				to_string(100.0*(2.0*values.cy/double(imsize.height) - 1.0)) + "%)");
+	if (use_physical) new nanogui::Widget(params_);
+
 	new nanogui::Label(params_, "Field of View (x):");
 	new nanogui::Label(params_, to_string(fovx) + "°");
-	if (use_physical) new nanogui::Label(params_, "");
+	if (use_physical) new nanogui::Widget(params_);
 
 	new nanogui::Label(params_, "Field of View (y):");
 	new nanogui::Label(params_, to_string(fovy)+ "°");
-	if (use_physical) new nanogui::Label(params_, "");
+	if (use_physical) new nanogui::Widget(params_);
 
 	new nanogui::Label(params_, "Aspect ratio:");
 	new nanogui::Label(params_, to_string(ar));
-	if (use_physical) new nanogui::Label(params_, "");
+	if (use_physical) new nanogui::Widget(params_);
 
 	std::string pK;
 	std::string pP;

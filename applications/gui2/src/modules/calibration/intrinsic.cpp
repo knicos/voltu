@@ -246,7 +246,7 @@ void IntrinsicCalibration::run() {
 			cv::Size size = state_->calib.resolution;
 			if (state_->flags.has(cv::CALIB_USE_INTRINSIC_GUESS)) {
 				// OpenCV seems to use these anyways?
-				K = state_->calib.matrix();
+				K = state_->calib.matrix(size);
 				state_->calib.distCoeffs.Mat(12).copyTo(distCoeffs);
 			}
 			std::vector<cv::Mat> rvecs, tvecs;
@@ -341,8 +341,8 @@ void IntrinsicCalibration::setFocalLength(double value, cv::Size2d sensor_size) 
 	setSensorSize(sensor_size);
 	double f = value*(state_->calib.resolution.width/sensor_size.width);
 
-	state_->calib.cx = f;
-	state_->calib.cy = f;
+	state_->calib.fx = f;
+	state_->calib.fy = f;
 }
 
 void IntrinsicCalibration::resetPrincipalPoint() {

@@ -59,11 +59,15 @@ struct Camera {
 	cv::Mat extrinsicMatrix() const;
 	cv::Mat extrinsicMatrixInverse() const;
 
+	void toQuaternion();
+	void toAngleAxis();
+
 	cv::Size size;
 
 	const static int n_parameters = 18;
 	const static int n_distortion_parameters = 8;
 
+	bool quaternion = false;
 	double data[n_parameters] = {0.0};
 
 	enum Parameter {
@@ -131,6 +135,9 @@ public:
 
 		bool use_nonmonotonic_steps = false;
 
+		// use quaternion rotation
+		bool use_quaternion = false;
+
 		// fix_camera_extrinsic and fix_camera_intrinsic overlap with some of
 		// the generic options. The more generic setting is always used, the
 		// specific extrinsic/intrinsic options are applied on top of those.
@@ -193,6 +200,11 @@ public:
 	 */
 	void run(const BundleAdjustment::Options& options);
 
+	/**  @brief Get optimized points
+	 *
+	*/
+	std::vector<cv::Point3d> getPoints();
+
 	/** @brief Perform bundle adjustment using default options
 	 */
 	void run();
@@ -204,6 +216,9 @@ public:
 	/** @brief Calculate RMSE error for all cameras
 	 */
 	double reprojectionError() const;
+
+	/**/
+	int removeObservations(double threshold);
 
 protected:
 	double* getCameraPtr(int i) { return cameras_.at(i)->data; }
@@ -219,6 +234,9 @@ protected:
 
 	void _buildProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
 	void _buildBundleAdjustmentProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
+
+	// remove?
+	void _buildLengthProblem(ceres::Problem& problem, const BundleAdjustment::Options& options);
 
 private:
 	// point to be optimized and corresponding observations

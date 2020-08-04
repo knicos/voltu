@@ -6,6 +6,8 @@
 #include <ftl/calibration/structures.hpp>
 #include <ftl/calibration/parameters.hpp>
 
+#include <cmath>
+
 using ftl::calibration::CalibrationData;
 
 CalibrationData::Intrinsic::DistortionCoefficients::DistortionCoefficients() :
@@ -84,8 +86,11 @@ cv::Mat CalibrationData::Intrinsic::matrix(cv::Size size) const {
 	return ftl::calibration::scaleCameraMatrix(matrix(), resolution, size);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+bool CalibrationData::Intrinsic::valid() const {
+	return (resolution == cv::Size{0, 0});
+}
 
+////////////////////////////////////////////////////////////////////////////////
 
 void CalibrationData::Extrinsic::set(const cv::Mat& T) {
 	if (T.type() != CV_64FC1) {
@@ -163,6 +168,12 @@ cv::Mat CalibrationData::Extrinsic::rmat() const {
 	cv::Mat R(cv::Size(3, 3), CV_64FC1, cv::Scalar(0.0));
 	cv::Rodrigues(rvec, R);
 	return R;
+}
+
+bool CalibrationData::Extrinsic::valid() const {
+	return !(
+		std::isnan(tvec[0]) || std::isnan(tvec[1]) || std::isnan(tvec[2]) ||
+		std::isnan(rvec[0]) || std::isnan(rvec[1]) || std::isnan(rvec[2]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

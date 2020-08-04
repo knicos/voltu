@@ -12,6 +12,8 @@ struct CalibrationData {
 	struct Intrinsic {
 		friend CalibrationData;
 
+		/** 12 distortion coefficients. OpenCV also provides tilted camera model
+		 * coefficients, but not used here. */
 		struct DistortionCoefficients {
 			friend CalibrationData;
 
@@ -25,9 +27,15 @@ struct CalibrationData {
 			 * 2,3			p1-p2 tangential distortion
 			 * 4,5,6,7		r3-r6 radial distortion
 			 * 8,9,10,11	s1-s4 thin prism distortion
+			 *
 			 */
 			double& operator[](unsigned i);
 			double operator[](unsigned i) const;
+
+			/** are radial distortion values are for rational model */
+			bool rationalModel() const;
+			/** is thin prism model is used (s1-s4 set) */
+			bool thinPrism() const;
 
 			/**
 			 * Return distortion parameters in cv::Mat. Shares same memory.
@@ -48,6 +56,18 @@ struct CalibrationData {
 		/** New instance with scaled values for new resolution */
 		Intrinsic(const Intrinsic& other, cv::Size sz);
 
+		/* valid values (resolution is non-zero) */
+		bool valid() const;
+
+		/** horizontal field of view in degrees */
+		double fovx() const;
+		/** vertical field of view in degrees */
+		double fovy() const;
+		/** focal length in sensor size units */
+		double focal() const;
+		/** aspect ratio: fx/fy */
+		double aspectRatio() const;
+
 		/** Replace current values with new ones */
 		void set(const cv::Mat &K, cv::Size sz);
 		void set(const cv::Mat &K, const cv::Mat &D, cv::Size sz);
@@ -64,7 +84,7 @@ struct CalibrationData {
 		double cy;
 		DistortionCoefficients distCoeffs;
 
-		/** (optional) sensor size */
+		/** (optional) sensor size; Move elsehwere? */
 		cv::Size2d sensorSize;
 
 		MSGPACK_DEFINE(resolution, fx, fy, cx, cy, distCoeffs, sensorSize);
@@ -79,13 +99,16 @@ struct CalibrationData {
 
 		Extrinsic inverse() const;
 
+		/** valid calibration (values not NAN) */
+		bool valid() const;
+
 		/** get as a 4x4 matrix */
 		cv::Mat matrix() const;
 		/** get 3x3 rotation matrix */
 		cv::Mat rmat() const;
 
-		cv::Vec3d rvec;
-		cv::Vec3d tvec;
+		cv::Vec3d rvec = {NAN, NAN, NAN};
+		cv::Vec3d tvec = {NAN, NAN, NAN};
 		MSGPACK_DEFINE(rvec, tvec);
 	};
 
@@ -107,6 +130,7 @@ struct CalibrationData {
 	bool hasCalibration(ftl::codecs::Channel channel) const;
 
 private:
+	// TODO: identify cameras with unique ID string instead of channel.
 	std::map<ftl::codecs::Channel, Calibration> data_;
 
 public:

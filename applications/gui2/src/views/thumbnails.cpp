@@ -165,7 +165,7 @@ void Thumbnails::updateThumbnails() {
 				continue;
 			}
 
-			auto* tab = tabwidget_->createTab("Frameset " + std::to_string(fsid));
+			auto* tab = tabwidget_->createTab(framesets[fsid]->name());
 			tab->setLayout(new nanogui::BoxLayout
 				(nanogui::Orientation::Vertical, nanogui::Alignment::Middle, 40));
 			auto* panel = new nanogui::Widget(tab);

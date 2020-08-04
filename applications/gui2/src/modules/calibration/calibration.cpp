@@ -32,11 +32,13 @@ using ftl::data::FrameSetPtr;
 using ftl::gui2::OpenCVCalibrateFlags;
 using ftl::gui2::OpenCVCalibrateFlagsStereo;
 
-int OpenCVCalibrateFlags::defaultFlags() const { return (
-			cv::CALIB_RATIONAL_MODEL |
-			cv::CALIB_THIN_PRISM_MODEL |
-			cv::CALIB_FIX_ASPECT_RATIO
-);}
+int OpenCVCalibrateFlags::defaultFlags() const {
+	// For finding distortion coefficients fix focal length and principal point.
+	// Otherwise results might be unreliable.
+	return (cv::CALIB_FIX_FOCAL_LENGTH |
+			cv::CALIB_FIX_PRINCIPAL_POINT |
+			cv::CALIB_FIX_ASPECT_RATIO);
+}
 
 std::vector<int> OpenCVCalibrateFlags::list() const {
 	return {

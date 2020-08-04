@@ -154,7 +154,7 @@ Mat Camera::distortionCoefficients() const {
 
 Mat Camera::rvec() const {
 	cv::Mat rvec(cv::Size(3, 1), CV_64FC1);
-	CHECK(rvec.step1() == 3);
+	CHECK_EQ(rvec.step1(), 3);
 	ceres::QuaternionToAngleAxis(data + Parameter::ROTATION,
 		(double*)(rvec.data));
 	return rvec;
@@ -166,7 +166,7 @@ Mat Camera::tvec() const {
 
 Mat Camera::rmat() const {
 	cv::Mat R(cv::Size(3, 3), CV_64FC1);
-	CHECK(R.step1() == 3);
+	CHECK_EQ(R.step1(), 3);
 	ceres::QuaternionToRotation<double>(data + Parameter::ROTATION,
 		ceres::RowMajorAdapter3x3<double>((double*)(R.data)));
 
@@ -284,6 +284,29 @@ cv::Point2d ftl::calibration::projectPoint(const Camera& camera, const cv::Point
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// TODO: estimate pose and optimize it instead (?)
+
+struct LengthError {
+	explicit LengthError(const double d) : d(d) {}
+
+	template <typename T>
+	bool operator()(const T* const p1, const T* const p2, T* residual) const {
+		auto x = p1[0] - p2[0];
+		auto y = p1[1] - p2[1];
+		auto z = p1[2] - p2[2];
+		residual[0] = d - sqrt(x*x + y*y + z*z);
+
+		return true;
+	}
+
+	static ceres::CostFunction* Create(const double d) {
+		return (new ceres::AutoDiffCostFunction<LengthError, 1, 3, 3>(new LengthError(d)));
+	}
+
+	double d;
+};
+
+//
 
 struct ScaleError {
 	ScaleError(const double d, const Point3d& p) : d(d), p(p) {}
@@ -311,8 +334,8 @@ struct ScaleError {
 double ftl::calibration::optimizeScale(const vector<Point3d> &object_points, vector<Point3d> &points) {
 
 	// use exceptions instead
-	CHECK(points.size() % object_points.size() == 0);
-	CHECK(points.size() % 2 == 0);
+	CHECK_EQ(points.size() % object_points.size(), 0);
+	CHECK_EQ(points.size() % 2, 0);
 
 	// initial scale guess from first two object points
 
@@ -420,14 +443,9 @@ void BundleAdjustment::addPoints(const vector<vector<Point2d>>& observations, st
 	}
 }
 
-void BundleAdjustment::addObject(const vector<Point3d> &object_points) {
-	if (points_.size() % object_points.size() != 0) { throw ftl::exception("object does match point count"); }
-	objects_.push_back(BundleAdjustment::Object {0, (int) points_.size(), object_points});
-}
-
 void BundleAdjustment::_setCameraParametrization(ceres::Problem &problem, const BundleAdjustment::Options &options) {
 
-	vector<int> constant_camera_parameters;
+	std::set<int> constant_camera_parameters;
 
 	// apply options
 	for (size_t i = 0; i < cameras_.size(); i++) {
@@ -435,6 +453,9 @@ void BundleAdjustment::_setCameraParametrization(ceres::Problem &problem, const 
 			cameras_[i]->data[Camera::Parameter::K4] = 0.0;
 			cameras_[i]->data[Camera::Parameter::K5] = 0.0;
 			cameras_[i]->data[Camera::Parameter::K6] = 0.0;
+			constant_camera_parameters.insert(Camera::Parameter::K4);
+			constant_camera_parameters.insert(Camera::Parameter::K5);
+			constant_camera_parameters.insert(Camera::Parameter::K6);
 		}
 		if (options.zero_distortion) {
 			cameras_[i]->data[Camera::Parameter::K1] = 0.0;
@@ -450,33 +471,33 @@ void BundleAdjustment::_setCameraParametrization(ceres::Problem &problem, const 
 
 	// set extrinsic paramters constant for all cameras
 	if (!options.optimize_motion) {
-		constant_camera_parameters.push_back(Camera::Parameter::Q1);
-		constant_camera_parameters.push_back(Camera::Parameter::Q2);
-		constant_camera_parameters.push_back(Camera::Parameter::Q3);
-		constant_camera_parameters.push_back(Camera::Parameter::Q4);
-		constant_camera_parameters.push_back(Camera::Parameter::TX);
-		constant_camera_parameters.push_back(Camera::Parameter::TY);
-		constant_camera_parameters.push_back(Camera::Parameter::TZ);
+		constant_camera_parameters.insert(Camera::Parameter::Q1);
+		constant_camera_parameters.insert(Camera::Parameter::Q2);
+		constant_camera_parameters.insert(Camera::Parameter::Q3);
+		constant_camera_parameters.insert(Camera::Parameter::Q4);
+		constant_camera_parameters.insert(Camera::Parameter::TX);
+		constant_camera_parameters.insert(Camera::Parameter::TY);
+		constant_camera_parameters.insert(Camera::Parameter::TZ);
 	}
 
 	// set intrinsic parameters constant for all cameras
 	if (!options.optimize_intrinsic || options.fix_focal) {
-		constant_camera_parameters.push_back(Camera::Parameter::F);
+		constant_camera_parameters.insert(Camera::Parameter::F);
 	}
 	if (!options.optimize_intrinsic || options.fix_principal_point) {
-		constant_camera_parameters.push_back(Camera::Parameter::CX);
-		constant_camera_parameters.push_back(Camera::Parameter::CY);
+		constant_camera_parameters.insert(Camera::Parameter::CX);
+		constant_camera_parameters.insert(Camera::Parameter::CY);
 	}
 
 	if (!options.optimize_intrinsic || options.fix_distortion) {
-		constant_camera_parameters.push_back(Camera::Parameter::K1);
-		constant_camera_parameters.push_back(Camera::Parameter::K2);
-		constant_camera_parameters.push_back(Camera::Parameter::K3);
-		constant_camera_parameters.push_back(Camera::Parameter::K4);
-		constant_camera_parameters.push_back(Camera::Parameter::K5);
-		constant_camera_parameters.push_back(Camera::Parameter::K6);
-		constant_camera_parameters.push_back(Camera::Parameter::P1);
-		constant_camera_parameters.push_back(Camera::Parameter::P2);
+		constant_camera_parameters.insert(Camera::Parameter::K1);
+		constant_camera_parameters.insert(Camera::Parameter::K2);
+		constant_camera_parameters.insert(Camera::Parameter::K3);
+		constant_camera_parameters.insert(Camera::Parameter::K4);
+		constant_camera_parameters.insert(Camera::Parameter::K5);
+		constant_camera_parameters.insert(Camera::Parameter::K6);
+		constant_camera_parameters.insert(Camera::Parameter::P1);
+		constant_camera_parameters.insert(Camera::Parameter::P2);
 	}
 
 	if (!options.optimize_motion && !options.optimize_intrinsic) {
@@ -486,14 +507,14 @@ void BundleAdjustment::_setCameraParametrization(ceres::Problem &problem, const 
 		}
 	}
 	else {
-		std::unordered_set<int> fix_extrinsic(
+		std::set<int> fix_extrinsic(
 			options.fix_camera_extrinsic.begin(), options.fix_camera_extrinsic.end());
 
-		std::unordered_set<int> fix_intrinsic(
+		std::set<int> fix_intrinsic(
 			options.fix_camera_extrinsic.begin(), options.fix_camera_extrinsic.end());
 
 		for (size_t i = 0; i < cameras_.size(); i++) {
-			std::unordered_set<int> constant_parameters(
+			std::set<int> constant_parameters(
 				constant_camera_parameters.begin(),
 				constant_camera_parameters.end());
 
@@ -591,6 +612,7 @@ void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, co
 void BundleAdjustment::_buildProblem(ceres::Problem &problem, const BundleAdjustment::Options &options) {
 
 	_buildBundleAdjustmentProblem(problem, options);
+	_buildLengthProblem(problem, options);
 }
 
 void BundleAdjustment::run(const BundleAdjustment::Options &bundle_adjustment_options) {
@@ -627,6 +649,40 @@ void BundleAdjustment::run() {
 	run(options);
 }
 
+int BundleAdjustment::removeObservations(double threshold) {
+	int removed = 0;
+	std::vector<double> error(cameras_.size(), 0.0);
+
+	for (auto& point : points_) {
+		double error_total = 0.0;
+		double n_points = 0.0;
+
+		for (unsigned int c = 0; c < cameras_.size(); c++) {
+			if (!point.visibility[c]) { continue; }
+			const auto& obs = point.observations[c];
+			const auto& proj = projectPoint(*(cameras_[c]), point.point);
+			double err = pow(proj.x - obs.x, 2) + pow(proj.y - obs.y, 2);
+			error[c] = err;
+			error_total += err;
+			n_points += 1;
+		}
+		error_total /= n_points;
+
+		if (n_points <= 1) { continue; } // TODO: remove observation completely
+
+		for (unsigned int c = 0; c < cameras_.size(); c++) {
+			if (!point.visibility[c]) { continue; }
+			if ((error[c] - error_total) > threshold) {
+				point.visibility[c] = false;
+				n_points -= 1;
+				removed++;
+				break;
+			}
+		}
+	}
+	return removed;
+}
+
 void BundleAdjustment::_reprojectionErrorSE(const int camera, double &error, double &npoints) const {
 	error = 0.0;
 	npoints = 0.0;
@@ -657,4 +713,54 @@ double BundleAdjustment::reprojectionError() const {
 		npoints += n;
 	}
 	return sqrt(error / npoints);
+}
+
+////
+
+void BundleAdjustment::addObject(const std::vector<cv::Point3d> &object_points) {
+	if (points_.size() % object_points.size() != 0) { throw std::exception(); }
+	objects_.push_back(BundleAdjustment::Object {0, (int) points_.size(), object_points});
+}
+
+void BundleAdjustment::_buildLengthProblem(ceres::Problem &problem, const BundleAdjustment::Options &options) {
+
+	// same idea as in scale optimization
+
+	ceres::LossFunction *loss_function = nullptr;
+
+	// should use separate configuration option
+	/*
+	if (options.loss == Options::Loss::HUBER) {
+		loss_function = new ceres::HuberLoss(1.0);
+	}
+	else if (options.loss == Options::Loss::CAUCHY) {
+		loss_function = new ceres::CauchyLoss(1.0);
+	}
+	*/
+
+	for (auto &object : objects_) {
+		int npoints = object.object_points.size();
+		auto &object_points = object.object_points;
+
+		vector<double> d;
+		for (int i = 0; i < npoints; i++) {
+			for (int j = i + 1; j < npoints; j++) {
+				d.push_back(norm(object_points[i]-object_points[j]));
+			}
+		}
+
+		for (int p = object.idx_start; p < object.idx_end; p += npoints) {
+			size_t i_d = 0;
+			for (size_t i = 0; i < object_points.size(); i++) {
+				for (size_t j = i + 1; j < object_points.size(); j++) {
+					double* p1 = static_cast<double*>(&(points_[p+i].point.x));
+					double* p2 = static_cast<double*>(&(points_[p+j].point.x));
+
+					auto cost_function = LengthError::Create(d[i_d++]);
+
+					problem.AddResidualBlock(cost_function, loss_function, p1, p2);
+				}
+			}
+		}
+	}
 }
