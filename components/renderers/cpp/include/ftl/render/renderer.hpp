@@ -47,6 +47,8 @@ class Renderer : public ftl::Configurable {
 
 	virtual void blend(ftl::codecs::Channel)=0;
 
+	virtual void cancel()=0;
+
 	protected:
 	Stage stage_;
 };

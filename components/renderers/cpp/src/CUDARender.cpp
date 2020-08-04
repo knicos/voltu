@@ -498,6 +498,13 @@ void CUDARender::_renderPass2(Channels<0> chans, const Eigen::Matrix4d &t) {
 	}
 }
 
+void CUDARender::cancel() {
+	out_ = nullptr;
+	scene_ = nullptr;
+	stage_ = Stage::Finished;
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+}
+
 void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 	if (stage_ != Stage::Finished) {
 		throw FTL_Error("Already rendering");

@@ -33,6 +33,8 @@ class CUDARender : public ftl::render::FSRenderer {
 
 	void blend(ftl::codecs::Channel) override;
 
+	void cancel() override;
+
 	/**
 	 * Returns all inter-frameset collisions in camera coordinates.
 	 */
