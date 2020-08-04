@@ -217,7 +217,10 @@ public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
-/** Two ImageViews with synchronized zoom and pan. */
+/** Two ImageViews with synchronized zoom and pan. Widget split in two equal
+ * size sections (left and right). With vertical orientation right is the lower
+ * image.
+*/
 class StereoImageView : public nanogui::Widget {
 public:
 	StereoImageView(nanogui::Widget* parent, nanogui::Orientation orientation = nanogui::Orientation::Horizontal);
@@ -231,6 +234,11 @@ public:
 
 	FTLImageView* left() { return left_; }
 	FTLImageView* right() { return right_; }
+
+	/** get image coordinate at given widget coordinate */
+	nanogui::Vector2f imageCoordinateAt(const nanogui::Vector2f& position) const;
+
+	nanogui::Orientation orientation() { return orientation_; }
 
 	void fit();
 

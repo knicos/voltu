@@ -56,6 +56,8 @@ void ExtrinsicCalibration::start(unsigned int fsid, std::vector<FrameID> sources
 	reset();
 
 	state_.cameras.reserve(sources.size()*2);
+	state_.maps1.resize(sources.size()*2);
+	state_.maps2.resize(sources.size()*2);
 
 	auto* filter = io->feed()->filter
 		(std::unordered_set<uint32_t>{fsid}, {Channel::Left, Channel::Right});
@@ -73,12 +75,19 @@ void ExtrinsicCalibration::start(unsigned int fsid, std::vector<FrameID> sources
 		auto cr = CameraID(id.frameset(), id.source(), Channel::Right);
 		const auto& frame = (*fs_current_)[id.source()].cast<ftl::rgbd::Frame>();
 		auto sz = cv::Size((int) frame.getLeftCamera().width, (int) frame.getLeftCamera().height);
-		state_.cameras.push_back({cl, {}});
-		state_.cameras.push_back({cr, {}});
+		state_.cameras.push_back(cl);
+		state_.cameras.push_back(cr);
+		auto calibl = getCalibration(cl);
+		calibl.intrinsic = CalibrationData::Intrinsic(calibl.intrinsic, sz);
+		auto calibr = getCalibration(cr);
+		calibr.intrinsic = CalibrationData::Intrinsic(calibr.intrinsic, sz);
 
-		state_.calib.addStereoCamera(
-			CalibrationData::Intrinsic(getCalibration(cl).intrinsic, sz),
-			CalibrationData::Intrinsic(getCalibration(cr).intrinsic, sz));
+		// Scale intrinsics
+		state_.calib.addStereoCamera(calibl.intrinsic, calibr.intrinsic);
+
+		// Update rectification
+		unsigned int idx = state_.cameras.size() - 2;
+		stereoRectify(idx, idx + 1, calibl, calibr);
 	}
 
 	// initialize last points structure; can't be resized while running (without
@@ -90,15 +99,20 @@ void ExtrinsicCalibration::start(unsigned int fsid, std::vector<FrameID> sources
 	}
 
 	auto* view = new ftl::gui2::ExtrinsicCalibrationView(screen, this);
-	view->onClose([this, filter](){
-		running_ = false;
+	view->onClose([this, filter]() {
 		filter->remove();
+		state_.capture = false;
+
+		if (future_.valid()) {
+			future_.wait();
+		}
+
 		if (fs_current_ == nullptr) { return; }
 
 		// change mode only once per frame (cameras contain same frame twice)
 		std::unordered_set<uint32_t> fids;
 		for (const auto camera : state_.cameras) {
-			fids.insert(camera.id.source());
+			fids.insert(camera.source());
 		}
 
 		for (const auto i : fids) {
@@ -109,8 +123,23 @@ void ExtrinsicCalibration::start(unsigned int fsid, std::vector<FrameID> sources
 	screen->setView(view);
 }
 
+std::string ExtrinsicCalibration::cameraName(int c) {
+	const auto& camera = state_.cameras[c];
+	return (*fs_current_)[camera.id].name() + " - " +
+		((camera.channel == Channel::Left) ? "Left" : "Right");
+}
+
+std::vector<std::string> ExtrinsicCalibration::cameraNames() {
+	std::vector<std::string> names;
+	names.reserve(cameraCount());
+	for (int i = 0; i < cameraCount(); i++) {
+		names.push_back(cameraName(i));
+	}
+	return names;
+}
+
 CalibrationData::Calibration ExtrinsicCalibration::calibration(int c) {
-	return state_.calib.calibration(c);
+	return state_.calib.calibrationOptimized(c);
 }
 
 bool ExtrinsicCalibration::onFrameSet_(const FrameSetPtr& fs) {
@@ -119,9 +148,8 @@ bool ExtrinsicCalibration::onFrameSet_(const FrameSetPtr& fs) {
 	screen->redraw();
 
 	bool all_good = true;
-	for (const auto& [id, channel] : state_.cameras) {
-		std::ignore = channel;
-		all_good &= checkFrame((*fs)[id.source()]);
+	for (const auto& c : state_.cameras) {
+		all_good &= checkFrame((*fs)[c.source()]);
 	}
 	//if (!all_good) { return true; }
 
@@ -136,14 +164,14 @@ bool ExtrinsicCalibration::onFrameSet_(const FrameSetPtr& fs) {
 		int count = 0;
 
 		for (unsigned int i = 0; i < state_.cameras.size(); i++) {
-			const auto& [id, calib] = state_.cameras[i];
-
+			const auto& id = state_.cameras[i];
+			const auto& calib = state_.calib.calibration(i).intrinsic;
 			if (!(*fs)[id.source()].hasChannel(id.channel)) { continue; }
 
 			points.clear();
 			const cv::cuda::GpuMat& im = (*fs)[id.source()].get<cv::cuda::GpuMat>(id.channel);
-			K = calib.intrinsic.matrix();
-			distCoeffs = calib.intrinsic.distCoeffs.Mat();
+			K = calib.matrix();
+			distCoeffs = calib.distCoeffs.Mat();
 
 			try {
 				int n = state_.calib_object->detect(im, points, K, distCoeffs);
@@ -171,13 +199,13 @@ bool ExtrinsicCalibration::onFrameSet_(const FrameSetPtr& fs) {
 }
 
 bool ExtrinsicCalibration::hasFrame(int camera) {
-	const auto id = state_.cameras[camera].id;
+	const auto id = state_.cameras[camera];
 	return	(std::atomic_load(&fs_current_).get() != nullptr) &&
 			((*fs_current_)[id.source()].hasChannel(id.channel));
 }
 
 const cv::cuda::GpuMat ExtrinsicCalibration::getFrame(int camera) {
-	const auto id = state_.cameras[camera].id;
+	const auto id = state_.cameras[camera];
 	return (*fs_current_)[id.source()].cast<ftl::rgbd::Frame>().get<cv::cuda::GpuMat>(id.channel);
 }
 
@@ -239,7 +267,7 @@ std::vector<ExtrinsicCalibration::CameraID> ExtrinsicCalibration::cameras() {
 	std::vector<ExtrinsicCalibration::CameraID> res;
 	res.reserve(cameraCount());
 	for (const auto& camera : state_.cameras) {
-		res.push_back(camera.id);
+		res.push_back(camera);
 	}
 	return res;
 }
@@ -254,13 +282,13 @@ void ExtrinsicCalibration::updateCalibration() {
 
 	for (unsigned int i = 0; i < state_.cameras.size(); i++) {
 		auto& c = state_.cameras[i];
-		auto frame_id = ftl::data::FrameID(c.id);
+		auto frame_id = ftl::data::FrameID(c);
 
 		if (update.count(frame_id) == 0) {
-			auto& frame = fs->frames[c.id];
+			auto& frame = fs->frames[c];
 			update[frame_id] = frame.get<CalibrationData>(Channel::CalibrationData);
 		}
-		update[frame_id].get(c.id.channel) = state_.calib.calibrationOptimized(i);
+		update[frame_id].get(c.channel) = state_.calib.calibrationOptimized(i);
 	}
 
 	for (auto& [fid, calib] : update) {
@@ -276,8 +304,10 @@ void ExtrinsicCalibration::updateCalibration(int c) {
 void ExtrinsicCalibration::stereoRectify(int cl, int cr,
 	const CalibrationData::Calibration& l, const CalibrationData::Calibration& r) {
 
-	CHECK(l.extrinsic.tvec != r.extrinsic.tvec);
-	CHECK(l.intrinsic.resolution == r.intrinsic.resolution);
+	CHECK_NE(l.extrinsic.tvec, r.extrinsic.tvec);
+	CHECK_EQ(l.intrinsic.resolution, r.intrinsic.resolution);
+	CHECK_LT(cr, state_.maps1.size());
+	CHECK_LT(cr, state_.maps2.size());
 
 	auto size = l.intrinsic.resolution;
 	cv::Mat T = r.extrinsic.matrix() * inverse(l.extrinsic.matrix());
@@ -289,6 +319,15 @@ void ExtrinsicCalibration::stereoRectify(int cl, int cr,
 		l.intrinsic.matrix(), l.intrinsic.distCoeffs.Mat(),
 		r.intrinsic.matrix(), r.intrinsic.distCoeffs.Mat(), size,
 		R, t, R1, R2, P1, P2, Q, cv::CALIB_ZERO_DISPARITY, 1.0);
+
+	// sanity check: rectification should give same rotation for both cameras
+	// cameras (with certain accuracy). R1 and R2 contain 3x3 rotation matrices
+	// from unrectified to rectified coordinates.
+	cv::Vec3d rvec1;
+	cv::Vec3d rvec2;
+	cv::Rodrigues(R1 * l.extrinsic.matrix()(cv::Rect(0, 0, 3, 3)), rvec1);
+	cv::Rodrigues(R2 * r.extrinsic.matrix()(cv::Rect(0, 0, 3, 3)), rvec2);
+	CHECK_LT(cv::norm(rvec1, rvec2), 0.01);
 
 	cv::initUndistortRectifyMap(l.intrinsic.matrix(), l.intrinsic.distCoeffs.Mat(),
 		R1, P1, size, CV_32FC1, map1, map2);
@@ -331,6 +370,8 @@ void ExtrinsicCalibration::run() {
 			for (int c = 0; c < cameraCount(); c += 2) {
 				auto l = state_.calib.calibrationOptimized(c);
 				auto r = state_.calib.calibrationOptimized(c + 1);
+				LOG(INFO) << c << ": rvec " << l.extrinsic.rvec << "; tvec " << l.extrinsic.tvec;
+				LOG(INFO) << c  + 1 << ": rvec " << r.extrinsic.rvec << "; tvec " << r.extrinsic.tvec;
 				stereoRectify(c, c + 1, l, r);
 
 				LOG(INFO) << "baseline (" << c << ", " << c + 1 << "): "

@@ -248,7 +248,7 @@ int recoverPose(const cv::Mat &E, const std::vector<cv::Point2d> &_points1,
 	cv::Mat points1(_points1.size(), 2, CV_64FC1);
 	cv::Mat points2(_points2.size(), 2, CV_64FC1);
 
-	CHECK(points1.size() == points2.size());
+	CHECK_EQ(points1.size(), points2.size());
 
 	for (size_t i = 0; i < _points1.size(); i++) {
 		auto p1 = points1.ptr<double>(i);
@@ -309,7 +309,7 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 
 	// convert from homogenous coordinates
 	for (int col = 0; col < points3dh.cols; col++) {
-		CHECK(points3dh.at<double>(3, col) != 0);
+		CHECK_NE(points3dh.at<double>(3, col), 0);
 		cv::Point3d p = cv::Point3d(points3dh.at<double>(0, col),
 							points3dh.at<double>(1, col),
 							points3dh.at<double>(2, col))
@@ -332,7 +332,7 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 	}
 
 	// needs to be implemented correctly: optimize each pose of the target
-	ba.addObject(object_points);
+	//ba.addObject(object_points);
 
 	double error = ba.reprojectionError();
 
@@ -345,8 +345,8 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 		ba.run(options);
 		error = ba.reprojectionError();
 	}
-	CHECK((cv::countNonZero(params1.rvec()) == 0) &&
-		  (cv::countNonZero(params1.tvec()) == 0));
+	CHECK_EQ(cv::countNonZero(params1.rvec()), 0);
+	CHECK_EQ(cv::countNonZero(params1.tvec()), 0);
 
 	return sqrt(error);
 }
@@ -356,13 +356,39 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 unsigned int ExtrinsicCalibration::addCamera(const CalibrationData::Intrinsic &c) {
 	unsigned int idx = calib_.size();
 	calib_.push_back({c, {}});
+	calib_optimized_.push_back(calib_.back());
+	is_calibrated_.push_back(false);
+	return idx;
+}
+
+unsigned int ExtrinsicCalibration::addCamera(const CalibrationData::Calibration &c) {
+	unsigned int idx = calib_.size();
+	calib_.push_back(c);
+	calib_optimized_.push_back(calib_.back());
+	is_calibrated_.push_back(true);
 	return idx;
 }
 
 unsigned int ExtrinsicCalibration::addStereoCamera(const CalibrationData::Intrinsic &c1, const CalibrationData::Intrinsic &c2) {
 	unsigned int idx = calib_.size();
 	calib_.push_back({c1, {}});
+	calib_optimized_.push_back(calib_.back());
 	calib_.push_back({c2, {}});
+	calib_optimized_.push_back(calib_.back());
+	is_calibrated_.push_back(false);
+	is_calibrated_.push_back(false);
+	mask_.insert({idx, idx + 1});
+	return idx;
+}
+
+unsigned int ExtrinsicCalibration::addStereoCamera(const CalibrationData::Calibration &c1, const CalibrationData::Calibration &c2) {
+	unsigned int idx = calib_.size();
+	calib_.push_back({c1.intrinsic, c1.extrinsic});
+	calib_optimized_.push_back(calib_.back());
+	calib_.push_back({c2.intrinsic, c2.extrinsic});
+	calib_optimized_.push_back(calib_.back());
+	is_calibrated_.push_back(c1.extrinsic.valid());
+	is_calibrated_.push_back(c2.extrinsic.valid());
 	mask_.insert({idx, idx + 1});
 	return idx;
 }
@@ -462,12 +488,12 @@ void ExtrinsicCalibration::calculateInitialPoses() {
 	}}
 
 	// pick optimal camera: most views of calibration pattern
-	unsigned int c_ref = visibility.argmax();
+	c_ref_ = visibility.argmax();
 
-	auto paths = visibility.shortestPath(c_ref);
+	auto paths = visibility.shortestPath(c_ref_);
 
 	for (unsigned int c = 0; c < camerasCount(); c++) {
-		if (c == c_ref) { continue; }
+		if (c == c_ref_) { continue; }
 
 		cv::Mat R_chain = cv::Mat::eye(cv::Size(3, 3), CV_64FC1);
 		cv::Mat t_chain = cv::Mat(cv::Size(1, 3), CV_64FC1, cv::Scalar(0.0));
@@ -490,7 +516,8 @@ void ExtrinsicCalibration::calculateInitialPoses() {
 		}
 		while(path.size() > 1);
 
-		// note: direction of chain in the loop, hence inverse()
+		// note: direction of chain in the loop (ref to target transformation)
+
 		calib_[c].extrinsic =
 			CalibrationData::Extrinsic(R_chain, t_chain).inverse();
 	}
@@ -545,6 +572,8 @@ double ExtrinsicCalibration::optimize() {
 		// BundleAdjustment stores pointers; do not resize cameras vector
 		ba.addCamera(c);
 	}
+	// TODO (?) is this good idea?; make optional
+	ba.addObject(points_.getObject(0));
 
 	// Transform triangulated points into same coordinates. Poinst which are
 	// triangulated multiple times: use median values. Note T[] contains
@@ -640,6 +669,7 @@ double ExtrinsicCalibration::optimize() {
 	}
 
 	updateStatus_("Bundle adjustment");
+	options_.fix_camera_extrinsic = {int(c_ref_)};
 	options_.verbose = true;
 	options_.max_iter = 250; // should converge much earlier
 
@@ -649,6 +679,10 @@ double ExtrinsicCalibration::optimize() {
 	LOG(INFO) << "fix distortion: " << (options_.fix_distortion ? "yes" : "no");
 
 	ba.run(options_);
+	LOG(INFO) << "removed points: " << ba.removeObservations(2.0);
+	ba.run(options_);
+	LOG(INFO) << "removed points: " << ba.removeObservations(1.0);
+	ba.run(options_);
 
 	calib_optimized_.resize(calib_.size());
 	rmse_.resize(calib_.size());
@@ -656,13 +690,13 @@ double ExtrinsicCalibration::optimize() {
 	for (unsigned int i = 0; i < cameras.size(); i++) {
 		rmse_[i] = ba.reprojectionError(i);
 		auto intr = cameras[i].intrinsic();
-		auto extr = cameras[i].extrinsic();
 		calib_optimized_[i] = calib_[i];
 		calib_optimized_[i].intrinsic.set(intr.matrix(), intr.distCoeffs.Mat(), intr.resolution);
-		calib_optimized_[i].extrinsic.set(extr.rvec, extr.tvec);
+		calib_optimized_[i].extrinsic.set(cameras[i].rvec(), cameras[i].tvec());
 	}
 
 	rmse_total_ = ba.reprojectionError();
+
 	LOG(INFO) << "reprojection error (all cameras): " << rmse_total_;
 	return rmse_total_;
 }

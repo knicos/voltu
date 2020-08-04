@@ -158,14 +158,18 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 
 class ExtrinsicCalibration {
 public:
-
-	/** add a single camera. Returns index of camera. */
+	/** add a single (uncalibrated) camera. Returns index of camera. */
 	unsigned int addCamera(const CalibrationData::Intrinsic &);
+
+	/** add a single calibrated camera (if valid calibration). Returns index of camera. */
+	unsigned int addCamera(const CalibrationData::Calibration &);
+
 	/** Add a stereo camera pair. Pairs always use other cameras to estimate
 	 * initial pose. Returns index of first camera. */
 	unsigned int addStereoCamera(const CalibrationData::Intrinsic &, const CalibrationData::Intrinsic &);
-	/** Add stereo camera pair with initial pose. Returns index of first camera. */
-	unsigned int addStereoCamera(const CalibrationData::Intrinsic &, const CalibrationData::Intrinsic &, cv::Vec3d rvec, cv::Vec3d tvec);
+
+	/** Add calibrated stereo camera (if contains valid calibration) */
+	unsigned int addStereoCamera(const CalibrationData::Calibration &, const CalibrationData::Calibration &);
 
 	const CalibrationData::Intrinsic& intrinsic(unsigned int c);
 	const CalibrationData::Extrinsic& extrinsic(unsigned int c);
@@ -201,7 +205,7 @@ public:
 	bool fromFile(const std::string& fname);
 	bool toFile(const std::string& fname); // should return new instance...
 
-	MSGPACK_DEFINE(points_, mask_, pairs_, calib_);
+	MSGPACK_DEFINE(points_, mask_, pairs_, calib_, is_calibrated_);
 
 protected:
 	/** Initial pairwise calibration and triangulation. */
@@ -222,6 +226,12 @@ private:
 	CalibrationPoints<double> points_;
 	std::set<std::pair<unsigned int, unsigned int>> mask_;
 	std::map<std::pair<unsigned int, unsigned int>, std::tuple<cv::Mat, cv::Mat, double>> pairs_;
+	unsigned int c_ref_;
+
+	// true if camera already has valid calibration; initial pose estimation is
+	// skipped (and points are directly triangulated)
+	std::vector<bool> is_calibrated_;
+
 	int min_points_ = 64; // minimum number of points required for pair calibration
 	// TODO: add map {c1,c2} for existing calibration which is used if available.
 	//

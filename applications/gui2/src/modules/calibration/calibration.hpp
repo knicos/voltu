@@ -261,6 +261,9 @@ public:
 
 	int cameraCount();
 
+	std::string cameraName(int camera);
+	std::vector<std::string> cameraNames();
+
 	ftl::calibration::ExtrinsicCalibration& calib();
 
 	/** hasFrame(int) must be true before calling getFrame() **/
@@ -340,10 +343,6 @@ protected:
 
 private:
 	// map frameid+channel to int. used by ExtrinsicCalibration
-	struct Camera {
-		const CameraID id;
-		ftl::calibration::CalibrationData::Calibration calib;
-	};
 
 	bool onFrameSet_(const ftl::data::FrameSetPtr& fs);
 
@@ -356,7 +355,7 @@ private:
 		bool capture = false;
 		int min_cameras = 2;
 		int flags = 0;
-		std::vector<Camera> cameras;
+		std::vector<CameraID> cameras;
 
 		std::unique_ptr<ftl::calibration::CalibrationObject> calib_object;
 		ftl::calibration::ExtrinsicCalibration calib;

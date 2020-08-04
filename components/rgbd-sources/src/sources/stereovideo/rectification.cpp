@@ -91,6 +91,7 @@ void StereoRectification::updateCalibration_() {
 }
 
 void StereoRectification::calculateParameters_() {
+	// cv::stereoRectify() throws an exception if parameters are invalid
 	if (!valid_) { return; }
 
 	cv::Mat K_l = calib_left_.intrinsic.matrix(image_resolution_);
@@ -98,7 +99,6 @@ void StereoRectification::calculateParameters_() {
 	cv::Mat dc_l = calib_left_.intrinsic.distCoeffs.Mat();
 	cv::Mat dc_r = calib_right_.intrinsic.distCoeffs.Mat();
 
-	// calculate rectification parameters
 	cv::stereoRectify(	K_l, dc_l, K_r, dc_r, image_resolution_,
 						R_, t_, R_l_, R_r_, P_l_, P_r_, Q_, 0, 0);
 
@@ -198,6 +198,8 @@ cv::Mat StereoRectification::cameraMatrix(Channel c) {
 		else if (c == Channel::Right) {
 			// Extrinsics are included in P_r_, can't do same as above
 			throw ftl::exception("Not implemented");
+			// not tested!
+			return cv::Mat(P_r_(cv::Rect(0, 0, 3, 3)) * R_r_.t());
 		}
 	}
 	else {

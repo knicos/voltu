@@ -23,6 +23,7 @@
 #include <ftl/operators/mask.hpp>
 
 #include <ftl/rgbd/capabilities.hpp>
+#include <ftl/codecs/shapes.hpp>
 #include <ftl/calibration/structures.hpp>
 
 #include "stereovideo.hpp"
@@ -239,9 +240,9 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 
 		frame.setPose() = pose;
 
-		cv::Mat K;
+		cv::Mat K = rectification_->cameraMatrix(color_size_);
+		float fx = static_cast<float>(K.at<double>(0,0));
 
-		// same for left and right
 		float baseline = static_cast<float>(rectification_->baseline());
 		float doff = rectification_->doff(color_size_);
 
@@ -249,14 +250,8 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 		float min_depth = this->host_->getConfig().value<double>("min_depth", 0.45);
 		float max_depth = this->host_->getConfig().value<double>("max_depth", (lsrc_->isStereo()) ? 12.0 : 1.0);
 
-		// left
-
-		K = rectification_->cameraMatrix(color_size_);
-		float fx = static_cast<float>(K.at<double>(0,0));
-
 		if (d_resolution > 0.0) {
-			// Learning OpenCV p. 442
-			// TODO: remove, should not be used here
+			// Learning OpenCV p. 442; TODO: remove. should not be applied here
 			float max_depth_new = sqrt(d_resolution * fx * baseline);
 			max_depth = (max_depth_new > max_depth) ? max_depth : max_depth_new;
 		}
@@ -275,27 +270,20 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 			doff
 		};
 
+		CHECK(params.fx > 0) << "focal length must be positive";
+		CHECK(params.fy > 0) << "focal length must be positive";
+		CHECK(params.cx < 0) << "bad principal point coordinate (negative value)";
+		CHECK(-params.cx < params.width) << "principal point must be inside image";
+		CHECK(params.cy < 0) << "bad principal point coordinate (negative value)";
+		CHECK(-params.cy < params.height) << "principal point must be inside image";
+		CHECK(params.baseline >= 0.0) << "baseline must be positive";
+
 		host_->getConfig()["focal"] = params.fx;
 		host_->getConfig()["centre_x"] = params.cx;
 		host_->getConfig()["centre_y"] = params.cy;
 		host_->getConfig()["baseline"] = params.baseline;
 		host_->getConfig()["doffs"] = params.doffs;
 
-		// right
-		/* not used
-		K = rectification_->cameraMatrix(color_size_, Channel::Right);
-		frame.setRight() = {
-			static_cast<float>(K.at<double>(0,0)),	// Fx
-			static_cast<float>(K.at<double>(1,1)),	// Fy
-			static_cast<float>(-K.at<double>(0,2)),	// Cx
-			static_cast<float>(-K.at<double>(1,2)),	// Cy
-			(unsigned int) color_size_.width,
-			(unsigned int) color_size_.height,
-			min_depth,
-			max_depth,
-			baseline,
-			doff
-		};*/
 	} else {
 		Eigen::Matrix4d pose;
 		auto& params = frame.setLeft();
@@ -336,6 +324,20 @@ bool StereoVideoSource::retrieve(ftl::rgbd::Frame &frame) {
 	FTL_Profile("Stereo Retrieve", 0.03);
 
 	if (!cap_status_) return false;
+
+	if (host_->value("add_right_pose", false)) {
+		auto shapes = frame.create<std::list<ftl::codecs::Shape3D>>(Channel::Shapes3D);
+		Eigen::Matrix4d pose;
+		cv::cv2eigen(rectification_->getPose(Channel::Right), pose);
+		Eigen::Matrix4f posef = pose.cast<float>();
+		shapes.list.push_back(ftl::codecs::Shape3D{
+				1,
+				ftl::codecs::Shape3DType::CAMERA,
+				Eigen::Vector3f{0.2, 0.2, 0.2},
+				posef,
+				std::string("Right Camera")
+		});
+	}
 
 	if (do_update_params_) {
 		updateParameters(frame);
