@@ -138,6 +138,7 @@ class Graph : public ftl::Configurable {
 	std::list<ftl::operators::detail::OperatorNode> operators_;
 	std::map<std::string, ftl::Configurable*> configs_;
 	cudaStream_t stream_;
+	std::atomic_flag busy_;
 
 	ftl::Configurable *_append(ftl::operators::detail::ConstructionHelperBase*);
 };

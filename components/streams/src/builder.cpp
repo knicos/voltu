@@ -191,7 +191,7 @@ void ManualSourceBuilder::tick() {
 ForeignBuilder::ForeignBuilder(ftl::data::Pool *pool, int id) : BaseBuilder(pool, id), head_(0) {
 	jobs_ = 0;
 	skip_ = false;
-	bufferSize_ = 1;
+	bufferSize_ = 0;
 	last_frame_ = 0;
 
 	mspf_ = ftl::timer::getInterval();
@@ -200,7 +200,7 @@ ForeignBuilder::ForeignBuilder(ftl::data::Pool *pool, int id) : BaseBuilder(pool
 ForeignBuilder::ForeignBuilder() : BaseBuilder(), head_(0) {
 	jobs_ = 0;
 	skip_ = false;
-	bufferSize_ = 1;
+	bufferSize_ = 0;
 	last_frame_ = 0;
 
 	mspf_ = ftl::timer::getInterval();

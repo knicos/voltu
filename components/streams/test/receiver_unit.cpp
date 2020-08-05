@@ -53,11 +53,35 @@ class TestStream : public ftl::stream::Stream {
 		spkt2.channel = Channel::EndFrame;
 		spkt2.streamID = spkt.streamID;
 
-		for (int i=0; i<pkt.frame_count; ++i) {
-			spkt2.frame_number = i;
+		//for (int i=pkt.frame_count-1; i>=0; --i) {
+		//	spkt2.frame_number = spkt.frame_number+i;
+		//	if (i > 0) pkt2.frame_count = 1;
+		//	else pkt2.frame_count = count+1;
 			post(spkt2, pkt2);
-		}
+		//}
 		return post(spkt, pkt);
+	}
+
+	bool postEnd(int64_t ts, int frame, int count) {
+		ftl::codecs::Packet pkt2;
+		pkt2.codec = codec_t::Invalid;
+		pkt2.bitrate = 255;
+		pkt2.packet_count = count+1;
+		pkt2.frame_count = 1;
+
+		ftl::codecs::StreamPacket spkt2;
+		spkt2.version = 4;
+		spkt2.timestamp = ts;
+		spkt2.frame_number = frame;
+		spkt2.channel = Channel::EndFrame;
+		spkt2.streamID = 0;
+
+		//for (int i=pkt.frame_count-1; i>=0; --i) {
+		//	spkt2.frame_number = spkt.frame_number+i;
+		//	if (i > 0) pkt2.frame_count = 1;
+		//	else pkt2.frame_count = count+1;
+			return post(spkt2, pkt2);
+		//}
 	}
 
 	bool begin() override { return true; }
@@ -176,6 +200,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
+		stream.postEnd(spkt.timestamp, 1, 1);
 		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;
@@ -212,6 +237,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
+		stream.postEnd(spkt.timestamp, 1, 1);
 		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;
@@ -249,6 +275,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
+		stream.postEnd(spkt.timestamp, 1, 1);
 		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;

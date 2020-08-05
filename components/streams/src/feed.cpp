@@ -175,12 +175,18 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 				}
 			}
 
-			// FIXME: What happens if pipeline added concurrently?
-			if (pre_pipelines_.count(fs->frameset()) == 1) {
-				pre_pipelines_[fs->frameset()]->apply(*fs, *fs, 0);
-			}
+			ftl::operators::Graph *pipeline = nullptr;
 
 			SHARED_LOCK(mtx_, lk);
+			if (pre_pipelines_.count(fs->frameset()) == 1) {
+				pipeline = pre_pipelines_[fs->frameset()]; //->apply(*fs, *fs, 0);
+			}
+
+			lk.unlock();
+
+			if (pipeline) pipeline->apply(*fs, *fs, 0);
+
+			lk.lock();
 
 			std::atomic_store(&latest_.at(fs->frameset()), fs);
 
@@ -442,7 +448,7 @@ void Feed::_createPipeline(uint32_t fsid) {
 	// Don't recreate if already exists
 	if (pre_pipelines_.count(fsid)) return;
 
-	LOG(INFO) << "Creating pipeline";
+	LOG(INFO) << "Creating pipeline: " << fsid;
 	auto *p = _addPipeline(fsid);
 
 	if (pipe_creator_) {
@@ -1075,6 +1081,7 @@ void Feed::startStreaming(Filter *f) {
 		nstream->set("uri", value("uri", std::string("ftl://vision.utu.fi/live")));
 
 		record_new_client_ = nstream->onClientConnect([this](ftl::net::Peer *p) {
+			LOG(INFO) << "Client connect, resetting streams";
 			stream_->reset();
 			return true;
 		});

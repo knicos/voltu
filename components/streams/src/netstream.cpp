@@ -336,13 +336,13 @@ void Net::reset() {
 		auto sel = selected(0);
 		
 		for (auto c : sel) {
-			_sendRequest(c, kAllFramesets, kAllFrames, 30, 255);
+			_sendRequest(c, kAllFramesets, kAllFrames, 30, 255, true);
 		}
 	}
 	tally_ = 30*kTallyScale;
 }
 
-bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate) {
+bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate, bool doreset) {
 	if (!active_ || host_) return false;
 
 	//LOG(INFO) << "SENDING REQUEST FOR " << (int)c;
@@ -356,13 +356,16 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 		0
 	};
 
+	uint8_t sflags = ftl::codecs::kFlagRequest;
+	if (doreset) sflags |= ftl::codecs::kFlagReset;
+
 	StreamPacket spkt = {
 		5,
 		ftl::timer::get_time(),
 		frameset,
 		frames,
 		c,
-		ftl::codecs::kFlagRequest,
+		sflags,
 		0,
 		0,
 		0

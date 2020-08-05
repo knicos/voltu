@@ -35,6 +35,7 @@ bool Operator::apply(FrameSet &in, Frame &out, cudaStream_t stream) {
 
 Graph::Graph(nlohmann::json &config) : ftl::Configurable(config) {
 	cudaSafeCall( cudaStreamCreate(&stream_) );
+	busy_.clear();
 }
 
 Graph::~Graph() {
@@ -57,6 +58,11 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 	bool success = true;
 
 	if (in.frames.size() != out.frames.size()) return false;
+
+	if (busy_.test_and_set()) {
+		LOG(ERROR) << "Pipeline already in use: " << in.timestamp();
+		return false;
+	}
 
 	for (auto &i : operators_) {
 		if (i.instances.size() < 1) {
@@ -112,6 +118,7 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 		cudaSafeCall(cudaStreamSynchronize(stream_actual));
 	}
 
+	busy_.clear();
 	return success;
 }
 
@@ -134,6 +141,11 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 
 	auto stream_actual = (stream == 0) ? stream_ : stream;
 	bool success = true;
+
+	if (busy_.test_and_set()) {
+		LOG(ERROR) << "Pipeline already in use: " << in.timestamp();
+		return false;
+	}
 
 	for (auto &i : operators_) {
 		// Make sure there are enough instances
@@ -161,6 +173,7 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		cudaSafeCall(cudaStreamSynchronize(stream_actual));
 	}
 
+	busy_.clear();
 	return success;
 }
 

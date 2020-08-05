@@ -91,7 +91,7 @@ class Net : public Stream {
 
 	bool _processRequest(ftl::net::Peer &p, ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 	void _checkDataRate(size_t tx_size, int64_t tx_latency, int64_t ts);
-	bool _sendRequest(ftl::codecs::Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate);
+	bool _sendRequest(ftl::codecs::Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate, bool doreset=false);
 	void _cleanUp();
 };
 
