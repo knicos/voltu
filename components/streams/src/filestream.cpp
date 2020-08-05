@@ -259,7 +259,7 @@ bool File::tick(int64_t ts) {
 					if (spkt.frame_number < 255) {
 						frame_count = std::max(frame_count, static_cast<size_t>(spkt.frame_number + pkt.frame_count));
 						while (packet_counts_.size() < frame_count) packet_counts_.push_back(0);
-						for (int j=spkt.frame_number; j<spkt.frame_number+pkt.frame_count; ++j) ++packet_counts_[j];
+						++packet_counts_[spkt.frame_number];
 					} else {
 						// Add frameset packets to frame 0 counts
 						frame_count = std::max(frame_count, size_t(1));
