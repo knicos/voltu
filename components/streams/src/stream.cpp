@@ -226,7 +226,8 @@ void Muxer::_notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Pa
 	try {
 		cb_.trigger(spkt, pkt);  // spkt.frame_number < 255 &&
 	} catch (std::exception &e) {
-		LOG(ERROR) << "Exception in packet handler: " << e.what();
+		LOG(ERROR) << "Exception in packet handler (" << int(spkt.channel) << "): " << e.what();
+		//reset();  // Force stream reset here to get new i-frames
 	}
 }
 

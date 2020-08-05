@@ -58,7 +58,8 @@ enum struct Channel : int {
 	CalibrationData = 73,	// Just for stereo intrinsics/extrinsics etc
 	Thumbnail		= 74,	// Small JPG thumbnail, sometimes updated
 
-	Data			= 2048,	// Custom data, any codec.
+	Data			= 2048,	// Do not use
+	EndFrame		= 2048, // Signify the last packet
 	Faces			= 2049, // Data about detected faces
 	Transforms		= 2050,	// Transformation matrices for framesets
 	Shapes3D		= 2051,	// Labeled 3D shapes

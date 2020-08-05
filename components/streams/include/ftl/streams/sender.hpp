@@ -92,11 +92,11 @@ class Sender : public ftl::Configurable {
 	int bitrate_timeout_;
 
 	//ftl::codecs::Encoder *_getEncoder(int fsid, int fid, ftl::codecs::Channel c);
-	void _encodeChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset, bool last_flush);
+	void _encodeChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
 	void _encodeChannel(ftl::data::Frame &f, ftl::codecs::Channel c, bool reset);
-	void _encodeVideoChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset, bool last_flush);
-	void _encodeAudioChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset, bool last_flush);
-	void _encodeDataChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset, bool last_flush);
+	void _encodeVideoChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
+	void _encodeAudioChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
+	void _encodeDataChannel(ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, bool reset);
 	void _encodeDataChannel(ftl::data::Frame &fs, ftl::codecs::Channel c, bool reset);
 
 	int _generateTiles(const ftl::rgbd::FrameSet &fs, int offset, ftl::codecs::Channel c, cv::cuda::Stream &stream, bool);
@@ -106,6 +106,7 @@ class Sender : public ftl::Configurable {
 	ftl::audio::Encoder *_getAudioEncoder(int fsid, int sid, ftl::codecs::Channel c, ftl::codecs::Packet &pkt);
 
 	void _sendPersistent(ftl::data::Frame &frame);
+	void _send(ftl::rgbd::FrameSet &fs, ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 
 	bool _checkNeedsIFrame(int64_t ts, bool injecting);
 	uint8_t _getMinBitrate();

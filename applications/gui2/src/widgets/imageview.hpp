@@ -193,7 +193,7 @@ public:
 	using ImageView::ImageView;
 
 	FTLImageView(nanogui::Widget* parent, GLuint imageID = -1) : ImageView(parent, imageID), was_valid_(false) {}
-	~FTLImageView();
+	virtual ~FTLImageView();
 
 	virtual void draw(NVGcontext* ctx) override;
 	virtual nanogui::Vector2i preferredSize(NVGcontext* ctx) const override;

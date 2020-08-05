@@ -118,7 +118,7 @@ void Sender::fakePost(ftl::data::FrameSet &fs, ftl::codecs::Channel c) {
 
 	for (size_t i=0; i<fs.frames.size(); ++i) {
 		auto &frame = fs.frames[i];
-		if (frame.hasOwn(c)) ++fs.flush_count;
+		if (frame.hasOwn(c)) ++frame.packet_tx;
 		
 	}
 }
@@ -137,8 +137,45 @@ bool Sender::_checkNeedsIFrame(int64_t ts, bool injecting) {
 	return injection_timestamp_ >= ts;
 }
 
+void Sender::_send(ftl::rgbd::FrameSet &fs, ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	/*int ccount = 0;
+	for (size_t i=0; i<fs.frames.size(); ++i) ccount += fs.frames[i].changed().size();
+	fs.flush_count += fs.frames.size();
+
+	if (ccount == fs.flush_count) {
+		spkt.flags = ftl::codecs::kFlagCompleted;
+	}*/
+
+	if (spkt.frame_number == 255) ++fs.frames[0].packet_tx;
+	else if (spkt.frame_number < fs.frames.size()) ++fs.frames[spkt.frame_number].packet_tx;
+	stream_->post(spkt, pkt);
+}
+
 void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode) {
 	if (!stream_) return;
+
+	// Send quick message for this special channel.
+	if (c == Channel::EndFrame) {
+		StreamPacket spkt;
+		spkt.version = 5;
+		spkt.timestamp = fs.timestamp();
+		spkt.localTimestamp = fs.localTimestamp;
+		spkt.streamID = fs.frameset();
+		//spkt.frame_number = 0;
+		spkt.channel = c;
+		spkt.flags = ftl::codecs::kFlagCompleted;
+
+		ftl::codecs::Packet pkt;
+		pkt.frame_count = 1; //fs.frames.size();
+		pkt.codec = codec_t::Invalid;
+
+		for (size_t i=0; i<fs.frames.size(); ++i) {
+			spkt.frame_number = i;
+			pkt.packet_count = static_cast<uint8_t>(fs.frames[i].packet_tx+1);  // FIXME: 255 limit currently
+			_send(fs, spkt, pkt);
+		}
+		return;
+	}
 
 	std::unordered_set<ftl::codecs::Channel> selected;
 	if (stream_->size() > 0) selected = stream_->selected(fs.frameset());
@@ -152,7 +189,7 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 	bool needs_encoding = true;
 
 	int valid_frames = 0;
-	int ccount = 0;
+	//int ccount = 0;
 	int forward_count = 0;
 
 	for (size_t i=0; i<fs.frames.size(); ++i) {
@@ -160,14 +197,14 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 		if (!frame.has(c)) continue;
 
 		++valid_frames;
-		++fs.flush_count;
+		//++fs.flush_count;
 
 		// TODO: Send entire persistent session on inject
 		if (do_inject) {
 			_sendPersistent(frame);
 		}
 
-		ccount += frame.changed().size();
+		//ccount += frame.changed().size();
 
 		if (selected.find(c) != selected.end() || (int)c >= 32) {
 			// FIXME: Sends high res colour, but receive end currently broken
@@ -191,7 +228,7 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 		}
 	}
 
-	bool last_flush = ccount == fs.flush_count;
+	//bool last_flush = ccount == fs.flush_count;
 
 	// Don't do anything if channel not in any frames.
 	if (valid_frames == 0) return;
@@ -214,9 +251,10 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 				spkt.streamID = fs.frameset(); //fs.id;
 				spkt.frame_number = i;
 				spkt.channel = c;
-				spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
+				//spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 
-				stream_->post(spkt, packets.back());
+				//stream_->post(spkt, packets.back());
+				_send(fs, spkt, packets.back());
 			//} else if (packets.size() > 1) {
 				// PROBLEMS
 			//}
@@ -236,20 +274,21 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 		spkt.timestamp = fs.timestamp();
 		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
-		spkt.frame_number = 255;
+		spkt.frame_number = 0;
 		spkt.channel = c;
-		spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
+		//spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 
 		Packet pkt;
 		pkt.codec = codec_t::Any;
 		pkt.frame_count = 1;
 		pkt.bitrate = 0;
 		pkt.flags = 0;
-		stream_->post(spkt, pkt);
+		//stream_->post(spkt, pkt);
+		_send(fs, spkt, pkt);
 	}
 
 	if (needs_encoding) {
-		_encodeChannel(fs, c, do_iframe, last_flush);
+		_encodeChannel(fs, c, do_iframe);
 	}
 }
 
@@ -259,7 +298,7 @@ void Sender::forceAvailable(ftl::data::FrameSet &fs, ftl::codecs::Channel c) {
 	spkt.timestamp = fs.timestamp();
 	spkt.localTimestamp = fs.localTimestamp;
 	spkt.streamID = fs.frameset();
-	spkt.frame_number = 255;
+	spkt.frame_number = 0;
 	spkt.channel = c;
 
 	Packet pkt;
@@ -339,7 +378,7 @@ void Sender::post(ftl::data::Frame &frame, ftl::codecs::Channel c) {
 		spkt.timestamp = frame.timestamp();
 		spkt.localTimestamp = spkt.timestamp;
 		spkt.streamID = frame.frameset();
-		spkt.frame_number = 255;
+		spkt.frame_number = 0;
 		spkt.channel = c;
 
 		Packet pkt;
@@ -392,7 +431,7 @@ void Sender::setActiveEncoders(uint32_t fsid, const std::unordered_set<Channel> 
 	}
 }
 
-void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset, bool last_flush) {
+void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset) {
 	bool isfloat = ftl::codecs::type(c) == CV_32F;
 
 	bool lossless = (isfloat) ? value("lossless_float", false) : value("lossless_colour", false);
@@ -438,7 +477,6 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 		spkt.streamID = fs.frameset();
 		spkt.frame_number = offset;
 		spkt.channel = c;
-		spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 
 		auto &tile = _getTile(fs.id(), cc);
 
@@ -487,7 +525,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 				pkt.flags = 0;
 
 				// In the event of partial frames, add a flag to indicate that
-				if (static_cast<size_t>(fs.count) < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
+				//if (static_cast<size_t>(fs.count) < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
 
 				// Choose correct region of interest into the surface.
 				cv::Rect roi = _generateROI(fs, cc, offset, is_stereo);
@@ -496,7 +534,8 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 				FTL_Profile("Encoder",0.02);
 
 				if (enc->encode(sroi, pkt)) {
-					stream_->post(spkt, pkt);
+					//stream_->post(spkt, pkt);
+					_send(fs, spkt, pkt);
 
 					/*cv::Mat tmp;
 					tile.surface.download(tmp);
@@ -516,7 +555,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 	}
 }
 
-void Sender::_encodeAudioChannel(ftl::data::FrameSet &fs, Channel c, bool reset, bool last_flush) {
+void Sender::_encodeAudioChannel(ftl::data::FrameSet &fs, Channel c, bool reset) {
 	
 	// TODO: combine into multiple opus streams
 	for (size_t i=0; i<fs.frames.size(); ++i) {
@@ -533,7 +572,7 @@ void Sender::_encodeAudioChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 		spkt.streamID = fs.frameset();
 		spkt.frame_number = i;
 		spkt.channel = c;
-		spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
+		//spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 
 		ftl::codecs::Packet pkt;
 		pkt.codec = ftl::codecs::codec_t::OPUS;
@@ -557,11 +596,12 @@ void Sender::_encodeAudioChannel(ftl::data::FrameSet &fs, Channel c, bool reset,
 			}
 		}
 
-		stream_->post(spkt, pkt);
+		_send(fs, spkt, pkt);
+		//stream_->post(spkt, pkt);
 	}
 }
 
-void Sender::_encodeDataChannel(ftl::data::FrameSet &fs, Channel c, bool reset, bool last_flush) {
+void Sender::_encodeDataChannel(ftl::data::FrameSet &fs, Channel c, bool reset) {
 	int i=0;
 
 	// TODO: Pack all frames into a single packet
@@ -573,7 +613,7 @@ void Sender::_encodeDataChannel(ftl::data::FrameSet &fs, Channel c, bool reset, 
 		spkt.streamID = fs.frameset();
 		spkt.frame_number = i++;
 		spkt.channel = c;
-		spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
+		//spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 
 		ftl::codecs::Packet pkt;
 		pkt.frame_count = 1;
@@ -584,7 +624,8 @@ void Sender::_encodeDataChannel(ftl::data::FrameSet &fs, Channel c, bool reset, 
 		auto encoder = ftl::data::getTypeEncoder(f.type(c));
 		if (encoder) {
 			if (encoder(f, c, pkt.data)) {
-				stream_->post(spkt, pkt);
+				//stream_->post(spkt, pkt);
+				_send(fs, spkt, pkt);
 			}
 		} else {
 			LOG(WARNING) << "Missing msgpack encoder";
@@ -617,15 +658,15 @@ void Sender::_encodeDataChannel(ftl::data::Frame &f, Channel c, bool reset) {
 	}
 }
 
-void Sender::_encodeChannel(ftl::data::FrameSet &fs, Channel c, bool reset, bool last_flush) {
+void Sender::_encodeChannel(ftl::data::FrameSet &fs, Channel c, bool reset) {
 	int ic = int(c);
 
 	if (ic < 32) {
-		_encodeVideoChannel(fs, c, reset, last_flush);
+		_encodeVideoChannel(fs, c, reset);
 	} else if (ic < 64) {
-		_encodeAudioChannel(fs, c, reset, last_flush);
+		_encodeAudioChannel(fs, c, reset);
 	} else {
-		_encodeDataChannel(fs, c, reset, last_flush);
+		_encodeDataChannel(fs, c, reset);
 	}
 }
 

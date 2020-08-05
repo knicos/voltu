@@ -66,7 +66,6 @@ ftlStream_t ftlCreateWriteStream(const char *uri) {
 	s->sender = nullptr;
 	s->pipelines = nullptr;
 	s->video_fs = std::make_shared<ftl::data::FrameSet>(&s->pool, ftl::data::FrameID(0,0), ftl::timer::get_time());
-	s->video_fs->count = 0;
 	s->video_fs->mask = 0;
 	s->interval = 40;
 	//s->video_fs->frames.reserve(32);
@@ -200,7 +199,6 @@ ftlError_t ftlIntrinsicsWriteLeft(ftlStream_t stream, int32_t sourceId, int32_t 
 	cam.baseline = baseline;
 	cam.doffs = 0.0f;
 	stream->video_fs->mask |= 1 << sourceId;
-	stream->video_fs->count++;
 	//if (!stream->video_fs->frames[sourceId].origin()) {
 	//	stream->video_fs.frames[sourceId].setOrigin(&stream->video_states[sourceId]);
 	//}

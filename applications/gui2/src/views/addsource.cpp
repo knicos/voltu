@@ -137,7 +137,7 @@ nanogui::Button *AddSourceWindow::_addButton(const std::string &s, nanogui::Widg
 	button->setTooltip(s);
 
 	button->setCallback([this, uri = s, hide]() {
-		if (hide) close();
+		//if (hide) close();
 		ctrl_->add(uri);
 	});
 

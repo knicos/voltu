@@ -651,6 +651,12 @@ class Frame {
 
 	// =========================================================================
 
+	public:
+	std::atomic_int packet_tx = 0;	/// Number of packets transmitted for frame
+	std::atomic_int packet_rx = 0;	/// Number of packets received for frame
+
+	// =========================================================================
+
 	protected:
 	std::any &createAnyChange(ftl::codecs::Channel c, ftl::data::ChangeType t);
 

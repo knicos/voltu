@@ -237,11 +237,37 @@ bool File::tick(int64_t ts) {
 	{
 		UNIQUE_LOCK(data_mutex_, dlk);
 		if (data_.size() > 0) has_data = true;
+		
+		if (needs_endframe_) {
+			// Reset packet counts
+			for (auto &p : packet_counts_) p = 0;
+		}
+
+		size_t frame_count = 0;
 
 		for (auto i = data_.begin(); i != data_.end(); ++i) {
 			if (std::get<0>(*i).timestamp <= timestamp_) {
+				auto &spkt = std::get<0>(*i);
+				auto &pkt = std::get<1>(*i);
+
 				++jobs_;
-				std::get<0>(*i).timestamp = ts;
+				spkt.timestamp = ts;
+
+				if (spkt.channel == Channel::EndFrame) needs_endframe_ = false;
+
+				if (needs_endframe_) {
+					if (spkt.frame_number < 255) {
+						frame_count = std::max(frame_count, static_cast<size_t>(spkt.frame_number + pkt.frame_count));
+						while (packet_counts_.size() < frame_count) packet_counts_.push_back(0);
+						for (int j=spkt.frame_number; j<spkt.frame_number+pkt.frame_count; ++j) ++packet_counts_[j];
+					} else {
+						// Add frameset packets to frame 0 counts
+						frame_count = std::max(frame_count, size_t(1));
+						while (packet_counts_.size() < frame_count) packet_counts_.push_back(0);
+						++packet_counts_[0];
+					}
+				}
+
 				ftl::pool.push([this,i](int id) {
 					auto &spkt = std::get<0>(*i);
 					auto &pkt = std::get<1>(*i);
@@ -260,6 +286,36 @@ bool File::tick(int64_t ts) {
 					data_.erase(i);
 					--jobs_;
 				});
+			} else {
+				if (needs_endframe_) {
+					// Send final frame packet.
+					StreamPacket spkt;
+					spkt.timestamp = ts;
+					spkt.streamID = 0;  // FIXME: Allow for non-zero framesets.
+					spkt.flags = 0;
+					spkt.channel = Channel::EndFrame;
+
+					Packet pkt;
+					pkt.bitrate = 255;
+					pkt.codec = ftl::codecs::codec_t::Invalid;
+					pkt.packet_count = 1;
+					pkt.frame_count = 1;
+
+					for (size_t i=0; i<frame_count; ++i) {
+						spkt.frame_number = i;
+						pkt.packet_count = packet_counts_[i]+1;
+
+						try {
+							cb_.trigger(spkt, pkt);
+						} catch (const ftl::exception &e) {
+							LOG(ERROR) << "Exception in packet callback: " << e.what() << e.trace();
+						} catch (std::exception &e) {
+							LOG(ERROR) << "Exception in packet callback: " << e.what();
+						}
+					}
+				}
+
+				break;
 			}
 		}
 	}
@@ -268,7 +324,6 @@ bool File::tick(int64_t ts) {
 
 	while ((active_ && istream_->good()) || buffer_in_.nonparsed_size() > 0u) {
 		UNIQUE_LOCK(data_mutex_, dlk);
-		auto *lastData = (data_.size() > 0) ? &data_.back() : nullptr;
 		auto &data = data_.emplace_back();
 		dlk.unlock();
 
@@ -303,10 +358,10 @@ bool File::tick(int64_t ts) {
 				data_.pop_back();
 			//}
 		}*/
-		if (version_ < 5 && lastData) {
+		//if (version_ < 5 && lastData) {
 			// For versions < 5, add completed flag to previous data
-			std::get<0>(*lastData).flags |= ftl::codecs::kFlagCompleted;
-		}
+		//	std::get<0>(*lastData).flags |= ftl::codecs::kFlagCompleted;
+		//}
 
 		if (std::get<0>(data).timestamp > extended_ts) {
 			break;

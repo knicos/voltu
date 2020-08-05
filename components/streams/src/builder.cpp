@@ -5,6 +5,7 @@
 #include <loguru.hpp>
 
 #include <chrono>
+#include <bitset>
 
 using ftl::streams::BaseBuilder;
 using ftl::streams::ForeignBuilder;
@@ -102,7 +103,6 @@ std::shared_ptr<ftl::data::FrameSet> LocalBuilder::_allocate(int64_t timestamp) 
 		newf->frames.push_back(std::move(pool_->allocate(ftl::data::FrameID(id_, i), timestamp)));
 	}
 
-	newf->count = size_;
 	newf->mask = 0xFF;
 	newf->clearFlags();
 	return newf;
@@ -240,7 +240,7 @@ LockedFrameSet ForeignBuilder::get(int64_t timestamp) {
 
 std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_get(int64_t timestamp) {
 	if (timestamp <= last_frame_) {
-		throw FTL_Error("Frameset already completed: " << timestamp);
+		throw FTL_Error("Frameset already completed: " << timestamp << " (" << last_frame_ << ")");
 	}
 
 	auto fs = _findFrameset(timestamp);
@@ -384,25 +384,27 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_getFrameset() {
 		// Lock to force completion of on going construction first
 		UNIQUE_LOCK(f->smtx, slk);
 		last_frame_ = f->timestamp();
-		auto j = framesets_.erase(i);
 		f->set(ftl::data::FSFlag::STALE);
 		slk.unlock();
 
-		int count = 0;
-		// Remove all previous framesets
-		// FIXME: Should do this in reverse order.
-		while (j!=framesets_.end()) {
-			++count;
+		if (!f->isComplete()) LOG(WARNING) << "Dispatching incomplete frameset: " << f->timestamp() << " (" << std::bitset<16>( f->mask ).to_string() << ")";
 
-			auto f2 = *j;
+		// Remove all previous framesets
+		while (framesets_.size() > 0) {
+			ftl::data::FrameSetPtr &f2 = framesets_.back();
+			if (f2.get() == f.get()) break;
+
 			LOG(WARNING) << "FrameSet discarded: " << f2->timestamp();
+			f2->set(ftl::data::FSFlag::DISCARD);
 			{
 				// Ensure frame processing is finished first
 				UNIQUE_LOCK(f2->smtx, lk);
-				j = framesets_.erase(j);
 			}
+
+			framesets_.pop_back();
 		}
 
+		framesets_.pop_back();
 		return f;
 	}
 
@@ -420,7 +422,6 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_addFrameset(int64_t timest
 		newf->frames.push_back(std::move(pool_->allocate(ftl::data::FrameID(id_, i), timestamp)));
 	}
 
-	newf->count = 0;
 	newf->mask = 0;
 	newf->localTimestamp = timestamp;
 	newf->clearFlags();
