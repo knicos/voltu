@@ -92,6 +92,7 @@ class Receiver : public ftl::Configurable, public ftl::data::Generator {
 	ftl::audio::Decoder *_createAudioDecoder(InternalAudioStates &frame, const ftl::codecs::Packet &pkt);
 	InternalVideoStates &_getVideoFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
 	InternalAudioStates &_getAudioFrame(const ftl::codecs::StreamPacket &spkt, int ix=0);
+	void _finishPacket(ftl::streams::LockedFrameSet &fs, size_t fix);
 };
 
 }

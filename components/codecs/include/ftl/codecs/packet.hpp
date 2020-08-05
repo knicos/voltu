@@ -38,8 +38,13 @@ struct Packet {
 	ftl::codecs::codec_t codec;
 	uint8_t reserved=0;
 	uint8_t frame_count=1;	// v4+ Frames included in this packet
-	uint8_t bitrate=0;	// v4+ For multi-bitrate encoding, 0=highest
-	uint8_t flags=0;			// Codec dependent flags (eg. I-Frame or P-Frame)
+
+	uint8_t bitrate=0;		// v4+ For multi-bitrate encoding, 0=highest
+
+	union {
+		uint8_t flags=0;			// Codec dependent flags (eg. I-Frame or P-Frame)
+		uint8_t packet_count;
+	};
 	std::vector<uint8_t> data;
 
 	MSGPACK_DEFINE(codec, reserved, frame_count, bitrate, flags, data);

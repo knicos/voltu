@@ -75,6 +75,8 @@ class File : public Stream {
 	ftl::Handle timer_;
 	bool is_video_;
 	bool save_data_;
+	bool needs_endframe_ = true;
+	std::vector<int> packet_counts_;
 
 	//StreamCallback cb_;
 	MUTEX mutex_;

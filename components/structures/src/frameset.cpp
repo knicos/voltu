@@ -6,8 +6,6 @@ using ftl::data::FrameSet;
 
 FrameSet::FrameSet(Pool *ppool, FrameID pid, int64_t ts, size_t psize) :
 	Frame(ppool->allocate(FrameID(pid.frameset(),255), ts)), mask(0) {
-	
-	flush_count = 0; // Reset flush on store...
 	frames.reserve(psize);
 }
 
@@ -20,11 +18,7 @@ void ftl::data::FrameSet::completed(size_t ix) {
 	if (ix == 255) {
 
 	} else if (ix < frames.size()) {
-		// If already completed for given frame, then skip
-		if (mask & (1 << ix)) return;
-
 		mask |= (1 << ix);
-		++count;
 	} else {
 		throw FTL_Error("Completing frame that does not exist: " << timestamp() << ":" << ix);
 	}
@@ -47,12 +41,10 @@ void ftl::data::FrameSet::resize(size_t s) {
 void ftl::data::FrameSet::moveTo(ftl::data::FrameSet &fs) {
 	UNIQUE_LOCK(fs.mutex(), lk);
 	Frame::moveTo(fs);
-	fs.count = static_cast<int>(count);
 	fs.flags_ = (int)flags_;
 	fs.mask = static_cast<unsigned int>(mask);
 	fs.frames = std::move(frames);
 
-	count = 0;
 	mask = 0;
 	set(ftl::data::FSFlag::STALE);
 }
@@ -111,6 +103,7 @@ void FrameSet::flush() {
 	for (auto c : unflushed) {
 		pool()->flush_fs_.trigger(*this, c);
 	}
+	pool()->flush_fs_.trigger(*this, ftl::codecs::Channel::EndFrame);
 }
 
 void FrameSet::flush(ftl::codecs::Channel c) {
@@ -129,7 +122,6 @@ void FrameSet::flush(ftl::codecs::Channel c) {
 std::shared_ptr<FrameSet> FrameSet::fromFrame(Frame &f) {
 	auto sptr = std::make_shared<FrameSet>(f.pool(), f.id(), f.timestamp());
 	sptr->frames.push_back(std::move(f));
-	sptr->count = 1;
 	sptr->mask = 1;
 	return sptr;
 }

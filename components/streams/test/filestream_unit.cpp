@@ -110,7 +110,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 		reader->tick(100);
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-		REQUIRE( count == 1 );
+		REQUIRE( count == 2 );
 		//REQUIRE( tspkt.timestamp == 0 );
 		//auto itime = tspkt.timestamp;
 
@@ -118,7 +118,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 		reader->tick(101);
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-		REQUIRE( count == 1 );
+		REQUIRE( count == 2 );
 		//REQUIRE( tspkt.timestamp == itime+ftl::timer::getInterval() );
 
 		count = 0;

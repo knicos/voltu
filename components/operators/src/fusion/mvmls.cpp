@@ -47,7 +47,7 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 	bool show_consistency = config()->value("show_consistency", false);
 	bool show_adjustment = config()->value("show_adjustment", false);
 
-    if (in.frames.size() < 1 || in.count == 0) return false;
+    if (in.frames.size() < 1 || in.mask == 0) return false;
 	cv::Size size(0,0);
 	for (auto &f : in.frames) {
 		if (f.hasChannel(Channel::Depth)) {

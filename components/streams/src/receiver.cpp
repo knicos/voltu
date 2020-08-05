@@ -102,20 +102,6 @@ void Receiver::registerBuilder(const std::shared_ptr<ftl::streams::BaseBuilder> 
 	}));
 }
 
-//void Receiver::onAudio(const ftl::audio::FrameSet::Callback &cb) {
-//	audio_cb_ = cb;
-//}
-
-/*void Receiver::_processConfig(InternalStates &frame, const ftl::codecs::Packet &pkt) {
-	std::string cfg;
-	auto unpacked = msgpack::unpack((const char*)pkt.data.data(), pkt.data.size());
-	unpacked.get().convert(cfg);
-
-	LOG(INFO) << "Config Received: " << cfg;
-	// TODO: This needs to be put in safer / better location
-	//host_->set(std::get<0>(cfg), nlohmann::json::parse(std::get<1>(cfg)));
-}*/
-
 void Receiver::_createDecoder(InternalVideoStates &frame, int chan, const ftl::codecs::Packet &pkt) {
 	UNIQUE_LOCK(frame.mutex,lk);
 	auto *decoder = frame.decoders[chan];
@@ -205,21 +191,8 @@ void Receiver::_processData(const StreamPacket &spkt, const Packet &pkt) {
 
 	// TODO: Adjust metadata also for recorded streams
 
-	if (spkt.flags & ftl::codecs::kFlagCompleted) {
-		//UNIQUE_LOCK(vidstate.mutex, lk);
-		timestamp_ = spkt.timestamp;
-		fs->completed(spkt.frame_number);
-	}
-
 	fs->localTimestamp = spkt.localTimestamp;
-
-	/*const auto *cs = stream_;
-	const auto sel = stream_->selected(spkt.frameSetID()) & cs->available(spkt.frameSetID());
-
-	if (f.hasAll(sel)) {
-		timestamp_ = spkt.timestamp;
-		fs->completed(spkt.frame_number);
-	}*/
+	_finishPacket(fs, spkt.frame_number);
 }
 
 ftl::audio::Decoder *Receiver::_createAudioDecoder(InternalAudioStates &frame, const ftl::codecs::Packet &pkt) {
@@ -241,11 +214,6 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 	auto &audiolist = frame.createChange<std::list<ftl::audio::Audio>>(spkt.channel, build.changeType(), pkt);
 	auto &audio = audiolist.emplace_back();
 
-	//size_t size = pkt.data.size()/sizeof(short);
-	//audio.data().resize(size);
-	//auto *ptr = (short*)pkt.data.data();
-	//for (size_t i=0; i<size; i++) audio.data()[i] = ptr[i];
-
 	ftl::audio::Decoder *dec = _createAudioDecoder(state, pkt);
 	if (!dec) {
 		LOG(ERROR) << "Could get an audio decoder";
@@ -256,41 +224,8 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 		return;
 	}
 
-	if (spkt.flags & ftl::codecs::kFlagCompleted) {
-		//UNIQUE_LOCK(vidstate.mutex, lk);
-		timestamp_ = spkt.timestamp;
-		fs->completed(spkt.frame_number);
-	}
-
 	fs->localTimestamp = spkt.localTimestamp;
-
-	// Generate settings from packet data
-	/*ftl::audio::AudioSettings settings;
-	settings.channels = (spkt.channel == Channel::AudioStereo) ? 2 : 1;
-	settings.frame_size = 960;
-
-	switch (pkt.definition) {
-	case definition_t::hz48000		: settings.sample_rate = 48000; break;
-	case definition_t::hz44100		: settings.sample_rate = 44100; break;
-	default: settings.sample_rate = 48000; break;
-	}*/
-
-	//frame.state.setLeft(settings);
-	//frame.frame.setOrigin(&frame.state);
-
-	/*if (audio_cb_) {
-		// Create an audio frameset wrapper.
-		ftl::audio::FrameSet fs;
-		fs.id = 0;
-		fs.timestamp = frame.timestamp;
-		//fs.originClockDelta;
-		fs.count = 1;
-		//fs.stale = false;
-		fs.clear(ftl::data::FSFlag::STALE);
-		frame.frame.swapTo(fs.frames.emplace_back());
-
-		audio_cb_(fs);
-	}*/
+	_finishPacket(fs, spkt.frame_number);
 }
 
 namespace sgm {
@@ -379,13 +314,6 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(decoder->stream());
 
-	/*if (spkt.channel == Channel::Depth && (pkt.flags & 0x2)) {
-	cv::Mat tmp;
-	surface.download(tmp);
-	cv::imshow("Test", tmp);
-	cv::waitKey(1);
-	}*/
-
 	// Mark a frameset as being partial
 	if (pkt.flags & ftl::codecs::kFlagPartial) {
 		fs->markPartial();
@@ -401,8 +329,6 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		//if (!frame.origin()) frame.setOrigin(&vidstate.state);
 
 		if (frame.hasChannel(spkt.channel)) {
-			// FIXME: Is this a corruption in recording or in playback?
-			// Seems to occur in same place in ftl file, one channel is missing
 			LOG(WARNING) << "Previous frame not complete: " << spkt.timestamp;
 		}
 
@@ -419,34 +345,36 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	// Must ensure all processing is finished before completing a frame.
 	cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
 
-	for (int i=0; i<pkt.frame_count; ++i) {
-		InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
-		//auto &frame = builder(spkt.streamID).get(spkt.timestamp, spkt.frame_number+i);
-		//auto &frame = fs->frames[spkt.frame_number+i];
-
-		/*if (spkt.version < 5) {
-			const auto *cs = stream_;
-			const auto sel = stream_->selected(spkt.frameSetID()) & cs->available(spkt.frameSetID());
-
-			UNIQUE_LOCK(vidstate.mutex, lk);
-			if (frame.availableAll(sel)) {
-				timestamp_ = spkt.timestamp;
-				fs->completed(spkt.frame_number+i);
-			}
-		}*/
-
-		if (spkt.flags & ftl::codecs::kFlagCompleted) {
-			UNIQUE_LOCK(vidstate.mutex, lk);
-			timestamp_ = spkt.timestamp;
-			fs->completed(spkt.frame_number+i);
-		}
-	}
-
 	fs->localTimestamp = spkt.localTimestamp;
+
+	for (int i=pkt.frame_count-1; i>=0; --i) {
+		_finishPacket(fs, spkt.frame_number+i);
+	}
+}
+
+void Receiver::_finishPacket(ftl::streams::LockedFrameSet &fs, size_t fix) {
+	if (fix >= fs->frames.size()) fix = 0;
+
+	auto &frame = fs->frames[fix];
+	++frame.packet_rx;
+
+	if (frame.packet_tx > 0 && frame.packet_tx == frame.packet_rx) {
+		fs->completed(fix);
+		frame.packet_tx = 0;
+		frame.packet_rx = 0;
+	}
 }
 
 void Receiver::processPackets(const StreamPacket &spkt, const Packet &pkt) {
 	const unsigned int channum = (unsigned int)spkt.channel;
+
+	if (spkt.channel == Channel::EndFrame) {
+		auto fs = builder(spkt.streamID).get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
+		timestamp_ = spkt.timestamp;
+		fs->frames[spkt.frame_number].packet_tx = static_cast<int>(pkt.packet_count);
+		_finishPacket(fs, spkt.frame_number);
+		return;
+	}
 
 	// No data packet means channel is only available.
 	if (pkt.data.size() == 0) {
@@ -456,23 +384,12 @@ void Receiver::processPackets(const StreamPacket &spkt, const Packet &pkt) {
 			const auto *cs = stream_;
 			const auto sel = stream_->selected(spkt.frameSetID()) & cs->available(spkt.frameSetID());
 
-			for (auto &frame : fs->frames) {
-				//LOG(INFO) << "MARK " << frame.source() << " " << (int)spkt.channel;
-				frame.markAvailable(spkt.channel);
-
-				if (spkt.flags & ftl::codecs::kFlagCompleted) {
-					//UNIQUE_LOCK(vidstate.mutex, lk);  // FIXME: Should have a lock here...
-					timestamp_ = spkt.timestamp;
-					fs->completed(frame.source());
-				}
-
-				//if (frame.availableAll(sel)) {
-					//LOG(INFO) << "FRAME COMPLETED " << frame.source();
-				//	fs->completed(frame.source());
-				//}
-			}
-
 			fs->localTimestamp = spkt.localTimestamp;
+
+			for (auto &frame : fs->frames) {
+				frame.markAvailable(spkt.channel);
+			}
+			_finishPacket(fs, spkt.frame_number);
 		}
 		return;
 	}

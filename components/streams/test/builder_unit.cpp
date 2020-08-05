@@ -159,7 +159,7 @@ TEST_CASE("ftl::streams::LocalBuilder can provide empty frames", "[]") {
 		REQUIRE( fs->timestamp() == 100 );
 		REQUIRE( fs->frames.size() == 1 );
 		REQUIRE( fs->hasFrame(0) );
-		REQUIRE( fs->count == 1 );
+		REQUIRE( fs->mask != 0 );
 	}
 
 	SECTION("multiple framesets frameset") {

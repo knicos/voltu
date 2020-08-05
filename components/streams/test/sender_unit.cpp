@@ -89,7 +89,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 	SECTION("a single colour frame") {
 		stream.select(0, {Channel::Colour}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].set<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
@@ -102,7 +101,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( (int)spkt.frame_number == 0 );
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Colour );
-		REQUIRE( (spkt.flags & ftl::codecs::kFlagCompleted) );
 		REQUIRE( pkt.codec == codec_t::HEVC );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
@@ -115,7 +113,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		fs.resize(2);
 		fs.frames[1].store();
 
-		fs.count = 2;
 		fs.mask = 3;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].set<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
@@ -130,7 +127,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( (int)spkt.frame_number == 0 );
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Colour );
-		REQUIRE( (spkt.flags & ftl::codecs::kFlagCompleted) );
 		REQUIRE( pkt.codec == codec_t::HEVC );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 2 );
@@ -143,7 +139,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		fs.resize(2);
 		fs.frames[1].store();
 
-		fs.count = 2;
 		fs.mask = 3;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[0].set<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
@@ -170,7 +165,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 
 		fs.resize(10);
 
-		fs.count = 10;
 		fs.mask = 0x3FF;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[0].set<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
@@ -202,7 +196,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 		fs.resize(2);
 		fs.frames[1].store();
 
-		fs.count = 2;
 		fs.mask = 3;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
 		fs.frames[0].set<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
@@ -228,7 +221,6 @@ TEST_CASE( "Sender::post() video frames" ) {
 	SECTION("one frame and two channels") {
 		stream.select(0, Channel::Colour + Channel::Depth, true);
 
-		fs.count = 1;
 		fs.mask = 1;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].set<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
@@ -244,10 +236,8 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( (int)spkt.frame_number == 0 );
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Depth );
-		REQUIRE( !(prev_spkt.flags & ftl::codecs::kFlagCompleted) );
 		REQUIRE( prev_spkt.channel == Channel::Colour );
 		REQUIRE( prev_spkt.timestamp == 1000 );
-		REQUIRE( (spkt.flags & ftl::codecs::kFlagCompleted) );
 		REQUIRE( pkt.codec == codec_t::HEVC );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
@@ -298,7 +288,6 @@ TEST_CASE( "Sender request to control encoding" ) {
 			codec_t::Any, 0, 255, 255, 0, {}
 		});
 
-		fs.count = 1;
 		fs.mask = 1;
 		fs.frames[0].create<cv::cuda::GpuMat>(Channel::Colour).create(cv::Size(1280,720), CV_8UC4);
 		fs.frames[0].set<cv::cuda::GpuMat>(Channel::Colour).setTo(cv::Scalar(0));
@@ -356,7 +345,6 @@ TEST_CASE( "Sender::post() data channels" ) {
 	SECTION("a single calibration channel") {
 		stream.select(0, {Channel::Calibration}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
 		auto &calib = std::get<0>(fs.frames[0].create<std::tuple<ftl::rgbd::Camera, Channel, int>>(Channel::Calibration));
 		calib.width = 1024;
@@ -370,7 +358,6 @@ TEST_CASE( "Sender::post() data channels" ) {
 		REQUIRE( (int)spkt.frame_number == 0 );
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Calibration );
-		REQUIRE( (spkt.flags & ftl::codecs::kFlagCompleted) );
 		REQUIRE( pkt.codec == codec_t::MSGPACK );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
@@ -379,7 +366,6 @@ TEST_CASE( "Sender::post() data channels" ) {
 	SECTION("a single pose channel") {
 		stream.select(0, {Channel::Pose}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
 		fs.frames[0].create<Eigen::Matrix4d>(Channel::Pose);
 
@@ -398,23 +384,22 @@ TEST_CASE( "Sender::post() data channels" ) {
 	}
 
 	SECTION("a single custom channel") {
-		stream.select(0, {Channel::Data}, true);
+		stream.select(0, {Channel::Configuration}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
-		auto &vf = fs.frames[0].create<std::vector<float>>(Channel::Data);
+		auto &vf = fs.frames[0].create<std::vector<float>>(Channel::Configuration);
 		vf.push_back(5.0f);
 		vf.push_back(33.0f);
 
 		fs.frames[0].flush();
-		sender->post(fs, Channel::Data);
+		sender->post(fs, Channel::Configuration);
 
 		REQUIRE( count == 1 );
 		REQUIRE( spkt.version == 5 );
 		REQUIRE( spkt.timestamp == 1000 );
 		REQUIRE( (int)spkt.frame_number == 0 );
 		REQUIRE( spkt.streamID == 0 );
-		REQUIRE( spkt.channel == Channel::Data );
+		REQUIRE( spkt.channel == Channel::Configuration );
 		REQUIRE( pkt.codec == codec_t::MSGPACK );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
@@ -422,23 +407,22 @@ TEST_CASE( "Sender::post() data channels" ) {
 	}
 
 	SECTION("a single list channel") {
-		stream.select(0, {Channel::Data}, true);
+		stream.select(0, {Channel::Configuration}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
-		auto vf = fs.frames[0].create<std::list<float>>(Channel::Data);
+		auto vf = fs.frames[0].create<std::list<float>>(Channel::Configuration);
 		vf = 5.0f;
 		vf = 33.0f;
 
 		fs.frames[0].flush();
-		sender->post(fs, Channel::Data);
+		sender->post(fs, Channel::Configuration);
 
 		REQUIRE( count == 1 );
 		REQUIRE( spkt.version == 5 );
 		REQUIRE( spkt.timestamp == 1000 );
 		REQUIRE( (int)spkt.frame_number == 0 );
 		REQUIRE( spkt.streamID == 0 );
-		REQUIRE( spkt.channel == Channel::Data );
+		REQUIRE( spkt.channel == Channel::Configuration );
 		REQUIRE( pkt.codec == codec_t::MSGPACK );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.frame_count == 1 );
@@ -482,7 +466,6 @@ TEST_CASE( "Sender::post() audio channels" ) {
 
 		stream.select(0, {Channel::AudioMono}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
 		auto audio = fs.frames[0].create<std::list<ftl::audio::AudioFrame>>(Channel::AudioMono);
 
@@ -510,7 +493,6 @@ TEST_CASE( "Sender::post() audio channels" ) {
 
 		stream.select(0, {Channel::AudioMono}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
 		auto audio = fs.frames[0].create<std::list<ftl::audio::AudioFrame>>(Channel::AudioMono);
 
@@ -549,7 +531,6 @@ TEST_CASE( "Sender::post() audio channels" ) {
 
 		stream.select(0, {Channel::AudioStereo}, true);
 
-		fs.count = 1;
 		fs.mask = 1;
 		auto audio = fs.frames[0].create<std::list<ftl::audio::AudioFrame>>(Channel::AudioStereo);
 

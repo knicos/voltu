@@ -344,6 +344,8 @@ void Frame::moveTo(Frame &f) {
 	f.pool_ = pool_;
 	f.data_ = std::move(data_);
 	f.changed_ = std::move(changed_);
+	f.packet_rx = (int)packet_rx;
+	f.packet_tx = (int)packet_tx;
 	status_ = FrameStatus::RELEASED;
 }
 
@@ -392,6 +394,8 @@ void Frame::reset() {
 	status_ = FrameStatus::CREATED;
 	mode_ = FrameMode::PRIMARY;
 	available_ = 0;
+	packet_rx = 0;
+	packet_tx = 0;
 }
 
 void Frame::hardReset() {

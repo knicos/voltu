@@ -4,6 +4,7 @@
 #include <ftl/threads.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/data/new_frame.hpp>
+#include <ftl/utility/intrinsics.hpp>
 #include <functional>
 
 //#include <opencv2/opencv.hpp>
@@ -18,7 +19,8 @@ static const size_t kMaxFramesInSet = 32;
 
 enum class FSFlag : int {
 	STALE = 0,
-	PARTIAL = 1
+	PARTIAL = 1,
+	DISCARD = 4
 };
 
 /**
@@ -40,9 +42,10 @@ class FrameSet : public ftl::data::Frame {
 	//int64_t timestamp;				// Millisecond timestamp of all frames
 	int64_t localTimestamp;
 	std::vector<Frame> frames;
-	std::atomic<int> count;				// Number of valid frames
+	//std::atomic<int> count=0;				// Actual packet count
+	//std::atomic<int> expected=0;				// Expected packet count
 	std::atomic<unsigned int> mask;		// Mask of all sources that contributed
-	std::atomic<int> flush_count;		// How many channels have been flushed
+	//std::atomic<int> flush_count;		// How many channels have been flushed
 	SHARED_MUTEX smtx;
 
 	//Eigen::Matrix4d pose;  // Set to identity by default.
@@ -74,7 +77,7 @@ class FrameSet : public ftl::data::Frame {
 	/**
 	 * Are all frames complete within this frameset?
 	 */
-	inline bool isComplete() { return static_cast<unsigned int>(count) == frames.size(); }
+	inline bool isComplete() { return ftl::popcount(mask) == frames.size(); }
 
 	/**
 	 * Check that a given frame is valid in this frameset.

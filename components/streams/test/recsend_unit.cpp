@@ -98,6 +98,7 @@ TEST_CASE( "Send and receiver via encoding" ) {
 		});
 
 		sender->post(fs, Channel::Control);
+		sender->post(fs, Channel::EndFrame);
 
 		int i=10;
 		while (i-- > 0 && count < 1) std::this_thread::sleep_for(std::chrono::milliseconds(10));

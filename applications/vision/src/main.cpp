@@ -212,6 +212,9 @@ static void run(ftl::Configurable *root) {
 		if (encodable != previous_encodable) sender->resetEncoders(fs->frameset());
 		previous_encodable = encodable;
 
+		// Must touch the depth channel to indicate it should be waited for
+		//for (auto &f : fs->frames) f.touch(Channel::Depth);
+
 		// Do all processing in another thread...
 		ftl::pool.push([sender,&stats_count,&latency,&frames,&stats_time,pipeline,&busy,fs](int id) mutable {
 			// Do pipeline here... if not still busy doing it

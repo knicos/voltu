@@ -169,7 +169,7 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 	handle_receiver_ = receiver_->onFrameSet(
 		[this](const ftl::data::FrameSetPtr& fs) {
 			if (value("drop_partial_framesets", false)) {
-				if (fs->count < static_cast<int>(fs->frames.size())) {
+				if (!fs->isComplete()) {
 					LOG(WARNING) << "Dropping partial frameset: " << fs->timestamp();
 					return true;
 				}

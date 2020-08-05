@@ -39,6 +39,27 @@ class TestStream : public ftl::stream::Stream {
 		return true;
 	}
 
+	bool postEnd(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt, int count) {
+		ftl::codecs::Packet pkt2;
+		pkt2.codec = codec_t::Invalid;
+		pkt2.bitrate = 255;
+		pkt2.packet_count = count+1;
+		pkt2.frame_count = 1;
+
+		ftl::codecs::StreamPacket spkt2;
+		spkt2.version = 4;
+		spkt2.timestamp = spkt.timestamp;
+		spkt2.frame_number = 0;
+		spkt2.channel = Channel::EndFrame;
+		spkt2.streamID = spkt.streamID;
+
+		for (int i=0; i<pkt.frame_count; ++i) {
+			spkt2.frame_number = i;
+			post(spkt2, pkt2);
+		}
+		return post(spkt, pkt);
+	}
+
 	bool begin() override { return true; }
 	bool end() override { return true; }
 	bool active() override { return true; }
@@ -100,8 +121,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const ftl::data::FrameSetPtr& fs) {
@@ -131,8 +151,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 2);
 
 		std::atomic<int> mask = 0;
 		auto h = receiver->onFrameSet([&mask](const ftl::data::FrameSetPtr& fs) {
@@ -141,7 +160,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		});
 
 		spkt.streamID = 1;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 2);
 
 		int i=10;
 		while (i-- > 0 && mask != 3) std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -157,8 +176,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const ftl::data::FrameSetPtr& fs) {
@@ -194,8 +212,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const ftl::data::FrameSetPtr& fs) {
@@ -232,8 +249,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 		bool r = encoder.encode(m, pkt);
 		REQUIRE( r );
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const ftl::data::FrameSetPtr& fs) {
@@ -331,15 +347,13 @@ TEST_CASE( "Receiver sync bugs" ) {
 		try { stream.post(spkt, pkt); } catch(...) {}
 		spkt.timestamp = 10;
 		spkt.channel = Channel::ColourHighRes;
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		try { stream.post(spkt, pkt); } catch(...) {}
+		try { stream.postEnd(spkt, pkt, 3); } catch(...) {}
 		spkt.timestamp = 20;
 		spkt.channel = Channel::Colour2;
 		try { stream.post(spkt, pkt); } catch(...) {}
 		spkt.timestamp = 20;
 		spkt.channel = Channel::Colour;
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		try { stream.post(spkt, pkt); } catch(...) {}
+		try { stream.postEnd(spkt, pkt, 2); } catch(...) {}
 
 		int i=10;
 		while (i-- > 0 && count < 2) std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -418,9 +432,7 @@ TEST_CASE( "Receiver non zero buffer" ) {
 		});
 
 		stream.post(spkt, pkt);
-		spkt.flags |= ftl::codecs::kFlagCompleted;
 		spkt.timestamp += 10;
-		spkt.flags |= ftl::codecs::kFlagCompleted;
 		stream.post(spkt, pkt);
 
 		int i=10;
@@ -464,7 +476,7 @@ TEST_CASE( "Receiver for data channels" ) {
 	spkt.version = 4;
 	spkt.timestamp = 10;
 	spkt.frame_number = 0;
-	spkt.channel = Channel::Data;
+	spkt.channel = Channel::Configuration;
 	spkt.streamID = 0;
 
 	ftl::timer::start(false);
@@ -475,8 +487,7 @@ TEST_CASE( "Receiver for data channels" ) {
 		ftl::util::FTLVectorBuffer buf(pkt.data);
 		msgpack::pack(buf, 5.0f);
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 1);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const ftl::data::FrameSetPtr& fs) {
@@ -484,8 +495,8 @@ TEST_CASE( "Receiver for data channels" ) {
 
 			REQUIRE( fs->timestamp() == 10 );
 			REQUIRE( fs->frames.size() == 1 );
-			REQUIRE( fs->frames[0].hasChannel(Channel::Data) );
-			REQUIRE( fs->frames[0].get<float>(Channel::Data) == 5.0f );
+			REQUIRE( fs->frames[0].hasChannel(Channel::Configuration) );
+			REQUIRE( fs->frames[0].get<float>(Channel::Configuration) == 5.0f );
 
 			return true;
 		});
@@ -507,8 +518,7 @@ TEST_CASE( "Receiver for data channels" ) {
 
 		// Need to have at least one frame for this to work
 		spkt.frame_number = 0;
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 2);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const std::shared_ptr<ftl::data::FrameSet>& fs) {
@@ -516,8 +526,8 @@ TEST_CASE( "Receiver for data channels" ) {
 
 			REQUIRE( fs->timestamp() == 10 );
 			REQUIRE( fs->frames.size() == 1 );
-			REQUIRE( fs->hasChannel(Channel::Data) );
-			REQUIRE( fs->get<float>(Channel::Data) == 5.0f );
+			REQUIRE( fs->hasChannel(Channel::Configuration) );
+			REQUIRE( fs->get<float>(Channel::Configuration) == 5.0f );
 
 			return true;
 		});
@@ -536,8 +546,7 @@ TEST_CASE( "Receiver for data channels" ) {
 		calib.width = 1024;
 		msgpack::pack(buf, calib);
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 1);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const ftl::data::FrameSetPtr& fs) {
@@ -545,8 +554,8 @@ TEST_CASE( "Receiver for data channels" ) {
 
 			REQUIRE( fs->timestamp() == 10 );
 			REQUIRE( fs->frames.size() == 1 );
-			REQUIRE( fs->frames[0].hasChannel(Channel::Data) );
-			REQUIRE( fs->frames[0].get<ftl::rgbd::Camera>(Channel::Data).width == 1024 );
+			REQUIRE( fs->frames[0].hasChannel(Channel::Configuration) );
+			REQUIRE( fs->frames[0].get<ftl::rgbd::Camera>(Channel::Configuration).width == 1024 );
 
 			return true;
 		});
@@ -564,8 +573,7 @@ TEST_CASE( "Receiver for data channels" ) {
 		Eigen::Matrix4d pose;
 		msgpack::pack(buf, pose);
 
-		spkt.flags |= ftl::codecs::kFlagCompleted;
-		stream.post(spkt, pkt);
+		stream.postEnd(spkt, pkt, 1);
 
 		int count = 0;
 		auto h = receiver->onFrameSet([&count](const std::shared_ptr<ftl::data::FrameSet>& fs) {
@@ -573,8 +581,8 @@ TEST_CASE( "Receiver for data channels" ) {
 
 			REQUIRE( fs->timestamp() == 10 );
 			REQUIRE( fs->frames.size() == 1 );
-			REQUIRE( fs->frames[0].hasChannel(Channel::Data) );
-			fs->frames[0].get<Eigen::Matrix4d>(Channel::Data);
+			REQUIRE( fs->frames[0].hasChannel(Channel::Configuration) );
+			fs->frames[0].get<Eigen::Matrix4d>(Channel::Configuration);
 
 			return true;
 		});
