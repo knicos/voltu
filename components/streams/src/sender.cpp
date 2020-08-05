@@ -68,7 +68,7 @@ void Sender::setStream(ftl::stream::Stream*s) {
 		if (reqcb_) reqcb_(spkt,pkt);
 
 		// Inject state packets
-		if (spkt.hint_capability & ftl::codecs::kStreamCap_NewConnection) do_inject_.clear();
+		if ((spkt.hint_capability & ftl::codecs::kStreamCap_NewConnection) || (spkt.flags & ftl::codecs::kFlagReset)) do_inject_.clear();
 
 		return true;
 	});

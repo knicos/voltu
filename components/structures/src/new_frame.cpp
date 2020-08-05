@@ -377,6 +377,8 @@ void Frame::swapChannels(ftl::codecs::Channel c1, ftl::codecs::Channel c2) {
 		d1.status = d2.status;
 		d2.status = status;
 
+		std::swap(d1.encoded, d2.encoded);
+
 		changed_[c1] = (mode_ == FrameMode::PRIMARY) ? ChangeType::PRIMARY : ChangeType::RESPONSE;
 		changed_[c2] = (mode_ == FrameMode::PRIMARY) ? ChangeType::PRIMARY : ChangeType::RESPONSE;
 	}
