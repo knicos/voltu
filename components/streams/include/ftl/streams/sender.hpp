@@ -68,6 +68,7 @@ class Sender : public ftl::Configurable {
 	int64_t injection_timestamp_=0;
 	SHARED_MUTEX mutex_;
 	std::atomic_flag do_inject_;
+	std::atomic_flag do_reinject_;
 	//std::function<void(ftl::codecs::Channel, int, int)> state_cb_;
 	ftl::stream::StreamCallback reqcb_;
 	int add_iframes_;
@@ -105,7 +106,7 @@ class Sender : public ftl::Configurable {
 	float _selectFloatMax(ftl::codecs::Channel c);
 	ftl::audio::Encoder *_getAudioEncoder(int fsid, int sid, ftl::codecs::Channel c, ftl::codecs::Packet &pkt);
 
-	void _sendPersistent(ftl::data::Frame &frame);
+	void _sendPersistent(ftl::data::FrameSet &fs);
 	void _send(ftl::rgbd::FrameSet &fs, ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 
 	bool _checkNeedsIFrame(int64_t ts, bool injecting);

@@ -66,6 +66,8 @@ struct __align__(16) Camera {
 	 */
 	__host__ __device__ float3 screenToCam(int ux, int uy, float depth) const; 
 
+	//Eigen::Vector4f eigenScreenToCam(int ux, int uy, float depth) const;
+
 	/**
 	 * Convert screen plus depth into camera coordinates.
 	 */
@@ -185,7 +187,7 @@ inline float3 ftl::rgbd::Camera::screenToCam(uint ux, uint uy, float depth) cons
 	return make_float3(depth*x, depth*y, depth);
 }
 
-__device__
+__device__ __host__
 inline float3 ftl::rgbd::Camera::screenToCam(int ux, int uy, float depth) const {
 	const float x = static_cast<float>(((float)ux+cx) / fx);
 	const float y = static_cast<float>(((float)uy+cy) / fy);

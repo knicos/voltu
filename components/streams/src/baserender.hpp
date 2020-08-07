@@ -30,6 +30,8 @@ class BaseSourceImpl {
 
 	inline ftl::audio::StereoMixerF<100> &mixer() { return mixer_; }
 
+	virtual ftl::stream::Feed::Filter *filter()=0;
+
 	protected:
 	ftl::render::Source *host_;
 	ftl::audio::StereoMixerF<100> mixer_;

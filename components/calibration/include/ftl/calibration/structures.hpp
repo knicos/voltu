@@ -115,6 +115,7 @@ struct CalibrationData {
 	struct Calibration {
 		Intrinsic intrinsic;
 		Extrinsic extrinsic;
+
 		MSGPACK_DEFINE(intrinsic, extrinsic);
 	};
 
@@ -129,12 +130,16 @@ struct CalibrationData {
 	Calibration& get(ftl::codecs::Channel channel);
 	bool hasCalibration(ftl::codecs::Channel channel) const;
 
-private:
 	// TODO: identify cameras with unique ID string instead of channel.
-	std::map<ftl::codecs::Channel, Calibration> data_;
+	std::map<ftl::codecs::Channel, Calibration> data;
+
+	/** Correction to be applied (inverse) to extrinsic parameters
+	 * (calibrated to new origin); Applied to rectified pose at the moment
+	 */
+	cv::Mat origin = cv::Mat::eye(4, 4, CV_64FC1);
 
 public:
-	MSGPACK_DEFINE(enabled, data_);
+	MSGPACK_DEFINE(enabled, data, origin);
 };
 
 }

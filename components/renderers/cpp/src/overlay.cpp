@@ -244,7 +244,7 @@ void Overlay::_drawAxis(const Eigen::Matrix4d &pose, const Eigen::Vector3f &scal
 				(const void *)(loffset * sizeof(uint32_t)));
 }
 
-void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &frame, const Eigen::Vector2f &screenSize, const Eigen::Vector2f &imageSize, const Eigen::Vector2f &offset) {
+void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &frame, const Eigen::Vector2f &screenSize, const Eigen::Vector2f &imageSize, const Eigen::Vector2f &offset, const Eigen::Matrix4d &cursor) {
 	if (!value("enabled", false)) return;
 
 	double zfar = 8.0f;
@@ -331,6 +331,11 @@ void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &f
 
 	if (value("show_axis", true)) {
 		_drawAxis(frame.getPose().inverse(), Eigen::Vector3f(0.5f, 0.5f, 0.5f));
+	}
+
+	if (value("show_cursor", true)) {
+		_drawAxis(frame.getPose().inverse() * cursor.inverse(), Eigen::Vector3f(0.2f, 0.2f, 0.2f));
+		_drawOutlinedShape(Shape::XZPLANE, frame.getPose().inverse() * cursor.inverse(), Eigen::Vector3f(0.05f, 0.05f, 0.05f),  make_uchar4(200,200,200,50), make_uchar4(255,255,255,100));
 	}
 
 	if (value("show_shapes", true)) {

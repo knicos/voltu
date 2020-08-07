@@ -96,9 +96,6 @@ private:
 	std::pair<cv::Mat,cv::Mat> map_l_;
 	std::pair<cv::Mat,cv::Mat> map_r_;
 
-	// temporary buffers for left/right
-	cv::Mat tmp_l_;
-	cv::Mat tmp_r_;
 };
 
 }

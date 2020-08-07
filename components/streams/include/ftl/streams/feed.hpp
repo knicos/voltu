@@ -110,6 +110,9 @@ public:
 	 */
 	ftl::rgbd::Source *getRGBD(ftl::data::FrameID id);
 
+	std::list<ftl::Configurable*> getPipelines(ftl::data::FrameID id);
+	std::list<ftl::Configurable*> getOperators(ftl::data::FrameID id, const std::string &name);
+
 	void remove(const std::string &str);
 	void remove(uint32_t id);
 

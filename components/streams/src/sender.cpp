@@ -25,6 +25,7 @@ using ftl::stream::injectConfig;
 
 Sender::Sender(nlohmann::json &config) : ftl::Configurable(config), stream_(nullptr) {
 	do_inject_.test_and_set();
+	do_reinject_.test_and_set();
 	iframe_ = 1;
 	add_iframes_ = value("iframes", 50);
 	timestamp_ = -1;
@@ -104,12 +105,19 @@ static void writeValue(std::vector<unsigned char> &data, T value) {
 	data.insert(data.end(), pvalue_start, pvalue_start+sizeof(T));
 }
 
-void Sender::_sendPersistent(ftl::data::Frame &frame) {
-	auto *session = frame.parent();
-	if (session) {
-		for (auto c : session->channels()) {
-			Sender::post(frame, c);
+void Sender::_sendPersistent(ftl::rgbd::FrameSet &fs) {
+	std::unordered_set<ftl::codecs::Channel> persist_chan;
+
+	for (auto &frame : fs.frames) {
+		auto *session = frame.parent();
+		if (session) {
+			auto chans = session->channels();
+			persist_chan.insert(chans.begin(), chans.end());
 		}
+	}
+
+	for (auto c : persist_chan) {
+		post(fs, c);
 	}
 }
 
@@ -174,6 +182,10 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 			pkt.packet_count = static_cast<uint8_t>(fs.frames[i].packet_tx+1);  // FIXME: 255 limit currently
 			_send(fs, spkt, pkt);
 		}
+
+		if (injection_timestamp_ >= spkt.timestamp) {
+			do_reinject_.clear();
+		}
 		return;
 	}
 
@@ -182,6 +194,9 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 
 	bool do_inject = !do_inject_.test_and_set();
 	bool do_iframe = _checkNeedsIFrame(fs.timestamp(), do_inject);
+	if (!do_reinject_.test_and_set()) {
+		do_inject = true;
+	}
 
 	FTL_Profile("SenderPost", 0.02);
 
@@ -192,17 +207,16 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 	//int ccount = 0;
 	int forward_count = 0;
 
+	if (do_inject) {
+		_sendPersistent(fs);
+	}
+
 	for (size_t i=0; i<fs.frames.size(); ++i) {
 		auto &frame = fs.frames[i];
 		if (!frame.has(c)) continue;
 
 		++valid_frames;
 		//++fs.flush_count;
-
-		// TODO: Send entire persistent session on inject
-		if (do_inject) {
-			_sendPersistent(frame);
-		}
 
 		//ccount += frame.changed().size();
 

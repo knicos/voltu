@@ -5,10 +5,14 @@
 #include <ftl/rgbd/capabilities.hpp>
 #include <ftl/streams/renderer.hpp>
 #include <chrono>
+#include <ftl/utility/matrix_conversion.hpp>
+#include <ftl/calibration/structures.hpp>
+#include <ftl/calibration/parameters.hpp>
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/cudaarithm.hpp>
+#include <opencv2/core/eigen.hpp>
 
 #include <loguru.hpp>
 
@@ -235,6 +239,9 @@ void Camera::activate(ftl::data::FrameID id) {
 	touch_ = false;
 	movable_ = false;
 	vr_ = false;
+	cursor_pos_.setZero();
+	cursor_normal_.setZero();
+	cursor_normal_[2] = 1.0f;
 
 	//std::mutex m;
 	//std::condition_variable cv;
@@ -331,6 +338,10 @@ std::string Camera::getActiveSourceURI() {
 	return "";
 }
 
+void Camera::toggleOverlay() {
+	overlay_->set("enabled", !overlay_->value<bool>("enabled", false));
+}
+
 ftl::audio::StereoMixerF<100> *Camera::mixer() {
 	if (mixer_) return mixer_;
 	if (movable_) {
@@ -416,10 +427,18 @@ bool Camera::hasFrame() {
 	return false;
 }
 
+Eigen::Matrix4d Camera::cursor() const {
+	if (cursor_normal_.norm() > 0.0f) return nanogui::lookAt(cursor_pos_, cursor_target_, cursor_normal_).cast<double>();
+
+	Eigen::Matrix4d ident;
+	ident.setIdentity();
+	return ident;
+}
+
 void Camera::drawOverlay(NVGcontext *ctx, const nanogui::Vector2f &s, const nanogui::Vector2f &is, const Eigen::Vector2f &offset) {
 	auto ptr = std::atomic_load(&latest_);
 	// TODO: Need all the source framesets here or all data dumped in by renderer
-	overlay_->draw(ctx, *ptr, ptr->frames[frame_idx].cast<ftl::rgbd::Frame>(), s, is, offset);  // , view->size().cast<float>()
+	overlay_->draw(ctx, *ptr, ptr->frames[frame_idx].cast<ftl::rgbd::Frame>(), s, is, offset, cursor());  // , view->size().cast<float>()
 }
 
 void Camera::sendPose(const Eigen::Matrix4d &pose) {
@@ -461,7 +480,7 @@ void Camera::touch(int id, ftl::codecs::TouchType t, int x, int y, float d, int 
 }
 
 float Camera::depthAt(int x, int y) {
-	if (value("show_depth", true)) {
+	//if (value("show_depth", true)) {
 		auto ptr = std::atomic_load(&latest_);
 
 		if (ptr) {
@@ -474,6 +493,152 @@ float Camera::depthAt(int x, int y) {
 				}
 			}
 		}
-	}
+	//}
 	return 0.0f;
+}
+
+static float3 getWorldPoint(const cv::Mat &depth, int x, int y, const ftl::rgbd::Camera &intrins, const Eigen::Matrix4f &pose) {
+	if (x >= 0 && y >= 0 && x < depth.cols && y < depth.rows) {
+		float d = depth.at<float>(y, x);
+
+		if (d > intrins.minDepth && d < intrins.maxDepth) {
+			float3 cam = intrins.screenToCam(x, y, d);
+			float3 world = MatrixConversion::toCUDA(pose) * cam;
+			return world;
+		}
+	}
+	return make_float3(0.0f,0.0f,0.0f);
+}
+
+
+Eigen::Vector3f Camera::worldAt(int x, int y) {
+	auto ptr = std::atomic_load(&latest_);
+
+	Eigen::Vector3f res;
+	res.setZero();
+
+	if (ptr) {
+		const auto &frame = ptr->frames[frame_idx].cast<ftl::rgbd::Frame>();
+
+		if (frame.hasChannel(Channel::Depth)) {
+			const auto &depth = frame.get<cv::Mat>(Channel::Depth);
+			const auto &intrins = frame.getLeft();
+			Eigen::Matrix4f posef = frame.getPose().cast<float>();
+
+			float3 CC = getWorldPoint(depth, x, y, intrins, posef);
+			res[0] = CC.x;
+			res[1] = CC.y;
+			res[2] = CC.z;
+		}
+	}
+
+	return res;
+}
+
+void Camera::setCursor(int x, int y) {
+	auto ptr = std::atomic_load(&latest_);
+
+	cursor_pos_.setZero();
+
+	if (ptr) {
+		const auto &frame = ptr->frames[frame_idx].cast<ftl::rgbd::Frame>();
+
+		if (frame.hasChannel(Channel::Depth)) {
+			const auto &depth = frame.get<cv::Mat>(Channel::Depth);
+			const auto &intrins = frame.getLeft();
+			Eigen::Matrix4f posef = frame.getPose().cast<float>();
+
+
+			float3 CC = getWorldPoint(depth, x, y, intrins, posef);
+			cursor_pos_[0] = CC.x;
+			cursor_pos_[1] = CC.y;
+			cursor_pos_[2] = CC.z;
+
+			// Now find normal
+			float3 PC = getWorldPoint(depth, x, y+4, intrins, posef);
+			float3 CP = getWorldPoint(depth, x+4, y, intrins, posef);
+			float3 MC = getWorldPoint(depth, x, y-4, intrins, posef);
+			float3 CM = getWorldPoint(depth, x-4, y, intrins, posef);
+			const float3 n = cross(PC-MC, CP-CM);
+            const float  l = length(n);
+
+			if (l > 0.0f) {
+				cursor_normal_[0] = n.x / -l;
+				cursor_normal_[1] = n.y / -l;
+				cursor_normal_[2] = n.z / -l;
+			}
+
+			cursor_target_[0] = CP.x;
+			cursor_target_[1] = CP.y;
+			cursor_target_[2] = CP.z;
+		}
+	}
+}
+
+void Camera::setOriginToCursor() {
+	using ftl::calibration::transform::inverse;
+	
+	// Check for valid cursor
+	if (cursor_normal_.norm() == 0.0f) return;
+	float cursor_length = (cursor_target_ - cursor_pos_).norm();
+	float cursor_dist = cursor_pos_.norm();
+	if (cursor_length < 0.01f || cursor_length > 5.0f) return;
+	if (cursor_dist > 10.0f) return;
+
+	if (movable_) {
+		auto *rend = io->feed()->getRenderer(frame_id_);
+		if (rend) {
+			auto *filter = rend->filter();
+			if (filter) {
+				cv::Mat cur;
+				cv::eigen2cv(cursor(), cur);
+				auto fss = filter->getLatestFrameSets();
+				for (auto &fs : fss) {
+					if (fs->frameset() == frame_id_.frameset()) continue;
+
+					for (auto &f : fs->frames) {
+						auto response = f.response();
+						auto &rgbdf = response.cast<ftl::rgbd::Frame>();
+						auto &calib = rgbdf.setCalibration();
+						calib = f.cast<ftl::rgbd::Frame>().getCalibration();
+						// apply correction to existing one
+						calib.origin = cur*calib.origin;
+					}
+				};
+			}
+		}
+	}
+
+	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+	cursor_pos_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
+	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+}
+
+void Camera::resetOrigin() {
+	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+	cursor_pos_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
+	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+
+	if (movable_) {
+		auto *rend = io->feed()->getRenderer(frame_id_);
+		if (rend) {
+			auto *filter = rend->filter();
+			if (filter) {
+				cv::Mat cur;
+				cv::eigen2cv(cursor(), cur);
+				auto fss = filter->getLatestFrameSets();
+				for (auto &fs : fss) {
+					if (fs->frameset() == frame_id_.frameset()) continue;
+
+					for (auto &f : fs->frames) {
+						auto response = f.response();
+						auto &rgbdf = response.cast<ftl::rgbd::Frame>();
+						auto &calib = rgbdf.setCalibration();
+						calib = f.cast<ftl::rgbd::Frame>().getCalibration();
+						calib.origin = cur;
+					}
+				};
+			}
+		}
+	}
 }

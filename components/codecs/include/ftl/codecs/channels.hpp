@@ -64,7 +64,8 @@ enum struct Channel : int {
 	Transforms		= 2050,	// Transformation matrices for framesets
 	Shapes3D		= 2051,	// Labeled 3D shapes
 	Messages		= 2052,	// Vector of Strings
-	Touch			= 2053  // List of touch data type (each touch point)
+	Touch			= 2053, // List of touch data type (each touch point)
+	Pipelines		= 2054,	// List of pipline URIs that have been applied
 };
 
 inline bool isVideo(Channel c) { return (int)c < 32; };

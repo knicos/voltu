@@ -32,6 +32,8 @@ class OpenVRRender : public ftl::render::BaseSourceImpl {
 
 	static bool supported();
 
+	ftl::stream::Feed::Filter *filter() override { return filter_; }
+
 	private:
 	ftl::stream::Feed *feed_;
 	ftl::stream::Feed::Filter *filter_;

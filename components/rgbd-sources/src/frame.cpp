@@ -1,5 +1,6 @@
 
 #include <ftl/rgbd/frame.hpp>
+#include <ftl/calibration/structures.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -138,6 +139,14 @@ Eigen::Matrix4d &ftl::rgbd::Frame::setPose() {
 	return this->create<Eigen::Matrix4d>(ftl::codecs::Channel::Pose);
 }
 
+const ftl::calibration::CalibrationData& ftl::rgbd::Frame::getCalibration() const {
+	return this->get<ftl::calibration::CalibrationData>(Channel::CalibrationData);
+}
+
+ftl::calibration::CalibrationData& ftl::rgbd::Frame::setCalibration() {
+	return this->create<ftl::calibration::CalibrationData>(Channel::CalibrationData);
+}
+
 std::string ftl::rgbd::Frame::serial() const {
 	if (hasChannel(Channel::MetaData)) {
 		const auto &meta = get<std::map<std::string,std::string>>(Channel::MetaData);
@@ -198,5 +207,4 @@ template <>
 cv::cuda::GpuMat &ftl::data::Frame::set<cv::cuda::GpuMat, 0>(ftl::codecs::Channel c) {
 	return set<ftl::rgbd::VideoFrame>(c).setGPU();
 }
-
 

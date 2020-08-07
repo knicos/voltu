@@ -24,6 +24,8 @@ public:
 	void setPaused(bool set) { paused_ = set; };
 	bool isPaused() { return paused_; }
 
+	void toggleOverlay();
+
 	float volume();
 	void setVolume(float v);
 
@@ -60,6 +62,7 @@ public:
 	std::string getActiveSourceURI();
 
 	float depthAt(int x, int y);
+	Eigen::Vector3f worldAt(int x, int y);
 
 	bool isRecording();
 	void stopRecording();
@@ -67,6 +70,18 @@ public:
 	void startStreaming(const std::unordered_set<ftl::codecs::Channel> &channels);
 
 	void snapshot(const std::string &filename);
+
+	Eigen::Matrix4d cursor() const;
+
+	void setCursorPosition(const Eigen::Vector3f &pos) { cursor_pos_ = pos; }
+	void setCursorNormal(const Eigen::Vector3f &norm) { cursor_normal_ = norm; }
+	void setCursorTarget(const Eigen::Vector3f &targ) { cursor_target_ = targ; }
+	void setCursor(int x, int y);
+
+	const Eigen::Vector3f getCursorPosition() const { return cursor_pos_; }
+
+	void setOriginToCursor();
+	void resetOrigin();
 
 private:
 	int frame_idx = -1;
@@ -84,6 +99,9 @@ private:
 	std::atomic_int16_t nframes_=0;
 	std::atomic_int64_t latency_=0;
 	int update_fps_freq_=30; // fps counter update frequency (frames)
+	Eigen::Vector3f cursor_pos_;
+	Eigen::Vector3f cursor_target_;
+	Eigen::Vector3f cursor_normal_;
 
 	ftl::data::FrameSetPtr current_fs_;
 	ftl::data::FrameSetPtr latest_;

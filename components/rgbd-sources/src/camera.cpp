@@ -65,3 +65,14 @@ Camera Camera::scaled(int width, int height) const {
 
 	return newcam;
 }
+
+/*Eigen::Vector4f ftl::rgbd::Camera::eigenScreenToCam(int ux, int uy, float depth) const {
+	const float x = static_cast<float>(((float)ux+cx) / fx);
+	const float y = static_cast<float>(((float)uy+cy) / fy);
+	Eigen::Vector4f v;
+	v[0] = depth*x;
+	v[1] = depth*y;
+	v[2] = depth;
+	v[3] = 1.0f;
+	return v;
+}*/

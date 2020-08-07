@@ -57,7 +57,8 @@ Master::Master(Configurable *root, Universe *net)
 	});
 
 	net->bind("get_configurable", [](const std::string &uri) -> std::string {
-		return ftl::config::find(uri)->getConfig().dump();
+		auto *cfg = ftl::config::find(uri);
+		return (cfg) ? cfg->getConfig().dump() : "{}";
 	});
 
 	net->bind("list_configurables", []() {

@@ -930,9 +930,25 @@ T &ftl::data::Frame::set(ftl::codecs::Channel c) {
 	auto i = data_.find(c);
 	if (i != data_.end()) {
 		if (i->second.status != ftl::data::ChannelStatus::FLUSHED) {
-			i->second.encoded.clear();
+
+			auto &d = i->second;
+			if (d.status != ftl::data::ChannelStatus::INVALID && !d.data.has_value() && d.encoded.size() > 0) {
+				UNIQUE_LOCK(parent_->mutex(), lk);
+				if (!d.data.has_value()) {
+					// Do a decode now and change the status
+					//d.status = ftl::data::ChannelStatus::DISPATCHED;
+
+					try {
+						decode_type<T>(d.data, d.encoded.front().data);
+					} catch (...) {
+						throw FTL_Error("Decode failure for channel " << int(c));
+					}
+				}
+			}
+
+			d.encoded.clear();
 			touch(c);
-			return *std::any_cast<T>(&i->second.data);
+			return *std::any_cast<T>(&d.data);
 		} else {
 			throw FTL_Error("Channel is flushed and read-only: " << static_cast<unsigned int>(c));
 		}
@@ -952,6 +968,22 @@ ftl::data::Aggregator<T> ftl::data::Frame::set(ftl::codecs::Channel c) {
 	auto i = data_.find(c);
 	if (i != data_.end()) {
 		if (i->second.status != ftl::data::ChannelStatus::FLUSHED) {
+
+			auto &d = i->second;
+			if (d.status != ftl::data::ChannelStatus::INVALID && !d.data.has_value() && d.encoded.size() > 0) {
+				UNIQUE_LOCK(parent_->mutex(), lk);
+				if (!d.data.has_value()) {
+					// Do a decode now and change the status
+					//d.status = ftl::data::ChannelStatus::DISPATCHED;
+
+					try {
+						decode_type<T>(d.data, d.encoded.front().data);
+					} catch (...) {
+						throw FTL_Error("Decode failure for channel " << int(c));
+					}
+				}
+			}
+
 			i->second.encoded.clear();
 			touch(c);
 			return ftl::data::Aggregator<T>{*std::any_cast<T>(&i->second.data), isAggregate(c)};
