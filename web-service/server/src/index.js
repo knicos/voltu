@@ -134,7 +134,7 @@ RGBDStream.prototype.subscribe = function() {
 
 RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 	//Checks that the type is jpg
-	if (spacket[3] >= 64) {
+	if (spacket[3] >= 64 && packet[5].length > 0 && packet[0] == 103) {
 		this.data[spacket[3]] = decode(packet[5]);
 	}
 
