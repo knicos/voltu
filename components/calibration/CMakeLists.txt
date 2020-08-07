@@ -4,6 +4,7 @@ set(CALIBSRC
 	src/structures.cpp
 	src/visibility.cpp
 	src/object.cpp
+	src/stereorectify.cpp
 )
 
 if (WITH_CERES)

@@ -187,6 +187,9 @@ CalibrationData CalibrationData::readFile(const std::string &path) {
 	}
 	CalibrationData calibration;
 	fs["enabled"] >> calibration.enabled;
+	if (!fs["origin"].isNone()) {
+		fs["origin"] >> calibration.origin;
+	}
 
 	for (auto it = fs["calibration"].begin(); it != fs["calibration"].end(); it++) {
 		Calibration calib;
@@ -203,7 +206,7 @@ CalibrationData CalibrationData::readFile(const std::string &path) {
 		(*it)["rvec"] >> calib.extrinsic.rvec;
 		(*it)["tvec"] >> calib.extrinsic.tvec;
 
-		calibration.data_[channel] = calib;
+		calibration.data[channel] = calib;
 	}
 
 	return calibration;
@@ -216,8 +219,9 @@ void CalibrationData::writeFile(const std::string &path) const {
 	}
 
 	fs << "enabled" << enabled;
+	fs << "origin" << origin;
 	fs << "calibration" << "[";
-	for (auto &[channel, data] : data_) {
+	for (auto &[channel, data] : data) {
 		fs	<< "{"
 			<<	"channel" << int(channel)
 			<<	"resolution" << data.intrinsic.resolution
@@ -237,9 +241,9 @@ void CalibrationData::writeFile(const std::string &path) const {
 }
 
 CalibrationData::Calibration& CalibrationData::get(ftl::codecs::Channel channel) {
-	return data_[channel];
+	return data[channel];
 }
 
 bool CalibrationData::hasCalibration(ftl::codecs::Channel channel) const {
-	return data_.count(channel) != 0;
+	return data.count(channel) != 0;
 }

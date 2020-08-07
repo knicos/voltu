@@ -94,6 +94,24 @@ void Themes::init() {
 	mediatheme->mButtonFontSize = 30;
 	mediatheme->mStandardFontSize = 20;
 
+	auto* mediatheme2 = screen->getTheme("media_small");
+	mediatheme2->mIconScale = 1.2f;
+	mediatheme2->mWindowDropShadowSize = 0;
+	mediatheme2->mWindowFillFocused = nanogui::Color(45, 150);
+	mediatheme2->mWindowFillUnfocused = nanogui::Color(45, 80);
+	mediatheme2->mButtonGradientTopUnfocused = nanogui::Color(0,0);
+	mediatheme2->mButtonGradientBotUnfocused = nanogui::Color(0,0);
+	mediatheme2->mButtonGradientTopFocused = nanogui::Color(80,230);
+	mediatheme2->mButtonGradientBotFocused = nanogui::Color(80,230);
+	mediatheme2->mIconColor = nanogui::Color(255,255);
+	mediatheme2->mTextColor = nanogui::Color(1.0f,1.0f,1.0f,1.0f);
+	mediatheme2->mBorderDark = nanogui::Color(0,0);
+	mediatheme2->mBorderMedium = nanogui::Color(0,0);
+	mediatheme2->mBorderLight = nanogui::Color(0,0);
+	mediatheme2->mDropShadow = nanogui::Color(0,0);
+	mediatheme2->mButtonFontSize = 16;
+	mediatheme2->mStandardFontSize = 14;
+
 	// https://flatuicolors.com/palette/defo
 	screen->setColor("highlight1", nanogui::Color(231, 76, 60, 255)); // red
 	screen->setColor("highlight2", nanogui::Color(52, 152, 219, 255)); // blue

@@ -35,8 +35,35 @@ CameraView3D::CameraView3D(ftl::gui2::Screen *parent, ftl::gui2::Camera *ctrl) :
 
 	pose_up_to_date_.test_and_set();
 
+	tools_->setAvailable({
+		Tools::SELECT_POINT,
+		Tools::MOVEMENT,
+		Tools::OVERLAY,
+		Tools::INSPECT_POINT,
+		Tools::CLIPPING,
+		Tools::MOVE_CURSOR,
+		Tools::ORIGIN_TO_CURSOR,
+		Tools::RESET_ORIGIN,
+		Tools::SAVE_CURSOR
+	});
+
 	setZoom(false);
 	setPan(false);
+
+	tools_->setTool(Tools::MOVEMENT);
+
+	tools_->addCallback([this](ftl::gui2::Tools tool) {
+		if (tool == Tools::ORIGIN_TO_CURSOR) {
+			ctrl_->setOriginToCursor();
+			tools_->setTool(Tools::MOVEMENT);
+			return true;
+		} else if (tool == Tools::RESET_ORIGIN) {
+			ctrl_->resetOrigin();
+			tools_->setTool(Tools::MOVEMENT);
+			return true;
+		}
+		return false;
+	});
 }
 
 bool CameraView3D::keyboardEvent(int key, int scancode, int action, int modifiers) {
@@ -65,21 +92,45 @@ bool CameraView3D::keyboardEvent(int key, int scancode, int action, int modifier
 }
 
 bool CameraView3D::mouseButtonEvent(const Eigen::Vector2i &p, int button, bool down, int modifiers) {
+	if (button == 0 && !down) {
+		if (tools_->isActive(Tools::MOVE_CURSOR)) {
+			auto mouse = screen()->mousePos();
+			auto pos = imview_->imageCoordinateAt((mouse - mPos).cast<float>());
+			//Eigen::Vector3f world = ctrl_->worldAt(pos.x(), pos.y());
+
+			ctrl_->setCursor(pos.x(), pos.y());
+			tools_->setTool(Tools::ROTATE_CURSOR);
+			return true;
+		} else if (tools_->isActive(Tools::ROTATE_CURSOR)) {
+			tools_->setTool(Tools::MOVEMENT);
+		}
+	}
+
 	return CameraView::mouseButtonEvent(p, button, down, modifiers);
 }
 
 bool CameraView3D::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers) {
-	if (button != 1) {
+	//if (button != 1) {
+	//	return true;
+	//}
+
+	if (button == 1 && tools_->isActive(Tools::MOVEMENT)) {
+		rx_ += rel[0];
+		ry_ += rel[1];
+		pose_up_to_date_.clear();
+		return true;
+	} else if (tools_->isActive(Tools::ROTATE_CURSOR)) {
+		auto mouse = screen()->mousePos();
+		auto pos = imview_->imageCoordinateAt((mouse - mPos).cast<float>());
+
+		Eigen::Vector3f world = ctrl_->worldAt(pos.x(), pos.y());
+		ctrl_->setCursorTarget(world);
 		return true;
 	}
 
-	rx_ += rel[0];
-	ry_ += rel[1];
-	pose_up_to_date_.clear();
-
 	//LOG(INFO) << "New pose: \n" << getUpdatedPose();
 	//ctrl_->sendPose(getUpdatedPose());
-	return true;
+	return false;
 }
 
 bool CameraView3D::scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel) {

@@ -26,6 +26,8 @@ class ScreenRender : public ftl::render::BaseSourceImpl {
 
 	bool isReady() override;
 
+	ftl::stream::Feed::Filter *filter() override { return filter_; }
+
 	private:
 	ftl::stream::Feed *feed_;
 	ftl::stream::Feed::Filter *filter_;

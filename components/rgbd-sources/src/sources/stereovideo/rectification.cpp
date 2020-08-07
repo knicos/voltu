@@ -69,14 +69,6 @@ void StereoRectification::updateCalibration_() {
 
 	valid_ = false;
 
-	// create temporary buffers for rectification
-	if (tmp_l_.size() != image_resolution_) {
-		tmp_l_ = cv::Mat(image_resolution_, CV_8UC4);
-	}
-	if (tmp_l_.size() != image_resolution_) {
-		tmp_r_ = cv::Mat(image_resolution_, CV_8UC4);
-	}
-
 	// calculate rotation and translation from left to right using calibration
 	cv::Mat T_l = calib_left_.extrinsic.matrix();
 	cv::Mat T_r = calib_right_.extrinsic.matrix();
@@ -106,7 +98,6 @@ void StereoRectification::calculateParameters_() {
 								map_format_, map_l_.first, map_l_.second);
 	cv::initUndistortRectifyMap(K_r, dc_r, R_r_, P_r_, image_resolution_,
 								map_format_, map_r_.first, map_r_.second);
-
 }
 
 void StereoRectification::rectify(cv::InputArray im, cv::OutputArray im_out, Channel c) {
@@ -165,6 +156,7 @@ cv::Mat StereoRectification::getPose(Channel c) {
 		}
 	}
 	else {
+		// unrectified pose not used anywhere (and isn't necessarily valid).
 		if (c == Channel::Left) {
 			return inverse(calib_left_.extrinsic.matrix());
 		}

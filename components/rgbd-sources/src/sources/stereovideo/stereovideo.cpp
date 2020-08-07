@@ -25,6 +25,7 @@
 #include <ftl/rgbd/capabilities.hpp>
 #include <ftl/codecs/shapes.hpp>
 #include <ftl/calibration/structures.hpp>
+#include <ftl/calibration/parameters.hpp>
 
 #include "stereovideo.hpp"
 #include "ftl/threads.hpp"
@@ -231,13 +232,15 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 		calibration_ = ftl::calibration::CalibrationData(change);
 		rectification_->setCalibration(calibration_);
 		rectification_->setEnabled(change.enabled);
+
+		do_update_params_ = true;
 		return true;
 	});
 
 	if (lsrc_->isStereo()) {
 		Eigen::Matrix4d pose;
-		cv::cv2eigen(rectification_->getPose(Channel::Left), pose);
-
+		// NOTE: pose update (new origin/rotation)
+		cv::cv2eigen(calibration_.origin * rectification_->getPose(Channel::Left), pose);
 		frame.setPose() = pose;
 
 		cv::Mat K = rectification_->cameraMatrix(color_size_);
@@ -269,14 +272,6 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 			baseline,
 			doff
 		};
-
-		CHECK(params.fx > 0) << "focal length must be positive";
-		CHECK(params.fy > 0) << "focal length must be positive";
-		CHECK(params.cx < 0) << "bad principal point coordinate (negative value)";
-		CHECK(-params.cx < params.width) << "principal point must be inside image";
-		CHECK(params.cy < 0) << "bad principal point coordinate (negative value)";
-		CHECK(-params.cy < params.height) << "principal point must be inside image";
-		CHECK(params.baseline >= 0.0) << "baseline must be positive";
 
 		host_->getConfig()["focal"] = params.fx;
 		host_->getConfig()["centre_x"] = params.cx;
@@ -313,6 +308,15 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 
 		frame.setPose() = pose;
 	}
+
+	const auto& params = frame.getLeft();
+	CHECK(params.fx > 0) << "focal length must be positive";
+	CHECK(params.fy > 0) << "focal length must be positive";
+	CHECK(params.cx < 0) << "bad principal point coordinate (negative value)";
+	CHECK(-params.cx < params.width) << "principal point must be inside image";
+	CHECK(params.cy < 0) << "bad principal point coordinate (negative value)";
+	CHECK(-params.cy < params.height) << "principal point must be inside image";
+	CHECK(params.baseline >= 0.0) << "baseline must be positive";
 }
 
 bool StereoVideoSource::capture(int64_t ts) {

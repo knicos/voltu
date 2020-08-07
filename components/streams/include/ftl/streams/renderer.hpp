@@ -31,6 +31,8 @@ class Source : public ftl::Configurable, public ftl::data::DiscreteSource {
 
 	ftl::audio::StereoMixerF<100> &mixer();
 
+	ftl::stream::Feed::Filter *filter() const;
+
 	private:
 	ftl::stream::Feed *feed_;
 	ftl::render::BaseSourceImpl *impl_;

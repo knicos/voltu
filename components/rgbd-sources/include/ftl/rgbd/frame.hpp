@@ -26,6 +26,10 @@
 #include <Eigen/Eigen>
 
 namespace ftl {
+namespace calibration {
+struct CalibrationData;
+}
+
 namespace rgbd {
 
 //typedef ftl::data::Frame Frame;
@@ -90,6 +94,9 @@ class Frame : public ftl::data::Frame {
 	ftl::rgbd::Camera &setLeft();
 	ftl::rgbd::Camera &setRight();
 	Eigen::Matrix4d &setPose();
+
+	ftl::calibration::CalibrationData& setCalibration();
+	const ftl::calibration::CalibrationData& getCalibration() const;
 
 	std::string serial() const;
 	std::string device() const;

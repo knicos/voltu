@@ -32,6 +32,11 @@ ftl::audio::StereoMixerF<100> &Source::mixer() {
 	return impl_->mixer();
 }
 
+ftl::stream::Feed::Filter *Source::filter() const {
+	if (!impl_) return nullptr;
+	return impl_->filter();
+}
+
 bool Source::supports(const std::string &puri) {
 	ftl::URI uri(puri);
 	if (!uri.isValid() || uri.getScheme() != ftl::URI::SCHEME_DEVICE) return false;

@@ -8,6 +8,7 @@ using ftl::operators::Graph;
 using ftl::rgbd::Frame;
 using ftl::rgbd::FrameSet;
 using ftl::rgbd::Source;
+using ftl::codecs::Channel;
 
 Operator::Operator(ftl::Configurable *config) : config_(config) {
 	enabled_ = config_->value("enabled", true);
@@ -62,6 +63,12 @@ bool Graph::apply(FrameSet &in, FrameSet &out, cudaStream_t stream) {
 	if (busy_.test_and_set()) {
 		LOG(ERROR) << "Pipeline already in use: " << in.timestamp();
 		return false;
+	}
+
+	for (auto &f : out.frames) {
+		if (!f.hasOwn(Channel::Pipelines)) f.create<std::list<std::string>>(Channel::Pipelines);
+		auto pls = f.set<std::list<std::string>>(Channel::Pipelines);
+		pls = getID();
 	}
 
 	for (auto &i : operators_) {
@@ -146,6 +153,10 @@ bool Graph::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		LOG(ERROR) << "Pipeline already in use: " << in.timestamp();
 		return false;
 	}
+
+	if (!out.hasOwn(Channel::Pipelines)) out.create<std::list<std::string>>(Channel::Pipelines);
+	auto pls = out.set<std::list<std::string>>(Channel::Pipelines);
+	pls = getID();
 
 	for (auto &i : operators_) {
 		// Make sure there are enough instances
