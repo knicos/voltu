@@ -6,7 +6,7 @@
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
-  CMAKE_ARGS_WINDOWS: '-DCMAKE_GENERATOR_PLATFORM=x64 -DCeres_DIR="C:/Program Files/Ceres" -DPORTAUDIO_DIR="C:/Build/bin/portaudio" -DPYLON_DIR="C:/Program Files/pylon6/Development" -DOpenCV_DIR="C:/Build/bin/opencv/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.2" -DWITH_OPENVR=TRUE -DOPENVR_DIR="C:/Program Files (x86)/OpenVRSDK" -DWITH_CERES=TRUE'
+  CMAKE_ARGS_WINDOWS: '-DCMAKE_GENERATOR_PLATFORM=x64 -DCeres_DIR="C:/Program Files/Ceres" -DPORTAUDIO_INCLUDE_DIRS="C:/Build/src/portaudio/include" -DPORTAUDIO_LIBRARY="C:/Build/bin/portaudio/Release/portaudio_x64.lib" -DPYLON_DIR="C:/Program Files/Basler/pylon 6/Development" -DOpenCV_DIR="C:/Build/bin/opencv/install" -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.2" -DWITH_OPENVR=TRUE -DOPENVR_DIR="C:/Program Files (x86)/OpenVRSDK" -DWITH_CERES=TRUE'
 
 stages:
  - all
@@ -54,11 +54,11 @@ webserver-deploy:
 ### Windows
 
 .build-windows: &build-windows
-    - 'call "D:/Program Files/Visual Studio 2019/VC/Auxiliary/Build/vcvars64.bat"'
+    - 'call vcvars64.bat'
     - mkdir build
     - cd build
     - echo cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DNANOGUI_DIR="C:/Program Files (x86)/NanoGUI" ..
-    - cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DREALSENSE_DIR="C:/Program Files (x86)/Intel RealSense SDK 2.0" -DNANOGUI_DIR="C:/Program Files (x86)/NanoGUI" -DOPUS_DIR="C:/Program Files (x86)/Opus" ..
+    - cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DREALSENSE_DIR="C:/Program Files (x86)/Intel RealSense SDK 2.0" -DOPUS_DIR="C:/Program Files (x86)/Opus" ..
     - devenv ftl.utu.fi.sln /build Release
     - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - mkdir "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
@@ -71,7 +71,7 @@ windows-vision:
   stage: all
   variables:
     CMAKE_ARGS: '-DENABLE_PROFILER=TRUE -DWITH_OPTFLOW=TRUE -DBUILD_VISION=TRUE -DBUILD_CALIBRATION=FALSE -DBUILDRECONSTRUCT=FALSE -DBUILDRENDERER=FALSE -DBUILD_TESTING=FALSE -DBUILD_TESTS=FALSE'
-    DEPLOY_DIR: 'D:/Shared/AutoDeploy'
+    DEPLOY_DIR: 'C:/Shared/AutoDeploy'
   tags:
     - win
   script:
@@ -83,7 +83,7 @@ windows-master:
   stage: all
   variables:
     CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE'
-    DEPLOY_DIR: 'D:/Shared/AutoDeploy'
+    DEPLOY_DIR: 'C:/Shared/AutoDeploy'
   tags:
     - win
   script:
