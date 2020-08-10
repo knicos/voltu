@@ -71,17 +71,23 @@ public:
 
 	void snapshot(const std::string &filename);
 
-	Eigen::Matrix4d cursor() const;
+	const Eigen::Matrix4d &cursor() const;
 
-	void setCursorPosition(const Eigen::Vector3f &pos) { cursor_pos_ = pos; }
-	void setCursorNormal(const Eigen::Vector3f &norm) { cursor_normal_ = norm; }
-	void setCursorTarget(const Eigen::Vector3f &targ) { cursor_target_ = targ; }
+	void setCursorPosition(const Eigen::Vector3f &pos) { cursor_pos_ = pos; cursor_ = _cursor(); }
+	void setCursorNormal(const Eigen::Vector3f &norm) { cursor_normal_ = norm; cursor_ = _cursor(); }
+	void setCursorTarget(const Eigen::Vector3f &targ) { cursor_target_ = targ; cursor_ = _cursor(); }
 	void setCursor(int x, int y);
 
 	const Eigen::Vector3f getCursorPosition() const { return cursor_pos_; }
 
 	void setOriginToCursor();
 	void resetOrigin();
+	void saveCursorToPoser();
+
+	Eigen::Matrix4d getActivePose();
+	nanogui::Vector2i getActivePoseScreenCoord();
+	void transformActivePose(const Eigen::Matrix4d &pose);
+	void setActivePose(const Eigen::Matrix4d &pose);
 
 private:
 	int frame_idx = -1;
@@ -102,6 +108,8 @@ private:
 	Eigen::Vector3f cursor_pos_;
 	Eigen::Vector3f cursor_target_;
 	Eigen::Vector3f cursor_normal_;
+	int cursor_save_id_=0;
+	Eigen::Matrix4d cursor_;
 
 	ftl::data::FrameSetPtr current_fs_;
 	ftl::data::FrameSetPtr latest_;
@@ -120,6 +128,7 @@ private:
 
 	void initiate_(ftl::data::Frame &frame);
 	void _updateCapabilities(ftl::data::Frame &frame);
+	Eigen::Matrix4d _cursor() const;
 };
 
 }

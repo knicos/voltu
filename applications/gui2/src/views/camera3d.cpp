@@ -44,7 +44,13 @@ CameraView3D::CameraView3D(ftl::gui2::Screen *parent, ftl::gui2::Camera *ctrl) :
 		Tools::MOVE_CURSOR,
 		Tools::ORIGIN_TO_CURSOR,
 		Tools::RESET_ORIGIN,
-		Tools::SAVE_CURSOR
+		Tools::SAVE_CURSOR,
+		Tools::ROTATE_X,
+		Tools::ROTATE_Y,
+		Tools::ROTATE_Z,
+		Tools::TRANSLATE_X,
+		Tools::TRANSLATE_Y,
+		Tools::TRANSLATE_Z
 	});
 
 	setZoom(false);
@@ -61,6 +67,15 @@ CameraView3D::CameraView3D(ftl::gui2::Screen *parent, ftl::gui2::Camera *ctrl) :
 			ctrl_->resetOrigin();
 			tools_->setTool(Tools::MOVEMENT);
 			return true;
+		} else if (tool == Tools::SAVE_CURSOR) {
+			ctrl_->saveCursorToPoser();
+			tools_->setTool(Tools::MOVEMENT);
+			return true;
+		} else if (tool == Tools::ROTATE_X || tool == Tools::ROTATE_Y || tool == Tools::ROTATE_Z ||
+					tool == Tools::TRANSLATE_X || tool == Tools::TRANSLATE_Y || tool == Tools::TRANSLATE_Z) {
+			LOG(INFO) << "Loading cache pose";
+			cache_pose_ = ctrl_->getActivePose();
+			cache_screen_ = ctrl_->getActivePoseScreenCoord();
 		}
 		return false;
 	});
@@ -103,6 +118,9 @@ bool CameraView3D::mouseButtonEvent(const Eigen::Vector2i &p, int button, bool d
 			return true;
 		} else if (tools_->isActive(Tools::ROTATE_CURSOR)) {
 			tools_->setTool(Tools::MOVEMENT);
+		} else if (tools_->isActive(Tools::ROTATE_X) || tools_->isActive(Tools::ROTATE_Y) || tools_->isActive(Tools::ROTATE_Z) ||
+					tools_->isActive(Tools::TRANSLATE_X) || tools_->isActive(Tools::TRANSLATE_Y) || tools_->isActive(Tools::TRANSLATE_Z)) {
+			tools_->setTool(Tools::MOVEMENT);
 		}
 	}
 
@@ -126,6 +144,45 @@ bool CameraView3D::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vecto
 		Eigen::Vector3f world = ctrl_->worldAt(pos.x(), pos.y());
 		ctrl_->setCursorTarget(world);
 		return true;
+	} else if (tools_->isActive(Tools::ROTATE_X)) {
+		auto screen_origin = ctrl_->getActivePoseScreenCoord();
+		double angle = atan2(float(screen_origin[1] - p[1]), float(screen_origin[0] - p[0]));
+		Eigen::Affine3d rx = Eigen::Affine3d(Eigen::AngleAxisd(angle, Eigen::Vector3d(1, 0, 0)));
+		ctrl_->setActivePose(rx.matrix() * cache_pose_);
+	} else if (tools_->isActive(Tools::ROTATE_Y)) {
+		auto screen_origin = ctrl_->getActivePoseScreenCoord();
+		double angle = -atan2(float(screen_origin[1] - p[1]), float(screen_origin[0] - p[0]));
+		Eigen::Affine3d ry = Eigen::Affine3d(Eigen::AngleAxisd(angle, Eigen::Vector3d(0, 1, 0)));
+		ctrl_->setActivePose(ry.matrix() * cache_pose_);
+	} else if (tools_->isActive(Tools::ROTATE_Z)) {
+		auto screen_origin = ctrl_->getActivePoseScreenCoord();
+		double angle = atan2(float(screen_origin[1] - p[1]), float(screen_origin[0] - p[0]));
+		Eigen::Affine3d rz = Eigen::Affine3d(Eigen::AngleAxisd(angle, Eigen::Vector3d(0, 0, 1)));
+		ctrl_->setActivePose(rz.matrix() * cache_pose_);
+	} else if (tools_->isActive(Tools::TRANSLATE_X)) {
+		auto mouse = screen()->mousePos();
+		auto pos = imview_->imageCoordinateAt((mouse - mPos).cast<float>());
+		double dx = pos[0] - double(cache_screen_[0]);
+		//double dy = pos[1] - double(cache_screen_[1]);
+		double dist = dx; //(std::abs(dx) > std::abs(dy)) ? dx : dy;
+		Eigen::Affine3d rx = Eigen::Affine3d(Eigen::Translation3d(dist*0.001, 0.0, 0.0));
+		ctrl_->setActivePose(rx.matrix() * cache_pose_);
+	} else if (tools_->isActive(Tools::TRANSLATE_Y)) {
+		auto mouse = screen()->mousePos();
+		auto pos = imview_->imageCoordinateAt((mouse - mPos).cast<float>());
+		double dx = pos[0] - double(cache_screen_[0]);
+		//double dy = pos[1] - double(cache_screen_[1]);
+		double dist = dx; //(std::abs(dx) > std::abs(dy)) ? dx : dy;
+		Eigen::Affine3d rx = Eigen::Affine3d(Eigen::Translation3d(0.0, dist*0.001, 0.0));
+		ctrl_->setActivePose(rx.matrix() * cache_pose_);
+	} else if (tools_->isActive(Tools::TRANSLATE_Z)) {
+		auto mouse = screen()->mousePos();
+		auto pos = imview_->imageCoordinateAt((mouse - mPos).cast<float>());
+		double dx = pos[0] - double(cache_screen_[0]);
+		//double dy = pos[1] - double(cache_screen_[1]);
+		double dist = dx; //(std::abs(dx) > std::abs(dy)) ? dx : dy;
+		Eigen::Affine3d rx = Eigen::Affine3d(Eigen::Translation3d(0.0, 0.0, dist*0.001));
+		ctrl_->setActivePose(rx.matrix() * cache_pose_);
 	}
 
 	//LOG(INFO) << "New pose: \n" << getUpdatedPose();

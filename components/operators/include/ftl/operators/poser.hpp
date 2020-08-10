@@ -22,19 +22,24 @@ class Poser : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
 	static bool get(const std::string &name, Eigen::Matrix4d &pose);
-	static bool set(const std::string &name, const Eigen::Matrix4d &pose);
+	static bool get(const std::string &name, ftl::codecs::Shape3D &shape);
+	static std::list<ftl::codecs::Shape3D*> getAll(int32_t fsid);
+
+	//static bool set(const ftl::codecs::Shape3D &shape);
+
+	static void add(const ftl::codecs::Shape3D &t, ftl::data::FrameID id);
 
     private:
 	struct PoseState {
-		Eigen::Matrix4d pose;
+		ftl::codecs::Shape3D shape;
 		bool locked;
 	};
 
     static std::unordered_map<std::string,PoseState> pose_db__;
-
-	void add(const ftl::codecs::Shape3D &t, int frameset, int frame);
-
+	static std::unordered_map<int,std::list<ftl::codecs::Shape3D*>> fs_shapes__;
 };
 
 }

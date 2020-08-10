@@ -24,6 +24,9 @@ enum class Tools {
 	ROTATE_X,
 	ROTATE_Y,
 	ROTATE_Z,
+	TRANSLATE_X,
+	TRANSLATE_Y,
+	TRANSLATE_Z,
 	INSPECT_POINT
 };
 

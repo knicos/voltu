@@ -48,6 +48,8 @@ nlohmann::json &getDefault(const std::string &key);
 
 void cleanup();
 
+void save();
+
 void removeConfigurable(Configurable *cfg);
 
 /**

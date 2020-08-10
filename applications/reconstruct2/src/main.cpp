@@ -129,6 +129,8 @@ static void run(ftl::Configurable *root) {
 	feed->stopRecording();
 	feed->removeFilter(filter);
 
+	ftl::config::save();
+
 	net->shutdown();
 	LOG(INFO) << "Stopping...";
 	ftl::timer::stop(true);

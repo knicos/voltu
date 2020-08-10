@@ -25,7 +25,7 @@ using Eigen::Vector2i;
 using ftl::gui2::Screen;
 
 static const int toolbar_w = 50;
-static const Vector2i wsize(1280+toolbar_w,720);
+static const Vector2i wsize(1280,720);
 
 Screen::Screen() :
 		nanogui::Screen(wsize, "FT-Lab Remote Presence"),
@@ -40,6 +40,7 @@ Screen::Screen() :
 	toolbar_->setPosition({0, 0});
 	toolbar_->setWidth(toolbar_w);
 	toolbar_->setHeight(height());
+	toolbar_->setTheme(getTheme("media"));
 
 	setResizeCallback([this](const Vector2i &s) {
 		toolbar_->setFixedSize({toolbar_->width(), s[1]});
@@ -98,7 +99,7 @@ void Screen::redraw() {
 }
 
 nanogui::Vector2i Screen::viewSize(const nanogui::Vector2i &ws) {
-	return {ws.x() - toolbar_->width(), ws.y()};
+	return {ws.x(), ws.y()};
 }
 
 nanogui::Vector2i Screen::viewSize() {
@@ -119,7 +120,7 @@ void Screen::showError(const std::string&title, const std::string& msg) {
 
 void Screen::setView(ftl::gui2::View *view) {
 
-	view->setPosition({toolbar_->width(), 0});
+	view->setPosition({0, 0});
 
 	view->setTheme(getTheme("view"));
 	view->setVisible(true);

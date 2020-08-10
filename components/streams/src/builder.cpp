@@ -394,7 +394,7 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_getFrameset() {
 			ftl::data::FrameSetPtr &f2 = framesets_.back();
 			if (f2.get() == f.get()) break;
 
-			LOG(WARNING) << "FrameSet discarded: " << f2->timestamp();
+			LOG(WARNING) << "FrameSet discarded: " << f2->timestamp() << " (" << f->timestamp() << ")";
 			f2->set(ftl::data::FSFlag::DISCARD);
 			{
 				// Ensure frame processing is finished first

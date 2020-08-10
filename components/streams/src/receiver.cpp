@@ -319,6 +319,7 @@ void Receiver::_finishPacket(ftl::streams::LockedFrameSet &fs, size_t fix) {
 
 	if (frame.packet_tx > 0 && frame.packet_tx == frame.packet_rx) {
 		fs->completed(fix);
+		if (fs->isComplete()) timestamp_ = fs->timestamp();
 		frame.packet_tx = 0;
 		frame.packet_rx = 0;
 	}
@@ -329,7 +330,6 @@ void Receiver::processPackets(const StreamPacket &spkt, const Packet &pkt) {
 
 	if (spkt.channel == Channel::EndFrame) {
 		auto fs = builder(spkt.streamID).get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
-		timestamp_ = spkt.timestamp;
 		fs->frames[spkt.frame_number].packet_tx = static_cast<int>(pkt.packet_count);
 		_finishPacket(fs, spkt.frame_number);
 		return;

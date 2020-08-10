@@ -4,6 +4,7 @@
 #include <ftl/rgbd/capabilities.hpp>
 #include <ftl/operators/antialiasing.hpp>
 #include <ftl/operators/gt_analysis.hpp>
+#include <ftl/operators/poser.hpp>
 #include <ftl/utility/matrix_conversion.hpp>
 #include <ftl/codecs/shapes.hpp>
 
@@ -213,6 +214,7 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 		if (!data_only) {
 			if (!post_pipe_) {
 				post_pipe_ = ftl::config::create<ftl::operators::Graph>(host(), "post_filters");
+				post_pipe_->append<ftl::operators::Poser>("poser");
 				post_pipe_->append<ftl::operators::FXAA>("fxaa");
 				post_pipe_->append<ftl::operators::GTAnalysis>("gtanalyse");
 			}

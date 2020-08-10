@@ -164,6 +164,11 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 
 	// Send quick message for this special channel.
 	if (c == Channel::EndFrame) {
+		if (timestamp_ >= fs.timestamp()) {
+			LOG(WARNING) << "Sending old frame! " << fs.timestamp() << " vs " << timestamp_ << " (size = " << fs.frames[0].packet_tx+1 << ")"; 
+		}
+		timestamp_ = fs.timestamp();
+
 		StreamPacket spkt;
 		spkt.version = 5;
 		spkt.timestamp = fs.timestamp();
