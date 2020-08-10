@@ -1,6 +1,8 @@
 #include "ftl/calibration/optimize.hpp"
 #include "ftl/calibration/parameters.hpp"
 
+#include <ceres/ceres.h>
+
 #include <loguru.hpp>
 
 #include <ftl/exception.hpp>

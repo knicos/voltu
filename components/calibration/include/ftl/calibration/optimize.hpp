@@ -9,10 +9,6 @@
 
 #include <ftl/config.h>
 
-#ifdef HAVE_CERES
-#include <ceres/ceres.h>
-#endif
-
 #include <opencv2/core/core.hpp>
 
 // BundleAdjustment uses Point3d instances via double*
@@ -20,6 +16,10 @@ static_assert(sizeof(cv::Point2d) == 2*sizeof(double));
 static_assert(std::is_standard_layout<cv::Point2d>());
 static_assert(sizeof(cv::Point3d) == 3*sizeof(double));
 static_assert(std::is_standard_layout<cv::Point3d>());
+
+namespace ceres {
+	struct Problem;
+}
 
 namespace ftl {
 namespace calibration {
