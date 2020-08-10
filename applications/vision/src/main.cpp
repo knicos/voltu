@@ -164,7 +164,7 @@ static void run(ftl::Configurable *root) {
 
 	// Send channels on flush
 	auto flushhandle = pool.onFlushSet([sender,&encodable](ftl::data::FrameSet &fs, ftl::codecs::Channel c) {
-		if (!fs.test(ftl::data::FSFlag::AUTO_SEND)) return true;
+		if (c != Channel::EndFrame && !fs.test(ftl::data::FSFlag::AUTO_SEND)) return true;
 
 		// Always send data channels
 		if ((int)c >= 32) sender->post(fs, c);
