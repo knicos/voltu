@@ -28,6 +28,8 @@ protected:
 	// current
 	Eigen::Vector3d eye_;
 	Eigen::Matrix4d rotmat_;
+	Eigen::Matrix4d cache_pose_;
+	Eigen::Vector2i cache_screen_;
 
 	// updates from mouse
 	double rx_;

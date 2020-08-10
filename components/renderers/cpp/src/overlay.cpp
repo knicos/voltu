@@ -5,6 +5,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include <ftl/codecs/shapes.hpp>
+#include <ftl/operators/poser.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -365,40 +366,39 @@ void Overlay::draw(NVGcontext *ctx, ftl::data::FrameSet &fs, ftl::rgbd::Frame &f
 			}
 		}*/
 
-		for (size_t i=0; i<fs.frames.size(); ++i) {
-			if (fs.frames[i].hasChannel(Channel::Shapes3D)) {
-				const auto &shapes = fs.frames[i].get<std::list<ftl::codecs::Shape3D>>(Channel::Shapes3D);
+		auto shapes = ftl::operators::Poser::getAll(fs.frameset());
 
-				for (auto &s : shapes) {
-					auto pose = s.pose.cast<double>(); //.inverse() * state.getPose();
-					//Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
-					//pos /= pos[3];
+		for (auto *ps : shapes) {
+			auto &s = *ps;
 
-					Eigen::Vector3f scale(s.size[0]/2.0f, s.size[1]/2.0f, s.size[2]/2.0f);
+			auto pose = s.pose.cast<double>(); //.inverse() * state.getPose();
+			//Eigen::Vector4d pos = pose.inverse() * Eigen::Vector4d(0,0,0,1);
+			//pos /= pos[3];
 
-					auto tpose = frame.getPose().inverse() * pose;
+			Eigen::Vector3f scale(s.size[0]/2.0f, s.size[1]/2.0f, s.size[2]/2.0f);
 
-					switch (s.type) {
-					case ftl::codecs::Shape3DType::CAMERA: _drawOutlinedShape(Shape::CAMERA, tpose, scale, make_uchar4(255,0,0,80), make_uchar4(255,0,0,255)); break;
-					case ftl::codecs::Shape3DType::CLIPPING: _drawOutlinedShape(Shape::BOX, tpose, scale, make_uchar4(255,0,255,80), make_uchar4(255,0,255,255)); break;
-					case ftl::codecs::Shape3DType::ARUCO: _drawAxis(tpose, Eigen::Vector3f(0.2f, 0.2f, 0.2f)); break;
-					default: break;
-					}
+			auto tpose = frame.getPose().inverse() * pose;
 
-					if (s.label.size() > 0) {
-						float3 textpos;
-						textpos.x = tpose(0,3);
-						textpos.y = tpose(1,3);
-						textpos.z = tpose(2,3);
-
-						float2 textscreen = frame.getLeft().camToScreen<float2>(textpos);
-						if (textpos.z > 0.1f) nvgText(ctx, textscreen.x, textscreen.y, s.label.c_str(), nullptr);
-					}
-
-					//ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
-					//ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
-				}
+			switch (s.type) {
+			case ftl::codecs::Shape3DType::CAMERA: _drawOutlinedShape(Shape::CAMERA, tpose, scale, make_uchar4(255,0,0,80), make_uchar4(255,0,0,255)); break;
+			case ftl::codecs::Shape3DType::CLIPPING: _drawOutlinedShape(Shape::BOX, tpose, scale, make_uchar4(255,0,255,80), make_uchar4(255,0,255,255)); break;
+			case ftl::codecs::Shape3DType::ARUCO: _drawAxis(tpose, Eigen::Vector3f(0.2f, 0.2f, 0.2f)); break;
+			case ftl::codecs::Shape3DType::CURSOR: _drawAxis(tpose, Eigen::Vector3f(0.2f, 0.2f, 0.2f)); break;
+			default: break;
 			}
+
+			if (s.label.size() > 0) {
+				float3 textpos;
+				textpos.x = tpose(0,3);
+				textpos.y = tpose(1,3);
+				textpos.z = tpose(2,3);
+
+				float2 textscreen = frame.getLeft().camToScreen<float2>(textpos);
+				if (textpos.z > 0.1f) nvgText(ctx, textscreen.x, textscreen.y, s.label.c_str(), nullptr);
+			}
+
+			//ftl::overlay::drawBox(state.getLeft(), out, over_depth_, pose, cv::Scalar(0,0,255,100), s.size.cast<double>());
+			//ftl::overlay::drawText(state.getLeft(), out, over_depth_, s.label, pos, 0.5, cv::Scalar(0,0,255,100));
 		}
 	}
 

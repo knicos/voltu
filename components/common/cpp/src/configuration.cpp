@@ -685,6 +685,15 @@ static void stripJSON(nlohmann::json &j) {
 	}
 }
 
+void ftl::config::save() {
+	for (auto &f : config_instance) {
+		//LOG(INFO) << "Saving: " << f.second->getID();
+		f.second->save();
+	}
+	stripJSON(config_restore);
+	ftl::saveJSON(std::string(FTL_LOCAL_CONFIG_ROOT "/")+cfg_root_str+std::string("_session.json"), config_restore);
+}
+
 static std::atomic_bool doing_cleanup = false;
 void ftl::config::cleanup() {
 	if (doing_cleanup) return;
@@ -702,8 +711,7 @@ void ftl::config::cleanup() {
 	}
 	config_instance.clear();
 
-	stripJSON(config_restore);
-	ftl::saveJSON(std::string(FTL_LOCAL_CONFIG_ROOT "/")+cfg_root_str+std::string("_session.json"), config_restore);
+	ftl::config::save();
 
 	doing_cleanup = false;
 }

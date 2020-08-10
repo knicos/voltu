@@ -153,6 +153,8 @@ void FTLGui::mainloop() {
 	// Process events once more
 	glfwPollEvents();
 
+	ftl::config::save();
+
 	// Stop everything before deleting feed etc
 	LOG(INFO) << "Stopping...";
 	ftl::timer::stop(true);

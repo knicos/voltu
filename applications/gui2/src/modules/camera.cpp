@@ -8,6 +8,8 @@
 #include <ftl/utility/matrix_conversion.hpp>
 #include <ftl/calibration/structures.hpp>
 #include <ftl/calibration/parameters.hpp>
+#include <ftl/codecs/shapes.hpp>
+#include <ftl/operators/poser.hpp>
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -427,7 +429,11 @@ bool Camera::hasFrame() {
 	return false;
 }
 
-Eigen::Matrix4d Camera::cursor() const {
+const Eigen::Matrix4d &Camera::cursor() const {
+	return cursor_;
+}
+
+Eigen::Matrix4d Camera::_cursor() const {
 	if (cursor_normal_.norm() > 0.0f) return nanogui::lookAt(cursor_pos_, cursor_target_, cursor_normal_).cast<double>();
 
 	Eigen::Matrix4d ident;
@@ -573,17 +579,19 @@ void Camera::setCursor(int x, int y) {
 			cursor_target_[2] = CP.z;
 		}
 	}
+
+	cursor_ = _cursor();
 }
 
 void Camera::setOriginToCursor() {
 	using ftl::calibration::transform::inverse;
 	
 	// Check for valid cursor
-	if (cursor_normal_.norm() == 0.0f) return;
+	/*if (cursor_normal_.norm() == 0.0f) return;
 	float cursor_length = (cursor_target_ - cursor_pos_).norm();
 	float cursor_dist = cursor_pos_.norm();
 	if (cursor_length < 0.01f || cursor_length > 5.0f) return;
-	if (cursor_dist > 10.0f) return;
+	if (cursor_dist > 10.0f) return;*/
 
 	if (movable_) {
 		auto *rend = io->feed()->getRenderer(frame_id_);
@@ -612,12 +620,14 @@ void Camera::setOriginToCursor() {
 	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
 	cursor_pos_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
 	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+	cursor_ = _cursor();
 }
 
 void Camera::resetOrigin() {
 	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
 	cursor_pos_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
-	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
+	cursor_ = _cursor(); 
 
 	if (movable_) {
 		auto *rend = io->feed()->getRenderer(frame_id_);
@@ -641,4 +651,46 @@ void Camera::resetOrigin() {
 			}
 		}
 	}
+}
+
+void Camera::saveCursorToPoser() {
+	ftl::codecs::Shape3D shape;
+	shape.type = ftl::codecs::Shape3DType::CURSOR;
+	shape.id = cursor_save_id_++;
+	shape.label = std::string("Cursor") + std::to_string(shape.id);
+	shape.pose = cursor().inverse().cast<float>();
+	shape.size = Eigen::Vector3f(0.1f,0.1f,0.1f);
+
+	ftl::operators::Poser::add(shape, frame_id_);
+}
+
+Eigen::Matrix4d Camera::getActivePose() {
+	return cursor(); //.inverse();
+}
+
+nanogui::Vector2i Camera::getActivePoseScreenCoord() {
+	Eigen::Matrix4d pose = getActivePose().inverse();
+
+	auto ptr = std::atomic_load(&latest_);
+	if (ptr) {
+		const auto &frame = ptr->frames[frame_idx].cast<ftl::rgbd::Frame>();
+		auto campose = frame.getPose().inverse() * pose;
+		float3 campos;
+		campos.x = campose(0,3);
+		campos.y = campose(1,3);
+		campos.z = campose(2,3);
+
+		int2 spos = frame.getLeft().camToScreen<int2>(campos);
+		return nanogui::Vector2i(spos.x, spos.y);
+	}
+
+	return nanogui::Vector2i(-1,-1);
+}
+
+void Camera::transformActivePose(const Eigen::Matrix4d &pose) {
+	cursor_ = pose * cursor_;
+}
+
+void Camera::setActivePose(const Eigen::Matrix4d &pose) {
+	cursor_ = pose; //.inverse();
 }

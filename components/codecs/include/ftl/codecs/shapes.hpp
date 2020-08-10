@@ -17,7 +17,8 @@ enum class Shape3DType {
 	CLIPPING,
 	CAMERA,
 	FEATURE,
-	ARUCO
+	ARUCO,
+	CURSOR
 };
 
 struct Shape3D {

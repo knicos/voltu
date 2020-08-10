@@ -20,7 +20,8 @@ static const size_t kMaxFramesInSet = 32;
 enum class FSFlag : int {
 	STALE = 0,
 	PARTIAL = 1,
-	DISCARD = 4
+	DISCARD = 4,
+	AUTO_SEND = 8
 };
 
 /**
@@ -77,7 +78,7 @@ class FrameSet : public ftl::data::Frame {
 	/**
 	 * Are all frames complete within this frameset?
 	 */
-	inline bool isComplete() { return ftl::popcount(mask) == frames.size(); }
+	inline bool isComplete() { return mask != 0 && ftl::popcount(mask) == frames.size(); }
 
 	/**
 	 * Check that a given frame is valid in this frameset.

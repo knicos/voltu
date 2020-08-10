@@ -41,8 +41,8 @@ struct NetImplDetail {
 //#define TCP_SEND_BUFFER_SIZE	(512*1024)
 //#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
 
-#define TCP_SEND_BUFFER_SIZE	(256*1024)
-#define TCP_RECEIVE_BUFFER_SIZE	(256*1024)
+#define TCP_SEND_BUFFER_SIZE	(52*1024)  // Was 256
+#define TCP_RECEIVE_BUFFER_SIZE	(52*1024)  // Was 256
 
 callback_t ftl::net::Universe::cbid__ = 0;
 

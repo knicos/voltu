@@ -12,6 +12,7 @@ FrameSet::FrameSet(Pool *ppool, FrameID pid, int64_t ts, size_t psize) :
 FrameSet::~FrameSet() {
 	if (status() == ftl::data::FrameStatus::CREATED) store();
 	if (status() == ftl::data::FrameStatus::STORED) flush();
+	pool()->flush_fs_.trigger(*this, ftl::codecs::Channel::EndFrame);
 }
 
 void ftl::data::FrameSet::completed(size_t ix) {
@@ -103,7 +104,6 @@ void FrameSet::flush() {
 	for (auto c : unflushed) {
 		pool()->flush_fs_.trigger(*this, c);
 	}
-	pool()->flush_fs_.trigger(*this, ftl::codecs::Channel::EndFrame);
 }
 
 void FrameSet::flush(ftl::codecs::Channel c) {

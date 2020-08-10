@@ -397,7 +397,13 @@ ToolPanel::ToolPanel(nanogui::Widget *parent, ftl::gui2::Camera* ctrl, CameraVie
 		Tools::PAN,
 		Tools::INSPECT_POINT,
 		Tools::ZOOM_IN,
-		Tools::ZOOM_OUT
+		Tools::ZOOM_OUT,
+		Tools::ROTATE_X,
+		Tools::ROTATE_Y,
+		Tools::ROTATE_Z,
+		Tools::TRANSLATE_X,
+		Tools::TRANSLATE_Y,
+		Tools::TRANSLATE_Z
 	});
 	_addButton(mouse_group, Tools::SELECT_POINT, ENTYPO_ICON_MOUSE_POINTER, "Select Point");
 	_addButton(mouse_group, Tools::MOVEMENT, ENTYPO_ICON_MAN, "First Person Camera");
@@ -406,6 +412,17 @@ ToolPanel::ToolPanel(nanogui::Widget *parent, ftl::gui2::Camera* ctrl, CameraVie
 	_addButton(mouse_group, Tools::INSPECT_POINT, ENTYPO_ICON_MAGNIFYING_GLASS, "Inspect Point");
 	_addButton(mouse_group, Tools::ZOOM_IN, ENTYPO_ICON_CIRCLE_WITH_PLUS, "Zoom In (+)");
 	_addButton(mouse_group, Tools::ZOOM_OUT, ENTYPO_ICON_CIRCLE_WITH_MINUS, "Zoom Out (-)");
+	auto *trans_but = _addButton(mouse_group, {
+		Tools::ROTATE_X,
+		Tools::ROTATE_Y,
+		Tools::ROTATE_Z
+	}, ENTYPO_ICON_CYCLE, "Transform Pose");
+	_addButton(trans_but, Tools::ROTATE_X, "Rotate X");
+	_addButton(trans_but, Tools::ROTATE_Y, "Rotate Y");
+	_addButton(trans_but, Tools::ROTATE_Z, "Rotate Z");
+	_addButton(trans_but, Tools::TRANSLATE_X, "Translate X");
+	_addButton(trans_but, Tools::TRANSLATE_Y, "Translate Y");
+	_addButton(trans_but, Tools::TRANSLATE_Z, "Translate Z");
 
 	auto *view2d_group = _addGroup(ToolGroup::VIEW_2D_ACTIONS, Button::Flags::NormalButton, {
 		Tools::CENTRE_VIEW,
