@@ -367,20 +367,20 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_findFrameset(int64_t ts) {
  * Note: Must occur inside a mutex lock.
  */
 std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_getFrameset() {
+	ftl::data::FrameSetPtr f;
 	auto i = framesets_.begin();
 	int N = bufferSize_;
 
 	// Skip N frames to fixed buffer location
 	if (bufferSize_ > 0) {
 		while (N-- > 0 && i != framesets_.end()) ++i;
-	// Otherwise skip to first fully completed frame
+		if (i != framesets_.end()) f = *i;
 	} else {
-		while (i != framesets_.end() && !(*i)->isComplete()) ++i;
+		// Always choose oldest frameset when it completes
+		if (framesets_.size() > 0 && framesets_.back()->isComplete()) f = framesets_.back();
 	}
 
-	if (i != framesets_.end()) {
-		auto f = *i;
-		
+	if (f) {
 		// Lock to force completion of on going construction first
 		UNIQUE_LOCK(f->smtx, slk);
 		last_frame_ = f->timestamp();
