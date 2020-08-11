@@ -164,7 +164,7 @@ static void run(ftl::Configurable *root) {
 
 	// Send channels on flush
 	auto flushhandle = pool.onFlushSet([sender,&encodable](ftl::data::FrameSet &fs, ftl::codecs::Channel c) {
-		if (c != Channel::EndFrame && !fs.test(ftl::data::FSFlag::AUTO_SEND)) return true;
+		//if (c != Channel::EndFrame && !fs.test(ftl::data::FSFlag::AUTO_SEND)) return true;
 
 		// Always send data channels
 		if ((int)c >= 32) sender->post(fs, c);
@@ -214,18 +214,17 @@ static void run(ftl::Configurable *root) {
 		if (encodable != previous_encodable) sender->resetEncoders(fs->frameset());
 		previous_encodable = encodable;
 
-		if (busy.test_and_set()) {
-			LOG(WARNING) << "Depth pipeline drop: " << fs->timestamp();
-			fs->firstFrame().message(ftl::data::Message::Warning_PIPELINE_DROP, "Depth pipeline drop");
-			return true;
-		}
-
 		fs->set(ftl::data::FSFlag::AUTO_SEND);
 
 		// Do all processing in another thread...
 		ftl::pool.push([sender,&stats_count,&latency,&frames,&stats_time,pipeline,&busy,fs](int id) mutable {
-			
+			if (busy.test_and_set()) {
+				LOG(WARNING) << "Depth pipeline drop: " << fs->timestamp();
+				fs->firstFrame().message(ftl::data::Message::Warning_PIPELINE_DROP, "Depth pipeline drop");
+				return;
+			}
 			pipeline->apply(*fs, *fs);
+			busy.clear();
 
 			++frames;
 			latency += float(ftl::timer::get_time() - fs->timestamp());
@@ -233,7 +232,6 @@ static void run(ftl::Configurable *root) {
 			// Destruct frameset as soon as possible to send the data...
 			if (fs->hasAnyChanged(Channel::Depth)) fs->flush(Channel::Depth);
 			const_cast<ftl::data::FrameSetPtr&>(fs).reset();
-			busy.clear();
 
 			if (!quiet && --stats_count <= 0) {
 				latency /= float(frames);
