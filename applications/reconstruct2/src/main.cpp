@@ -57,6 +57,10 @@ static void run(ftl::Configurable *root) {
 	feed->setPipelineCreator([](ftl::operators::Graph *pipeline) {
 		LOG(INFO) << "Using reconstruction pipeline creator";
 
+		pipeline->restore("reconstruction_pipeline", {
+			"clipping"
+		});
+
 		pipeline->append<ftl::operators::DepthChannel>("depth")->value("enabled", false);  // Ensure there is a depth channel
 		pipeline->append<ftl::operators::DisparityBilateralFilter>("bilateral_filter")->value("enabled", false);
 		pipeline->append<ftl::operators::DisparityToDepth>("calculate_depth")->value("enabled", false);
@@ -110,7 +114,7 @@ static void run(ftl::Configurable *root) {
 		return true;
 	});
 
-	auto *filter = feed->filter({Channel::Colour, Channel::Depth});
+	auto *filter = feed->filter({Channel::Colour, Channel::Depth, Channel::AudioStereo});
 	
 	//feed->lowLatencyMode();
 	feed->startStreaming(filter);
