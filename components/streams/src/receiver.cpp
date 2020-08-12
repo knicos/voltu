@@ -70,8 +70,8 @@ ftl::streams::BaseBuilder &Receiver::builder(uint32_t id) {
 		b->setID(id);
 		b->setPool(pool_);
 		fb->setBufferSize(value("frameset_buffer_size", 0));
-		fb->setBufferSize(value("max_buffer_size", 16));
-		fb->setBufferSize(value("completion_size", 8));
+		fb->setMaxBufferSize(value("max_buffer_size", 16));
+		fb->setCompletionSize(value("completion_size", 8));
 		handles_[id] = std::move(fb->onFrameSet([this](const ftl::data::FrameSetPtr& fs) {
 			callback_.trigger(fs);
 			return true;
@@ -255,14 +255,10 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
 
-	// Get the frameset
-	auto &build = builder(spkt.streamID);
-	auto fs = build.get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
-
 	int width = ividstate.width; //calibration.width;
 	int height = ividstate.height; //calibration.height;
 
-	if (width == 0 || height == 0) {
+	if (width <= 0 || height <= 0 || width > 9000 || height > 9000) {
 		// Attempt to retry the decode later
 		// Make a copy of the packets into a thread job
 		// FIXME: Check that thread pool does not explode
@@ -313,6 +309,10 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 			return;
 		}
 	}
+
+	// Get the frameset
+	auto &build = builder(spkt.streamID);
+	auto fs = build.get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
 
 	if (!fs) {
 		LOG(WARNING) << "Dropping a video frame";
