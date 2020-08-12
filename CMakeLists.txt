@@ -418,6 +418,10 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 #	add_library(nvpipe INTERFACE)
 #endif()
 
+if (WIN32)
+	add_library(nvidia-ml INTERFACE)
+endif()
+
 if (WITH_FIXSTARS)
 	set(HAVE_LIBSGM true)
 	add_subdirectory(lib/libsgm)
