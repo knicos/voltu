@@ -33,4 +33,6 @@ target_precompile_headers(ftlrender REUSE_FROM ftldata)
 
 set_property(TARGET ftlrender PROPERTY CUDA_ARCHITECTURES OFF)
 
-#ADD_SUBDIRECTORY(test)
+if (BUILD_TESTS)
+	ADD_SUBDIRECTORY(test)
+endif()

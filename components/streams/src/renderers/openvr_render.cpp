@@ -233,6 +233,9 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			right.cx = intrinsic(0,2);
 			right.cy = intrinsic(1,2);
 
+			LOG(INFO) << "VR Left Intrinsics: fx=" << left.fx << ",cx=" << left.cx << ",cy=" << left.cy;
+			LOG(INFO) << "VR Right Intrinsics: fx=" << right.fx << ",cx=" << right.cx << ",cy=" << right.cy;
+
 			if (!frame_out.has(Channel::Capabilities)) {
 				auto &cap = frame_out.create<std::unordered_set<Capability>>(Channel::Capabilities);
 				cap.emplace(Capability::VIDEO);
@@ -282,6 +285,8 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 				auto cur_right = rgbdframe.getRight();
 				cur_right.baseline = baseline_;
 				rgbdframe.setRight() = cur_right;
+
+				LOG(INFO) << "VR Baseline: " << baseline_;
 			}
 			Eigen::Matrix4d pose = ConvertSteamVRMatrixToMatrix4(rTrackedDevicePose_[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
 			Eigen::Vector3d ea = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2);
@@ -455,6 +460,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 		if (!post_pipe_) {
 			post_pipe_ = ftl::config::create<ftl::operators::Graph>(host(), "post_filters");
+			post_pipe_->append<ftl::operators::Poser>("poser");
 			post_pipe_->append<ftl::operators::FXAA>("fxaa");
 			post_pipe_->append<ftl::operators::GTAnalysis>("gtanalyse");
 		}
