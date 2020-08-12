@@ -279,6 +279,11 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		return;
 	}
 
+	if (tx == 0 || ty == 0) {
+		LOG(ERROR) << "No Packets";
+		return;
+	}
+
 	auto &surface = ividstate.surface[static_cast<int>(spkt.channel)];
 
 	// Allocate a decode surface, this is a tiled image to be split later
