@@ -87,3 +87,4 @@ windows-master:
     - win
   script:
     - *build-windows
+    - ctest
