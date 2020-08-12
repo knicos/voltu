@@ -58,7 +58,7 @@ LockedFrameSet LocalBuilder::get(int64_t timestamp, size_t ix) {
 		frameset_ = _allocate(timestamp);
 	}
 
-	LockedFrameSet lfs(frameset_.get(), frameset_->smtx);
+	LockedFrameSet lfs(frameset_.get(), &frameset_->smtx);
 	return lfs;
 }
 
@@ -68,7 +68,7 @@ LockedFrameSet LocalBuilder::get(int64_t timestamp) {
 		frameset_ = _allocate(timestamp);
 	}
 
-	LockedFrameSet lfs(frameset_.get(), frameset_->smtx);
+	LockedFrameSet lfs(frameset_.get(), &frameset_->smtx);
 	return lfs;
 }
 
@@ -227,20 +227,27 @@ LockedFrameSet ForeignBuilder::get(int64_t timestamp) {
 	UNIQUE_LOCK(mutex_, lk);
 
 	auto fs = _get(timestamp);
-	LockedFrameSet lfs(fs.get(), fs->smtx, [this,fs](ftl::data::FrameSet *d) {
-		if (fs->isComplete()) {
-			if (bufferSize_ == 0 && !fs->test(ftl::data::FSFlag::STALE)) {
-				UNIQUE_LOCK(mutex_, lk);
-				_schedule();
+
+	if (fs) {
+		LockedFrameSet lfs(fs.get(), &fs->smtx, [this,fs](ftl::data::FrameSet *d) {
+			if (fs->isComplete()) {
+				if (bufferSize_ == 0 && !fs->test(ftl::data::FSFlag::STALE)) {
+					UNIQUE_LOCK(mutex_, lk);
+					_schedule();
+				}
 			}
-		}
-	});
-	return lfs;
+		});
+		return lfs;
+	} else {
+		return LockedFrameSet();
+	}
 }
 
 std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_get(int64_t timestamp) {
 	if (timestamp <= last_frame_) {
-		throw FTL_Error("Frameset already completed: " << timestamp << " (" << last_frame_ << ")");
+		//throw FTL_Error("Frameset already completed: " << timestamp << " (" << last_frame_ << ")");
+		LOG(ERROR) << "Frameset already completed: " << timestamp << " (" << last_frame_ << ")";
+		return nullptr;
 	}
 
 	auto fs = _findFrameset(timestamp);
@@ -253,9 +260,9 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_get(int64_t timestamp) {
 		_schedule();
 	}
 
-	if (fs->test(ftl::data::FSFlag::STALE)) {
+	/*if (fs->test(ftl::data::FSFlag::STALE)) {
 		throw FTL_Error("Frameset already completed");
-	}
+	}*/
 	return fs;
 }
 
@@ -265,10 +272,13 @@ LockedFrameSet ForeignBuilder::get(int64_t timestamp, size_t ix) {
 
 		if (timestamp <= 0) throw FTL_Error("Invalid frame timestamp (" << timestamp << ")");
 		auto fs = _get(timestamp);
-		if (!fs) throw FTL_Error("No frameset for time " << timestamp);
 
-		LockedFrameSet lfs(fs.get(), fs->smtx);
-		return lfs;
+		if (fs) {
+			LockedFrameSet lfs(fs.get(), &fs->smtx);
+			return lfs;
+		} else {
+			return LockedFrameSet();
+		}
 	} else {
 		if (timestamp <= 0 || ix >= 32) throw FTL_Error("Invalid frame timestamp or index (" << timestamp << ", " << ix << ")");
 
@@ -280,24 +290,28 @@ LockedFrameSet ForeignBuilder::get(int64_t timestamp, size_t ix) {
 
 		auto fs = _get(timestamp);
 
-		if (ix >= fs->frames.size()) {
-			// FIXME: Check that no access to frames can occur without lock
-			UNIQUE_LOCK(fs->smtx, flk);
-			while (fs->frames.size() < size_) {
-				fs->frames.push_back(std::move(pool_->allocate(ftl::data::FrameID(fs->frameset(), + fs->frames.size()), fs->timestamp())));
-			}
-		}
-
-		LockedFrameSet lfs(fs.get(), fs->smtx, [this,fs](ftl::data::FrameSet *d) {
-			if (fs->isComplete()) {
-				if (bufferSize_ == 0 && !fs->test(ftl::data::FSFlag::STALE)) {
-					UNIQUE_LOCK(mutex_, lk);
-					_schedule();
+		if (fs) {
+			if (ix >= fs->frames.size()) {
+				// FIXME: Check that no access to frames can occur without lock
+				UNIQUE_LOCK(fs->smtx, flk);
+				while (fs->frames.size() < size_) {
+					fs->frames.push_back(std::move(pool_->allocate(ftl::data::FrameID(fs->frameset(), + fs->frames.size()), fs->timestamp())));
 				}
 			}
-		});
 
-		return lfs;
+			LockedFrameSet lfs(fs.get(), &fs->smtx, [this,fs](ftl::data::FrameSet *d) {
+				if (fs->isComplete()) {
+					if (bufferSize_ == 0 && !fs->test(ftl::data::FSFlag::STALE)) {
+						UNIQUE_LOCK(mutex_, lk);
+						_schedule();
+					}
+				}
+			});
+
+			return lfs;
+		} else {
+			return LockedFrameSet();
+		}
 	}
 }
 
@@ -376,6 +390,12 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_getFrameset() {
 		while (N-- > 0 && i != framesets_.end()) ++i;
 		if (i != framesets_.end()) f = *i;
 	} else {
+		// Force complete of old frame
+		if (framesets_.size() >= completion_size_) {
+			LOG(WARNING) << "Forced completion: " << framesets_.back()->timestamp();
+			framesets_.back()->mask = 0xFF;
+		}
+
 		// Always choose oldest frameset when it completes
 		if (framesets_.size() > 0 && framesets_.back()->isComplete()) f = framesets_.back();
 	}
@@ -412,9 +432,10 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_getFrameset() {
 }
 
 std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_addFrameset(int64_t timestamp) {
-	if (framesets_.size() >= 32) {
+	if (framesets_.size() >= max_buffer_size_) {
 		LOG(WARNING) << "Frameset buffer full, resetting: " << timestamp;
 		framesets_.clear();
+		//framesets_.pop_back();
 	}
 
 	auto newf = std::make_shared<FrameSet>(pool_, ftl::data::FrameID(id_,255), timestamp, size_);

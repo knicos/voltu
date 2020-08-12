@@ -78,7 +78,7 @@ class FrameSet : public ftl::data::Frame {
 	/**
 	 * Are all frames complete within this frameset?
 	 */
-	inline bool isComplete() { return mask != 0 && ftl::popcount(mask) == frames.size(); }
+	inline bool isComplete() { return mask != 0 && ftl::popcount(mask) >= frames.size(); }
 
 	/**
 	 * Check that a given frame is valid in this frameset.

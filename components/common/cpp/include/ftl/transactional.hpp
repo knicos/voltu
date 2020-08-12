@@ -15,30 +15,33 @@ class Transactional {
 	static_assert(std::is_pointer<T>::value, "Transactional type must be a pointer");
 
 	public:
-	Transactional(T obj, SHARED_MUTEX &mtx) : ref_(obj), mtx_(mtx), lock_(mtx_) {}
-	Transactional(T obj, SHARED_MUTEX &mtx, const std::function<void(T)> &complete) : ref_(obj), mtx_(mtx), lock_(mtx_), completed_(complete) {}
+	Transactional() : ref_(nullptr), mtx_(nullptr) {}
+	Transactional(T obj, SHARED_MUTEX *mtx) : ref_(obj), mtx_(mtx), lock_(*mtx_) {}
+	Transactional(T obj, SHARED_MUTEX *mtx, const std::function<void(T)> &complete) : ref_(obj), mtx_(mtx), lock_(*mtx_), completed_(complete) {}
 	Transactional(const Transactional &)=delete;
-	Transactional()=delete;
 	~Transactional() {
-		lock_.unlock();
+		if (lock_) lock_.unlock();
 		if (completed_) completed_(ref_);
 	}
 
-	Transactional(Transactional &&t) : ref_(t.ref_), mtx_(t.mtx_), lock_(mtx_), completed_(t.completed_) {
+	Transactional(Transactional &&t) : ref_(t.ref_), mtx_(t.mtx_), lock_(*mtx_), completed_(t.completed_) {
 		t.completed_ = nullptr;
 	}
 
 	Transactional &operator=(const Transactional &)=delete;
 
-	T operator->() { return ref_; }
-	const T operator->() const { return ref_; }
+	bool isValid() const { return ref_ != nullptr; }
+	operator bool() const { return ref_ != nullptr; }
 
-	T operator*() { return ref_; }
-	const T operator*() const { return ref_; }
+	T operator->() { if (!ref_) throw FTL_Error("Use of invalid frameset"); return ref_; }
+	const T operator->() const { if (!ref_) throw FTL_Error("Use of invalid frameset"); return ref_; }
+
+	T operator*() { if (!ref_) throw FTL_Error("Use of invalid frameset"); return ref_; }
+	const T operator*() const { if (!ref_) throw FTL_Error("Use of invalid frameset"); return ref_; }
 
 	private:
 	T ref_;
-	SHARED_MUTEX &mtx_;
+	SHARED_MUTEX *mtx_;
 	SHARED_LOCK_TYPE(SHARED_MUTEX) lock_;
 	std::function<void(T)> completed_;
 };

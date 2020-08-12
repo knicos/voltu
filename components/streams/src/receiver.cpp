@@ -44,7 +44,7 @@ Receiver::~Receiver() {
 void Receiver::loopback(ftl::data::Frame &f, ftl::codecs::Channel c) {
 	auto &build = builder(f.frameset());
 	auto fs = build.get(f.timestamp(), f.source());
-	fs->frames[f.source()].informChange(c, build.changeType(), f.getAnyMutable(c));
+	if (fs) fs->frames[f.source()].informChange(c, build.changeType(), f.getAnyMutable(c));
 }
 
 ftl::streams::BaseBuilder &Receiver::builder(uint32_t id) {
@@ -135,41 +135,57 @@ Receiver::InternalAudioStates &Receiver::_getAudioFrame(const StreamPacket &spkt
 void Receiver::_processData(const StreamPacket &spkt, const Packet &pkt) {
 	auto &build = builder(spkt.streamID);
 	auto fs = build.get(spkt.timestamp, spkt.frame_number);
-	auto &f = (spkt.frame_number == 255) ? **fs : fs->frames[spkt.frame_number];
 
-	// Remove LIVE capability if stream hints it is recorded
-	if (spkt.channel == Channel::Capabilities && (spkt.hint_capability & ftl::codecs::kStreamCap_Recorded)) {
-		std::any data;
-		ftl::data::decode_type<std::unordered_set<Capability>>(data, pkt.data);
+	if (fs) {
+		auto &f = (spkt.frame_number == 255) ? **fs : fs->frames[spkt.frame_number];
 
-		auto &cap = *std::any_cast<std::unordered_set<Capability>>(&data);
-		if (cap.count(Capability::LIVE)) {
-			cap.erase(Capability::LIVE);
+		// Remove LIVE capability if stream hints it is recorded
+		if (spkt.channel == Channel::Capabilities && (spkt.hint_capability & ftl::codecs::kStreamCap_Recorded)) {
+			std::any data;
+			ftl::data::decode_type<std::unordered_set<Capability>>(data, pkt.data);
+
+			auto &cap = *std::any_cast<std::unordered_set<Capability>>(&data);
+			if (cap.count(Capability::LIVE)) {
+				cap.erase(Capability::LIVE);
+			}
+			cap.emplace(Capability::STREAMED);
+
+			f.informChange(spkt.channel, build.changeType(), data);
+		} else if (spkt.channel == Channel::Pose && pkt.codec == ftl::codecs::codec_t::POSE) {
+			// TODO: Remove this eventually, it allows old FTL files to work
+			std::any data;
+			auto &pose = data.emplace<Eigen::Matrix4d>();
+			pose = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
+			f.informChange(spkt.channel, build.changeType(), data);
+		} else {
+			f.informChange(spkt.channel, build.changeType(), pkt);
 		}
-		cap.emplace(Capability::STREAMED);
 
-		f.informChange(spkt.channel, build.changeType(), data);
-	} else if (spkt.channel == Channel::Pose && pkt.codec == ftl::codecs::codec_t::POSE) {
-		// TODO: Remove this eventually, it allows old FTL files to work
-		std::any data;
-		auto &pose = data.emplace<Eigen::Matrix4d>();
-		pose = Eigen::Map<Eigen::Matrix4d>((double*)pkt.data.data());
-		f.informChange(spkt.channel, build.changeType(), data);
-	} else {
-		f.informChange(spkt.channel, build.changeType(), pkt);
-	}
+		if (spkt.channel == Channel::Calibration) {
+			const auto &calibration = std::get<0>(f.get<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(Channel::Calibration));
+			InternalVideoStates &ividstate = _getVideoFrame(spkt);
+			ividstate.width = calibration.width;
+			ividstate.height = calibration.height;
+		}
 
-	if (spkt.channel == Channel::Calibration) {
-		const auto &calibration = std::get<0>(f.get<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(Channel::Calibration));
+		// TODO: Adjust metadata also for recorded streams
+
+		fs->localTimestamp = spkt.localTimestamp;
+		_finishPacket(fs, spkt.frame_number);
+
+	// Still need to get the calibration data even if frameset is lost.
+	} else if (spkt.channel == Channel::Calibration) {
+		//LOG(WARNING) << "Calibration being missed in data";
 		InternalVideoStates &ividstate = _getVideoFrame(spkt);
-		ividstate.width = calibration.width;
-		ividstate.height = calibration.height;
+		std::any tany;
+		ftl::data::decode_type<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(tany, pkt.data);
+		auto *cal = std::any_cast<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(&tany);
+		if (cal) {
+			auto &calibration = std::get<0>(*cal);
+			ividstate.width = calibration.width;
+			ividstate.height = calibration.height;
+		}
 	}
-
-	// TODO: Adjust metadata also for recorded streams
-
-	fs->localTimestamp = spkt.localTimestamp;
-	_finishPacket(fs, spkt.frame_number);
 }
 
 ftl::audio::Decoder *Receiver::_createAudioDecoder(InternalAudioStates &frame, const ftl::codecs::Packet &pkt) {
@@ -185,23 +201,28 @@ void Receiver::_processAudio(const StreamPacket &spkt, const Packet &pkt) {
 
 	auto &build = builder(spkt.streamID);
 	auto fs = build.get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
-	auto &frame = fs->frames[spkt.frame_number];
 
-	auto &audiolist = frame.createChange<std::list<ftl::audio::Audio>>(spkt.channel, build.changeType(), pkt);
-	auto &audio = audiolist.emplace_back();
+	if (fs) {
+		auto &frame = fs->frames[spkt.frame_number];
 
-	ftl::audio::Decoder *dec = _createAudioDecoder(state, pkt);
-	if (!dec) {
-		LOG(ERROR) << "Could get an audio decoder";
-		return;
+		auto &audiolist = frame.createChange<std::list<ftl::audio::Audio>>(spkt.channel, build.changeType(), pkt);
+		auto &audio = audiolist.emplace_back();
+
+		ftl::audio::Decoder *dec = _createAudioDecoder(state, pkt);
+		if (!dec) {
+			LOG(ERROR) << "Could get an audio decoder";
+			return;
+		}
+		if (!dec->decode(pkt, audio.data())) {
+			LOG(ERROR) << "Audio decode failed";
+			return;
+		}
+
+		fs->localTimestamp = spkt.localTimestamp;
+		_finishPacket(fs, spkt.frame_number);
+	} else {
+		LOG(WARNING) << "Audio data being lost";
 	}
-	if (!dec->decode(pkt, audio.data())) {
-		LOG(ERROR) << "Audio decode failed";
-		return;
-	}
-
-	fs->localTimestamp = spkt.localTimestamp;
-	_finishPacket(fs, spkt.frame_number);
 }
 
 namespace sgm {
@@ -272,6 +293,11 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		}
 	}
 
+	if (!fs) {
+		LOG(WARNING) << "Dropping a video frame";
+		return;
+	}
+
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(decoder->stream());
 
 	// Mark a frameset as being partial
@@ -319,7 +345,10 @@ void Receiver::_finishPacket(ftl::streams::LockedFrameSet &fs, size_t fix) {
 
 	if (frame.packet_tx > 0 && frame.packet_tx == frame.packet_rx) {
 		fs->completed(fix);
-		if (fs->isComplete()) timestamp_ = fs->timestamp();
+		if (fs->isComplete()) {
+			//LOG(INFO) << "COMPLETE: " << fs->timestamp() << ", " << fix;
+			timestamp_ = fs->timestamp();
+		}
 		frame.packet_tx = 0;
 		frame.packet_rx = 0;
 	}
@@ -330,8 +359,12 @@ void Receiver::processPackets(const StreamPacket &spkt, const Packet &pkt) {
 
 	if (spkt.channel == Channel::EndFrame) {
 		auto fs = builder(spkt.streamID).get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
-		fs->frames[spkt.frame_number].packet_tx = static_cast<int>(pkt.packet_count);
-		_finishPacket(fs, spkt.frame_number);
+
+		if (fs) {
+			fs->frames[spkt.frame_number].packet_tx = static_cast<int>(pkt.packet_count);
+			//LOG(INFO) << "EXPECTED " << fs->frames[spkt.frame_number].packet_tx << " for " << int(spkt.frame_number);
+			_finishPacket(fs, spkt.frame_number);
+		}
 		return;
 	}
 
@@ -340,15 +373,18 @@ void Receiver::processPackets(const StreamPacket &spkt, const Packet &pkt) {
 		if (spkt.streamID < 255 && !(spkt.flags & ftl::codecs::kFlagRequest)) {
 			// Get the frameset
 			auto fs = builder(spkt.streamID).get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
-			const auto *cs = stream_;
-			const auto sel = stream_->selected(spkt.frameSetID()) & cs->available(spkt.frameSetID());
 
-			fs->localTimestamp = spkt.localTimestamp;
+			if (fs) {
+				const auto *cs = stream_;
+				const auto sel = stream_->selected(spkt.frameSetID()) & cs->available(spkt.frameSetID());
 
-			for (auto &frame : fs->frames) {
-				frame.markAvailable(spkt.channel);
+				fs->localTimestamp = spkt.localTimestamp;
+
+				for (auto &frame : fs->frames) {
+					frame.markAvailable(spkt.channel);
+				}
+				_finishPacket(fs, spkt.frame_number);
 			}
-			_finishPacket(fs, spkt.frame_number);
 		}
 		return;
 	}
