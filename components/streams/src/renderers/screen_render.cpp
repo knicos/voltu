@@ -64,6 +64,8 @@ ScreenRender::ScreenRender(ftl::render::Source *host, ftl::stream::Feed *feed)
 			filter_ = feed_->filter({Channel::Colour, Channel::Depth});
 		}
 	});
+
+	calibration_uptodate_.clear();
 }
 
 ScreenRender::~ScreenRender() {

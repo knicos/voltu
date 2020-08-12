@@ -21,6 +21,10 @@ enum class StatisticsPanel {
 class Statistics : public Module {
 public:
 	using Module::Module;
+
+	//Statistics();
+	~Statistics();
+
 	virtual void init() override;
 	virtual void update(double delta) override;
 

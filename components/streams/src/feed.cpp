@@ -1153,6 +1153,7 @@ bool Feed::_isRecording() {
 }
 
 ftl::data::FrameSetPtr Feed::getFrameSet(uint32_t fsid) {
+	SHARED_LOCK(mtx_, lk);
 	if (latest_.count(fsid) == 0) {
 		throw ftl::exception("No FrameSet with given ID");
 	}

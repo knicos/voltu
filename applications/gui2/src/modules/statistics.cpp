@@ -10,6 +10,12 @@
 
 #include <loguru.hpp>
 
+#include <nvml.h>
+
+#ifdef WIN32
+#pragma comment(lib, "nvml")
+#endif
+
 using ftl::gui2::Statistics;
 using ftl::gui2::StatisticsPanel;
 
@@ -21,6 +27,10 @@ std::string to_string_with_precision(const T a_value, const int n = 6) {
 	return out.str();
 }
 
+Statistics::~Statistics() {
+	nvmlShutdown();
+}
+
 void Statistics::update(double delta) {
 	time_count_ += delta;
 	if (time_count_ > 1.0) {
@@ -29,10 +39,41 @@ void Statistics::update(double delta) {
 			getJSON(StatisticsPanel::PERFORMANCE_INFO)["Bitrate"] = to_string_with_precision(bitrate, 1) + std::string("Mbit/s");
 		}
 		time_count_ = 0.0;
+
+		size_t gpu_free_mem;
+		size_t gpu_total_mem;
+		cudaSafeCall(cudaMemGetInfo(&gpu_free_mem, &gpu_total_mem));
+		float gpu_mem = 1.0f - (float(gpu_free_mem) / float(gpu_total_mem));
+		getJSON(StatisticsPanel::PERFORMANCE_INFO)["GPU Memory"] = to_string_with_precision(gpu_mem*100.0f, 1) + std::string("%");
+
+		nvmlDevice_t device;
+        auto result = nvmlDeviceGetHandleByIndex(0, &device);
+		nvmlUtilization_st device_utilization;
+        result = nvmlDeviceGetUtilizationRates(device, &device_utilization);
+		getJSON(StatisticsPanel::PERFORMANCE_INFO)["GPU Usage"] = std::to_string(device_utilization.gpu) + std::string("%");
+
+		unsigned int decode_util;
+		unsigned int decode_period;
+		result = nvmlDeviceGetDecoderUtilization(device, &decode_util, &decode_period);
+		getJSON(StatisticsPanel::PERFORMANCE_INFO)["GPU Decoder"] = std::to_string(decode_util) + std::string("%");
+
+		// Doesn't seem to work
+		unsigned int encoder_sessions=0;
+		unsigned int encoder_fps;
+		unsigned int encoder_latency;
+		result = nvmlDeviceGetEncoderStats(device, &encoder_sessions, &encoder_fps, &encoder_latency);
+
+		unsigned int encoder_util;
+		unsigned int encoder_period;
+		result = nvmlDeviceGetEncoderUtilization(device, &encoder_util, &encoder_period);
+		getJSON(StatisticsPanel::PERFORMANCE_INFO)["GPU Encoder"] = std::to_string(encoder_util) + std::string("% (") + std::to_string(encoder_sessions) + std::string(")");
 	}
 }
 
 void Statistics::init() {
+	auto result = nvmlInit();
+    if (result != NVML_SUCCESS) throw FTL_Error("No NVML");
+
 	/**
 	 * TODO: store all values in hash table and allow other modules to
 	 * add/remove items/groups.
