@@ -36,6 +36,20 @@ Receiver::Receiver(nlohmann::json &config, ftl::data::Pool *p) : ftl::Configurab
 			i.second->setBufferSize(bsize);
 		}
 	});
+
+	on("max_buffer_size", [this]() {
+		size_t bsize = value("max_buffer_size", 16);
+		for (auto &i : builders_) {
+			i.second->setMaxBufferSize(bsize);
+		}
+	});
+
+	on("completion_size", [this]() {
+		size_t bsize = value("completion_size", 8);
+		for (auto &i : builders_) {
+			i.second->setCompletionSize(bsize);
+		}
+	});
 }
 
 Receiver::~Receiver() {
@@ -56,6 +70,8 @@ ftl::streams::BaseBuilder &Receiver::builder(uint32_t id) {
 		b->setID(id);
 		b->setPool(pool_);
 		fb->setBufferSize(value("frameset_buffer_size", 0));
+		fb->setBufferSize(value("max_buffer_size", 16));
+		fb->setBufferSize(value("completion_size", 8));
 		handles_[id] = std::move(fb->onFrameSet([this](const ftl::data::FrameSetPtr& fs) {
 			callback_.trigger(fs);
 			return true;

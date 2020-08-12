@@ -33,6 +33,8 @@ class BaseBuilder : public ftl::data::Generator {
 	void setID(uint32_t id) { id_ = id; }
 	void setPool(ftl::data::Pool *p) { pool_ = p; }
 	void setBufferSize(size_t s) { bufferSize_ = s; }
+	void setMaxBufferSize(size_t s) { max_buffer_size_ = s; }
+	void setCompletionSize(size_t s) { completion_size_ = s; }
 
 	inline ftl::Handle onFrameSet(const ftl::data::FrameSetCallback &cb) override { return cb_.on(cb); }
 
@@ -53,6 +55,8 @@ class BaseBuilder : public ftl::data::Generator {
 	int id_;
 	size_t size_;
 	size_t bufferSize_ = 1;
+	size_t max_buffer_size_ = 16;
+	size_t completion_size_ = 8;
 	ftl::Handler<const ftl::data::FrameSetPtr&> cb_;
 	ftl::data::ChangeType ctype_ = ftl::data::ChangeType::COMPLETED;
 };
@@ -153,8 +157,6 @@ class ForeignBuilder : public BaseBuilder {
 	std::atomic<int> jobs_;
 	volatile bool skip_;
 	ftl::Handle main_id_;
-	size_t max_buffer_size_ = 16;
-	size_t completion_size_ = 8;
 
 	std::string name_;
 
