@@ -25,8 +25,8 @@ Frame Pool::allocate(FrameID id, int64_t timestamp) {
 		UNIQUE_LOCK(mutex_, lk);
 		auto &pool = _getPool(id);
 
-		if (timestamp < pool.last_timestamp) {
-			timestamp = pool.last_timestamp;
+		if (timestamp <= pool.last_timestamp) {
+			//timestamp = pool.last_timestamp;
 			//throw FTL_Error("New frame timestamp is older than previous: " << timestamp << " vs " << pool.last_timestamp);
 		}
 

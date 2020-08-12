@@ -154,8 +154,19 @@ void Sender::_send(ftl::rgbd::FrameSet &fs, ftl::codecs::StreamPacket &spkt, con
 		spkt.flags = ftl::codecs::kFlagCompleted;
 	}*/
 
+	if (spkt.frame_number == 255) LOG(WARNING) << "Bad frame number";
+
 	if (spkt.frame_number == 255) ++fs.frames[0].packet_tx;
-	else if (spkt.frame_number < fs.frames.size()) ++fs.frames[spkt.frame_number].packet_tx;
+	else if (spkt.frame_number < fs.frames.size() && fs.frames[spkt.frame_number].source() == spkt.frame_number) ++fs.frames[spkt.frame_number].packet_tx;
+	else {
+		// Find the correct frame
+		for (auto &f : fs.frames) {
+			if (f.source() == spkt.frame_number) {
+				++f.packet_tx;
+				break;
+			}
+		}
+	}
 	stream_->post(spkt, pkt);
 }
 
@@ -183,7 +194,7 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 		pkt.codec = codec_t::Invalid;
 
 		for (size_t i=0; i<fs.frames.size(); ++i) {
-			spkt.frame_number = i;
+			spkt.frame_number = fs.frames[i].source();
 			pkt.packet_count = static_cast<uint8_t>(fs.frames[i].packet_tx+1);  // FIXME: 255 limit currently
 			_send(fs, spkt, pkt);
 		}
@@ -268,7 +279,7 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 				spkt.timestamp = fs.timestamp();
 				spkt.localTimestamp = fs.localTimestamp;
 				spkt.streamID = fs.frameset(); //fs.id;
-				spkt.frame_number = i;
+				spkt.frame_number = frame.source();
 				spkt.channel = c;
 				//spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 
@@ -494,7 +505,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 		spkt.timestamp = fs.timestamp();
 		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
-		spkt.frame_number = offset;
+		spkt.frame_number = fs.frames[offset].source();
 		spkt.channel = c;
 
 		auto &tile = _getTile(fs.id(), cc);
@@ -589,7 +600,7 @@ void Sender::_encodeAudioChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 		spkt.timestamp = fs.timestamp();
 		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
-		spkt.frame_number = i;
+		spkt.frame_number = fs.frames[i].source();
 		spkt.channel = c;
 		//spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 
@@ -630,7 +641,7 @@ void Sender::_encodeDataChannel(ftl::data::FrameSet &fs, Channel c, bool reset) 
 		spkt.timestamp = fs.timestamp();
 		spkt.localTimestamp = fs.localTimestamp;
 		spkt.streamID = fs.frameset();
-		spkt.frame_number = i++;
+		spkt.frame_number = f.source();
 		spkt.channel = c;
 		//spkt.flags = (last_flush) ? ftl::codecs::kFlagCompleted : 0;
 

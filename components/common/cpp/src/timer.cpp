@@ -223,7 +223,12 @@ static void trigger_jobs() {
 		// If last job in list then do in this thread
 		if (active_jobs == static_cast<int>(jobs[kTimerMain].size())+1) {
 			lk.unlock();
-			bool doremove = !pj->job.trigger(ts);
+			bool doremove = true;
+			try {
+				doremove = !pj->job.trigger(ts);
+			} catch(const std::exception &e) {
+				LOG(ERROR) << "Exception in timer job: " << e.what();
+			}
 			pj->active = false;
 			active_jobs--;
 			if (doremove) removeJob(pj->id);
@@ -231,7 +236,12 @@ static void trigger_jobs() {
 			break;
 		} else {
 			ftl::pool.push([pj,ts](int id) {
-				bool doremove = !pj->job.trigger(ts);
+				bool doremove = true;
+				try {
+					doremove = !pj->job.trigger(ts);
+				} catch(const std::exception &e) {
+					LOG(ERROR) << "Exception in timer job: " << e.what();
+				}
 				pj->active = false;
 				active_jobs--;
 				if (doremove) removeJob(pj->id);

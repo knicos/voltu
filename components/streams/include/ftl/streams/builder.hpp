@@ -153,6 +153,8 @@ class ForeignBuilder : public BaseBuilder {
 	std::atomic<int> jobs_;
 	volatile bool skip_;
 	ftl::Handle main_id_;
+	size_t max_buffer_size_ = 16;
+	size_t completion_size_ = 8;
 
 	std::string name_;
 
