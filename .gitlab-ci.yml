@@ -87,4 +87,5 @@ windows-master:
     - win
   script:
     - *build-windows
+    - set PATH=%PATH%;C:/Shared/Deploy
     - ctest
