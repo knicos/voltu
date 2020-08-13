@@ -341,7 +341,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 				}
 			}
 
-			rgbdframe.setPose() = initial_pose_*viewPose;
+			rgbdframe.setPose() = viewPose; //initial_pose_*viewPose;
 
 		} else {
 			LOG(ERROR) << "No VR Pose";
