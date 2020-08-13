@@ -392,13 +392,13 @@ void CUDARender::_allocateChannels(ftl::rgbd::Frame &out, ftl::codecs::Channel c
 		//}
 	// Allocate right channel buffers and clear them
 	} else {
-		if (!out.hasChannel(Channel::Depth2)) {
+		//if (!out.hasChannel(Channel::Depth2)) {
 			out.create<VideoFrame>(Channel::Depth2).createGPU(Format<float>(camera.width, camera.height));
 			out.create<VideoFrame>(Channel::Colour2).createGPU(Format<uchar4>(camera.width, camera.height));
 			out.create<VideoFrame>(Channel::Normals2).createGPU(Format<half4>(camera.width, camera.height));
 			out.createTexture<uchar4>(Channel::Colour2, ftl::rgbd::Format<uchar4>(camera.width, camera.height), true);  // Force interpolated colour
 			out.set<GpuMat>(Channel::Depth2).setTo(cv::Scalar(1000.0f), cvstream);
-		}
+		//}
 	}
 	
 	temp_.create<VideoFrame>(Channel::Depth).createGPU(Format<int>(camera.width, camera.height));
