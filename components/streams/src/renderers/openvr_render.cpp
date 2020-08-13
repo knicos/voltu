@@ -251,6 +251,8 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			meta["id"] = host_->getID();
 			meta["uri"] = std::string("device:openvr");
 			meta["device"] = std::string("OpenVR Render");
+
+			vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
 		}
 		//if (!frame_out.has(Channel::Pose)) {
 		//	rgbdframe.setPose() = Eigen::Matrix4d::Identity();
@@ -259,8 +261,9 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		int width = rgbdframe.getLeft().width;
 		int height = rgbdframe.getLeft().height;
 
-		vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
+		LOG(INFO) << "WAIT GET POSE";
 		auto vrerr = vr::VRCompositor()->WaitGetPoses(rTrackedDevicePose_, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
+		LOG(INFO) << "GOT POSE";
 
 		if (vrerr != vr::VRCompositorError_None) {
 			frame_out.message(ftl::data::Message::Error_OPENVR, "Could not get VR pose");
@@ -348,6 +351,8 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 		// TODO: Get controller data if available...
 
+		LOG(INFO) << "MAKE OPENGL TEXTURES";
+
 		texture1_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 		texture2_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 		
@@ -367,6 +372,8 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		if (origin_name.size() > 0) {
 			ftl::operators::Poser::get(origin_name, origin);
 		}*/
+
+		LOG(INFO) << "START RENDER";
 
 		try {
 			renderer_->begin(rgbdframe, ftl::codecs::Channel::Left);
@@ -436,6 +443,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 				}
 			}
 
+			LOG(INFO) << "START MIX";
 			mixer_.mix();
 
 			// Write mixed audio to frame.
@@ -446,6 +454,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 				int fcount = mixer_.frames();
 				mixer_.read(list.emplace_front().data(), fcount);
 			}
+			LOG(INFO) << "END MIX";
 
 			// TODO: Blend option
 
@@ -458,6 +467,8 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			frame_out.message(ftl::data::Message::Error_RENDER, e.what());
 		}
 
+		LOG(INFO) << "END RENDER";
+
 		if (!post_pipe_) {
 			post_pipe_ = ftl::config::create<ftl::operators::Graph>(host(), "post_filters");
 			post_pipe_->append<ftl::operators::Poser>("poser");
@@ -467,18 +478,25 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 		post_pipe_->apply(rgbdframe, rgbdframe, 0);
 
+		LOG(INFO) << "END PIPELINE";
+
 		if (host_->value("enable_touch", false)) {
 			ftl::render::collision2touch(rgbdframe, renderer_->getCollisions(), sets, my_id_, host_->value("touch_min", 0.01f), host_->value("touch_max", 0.05f));
 		}
+
+		LOG(INFO) << "FINISHED TOUCH DATA";
 
 		// FIXME: Use a stream
 		ftl::cuda::flip<uchar4>(rgbdframe.set<cv::cuda::GpuMat>(Channel::Colour), 0);
 		ftl::cuda::flip<uchar4>(rgbdframe.set<cv::cuda::GpuMat>(Channel::Colour2), 0);
 
+		LOG(INFO) << "DONE FLIP";
+
 		texture1_.unmap(renderer_->getCUDAStream());
 		texture2_.unmap(renderer2_->getCUDAStream());
 		//return true;
 
+		LOG(INFO) << "UNMAP AND SEND TO VR";
 
 		// Send left and right textures to VR headset
 		vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)texture1_.texture(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
@@ -486,7 +504,9 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		vr::Texture_t rightEyeTexture = {(void*)(uintptr_t)texture2_.texture(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 		vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
 
+		LOG(INFO) << "ABOUT TO FLUSH";
 		glFlush();
+		LOG(INFO) << "FINISH VR FRAME";
 
 	}
 
