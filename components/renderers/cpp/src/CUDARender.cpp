@@ -538,6 +538,7 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 
 	// Reset collision data.
 	cudaSafeCall(cudaMemsetAsync(collisions_, 0, sizeof(int), stream_));
+	cudaSafeCall(cudaStreamSynchronize(stream_));
 }
 
 void CUDARender::render() {
@@ -584,6 +585,7 @@ void CUDARender::_endSubmit() {
 		scene_ = s.fs;
 		try {
 			_renderPass2(s.channels, s.transform);
+			cudaSafeCall(cudaStreamSynchronize(stream_));
 		} catch(std::exception &e) {
 			LOG(ERROR) << "Exception in render: " << e.what();
 		}
@@ -610,8 +612,7 @@ void CUDARender::_end() {
 
 	LOG(INFO) << "ABOUT TO COPY COLLISIONS";
 
-	//cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
-	collisions_host_[0].screen = 0;
+	cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
 
 	LOG(INFO) << "SYNC STREAM";
 	cudaSafeCall(cudaStreamSynchronize(stream_));
@@ -665,7 +666,7 @@ bool CUDARender::submit(ftl::data::FrameSet *in, Channels<0> chans, const Eigen:
 
 	try {
 		_renderPass1(t);
-		//cudaSafeCall(cudaStreamSynchronize(stream_));
+		cudaSafeCall(cudaStreamSynchronize(stream_));
 	} catch (const ftl::exception &e) {
 		LOG(ERROR) << "Exception in render: " << e.what();
 		success = false;
