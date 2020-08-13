@@ -81,11 +81,12 @@ windows-master:
     - master
   stage: all
   variables:
-    CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE'
+    CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE -DBUILD_TESTS=FALSE'
     DEPLOY_DIR: 'C:/Shared/AutoDeploy'
   tags:
     - win
   script:
     - *build-windows
-    - set PATH=%PATH%;C:/Shared/Deploy
-    - ctest --output-on-failure --timeout 30
+
+#    - set PATH=%PATH%;C:/Shared/Deploy
+#    - ctest --output-on-failure --timeout 30

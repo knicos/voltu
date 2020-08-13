@@ -611,8 +611,10 @@ void CUDARender::_end() {
 	LOG(INFO) << "ABOUT TO COPY COLLISIONS";
 
 	cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
+	LOG(INFO) << "SYNC STREAM";
 	cudaSafeCall(cudaStreamSynchronize(stream_));
 
+	LOG(INFO) << "COLLISION COUNT = " << collisions_host_[0].screen;
 	// Convert collisions into camera coordinates.
 	collision_points_.resize(collisions_host_[0].screen);
 	for (uint i=1; i<collisions_host_[0].screen+1; ++i) {
