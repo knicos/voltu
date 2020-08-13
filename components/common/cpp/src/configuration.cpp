@@ -23,6 +23,7 @@
 #include <ftl/threads.hpp>
 #include <ftl/timer.hpp>
 #include <ftl/cuda_common.hpp>
+#include <ftl/file.hpp>
 
 #include <ftl/profiler.hpp>
 
@@ -39,7 +40,10 @@ using std::string;
 using std::map;
 using std::vector;
 using std::optional;
-using ftl::is_file;
+
+using ftl::file::is_file;
+using ftl::file::config_dir;
+
 using ftl::is_directory;
 using ftl::Configurable;
 
@@ -71,21 +75,6 @@ bool ftl::is_directory(const std::string &path) {
 	struct stat s;
 	if (::stat(path.c_str(), &s) == 0) {
 		return S_ISDIR(s.st_mode);
-	} else {
-		return false;
-	}
-#endif
-}
-
-bool ftl::is_file(const std::string &path) {
-#ifdef WIN32
-	DWORD attrib = GetFileAttributesA(path.c_str());
-	if (attrib == INVALID_FILE_ATTRIBUTES) return false;
-	else return !(attrib & FILE_ATTRIBUTE_DIRECTORY);
-#else
-	struct stat s;
-	if (::stat(path.c_str(), &s) == 0) {
-		return S_ISREG(s.st_mode);
 	} else {
 		return false;
 	}
@@ -125,7 +114,7 @@ std::vector<std::string> ftl::directory_listing(const std::string &path) {
 }
 
 static bool endsWith(const string &s, const string &e) {
-	return s.size() >= e.size() && 
+	return s.size() >= e.size() &&
 				s.compare(s.size() - e.size(), e.size(), e) == 0;
 }
 
@@ -155,7 +144,7 @@ optional<string> ftl::config::locateFile(const string &name) {
 	if (is_file(name)) return name;
 
 	auto paths = rootCFG->getConfig()["paths"];
-	
+
 	if (paths.is_array()) {
 		vector<string> vpaths = paths.get<vector<string>>();
 		for (string p : vpaths) {
@@ -163,16 +152,16 @@ optional<string> ftl::config::locateFile(const string &name) {
 				if (is_file(p+"/"+name)) {
 					return p+"/"+name;
 				}
-			} else if (p.size() >= name.size() && 
+			} else if (p.size() >= name.size() &&
 					p.compare(p.size() - name.size(), name.size(), name) == 0 &&
 					is_file(p)) {
 				return p;
 			}
 		}
 	}
-	
+
 	if (is_file("./"+name)) return "./"+name;
-	if (is_file(string(FTL_LOCAL_CONFIG_ROOT) +"/"+ name)) return string(FTL_LOCAL_CONFIG_ROOT) +"/"+ name;
+	if (is_file(config_dir("ftl") / name)) return (ftl::file::config_dir("ftl") / name).string();
 	if (is_file(string(FTL_GLOBAL_CONFIG_ROOT) +"/"+ name)) return string(FTL_GLOBAL_CONFIG_ROOT) +"/"+ name;
 	return {};
 }
@@ -287,7 +276,7 @@ ftl::Configurable *ftl::config::find(const std::string &uri) {
 	}
 
 	SHARED_LOCK(mutex, lk);
-	
+
 	auto ix = config_instance.find(actual_uri);
 	if (ix == config_instance.end()) {
 		auto ix = config_alias.find(actual_uri);
@@ -512,7 +501,7 @@ json_t &ftl::config::resolve(json_t &j) {
 static bool findConfiguration(const string &file, const vector<string> &paths) {
 	bool f = false;
 	bool found = false;
-	
+
 	if (file.length() > 0) {
 		f = mergeConfig(file.substr(1,file.length()-2));
 		found |= f;
@@ -546,7 +535,7 @@ static bool findConfiguration(const string &file, const vector<string> &paths) {
 		f = mergeConfig("./config.jsonc");
 		found |= f;
 		if (f) LOG(INFO) << "Loaded config: " << "./config.jsonc";
-		
+
 		for (auto p : paths) {
 			if (is_directory(p)) {
 				f = mergeConfig(p+"/config.json");
@@ -648,8 +637,8 @@ static void signalIntHandler( int signum ) {
    if (sig_int_called) quick_exit(-1);
    sig_int_called = true;
 
-   // cleanup and close up stuff here  
-   // terminate program  
+   // cleanup and close up stuff here
+   // terminate program
 
    ftl::running = false;
 }
@@ -871,7 +860,7 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 
 	// Process Arguments
 	auto options = ftl::config::read_options(&argv, &argc);
-	
+
 	vector<string> paths(argc);
 	while (argc-- > 0) {
 		paths.push_back(argv[0]);

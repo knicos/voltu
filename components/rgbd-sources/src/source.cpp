@@ -1,4 +1,6 @@
 #include <loguru.hpp>
+#include <ftl/file.hpp>
+
 #include <ftl/rgbd/source.hpp>
 #include "basesource.hpp"
 #include <ftl/threads.hpp>
@@ -29,6 +31,8 @@ using ftl::rgbd::detail::ScreenCapture;
 using ftl::codecs::Channel;
 using ftl::rgbd::Camera;
 
+using ftl::file::is_file;
+
 Source::Source(ftl::config::json_t &cfg) : Configurable(cfg) {
 	impl_ = nullptr;
 	stream_ = 0;
@@ -57,7 +61,7 @@ static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *ho
 	if (eix == string::npos) {
 		// Might be a directory
 		if (ftl::is_directory(path)) {
-			if (ftl::is_file(path + "/video.mp4")) {
+			if (is_file(path + "/video.mp4")) {
 				return new StereoVideoSource(host, path);
 //			} else if (ftl::is_file(path + "/im0.png")) {
 //				return new MiddleburySource(this, path);
@@ -67,7 +71,7 @@ static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *ho
 		} else {
 			return nullptr;
 		}
-	} else if (ftl::is_file(path)) {
+	} else if (is_file(path)) {
 		string ext = path.substr(eix+1);
 
 		if (ext == "ftl") {
@@ -81,7 +85,7 @@ static ftl::rgbd::BaseSourceImpl *createFileImpl(const ftl::URI &uri, Source *ho
 		} else if (ext == "mp4") {
 			return new StereoVideoSource(host, path);
 		} else {
-			LOG(WARNING) << "Unrecognised file type: " << path;	
+			LOG(WARNING) << "Unrecognised file type: " << path;
 		}
 	} else {
 		LOG(WARNING) << "File does not exist: " << path;
