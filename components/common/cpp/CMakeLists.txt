@@ -12,6 +12,7 @@ set(COMMONSRC
 	src/timer.cpp
 	src/profiler.cpp
 	src/exception.cpp
+	src/file.cpp
 	src/utility/base64.cpp
 )
 
@@ -27,7 +28,11 @@ target_include_directories(ftlcommon PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlcommon Threads::Threads Eigen3::Eigen ${OS_LIBS} ${OpenCV_LIBS} ${URIPARSER_LIBRARIES} ${CUDA_LIBRARIES})
+# for gcc < 9, not required for newer versions
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+	set(CXX_FILESYSTEM_LIBRARIES "stdc++fs")
+endif()
+target_link_libraries(ftlcommon Threads::Threads Eigen3::Eigen ${OS_LIBS} ${OpenCV_LIBS} ${URIPARSER_LIBRARIES} ${CUDA_LIBRARIES} ${CXX_FILESYSTEM_LIBRARIES})
 
 target_precompile_headers(ftlcommon
 	PRIVATE include/ftl/cuda_common.hpp

@@ -20,7 +20,6 @@ extern std::string branch_name;
 class Configurable;
 
 bool is_directory(const std::string &path);
-bool is_file(const std::string &path);
 bool create_directory(const std::string &path);
 bool is_video(const std::string &file);
 std::vector<std::string> directory_listing(const std::string &path);

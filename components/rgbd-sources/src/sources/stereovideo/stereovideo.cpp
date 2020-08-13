@@ -1,5 +1,7 @@
 #include <loguru.hpp>
 
+#include <ftl/file.hpp>
+
 #include <unordered_set>
 
 #include <Eigen/Eigen>
@@ -42,6 +44,7 @@ using ftl::codecs::Channel;
 using std::string;
 using ftl::rgbd::Capability;
 
+using ftl::file::config_dir;
 
 static cv::Mat rmat(const cv::Vec3d &rvec) {
 	cv::Mat R(cv::Size(3, 3), CV_64FC1);
@@ -165,10 +168,12 @@ void StereoVideoSource::init(const string &file) {
 	}
 	else {
 		fname_calib_ = fname_config ?	*fname_config :
-										string(FTL_LOCAL_CONFIG_ROOT) + "/"
-										+ std::string("calibration.yml");
+										(config_dir() / "ftl" / "calibration.yml").string();
 
-		LOG(ERROR) << "No calibration file found, calibration will be saved to " + fname;
+		LOG(ERROR)	<< "No calibration file found in "
+					<< fname_calib_
+					<< ". Calibration will be saved to "
+					<< fname;
 	}
 
 	// Generate camera parameters for next frame
