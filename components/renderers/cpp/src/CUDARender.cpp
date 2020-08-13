@@ -273,6 +273,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		// Calculate and save virtual view screen position of each source pixel
 		if (f.hasChannel(Channel::Depth)) {
+			LOG(INFO) << "DEPTH SCREEN COORD";
 			ftl::cuda::screen_coord(
 				f.createTexture<float>(Channel::Depth),
 				depthbuffer,
@@ -287,6 +288,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 				params_, transform, f.getLeftCamera(), stream
 			);
 		} else {
+			LOG(INFO) << "NON-DEPTH SCREEN COORD";
 			// Constant depth version
 			ftl::cuda::screen_coord(
 				depthbuffer,
@@ -302,6 +304,9 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		depth_out_.to_gpumat().setTo(cv::Scalar(1000.0f), cvstream);
 
+		LOG(INFO) << "MESH BEFORE TRIANGLES";
+		cudaSafeCall(cudaStreamSynchronize(stream_));
+
 		// Decide on and render triangles around each point
 		ftl::cuda::triangle_render1(
 			depthbuffer,
@@ -312,6 +317,9 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		// TODO: Reproject here
 		// And merge based upon weight adjusted distances
+
+		LOG(INFO) << "MESH BLENDER";
+		cudaSafeCall(cudaStreamSynchronize(stream_));
 
 		if (do_blend) {
 			// Blend this sources mesh with previous meshes
@@ -352,9 +360,6 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), depth_out_, 1.0f / 100000.0f, stream_);
 	}
 
-	LOG(INFO) << "MESH PART 2";
-	cudaSafeCall(cudaStreamSynchronize(stream_));
-
 	// Now merge new render to any existing frameset render, detecting collisions
 	ftl::cuda::touch_merge(depth_out_, out.createTexture<float>(_getDepthChannel()), collisions_, 1024, touch_dist_, stream_);
 
@@ -367,10 +372,6 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		out.getTexture<float>(_getDepthChannel()),
 		value("normal_radius", 1), value("normal_smoothing", 0.02f),
 		params_.camera, pose_.getFloat3x3(), poseInverse_.getFloat3x3(), stream_);
-
-	LOG(INFO) << "MESH PART 3";
-	cudaSafeCall(cudaStreamSynchronize(stream_));
-	LOG(INFO) << "MESH DONE";
 }
 
 void CUDARender::_allocateChannels(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
