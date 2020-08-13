@@ -539,6 +539,7 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 	// Reset collision data.
 	cudaSafeCall(cudaMemsetAsync(collisions_, 0, sizeof(int), stream_));
 	cudaSafeCall(cudaStreamSynchronize(stream_));
+	LOG(INFO) << "FINISH BEGIN RENDER";
 }
 
 void CUDARender::render() {
@@ -584,8 +585,10 @@ void CUDARender::_endSubmit() {
 	for (auto &s : sets_) {
 		scene_ = s.fs;
 		try {
+			LOG(INFO) << "START RENDERPASS 2";
 			_renderPass2(s.channels, s.transform);
 			cudaSafeCall(cudaStreamSynchronize(stream_));
+			LOG(INFO) << "END RENDERPASS 2";
 		} catch(std::exception &e) {
 			LOG(ERROR) << "Exception in render: " << e.what();
 		}
@@ -665,8 +668,10 @@ bool CUDARender::submit(ftl::data::FrameSet *in, Channels<0> chans, const Eigen:
 	bool success = true;
 
 	try {
+		LOG(INFO) << "START RENDERPASS 1";
 		_renderPass1(t);
 		cudaSafeCall(cudaStreamSynchronize(stream_));
+		LOG(INFO) << "END RENDERPASS 1";
 	} catch (const ftl::exception &e) {
 		LOG(ERROR) << "Exception in render: " << e.what();
 		success = false;
