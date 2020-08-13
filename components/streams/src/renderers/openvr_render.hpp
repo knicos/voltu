@@ -34,6 +34,8 @@ class OpenVRRender : public ftl::render::BaseSourceImpl {
 
 	ftl::stream::Feed::Filter *filter() override { return filter_; }
 
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
 	private:
 	ftl::stream::Feed *feed_;
 	ftl::stream::Feed::Filter *filter_;
