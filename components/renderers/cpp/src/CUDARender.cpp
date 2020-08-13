@@ -307,6 +307,9 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		LOG(INFO) << "MESH BEFORE TRIANGLES";
 		cudaSafeCall(cudaStreamSynchronize(stream_));
 
+		LOG(INFO) << "TEMP SIZE = " << temp_.get<cv::cuda::GpuMat>((do_blend) ? Channel::Depth : Channel::Depth2).size();
+		LOG(INFO) << "Depth Buffer Size = " << depthbuffer.width() << "," << depthbuffer.height();
+
 		// Decide on and render triangles around each point
 		ftl::cuda::triangle_render1(
 			depthbuffer,
