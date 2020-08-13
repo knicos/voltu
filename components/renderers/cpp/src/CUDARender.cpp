@@ -332,6 +332,9 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 	if (valid_count == 0) return;
 
+	LOG(INFO) << "MESH PART 1";
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+
 	// Convert from int depth to float depth
 	//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 
@@ -349,6 +352,9 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), depth_out_, 1.0f / 100000.0f, stream_);
 	}
 
+	LOG(INFO) << "MESH PART 2";
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+
 	// Now merge new render to any existing frameset render, detecting collisions
 	ftl::cuda::touch_merge(depth_out_, out.createTexture<float>(_getDepthChannel()), collisions_, 1024, touch_dist_, stream_);
 
@@ -361,6 +367,10 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		out.getTexture<float>(_getDepthChannel()),
 		value("normal_radius", 1), value("normal_smoothing", 0.02f),
 		params_.camera, pose_.getFloat3x3(), poseInverse_.getFloat3x3(), stream_);
+
+	LOG(INFO) << "MESH PART 3";
+	cudaSafeCall(cudaStreamSynchronize(stream_));
+	LOG(INFO) << "MESH DONE";
 }
 
 void CUDARender::_allocateChannels(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
@@ -538,8 +548,6 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 
 	// Reset collision data.
 	cudaSafeCall(cudaMemsetAsync(collisions_, 0, sizeof(int), stream_));
-	cudaSafeCall(cudaStreamSynchronize(stream_));
-	LOG(INFO) << "FINISH BEGIN RENDER";
 }
 
 void CUDARender::render() {
@@ -574,8 +582,6 @@ void CUDARender::end() {
 		_endSubmit();
 	}
 
-	LOG(INFO) << "SUBMITS COMPLETE";
-
 	_end();
 	stage_ = Stage::Finished;
 }
@@ -585,10 +591,7 @@ void CUDARender::_endSubmit() {
 	for (auto &s : sets_) {
 		scene_ = s.fs;
 		try {
-			LOG(INFO) << "START RENDERPASS 2";
 			_renderPass2(s.channels, s.transform);
-			cudaSafeCall(cudaStreamSynchronize(stream_));
-			LOG(INFO) << "END RENDERPASS 2";
 		} catch(std::exception &e) {
 			LOG(ERROR) << "Exception in render: " << e.what();
 		}
@@ -613,21 +616,14 @@ void CUDARender::_end() {
 	/*ftl::cuda::flip(out_->getTexture<uchar4>(out_chan_), stream_);*/
 	/*ftl::cuda::flip(out_->getTexture<float>(_getDepthChannel()), stream_);*/
 
-	LOG(INFO) << "ABOUT TO COPY COLLISIONS";
-
 	cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
-
-	LOG(INFO) << "SYNC STREAM";
 	cudaSafeCall(cudaStreamSynchronize(stream_));
 
-	LOG(INFO) << "COLLISION COUNT = " << collisions_host_[0].screen;
 	// Convert collisions into camera coordinates.
 	collision_points_.resize(collisions_host_[0].screen);
 	for (uint i=1; i<collisions_host_[0].screen+1; ++i) {
 		collision_points_[i-1] = make_float4(collisions_host_[i].x(), collisions_host_[i].y(), collisions_host_[i].depth, collisions_host_[i].strength());
 	}
-
-	LOG(INFO) << "COLLISIONS DONE";
 
 	// Do something with the collisions
 	/*if (collisions_host_[0].screen > 0) {
