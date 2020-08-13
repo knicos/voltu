@@ -273,7 +273,6 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		// Calculate and save virtual view screen position of each source pixel
 		if (f.hasChannel(Channel::Depth)) {
-			LOG(INFO) << "DEPTH SCREEN COORD";
 			ftl::cuda::screen_coord(
 				f.createTexture<float>(Channel::Depth),
 				depthbuffer,
@@ -288,7 +287,6 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 				params_, transform, f.getLeftCamera(), stream
 			);
 		} else {
-			LOG(INFO) << "NON-DEPTH SCREEN COORD";
 			// Constant depth version
 			ftl::cuda::screen_coord(
 				depthbuffer,
@@ -304,12 +302,6 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		depth_out_.to_gpumat().setTo(cv::Scalar(1000.0f), cvstream);
 
-		LOG(INFO) << "MESH BEFORE TRIANGLES";
-		cudaSafeCall(cudaStreamSynchronize(stream_));
-
-		LOG(INFO) << "TEMP SIZE = " << temp_.get<cv::cuda::GpuMat>((do_blend) ? Channel::Depth : Channel::Depth2).size();
-		LOG(INFO) << "Depth Buffer Size = " << depthbuffer.width() << "," << depthbuffer.height();
-
 		// Decide on and render triangles around each point
 		ftl::cuda::triangle_render1(
 			depthbuffer,
@@ -320,9 +312,6 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		// TODO: Reproject here
 		// And merge based upon weight adjusted distances
-
-		LOG(INFO) << "MESH BLENDER";
-		cudaSafeCall(cudaStreamSynchronize(stream_));
 
 		if (do_blend) {
 			// Blend this sources mesh with previous meshes
@@ -342,9 +331,6 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 	}
 
 	if (valid_count == 0) return;
-
-	LOG(INFO) << "MESH PART 1";
-	cudaSafeCall(cudaStreamSynchronize(stream_));
 
 	// Convert from int depth to float depth
 	//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
@@ -668,10 +654,7 @@ bool CUDARender::submit(ftl::data::FrameSet *in, Channels<0> chans, const Eigen:
 	bool success = true;
 
 	try {
-		LOG(INFO) << "START RENDERPASS 1";
 		_renderPass1(t);
-		cudaSafeCall(cudaStreamSynchronize(stream_));
-		LOG(INFO) << "END RENDERPASS 1";
 	} catch (const ftl::exception &e) {
 		LOG(ERROR) << "Exception in render: " << e.what();
 		success = false;
