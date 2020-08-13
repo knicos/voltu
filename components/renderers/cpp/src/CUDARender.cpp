@@ -610,7 +610,9 @@ void CUDARender::_end() {
 
 	LOG(INFO) << "ABOUT TO COPY COLLISIONS";
 
-	cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
+	//cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
+	collisions_host_[0].screen = 0;
+
 	LOG(INFO) << "SYNC STREAM";
 	cudaSafeCall(cudaStreamSynchronize(stream_));
 
