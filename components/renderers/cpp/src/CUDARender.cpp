@@ -302,6 +302,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		depth_out_.to_gpumat().setTo(cv::Scalar(1000.0f), cvstream);
 
+		try {
 		// Decide on and render triangles around each point
 		ftl::cuda::triangle_render1(
 			depthbuffer,
@@ -309,6 +310,9 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 			screenbuffer,
 			params_, stream
 		);
+		} catch (const std::exception &e) {
+			LOG(ERROR) << "TRIANGLE EX: " << e.what();
+		}
 
 		// TODO: Reproject here
 		// And merge based upon weight adjusted distances
