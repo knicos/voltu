@@ -65,6 +65,7 @@ __device__ inline uint2 convertToScreen<ViewPortMode::Warping>(const Parameters 
 		if (	screenPos.z < params.camera.minDepth ||
 				screenPos.z > params.camera.maxDepth ||
 				//!vp.inside(screenPos.x, screenPos.y))
+				screenPos.x < 0.0f || screenPos.y < 0.0f ||
 				screenPos.x >= params.camera.width ||
 				screenPos.y >= params.camera.height)
 			screenPos = make_float3(30000,30000,0);
