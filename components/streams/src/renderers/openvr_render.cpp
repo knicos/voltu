@@ -460,7 +460,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 			renderer_->end();
 			renderer2_->end();
-		} catch (const ftl::exception &e) {
+		} catch (const std::exception &e) {
 			LOG(ERROR) << "Render exception: " << e.what();
 			renderer_->cancel();
 			renderer2_->cancel();
