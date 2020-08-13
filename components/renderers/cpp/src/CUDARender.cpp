@@ -572,6 +572,8 @@ void CUDARender::end() {
 		_endSubmit();
 	}
 
+	LOG(INFO) << "SUBMITS COMPLETE";
+
 	_end();
 	stage_ = Stage::Finished;
 }
@@ -606,6 +608,8 @@ void CUDARender::_end() {
 	/*ftl::cuda::flip(out_->getTexture<uchar4>(out_chan_), stream_);*/
 	/*ftl::cuda::flip(out_->getTexture<float>(_getDepthChannel()), stream_);*/
 
+	LOG(INFO) << "ABOUT TO COPY COLLISIONS";
+
 	cudaSafeCall(cudaMemcpyAsync(collisions_host_, collisions_, sizeof(ftl::cuda::Collision)*1024, cudaMemcpyDeviceToHost, stream_));
 	cudaSafeCall(cudaStreamSynchronize(stream_));
 
@@ -614,6 +618,8 @@ void CUDARender::_end() {
 	for (uint i=1; i<collisions_host_[0].screen+1; ++i) {
 		collision_points_[i-1] = make_float4(collisions_host_[i].x(), collisions_host_[i].y(), collisions_host_[i].depth, collisions_host_[i].strength());
 	}
+
+	LOG(INFO) << "COLLISIONS DONE";
 
 	// Do something with the collisions
 	/*if (collisions_host_[0].screen > 0) {
