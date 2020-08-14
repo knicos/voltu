@@ -47,7 +47,11 @@ void ftl::render::collision2touch(const ftl::rgbd::Frame &rgbdframe,
 						const auto &rgbdf = f.cast<ftl::rgbd::Frame>();
 
 						// TODO: Use Eigen directly.
-						auto pose = MatrixConversion::toCUDA((rgbdf.getPose().inverse() * rgbdframe.getPose()).cast<float>());
+						auto fpose = rgbdf.getPose();
+						if (s->hasChannel(Channel::Pose)) {
+							fpose = s->cast<ftl::rgbd::Frame>().getPose() * fpose;
+						}
+						auto pose = MatrixConversion::toCUDA((fpose.inverse() * rgbdframe.getPose()).cast<float>());
 						float3 campos = pose * rgbdframe.getLeft().screenToCam(clusters[0].x, clusters[0].y, clusters[0].z);
 						const auto &cam = rgbdf.getLeft();
 						int2 pt = cam.camToScreen<int2>(campos);

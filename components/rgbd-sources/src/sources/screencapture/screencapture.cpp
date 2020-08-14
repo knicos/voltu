@@ -233,7 +233,7 @@ void ScreenCapture::_release() {
 	pressed_ = false;
 	#ifdef HAVE_X11
 	auto &s = *impl_state_;
-	//XTestFakeButtonEvent (s.display, Button1, False, CurrentTime);
+	XTestFakeButtonEvent (s.display, Button1, False, CurrentTime);
 	#endif
 }
 
@@ -241,7 +241,7 @@ void ScreenCapture::_press() {
 	pressed_ = true;
 	#ifdef HAVE_X11
 	auto &s = *impl_state_;
-	//XTestFakeButtonEvent (s.display, Button1, True, CurrentTime);
+	XTestFakeButtonEvent (s.display, Button1, True, CurrentTime);
 	#endif
 
 	LOG(INFO) << "PRESS";
