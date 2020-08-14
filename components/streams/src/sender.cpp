@@ -773,12 +773,12 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 
 	// Loop over tiles with ROI mats and do colour conversions.
 	while (tilecount > 0 && count+offset < fs.frames.size()) {
-		if (fs.hasFrame(offset+count)) {
-			cframe = &fs.frames[offset+count];
+		cframe = &fs.frames[offset+count];
+
+		if (fs.hasFrame(offset+count) && cframe->hasChannel(c)) {	
 			auto &m = cframe->get<cv::cuda::GpuMat>(c);
 			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, (stereo) ? rwidth/2 : rwidth, rheight);
 			cv::cuda::GpuMat sroi = surface.surface(roi);
-
 			m.copyTo(sroi, stream);
 		} else {
 			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
