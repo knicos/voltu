@@ -1,6 +1,7 @@
 #include "catch.hpp"
 #include <ftl/calibration/parameters.hpp>
 #include <ftl/calibration/structures.hpp>
+#include <ftl/file.hpp>
 
 using cv::Size;
 using cv::Mat;
@@ -55,15 +56,15 @@ TEST_CASE("Test reading/writing file") {
 	calib.intrinsic.cy = 0.5;
 	data.get(Channel::Left) = calib;
 
-	data.writeFile("/tmp/calib.yml");
-	calib_read = CalibrationData::readFile("/tmp/calib.yml");
+	data.writeFile((std::filesystem::temp_directory_path() / "calib.yml").string());
+	calib_read = CalibrationData::readFile((std::filesystem::temp_directory_path() / "calib.yml").string());
 	REQUIRE(calib_read.hasCalibration(Channel::Left));
 
-	data.writeFile("/tmp/calib.json");
-	calib_read = CalibrationData::readFile("/tmp/calib.json");
+	data.writeFile((std::filesystem::temp_directory_path() / "calib.json").string());
+	calib_read = CalibrationData::readFile((std::filesystem::temp_directory_path() / "calib.json").string());
 	REQUIRE(calib_read.hasCalibration(Channel::Left));
 
-	data.writeFile("/tmp/calib.xml");
-	calib_read = CalibrationData::readFile("/tmp/calib.xml");
+	data.writeFile((std::filesystem::temp_directory_path() / "calib.xml").string());
+	calib_read = CalibrationData::readFile((std::filesystem::temp_directory_path() / "calib.xml").string());
 	REQUIRE(calib_read.hasCalibration(Channel::Left));
 }

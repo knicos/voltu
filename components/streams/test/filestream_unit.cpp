@@ -3,6 +3,7 @@
 #include <ftl/streams/filestream.hpp>
 #include <nlohmann/json.hpp>
 #include <ftl/timer.hpp>
+#include <ftl/file.hpp>
 
 using ftl::stream::File;
 using ftl::stream::Stream;
@@ -25,7 +26,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 	REQUIRE(writer);
 
 	SECTION("write read single packet") {
-		writer->set("filename", "/tmp/ftl_file_stream_test.ftl");
+		writer->set("filename", (std::filesystem::temp_directory_path() / "ftl_file_stream_test.ftl").string());
 		writer->setMode(File::Mode::Write);
 
 		REQUIRE( writer->begin() );
@@ -34,7 +35,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		writer->end();
 
-		reader->set("filename", "/tmp/ftl_file_stream_test.ftl");
+		reader->set("filename", (std::filesystem::temp_directory_path() / "ftl_file_stream_test.ftl").string());
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
 		auto h = reader->onPacket([&tspkt](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
@@ -52,7 +53,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 	}
 
 	SECTION("write read multiple packets at same timestamp") {
-		writer->set("filename", "/tmp/ftl_file_stream_test.ftl");
+		writer->set("filename", (std::filesystem::temp_directory_path() / "ftl_file_stream_test.ftl").string());
 		writer->setMode(File::Mode::Write);
 
 		REQUIRE( writer->begin() );
@@ -63,7 +64,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		writer->end();
 
-		reader->set("filename", "/tmp/ftl_file_stream_test.ftl");
+		reader->set("filename", (std::filesystem::temp_directory_path() / "ftl_file_stream_test.ftl").string());
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
 		int count = 0;
@@ -84,7 +85,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 	}
 
 	SECTION("write read multiple packets at different timestamps") {
-		writer->set("filename", "/tmp/ftl_file_stream_test.ftl");
+		writer->set("filename", (std::filesystem::temp_directory_path() / "ftl_file_stream_test.ftl").string());
 		writer->setMode(File::Mode::Write);
 
 		REQUIRE( writer->begin() );
@@ -96,7 +97,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		writer->end();
 
-		reader->set("filename", "/tmp/ftl_file_stream_test.ftl");
+		reader->set("filename", (std::filesystem::temp_directory_path() / "ftl_file_stream_test.ftl").string());
 
 		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
 		int count = 0;
