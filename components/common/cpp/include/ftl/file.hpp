@@ -16,7 +16,6 @@ namespace file {
 
 std::filesystem::path home_dir();
 std::filesystem::path config_dir();
-std::filesystem::path config_dir(const std::filesystem::path& subdirectory);
 
 bool is_file(const std::filesystem::path &path);
 
