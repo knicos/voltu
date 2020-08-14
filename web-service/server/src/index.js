@@ -34,6 +34,8 @@ let peer_uris = {};
 
 let uri_data = {};
 
+let stream_list = {};
+
 let peer_data = [];
 
 let cfg_to_peer = {};
@@ -267,7 +269,8 @@ function checkStreams(peer) {
 					let parsedURI = stringSplitter(streams[i])
 					peer_uris[peer.string_id].push(parsedURI);
 					uri_to_peer[parsedURI] = peer;
-					uri_data[streams[i]] = new RGBDStream(streams[i], peer);
+					uri_data[parsedURI] = new RGBDStream(streams[i], peer);
+					stream_list[streams[i]] = true;
 				}
 			});
 
@@ -331,6 +334,7 @@ app.ws('/', (ws, req) => {
 			for (let i=0; i<puris.length; i++) {
 				console.log("Removing stream: ", puris[i]);
 				delete uri_to_peer[puris[i]];
+				delete stream_list[uri_data[puris[i]].uri];
 				delete uri_data[puris[i]];
 				//p.unbind(pu)
 			}
@@ -358,7 +362,7 @@ app.ws('/', (ws, req) => {
 	});
 
 	p.bind("list_streams", () => {
-		return Object.keys(uri_data);
+		return Object.keys(stream_list);
 	});
 
 	p.bind("list_configurables", () => {
@@ -514,7 +518,8 @@ app.ws('/', (ws, req) => {
 		//uri_to_peer[streams[i]] = peer;
 		peer_uris[p.string_id].push(parsedURI);
 		uri_to_peer[parsedURI] = p;
-		uri_data[uri] = new RGBDStream(uri, p);
+		uri_data[parsedURI] = new RGBDStream(uri, p);
+		stream_list[uri] = true;
 
 		broadcastExcept(p, "add_stream", uri);
 	});
@@ -528,7 +533,9 @@ app.ws('/', (ws, req) => {
 function stringSplitter(uri) {
 	//const url = new Url(uri)
 	//return url.origin;
-	return uri;
+	let ix = uri.indexOf("?");
+	let base_uri = (ix >= 0) ? uri.substring(0, ix) : uri;
+	return base_uri;
 }
 
 console.log("Listening or port 8080");
