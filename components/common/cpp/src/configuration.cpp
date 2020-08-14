@@ -161,7 +161,7 @@ optional<string> ftl::config::locateFile(const string &name) {
 	}
 
 	if (is_file("./"+name)) return "./"+name;
-	if (is_file(config_dir("ftl") / name)) return (ftl::file::config_dir("ftl") / name).string();
+	if (is_file(config_dir() / name)) return (ftl::file::config_dir() / name).string();
 	if (is_file(string(FTL_GLOBAL_CONFIG_ROOT) +"/"+ name)) return string(FTL_GLOBAL_CONFIG_ROOT) +"/"+ name;
 	return {};
 }

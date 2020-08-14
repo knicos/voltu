@@ -19,18 +19,14 @@ path home_dir() {
 	return std::filesystem::absolute(path(home));
 }
 
-path config_dir(const path& subdir) {
+path config_dir() {
 	#if defined(_MSC_VER)
-	return path(std::getenv("APPDATA")) / subdir;
+	return path(std::getenv("APPDATA")) / "ftl";
 	#elif defined(__GNUC__)
-	return home_dir() / ".config";
+	return home_dir() / ".config" / "ftl";
 	#else
 	static_assert(false, "unsupported compiler");
 	#endif
-}
-
-path config_dir() {
-	return config_dir(path());
 }
 
 bool is_file(const path& p) {
