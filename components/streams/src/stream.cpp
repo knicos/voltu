@@ -45,12 +45,16 @@ const std::unordered_set<ftl::codecs::Channel> &Stream::selected(int fs) const {
 }
 
 std::unordered_set<ftl::codecs::Channel> Stream::selectedNoExcept(int fs) const {
+	if (fs == 255) return {};
+
 	SHARED_LOCK(mtx_, lk);
 	if (fs < 0 || static_cast<uint32_t>(fs) >= state_.size()) return {};
 	return state_[fs].selected;
 }
 
 void Stream::select(int fs, const std::unordered_set<ftl::codecs::Channel> &s, bool make) {
+	if (fs == 255) return;
+
 	UNIQUE_LOCK(mtx_, lk);
 	if (fs < 0 || (!make && static_cast<uint32_t>(fs) >= state_.size())) throw FTL_Error("Frameset index out-of-bounds: " << fs);
 	if (static_cast<uint32_t>(fs) >= state_.size()) state_.resize(fs+1);
