@@ -93,6 +93,8 @@ class FrameSet : public ftl::data::Frame {
 
 	const Frame &firstFrame() const;
 
+	const Frame &firstFrame(ftl::codecs::Channel) const;
+
 	inline Frame &operator[](int ix) { return frames[ix]; }
 	inline const Frame &operator[](int ix) const { return frames[ix]; }
 

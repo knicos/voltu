@@ -190,6 +190,36 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( ftl::codecs::hevc::validNAL(pkt.data.data(), pkt.data.size()) );
 	}
 
+	SECTION("4 depth frames tiled, missing first") {
+		stream.select(0, {Channel::Depth}, true);
+
+		fs.resize(4);
+
+		fs.mask = 0xF;
+		//fs.frames[0].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
+		//fs.frames[0].set<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
+
+		for (int i=1; i<4; ++i) {
+			fs.frames[i].store();
+			fs.frames[i].create<cv::cuda::GpuMat>(Channel::Depth).create(cv::Size(1280,720), CV_32F);
+			fs.frames[i].set<cv::cuda::GpuMat>(Channel::Depth).setTo(cv::Scalar(0.0f));
+		}
+
+		sender->post(fs, Channel::Depth);
+
+		REQUIRE( count == 1 );
+		REQUIRE( spkt.version == 5 );
+		REQUIRE( spkt.timestamp == 1000 );
+		REQUIRE( (int)spkt.frame_number == 1 );
+		REQUIRE( spkt.streamID == 0 );
+		REQUIRE( spkt.channel == Channel::Depth );
+		REQUIRE( pkt.codec == codec_t::HEVC );
+		REQUIRE( pkt.data.size() > 0 );
+		REQUIRE( pkt.flags == (ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth) );
+		REQUIRE( pkt.frame_count == 3 );
+		REQUIRE( ftl::codecs::hevc::validNAL(pkt.data.data(), pkt.data.size()) );
+	}
+
 	SECTION("two lossless depth frames tiled") {
 		stream.select(0, {Channel::Depth}, true);
 

@@ -484,6 +484,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 	bool is_stereo = value("stereo", false) && c == Channel::Colour && fs.firstFrame().hasChannel(Channel::Colour2);
 
 	uint32_t offset = 0;
+	int encoder_number = 0;
 	while (offset < fs.frames.size()) {
 		Channel cc = c;
 		//if ((cc == Channel::Colour) && fs.firstFrame().hasChannel(Channel::ColourHighRes)) {
@@ -510,11 +511,11 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 
 		auto &tile = _getTile(fs.id(), cc);
 
-		ftl::codecs::Encoder *enc = tile.encoder[(offset==0)?0:1];
+		ftl::codecs::Encoder *enc = tile.encoder[encoder_number];
 		if (!enc) {
 			enc = ftl::codecs::allocateEncoder(
 				definition_t::HD1080, device, codec);
-			tile.encoder[(offset==0)?0:1] = enc;
+			tile.encoder[encoder_number] = enc;
 		}
 
 		if (!enc) {
@@ -582,6 +583,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 		}
 
 		offset += count;
+		++encoder_number;
 	}
 }
 
@@ -713,7 +715,7 @@ void Sender::_encodeChannel(ftl::data::Frame &frame, Channel c, bool reset) {
 }
 
 cv::Rect Sender::_generateROI(const ftl::rgbd::FrameSet &fs, ftl::codecs::Channel c, int offset, bool stereo) {
-	const ftl::data::Frame &cframe = fs.firstFrame();
+	const ftl::data::Frame &cframe = fs.firstFrame(c);
 	int rwidth = cframe.get<cv::cuda::GpuMat>(c).cols;
 	if (stereo) rwidth *= 2;
 	int rheight = cframe.get<cv::cuda::GpuMat>(c).rows;
@@ -754,7 +756,7 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 
 	const ftl::data::Frame *cframe = nullptr; //&fs.frames[offset];
 
-	const auto &m = fs.firstFrame().get<cv::cuda::GpuMat>(c);
+	const auto &m = fs.firstFrame(c).get<cv::cuda::GpuMat>(c);
 
 	// Choose tile configuration and allocate memory
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(fs.frames.size());

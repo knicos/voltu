@@ -64,6 +64,13 @@ const ftl::data::Frame &ftl::data::FrameSet::firstFrame() const {
 	throw FTL_Error("No frames in frameset");
 }
 
+const ftl::data::Frame &ftl::data::FrameSet::firstFrame(ftl::codecs::Channel c) const {
+	for (size_t i=0; i<frames.size(); ++i) {
+		if (hasFrame(i) && frames[i].hasChannel(c)) return frames[i];
+	}
+	throw FTL_Error("No matching frames in frameset");
+}
+
 bool ftl::data::FrameSet::hasAnyChanged(ftl::codecs::Channel c) const {
 	for (size_t i=0; i<frames.size(); ++i) {
 		if (frames[i].changed(c)) return true;
