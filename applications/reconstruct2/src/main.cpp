@@ -105,14 +105,17 @@ static void run(ftl::Configurable *root) {
 	}
 
 	// Automatically add any new sources
-	auto nsrc_handle = feed->onNewSources([feed,group_name](const vector<string> &srcs) {
+	/*auto nsrc_handle = feed->onNewSources([feed,group_name](const vector<string> &srcs) {
 		for (const auto &s : srcs) {
 			ftl::URI uri(s);
-			uri.setAttribute("group", group_name);
-			feed->add(uri);
+			if (uri.hasAttribute("group")) {
+				if (uri.getAttribute<std::string>("group") == group_name) {
+					//uri.setAttribute("group", group_name);
+					feed->add(uri);
+				}
 		}
 		return true;
-	});
+	});*/
 
 	auto *filter = feed->filter({Channel::Colour, Channel::Depth, Channel::AudioStereo});
 	
@@ -129,7 +132,7 @@ static void run(ftl::Configurable *root) {
 		}
 	}
 
-	nsrc_handle.cancel();
+	//nsrc_handle.cancel();
 	feed->stopRecording();
 	feed->removeFilter(filter);
 
