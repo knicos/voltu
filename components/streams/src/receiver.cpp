@@ -255,38 +255,13 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	auto [tx,ty] = ftl::codecs::chooseTileConfig(pkt.frame_count);
 
-	int width = ividstate.width; //calibration.width;
-	int height = ividstate.height; //calibration.height;
-
-	if (width <= 0 || height <= 0 || width > 9000 || height > 9000) {
-		// Attempt to retry the decode later
-		// Make a copy of the packets into a thread job
-		// FIXME: Check that thread pool does not explode
-		if (spkt.retry_count < 10) {
-			LOG(WARNING) << "No calibration, retrying: " << spkt.timestamp;
-			ftl::pool.push([this, spkt, pkt](int id) mutable {
-				++const_cast<StreamPacket&>(spkt).retry_count;
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-				_processVideo(spkt, pkt);
-			});
-		} else {
-			LOG(WARNING) << "No calibration, failed frame: " << spkt.timestamp;
-		}
-		return;
-	}
-
 	if (tx == 0 || ty == 0) {
 		LOG(ERROR) << "No Packets";
 		return;
 	}
 
-	auto &surface = ividstate.surface[static_cast<int>(spkt.channel)];
-
-	// Allocate a decode surface, this is a tiled image to be split later
-	int cvtype = ftl::codecs::type(spkt.channel);
-	surface.create(height*ty, width*tx, cvtype);
-
-	bool is_static = ividstate.decoders[channum] && (spkt.hint_capability & ftl::codecs::kStreamCap_Static);
+	cv::cuda::GpuMat surface;
+	//bool is_static = ividstate.decoders[channum] && (spkt.hint_capability & ftl::codecs::kStreamCap_Static);
 
 	// Find or create the decoder
 	_createDecoder(ividstate, channum, pkt);
@@ -297,17 +272,30 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	}
 
 	// Do the actual decode into the surface buffer
-	if (!is_static) {
-		try {
-			FTL_Profile("Decode", 0.015);
-			if (!decoder->decode(pkt, surface)) {
-				LOG(ERROR) << "Decode failed on channel " << (int)spkt.channel;
-				return;
-			}
-		} catch (std::exception &e) {
-			LOG(ERROR) << "Decode failed for " << spkt.timestamp << ": " << e.what();
+	try {
+		FTL_Profile("Decode", 0.015);
+		if (!decoder->decode(pkt, surface)) {
+			LOG(ERROR) << "Decode failed on channel " << (int)spkt.channel;
 			return;
 		}
+	} catch (std::exception &e) {
+		LOG(ERROR) << "Decode failed for " << spkt.timestamp << ": " << e.what();
+		return;
+	}
+
+	int width = surface.cols / tx;
+	int height = surface.rows / ty;
+
+	if (width == 0 || height == 0) {
+		LOG(ERROR) << "Invalid decoded size: " << surface.cols << "x" << surface.rows << " (" << tx << "," << ty << ")";
+		return;
+	}
+
+	int cvtype = ftl::codecs::type(spkt.channel);
+
+	if (surface.type() != cvtype) {
+		LOG(ERROR) << "Invalid video format received";
+		return;
 	}
 
 	// Get the frameset

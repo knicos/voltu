@@ -25,7 +25,7 @@ class NvidiaDecoder : public ftl::codecs::Decoder {
 	ftl::codecs::codec_t last_codec_;
 	MUTEX mutex_;
 	bool seen_iframe_;
-	cv::cuda::GpuMat tmp_;
+	cv::cuda::GpuMat buffer_;
 	int width_;
 	int height_;
 	int last_width_;
