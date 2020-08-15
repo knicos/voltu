@@ -40,6 +40,18 @@ let peer_data = [];
 
 let cfg_to_peer = {};
 
+setInterval(() => {
+	for (x in peer_by_id) {
+		let p = peer_by_id[x];
+		let start = (new Date()).getMilliseconds();
+		p.rpc("__ping__", (ts) => {
+			let end = (new Date()).getMilliseconds();
+			p.latency = (end-start) / 2;
+			console.log("Ping: ", p.latency, ts);
+		});
+	}
+}, 20000);
+
 /**
  * A client stream request object. Each source maintains a list of clients who
  * are wanting frames from that source. Clients can only request N frames at a
@@ -143,7 +155,8 @@ RGBDStream.prototype.pushFrames = function(latency, spacket, packet) {
 	//console.log("Frame = ", packet[0], packet[1]);
 
 	for (let i=0; i < this.clients.length; i++) {
-		this.clients[i].push(this.base_uri, latency, spacket, packet);
+		let l = latency+this.peer.latency+this.clients[i].peer.latency;
+		this.clients[i].push(this.base_uri, Math.ceil(l), spacket, packet);
 	}
 
 	/*let i=0;
@@ -346,6 +359,8 @@ app.ws('/', (ws, req) => {
 		for (let c in cfg_to_peer) {
 			if (cfg_to_peer[c] === p) delete cfg_to_peer[c];
 		}
+
+		// FIXME: Clear peer_data
 	});
 
 	p.bind("new_peer", (id) => {

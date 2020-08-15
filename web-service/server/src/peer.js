@@ -35,6 +35,8 @@ function Peer(ws) {
 	this.callbacks = {};
 	this.cbid = 0;
 
+	this.latency = 0;
+
 	this.uri = "unknown";
 	this.name = "unknown";
 	this.master = false;
