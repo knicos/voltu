@@ -109,7 +109,11 @@ TEST_CASE( "Send and receiver via encoding" ) {
 		REQUIRE( result->frames[0].get<int>(Channel::Control) == 57 );
 	}
 
-	ftl::timer::stop(true);
+	//ftl::timer::stop(true);
+	ftl::timer::reset();
+	ftl::timer::setInterval(50);
+	ftl::pool.clear_queue();
+	while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 	delete receiver;
 	delete sender;
@@ -339,7 +343,11 @@ TEST_CASE( "Response via loopback" ) {
 		REQUIRE( result->frames[0].get<int>(Channel::Control) == 1 );
 	}
 
-	ftl::timer::stop(true);
+	//ftl::timer::stop(true);
+	ftl::timer::reset();
+	ftl::timer::setInterval(50);
+	ftl::pool.clear_queue();
+	while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 	delete receiver;
 }
