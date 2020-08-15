@@ -512,7 +512,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			post_pipe_->append<ftl::operators::GTAnalysis>("gtanalyse");
 		}
 
-		post_pipe_->apply(rgbdframe, rgbdframe, 0);
+		post_pipe_->apply(rgbdframe, rgbdframe, renderer_->getCUDAStream());
 
 		if (host_->value("enable_touch", false)) {
 			ftl::render::collision2touch(rgbdframe, renderer_->getCollisions(), sets, my_id_, host_->value("touch_min", 0.01f), host_->value("touch_max", 0.05f));
@@ -526,7 +526,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		texture2_.unmap(renderer_->getCUDAStream());
 		//return true;
 
-		cudaSafeCall(cudaStreamSynchronize(stream_));
+		cudaSafeCall(cudaStreamSynchronize(renderer_->getCUDAStream()));
 
 		// Send left and right textures to VR headset
 		vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)texture1_.texture(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
