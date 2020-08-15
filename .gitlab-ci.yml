@@ -87,5 +87,6 @@ windows-master:
     - win
   script:
     - *build-windows
-    - set PATH=%PATH%;C:/Shared/Deploy
-    - ctest --output-on-failure --timeout 60
+
+#    - set PATH=%PATH%;C:/Shared/Deploy
+#    - ctest --output-on-failure --timeout 60
