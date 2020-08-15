@@ -18,6 +18,9 @@ linux:
   stage: all
   tags:
     - linux
+  cache:
+    paths:
+      ext/
   variables:
     FTL_LIB: ../../build/SDK/C/libftl-dev.so
     LD_LIBRARY_PATH: /opt/pylon/lib/
@@ -68,6 +71,9 @@ windows-vision:
   except:
     - master
   stage: all
+  cache:
+    paths:
+      ext/
   variables:
     CMAKE_ARGS: '-DENABLE_PROFILER=TRUE -DWITH_OPTFLOW=TRUE -DBUILD_VISION=TRUE -DBUILD_CALIBRATION=FALSE -DBUILDRECONSTRUCT=FALSE -DBUILDRENDERER=FALSE -DBUILD_TESTING=FALSE -DBUILD_TESTS=FALSE'
     DEPLOY_DIR: 'C:/Shared/AutoDeploy'
@@ -80,6 +86,9 @@ windows-master:
   only:
     - master
   stage: all
+  cache:
+    paths:
+      ext/
   variables:
     CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE'
     DEPLOY_DIR: 'C:/Shared/AutoDeploy'
