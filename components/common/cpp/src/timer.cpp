@@ -27,6 +27,7 @@ static std::atomic<int> active_jobs = 0;
 static MUTEX mtx;
 static int last_id = 0;
 static bool clock_slave = true;
+static std::future<void> timer_future;
 
 struct TimerJob {
 	int id=0;
@@ -277,7 +278,7 @@ void ftl::timer::start(bool block) {
 		}
 		active_jobs--;
 	} else {
-		ftl::pool.push([](int id) {
+		timer_future = ftl::pool.push([](int id) {
 			active_jobs++;
 			while (ftl::running && active) {
 				waitTimePoint();
@@ -292,10 +293,20 @@ void ftl::timer::stop(bool wait) {
 	active = false;
 
 	if (wait) {
+		try {
+			if (timer_future.valid()) timer_future.get();
+		} catch (const std::exception &e) {
+			LOG(ERROR) << "Timer exception: " << e.what();
+		}
+
+		int attempts = 10;
+
 		// All callbacks must complete before returning.
-		while (active_jobs > 0) {
+		while (active_jobs > 0 && attempts-- > 0) {
 			sleep_for(milliseconds(10));
 		}
+
+		if (active_jobs > 0) LOG(WARNING) << "Forced job stop: " << active_jobs;
 	}
 }
 
