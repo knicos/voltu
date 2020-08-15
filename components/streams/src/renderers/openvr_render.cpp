@@ -37,9 +37,9 @@ OpenVRRender::OpenVRRender(ftl::render::Source *host, ftl::stream::Feed *feed)
 		ftl::create<ftl::render::CUDARender>(host_, "renderer")
 	);
 
-	renderer2_ = std::unique_ptr<ftl::render::CUDARender>(
+	/*renderer2_ = std::unique_ptr<ftl::render::CUDARender>(
 		ftl::create<ftl::render::CUDARender>(host_, "renderer2")
-	);
+	);*/
 
 	intrinsics_ = ftl::create<ftl::Configurable>(host_, "intrinsics");
 
@@ -353,7 +353,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		texture2_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 		
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(renderer_->getCUDAStream());
-		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map(renderer2_->getCUDAStream());
+		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map(renderer_->getCUDAStream());
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Depth).create(height, width, CV_32F);
 		rgbdframe.createTexture<float>(Channel::Depth);
 
@@ -371,7 +371,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 		try {
 			renderer_->begin(rgbdframe, ftl::codecs::Channel::Left);
-			renderer2_->begin(rgbdframe, Channel::Colour2);
+			//renderer2_->begin(rgbdframe, Channel::Colour2);
 
 			for (auto &s : sets) {
 				if (s->frameset() == my_id_) continue;  // Skip self
@@ -388,14 +388,14 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 					ftl::codecs::Channels<0>(ftl::codecs::Channel::Colour),
 					pose);
 
-				renderer2_->submit(
+				/*renderer2_->submit(
 					s.get(),
 					ftl::codecs::Channels<0>(ftl::codecs::Channel::Colour),
-					pose);
+					pose);*/
 			}
 
 			renderer_->render();
-			renderer2_->render();
+			//renderer2_->render();
 
 			// Now do CPU-based render jobs
 			for (auto &s : sets) {
@@ -437,6 +437,51 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 				}
 			}
 
+			/*mixer_.mix();
+
+			// Write mixed audio to frame.
+			if (mixer_.frames() > 0) {
+				auto &list = frame_out.create<std::list<ftl::audio::Audio>>(Channel::AudioStereo).list;
+				list.clear();
+
+				int fcount = mixer_.frames();
+				mixer_.read(list.emplace_front().data(), fcount);
+			}*/
+
+			// TODO: Blend option
+
+			renderer_->end();
+
+			// Now do right eye  ###############################################
+
+			renderer_->begin(rgbdframe, ftl::codecs::Channel::Right);
+			//renderer2_->begin(rgbdframe, Channel::Colour2);
+
+			for (auto &s : sets) {
+				if (s->frameset() == my_id_) continue;  // Skip self
+
+				Eigen::Matrix4d pose;
+				pose.setIdentity();
+				if (s->hasChannel(Channel::Pose)) pose = s->cast<ftl::rgbd::Frame>().getPose();
+
+				// TODO: Check frame has required channels?
+
+				// FIXME: Don't use identity transform, get from Poser somehow.
+				renderer_->submit(
+					s.get(),
+					ftl::codecs::Channels<0>(ftl::codecs::Channel::Colour),
+					pose);
+
+				/*renderer2_->submit(
+					s.get(),
+					ftl::codecs::Channels<0>(ftl::codecs::Channel::Colour),
+					pose);*/
+			}
+
+			renderer_->render();
+			//renderer2_->render();
+
+			
 			mixer_.mix();
 
 			// Write mixed audio to frame.
@@ -451,11 +496,12 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			// TODO: Blend option
 
 			renderer_->end();
-			renderer2_->end();
+
+			//renderer2_->end();
 		} catch (const std::exception &e) {
 			LOG(ERROR) << "Render exception: " << e.what();
 			renderer_->cancel();
-			renderer2_->cancel();
+			//renderer2_->cancel();
 			frame_out.message(ftl::data::Message::Error_RENDER, e.what());
 		}
 
@@ -473,12 +519,14 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		}
 
 		// FIXME: Use a stream
-		ftl::cuda::flip<uchar4>(rgbdframe.set<cv::cuda::GpuMat>(Channel::Colour), 0);
-		ftl::cuda::flip<uchar4>(rgbdframe.set<cv::cuda::GpuMat>(Channel::Colour2), 0);
+		ftl::cuda::flip<uchar4>(rgbdframe.set<cv::cuda::GpuMat>(Channel::Colour), renderer_->getCUDAStream());
+		ftl::cuda::flip<uchar4>(rgbdframe.set<cv::cuda::GpuMat>(Channel::Colour2), renderer_->getCUDAStream());
 
 		texture1_.unmap(renderer_->getCUDAStream());
-		texture2_.unmap(renderer2_->getCUDAStream());
+		texture2_.unmap(renderer_->getCUDAStream());
 		//return true;
+
+		cudaSafeCall(cudaStreamSynchronize(stream_));
 
 		// Send left and right textures to VR headset
 		vr::Texture_t leftEyeTexture = {(void*)(uintptr_t)texture1_.texture(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
