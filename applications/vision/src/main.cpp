@@ -26,6 +26,7 @@
 #include <nlohmann/json.hpp>
 #include <ftl/operators/disparity.hpp>
 #include <ftl/operators/detectandtrack.hpp>
+#include <ftl/operators/clipping.hpp>
 
 #include <ftl/streams/netstream.hpp>
 #include <ftl/streams/sender.hpp>
@@ -190,6 +191,11 @@ static void run(ftl::Configurable *root) {
 	pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
 	pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	pipeline->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
+	pipeline->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
+
+	pipeline->restore("vision_pipeline", {
+		"clipping"
+	});
 
 	std::atomic_flag busy;
 	busy.clear();
