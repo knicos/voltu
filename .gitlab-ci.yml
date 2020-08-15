@@ -18,9 +18,6 @@ linux:
   stage: all
   tags:
     - linux
-  cache:
-    paths:
-      - ext/
   variables:
     FTL_LIB: ../../build/SDK/C/libftl-dev.so
     LD_LIBRARY_PATH: /opt/pylon/lib/
@@ -58,8 +55,8 @@ webserver-deploy:
 
 .build-windows: &build-windows
     - 'call vcvars64.bat'
-    - mkdir build
-    - cd build
+    - if not exist ../ftl_build mkdir ../ftl_build
+    - cd ../ftl_build
     - cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DREALSENSE_DIR="C:/Program Files (x86)/Intel RealSense SDK 2.0" -DOPENVR_DIR="C:/Program Files (x86)/OpenVRSDK" -DOPUS_DIR="C:/Program Files (x86)/Opus" ..
     - devenv ftl.utu.fi.sln /build Release
     - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
@@ -71,9 +68,6 @@ windows-vision:
   except:
     - master
   stage: all
-  cache:
-    paths:
-      - ext/
   variables:
     CMAKE_ARGS: '-DENABLE_PROFILER=TRUE -DWITH_OPTFLOW=TRUE -DBUILD_VISION=TRUE -DBUILD_CALIBRATION=FALSE -DBUILDRECONSTRUCT=FALSE -DBUILDRENDERER=FALSE -DBUILD_TESTING=FALSE -DBUILD_TESTS=FALSE'
     DEPLOY_DIR: 'C:/Shared/AutoDeploy'
@@ -86,9 +80,6 @@ windows-master:
   only:
     - master
   stage: all
-  cache:
-    paths:
-      - ext/
   variables:
     CMAKE_ARGS: '-DWITH_OPTFLOW=TRUE'
     DEPLOY_DIR: 'C:/Shared/AutoDeploy'
