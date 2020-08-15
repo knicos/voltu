@@ -180,6 +180,7 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	outgoing_ = false;
 	local_id_ = local_peer_ids__++;
 
+	#ifndef TEST_MOCKS
 	int flags =1; 
     if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 	int a = static_cast<int>(u->getRecvBufferSize());
@@ -190,6 +191,7 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
+	#endif
 	
 	// Send the initiating handshake if valid
 	if (status_ == kConnecting) {
@@ -699,7 +701,8 @@ int Peer::_send() {
 		}
 
 		DWORD bytessent;
-		c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
+		//c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
+		c = ftl::net::internal::writev(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent);
 #else
 		c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
 #endif
@@ -717,7 +720,8 @@ int Peer::_send() {
 		}
 
 		DWORD bytessent;
-		c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
+		//c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
+		c = ftl::net::internal::writev(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent);
 #else
 		c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
 #endif

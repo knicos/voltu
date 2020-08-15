@@ -11,6 +11,7 @@ namespace ftl { namespace net { namespace internal {
 #ifdef WIN32
 	int recv(SOCKET sd, char *buf, int n, int f);
 	int send(SOCKET sd, const char *v, int cnt, int flags);
+	int writev(SOCKET sd, LPWSABUF v, DWORD cnt, LPDWORD sent);
 #else
 	ssize_t recv(int sd, void *buf, size_t n, int f);
 	ssize_t writev(int sd, const struct iovec *v, int cnt);
@@ -19,6 +20,7 @@ namespace ftl { namespace net { namespace internal {
 #ifdef WIN32
 	inline int recv(SOCKET sd, char *buf, int n, int f) { return ::recv(sd,buf,n,f); }
 	inline int send(SOCKET sd, const char *v, int cnt, int flags) { return ::send(sd,v,cnt,flags); }
+	inline int writev(SOCKET sd, LPWSABUF v, DWORD cnt, LPDWORD sent) { return ::WSASend(sd, v, cnt, sent, 0, NULL, NULL); }
 #else
 #if defined _DEBUG && DEBUG_NET
 	inline ssize_t recv(int sd, void *buf, size_t n, int f) {

@@ -85,10 +85,24 @@ ssize_t ftl::net::internal::recv(SOCKET sd, void *buf, size_t n, int f) {
 }
 
 #ifdef WIN32
-int ftl::net::internal::send(SOCKET sd, const char *v, int cnt, int flags) {
+/*int ftl::net::internal::send(SOCKET sd, const char *v, int cnt, int flags) {
 	int len = cnt;
 	// TODO(nick) merge multiple sends
 	fakedata[sd] = std::string(v, len);
+	return len;
+}*/
+int ftl::net::internal::writev(SOCKET sd, LPWSABUF v, DWORD cnt, LPDWORD sent) {
+	size_t len = 0; //v[0].iov_len+v[1].iov_len;
+	char buf[1000];
+	char *bufp = &buf[0];
+	
+	for (auto i=0; i<cnt; i++) {
+		std::memcpy(bufp,v[i].buf,v[i].len);
+		len += v[i].len;
+		bufp += v[i].len;
+	}
+	
+	fakedata[sd] = std::string(&buf[0], len);
 	return len;
 }
 #else
