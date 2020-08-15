@@ -55,8 +55,8 @@ webserver-deploy:
 
 .build-windows: &build-windows
     - 'call vcvars64.bat'
-    - mkdir ./build
-    - cd ./build
+    - mkdir build
+    - cd build
     - cmake %CMAKE_ARGS% %CMAKE_ARGS_WINDOWS% -DREALSENSE_DIR="C:/Program Files (x86)/Intel RealSense SDK 2.0" -DOPENVR_DIR="C:/Program Files (x86)/OpenVRSDK" -DOPUS_DIR="C:/Program Files (x86)/Opus" ..
     - devenv ftl.utu.fi.sln /build Release
     - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
