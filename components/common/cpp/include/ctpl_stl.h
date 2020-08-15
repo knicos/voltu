@@ -93,6 +93,8 @@ namespace ctpl {
 
         size_t q_size() { return this->q.size(); }
 
+		void restart(int nThreads) { if (!this->isDone) this->stop(true); this->init(); this->resize(nThreads); }
+
         // change the number of threads in the pool
         // should be called from one thread, otherwise be careful to not interleave, also with this->stop()
         // nThreads must be >= 0

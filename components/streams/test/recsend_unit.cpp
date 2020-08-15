@@ -77,6 +77,8 @@ TEST_CASE( "Send and receiver via encoding" ) {
 	receiver->set("frameset_buffer_size", 0);
 	sender->setStream(&stream);
 
+	//ftl::pool.restart(4);
+
 	ftl::timer::start(false);
 
 	SECTION("a single data only frame") {
@@ -109,11 +111,13 @@ TEST_CASE( "Send and receiver via encoding" ) {
 		REQUIRE( result->frames[0].get<int>(Channel::Control) == 57 );
 	}
 
-	//ftl::timer::stop(true);
+	ftl::timer::stop(true);
 	ftl::timer::reset();
 	ftl::timer::setInterval(50);
 	ftl::pool.clear_queue();
 	while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+	//ftl::pool.stop(true);
 
 	delete receiver;
 	delete sender;
@@ -145,6 +149,8 @@ TEST_CASE( "Multi-thread stability testing" ) {
 	receiver->set("frameset_buffer_size", 0);
 	sender->setStream(&stream);
 	sender->resetSender();  // FIXME: Why is this needed?
+
+	//ftl::pool.restart(4);
 
 	ftl::timer::setInterval(20);
 	ftl::timer::start(false);
@@ -277,8 +283,11 @@ TEST_CASE( "Multi-thread stability testing" ) {
 
 	ftl::timer::reset();
 	ftl::timer::setInterval(50);
+	ftl::timer::stop(true);
 	ftl::pool.clear_queue();
 	while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+	//ftl::pool.stop(true);
 
 	delete receiver;
 	delete sender;
@@ -308,6 +317,8 @@ TEST_CASE( "Response via loopback" ) {
 		receiver->loopback(f, c);
 		return true;
 	});
+
+	//ftl::pool.restart(4);
 
 	ftl::timer::start(false);
 
@@ -343,11 +354,13 @@ TEST_CASE( "Response via loopback" ) {
 		REQUIRE( result->frames[0].get<int>(Channel::Control) == 1 );
 	}
 
-	//ftl::timer::stop(true);
+	ftl::timer::stop(true);
 	ftl::timer::reset();
 	ftl::timer::setInterval(50);
-	ftl::pool.clear_queue();
-	while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	//ftl::pool.clear_queue();
+	//while (ftl::pool.n_idle() != ftl::pool.size()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+	//ftl::pool.stop(true);
 
 	delete receiver;
 }
