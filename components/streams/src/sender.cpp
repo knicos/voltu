@@ -134,7 +134,10 @@ void Sender::fakePost(ftl::data::FrameSet &fs, ftl::codecs::Channel c) {
 bool Sender::_checkNeedsIFrame(int64_t ts, bool injecting) {
 	int mspf = ftl::timer::getInterval();
 
-	if (injecting) injection_timestamp_ = ts+2*mspf;
+	if (injecting) {
+		LOG(INFO) << "Inject persistent state: " << ts;
+		injection_timestamp_ = ts+2*mspf;
+	}
 
 	// Add an iframe at the requested frequency.
 	//if (add_iframes_ > 0 && ts != timestamp_) iframe_ = (iframe_+1) % add_iframes_;

@@ -324,7 +324,7 @@ bool Net::begin() {
 	active_ = true;
 	
 	// Initially send a colour request just to create the connection
-	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 255);
+	_sendRequest(Channel::Colour, kAllFramesets, kAllFrames, 30, 255, true);
 
 	return true;
 }

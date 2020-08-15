@@ -198,6 +198,11 @@ bool NvidiaEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 	// Make sure conversions complete...
 	stream_.waitForCompletion();
 
+	// Insert periodic i-frames here.
+	if (((++frame_count_) % 128) == 0) {
+		was_reset_ = true;
+	}
+
 	uint64_t cs = _encode(pkt.data.data(), pkt.data.size(), was_reset_);
 	pkt.data.resize(cs);
 	was_reset_ = false;
@@ -218,6 +223,8 @@ bool NvidiaEncoder::_createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs
 	LOG(INFO) << "Calculated bitrate " << (float(bitrate) / 1024.0f / 1024.0f) << "Mbps (" << int(pkt.bitrate) << ")";
 	
 	params_ = params;
+	frame_count_ = 0;
+	was_reset_ = true;
 
 	const int fps = 1000/ftl::timer::getInterval();
 	

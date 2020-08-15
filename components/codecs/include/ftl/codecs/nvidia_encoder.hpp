@@ -43,6 +43,7 @@ class NvidiaEncoder : public ftl::codecs::Encoder {
 	Parameters params_;
 
 	bool was_reset_;
+	int64_t frame_count_ = 0;
 
 	bool _createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs::Packet &pkt);
 	ftl::codecs::definition_t _verifiedDefinition(ftl::codecs::definition_t def, const cv::cuda::GpuMat &in);
