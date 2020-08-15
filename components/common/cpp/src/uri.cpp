@@ -68,6 +68,7 @@ void URI::_parse(uri_t puri) {
 		m_host = "none";
 		m_port = -1;
 		m_proto = SCHEME_NONE;
+		m_base = suri;
 		m_path = "";
 		m_frag = "";
 	} else {

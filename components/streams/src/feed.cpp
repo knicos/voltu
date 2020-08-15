@@ -788,11 +788,11 @@ uint32_t Feed::add(const ftl::URI &uri) {
 	const auto scheme = uri.getScheme();
 	const std::string group = uri.getAttribute<std::string>("group");
 
-	if ((scheme == ftl::URI::SCHEME_OTHER) || // assumes relative path
+	if ((scheme == ftl::URI::SCHEME_OTHER) || (scheme == ftl::URI::SCHEME_NONE) ||  // assumes relative path
 		(scheme == ftl::URI::SCHEME_FILE)) {
 
-		auto eix = ((scheme == ftl::URI::SCHEME_OTHER) ? uri.getBaseURI() : uri.getPath()).find_last_of('.');
-		auto ext = ((scheme == ftl::URI::SCHEME_OTHER) ? uri.getBaseURI() : uri.getPath()).substr(eix+1);
+		auto eix = ((scheme == ftl::URI::SCHEME_OTHER || scheme == ftl::URI::SCHEME_NONE) ? uri.getBaseURI() : uri.getPath()).find_last_of('.');
+		auto ext = ((scheme == ftl::URI::SCHEME_OTHER || scheme == ftl::URI::SCHEME_NONE) ? uri.getBaseURI() : uri.getPath()).substr(eix+1);
 
 		if (ext != "ftl") {
 			throw FTL_Error("Bad filename (expects .ftl) : " << uri.getBaseURI());
@@ -802,7 +802,7 @@ uint32_t Feed::add(const ftl::URI &uri) {
 		auto* fstream = ftl::create<ftl::stream::File>
 			(this, std::string("ftlfile-") + std::to_string(file_counter_++));
 
-		if (scheme == ftl::URI::SCHEME_OTHER) {
+		if (scheme == ftl::URI::SCHEME_OTHER || scheme == ftl::URI::SCHEME_NONE) {
 			fstream->set("filename", uri.getBaseURI());
 		}
 		else {
@@ -952,7 +952,7 @@ uint32_t Feed::add(const ftl::URI &uri) {
 		}
 	}
 	else{
-		throw ftl::exception("bad uri");
+		throw FTL_Error("Bad feed uri: " << uri.getBaseURI());
 	}
 	return -1;
 }
