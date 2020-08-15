@@ -81,7 +81,7 @@ namespace ctpl {
 
         // the destructor waits for all the functions in the queue to be finished
         ~thread_pool() {
-            this->stop(true);
+            this->stop(false);
         }
 
         // get the number of running threads in the pool
