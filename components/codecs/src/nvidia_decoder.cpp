@@ -115,13 +115,16 @@ uint8_t* NvidiaDecoder::_decode(const uint8_t* src, uint64_t srcSize) {
 bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out) {
 	//cudaSetDevice(0);
 	UNIQUE_LOCK(mutex_,lk);
-	if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264 && pkt.codec != codec_t::HEVC_LOSSLESS && pkt.codec != codec_t::H264_LOSSLESS) return false;
+	if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264 && pkt.codec != codec_t::HEVC_LOSSLESS && pkt.codec != codec_t::H264_LOSSLESS) {
+		LOG(ERROR) << "Bad codec: " << int(pkt.codec);
+		return false;
+	}
 
 	bool is_float_frame = pkt.flags & ftl::codecs::kFlagFloat;
 	bool islossless = ((pkt.codec == ftl::codecs::codec_t::HEVC || pkt.codec == ftl::codecs::codec_t::H264) && is_float_frame &&
 		!(pkt.flags & 0x2)) || pkt.codec == ftl::codecs::codec_t::HEVC_LOSSLESS || pkt.codec == ftl::codecs::codec_t::H264_LOSSLESS; 
 
-	if (is_float_frame && out.type() != CV_32F) {
+	/*if (is_float_frame && out.type() != CV_32F) {
 		LOG(ERROR) << "Invalid buffer for float frame";
 		return false;
 	}
@@ -129,7 +132,7 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	if (!is_float_frame && out.type() != CV_8UC4) {
 		LOG(ERROR) << "Invalid buffer for lossy colour frame: " << out.type();
 		return false;
-	}
+	}*/
 
 	_create(pkt);
 
@@ -175,10 +178,10 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	width_ = nv_decoder_->GetWidth();
 	height_ = nv_decoder_->GetHeight();
 
-	if (out.cols != ((is_float_frame && islossless) ? width_/2 : width_) || out.rows != height_) {
+	/*if (out.cols != ((is_float_frame && islossless) ? width_/2 : width_) || out.rows != height_) {
 		LOG(ERROR) << "Decoded frame not same size as buffer: " << width_ << "x" << height_ << " -> " << out.cols << "x" << out.rows;
 		return false;
-	}
+	}*/
 
 	// OpenCV GpuMat for YCbCr 4:2:0
 	cv::cuda::GpuMat surface;
@@ -190,14 +193,23 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 
 	if (is_float_frame) {
 		if (!islossless) {
+			buffer_.create(height_, width_, CV_32F);
+			out = buffer_;
+		
 			cv::cuda::GpuMat sroi = surface(cv::Rect(0,0,width_, height_));
 			cv::cuda::GpuMat csroi = surface(cv::Rect(0,height_,width_, height_/2));
 
 			ftl::cuda::vuya_to_depth(out, sroi, csroi, 16.0f, cvstream);
 		} else {
+			buffer_.create(height_, width_/2, CV_32F);
+			out = buffer_;
+
 			ftl::cuda::nv12_to_float(decodedPtr, width_, (float*)out.data, static_cast<uint32_t>(out.step1()), width_/2, height_, stream_);
 		}
 	} else {
+		buffer_.create(height_, width_, CV_8UC4);
+		out = buffer_;
+
 		// Flag 0x1 means frame is in RGB so needs conversion to BGR
 		if (pkt.flags & 0x1) {
 			Nv12ToColor32<BGRA32>(decodedPtr, width_, out.data, static_cast<int>(out.step1()), width_, height_, 0, stream_);

@@ -316,21 +316,6 @@ TEST_CASE( "NvidiaDecoder::decode() - corrupted packet" ) {
 	cv::cuda::GpuMat in;
 	cv::cuda::GpuMat out;
 
-	SECTION("Bad output size") {
-		in = cv::cuda::GpuMat(cv::Size(2560,720), CV_8UC4, cv::Scalar(255,0,0,0));
-		out = cv::cuda::GpuMat(cv::Size(2500,720), CV_8UC4, cv::Scalar(0,0,0,0));
-
-		ftl::codecs::Packet pkt;
-		pkt.codec = codec_t::Any;
-		pkt.bitrate = 255;
-		pkt.frame_count = 2;
-		pkt.flags = 0;
-		bool r = encoder.encode(in, pkt);
-
-		REQUIRE( r );
-		REQUIRE( !decoder.decode(pkt, out) );
-	}
-
 	SECTION("Corrupted but supported codec") {
 		in = cv::cuda::GpuMat(cv::Size(2560,720), CV_8UC4, cv::Scalar(255,0,0,0));
 		out = cv::cuda::GpuMat(cv::Size(2560,720), CV_8UC4, cv::Scalar(0,0,0,0));
@@ -379,7 +364,8 @@ TEST_CASE( "NvidiaDecoder::decode() - corrupted packet" ) {
 		pkt.flags = ftl::codecs::kFlagFloat;
 
 		REQUIRE( r );
-		REQUIRE( !decoder.decode(pkt, out) );
+		REQUIRE( decoder.decode(pkt, out) );
+		REQUIRE( out.type() == CV_32F );
 	}
 
 	SECTION("Corrupted float mapped flags") {
@@ -414,7 +400,9 @@ TEST_CASE( "NvidiaDecoder::decode() - corrupted packet" ) {
 		pkt.flags = 0;
 
 		REQUIRE( r );
-		REQUIRE( !decoder.decode(pkt, out) );
+		REQUIRE( decoder.decode(pkt, out) );
+		REQUIRE( out.type() == CV_8UC4 );
+		REQUIRE( out.cols == 2*in.cols );
 	}
 
 	SECTION("Missing data") {
