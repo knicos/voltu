@@ -116,6 +116,9 @@ struct CalibrationData {
 		Intrinsic intrinsic;
 		Extrinsic extrinsic;
 
+		/** 4x4 projection matrix */
+		cv::Mat matrix();
+
 		MSGPACK_DEFINE(intrinsic, extrinsic);
 	};
 

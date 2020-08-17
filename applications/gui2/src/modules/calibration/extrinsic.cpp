@@ -83,7 +83,7 @@ void ExtrinsicCalibration::start(unsigned int fsid, std::vector<FrameID> sources
 		calibr.intrinsic = CalibrationData::Intrinsic(calibr.intrinsic, sz);
 
 		// Scale intrinsics
-		state_.calib.addStereoCamera(calibl.intrinsic, calibr.intrinsic);
+		state_.calib.addStereoCamera(calibl, calibr);
 
 		// Update rectification
 		unsigned int idx = state_.cameras.size() - 2;
@@ -288,6 +288,7 @@ void ExtrinsicCalibration::updateCalibration() {
 			auto& frame = fs->frames[c];
 			update[frame_id] = frame.get<CalibrationData>(Channel::CalibrationData);
 		}
+		update[frame_id].origin = cv::Mat::eye(4, 4, CV_64FC1);
 		update[frame_id].get(c.channel) = state_.calib.calibrationOptimized(i);
 	}
 
@@ -370,12 +371,14 @@ void ExtrinsicCalibration::run() {
 			for (int c = 0; c < cameraCount(); c += 2) {
 				auto l = state_.calib.calibrationOptimized(c);
 				auto r = state_.calib.calibrationOptimized(c + 1);
-				LOG(INFO) << c << ": rvec " << l.extrinsic.rvec << "; tvec " << l.extrinsic.tvec;
-				LOG(INFO) << c  + 1 << ": rvec " << r.extrinsic.rvec << "; tvec " << r.extrinsic.tvec;
 				stereoRectify(c, c + 1, l, r);
 
+				/*LOG(INFO) << c << ": rvec " << l.extrinsic.rvec
+						  << "; tvec " << l.extrinsic.tvec;
+				LOG(INFO) << c  + 1 << ": rvec " << r.extrinsic.rvec
+						  << "; tvec " << r.extrinsic.tvec;*/
 				LOG(INFO) << "baseline (" << c << ", " << c + 1 << "): "
-						  << cv::norm(l.extrinsic.tvec, r.extrinsic.tvec);
+						  << cv::norm(l.extrinsic.tvec - r.extrinsic.tvec);
 			}
 		}
 		catch (ftl::exception &ex) {
@@ -418,6 +421,9 @@ const std::vector<cv::Point2d>& ExtrinsicCalibration::previousPoints(int camera)
 	// not really thread safe (but points_prev_ should not resize)
 	return state_.points_prev[camera];
 }
+
+
+
 
 int ExtrinsicCalibration::getFrameCount(int camera) {
 	return state_.calib.points().getCount(unsigned(camera));

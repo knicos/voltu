@@ -67,7 +67,6 @@ struct Camera {
 	const static int n_parameters = 18;
 	const static int n_distortion_parameters = 8;
 
-	bool quaternion = false;
 	double data[n_parameters] = {0.0};
 
 	enum Parameter {
@@ -136,17 +135,17 @@ public:
 		bool use_nonmonotonic_steps = false;
 
 		// use quaternion rotation
-		bool use_quaternion = false;
+		bool use_quaternion = true;
 
 		// fix_camera_extrinsic and fix_camera_intrinsic overlap with some of
 		// the generic options. The more generic setting is always used, the
 		// specific extrinsic/intrinsic options are applied on top of those.
 
 		// fix extrinsic paramters for cameras
-		std::vector<int> fix_camera_extrinsic = {};
+		std::set<int> fix_camera_extrinsic = {};
 
 		// fix intrinsic paramters for cameras
-		std::vector<int> fix_camera_intrinsic = {};
+		std::set<int> fix_camera_intrinsic = {};
 
 		bool fix_focal = false;
 		bool fix_principal_point = false;

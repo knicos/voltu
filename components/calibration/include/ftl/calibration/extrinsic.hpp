@@ -158,17 +158,10 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 
 class ExtrinsicCalibration {
 public:
-	/** add a single (uncalibrated) camera. Returns index of camera. */
-	unsigned int addCamera(const CalibrationData::Intrinsic &);
-
-	/** add a single calibrated camera (if valid calibration). Returns index of camera. */
+	/** add a single camera (if valid calibration). Returns index of camera. */
 	unsigned int addCamera(const CalibrationData::Calibration &);
 
-	/** Add a stereo camera pair. Pairs always use other cameras to estimate
-	 * initial pose. Returns index of first camera. */
-	unsigned int addStereoCamera(const CalibrationData::Intrinsic &, const CalibrationData::Intrinsic &);
-
-	/** Add calibrated stereo camera (if contains valid calibration) */
+	/** Add stereo camera */
 	unsigned int addStereoCamera(const CalibrationData::Calibration &, const CalibrationData::Calibration &);
 
 	const CalibrationData::Intrinsic& intrinsic(unsigned int c);
@@ -187,10 +180,15 @@ public:
 
 	/* set bundle adjustment options */
 	void setOptions(ftl::calibration::BundleAdjustment::Options options) { options_ = options; }
-	ftl::calibration::BundleAdjustment::Options options() { return options_; }
+	ftl::calibration::BundleAdjustment::Options& options() { return options_; }
 
 	/** Number of cameras added */
 	unsigned int camerasCount() { return calib_.size(); }
+
+	/** use existing extrinsic calibration for camera */
+	void setUseExtrinsic(unsigned int c, bool v) { is_calibrated_.at(c) = v; }
+	/** is existing extrinsic parameters used for given camera */
+	bool useExtrinsic(unsigned int c) { return is_calibrated_.at(c); };
 
 	/** status message */
 	std::string status();
@@ -208,17 +206,29 @@ public:
 	MSGPACK_DEFINE(points_, mask_, pairs_, calib_, is_calibrated_);
 
 protected:
-	/** Initial pairwise calibration and triangulation. */
+	/** Calculate initial pose and triangulate points for two cameras **/
+	void calculatePairPose(unsigned int c1, unsigned int c2);
+
+	/** Only triangulate points using existing calibration */
+	void triangulate(unsigned int c1, unsigned int c2);
+
+	/** (1) Initial pairwise calibration and triangulation. */
 	void calculatePairPoses();
 
-	/** Calculate initial poses from pairs */
+	/** (2) Calculate initial poses from pairs for non calibrated cameras */
 	void calculateInitialPoses();
 
-	/** Bundle adjustment on initial poses and triangulations. */
+	/** (3) Bundle adjustment on initial poses and triangulations. */
 	double optimize();
+
+	/** Select optimal camera for chains. Optimal camera has most visibility and
+	 * is already calibrated (if any initial calibrations included).
+	 */
+	int selectOptimalCamera();
 
 private:
 	void updateStatus_(std::string);
+
 	std::vector<CalibrationData::Calibration> calib_;
 	std::vector<CalibrationData::Calibration> calib_optimized_;
 	ftl::calibration::BundleAdjustment::Options options_;
@@ -226,13 +236,17 @@ private:
 	CalibrationPoints<double> points_;
 	std::set<std::pair<unsigned int, unsigned int>> mask_;
 	std::map<std::pair<unsigned int, unsigned int>, std::tuple<cv::Mat, cv::Mat, double>> pairs_;
-	unsigned int c_ref_;
 
 	// true if camera already has valid calibration; initial pose estimation is
 	// skipped (and points are directly triangulated)
 	std::vector<bool> is_calibrated_;
 
-	int min_points_ = 64; // minimum number of points required for pair calibration
+	// prune points which have higher reprojection error than given threshold
+	// and re-run bundle adjustment. (might be able to remove some problematic
+	// observations from extreme angles etc.)
+	std::vector<double> prune_observations_ = {2.5, 2.0, 2.0, 1.0};
+
+	int min_obs_ = 64; // minimum number of observations required for pair calibration
 	// TODO: add map {c1,c2} for existing calibration which is used if available.
 	//
 	std::shared_ptr<std::string> status_;

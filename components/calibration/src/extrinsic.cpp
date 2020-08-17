@@ -290,6 +290,24 @@ int recoverPose(const cv::Mat &E, const std::vector<cv::Point2d> &_points1,
 							distanceThresh, cv::noArray(), triangulatedPoints);
 }
 
+static double scalePoints(const std::vector<cv::Point3d> &object_points, const cv::Mat& points_in, std::vector<cv::Point3d> &points_out) {
+
+	points_out.clear();
+	points_out.reserve(points_in.cols);
+	// convert from homogenous coordinates
+	for (int col = 0; col < points_in.cols; col++) {
+		CHECK_NE(points_in.at<double>(3, col), 0);
+		cv::Point3d p = cv::Point3d(points_in.at<double>(0, col),
+							points_in.at<double>(1, col),
+							points_in.at<double>(2, col))
+							/ points_in.at<double>(3, col);
+		points_out.push_back(p);
+	}
+
+	double s = ftl::calibration::optimizeScale(object_points, points_out);
+	return s;
+}
+
 double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 		const cv::Mat &K2, const cv::Mat &D2,
 		const std::vector<cv::Point2d> &points1,
@@ -297,27 +315,16 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 		const std::vector<cv::Point3d> &object_points, cv::Mat &R,
 		cv::Mat &t, std::vector<cv::Point3d> &points_out, bool optimize) {
 
+	// FM_8POINT should be good enough if there are no outliers in points1 and
+	// points2 (all correspondences are correct)
 	cv::Mat F = cv::findFundamentalMat(points1, points2, cv::noArray(), cv::FM_8POINT);
 	cv::Mat E = K2.t() * F * K1;
 
 	cv::Mat points3dh;
-	// distanceThresh unit?
+	// distanceThresh?
 	recoverPose(E, points1, points2, K1, K2, R, t, 1000.0, points3dh);
 
-	points_out.clear();
-	points_out.reserve(points3dh.cols);
-
-	// convert from homogenous coordinates
-	for (int col = 0; col < points3dh.cols; col++) {
-		CHECK_NE(points3dh.at<double>(3, col), 0);
-		cv::Point3d p = cv::Point3d(points3dh.at<double>(0, col),
-							points3dh.at<double>(1, col),
-							points3dh.at<double>(2, col))
-							/ points3dh.at<double>(3, col);
-		points_out.push_back(p);
-	}
-
-	double s = ftl::calibration::optimizeScale(object_points, points_out);
+	double s = scalePoints(object_points, points3dh, points_out);
 	t = t * s;
 
 	auto params1 = Camera(K1, D1, cv::Mat::eye(3, 3, CV_64FC1), cv::Mat::zeros(3, 1, CV_64FC1), {0, 0});
@@ -353,31 +360,11 @@ double calibratePair(const cv::Mat &K1, const cv::Mat &D1,
 
 // ==== Extrinsic Calibration ==================================================
 
-unsigned int ExtrinsicCalibration::addCamera(const CalibrationData::Intrinsic &c) {
-	unsigned int idx = calib_.size();
-	calib_.push_back({c, {}});
-	calib_optimized_.push_back(calib_.back());
-	is_calibrated_.push_back(false);
-	return idx;
-}
-
 unsigned int ExtrinsicCalibration::addCamera(const CalibrationData::Calibration &c) {
 	unsigned int idx = calib_.size();
 	calib_.push_back(c);
 	calib_optimized_.push_back(calib_.back());
 	is_calibrated_.push_back(true);
-	return idx;
-}
-
-unsigned int ExtrinsicCalibration::addStereoCamera(const CalibrationData::Intrinsic &c1, const CalibrationData::Intrinsic &c2) {
-	unsigned int idx = calib_.size();
-	calib_.push_back({c1, {}});
-	calib_optimized_.push_back(calib_.back());
-	calib_.push_back({c2, {}});
-	calib_optimized_.push_back(calib_.back());
-	is_calibrated_.push_back(false);
-	is_calibrated_.push_back(false);
-	mask_.insert({idx, idx + 1});
 	return idx;
 }
 
@@ -403,12 +390,86 @@ void ExtrinsicCalibration::updateStatus_(std::string str) {
 	std::atomic_store(&status_, std::make_shared<std::string>(str));
 }
 
+void ExtrinsicCalibration::calculatePairPose(unsigned int c1, unsigned int c2) {
+
+	// calculate paramters and update triangulation
+
+	cv::Mat K1 = calib_[c1].intrinsic.matrix();
+	cv::Mat distCoeffs1 = calib_[c1].intrinsic.distCoeffs.Mat();
+	cv::Mat K2 = calib_[c2].intrinsic.matrix();
+	cv::Mat distCoeffs2 = calib_[c2].intrinsic.distCoeffs.Mat();
+	auto pts = points().getPoints({c1, c2}, 0);
+	auto object = points().getObject(0);
+	cv::Mat R, t;
+	std::vector<cv::Point3d> points3d;
+	auto rmse = calibratePair(K1, distCoeffs1, K2, distCoeffs2,
+		pts[0], pts[1], object, R, t, points3d, true);
+
+	// debug info
+	LOG(INFO) << "RMSE (cameras " << c1 << " & " << c2 << "): " << rmse;
+
+	points().setTriangulatedPoints(c1, c2, points3d);
+
+	pairs_[{c1, c2}] = {R, t, rmse};
+
+	cv::Mat R_i, t_i;
+	R.copyTo(R_i);
+	t.copyTo(t_i);
+	transform::inverse(R_i, t_i);
+	pairs_[{c2, c1}] = {R_i, t_i, rmse};
+}
+
+void ExtrinsicCalibration::triangulate(unsigned int c1, unsigned int c2) {
+
+	cv::Mat T, R, t, R_i, t_i;
+
+	T = calib_[c1].extrinsic.matrix() *
+		transform::inverse(calib_[c2].extrinsic.matrix());
+	transform::getRotationAndTranslation(T, R_i, t_i);
+
+	T = calib_[c2].extrinsic.matrix() *
+			transform::inverse(calib_[c1].extrinsic.matrix());
+	transform::getRotationAndTranslation(T, R, t);
+
+	pairs_[{c1, c1}] = {R, t, NAN};
+	pairs_[{c2, c1}] = {R_i, t_i, NAN};
+
+	auto pts = points().getPoints({c1, c2}, 0);
+	std::vector<cv::Point3d> pointsw;
+
+	const auto& calib1 = calib_[c1];
+	const auto& calib2 = calib_[c2];
+
+	CHECK_EQ(pts[0].size(), pts[1].size());
+
+	cv::Mat pts1(1, pts[0].size(), CV_64FC2, pts[0].data());
+	cv::Mat pts2(1, pts[1].size(), CV_64FC2, pts[1].data());
+	cv::Mat out(1, pts[0].size(), CV_64FC2);
+
+	// Undistort points first. Note: undistortPoints() returns points in
+	// normalized coordinates, therefore projection matrices for
+	// cv::triangulatePoints() only include extrinsic parameters.
+	std::vector<cv::Point2d> pts1u, pts2u;
+	cv::undistortPoints(pts1, pts1u, calib1.intrinsic.matrix(), calib1.intrinsic.distCoeffs.Mat());
+	cv::undistortPoints(pts2, pts2u, calib2.intrinsic.matrix(), calib2.intrinsic.distCoeffs.Mat());
+
+	cv::Mat P1 = cv::Mat::eye(3, 4, CV_64FC1);
+	cv::Mat P2 = T(cv::Rect(0, 0, 4, 3));
+
+	// documentation claims cv::triangulatePoints() requires floats; however
+	// seems to only work with doubles (documentation outdated?).
+	// According to https://stackoverflow.com/a/16299909 cv::triangulatePoints()
+	// implements least squares method described in H&Z p312
+	cv::triangulatePoints(P1, P2, pts1u, pts2u, out);
+	// scalePoints() converts to non-homogenous coordinates and estimates scale
+	scalePoints(points().getObject(0), out, pointsw);
+	points().setTriangulatedPoints(c1, c2, pointsw);
+}
+
 void ExtrinsicCalibration::calculatePairPoses() {
 
-	const auto& visibility =  points_.visibility();
 	// Calibrate all pairs. TODO: might be expensive if number of cameras is high
-	// if not performed for all pairs, remaining non-triangulated poits have to
-	// be separately triangulated later.
+	// if not performed for all pairs.
 
 	int i = 1;
 	int i_max = (camerasCount() * camerasCount()) / 2 + 1;
@@ -417,7 +478,9 @@ void ExtrinsicCalibration::calculatePairPoses() {
 	for (unsigned int c2 = c1; c2 < camerasCount(); c2++) {
 
 		updateStatus_(	"Calculating pose for pair " +
-						std::to_string(i++) + " of " + std::to_string(i_max));
+						std::to_string(i++) + " of " + std::to_string(i_max) +
+						" and triangulating points");
+
 
 		if (c1 == c2) {
 			pairs_[{c1, c2}] = { cv::Mat::eye(cv::Size(3, 3), CV_64FC1),
@@ -427,41 +490,44 @@ void ExtrinsicCalibration::calculatePairPoses() {
 			continue;
 		}
 
-		if (mask_.count({c1, c2}) > 0 ) { continue; }
-		if (pairs_.find({c1, c2}) != pairs_.end()) { continue; }
+		if (pairs_.find({c1, c2}) != pairs_.end()) {
+			LOG(WARNING) << "pair already processed (this shold not happen)";
+			continue;
+		}
 
 		// require minimum number of visible points
-		if (visibility.count(c1, c2) < min_points_) {
+		if (points().visibility().count(c1, c2) < min_obs_) {
 			LOG(WARNING) << "skipped pair (" << c1 << ", " << c2 << "), not enough points";
 			continue;
 		}
 
-		// calculate paramters and update triangulation
-
-		cv::Mat K1 = calib_[c1].intrinsic.matrix();
-		cv::Mat distCoeffs1 = calib_[c1].intrinsic.distCoeffs.Mat();
-		cv::Mat K2 = calib_[c2].intrinsic.matrix();
-		cv::Mat distCoeffs2 = calib_[c2].intrinsic.distCoeffs.Mat();
-		auto pts = points().getPoints({c1, c2}, 0);
-		auto object = points().getObject(0);
-		cv::Mat R, t;
-		std::vector<cv::Point3d> points3d;
-		auto rmse = calibratePair(K1, distCoeffs1, K2, distCoeffs2,
-			pts[0], pts[1], object, R, t, points3d, true);
-
-		// debug info
-		LOG(INFO) << "RMSE (cameras " << c1 << " & " << c2 << "): " << rmse;
-
-		points().setTriangulatedPoints(c1, c2, points3d);
-
-		pairs_[{c1, c2}] = {R, t, rmse};
-
-		cv::Mat R_i, t_i;
-		R.copyTo(R_i);
-		t.copyTo(t_i);
-		transform::inverse(R_i, t_i);
-		pairs_[{c2, c1}] = {R_i, t_i, rmse};
+		if (is_calibrated_[c1] && is_calibrated_[c2]) {
+			LOG(INFO)	<< "using existing pose for cameras " << c1 << " and "
+						<< c2 << "(only triangulating points)";
+			triangulate(c1, c2);
+		}
+		else {
+			if (mask_.count({c1, c2}) > 0 ) { continue; }
+			calculatePairPose(c1, c2);
+		}
 	}}
+}
+
+int ExtrinsicCalibration::selectOptimalCamera() {
+	// Pick optimal camera: most views of calibration pattern. If existing
+	// calibration is used, reference camera must already be calibrated.
+	int c = 0;
+	int calibrated_c_ref_max = 0;
+	for (unsigned int i = 0; i < is_calibrated_[i]; i++) {
+		if (is_calibrated_[i] && points().getCount(i) > calibrated_c_ref_max) {
+			calibrated_c_ref_max = points().getCount(i);
+			c = i;
+		}
+	}
+	if (!calibrated_c_ref_max == 0) {
+		c = points().visibility().argmax();
+	}
+	return c;
 }
 
 void ExtrinsicCalibration::calculateInitialPoses() {
@@ -469,9 +535,7 @@ void ExtrinsicCalibration::calculateInitialPoses() {
 
 	// mask stereo cameras (do not pairwise calibrate a stereo pair; unreliable)
 	auto visibility =  points_.visibility();
-	for (const auto& m: mask_) {
-		visibility.mask(m.first, m.second);
-	}
+	for (const auto& [c1, c2]: mask_) { visibility.mask(c1, c2); }
 
 	// mask cameras which did not have enough points TODO: triangulation later
 	// would still be useful (calculate initial poses, then triangulate)
@@ -480,20 +544,21 @@ void ExtrinsicCalibration::calculateInitialPoses() {
 		if (pairs_.count({c1, c2}) == 0) {
 			visibility.mask(c1, c2);
 		}
-
-		// mask bad pairs (high rmse)
-		/*if (std::get<2>(pairs_.at({c1, c2})) > 16.0) {
-			visibility.mask(c1, c2);
-		}*/
 	}}
 
-	// pick optimal camera: most views of calibration pattern
-	c_ref_ = visibility.argmax();
+	// select optimal camera to calculate chains to. TODO: if any of the
+	// cameras is already calibrated, use most visible calibrated camera as
+	// target camera.
+	auto c_ref = selectOptimalCamera();
 
-	auto paths = visibility.shortestPath(c_ref_);
+	auto paths = visibility.shortestPath(c_ref);
 
 	for (unsigned int c = 0; c < camerasCount(); c++) {
-		if (c == c_ref_) { continue; }
+		if (is_calibrated_[c]) {
+			// already calibrated. skip chain
+			continue;
+		}
+		if (c == unsigned(c_ref)) { continue; }
 
 		cv::Mat R_chain = cv::Mat::eye(cv::Size(3, 3), CV_64FC1);
 		cv::Mat t_chain = cv::Mat(cv::Size(1, 3), CV_64FC1, cv::Scalar(0.0));
@@ -517,7 +582,6 @@ void ExtrinsicCalibration::calculateInitialPoses() {
 		while(path.size() > 1);
 
 		// note: direction of chain in the loop (ref to target transformation)
-
 		calib_[c].extrinsic =
 			CalibrationData::Extrinsic(R_chain, t_chain).inverse();
 	}
@@ -533,6 +597,10 @@ static std::vector<bool> visibility(unsigned int ncameras, uint64_t visible) {
 
 /* absolute difference between min and max for each set of coordinates */
 static cv::Point3d absdiff(const std::vector<double> &xs, const std::vector<double> &ys, const std::vector<double> &zs) {
+	if (xs.size() < 2) {
+		return {0.0, 0.0, 0.0};
+	}
+
 	double minx = INFINITY;
 	double maxx = -INFINITY;
 	for (auto x : xs) {
@@ -551,11 +619,24 @@ static cv::Point3d absdiff(const std::vector<double> &xs, const std::vector<doub
 		minz = std::min(minz, z);
 		maxz = std::max(maxz, z);
 	}
-	return {abs(minx - maxx), abs(miny - maxy), abs(minz - maxz)};
+	cv::Point3d diff = {abs(minx - maxx), abs(miny - maxy), abs(minz - maxz)};
+	return diff;
 }
 
 double ExtrinsicCalibration::optimize() {
 
+	// triangulate points for stereo pairs (all points triangulated after this)
+	updateStatus_("Triangulating remaining points");
+	for (const auto& [c1, c2]: mask_) {
+		if (points().visibility().count(c1, c2) >= min_obs_) {
+			triangulate(c1, c2);
+		}
+		else {
+			LOG(INFO) << "Skipping triangulation for pair " << c1 << ", " << c2;
+		}
+	}
+
+	// Build BA
 	BundleAdjustment ba;
 	std::vector<Camera> cameras;
 	std::vector<cv::Mat> T; // camera to world
@@ -579,7 +660,6 @@ double ExtrinsicCalibration::optimize() {
 	// triangulated multiple times: use median values. Note T[] contains
 	// inverse transformations, as points are transformed from camera to world
 	// (instead the other way around by parameters in cameras[]).
-
 	updateStatus_("Calculating points in world coordinates");
 
 	// NOTE: above CalibrationPoints datastructure not optimal regarding how
@@ -626,11 +706,9 @@ double ExtrinsicCalibration::optimize() {
 
 			unsigned int n = px.size();
 			unsigned int m = n / 2;
-			if (m == 0) {
+			if (n == 0) {
 				n_points_missing++;
 				break;
-				// not triangulated (see earlier steps)
-				// TODO: triangulate here
 			}
 			if (n % 2 == 0 && n > 1) {
 				// mean of two points if number of points even
@@ -657,19 +735,17 @@ double ExtrinsicCalibration::optimize() {
 		// was very low quality (more than % bad points)
 		LOG(ERROR) << "Large variation in "<< n_points_bad << " "
 					  "triangulated points. Are initial intrinsic parameters "
-					  "good?";
+					  "good? If initial camera poses were used, try again "
+					  "without using existing values.";
 	}
 
 	if (float(n_points_missing)/float(n_points - n_points_bad) > threhsold_warning_) {
-		// low number of points; most points only visible in pairs?
+		// this should not happen any more (all points should be triangulated).
 		LOG(WARNING) << "Large number of points skipped. Are there enough "
-						"visible points between stereo camera pairs? (TODO: "
-						"implement necessary triangulation after pair "
-						"calibration)";
+						"visible points between stereo camera pairs?";
 	}
 
 	updateStatus_("Bundle adjustment");
-	options_.fix_camera_extrinsic = {int(c_ref_)};
 	options_.verbose = true;
 	options_.max_iter = 250; // should converge much earlier
 
@@ -679,10 +755,19 @@ double ExtrinsicCalibration::optimize() {
 	LOG(INFO) << "fix distortion: " << (options_.fix_distortion ? "yes" : "no");
 
 	ba.run(options_);
-	LOG(INFO) << "removed points: " << ba.removeObservations(2.0);
-	ba.run(options_);
-	LOG(INFO) << "removed points: " << ba.removeObservations(1.0);
-	ba.run(options_);
+
+	int n_removed = 0;
+	for (const auto& t : prune_observations_) {
+		n_removed +=  ba.removeObservations(t);
+		if (float(n_removed)/float(n_points) > threhsold_warning_) {
+			LOG(WARNING) << "significant number of observations removed";
+			break;
+		}
+		else {
+			LOG(INFO) << "removed observations: " << n_removed;
+			ba.run(options_);
+		}
+	}
 
 	calib_optimized_.resize(calib_.size());
 	rmse_.resize(calib_.size());

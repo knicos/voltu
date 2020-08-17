@@ -87,7 +87,7 @@ cv::Mat CalibrationData::Intrinsic::matrix(cv::Size size) const {
 }
 
 bool CalibrationData::Intrinsic::valid() const {
-	return (resolution == cv::Size{0, 0});
+	return (resolution != cv::Size{0, 0});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,4 +246,17 @@ CalibrationData::Calibration& CalibrationData::get(ftl::codecs::Channel channel)
 
 bool CalibrationData::hasCalibration(ftl::codecs::Channel channel) const {
 	return data.count(channel) != 0;
+}
+
+// ==== CalibrationData::Calibration ===========================================
+#include <loguru.hpp>
+cv::Mat CalibrationData::Calibration::matrix() {
+	if (!intrinsic.valid() || !extrinsic.valid()) {
+		throw ftl::exception("Invalid calibration");
+	}
+
+	cv::Mat P = extrinsic.matrix();
+	cv::Mat R = P(cv::Rect(0, 0, 3, 3));
+	R = intrinsic.matrix() * R;
+	return P;
 }

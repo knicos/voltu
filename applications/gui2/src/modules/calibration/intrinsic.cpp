@@ -204,7 +204,7 @@ bool IntrinsicCalibration::onFrame_(const ftl::data::FrameSetPtr& fs) {
 }
 
 
-void IntrinsicCalibration::save() {
+void IntrinsicCalibration::saveCalibration() {
 	auto& frame = fs_current_->frames[state_->id.source()];
 	CalibrationData calib_data = CalibrationData(frame.get<CalibrationData>(Channel::CalibrationData));
 	auto& calibration = calib_data.get(state_->channel);

@@ -182,7 +182,7 @@ bool StereoCalibration::onFrame_(const ftl::data::FrameSetPtr& fs) {
 }
 
 
-void StereoCalibration::save() {
+void StereoCalibration::saveCalibration() {
 	auto fs = std::atomic_load(&(fs_current_));
 	setCalibration((*fs)[state_->id.source()], state_->calib);
 }

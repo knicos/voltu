@@ -157,8 +157,7 @@ Mat Camera::distortionCoefficients() const {
 Mat Camera::rvec() const {
 	cv::Mat rvec(cv::Size(3, 1), CV_64FC1);
 	CHECK_EQ(rvec.step1(), 3);
-	ceres::QuaternionToAngleAxis(data + Parameter::ROTATION,
-		(double*)(rvec.data));
+	ceres::QuaternionToAngleAxis(data + Parameter::ROTATION, (double*)(rvec.data));
 	return rvec;
 }
 
@@ -361,7 +360,7 @@ double ftl::calibration::optimizeScale(const vector<Point3d> &object_points, vec
 
 	vector<double> d;
 	ceres::Problem problem;
-	auto loss_function = new ceres::HuberLoss(1.0);
+	ceres::LossFunction* loss_function = nullptr;
 
 	// use all pairwise distances
 	for (size_t i = 0; i < object_points.size(); i++) {
@@ -612,7 +611,7 @@ void BundleAdjustment::_buildBundleAdjustmentProblem(ceres::Problem &problem, co
 }
 
 void BundleAdjustment::_buildProblem(ceres::Problem &problem, const BundleAdjustment::Options &options) {
-
+	CHECK(options.use_quaternion) << "Only quaternion rotations are supported";
 	_buildBundleAdjustmentProblem(problem, options);
 	_buildLengthProblem(problem, options);
 }

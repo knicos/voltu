@@ -368,6 +368,84 @@ void ExtrinsicCalibrationView::CalibrationWindow::build() {
 		else	{ flags &= ~ExtrinsicCalibration::Flags::RATIONAL_MODEL; }
 	});
 
+	////////////////////////////////////////////////////////////////////////////
+
+	new nanogui::Label(wfreeze, "Use available (calibrated) extrinsics for cameras: ");
+	auto* use_extrinsics = new nanogui::Widget(wfreeze);
+	use_extrinsics->setLayout(new nanogui::BoxLayout
+		(nanogui::Orientation::Horizontal, nanogui::Alignment::Minimum));
+	for (int n = 0; n < ctrl_->cameraCount(); n++) {
+		auto* b = new nanogui::Button(use_extrinsics, std::to_string(n));
+		b->setFlags(nanogui::Button::Flags::ToggleButton);
+		b->setPushed(ctrl_->calib().useExtrinsic(n));
+		b->setEnabled(ctrl_->calib().calibration(n).extrinsic.valid());
+		b->setChangeCallback([this, n](bool v) {
+			ctrl_->calib().setUseExtrinsic(n, v);
+		});
+	}
+	{
+		auto* b = new nanogui::Button(use_extrinsics, "All");
+		b->setCallback([this, use_extrinsics](){
+			for (int i = 0; i < use_extrinsics->childCount() - 2; i ++) {
+				auto* b = dynamic_cast<nanogui::Button*>(use_extrinsics->childAt(i));
+				b->setPushed(true);
+				b->changeCallback()(true);
+			}
+		});
+	}
+	{
+		auto* b = new nanogui::Button(use_extrinsics, "None");
+		b->setCallback([this, use_extrinsics](){
+			for (int i = 0; i < use_extrinsics->childCount() - 2; i ++) {
+				auto* b = dynamic_cast<nanogui::Button*>(use_extrinsics->childAt(i));
+				b->setPushed(false);
+				b->changeCallback()(false);
+			}
+		});
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	// TODO: selecting camera should also enable use existing above for same c
+
+	new nanogui::Label(wfreeze, "Fix extrinsics for cameras: ");
+	auto* fix_extrinsics = new nanogui::Widget(wfreeze);
+	fix_extrinsics->setLayout(new nanogui::BoxLayout
+		(nanogui::Orientation::Horizontal, nanogui::Alignment::Minimum));
+	for (int n = 0; n < ctrl_->cameraCount(); n++) {
+		auto* b = new nanogui::Button(fix_extrinsics, std::to_string(n));
+		b->setFlags(nanogui::Button::Flags::ToggleButton);
+		b->setEnabled(ctrl_->calib().useExtrinsic(n));
+		b->setPushed(ctrl_->calib().options().fix_camera_extrinsic.count(n));
+		b->setChangeCallback([this, n](bool v){
+			if (v) {
+				ctrl_->calib().options().fix_camera_extrinsic.insert(n);
+			}
+			else {
+				ctrl_->calib().options().fix_camera_extrinsic.erase(n);
+			}
+		});
+	}
+	{
+		auto* b = new nanogui::Button(fix_extrinsics, "All");
+		b->setCallback([this, fix_extrinsics](){
+			for (int i = 0; i < fix_extrinsics->childCount() - 2; i ++) {
+				auto* b = dynamic_cast<nanogui::Button*>(fix_extrinsics->childAt(i));
+				b->setPushed(true);
+				b->changeCallback()(true);
+			}
+		});
+	}
+	{
+		auto* b = new nanogui::Button(fix_extrinsics, "None");
+		b->setCallback([this, fix_extrinsics](){
+			for (int i = 0; i < fix_extrinsics->childCount() - 2; i ++) {
+				auto* b = dynamic_cast<nanogui::Button*>(fix_extrinsics->childAt(i));
+				b->setPushed(false);
+				b->changeCallback()(false);
+			}
+		});
+	}
+
 	/* Needs thinking: visualize visibility graph? Use earlier alignment (if
 	 * some of the cameras already calibrated), do elsewhere?
 	 */
@@ -509,7 +587,7 @@ private:
 	std::set<int> rows_;
 	std::map<int, nanogui::Color> colors_;
 
-	int n_colors_ = 16;
+	int n_colors_ = 8;
 	float alpha_threshold_ = 2.0f;
 
 public:
@@ -568,14 +646,14 @@ void StereoCalibrationImageView::draw(NVGcontext* ctx) {
 			nvgStrokeWidth(ctx, swidth);
 			nvgStroke(ctx);
 
-			if (swidth*0.5f > alpha_threshold_) {
+			/*if (swidth*0.5f > alpha_threshold_) {
 				nvgBeginPath(ctx);
 				nvgMoveTo(ctx, x, p.y() - swidth*0.5f);
 				nvgLineTo(ctx, x + w, p.y() - swidth*0.5f);
 				nvgStrokeColor(ctx, nvgRGBA(0, 0, 0, 196));
 				nvgStrokeWidth(ctx, 1.0f);
 				nvgStroke(ctx);
-			}
+			}*/
 			nvgResetScissor(ctx);
 			y_im += h;
 		}
