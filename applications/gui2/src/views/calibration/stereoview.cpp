@@ -376,7 +376,7 @@ StereoCalibrationView::ResultWindow::ResultWindow(nanogui::Widget* parent, Stere
 
 	bsave_ = new nanogui::Button(this, "Save");
 	bsave_->setCallback([button = bsave_, ctrl = ctrl_](){
-		ctrl->save();
+		ctrl->saveCalibration();
 		button->setCaption("Saved");
 		button->setEnabled(false);
 	});

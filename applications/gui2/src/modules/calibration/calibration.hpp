@@ -162,7 +162,7 @@ public:
 	void run();
 
 	/** Save calibration */
-	void save();
+	void saveCalibration();
 
 	ftl::calibration::CalibrationData::Intrinsic calibration();
 
@@ -264,7 +264,7 @@ public:
 	std::string cameraName(int camera);
 	std::vector<std::string> cameraNames();
 
-	ftl::calibration::ExtrinsicCalibration& calib();
+	ftl::calibration::ExtrinsicCalibration& calib() { return state_.calib; } // should avoid
 
 	/** hasFrame(int) must be true before calling getFrame() **/
 	bool hasFrame(int camera);
@@ -412,7 +412,7 @@ public:
 	void run();
 
 	/** Save calibration */
-	void save();
+	void saveCalibration();
 
 	/** check if calibration valid: baseline > 0 */
 	bool calibrated();

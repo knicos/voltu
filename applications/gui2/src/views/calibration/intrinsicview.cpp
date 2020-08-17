@@ -492,7 +492,7 @@ IntrinsicCalibrationView::ResultWindow::ResultWindow(nanogui::Widget* parent, In
 
 	bsave_ = new nanogui::Button(this, "Save");
 	bsave_->setCallback([button = bsave_, ctrl = ctrl_](){
-		ctrl->save();
+		ctrl->saveCalibration();
 		button->setCaption("Saved");
 		button->setEnabled(false);
 	});
