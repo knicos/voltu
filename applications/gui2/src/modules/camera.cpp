@@ -585,7 +585,7 @@ void Camera::setCursor(int x, int y) {
 
 void Camera::setOriginToCursor() {
 	using ftl::calibration::transform::inverse;
-	
+
 	// Check for valid cursor
 	/*if (cursor_normal_.norm() == 0.0f) return;
 	float cursor_length = (cursor_target_ - cursor_pos_).norm();
@@ -608,26 +608,34 @@ void Camera::setOriginToCursor() {
 						auto response = f.response();
 						auto &rgbdf = response.cast<ftl::rgbd::Frame>();
 						auto &calib = rgbdf.setCalibration();
+
 						calib = f.cast<ftl::rgbd::Frame>().getCalibration();
 						// apply correction to existing one
-						calib.origin = cur*calib.origin;
+						cv::Mat new_origin = cur*calib.origin;
+						if (ftl::calibration::validate::pose(new_origin)) {
+							calib.origin = new_origin;
+						}
+						else {
+							// TODO: add error message to gui as well
+							LOG(ERROR) << "Bad origin update (invalid pose)";
+						}
 					}
 				};
 			}
 		}
 	}
 
-	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
 	cursor_pos_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
-	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
 	cursor_ = _cursor();
 }
 
 void Camera::resetOrigin() {
-	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f); 
+	cursor_target_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
 	cursor_pos_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
 	cursor_normal_ = Eigen::Vector3f(0.0f,0.0f,0.0f);
-	cursor_ = _cursor(); 
+	cursor_ = _cursor();
 
 	if (movable_) {
 		auto *rend = io->feed()->getRenderer(frame_id_);

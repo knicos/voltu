@@ -96,7 +96,7 @@ bool OpenVRRender::initVR() {
 
 	vr::EVRInitError eError = vr::VRInitError_None;
 	HMD = vr::VR_Init( &eError, vr::VRApplication_Scene );
-	
+
 	if (eError != vr::VRInitError_None)
 	{
 		HMD = nullptr;
@@ -159,9 +159,9 @@ static Eigen::Matrix3d getCameraMatrix(const double tanx1,
 								const double tany2,
 								const double size_x,
 								const double size_y) {
-	
+
 	Eigen::Matrix3d C = Eigen::Matrix3d::Identity();
-	
+
 	CHECK(tanx1 < 0 && tanx2 > 0 && tany1 < 0 && tany2 > 0);
 	CHECK(size_x > 0 && size_y > 0);
 
@@ -209,7 +209,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 			left.baseline = baseline_;
 			right.baseline = baseline_;
-			
+
 			unsigned int size_x, size_y;
 			HMD->GetRecommendedRenderTargetSize(&size_x, &size_y);
 			left.width = size_x;
@@ -330,7 +330,16 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 				if (headset_origin.size() > 0) {
 					ftl::operators::Poser::get(headset_origin, horigin);
 				}
-				initial_pose_ = horigin*viewPose.inverse();
+				Eigen::Matrix4d new_pose = horigin*viewPose.inverse();
+
+				// validate new values before saving
+				const Eigen::Matrix3d rot(new_pose.block<3, 3>(0, 0));
+				if ((abs(rot.determinant() - 1.0) < 0.0001) && (new_pose(3, 3) == 1.0)) {
+					initial_pose_ = new_pose;
+				}
+				else {
+					LOG(ERROR) << "Bad pose update";
+				}
 
 				if (host_->value("reset_pose", false) && ftl::timer::get_time() < pose_calibration_start_ + host_->value("calibration_time",10000)) {
 					pose_calibrated_.clear();
@@ -351,7 +360,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 		texture1_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 		texture2_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
-		
+
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(renderer_->getCUDAStream());
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map(renderer_->getCUDAStream());
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Depth).create(height, width, CV_32F);
@@ -481,7 +490,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			renderer_->render();
 			//renderer2_->render();
 
-			
+
 			mixer_.mix();
 
 			// Write mixed audio to frame.
