@@ -541,6 +541,20 @@ Eigen::Vector3f Camera::worldAt(int x, int y) {
 	return res;
 }
 
+Eigen::Vector3f fitPlane(const std::vector<float3>& pts) {
+	// PCA: calculate covariance matrix and its eigenvectors. Last eigenvector
+	// is the plane normal.
+
+	Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>>
+		mat((float*)(pts.data()), pts.size(), 3);
+
+	Eigen::MatrixXf centered = mat.rowwise() - mat.colwise().mean();
+	Eigen::MatrixXf cov = (centered.adjoint() * centered) / double(mat.rows() - 1);
+	Eigen::EigenSolver<Eigen::MatrixXf> es(cov);
+	Eigen::Vector3cf n(es.eigenvectors().col(2)); // already normalized
+	return n.real();
+}
+
 void Camera::setCursor(int x, int y) {
 	auto ptr = std::atomic_load(&latest_);
 
@@ -554,32 +568,47 @@ void Camera::setCursor(int x, int y) {
 			const auto &intrins = frame.getLeft();
 			Eigen::Matrix4f posef = frame.getPose().cast<float>();
 
-
 			float3 CC = getWorldPoint(depth, x, y, intrins, posef);
 			cursor_pos_[0] = CC.x;
 			cursor_pos_[1] = CC.y;
 			cursor_pos_[2] = CC.z;
 
-			// Now find normal
-			float3 PC = getWorldPoint(depth, x, y+4, intrins, posef);
-			float3 CP = getWorldPoint(depth, x+4, y, intrins, posef);
-			float3 MC = getWorldPoint(depth, x, y-4, intrins, posef);
-			float3 CM = getWorldPoint(depth, x-4, y, intrins, posef);
-			const float3 n = cross(PC-MC, CP-CM);
-            const float  l = length(n);
-
-			if (l > 0.0f) {
-				cursor_normal_[0] = n.x / -l;
-				cursor_normal_[1] = n.y / -l;
-				cursor_normal_[2] = n.z / -l;
-			}
-
+			// some valid value as initial value
+			const float3 CP = getWorldPoint(depth, x+4, y, intrins, posef);
 			cursor_target_[0] = CP.x;
 			cursor_target_[1] = CP.y;
 			cursor_target_[2] = CP.z;
+
+			// get points around the selected point. candidates are selected in
+			// from square [-range, range] around (x, y) and points which are
+			// closer than max_distance are used. TODO: check bounds (depth map
+			// size)
+			const int range = 30;
+			const float max_distance = 0.50;
+			std::vector<float3> pts;
+			for (int xi = -range; xi <= range; xi++) {
+			for (int yi = -range; yi <= range; yi++) {
+				auto p = getWorldPoint(depth, x + xi, y + yi, intrins, posef);
+				if (p.x == 0 && p.y == 0 && p.z == 0.0) {
+					continue;
+				}
+				const float3 d = p - CC;
+				if (sqrtf(d.x*d.x + d.y*d.y + d.z*d.z) < max_distance) {
+					pts.push_back(p);
+				}
+			}}
+			if (pts.size() == 0) { return; }
+
+			cursor_normal_ = fitPlane(pts);
 		}
 	}
 
+	cursor_ = _cursor();
+}
+
+void Camera::setCursorTarget(const Eigen::Vector3f &p) {
+	cursor_target_ =
+		p - cursor_normal_.dot(p - cursor_pos_) * cursor_normal_;
 	cursor_ = _cursor();
 }
 

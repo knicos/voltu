@@ -75,7 +75,7 @@ public:
 
 	void setCursorPosition(const Eigen::Vector3f &pos) { cursor_pos_ = pos; cursor_ = _cursor(); }
 	void setCursorNormal(const Eigen::Vector3f &norm) { cursor_normal_ = norm; cursor_ = _cursor(); }
-	void setCursorTarget(const Eigen::Vector3f &targ) { cursor_target_ = targ; cursor_ = _cursor(); }
+	void setCursorTarget(const Eigen::Vector3f &targ);
 	void setCursor(int x, int y);
 
 	const Eigen::Vector3f getCursorPosition() const { return cursor_pos_; }
