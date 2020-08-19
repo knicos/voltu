@@ -542,8 +542,8 @@ Eigen::Vector3f Camera::worldAt(int x, int y) {
 }
 
 Eigen::Vector3f fitPlane(const std::vector<float3>& pts) {
-	// PCA: calculate covariance matrix and its eigenvectors. Last eigenvector
-	// is the plane normal.
+	// PCA: calculate covariance matrix and its eigenvectors. Eigenvector
+	// corresponding to smallest eigenvalue is the plane normal.
 
 	Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>>
 		mat((float*)(pts.data()), pts.size(), 3);
@@ -551,7 +551,11 @@ Eigen::Vector3f fitPlane(const std::vector<float3>& pts) {
 	Eigen::MatrixXf centered = mat.rowwise() - mat.colwise().mean();
 	Eigen::MatrixXf cov = (centered.adjoint() * centered) / double(mat.rows() - 1);
 	Eigen::EigenSolver<Eigen::MatrixXf> es(cov);
-	Eigen::Vector3cf n(es.eigenvectors().col(2)); // already normalized
+
+	Eigen::VectorXf::Index argmin;
+	es.eigenvalues().real().minCoeff(&argmin);
+
+	Eigen::Vector3cf n(es.eigenvectors().col(argmin)); // already normalized
 	return n.real();
 }
 
@@ -573,19 +577,15 @@ void Camera::setCursor(int x, int y) {
 			cursor_pos_[1] = CC.y;
 			cursor_pos_[2] = CC.z;
 
-			// some valid value as initial value
-			const float3 CP = getWorldPoint(depth, x+4, y, intrins, posef);
-			cursor_target_[0] = CP.x;
-			cursor_target_[1] = CP.y;
-			cursor_target_[2] = CP.z;
-
 			// get points around the selected point. candidates are selected in
 			// from square [-range, range] around (x, y) and points which are
 			// closer than max_distance are used. TODO: check bounds (depth map
 			// size)
-			const int range = 30;
-			const float max_distance = 0.50;
+			const int range = 24; // 49x49 pixels square
+			const float max_distance = 0.075; // 15cm radius
+			const int min_points = 16;
 			std::vector<float3> pts;
+			pts.reserve((range*2 + 1)*(range*2 + 1));
 			for (int xi = -range; xi <= range; xi++) {
 			for (int yi = -range; yi <= range; yi++) {
 				auto p = getWorldPoint(depth, x + xi, y + yi, intrins, posef);
@@ -597,9 +597,15 @@ void Camera::setCursor(int x, int y) {
 					pts.push_back(p);
 				}
 			}}
-			if (pts.size() == 0) { return; }
+			if (pts.size() < min_points) { return; }
 
 			cursor_normal_ = fitPlane(pts);
+			// don't flip y
+			if (cursor_normal_.y() < 0.0) { cursor_normal_ = -cursor_normal_; }
+
+			// some valid value as initial value
+			const float3 CP = getWorldPoint(depth, x+4, y, intrins, posef);
+			setCursorTarget({CP.x, CP.y, CP.z});
 		}
 	}
 
