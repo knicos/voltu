@@ -140,14 +140,9 @@ OpenCVDevice::OpenCVDevice(nlohmann::json &config, bool stereo)
 	width_ = frame.cols;
 	height_ = frame.rows;
 
-	dwidth_ = value("depth_width", width_);
-	float aspect = float(height_) / float(width_);
-	dheight_ = value("depth_height", std::min(uint32_t(aspect*float(dwidth_)), height_)) & 0xFFFe;
-
 	// Allocate page locked host memory for fast GPU transfer
-	left_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC4);
-	right_hm_ = cv::cuda::HostMem(dheight_, dwidth_, CV_8UC4);
-	hres_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
+	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
+	right_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
 
 	interpolation_ = value("inter_cubic", true) ? cv::INTER_CUBIC : cv::INTER_LINEAR;
 	on("inter_cubic", [this](){
@@ -332,47 +327,34 @@ bool OpenCVDevice::grab() {
 	return true;
 }
 
-bool OpenCVDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out,
-	cv::cuda::GpuMat &l_hres_out, cv::Mat &r_hres_out, StereoRectification *c, cv::cuda::Stream &stream) {
+bool OpenCVDevice::get(ftl::rgbd::Frame &frame, StereoRectification *c, cv::cuda::Stream &stream) {
 
 	Mat l, r ,hres;
 
 	// Use page locked memory
 	l = left_hm_.createMatHeader();
 	r = right_hm_.createMatHeader();
-	hres = hres_hm_.createMatHeader();
-
-	Mat &lfull = (!hasHigherRes()) ? l : hres;
-	Mat &rfull = (!hasHigherRes()) ? r : rtmp_;
 
 	if (!camera_a_) return false;
 
-	//std::future<bool> future_b;
 	if (camera_b_) {
-		//future_b = std::move(ftl::pool.push([this,&rfull,&r,c,&r_out,&r_hres_out,&stream](int id) {
-			if (!camera_b_->retrieve(frame_r_)) {
-				LOG(ERROR) << "Unable to read frame from camera B";
-				return false;
-			} else {
-				cv::cvtColor(frame_r_, rtmp2_, cv::COLOR_BGR2BGRA);
+		if (!camera_b_->retrieve(frame_r_)) {
+			LOG(ERROR) << "Unable to read frame from camera B";
+			return false;
+		}
+		else {
+			cv::cvtColor(frame_r_, rtmp_, cv::COLOR_BGR2BGRA);
 
-				//if (stereo_) {
-					c->rectify(rtmp2_, rfull, Channel::Right);
+			//if (stereo_) {
+				c->rectify(rtmp_, r, Channel::Right);
+			//}
 
-					if (hasHigherRes()) {
-						// TODO: Use threads?
-						cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
-						r_hres_out = rfull;
-					}
-					else {
-						r_hres_out = Mat();
-					}
-				//}
-
-				r_out.upload(r, stream);
-			}
-			//return true;
-		//}));
+			auto& f_right = frame.create<ftl::rgbd::VideoFrame>(Channel::Right);
+			cv::cuda::GpuMat& r_out = f_right.createGPU();
+			cv::Mat &r_host = f_right.setCPU();
+			r_out.upload(r, stream);
+			r.copyTo(r_host);
+		}
 	}
 
 	if (camera_b_) {
@@ -383,11 +365,8 @@ bool OpenCVDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cud
 			return false;
 		}
 
-		/*if (camera_b_ && !camera_b_->retrieve(rfull)) {
-			LOG(ERROR) << "Unable to read frame from camera B";
-			return false;
-		}*/
-	} else {
+	}
+	else {
 		if (!camera_a_->read(frame_l_)) {
 			LOG(ERROR) << "Unable to read frame from camera A";
 			return false;
@@ -396,32 +375,19 @@ bool OpenCVDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cud
 
 	if (stereo_) {
 		cv::cvtColor(frame_l_, ltmp_, cv::COLOR_BGR2BGRA);
-		//FTL_Profile("Rectification", 0.01);
-		//c->rectifyStereo(lfull, rfull);
-		c->rectify(ltmp_, lfull, Channel::Left);
-
-		// Need to resize
-		//if (hasHigherRes()) {
-			// TODO: Use threads?
-		//	cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
-		//}
-	} else {
-		cv::cvtColor(frame_l_, lfull, cv::COLOR_BGR2BGRA);
+		c->rectify(ltmp_, l, Channel::Left);
 	}
-
-	if (hasHigherRes()) {
-		//FTL_Profile("Frame Resize", 0.01);
-		cv::resize(lfull, l, l.size(), 0.0, 0.0, interpolation_);
-		l_hres_out.upload(hres, stream);
-	} else {
-		l_hres_out = cv::cuda::GpuMat();
+	else {
+		cv::cvtColor(frame_l_, l, cv::COLOR_BGR2BGRA);
 	}
 
 	{
-		//FTL_Profile("Upload", 0.05);
+		auto& f_left = frame.create<ftl::rgbd::VideoFrame>(Channel::Left);
+		cv::cuda::GpuMat& l_out = f_left.createGPU();
+		cv::Mat &l_host = f_left.setCPU();
 		l_out.upload(l, stream);
+		l.copyTo(l_host);
 	}
-	//r_out.upload(r, stream);
 
 	if (!frame.hasChannel(Channel::Thumbnail)) {
 		cv::Mat thumb;
@@ -430,11 +396,6 @@ bool OpenCVDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cud
 		std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 70};
 		cv::imencode(".jpg", thumb, thumbdata, params);
 	}
-
-	//if (camera_b_) {
-		//FTL_Profile("WaitCamB", 0.05);
-		//future_b.wait();
-	//}
 
 	return true;
 }

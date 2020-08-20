@@ -235,7 +235,7 @@ bool File::tick(int64_t ts) {
 
 	// Check buffer first for frames already read
 	{
-		UNIQUE_LOCK(data_mutex_, dlk);
+		//UNIQUE_LOCK(data_mutex_, dlk);
 		if (data_.size() > 0) has_data = true;
 		
 		if (needs_endframe_) {
@@ -245,7 +245,7 @@ bool File::tick(int64_t ts) {
 
 		size_t frame_count = 0;
 
-		for (auto i = data_.begin(); i != data_.end(); ++i) {
+		for (auto i = data_.begin(); i != data_.end(); ) {
 			if (std::get<0>(*i).timestamp <= timestamp_) {
 				auto &spkt = std::get<0>(*i);
 				auto &pkt = std::get<1>(*i);
@@ -268,7 +268,10 @@ bool File::tick(int64_t ts) {
 					}
 				}
 
-				ftl::pool.push([this,i](int id) {
+				auto j = i;
+				++i;
+
+				ftl::pool.push([this,i=j](int id) {
 					auto &spkt = std::get<0>(*i);
 					auto &pkt = std::get<1>(*i);
 

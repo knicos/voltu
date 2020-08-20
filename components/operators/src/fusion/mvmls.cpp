@@ -5,13 +5,14 @@
 #include <ftl/cuda/normals.hpp>
 
 #include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudawarping.hpp>
 
 using ftl::operators::MultiViewMLS;
 using ftl::codecs::Channel;
 using cv::cuda::GpuMat;
 using ftl::rgbd::Format;
 
-MultiViewMLS::MultiViewMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+MultiViewMLS::MultiViewMLS(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -94,6 +95,13 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
         f.createTexture<short2>(Channel::Screen);
 
         f.set<GpuMat>(Channel::Confidence).setTo(cv::Scalar(0.0f), cvstream);
+
+		if (show_adjustment || show_consistency) {
+			if (!f.hasChannel(Channel::Overlay)) {
+				auto &t = f.createTexture<uchar4>(Channel::Overlay, ftl::rgbd::Format<uchar4>(size));
+				cudaMemset2DAsync(t.devicePtr(), t.pitch(), 0, t.width()*4, t.height(), stream);
+			}
+		}
     }
 
     //for (int iter=0; iter<iters; ++iter) {
@@ -272,8 +280,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                         );*/
 
 						if (show_consistency) {
-							ftl::cuda::show_cor_error(f1.getTexture<uchar4>(Channel::Colour), f1.getTexture<short2>(Channel::Screen), f2.getTexture<short2>(Channel::Screen), 5.0f, stream);
-							ftl::cuda::show_cor_error(f2.getTexture<uchar4>(Channel::Colour), f2.getTexture<short2>(Channel::Screen), f1.getTexture<short2>(Channel::Screen), 5.0f, stream);
+							ftl::cuda::show_cor_error(f1.getTexture<uchar4>(Channel::Overlay), f1.getTexture<short2>(Channel::Screen), f2.getTexture<short2>(Channel::Screen), 5.0f, stream);
+							ftl::cuda::show_cor_error(f2.getTexture<uchar4>(Channel::Overlay), f2.getTexture<short2>(Channel::Screen), f1.getTexture<short2>(Channel::Screen), 5.0f, stream);
 						}
 
 						/*ftl::cuda::remove_cor_error(
@@ -297,8 +305,8 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
                         //}
 
 						if (show_adjustment) {
-							ftl::cuda::show_depth_adjustment(f1.getTexture<uchar4>(Channel::Colour), f1.getTexture<short2>(Channel::Screen), f1.getTexture<float>(Channel::Confidence), 0.04f, stream);
-							ftl::cuda::show_depth_adjustment(f2.getTexture<uchar4>(Channel::Colour), f2.getTexture<short2>(Channel::Screen), f2.getTexture<float>(Channel::Confidence), 0.04f, stream);
+							ftl::cuda::show_depth_adjustment(f1.getTexture<uchar4>(Channel::Overlay), f1.getTexture<short2>(Channel::Screen), f1.getTexture<float>(Channel::Confidence), 0.04f, stream);
+							ftl::cuda::show_depth_adjustment(f2.getTexture<uchar4>(Channel::Overlay), f2.getTexture<short2>(Channel::Screen), f2.getTexture<float>(Channel::Confidence), 0.04f, stream);
 						}
                     //} //else {
                         /*ftl::cuda::correspondence(
@@ -439,13 +447,27 @@ bool MultiViewMLS::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
 				float thresh = (1.0f / f.getLeft().fx) * disconPixels;
 
+				const GpuMat &rgb = f.get<GpuMat>(Channel::Colour);
+				GpuMat rgb_buf;
+				if (rgb.size() != size) {
+					if (graph()->hasBuffer(Buffer::LowLeft, f.source())) {
+						rgb_buf = graph()->getBuffer(Buffer::LowLeft, f.source());
+					} else {
+						rgb_buf = graph()->createBuffer(Buffer::LowLeft, f.source());
+						cv::cuda::resize(rgb, rgb_buf, size, 0, 0, cv::INTER_LINEAR, cvstream);
+					}
+				} else {
+					rgb_buf = rgb;
+				}
+
 				ftl::cuda::mls_aggr_horiz(
 					f.createTexture<uchar4>((f.hasChannel(Channel::Support2)) ? Channel::Support2 : Channel::Support1),
 					f.createTexture<half4>(Channel::Normals),
 					*normals_horiz_[i],
 					f.createTexture<float>(Channel::Depth),
 					*centroid_horiz_[i],
-					f.createTexture<uchar4>(Channel::Colour),
+					//f.createTexture<uchar4>(Channel::Colour),
+					rgb_buf,
 					thresh,
 					col_smooth,
 					radius,

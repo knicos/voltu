@@ -56,6 +56,18 @@ void ftl::cuda::setDevice() {
 	cudaSafeCall(cudaSetDevice(dev_to_use));
 }
 
+static void _cudaCallback(void *ud) {
+	auto *cb = (std::function<void()>*)ud;
+	(*cb)();
+	delete cb;
+}
+
+// TODO: Move this to a common location
+void cudaCallback(cudaStream_t stream, const std::function<void()> &cb) {
+	cudaSafeCall(cudaLaunchHostFunc(stream, _cudaCallback, (void*)(new std::function<void()>(cb))));
+}
+
+
 TextureObjectBase::~TextureObjectBase() {
 	free();
 }

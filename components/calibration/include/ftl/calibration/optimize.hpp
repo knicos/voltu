@@ -219,6 +219,8 @@ public:
 	/**/
 	int removeObservations(double threshold);
 
+	std::vector<cv::Point3d> points();
+
 protected:
 	double* getCameraPtr(int i) { return cameras_.at(i)->data; }
 

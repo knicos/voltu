@@ -1,6 +1,7 @@
 #include <ftl/data/new_frame.hpp>
 #include <ftl/data/framepool.hpp>
 #include <ftl/timer.hpp>
+#include <ftl/cuda_common.hpp>
 
 using ftl::data::Frame;
 using ftl::data::Session;
@@ -83,6 +84,27 @@ Frame::~Frame() {
 		//--frame_count;
 	}
 };
+
+cudaStream_t Frame::stream() {
+	if (stream_ == 0) {
+		cudaSafeCall( cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking) );
+	}
+	return stream_;
+}
+
+cudaEvent_t Frame::uploadEvent() {
+	if (upload_event_ == 0) {
+		cudaSafeCall( cudaEventCreate(&upload_event_) );
+	}
+	return upload_event_;
+}
+
+cudaEvent_t Frame::pipeEvent() {
+	if (pipe_event_ == 0) {
+		cudaSafeCall( cudaEventCreate(&pipe_event_) );
+	}
+	return pipe_event_;
+}
 
 bool ftl::data::Frame::hasAll(const std::unordered_set<ftl::codecs::Channel> &cs) {
 	for (auto &a : cs) {
@@ -346,6 +368,12 @@ void Frame::moveTo(Frame &f) {
 	f.changed_ = std::move(changed_);
 	f.packet_rx = (int)packet_rx;
 	f.packet_tx = (int)packet_tx;
+	f.stream_ = stream_;
+	f.upload_event_ = upload_event_;
+	f.pipe_event_ = pipe_event_;
+	stream_ = 0;
+	pipe_event_ = 0;
+	upload_event_ = 0;
 	status_ = FrameStatus::RELEASED;
 }
 

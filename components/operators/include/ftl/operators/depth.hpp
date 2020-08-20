@@ -10,8 +10,8 @@ namespace operators {
 
 class DepthBilateralFilter : public::ftl::operators::Operator {
 	public:
-	explicit DepthBilateralFilter(ftl::Configurable*);
-	DepthBilateralFilter(ftl::Configurable*, const std::tuple<ftl::codecs::Channel> &);
+	explicit DepthBilateralFilter(ftl::operators::Graph *g, ftl::Configurable*);
+	DepthBilateralFilter(ftl::operators::Graph *g, ftl::Configurable*, const std::tuple<ftl::codecs::Channel> &);
 
 	~DepthBilateralFilter() {};
 

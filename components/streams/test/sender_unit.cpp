@@ -210,13 +210,13 @@ TEST_CASE( "Sender::post() video frames" ) {
 		REQUIRE( count == 1 );
 		REQUIRE( spkt.version == 5 );
 		REQUIRE( spkt.timestamp == 1000 );
-		REQUIRE( (int)spkt.frame_number == 1 );
+		REQUIRE( (int)spkt.frame_number == 0 );
 		REQUIRE( spkt.streamID == 0 );
 		REQUIRE( spkt.channel == Channel::Depth );
 		REQUIRE( pkt.codec == codec_t::HEVC );
 		REQUIRE( pkt.data.size() > 0 );
 		REQUIRE( pkt.flags == (ftl::codecs::kFlagFloat | ftl::codecs::kFlagMappedDepth) );
-		REQUIRE( pkt.frame_count == 3 );
+		REQUIRE( pkt.frame_count == 4 );
 		REQUIRE( ftl::codecs::hevc::validNAL(pkt.data.data(), pkt.data.size()) );
 	}
 

@@ -74,6 +74,9 @@ ftl::rgbd::detail::Device::~Device() {
 
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
 		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
+
+	cudaSafeCall( cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking) );
+
 	auto uri = host->get<std::string>("uri");
 	if (uri) {
 		init(*uri);
@@ -86,12 +89,15 @@ StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host)
 StereoVideoSource::StereoVideoSource(ftl::rgbd::Source *host, const string &file)
 		: ftl::rgbd::BaseSourceImpl(host), ready_(false) {
 
+	cudaSafeCall( cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking) );
 	init(file);
 }
 
 StereoVideoSource::~StereoVideoSource() {
+	cudaStreamDestroy(stream_);
+
 	delete lsrc_;
-	if (pipeline_input_) delete pipeline_input_;
+	//if (pipeline_input_) delete pipeline_input_;
 }
 
 bool StereoVideoSource::supported(const std::string &dev) {
@@ -143,15 +149,21 @@ void StereoVideoSource::init(const string &file) {
 
 	if (!lsrc_) return;  // throw?
 
-	color_size_ = cv::Size(lsrc_->width(), lsrc_->height());
+	cv::Size size_full = cv::Size(lsrc_->width(), lsrc_->height());
 
-	pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
-	#ifdef HAVE_OPTFLOW
-	pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
-	#endif
-	pipeline_input_->append<ftl::operators::ColourChannels>("colour");
+	// Choose a good default depth res
+	int w = lsrc_->value("depth_width", std::min(1280,size_full.width)) & 0xFFFe;
+	float aspect = float(size_full.height) / float(size_full.width);
+	int h = lsrc_->value("depth_height", std::min(int(aspect*float(w)), size_full.height)) & 0xFFFe;
 
-	cv::Size size_full = cv::Size(lsrc_->fullWidth(), lsrc_->fullHeight());
+	depth_size_ = cv::Size(w, h);
+
+	//pipeline_input_ = ftl::config::create<ftl::operators::Graph>(host_, "input");
+	//#ifdef HAVE_OPTFLOW
+	//pipeline_input_->append<ftl::operators::NVOpticalFlow>("optflow");
+	//#endif
+	//pipeline_input_->append<ftl::operators::ColourChannels>("colour");
+
 	rectification_ = std::unique_ptr<StereoRectification>
 		(ftl::create<StereoRectification>(host_, "rectification", size_full));
 
@@ -248,11 +260,11 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 		cv::cv2eigen(calibration_.origin * rectification_->getPose(Channel::Left), pose);
 		frame.setPose() = pose;
 
-		cv::Mat K = rectification_->cameraMatrix(color_size_);
+		cv::Mat K = rectification_->cameraMatrix(depth_size_);
 		float fx = static_cast<float>(K.at<double>(0,0));
 
 		float baseline = static_cast<float>(rectification_->baseline());
-		float doff = rectification_->doff(color_size_);
+		float doff = rectification_->doff(depth_size_);
 
 		double d_resolution = this->host_->getConfig().value<double>("depth_resolution", 0.0);
 		float min_depth = this->host_->getConfig().value<double>("min_depth", 0.45);
@@ -270,8 +282,8 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 			static_cast<float>(K.at<double>(1,1)),	// Fy
 			static_cast<float>(-K.at<double>(0,2)),	// Cx
 			static_cast<float>(-K.at<double>(1,2)),	// Cy
-			(unsigned int) color_size_.width,
-			(unsigned int) color_size_.height,
+			(unsigned int) depth_size_.width,
+			(unsigned int) depth_size_.height,
 			min_depth,
 			max_depth,
 			baseline,
@@ -288,16 +300,16 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 		Eigen::Matrix4d pose;
 		auto& params = frame.setLeft();
 
-		params.cx = -(color_size_.width / 2.0);
-		params.cy = -(color_size_.height / 2.0);
+		params.cx = -(depth_size_.width / 2.0);
+		params.cy = -(depth_size_.height / 2.0);
 		params.fx = 700.0;
 		params.fy = 700.0;
 		params.maxDepth = host_->value("size", 1.0f);
 		params.minDepth = 0.0f;
 		params.doffs = 0.0;
 		params.baseline = 0.1f;
-		params.width = color_size_.width;
-		params.height = color_size_.height;;
+		params.width = depth_size_.width;
+		params.height = depth_size_.height;;
 
 		float offsetz = host_->value("offset_z", 0.0f);
 		//state_.setPose(matrix(cv::Vec3d(0.0, 3.14159, 0.0), cv::Vec3d(0.0,0.0,params_.maxDepth+offsetz)));
@@ -326,6 +338,7 @@ void StereoVideoSource::updateParameters(ftl::rgbd::Frame &frame) {
 
 bool StereoVideoSource::capture(int64_t ts) {
 	cap_status_ = lsrc_->grab();
+	if (!cap_status_) LOG(WARNING) << "Capture failed";
 	return cap_status_;
 }
 
@@ -353,31 +366,12 @@ bool StereoVideoSource::retrieve(ftl::rgbd::Frame &frame) {
 		do_update_params_ = false;
 	}
 
-	cv::cuda::GpuMat gpu_dummy;
-	cv::Mat dummy;
-	auto &hres = (lsrc_->hasHigherRes()) ? frame.create<cv::cuda::GpuMat>(Channel::ColourHighRes) : gpu_dummy;
-	auto &hres_r = (lsrc_->hasHigherRes()) ? frame.create<cv::Mat>(Channel::RightHighRes) : dummy;
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(frame.stream());
 
-	if (lsrc_->isStereo()) {
-		cv::cuda::GpuMat &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
-		cv::cuda::GpuMat &right = frame.create<cv::cuda::GpuMat>(Channel::Right);
-		if (!lsrc_->get(frame, left, right, hres, hres_r, rectification_.get(), stream2_)) {
-			frame.remove(Channel::Left);
-			frame.remove(Channel::Right);
-		}
-	}
-	else {
-		cv::cuda::GpuMat &left = frame.create<cv::cuda::GpuMat>(Channel::Left);
-		cv::cuda::GpuMat right;
-		if (!lsrc_->get(frame, left, right, hres, hres_r, rectification_.get(), stream2_)) {
-			frame.remove(Channel::Left);
-		}
-	}
+	lsrc_->get(frame, rectification_.get(), cvstream);
 
-	//LOG(INFO) << "Channel size: " << hres.size();
-
-	pipeline_input_->apply(frame, frame, cv::cuda::StreamAccessor::getStream(stream2_));
-	stream2_.waitForCompletion();
+	cudaSafeCall(cudaEventRecord(frame.uploadEvent(), frame.stream()));
+	// FIXME: Currently possible that previous upload not finished
 
 	return true;
 }

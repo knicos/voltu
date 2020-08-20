@@ -361,8 +361,8 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		texture1_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 		texture2_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 
-		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(renderer_->getCUDAStream());
-		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map(renderer_->getCUDAStream());
+		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(rgbdframe.stream());
+		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map(rgbdframe.stream());
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Depth).create(height, width, CV_32F);
 		rgbdframe.createTexture<float>(Channel::Depth);
 
@@ -521,7 +521,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			post_pipe_->append<ftl::operators::GTAnalysis>("gtanalyse");
 		}
 
-		post_pipe_->apply(rgbdframe, rgbdframe, renderer_->getCUDAStream());
+		post_pipe_->apply(rgbdframe, rgbdframe);
 
 		if (host_->value("enable_touch", false)) {
 			ftl::render::collision2touch(rgbdframe, renderer_->getCollisions(), sets, my_id_, host_->value("touch_min", 0.01f), host_->value("touch_max", 0.05f));

@@ -10,7 +10,7 @@ using ftl::operators::ClipScene;
 using ftl::codecs::Channel;
 using ftl::rgbd::Format;
 
-ClipScene::ClipScene(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+ClipScene::ClipScene(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 

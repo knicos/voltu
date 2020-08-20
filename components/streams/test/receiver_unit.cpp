@@ -364,7 +364,7 @@ TEST_CASE( "Receiver sync bugs" ) {
 		auto h = receiver->onFrameSet([&count,&ts,&haswrongchan](const ftl::data::FrameSetPtr& fs) {
 
 			ts = fs->timestamp();
-			haswrongchan = fs->frames[0].hasChannel(Channel::ColourHighRes);
+			haswrongchan = fs->frames[0].hasChannel(Channel::Overlay);
 
 			++count;
 
@@ -373,7 +373,7 @@ TEST_CASE( "Receiver sync bugs" ) {
 
 		try { stream.post(spkt, pkt); } catch(...) {}
 		spkt.timestamp = 10;
-		spkt.channel = Channel::ColourHighRes;
+		spkt.channel = Channel::Overlay;
 		try { stream.postEnd(spkt, pkt, 3); } catch(...) {}
 		spkt.timestamp = 20;
 		spkt.channel = Channel::Colour2;

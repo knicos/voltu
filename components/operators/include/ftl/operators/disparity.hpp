@@ -8,6 +8,7 @@
 #endif
 
 #include <opencv2/cudastereo.hpp>
+#include <opencv2/cudafilters.hpp>
 
 #ifdef HAVE_LIBSGM
 #include <libsgm.h>
@@ -19,7 +20,7 @@ namespace operators {
 
 class StereoDisparity : public ftl::operators::Operator {
 public:
-	explicit StereoDisparity(ftl::Configurable* cfg);
+	StereoDisparity(ftl::operators::Graph *g, ftl::Configurable* cfg);
 
 	~StereoDisparity();
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -44,7 +45,7 @@ private:
  */
 class FixstarsSGM : public ftl::operators::Operator {
 	public:
-	explicit FixstarsSGM(ftl::Configurable* cfg);
+	FixstarsSGM(ftl::operators::Graph *g, ftl::Configurable* cfg);
 
 	~FixstarsSGM();
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -57,11 +58,14 @@ class FixstarsSGM : public ftl::operators::Operator {
 	bool updateParameters();
 	bool updateP2Parameters();
 	void computeP2(cudaStream_t &stream);
+	void _variance_mask(cv::InputArray in, cv::OutputArray out, int wsize, cv::cuda::Stream &cvstream);
 
 	sgm::StereoSGM *ssgm_;
 	cv::Size size_;
 	cv::cuda::GpuMat lbw_;
 	cv::cuda::GpuMat rbw_;
+	cv::cuda::GpuMat lbw_full_;
+	cv::cuda::GpuMat rbw_full_;
 	cv::cuda::GpuMat disp_int_;
 
 	cv::cuda::GpuMat P2_map_;
@@ -69,6 +73,12 @@ class FixstarsSGM : public ftl::operators::Operator {
 	cv::cuda::GpuMat weightsF_;
 	cv::cuda::GpuMat edges_;
 	cv::Ptr<cv::cuda::CannyEdgeDetector> canny_;
+	cv::Ptr<cv::cuda::Filter> filter_;
+
+	cv::cuda::GpuMat im_;
+	cv::cuda::GpuMat im2_;
+	cv::cuda::GpuMat mean_;
+	cv::cuda::GpuMat mean2_;
 
 	int P1_;
 	int P2_;
@@ -80,7 +90,7 @@ class FixstarsSGM : public ftl::operators::Operator {
 
 class DisparityBilateralFilter : public::ftl::operators::Operator {
 	public:
-	explicit DisparityBilateralFilter(ftl::Configurable*);
+	DisparityBilateralFilter(ftl::operators::Graph *g, ftl::Configurable*);
 
 	~DisparityBilateralFilter() {};
 
@@ -91,6 +101,7 @@ class DisparityBilateralFilter : public::ftl::operators::Operator {
 	cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
 	cv::cuda::GpuMat disp_int_;
 	cv::cuda::GpuMat disp_int_result_;
+	cv::cuda::GpuMat rgb_;
 	double scale_;
 	int radius_;
 	int iter_;
@@ -102,8 +113,8 @@ class DisparityBilateralFilter : public::ftl::operators::Operator {
  */
 class DisparityToDepth : public ftl::operators::Operator {
 	public:
-	explicit DisparityToDepth(ftl::Configurable* cfg) :
-		ftl::operators::Operator(cfg) {}
+	DisparityToDepth(ftl::operators::Graph *g, ftl::Configurable* cfg) :
+		ftl::operators::Operator(g, cfg) {}
 
 	~DisparityToDepth() {};
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -117,7 +128,7 @@ class DisparityToDepth : public ftl::operators::Operator {
  */
 class DepthChannel : public ftl::operators::Operator {
 	public:
-	explicit DepthChannel(ftl::Configurable *cfg);
+	DepthChannel(ftl::operators::Graph *g, ftl::Configurable *cfg);
 	~DepthChannel();
 
 	inline Operator::Type type() const override { return Operator::Type::ManyToMany; }
@@ -139,8 +150,8 @@ class DepthChannel : public ftl::operators::Operator {
 #ifdef HAVE_OPTFLOW
 class OpticalFlowTemporalSmoothing : public ftl::operators::Operator {
 	public:
-	explicit OpticalFlowTemporalSmoothing(ftl::Configurable*);
-	OpticalFlowTemporalSmoothing(ftl::Configurable*, const std::tuple<ftl::codecs::Channel> &params);
+	OpticalFlowTemporalSmoothing(ftl::operators::Graph *g, ftl::Configurable*);
+	OpticalFlowTemporalSmoothing(ftl::operators::Graph *g, ftl::Configurable*, const std::tuple<ftl::codecs::Channel> &params);
 	~OpticalFlowTemporalSmoothing();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

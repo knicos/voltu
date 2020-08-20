@@ -78,6 +78,13 @@ bool ftl::data::FrameSet::hasAnyChanged(ftl::codecs::Channel c) const {
 	return false;
 }
 
+bool ftl::data::FrameSet::anyHasChannel(ftl::codecs::Channel c) const {
+	for (size_t i=0; i<frames.size(); ++i) {
+		if (frames[i].hasOwn(c)) return true;
+	}
+	return false;
+}
+
 void FrameSet::store() {
 	if (status() != ftl::data::FrameStatus::CREATED) throw FTL_Error("Cannot store frameset multiple times");
 

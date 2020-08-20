@@ -28,8 +28,6 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	pipeline_->append<ftl::operators::DisparityToDepth>("calculate_depth")->value("enabled", false);
 	pipeline_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pipeline_->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
-	pipeline_->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
-	pipeline_->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	//pipeline_->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 	pipeline_->append<ftl::operators::Normals>("normals");  // Estimate surface normals
 	//pipeline_->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
@@ -43,7 +41,8 @@ Reconstruction::Reconstruction(nlohmann::json &config, const std::string name) :
 	pipeline_->append<ftl::operators::VisCrossSupport>("viscross")->value("enabled", false);
 	pipeline_->append<ftl::operators::MultiViewMLS>("mvmls");
 	pipeline_->append<ftl::operators::Poser>("poser")->value("enabled", false);
-
+	pipeline_->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+	pipeline_->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	//pipeline_->set("enabled", false);
 }
 
@@ -75,7 +74,7 @@ bool Reconstruction::post(ftl::rgbd::FrameSet &fs) {
 	/*for (size_t i=0; i<fs.frames.size(); ++i) {
 		fs.frames[i].create<cv::cuda::GpuMat>(Channel::Depth);
 	}*/
-		
+
 	{
 		//UNIQUE_LOCK(exchange_mtx_, lk);
 		//if (new_frame_ == true) LOG(WARNING) << "Frame lost";

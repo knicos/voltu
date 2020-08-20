@@ -12,7 +12,7 @@ namespace operators {
  */
 class ClipScene : public ftl::operators::Operator {
 	public:
-    explicit ClipScene(ftl::Configurable*);
+    explicit ClipScene(ftl::operators::Graph *g, ftl::Configurable*);
     ~ClipScene();
 
 	inline Operator::Type type() const override { return Operator::Type::ManyToMany; }

@@ -18,7 +18,7 @@ using ftl::codecs::Channel;
 using ftl::rgbd::Format;
 using cv::cuda::GpuMat;
 
-HFSmoother::HFSmoother(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+HFSmoother::HFSmoother(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -71,7 +71,7 @@ bool HFSmoother::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 
 // ====== Smoothing Channel ====================================================
 
-SmoothChannel::SmoothChannel(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+SmoothChannel::SmoothChannel(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -135,7 +135,7 @@ bool SmoothChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
 
 // ===== MLS ===================================================================
 
-SimpleMLS::SimpleMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
+SimpleMLS::SimpleMLS(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), temp_(ftl::data::Frame::make_standalone()) {
 
 }
 
@@ -184,7 +184,7 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 
 
 
-ColourMLS::ColourMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
+ColourMLS::ColourMLS(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), temp_(ftl::data::Frame::make_standalone()) {
 
 }
 
@@ -206,6 +206,23 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 	}
 
 	auto &temp = temp_.cast<ftl::rgbd::Frame>();
+	auto size = in.get<GpuMat>(Channel::Depth).size();
+
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
+	GpuMat rgb_buf;
+	if (rgb.size() != size) {
+		if (graph()->hasBuffer(Buffer::LowLeft, in.source())) {
+			rgb_buf = graph()->getBuffer(Buffer::LowLeft, in.source());
+		} else {
+			auto &t = graph()->createBuffer(Buffer::LowLeft, in.source());
+			cv::cuda::resize(rgb, t, size, 0, 0, cv::INTER_LINEAR, cvstream);
+			rgb_buf = t;
+		}
+	} else {
+		rgb_buf = rgb;
+	}
 
 	// FIXME: Assume in and out are the same frame.
 	for (int i=0; i<iters; ++i) {
@@ -229,7 +246,8 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 				temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<float>(Channel::Depth),
 				temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-				in.createTexture<uchar4>(Channel::Colour),
+				//in.createTexture<uchar4>(Channel::Colour),
+				rgb_buf,
 				thresh,
 				col_smooth,
 				filling,
@@ -250,7 +268,7 @@ bool ColourMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 
 // ====== Aggregating MLS ======================================================
 
-AggreMLS::AggreMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
+AggreMLS::AggreMLS(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), temp_(ftl::data::Frame::make_standalone()) {
 	temp_.store();
 }
 
@@ -282,6 +300,22 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 	normals_horiz_.create(size.height, size.width);
 	centroid_vert_.create(size.width, size.height);
 
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
+	GpuMat rgb_buf;
+	if (rgb.size() != size) {
+		if (graph()->hasBuffer(Buffer::LowLeft, in.source())) {
+			rgb_buf = graph()->getBuffer(Buffer::LowLeft, in.source());
+		} else {
+			auto &t = graph()->createBuffer(Buffer::LowLeft, in.source());
+			cv::cuda::resize(rgb, t, size, 0, 0, cv::INTER_LINEAR, cvstream);
+			rgb_buf = t;
+		}
+	} else {
+		rgb_buf = rgb;
+	}
+
 	// FIXME: Assume in and out are the same frame.
 	for (int i=0; i<iters; ++i) {
 
@@ -292,7 +326,8 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 				normals_horiz_,
 				in.createTexture<float>(Channel::Depth),
 				centroid_horiz_,
-				in.createTexture<uchar4>(Channel::Colour),
+				//in.createTexture<uchar4>(Channel::Colour),
+				rgb_buf,
 				thresh,
 				col_smooth,
 				radius,
@@ -333,7 +368,8 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 				temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
 				in.createTexture<float>(Channel::Depth),
 				temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-				in.createTexture<uchar4>(Channel::Colour),
+				//in.createTexture<uchar4>(Channel::Colour),
+				rgb_buf,
 				thresh,
 				col_smooth,
 				false,
@@ -352,7 +388,7 @@ bool AggreMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t s
 
 // ====== Adaptive MLS =========================================================
 
-AdaptiveMLS::AdaptiveMLS(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), temp_(ftl::data::Frame::make_standalone()) {
+AdaptiveMLS::AdaptiveMLS(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), temp_(ftl::data::Frame::make_standalone()) {
 
 }
 

@@ -9,7 +9,7 @@ using ftl::operators::CullWeight;
 using ftl::operators::DegradeWeight;
 using ftl::codecs::Channel;
 
-PixelWeights::PixelWeights(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+PixelWeights::PixelWeights(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -45,9 +45,10 @@ bool PixelWeights::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 	Channel dchan = (in.hasChannel(Channel::Depth)) ? Channel::Depth : Channel::GroundTruth;
 
 	if (!out.hasChannel(Channel::Mask)) {
+		cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 		auto &m = out.create<cv::cuda::GpuMat>(Channel::Mask);
 		m.create(in.get<cv::cuda::GpuMat>(dchan).size(), CV_8UC1);
-		m.setTo(cv::Scalar(0));
+		m.setTo(cv::Scalar(0), cvstream);
 	}
 
 	if (output_normals) {
@@ -76,7 +77,7 @@ bool PixelWeights::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 	return true;
 }
 
-CullWeight::CullWeight(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+CullWeight::CullWeight(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -102,7 +103,7 @@ bool CullWeight::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 
 
 
-DegradeWeight::DegradeWeight(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+DegradeWeight::DegradeWeight(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 

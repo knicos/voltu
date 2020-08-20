@@ -83,6 +83,11 @@ void cull_mask(
 		unsigned int radius,
 		cudaStream_t stream);
 
+void show_mask(
+        ftl::cuda::TextureObject<uchar4> &colour,
+		ftl::cuda::TextureObject<uint8_t> &mask,
+        int id, uchar4 style, cudaStream_t stream);
+
 }
 }
 

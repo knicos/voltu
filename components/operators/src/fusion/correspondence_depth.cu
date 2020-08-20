@@ -117,8 +117,15 @@ __global__ void corresponding_depth_kernel(
 		if (depth1 > cam1.minDepth && depth1 < cam1.maxDepth && bestcost < 1.0f) {
 			// Delay making the depth change until later.
 			conf(pt) = bestadjust;
-			mask(pt) = mask(pt) | Mask::kMask_Correspondence;
+			auto m = mask(pt);
+			m &= ~Mask::kMask_Bad;
+			mask(pt) = m | Mask::kMask_Correspondence;
 			screenOut(pt) = bestScreen;
+		}
+
+		if (depth1 > cam1.minDepth && depth1 < cam1.maxDepth && bestcost > 2.0f) {
+			auto m = mask(pt);
+			mask(pt) = (m & Mask::kMask_Correspondence) ? m : m | Mask::kMask_Bad;
 		}
     }
 }

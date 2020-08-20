@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
 	ftl::rgbd::Frame &frame = dframe.cast<ftl::rgbd::Frame>();
 	frame.store();
 
-	ftl::operators::DisparityToDepth disp2depth(ftl::create<ftl::Configurable>(root, "disparity"));
+	ftl::operators::DisparityToDepth disp2depth(nullptr, ftl::create<ftl::Configurable>(root, "disparity"));
 
 	ftl::codecs::OpenCVEncoder encoder(ftl::codecs::definition_t::Any, ftl::codecs::definition_t::Any);
 

@@ -328,8 +328,8 @@ namespace ftl { namespace cuda { namespace device
                 }
                 
 
-            if (stream == 0)
-                cudaSafeCall( cudaDeviceSynchronize() );
+            //if (stream == 0)
+            //    cudaSafeCall( cudaDeviceSynchronize() );
         }
 
         // These are commented out since we don't use them and it slows compile

@@ -12,7 +12,7 @@ namespace operators {
  */
 class FXAA : public ftl::operators::Operator {
 	public:
-    explicit FXAA(ftl::Configurable*);
+    explicit FXAA(ftl::operators::Graph *g, ftl::Configurable*);
     ~FXAA();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

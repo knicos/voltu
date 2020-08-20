@@ -66,8 +66,6 @@ static void run(ftl::Configurable *root) {
 		pipeline->append<ftl::operators::DisparityToDepth>("calculate_depth")->value("enabled", false);
 		pipeline->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 		pipeline->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
-		pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
-		pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 		//pipeline_->append<ftl::operators::HFSmoother>("hfnoise");  // Remove high-frequency noise
 		pipeline->append<ftl::operators::Normals>("normals");  // Estimate surface normals
 		//pipeline_->append<ftl::operators::SmoothChannel>("smoothing");  // Generate a smoothing channel
@@ -81,6 +79,8 @@ static void run(ftl::Configurable *root) {
 		pipeline->append<ftl::operators::VisCrossSupport>("viscross")->value("enabled", false);
 		pipeline->append<ftl::operators::MultiViewMLS>("mvmls");
 		pipeline->append<ftl::operators::Poser>("poser")->value("enabled", false);
+		pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+		pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	});
 
 	// Add sources here
@@ -118,7 +118,7 @@ static void run(ftl::Configurable *root) {
 	});*/
 
 	auto *filter = feed->filter({Channel::Colour, Channel::Depth, Channel::AudioStereo});
-	
+
 	//feed->lowLatencyMode();
 	feed->startStreaming(filter);
 

@@ -6,7 +6,7 @@ using ftl::operators::ScanFieldFill;
 using ftl::operators::CrossSupportFill;
 using ftl::codecs::Channel;
 
-ScanFieldFill::ScanFieldFill(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+ScanFieldFill::ScanFieldFill(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -29,7 +29,7 @@ bool ScanFieldFill::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStrea
 }
 
 
-CrossSupportFill::CrossSupportFill(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+CrossSupportFill::CrossSupportFill(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 

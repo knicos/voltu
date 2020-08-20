@@ -235,6 +235,7 @@ private:
 
 	void _createPipeline(uint32_t fsid);
 	ftl::operators::Graph* _addPipeline(uint32_t fsid);
+	void _dispatch(const ftl::data::FrameSetPtr &fs);
 
 	void _beginRecord(Filter *f);
 	void _stopRecording();

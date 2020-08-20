@@ -85,6 +85,7 @@ const cv::cuda::GpuMat &VideoFrame::getGPU() const {
 }
 
 cv::Mat &VideoFrame::setCPU() {
+	validhost = true;
 	return host;
 }
 
@@ -96,6 +97,7 @@ cv::cuda::GpuMat &VideoFrame::setGPU() {
 void ftl::rgbd::Frame::upload(ftl::codecs::Channel c) {
 	auto &vframe = set<VideoFrame>(c);
 	const auto &cpumat = vframe.getCPU();
+	LOG(WARNING) << "Sync Upload: " << int(c);
 	vframe.createGPU().upload(cpumat);
 }
 
@@ -114,6 +116,18 @@ unsigned int ftl::rgbd::Frame::getOpenGL(ftl::codecs::Channel c) const {
 	return vframe.getOpenGL();
 }
 
+cv::Size ftl::rgbd::Frame::getSize(ftl::codecs::Channel c) const {
+	if (hasChannel(c)) {
+		const auto &f = get<VideoFrame>(c);
+		if (f.isGPU()) {
+			return f.getGPU().size();
+		} else {
+			return f.getCPU().size();
+		}
+	} else {
+		throw FTL_Error("Channel does not exists: " << int(c));
+	}
+}
 
 const ftl::rgbd::Camera &ftl::rgbd::Frame::getLeftCamera() const {
 	return std::get<0>(this->get<std::tuple<ftl::rgbd::Camera, ftl::codecs::Channel, int>>(ftl::codecs::Channel::Calibration));

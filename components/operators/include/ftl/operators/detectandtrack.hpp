@@ -39,7 +39,7 @@ namespace operators {
  */
 class DetectAndTrack : public ftl::operators::Operator {
 	public:
-	explicit DetectAndTrack(ftl::Configurable*);
+	explicit DetectAndTrack(ftl::operators::Graph *g, ftl::Configurable*);
 	~DetectAndTrack() {};
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -116,22 +116,19 @@ class DetectAndTrack : public ftl::operators::Operator {
  */
 class ArUco : public ftl::operators::Operator {
 	public:
-	explicit ArUco(ftl::Configurable*);
+	explicit ArUco(ftl::operators::Graph *g, ftl::Configurable*);
 	~ArUco() {};
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
-	void wait(cudaStream_t) override;
-
 	ftl::codecs::Channel channel_in_;
 	ftl::codecs::Channel channel_out_;
 
 	private:
-	std::future<bool> job_;
-	bool debug_;
 	bool estimate_pose_;
 	float marker_size_;
+	cv::Mat tmp_;
 
 	cv::Ptr<cv::aruco::Dictionary> dictionary_;
 	cv::Ptr<cv::aruco::DetectorParameters> params_;

@@ -12,7 +12,7 @@ static SHARED_MUTEX smtx;
 std::unordered_map<std::string,ftl::operators::Poser::PoseState> Poser::pose_db__;
 std::unordered_map<int,std::list<ftl::codecs::Shape3D*>> Poser::fs_shapes__;
 
-Poser::Poser(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+Poser::Poser(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 

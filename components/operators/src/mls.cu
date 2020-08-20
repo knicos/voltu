@@ -223,6 +223,10 @@ __device__ inline int segmentID(int u, int v) {
 	return 0;
 }
 
+__device__ inline float4 make_float4(const uchar4 &v) {
+	return make_float4(float(v.x), float(v.y), float(v.z), float(v.w));
+}
+
 /*
  * Smooth depth map using Moving Least Squares. This version uses colour
  * similarity weights to adjust the spatial smoothing factor. It is naive in
@@ -237,7 +241,9 @@ __device__ inline int segmentID(int u, int v) {
 		TextureObject<half4> normals_out,
         TextureObject<float> depth_in,        // Virtual depth map
 		TextureObject<float> depth_out,   // Accumulated output
-		TextureObject<uchar4> colour_in,
+		//TextureObject<uchar4> colour_in,
+		const uchar4* __restrict__ colour_in,
+		int colour_pitch,
 		float smoothing,
 		float colour_smoothing,
         ftl::rgbd::Camera camera) {
@@ -260,7 +266,8 @@ __device__ inline int segmentID(int u, int v) {
 	}
 	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
 
-	float4 c0 = colour_in.tex2D((float)x+0.5f, (float)y+0.5f);
+	//float4 c0 = colour_in.tex2D((float)x+0.5f, (float)y+0.5f);
+	float4 c0 = make_float4(colour_in[x+y*colour_pitch]);
 
     // Neighbourhood
 	uchar4 base = region.tex2D(x,y);
@@ -274,7 +281,8 @@ __device__ inline int segmentID(int u, int v) {
 
 		#pragma unroll
 		for (int u=-RADIUS; u<=RADIUS; ++u) {
-			const float d = depth_in.tex2D(x+u, y+v);
+			if (x+u >= 0 && x+u < depth_in.width() && y+v >= 0 && y+v < depth_in.height()) {
+				const float d = depth_in.tex2D(x+u, y+v);
 			//if (d > camera.minDepth && d < camera.maxDepth) {
 
 				float w = (d <= camera.minDepth || d >= camera.maxDepth || u < -baseY.x || u > baseY.y || v < -base.z || v > base.z) ? 0.0f : 1.0f;
@@ -286,7 +294,8 @@ __device__ inline int segmentID(int u, int v) {
 				// FIXME: Ensure bad normals are removed by setting depth invalid
 				//if (Ni.x+Ni.y+Ni.z == 0.0f) continue;
 
-				const float4 c = colour_in.tex2D(float(x+u) + 0.5f, float(y+v) + 0.5f);
+				//const float4 c = colour_in.tex2D(float(x+u) + 0.5f, float(y+v) + 0.5f);
+				const float4 c = make_float4(colour_in[x+u+(y+v)*colour_pitch]);
 				w *= ftl::cuda::colourWeighting(c0,c,colour_smoothing);
 
 				// Allow missing point to borrow z value
@@ -300,7 +309,7 @@ __device__ inline int segmentID(int u, int v) {
 				nX += Ni*w;
 				contrib += w;
 				//if (FILLING && w > 0.0f && v > -base.z+1 && v < base.w-1 && u > -baseY.x+1 && u < baseY.y-1) segment_check |= segmentID(u,v);
-			//}
+			}
 		}
 	}
 
@@ -335,7 +344,8 @@ void ftl::cuda::colour_mls_smooth_csr(
 		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float> &depth_out,
-		ftl::cuda::TextureObject<uchar4> &colour_in,
+		//ftl::cuda::TextureObject<uchar4> &colour_in,
+		const cv::cuda::GpuMat &colour_in,
 		float smoothing,
 		float colour_smoothing,
 		bool filling,
@@ -346,9 +356,9 @@ void ftl::cuda::colour_mls_smooth_csr(
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
 	if (filling) {
-		colour_mls_smooth_csr_kernel<true,5><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, colour_in, smoothing, colour_smoothing, camera);
+		colour_mls_smooth_csr_kernel<true,5><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera);
 	} else {
-		colour_mls_smooth_csr_kernel<false,5><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, colour_in, smoothing, colour_smoothing, camera);
+		colour_mls_smooth_csr_kernel<false,5><<<gridSize, blockSize, 0, stream>>>(region, normals_in, normals_out, depth_in, depth_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera);
 	}
 		
 	cudaSafeCall( cudaGetLastError() );
@@ -593,7 +603,8 @@ void ftl::cuda::mls_aggr_horiz(
 		ftl::cuda::TextureObject<half4> &normals_out,
 		ftl::cuda::TextureObject<float> &depth_in,
 		ftl::cuda::TextureObject<float4> &centroid_out,
-		ftl::cuda::TextureObject<uchar4> &colour_in,
+		//ftl::cuda::TextureObject<uchar4> &colour_in,
+		const cv::cuda::GpuMat &colour_in,
 		float smoothing,
 		float colour_smoothing,
 		int radius,
@@ -607,13 +618,13 @@ void ftl::cuda::mls_aggr_horiz(
 	const dim3 blockSize(THREADS_X, THREADS_Y);
 
 	switch(radius) {
-	case 1: mls_aggr_horiz_kernel<1><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
-	case 2: mls_aggr_horiz_kernel<2><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
-	case 3: mls_aggr_horiz_kernel<3><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
-	case 5: mls_aggr_horiz_kernel<5><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
-	case 10: mls_aggr_horiz_kernel<10><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
-	case 15: mls_aggr_horiz_kernel<15><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
-	case 20: mls_aggr_horiz_kernel<20><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, colour_in.devicePtr(), colour_in.pixelPitch(), smoothing, colour_smoothing, camera); break;
+	case 1: mls_aggr_horiz_kernel<1><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera); break;
+	case 2: mls_aggr_horiz_kernel<2><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera); break;
+	case 3: mls_aggr_horiz_kernel<3><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera); break;
+	case 5: mls_aggr_horiz_kernel<5><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera); break;
+	case 10: mls_aggr_horiz_kernel<10><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera); break;
+	case 15: mls_aggr_horiz_kernel<15><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera); break;
+	case 20: mls_aggr_horiz_kernel<20><<<gridSize, blockSize, 0, stream>>>(region.devicePtr(), region.pixelPitch(), normals_in.devicePtr(), normals_in.pixelPitch(), normals_out, depth_in.devicePtr(), depth_in.pixelPitch(), centroid_out, (uchar4*)colour_in.data, colour_in.step/4, smoothing, colour_smoothing, camera); break;
 	default: return;
 	}
 	cudaSafeCall( cudaGetLastError() );

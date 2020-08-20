@@ -20,7 +20,7 @@ using ftl::codecs::Channel;
 using ftl::rgbd::Frame;
 using ftl::operators::DetectAndTrack;
 
-DetectAndTrack::DetectAndTrack(ftl::Configurable *cfg) : ftl::operators::Operator(cfg), detecting_(false) {
+DetectAndTrack::DetectAndTrack(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), detecting_(false) {
 	init();
 }
 

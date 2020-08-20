@@ -183,11 +183,11 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 	#ifndef TEST_MOCKS
 	int flags =1; 
     if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
-	int a = static_cast<int>(u->getRecvBufferSize());
+	int a = static_cast<int>(u->getRecvBufferSize(scheme_));
 	if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
-	a = static_cast<int>(u->getSendBufferSize());
+	a = static_cast<int>(u->getSendBufferSize(scheme_));
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));
 	}
@@ -244,12 +244,12 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 
 	scheme_ = uri.getProtocol();
 	if (uri.getProtocol() == URI::SCHEME_TCP) {
-		sock_ = tcpConnect(uri, u->getSendBufferSize(), u->getRecvBufferSize());
+		sock_ = tcpConnect(uri, u->getSendBufferSize(scheme_), u->getRecvBufferSize(scheme_));
 		if (sock_ != INVALID_SOCKET) status_ = kConnecting;
 		else status_ = kReconnecting;
 	} else if (uri.getProtocol() == URI::SCHEME_WS) {
 		LOG(INFO) << "Websocket connect " << uri.getPath();
-		sock_ = tcpConnect(uri, u->getSendBufferSize(), u->getRecvBufferSize());
+		sock_ = tcpConnect(uri, u->getSendBufferSize(scheme_), u->getRecvBufferSize(scheme_));
 		if (sock_ != INVALID_SOCKET) {
 			if (!ws_connect(sock_, uri)) {
 				LOG(ERROR) << "Websocket connection failed";
@@ -313,7 +313,7 @@ bool Peer::reconnect() {
 	LOG(INFO) << "Reconnecting to " << uri_ << " ...";
 
 	if (scheme_ == URI::SCHEME_TCP) {
-		sock_ = tcpConnect(uri, universe_->getSendBufferSize(), universe_->getRecvBufferSize());
+		sock_ = tcpConnect(uri, universe_->getSendBufferSize(scheme_), universe_->getRecvBufferSize(scheme_));
 		if (sock_ != INVALID_SOCKET) {
 			status_ = kConnecting;
 			is_waiting_ = true;
@@ -322,7 +322,7 @@ bool Peer::reconnect() {
 			return false;
 		}
 	} else if (scheme_ == URI::SCHEME_WS) {
-		sock_ = tcpConnect(uri, universe_->getSendBufferSize(), universe_->getRecvBufferSize());
+		sock_ = tcpConnect(uri, universe_->getSendBufferSize(scheme_), universe_->getRecvBufferSize(scheme_));
 		if (sock_ != INVALID_SOCKET) {
 			if (!ws_connect(sock_, uri)) {
 				return false;

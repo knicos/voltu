@@ -31,12 +31,10 @@ enum struct Channel : int {
 	Support2		= 14,	// 8UC4 (currently)
 	Segmentation	= 15,	// 32S?
 	Normals2		= 16,	// 16FC4
-	ColourHighRes	= 17,	// 8UC3 or 8UC4
-	LeftHighRes		= 17,	// 8UC3 or 8UC4
+	UNUSED1			= 17,	
 	Disparity		= 18,
 	Smoothing		= 19,	// 32F
-	RightHighRes	= 20,	// 8UC3 or 8UC4
-	Colour2HighRes	= 20,
+	UNUSED2			= 20,
 	Overlay			= 21,   // 8UC4
 	GroundTruth		= 22,	// 32F
 

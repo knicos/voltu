@@ -18,13 +18,13 @@ using ftl::operators::NVOpticalFlow;
 using cv::Size;
 using cv::cuda::GpuMat;
 
-NVOpticalFlow::NVOpticalFlow(ftl::Configurable* cfg) :
-		ftl::operators::Operator(cfg), channel_in_{ftl::codecs::Channel::Colour,ftl::codecs::Channel::Colour2}, channel_out_{ftl::codecs::Channel::Flow,ftl::codecs::Channel::Flow2} {
+NVOpticalFlow::NVOpticalFlow(ftl::operators::Graph *g, ftl::Configurable* cfg) :
+		ftl::operators::Operator(g, cfg), channel_in_{ftl::codecs::Channel::Colour,ftl::codecs::Channel::Colour2}, channel_out_{ftl::codecs::Channel::Flow,ftl::codecs::Channel::Flow2} {
 	size_ = Size(0, 0);
 
 }
 
-NVOpticalFlow::NVOpticalFlow(ftl::Configurable*cfg, const std::tuple<ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel> &channels) : ftl::operators::Operator(cfg) {
+NVOpticalFlow::NVOpticalFlow(ftl::operators::Graph *g, ftl::Configurable*cfg, const std::tuple<ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel> &channels) : ftl::operators::Operator(g, cfg) {
 	channel_in_[0] = std::get<0>(channels);
 	channel_out_[0] = std::get<1>(channels);
 	channel_in_[1] = std::get<2>(channels);

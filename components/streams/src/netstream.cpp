@@ -69,9 +69,9 @@ Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), acti
 		abr_->setMaxRate(static_cast<uint8_t>(std::max(0, std::min(255, value("max_bitrate", 200)))));
 	});
 
-	abr_enabled_ = value("abr_enabled", true);
+	abr_enabled_ = value("abr_enabled", false);
 	on("abr_enabled", [this]() {
-		abr_enabled_ = value("abr_enabled", true);
+		abr_enabled_ = value("abr_enabled", false);
 		bitrate_ = (abr_enabled_) ?
 			abr_->current() :
 			static_cast<uint8_t>(std::max(0, std::min(255, value("bitrate", 64))));

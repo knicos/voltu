@@ -51,8 +51,8 @@ class Universe {
 	callback_t onConnect(const std::function<void(Peer*)> &f) { return 0; }
 	callback_t onDisconnect(const std::function<void(Peer*)> &f) { return 0; }
 
-	size_t getSendBufferSize() const { return 10*1024; }
-	size_t getRecvBufferSize() const { return 10*1024; }
+	size_t getSendBufferSize(ftl::URI::scheme_t s) const { return 10*1024; }
+	size_t getRecvBufferSize(ftl::URI::scheme_t s) const { return 10*1024; }
 };
 }
 }

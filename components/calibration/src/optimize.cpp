@@ -334,7 +334,7 @@ struct ScaleError {
 
 double ftl::calibration::optimizeScale(const vector<Point3d> &object_points, vector<Point3d> &points) {
 
-	// use exceptions instead
+	// throw exception instead
 	CHECK_EQ(points.size() % object_points.size(), 0);
 	CHECK_EQ(points.size() % 2, 0);
 
@@ -682,6 +682,13 @@ int BundleAdjustment::removeObservations(double threshold) {
 		}
 	}
 	return removed;
+}
+
+std::vector<cv::Point3d> BundleAdjustment::points() {
+	std::vector<cv::Point3d> pts;
+	pts.reserve(points_.size());
+	for (const auto& p : points_) { pts.push_back(p.point); }
+	return pts;
 }
 
 void BundleAdjustment::_reprojectionErrorSE(const int camera, double &error, double &npoints) const {

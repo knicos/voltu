@@ -4,10 +4,11 @@
 using ftl::operators::DiscontinuityMask;
 using ftl::operators::BorderMask;
 using ftl::operators::CullDiscontinuity;
+using ftl::operators::DisplayMask;
 using ftl::codecs::Channel;
 using ftl::rgbd::Format;
 
-DiscontinuityMask::DiscontinuityMask(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+DiscontinuityMask::DiscontinuityMask(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -31,9 +32,10 @@ bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 	}
 
 	if (!out.hasChannel(Channel::Mask)) {
+		cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
 		auto &m = out.create<cv::cuda::GpuMat>(Channel::Mask);
 		m.create(in.get<cv::cuda::GpuMat>(Channel::Depth).size(), CV_8UC1);
-		m.setTo(cv::Scalar(0));
+		m.setTo(cv::Scalar(0), cvstream);
 	}
 
 	/*ftl::cuda::discontinuity(
@@ -59,7 +61,7 @@ bool DiscontinuityMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 
 
 
-BorderMask::BorderMask(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+BorderMask::BorderMask(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -87,7 +89,7 @@ bool BorderMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 
 
 
-CullDiscontinuity::CullDiscontinuity(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+CullDiscontinuity::CullDiscontinuity(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -111,6 +113,37 @@ bool CullDiscontinuity::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaS
 		radius,
 		stream
 	);
+
+	return true;
+}
+
+
+
+DisplayMask::DisplayMask(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
+
+}
+
+DisplayMask::~DisplayMask() {
+
+}
+
+bool DisplayMask::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) {
+
+	if (!in.hasChannel(Channel::Mask)) {
+		return true;
+	}
+
+	uint8_t mask = config()->value("mask", 0);
+	bool invert = config()->value("invert", false);
+
+	auto &masktex = in.getTexture<uint8_t>(Channel::Mask);
+
+	if (!in.hasChannel(Channel::Overlay)) {
+		auto &t = in.createTexture<uchar4>(Channel::Overlay, ftl::rgbd::Format<uchar4>(masktex.width(), masktex.height()));
+		cudaMemset2DAsync(t.devicePtr(), t.pitch(), 0, t.width()*4, t.height(), stream);
+	}
+
+	ftl::cuda::show_mask(in.getTexture<uchar4>(Channel::Overlay), masktex, mask, make_uchar4(255,0,255,255), stream);
 
 	return true;
 }

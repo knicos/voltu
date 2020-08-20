@@ -18,14 +18,14 @@ using std::vector;
 
 template<typename T> static bool inline isValidDisparity(T d) { return (0.0 < d) && (d < 256.0); } // TODO
 
-OpticalFlowTemporalSmoothing::OpticalFlowTemporalSmoothing(ftl::Configurable* cfg, const std::tuple<ftl::codecs::Channel> &params) :
-		ftl::operators::Operator(cfg) {
+OpticalFlowTemporalSmoothing::OpticalFlowTemporalSmoothing(ftl::operators::Graph *g, ftl::Configurable* cfg, const std::tuple<ftl::codecs::Channel> &params) :
+		ftl::operators::Operator(g, cfg) {
 	channel_ = std::get<0>(params);
 	_init(cfg);
 }
 
-OpticalFlowTemporalSmoothing::OpticalFlowTemporalSmoothing(ftl::Configurable* cfg) :
-		ftl::operators::Operator(cfg) {
+OpticalFlowTemporalSmoothing::OpticalFlowTemporalSmoothing(ftl::operators::Graph *g, ftl::Configurable* cfg) :
+		ftl::operators::Operator(g, cfg) {
 	
 	_init(cfg);
 }

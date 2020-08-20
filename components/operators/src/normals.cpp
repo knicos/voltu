@@ -8,7 +8,7 @@ using ftl::operators::SmoothNormals;
 using ftl::codecs::Channel;
 using ftl::rgbd::Format;
 
-Normals::Normals(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+Normals::Normals(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -39,7 +39,7 @@ bool Normals::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t st
 
 // =============================================================================
 
-NormalDot::NormalDot(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+NormalDot::NormalDot(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -71,7 +71,7 @@ bool NormalDot::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 // =============================================================================
 
 
-SmoothNormals::SmoothNormals(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+SmoothNormals::SmoothNormals(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 

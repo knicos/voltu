@@ -212,8 +212,8 @@ class Universe : public ftl::Configurable {
 
 	void removeCallback(ftl::net::callback_t cbid);
 
-	size_t getSendBufferSize() const { return send_size_; }
-	size_t getRecvBufferSize() const { return recv_size_; }
+	size_t getSendBufferSize(ftl::URI::scheme_t s);
+	size_t getRecvBufferSize(ftl::URI::scheme_t s);
 	
 	private:
 	void _run();

@@ -22,7 +22,7 @@ namespace operators {
  */
 class PixelWeights : public ftl::operators::Operator {
 	public:
-	explicit PixelWeights(ftl::Configurable*);
+	PixelWeights(ftl::operators::Graph *g, ftl::Configurable*);
 	~PixelWeights();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -33,7 +33,7 @@ class PixelWeights : public ftl::operators::Operator {
 
 class CullWeight : public ftl::operators::Operator {
 	public:
-	explicit CullWeight(ftl::Configurable*);
+	CullWeight(ftl::operators::Graph *g, ftl::Configurable*);
 	~CullWeight();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -44,7 +44,7 @@ class CullWeight : public ftl::operators::Operator {
 
 class DegradeWeight : public ftl::operators::Operator {
 	public:
-	explicit DegradeWeight(ftl::Configurable*);
+	DegradeWeight(ftl::operators::Graph *g, ftl::Configurable*);
 	~DegradeWeight();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

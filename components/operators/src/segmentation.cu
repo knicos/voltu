@@ -25,20 +25,20 @@ __device__ inline float cross<float>(float p1, float p2) {
 }
 
 template <typename T, bool SYM>
-__device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, int y, float tau, int v_max, int h_max) {
+__device__ uchar4 calculate_support_region(const T* __restrict__ img, int width, int height, int pitch, int x, int y, float tau, int v_max, int h_max) {
     int x_min = max(0, x - h_max);
-    int x_max = min(img.width()-1, static_cast<unsigned int>(x + h_max));
+    int x_max = min(width-1, static_cast<unsigned int>(x + h_max));
     int y_min = max(0, y - v_max);
-    int y_max = min(img.height()-1, static_cast<unsigned int>(y + v_max));
+    int y_max = min(height-1, static_cast<unsigned int>(y + v_max));
 
 	uchar4 result = make_uchar4(0, 0, 0, 0);
 
-	auto colour = img.tex2D((float)x+0.5f,(float)y+0.5f);
+	auto colour = img[x+y*pitch];
 	auto prev_colour = colour;
 
 	int u;
     for (u=x-1; u >= x_min; --u) {
-		auto next_colour = img.tex2D((float)u+0.5f,(float)y+0.5f);
+		auto next_colour = img[u+y*pitch];
         if (cross(prev_colour, next_colour) > tau) {
             result.x = x - u - 1;
             break;
@@ -49,7 +49,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 	
 	prev_colour = colour;
     for (u=x+1; u <= x_max; ++u) {
-		auto next_colour = img.tex2D((float)u+0.5f,(float)y+0.5f);
+		auto next_colour = img[u+y*pitch];
         if (cross(prev_colour, next_colour) > tau) {
             result.y = u - x - 1;
             break;
@@ -61,7 +61,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 	int v;
 	prev_colour = colour;
     for (v=y-1; v >= y_min; --v) {
-		auto next_colour = img.tex2D((float)x+0.5f,(float)v+0.5f);
+		auto next_colour = img[x+v*pitch];
         if (cross(prev_colour, next_colour) > tau) {
             result.z = y - v - 1;
             break;
@@ -72,7 +72,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
 
 	prev_colour = colour;
     for (v=y+1; v <= y_max; ++v) {
-		auto next_colour = img.tex2D((float)x+0.5f,(float)v+0.5f);
+		auto next_colour = img[x+v*pitch];
         if (cross(prev_colour, next_colour) > tau) {
             result.w = v - y - 1;
             break;
@@ -91,19 +91,19 @@ __device__ uchar4 calculate_support_region(const TextureObject<T> &img, int x, i
     return result;
 }
 
-__device__ uchar4 calculate_support_region(const TextureObject<uint8_t> &img, int x, int y, int v_max, int h_max) {
+__device__ uchar4 calculate_support_region(const uint8_t* __restrict__ img, int width, int height, int pitch, int x, int y, int v_max, int h_max) {
     int x_min = max(0, x - h_max);
-    int x_max = min(img.width()-1, static_cast<unsigned int>(x + h_max));
+    int x_max = min(width-1, static_cast<unsigned int>(x + h_max));
     int y_min = max(0, y - v_max);
-    int y_max = min(img.height()-1, static_cast<unsigned int>(y + v_max));
+    int y_max = min(height-1, static_cast<unsigned int>(y + v_max));
 
 	uchar4 result = make_uchar4(0, 0, 0, 0);
 
-	Mask m1(img.tex2D(x,y));
+	Mask m1(img[x+y*pitch]);
 
 	int u;
     for (u=x-1; u >= x_min; --u) {
-		Mask m2(img.tex2D(u,y));
+		Mask m2(img[u+y*pitch]);
         if (m2.isDiscontinuity()) {
             result.x = x - u - 1;
             break;
@@ -112,7 +112,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<uint8_t> &img, in
 	if (u < x_min) result.x = x - x_min;
 	
     for (u=x+1; u <= x_max; ++u) {
-		Mask m2(img.tex2D(u,y));
+		Mask m2(img[u+y*pitch]);
         if (m2.isDiscontinuity()) {
             result.y = u - x - 1;
             break;
@@ -122,7 +122,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<uint8_t> &img, in
 
 	int v;
     for (v=y-1; v >= y_min; --v) {
-		Mask m2(img.tex2D(x,v));
+		Mask m2(img[x+v*pitch]);
         if (m2.isDiscontinuity()) {
             result.z = y - v - 1;
             break;
@@ -131,7 +131,7 @@ __device__ uchar4 calculate_support_region(const TextureObject<uint8_t> &img, in
 	if (v < y_min) result.z = y - y_min;
 
     for (v=y+1; v <= y_max; ++v) {
-		Mask m2(img.tex2D(x,v));
+		Mask m2(img[x+v*pitch]);
         if (m2.isDiscontinuity()) {
             result.w = v - y - 1;
             break;
@@ -150,26 +150,26 @@ __device__ uchar4 calculate_support_region(const TextureObject<uint8_t> &img, in
 }
 
 template <typename T, bool SYM>
-__global__ void support_region_kernel(TextureObject<T> img, TextureObject<uchar4> region, float tau, int v_max, int h_max) {
+__global__ void support_region_kernel(const T* __restrict__ img, int width, int height, int pitch, TextureObject<uchar4> region, float tau, int v_max, int h_max) {
     const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if (x < 0 || y < 0 || x >= img.width() || y >= img.height()) return;
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
 
-    region(x,y) = calculate_support_region<T,SYM>(img, x, y, tau, v_max, h_max);
+    region(x,y) = calculate_support_region<T,SYM>(img, width, height, pitch, x, y, tau, v_max, h_max);
 }
 
-__global__ void support_region_kernel(TextureObject<uint8_t> img, TextureObject<uchar4> region, int v_max, int h_max) {
+__global__ void support_region_kernel(const uint8_t* __restrict__ img, int width, int height, int pitch, TextureObject<uchar4> region, int v_max, int h_max) {
     const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if (x < 0 || y < 0 || x >= img.width() || y >= img.height()) return;
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
 
-    region(x,y) = calculate_support_region(img, x, y, v_max, h_max);
+    region(x,y) = calculate_support_region(img, width, height, pitch, x, y, v_max, h_max);
 }
 
 void ftl::cuda::support_region(
-        ftl::cuda::TextureObject<uchar4> &colour,
+        const cv::cuda::GpuMat &colour,
         ftl::cuda::TextureObject<uchar4> &region,
         float tau,
         int v_max,
@@ -180,8 +180,8 @@ void ftl::cuda::support_region(
     const dim3 gridSize((region.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (region.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
     const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	if (sym) support_region_kernel<uchar4, true><<<gridSize, blockSize, 0, stream>>>(colour, region, tau, v_max, h_max);
-	else support_region_kernel<uchar4, false><<<gridSize, blockSize, 0, stream>>>(colour, region, tau, v_max, h_max);
+	if (sym) support_region_kernel<uchar4, true><<<gridSize, blockSize, 0, stream>>>((uchar4*)colour.data, colour.cols, colour.rows, colour.step/4, region, tau, v_max, h_max);
+	else support_region_kernel<uchar4, false><<<gridSize, blockSize, 0, stream>>>((uchar4*)colour.data, colour.cols, colour.rows, colour.step/4, region, tau, v_max, h_max);
     cudaSafeCall( cudaGetLastError() );
 
 
@@ -202,7 +202,7 @@ void ftl::cuda::support_region(
 	const dim3 gridSize((region.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (region.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	support_region_kernel<float, true><<<gridSize, blockSize, 0, stream>>>(depth, region, tau, v_max, h_max);
+	support_region_kernel<float, true><<<gridSize, blockSize, 0, stream>>>(depth.devicePtr(), depth.width(), depth.height(), depth.pixelPitch(), region, tau, v_max, h_max);
 	cudaSafeCall( cudaGetLastError() );
 
 
@@ -222,7 +222,7 @@ void ftl::cuda::support_region(
 	const dim3 gridSize((region.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (region.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
 	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
 
-	support_region_kernel<<<gridSize, blockSize, 0, stream>>>(mask, region, v_max, h_max);
+	support_region_kernel<<<gridSize, blockSize, 0, stream>>>(mask.devicePtr(), mask.width(), mask.height(), mask.pixelPitch(), region, v_max, h_max);
 	cudaSafeCall( cudaGetLastError() );
 
 

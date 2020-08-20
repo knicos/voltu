@@ -1,11 +1,15 @@
 #include <ftl/operators/segmentation.hpp>
 #include "segmentation_cuda.hpp"
+#include <opencv2/cudawarping.hpp>
+
+#include <loguru.hpp>
 
 using ftl::operators::CrossSupport;
 using ftl::operators::VisCrossSupport;
 using ftl::codecs::Channel;
+using cv::cuda::GpuMat;
 
-CrossSupport::CrossSupport(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+CrossSupport::CrossSupport(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 
@@ -21,6 +25,27 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 		return false;
 	}
 
+	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+	const auto &intrin = in.getLeft();
+	cv::Size size(intrin.width, intrin.height);
+
+	const GpuMat &rgb = in.get<GpuMat>(Channel::Colour);
+	if (rgb.empty()) return false;
+
+	GpuMat rgb_buf;
+	if (rgb.size() != size) {
+		if (graph()->hasBuffer(Buffer::LowLeft, in.source())) {
+			rgb_buf = graph()->getBuffer(Buffer::LowLeft, in.source());
+		} else {
+			auto &t = graph()->createBuffer(Buffer::LowLeft, in.source());
+			cv::cuda::resize(rgb, t, size, 0, 0, cv::INTER_LINEAR, cvstream);
+			rgb_buf = t;
+		}
+	} else {
+		rgb_buf = rgb;
+	}
+
 	if (use_mask && !in.hasChannel(Channel::Support2)) {
 		if (!in.hasChannel(Channel::Mask)) {
 			out.message(ftl::data::Message::Warning_MISSING_CHANNEL, "Missing Mask channel in Support operator");
@@ -28,15 +53,15 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 		}
 		ftl::cuda::support_region(
 			in.createTexture<uint8_t>(Channel::Mask),
-			out.createTexture<uchar4>(Channel::Support2, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
+			out.createTexture<uchar4>(Channel::Support2, ftl::rgbd::Format<uchar4>(rgb_buf.size())),
 			config()->value("v_max", 5),
 			config()->value("h_max", 5),
 			config()->value("symmetric", false), stream
 		);
 	} else if (!in.hasChannel(Channel::Support1)) {
 		ftl::cuda::support_region(
-			in.createTexture<uchar4>(Channel::Colour),
-			out.createTexture<uchar4>(Channel::Support1, ftl::rgbd::Format<uchar4>(in.get<cv::cuda::GpuMat>(Channel::Colour).size())),
+			rgb_buf,
+			out.createTexture<uchar4>(Channel::Support1, ftl::rgbd::Format<uchar4>(rgb_buf.size())),
 			config()->value("tau", 10.0f),
 			config()->value("v_max", 5),
 			config()->value("h_max", 5),
@@ -50,7 +75,7 @@ bool CrossSupport::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 
 
 
-VisCrossSupport::VisCrossSupport(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+VisCrossSupport::VisCrossSupport(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 

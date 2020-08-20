@@ -99,7 +99,8 @@ CUDARender::CUDARender(nlohmann::json &config) : ftl::render::FSRenderer(config)
 		}
 	}
 
-	cudaSafeCall(cudaStreamCreate(&stream_));
+	//cudaSafeCall(cudaStreamCreate(&stream_));
+	stream_ = 0;
 	last_frame_ = -1;
 
 	temp_.store();
@@ -249,6 +250,9 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 	int valid_count = 0;
 
+	// FIXME: Is it possible to remember previously if there should be depth?
+	bool use_depth = scene_->anyHasChannel(Channel::Depth) || scene_->anyHasChannel(Channel::GroundTruth);
+
 	// For each source depth map
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
 		//if (!scene_->hasFrame(i)) continue;
@@ -257,6 +261,11 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 		if (!f.has(Channel::Colour)) {
 			//LOG(ERROR) << "Missing required channel";
+			continue;
+		}
+
+		// We have the needed depth data?
+		if (use_depth && !f.hasOwn(Channel::Depth) && !f.hasOwn(Channel::GroundTruth)) {
 			continue;
 		}
 
@@ -272,20 +281,22 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		auto &screenbuffer = _getScreenBuffer(bufsize);
 
 		// Calculate and save virtual view screen position of each source pixel
-		if (f.hasChannel(Channel::Depth)) {
-			ftl::cuda::screen_coord(
-				f.createTexture<float>(Channel::Depth),
-				depthbuffer,
-				screenbuffer,
-				params_, transform, f.getLeftCamera(), stream
-			);
-		} else if (f.hasChannel(Channel::GroundTruth)) {
-			ftl::cuda::screen_coord(
-				f.createTexture<float>(Channel::GroundTruth),
-				depthbuffer,
-				screenbuffer,
-				params_, transform, f.getLeftCamera(), stream
-			);
+		if (use_depth) {
+			if (f.hasChannel(Channel::Depth)) {
+				ftl::cuda::screen_coord(
+					f.createTexture<float>(Channel::Depth),
+					depthbuffer,
+					screenbuffer,
+					params_, transform, f.getLeftCamera(), stream
+				);
+			} else if (f.hasChannel(Channel::GroundTruth)) {
+				ftl::cuda::screen_coord(
+					f.createTexture<float>(Channel::GroundTruth),
+					depthbuffer,
+					screenbuffer,
+					params_, transform, f.getLeftCamera(), stream
+				);
+			}
 		} else {
 			// Constant depth version
 			ftl::cuda::screen_coord(
@@ -509,6 +520,8 @@ void CUDARender::begin(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {
 	if (stage_ != Stage::Finished) {
 		throw FTL_Error("Already rendering");
 	}
+
+	stream_ = out.stream();
 
 	out_ = &out;
 	const auto &camera = out.getLeftCamera();
