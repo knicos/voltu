@@ -165,11 +165,6 @@ namespace cuda {
 		uchar4 bad_colour,
 		cudaStream_t stream);
 
-	void show_mask(
-        ftl::cuda::TextureObject<uchar4> &colour,
-		ftl::cuda::TextureObject<uint8_t> &mask,
-        int id, uchar4 style, cudaStream_t stream);
-
 	void merge_convert_depth(
         ftl::cuda::TextureObject<int> &d1,
 		ftl::cuda::TextureObject<float> &d2,

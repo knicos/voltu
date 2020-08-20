@@ -41,8 +41,10 @@ struct NetImplDetail {
 //#define TCP_SEND_BUFFER_SIZE	(512*1024)
 //#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
 
-#define TCP_SEND_BUFFER_SIZE	(128*1024)  // Was 256
-#define TCP_RECEIVE_BUFFER_SIZE	(128*1024)  // Was 256
+#define TCP_SEND_BUFFER_SIZE	(512*1024)
+#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024)
+#define WS_SEND_BUFFER_SIZE	(512*1024)
+#define WS_RECEIVE_BUFFER_SIZE	(512*1024)
 
 callback_t ftl::net::Universe::cbid__ = 0;
 
@@ -68,8 +70,8 @@ Universe::Universe(nlohmann::json &config) :
 		this_peer(ftl::net::this_peer),
 		impl_(new ftl::net::NetImplDetail),
 		phase_(0),
-		send_size_(value("tcp_send_buffer",TCP_SEND_BUFFER_SIZE)),
-		recv_size_(value("tcp_recv_buffer",TCP_RECEIVE_BUFFER_SIZE)),
+		//send_size_(value("tcp_send_buffer",TCP_SEND_BUFFER_SIZE)),
+		//recv_size_(value("tcp_recv_buffer",TCP_RECEIVE_BUFFER_SIZE)),
 		periodic_time_(value("periodics", 1.0)),
 		reconnect_attempts_(value("reconnect_attempts",50)),
 		thread_(Universe::__start, this) {
@@ -97,6 +99,18 @@ Universe::Universe(nlohmann::json &config) :
 Universe::~Universe() {
 	shutdown();
 	delete impl_;
+}
+
+size_t Universe::getSendBufferSize(ftl::URI::scheme_t s) {
+	return (s == ftl::URI::scheme_t::SCHEME_WS) ?
+			value("ws_send_buffer",WS_SEND_BUFFER_SIZE) :
+			value("tcp_send_buffer",TCP_SEND_BUFFER_SIZE);
+}
+
+size_t Universe::getRecvBufferSize(ftl::URI::scheme_t s) {
+	return (s == ftl::URI::scheme_t::SCHEME_WS) ?
+			value("ws_recv_buffer",WS_SEND_BUFFER_SIZE) :
+			value("tcp_recv_buffer",TCP_SEND_BUFFER_SIZE);
 }
 
 void Universe::start() {

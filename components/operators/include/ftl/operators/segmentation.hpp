@@ -11,7 +11,7 @@ namespace operators {
  */
 class CrossSupport : public ftl::operators::Operator {
 	public:
-    explicit CrossSupport(ftl::Configurable*);
+    CrossSupport(ftl::operators::Graph *g, ftl::Configurable*);
     ~CrossSupport();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -25,7 +25,7 @@ class CrossSupport : public ftl::operators::Operator {
  */
 class VisCrossSupport : public ftl::operators::Operator {
 	public:
-    explicit VisCrossSupport(ftl::Configurable*);
+    VisCrossSupport(ftl::operators::Graph *g, ftl::Configurable*);
     ~VisCrossSupport();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

@@ -4,7 +4,7 @@
 using ftl::operators::FXAA;
 using ftl::codecs::Channel;
 
-FXAA::FXAA(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+FXAA::FXAA(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 
 }
 

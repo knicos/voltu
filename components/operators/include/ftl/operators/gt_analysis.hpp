@@ -14,7 +14,7 @@ namespace operators {
  */
 class GTAnalysis : public ftl::operators::Operator {
 	public:
-    explicit GTAnalysis(ftl::Configurable*);
+    GTAnalysis(ftl::operators::Graph *g, ftl::Configurable*);
     ~GTAnalysis();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

@@ -85,6 +85,19 @@ void setClockSlave(bool);
 ftl::Handle add(timerlevel_t, const std::function<bool(int64_t ts)> &);
 
 /**
+ * Same as other add function except that a multiplier is given to indicate
+ * how often this should be triggered in numbers of ticks.
+ */
+ftl::Handle add(timerlevel_t, size_t multiplier, const std::function<bool(int64_t ts)> &);
+
+/**
+ * Same as other add function except that a period in seconds is given. Note that
+ * the period should be a multiple of frames otherwise it will not be accurate
+ * but will still work.
+ */
+ftl::Handle add(timerlevel_t, double seconds, const std::function<bool(int64_t ts)> &);
+
+/**
  * Initiate the timer and optionally block the current process.
  */
 void start(bool block=false);

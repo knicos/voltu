@@ -12,8 +12,8 @@ namespace operators {
  */
 class NVOpticalFlow : public ftl::operators::Operator {
 	public:
-	explicit NVOpticalFlow(ftl::Configurable*);
-	NVOpticalFlow(ftl::Configurable*, const std::tuple<ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel> &channels);
+	NVOpticalFlow(ftl::operators::Graph *g, ftl::Configurable*);
+	NVOpticalFlow(ftl::operators::Graph *g, ftl::Configurable*, const std::tuple<ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel,ftl::codecs::Channel> &channels);
 	~NVOpticalFlow();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

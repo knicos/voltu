@@ -21,6 +21,8 @@
 #define STRIDE_Y(I,N) int I = blockIdx.y * blockDim.y + threadIdx.y; I < N; I += blockDim.y * gridDim.y
 #define STRIDE_X(I,N) int I = blockIdx.x * blockDim.x + threadIdx.x; I < N; I += blockDim.x * gridDim.x
 
+void cudaCallback(cudaStream_t stream, const std::function<void()> &cb);
+
 namespace ftl {
 namespace cuda {
 

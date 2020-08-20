@@ -49,8 +49,8 @@ static void calc_space_weighted_filter(GpuMat& table_space, int win_size, float 
 
 // ==== Depth Bilateral Filter =================================================
 
-DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
-		ftl::operators::Operator(cfg) {
+DepthBilateralFilter::DepthBilateralFilter(ftl::operators::Graph *g, ftl::Configurable* cfg) :
+		ftl::operators::Operator(g, cfg) {
 
 	scale_ = 16.0;
 	radius_ = cfg->value("radius", 7);
@@ -72,8 +72,8 @@ DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg) :
     calc_space_weighted_filter(table_space_, radius_ * 2 + 1, radius_ + 1.0f);
 }
 
-DepthBilateralFilter::DepthBilateralFilter(ftl::Configurable* cfg, const std::tuple<ftl::codecs::Channel> &p) :
-		ftl::operators::Operator(cfg) {
+DepthBilateralFilter::DepthBilateralFilter(ftl::operators::Graph *g, ftl::Configurable* cfg, const std::tuple<ftl::codecs::Channel> &p) :
+		ftl::operators::Operator(g, cfg) {
 
 	scale_ = 16.0;
 	radius_ = cfg->value("radius", 7);
@@ -124,7 +124,7 @@ bool DepthBilateralFilter::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out,
 
 // =============================================================================
 
-DepthChannel::DepthChannel(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+DepthChannel::DepthChannel(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 	pipe_ = nullptr;
 }
 
@@ -144,7 +144,8 @@ void DepthChannel::_createPipeline(size_t size) {
 	pipe_->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
 	pipe_->append<ftl::operators::CrossSupport>("cross");
 	#ifdef HAVE_OPTFLOW
-	pipe_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow, Channel::Colour2, Channel::Flow2);
+	// FIXME: OpenCV Nvidia OptFlow has a horrible implementation that causes device syncs
+	//pipe_->append<ftl::operators::NVOpticalFlow>("optflow", Channel::Colour, Channel::Flow, Channel::Colour2, Channel::Flow2);
 	//if (size == 1) pipe_->append<ftl::operators::OpticalFlowTemporalSmoothing>("optflow_filter", Channel::Disparity);
 	#endif
 	#ifdef HAVE_LIBSGM
@@ -171,11 +172,7 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 
 	rbuf_.resize(in.frames.size());
 
-	if (in.frames.size() > 0) {
-		if (depth_size_.width == 0) {
-			depth_size_ = in.firstFrame().get<cv::cuda::GpuMat>(Channel::Colour).size();
-		}
-	}
+	int valid_count = 0;
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
@@ -188,16 +185,21 @@ bool DepthChannel::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cuda
 				if (!cdata.enabled) continue;
 			}
 
-			_createPipeline(in.frames.size());
-
 			const cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
 			const cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
-			cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
-			depth.create(left.size(), CV_32FC1);
-
 			if (left.empty() || right.empty()) continue;
-			pipe_->apply(f, f, stream);
+
+			cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
+
+			const auto &intrin = f.getLeft();
+			depth.create(intrin.height, intrin.width, CV_32FC1);
+			++valid_count;
 		}
+	}
+
+	if (valid_count > 0) {
+		_createPipeline(in.frames.size());
+		pipe_->apply(in, out);
 	}
 
 	return true;
@@ -210,28 +212,21 @@ bool DepthChannel::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream
 
 	auto &f = in;
 	if (!f.hasChannel(Channel::Depth) && f.hasChannel(Channel::Right)) {
-		_createPipeline(1);
+		if (f.hasChannel(Channel::CalibrationData)) {
+			auto &cdata = f.get<ftl::calibration::CalibrationData>(Channel::CalibrationData);
+			if (!cdata.enabled) return true;
+		}
 
 		const cv::cuda::GpuMat& left = f.get<cv::cuda::GpuMat>(Channel::Left);
 		const cv::cuda::GpuMat& right = f.get<cv::cuda::GpuMat>(Channel::Right);
+		if (left.empty() || right.empty()) return false;
+		
+		_createPipeline(1);
+
 		cv::cuda::GpuMat& depth = f.create<cv::cuda::GpuMat>(Channel::Depth);
 		depth.create(depth_size_, CV_32FC1);
 
-		if (left.empty() || right.empty()) return false;
-
-		/*if (depth_size_ != left.size()) {
-			auto &col2 = f.create<cv::cuda::GpuMat>(Channel::ColourHighRes);
-			cv::cuda::resize(left, col2, depth_size_, 0.0, 0.0, cv::INTER_CUBIC, cvstream);
-			f.createTexture<uchar4>(Channel::ColourHighRes, true);
-			f.swapChannels(Channel::Colour, Channel::ColourHighRes);
-		}
-
-		if (depth_size_ != right.size()) {
-			cv::cuda::resize(right, rbuf_[i], depth_size_, 0.0, 0.0, cv::INTER_CUBIC, cvstream);
-			cv::cuda::swap(right, rbuf_[i]);
-		}*/
-
-		pipe_->apply(f, f, stream);
+		pipe_->apply(f, f);
 	}
 
 	return true;

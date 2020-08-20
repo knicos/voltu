@@ -106,9 +106,9 @@ static void run(ftl::Configurable *root) {
 					//LOG(INFO) << "LATENCY: " << float(latency)/1000.0f << "ms";
 
 					if (clock_adjust != 0) {
-						LOG(INFO) << "Clock adjustment: " << clock_adjust << ", latency=" << float(latency)/1000.0f << "ms";
+						LOG(INFO) << "Clock adjustment: " << clock_adjust << ", latency=" << float(latency)/2000.0f << "ms";
 						ftl::timer::setClockAdjustment(clock_adjust);
-					}		
+					}
 				});
 			} catch (const std::exception &e) {
 				LOG(ERROR) << "Ping failed, could not time sync: " << e.what();
@@ -142,7 +142,7 @@ static void run(ftl::Configurable *root) {
 	}
 	Source *source = nullptr;
 	source = ftl::create<Source>(root, "source");
-	
+
 	ftl::stream::Sender *sender = ftl::create<ftl::stream::Sender>(root, "sender");
 	ftl::stream::Net *outstream = ftl::create<ftl::stream::Net>(root, "stream", net);
 	outstream->set("uri", root->value("uri", outstream->getID()));
@@ -189,18 +189,12 @@ static void run(ftl::Configurable *root) {
 
 	auto *pipeline = ftl::config::create<ftl::operators::Graph>(root, "pipeline");
 	pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
-	pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	pipeline->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
-	pipeline->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
+	//pipeline->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
+	pipeline->restore("vision_pipeline", { "clipping" });
+	pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 
-	pipeline->restore("vision_pipeline", {
-		"clipping"
-	});
-
-	std::atomic_flag busy;
-	busy.clear();
-
-	auto h = creator->onFrameSet([sender,outstream,&stats_count,&latency,&frames,&stats_time,pipeline,&busy,&encodable,&previous_encodable](const ftl::data::FrameSetPtr &fs) {
+	auto h = creator->onFrameSet([sender,outstream,&stats_count,&latency,&frames,&stats_time,pipeline,&encodable,&previous_encodable](const ftl::data::FrameSetPtr &fs) {
 
 		// Decide what to encode here, based upon what remote users select
 		const auto sel = outstream->selectedNoExcept(fs->frameset());
@@ -222,21 +216,30 @@ static void run(ftl::Configurable *root) {
 
 		fs->set(ftl::data::FSFlag::AUTO_SEND);
 
-		// Do all processing in another thread...
-		ftl::pool.push([sender,&stats_count,&latency,&frames,&stats_time,pipeline,&busy,fs](int id) mutable {
-			if (busy.test_and_set()) {
-				LOG(WARNING) << "Depth pipeline drop: " << fs->timestamp();
-				fs->firstFrame().message(ftl::data::Message::Warning_PIPELINE_DROP, "Depth pipeline drop");
-				return;
-			}
-			pipeline->apply(*fs, *fs);
-			busy.clear();
-
+		bool did_pipe = pipeline->apply(*fs, *fs, [fs,&frames,&latency]() {
+			if (fs->hasAnyChanged(Channel::Depth)) fs->flush(Channel::Depth);
 			++frames;
 			latency += float(ftl::timer::get_time() - fs->timestamp());
+			const_cast<ftl::data::FrameSetPtr&>(fs).reset();
+		});
 
-			// Destruct frameset as soon as possible to send the data...
-			if (fs->hasAnyChanged(Channel::Depth)) fs->flush(Channel::Depth);
+		if (!did_pipe) {
+			LOG(WARNING) << "Depth pipeline drop: " << fs->timestamp();
+			fs->firstFrame().message(ftl::data::Message::Warning_PIPELINE_DROP, "Depth pipeline drop");
+		}
+
+
+		// Do some encoding (eg. colour) whilst pipeline runs
+		ftl::pool.push([fs,&stats_count,&latency,&frames,&stats_time](int id){
+			if (fs->hasAnyChanged(Channel::Audio)) {
+				fs->flush(ftl::codecs::Channel::Audio);
+			}
+
+			// Make sure upload has completed.
+			cudaSafeCall(cudaEventSynchronize(fs->frames[0].uploadEvent()));
+			// TODO: Try depth pipeline again here if failed first time.
+			fs->flush(ftl::codecs::Channel::Colour);
+
 			const_cast<ftl::data::FrameSetPtr&>(fs).reset();
 
 			if (!quiet && --stats_count <= 0) {
@@ -252,19 +255,14 @@ static void run(ftl::Configurable *root) {
 			}
 		});
 
-		// Lock colour right now to encode in parallel, same for audio
-		ftl::pool.push([fs](int id){ fs->flush(ftl::codecs::Channel::Colour); });
-
-		if (fs->hasAnyChanged(Channel::Audio)) {
-			ftl::pool.push([fs](int id){ fs->flush(ftl::codecs::Channel::Audio); });
-		}
+		const_cast<ftl::data::FrameSetPtr&>(fs).reset();
 
 		return true;
 	});
 
 	// Start the timed generation of frames
 	creator->start();
-	
+
 	// Only now start listening for connections
 	net->start();
 
@@ -274,7 +272,7 @@ static void run(ftl::Configurable *root) {
 	ctrl.stop();
 
 	ftl::config::save();
-	
+
 	net->shutdown();
 
 	ftl::pool.stop();
@@ -321,7 +319,7 @@ int main(int argc, char **argv) {
 
 		// Use other GPU if available.
 		//ftl::cuda::setDevice(ftl::cuda::deviceCount()-1);
-		
+
 		std::cout << "Loading..." << std::endl;
 		run(root);
 

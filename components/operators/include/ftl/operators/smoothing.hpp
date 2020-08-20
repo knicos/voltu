@@ -14,7 +14,7 @@ namespace operators {
  */
 class HFSmoother : public ftl::operators::Operator {
 	public:
-	explicit HFSmoother(ftl::Configurable*);
+	HFSmoother(ftl::operators::Graph *g, ftl::Configurable*);
 	~HFSmoother();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -35,7 +35,7 @@ class HFSmoother : public ftl::operators::Operator {
  */
 class SmoothChannel : public ftl::operators::Operator {
 	public:
-	explicit SmoothChannel(ftl::Configurable*);
+	SmoothChannel(ftl::operators::Graph *g, ftl::Configurable*);
 	~SmoothChannel();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -53,7 +53,7 @@ class SmoothChannel : public ftl::operators::Operator {
  */
 class SimpleMLS : public ftl::operators::Operator {
 	public:
-	explicit SimpleMLS(ftl::Configurable*);
+	SimpleMLS(ftl::operators::Graph *g, ftl::Configurable*);
 	~SimpleMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -70,7 +70,7 @@ class SimpleMLS : public ftl::operators::Operator {
  */
 class ColourMLS : public ftl::operators::Operator {
 	public:
-	explicit ColourMLS(ftl::Configurable*);
+	ColourMLS(ftl::operators::Graph *g, ftl::Configurable*);
 	~ColourMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -113,7 +113,7 @@ class ColourMLS : public ftl::operators::Operator {
  */
 class AggreMLS : public ftl::operators::Operator {
 	public:
-	explicit AggreMLS(ftl::Configurable*);
+	AggreMLS(ftl::operators::Graph *g, ftl::Configurable*);
 	~AggreMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -137,7 +137,7 @@ class AggreMLS : public ftl::operators::Operator {
  */
 class AdaptiveMLS : public ftl::operators::Operator {
 	public:
-	explicit AdaptiveMLS(ftl::Configurable*);
+	AdaptiveMLS(ftl::operators::Graph *g, ftl::Configurable*);
 	~AdaptiveMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

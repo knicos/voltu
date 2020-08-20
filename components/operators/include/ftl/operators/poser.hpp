@@ -15,7 +15,7 @@ namespace operators {
  */
 class Poser : public ftl::operators::Operator {
 	public:
-	explicit Poser(ftl::Configurable*);
+	Poser(ftl::operators::Graph *g, ftl::Configurable*);
 	~Poser();
 
 	inline Operator::Type type() const override { return Operator::Type::ManyToMany; }

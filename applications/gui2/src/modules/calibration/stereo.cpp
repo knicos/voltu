@@ -110,7 +110,7 @@ void StereoCalibration::start(ftl::data::FrameID id) {
 		try {
 			auto& frame = (*fs)[state_->id.source()];
 			state_->calib = frame.get<CalibrationData>(Channel::CalibrationData);
-			state_->highres = frame.hasAll({Channel::LeftHighRes, Channel::RightHighRes});
+			state_->highres = false; // TODO: Remove
 			auto sizel = frame.get<cv::cuda::GpuMat>(channelLeft_()).size();
 			auto sizer = frame.get<cv::cuda::GpuMat>(channelLeft_()).size();
 			if (sizel != sizer) {
@@ -251,18 +251,18 @@ ftl::rgbd::Frame& StereoCalibration::frame_() {
 }
 
 bool StereoCalibration::hasFrame() {
-	auto cleft = state_->highres ? Channel::LeftHighRes : Channel::Left;
-	auto cright = state_->highres ? Channel::RightHighRes : Channel::Right;
+	auto cleft = Channel::Left;
+	auto cright = Channel::Right;
 	return (std::atomic_load(&fs_update_).get() != nullptr)
 		&& fs_update_->frames[state_->id.source()].hasAll({cleft, cright});
 };
 
 Channel StereoCalibration::channelLeft_() {
-	return (state_->highres ? Channel::LeftHighRes : Channel::Left);
+	return Channel::Left;
 }
 
 Channel StereoCalibration::channelRight_() {
-	return (state_->highres ? Channel::RightHighRes : Channel::Right);
+	return Channel::Right;
 }
 
 cv::cuda::GpuMat StereoCalibration::getLeft() {

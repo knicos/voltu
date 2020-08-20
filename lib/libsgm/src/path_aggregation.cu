@@ -29,6 +29,7 @@ PathAggregation<MAX_DISPARITY>::PathAggregation()
 		cudaStreamCreate(&m_streams[i]);
 		cudaEventCreate(&m_events[i]);
 	}
+	cudaEventCreate(&m_event);
 }
 
 template <size_t MAX_DISPARITY>
@@ -38,6 +39,7 @@ PathAggregation<MAX_DISPARITY>::~PathAggregation(){
 		cudaStreamDestroy(m_streams[i]);
 		cudaEventDestroy(m_events[i]);
 	}
+	cudaEventDestroy(m_event);
 }
 
 template <size_t MAX_DISPARITY>
@@ -58,7 +60,13 @@ void PathAggregation<MAX_DISPARITY>::enqueue(
 		m_cost_buffer = DeviceBuffer<cost_type>(buffer_size);
 	}
 	const size_t buffer_step = width * height * MAX_DISPARITY;
-	cudaStreamSynchronize(stream);
+	//cudaStreamSynchronize(stream);
+	cudaEventRecord(m_event, stream);
+
+	for(unsigned int i = 0; i < NUM_PATHS; ++i){
+		cudaStreamWaitEvent(m_streams[i], m_event, 0);
+	}
+
 	path_aggregation::enqueue_aggregate_up2down_path<MAX_DISPARITY>(
 		m_cost_buffer.data() + 0 * buffer_step,
 		left, right, width, height, p1, p2, p2_pitch, w, w_pitch, m_streams[0]);

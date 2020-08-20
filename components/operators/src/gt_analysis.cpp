@@ -5,7 +5,7 @@ using ftl::operators::GTAnalysis;
 using ftl::codecs::Channel;
 using std::string;
 
-GTAnalysis::GTAnalysis(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+GTAnalysis::GTAnalysis(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 	cudaMalloc(&output_, sizeof(ftl::cuda::GTAnalysisData));
 }
 

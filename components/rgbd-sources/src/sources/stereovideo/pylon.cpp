@@ -94,17 +94,17 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 	}
 
 	// Choose a good default depth res
-	width_ = value("depth_width", std::min(1280u,fullwidth_)) & 0xFFFe;
-	float aspect = float(fullheight_) / float(fullwidth_);
-	height_ = value("depth_height", std::min(uint32_t(aspect*float(width_)), fullheight_)) & 0xFFFe;
+	//width_ = value("depth_width", std::min(1280u,fullwidth_)) & 0xFFFe;
+	//float aspect = float(fullheight_) / float(fullwidth_);
+	//height_ = value("depth_height", std::min(uint32_t(aspect*float(width_)), fullheight_)) & 0xFFFe;
 
-	LOG(INFO) << "Depth resolution: " << width_ << "x" << height_;
+	//LOG(INFO) << "Depth resolution: " << width_ << "x" << height_;
 
 	// Allocate page locked host memory for fast GPU transfer
-	left_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
-	right_hm_ = cv::cuda::HostMem(height_, width_, CV_8UC4);
-	hres_hm_ = cv::cuda::HostMem(fullheight_, fullwidth_, CV_8UC4);
-	rtmp_.create(fullheight_, fullwidth_, CV_8UC4);
+	left_hm_ = cv::cuda::HostMem(fullheight_, fullwidth_, CV_8UC4);
+	right_hm_ = cv::cuda::HostMem(fullheight_, fullwidth_, CV_8UC4);
+	//hres_hm_ = cv::cuda::HostMem(fullheight_, fullwidth_, CV_8UC4);
+	//rtmp_.create(fullheight_, fullwidth_, CV_8UC4);
 
 	on("exposure", [this]() {
 		if (lcam_->GetDeviceInfo().GetModelName() != "Emulation") {
@@ -122,10 +122,29 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 		interpolation_ = value("inter_cubic", true) ?
 			cv::INTER_CUBIC : cv::INTER_LINEAR;
 	});
+
+	monitor_ = true;
+	temperature_monitor_ = ftl::timer::add(ftl::timer::timerlevel_t::kTimerIdle1, 10.0, [this](int64_t ts) {
+		float temperature = (rcam_) ? std::max(lcam_->DeviceTemperature(), rcam_->DeviceTemperature()) : lcam_->DeviceTemperature();
+
+		LOG_IF(WARNING, temperature > 53.0)
+			<< "Camera temperature over 50C (value: " << temperature << ")";
+
+		// TODO: check actual temperature status.
+		if (temperature > 65.0) {
+			LOG(FATAL) << "Cameras are overheating";
+		}
+
+		return true;
+	});
 }
 
 PylonDevice::~PylonDevice() {
+	monitor_ = false;
+	temperature_monitor_.cancel();
 
+	lcam_->Close();
+	rcam_->Close();
 }
 
 static std::vector<ftl::rgbd::detail::DeviceDetails> pylon_devices;
@@ -226,24 +245,14 @@ bool PylonDevice::_retrieveFrames(Pylon::CGrabResultPtr &result, Pylon::CBaslerU
 	return true;
 }
 
-bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda::GpuMat &r_out, cv::cuda::GpuMat &h_l, cv::Mat &h_r, StereoRectification *c, cv::cuda::Stream &stream) {
+bool PylonDevice::get(ftl::rgbd::Frame &frame, StereoRectification *c, cv::cuda::Stream &stream) {
 	if (!isReady()) return false;
 
-	Mat l, r ,hres;
+	Mat l, r;
 
 	// Use page locked memory
 	l = left_hm_.createMatHeader();
 	r = right_hm_.createMatHeader();
-	hres = hres_hm_.createMatHeader();
-
-	Mat &lfull = (!hasHigherRes()) ? l : hres;
-	Mat &rfull = (!hasHigherRes()) ? r : rtmp_;
-
-	//ftl::cuda::setDevice();
-
-	//int dev;
-	//cudaGetDevice(&dev);
-	//LOG(INFO) << "Current cuda device = " << dev;
 
 	if (isStereo()) {
 		auto lcount = lcam_->NumReadyBuffers.GetValue();
@@ -283,50 +292,42 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 
 	try {
 		FTL_Profile("Frame Retrieve", 0.005);
-		//std::future<bool> future_b;
 		bool res_r = false;
+
 		if (rcam_) {
-			//future_b = std::move(ftl::pool.push([this,&rfull,&r,&l,c,&r_out,&h_r,&stream](int id) {
-				Pylon::CGrabResultPtr result_right;
+			Pylon::CGrabResultPtr result_right;
 
-				if (_retrieveFrames(result_right, rcam_)) {
+			if (_retrieveFrames(result_right, rcam_)) {
 
-					cv::Mat wrap_right(
-					result_right->GetHeight(),
-					result_right->GetWidth(),
-					CV_8UC1,
-					(uint8_t*)result_right->GetBuffer());
+				cv::Mat wrap_right(
+				result_right->GetHeight(),
+				result_right->GetWidth(),
+				CV_8UC1,
+				(uint8_t*)result_right->GetBuffer());
 
-					{
-						FTL_Profile("Bayer Colour (R)", 0.005);
-						cv::cvtColor(wrap_right, rtmp2_, cv::COLOR_BayerRG2BGRA);
-					}
-
-					//if (isStereo()) {
-						FTL_Profile("Rectify and Resize (R)", 0.005);
-						c->rectify(rtmp2_, rfull, Channel::Right);
-
-						if (hasHigherRes()) {
-							cv::resize(rfull, r, r.size(), 0.0, 0.0, interpolation_);
-							h_r = rfull;
-						}
-						else {
-							h_r = Mat();
-						}
-					//}
-
-					r_out.upload(r, stream);
-					res_r = true;
+				{
+					FTL_Profile("Bayer Colour (R)", 0.005);
+					cv::cvtColor(wrap_right, rtmp_, cv::COLOR_BayerRG2BGRA);
 				}
-			//}));
+
+				{
+					FTL_Profile("Rectify (R)", 0.005);
+					c->rectify(rtmp_, r, Channel::Right);
+				}
+
+				auto& f_right = frame.create<ftl::rgbd::VideoFrame>(Channel::Right);
+				cv::cuda::GpuMat& r_out = f_right.createGPU();
+				cv::Mat &r_host = f_right.setCPU();
+
+				r_out.upload(r, stream);
+				r.copyTo(r_host);
+				res_r = true;
+			}
 		}
 
 		Pylon::CGrabResultPtr result_left;
 
 		if (!_retrieveFrames(result_left, lcam_)) {
-			if (rcam_) {
-				//future_b.wait();
-			}
 			return false;
 		}
 
@@ -339,28 +340,24 @@ bool PylonDevice::get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l_out, cv::cuda
 		{
 			FTL_Profile("Bayer Colour (L)", 0.005);
 			if (isStereo()) cv::cvtColor(wrap_left, ltmp_, cv::COLOR_BayerRG2BGRA);
-			else cv::cvtColor(wrap_left, lfull, cv::COLOR_BayerRG2BGRA);
+			else cv::cvtColor(wrap_left, l, cv::COLOR_BayerRG2BGRA);
 		}
 
 		{
-			FTL_Profile("Rectify and Resize (L)", 0.005);
+			FTL_Profile("Rectify (L)", 0.005);
 			if (isStereo()) {
-				c->rectify(ltmp_, lfull, Channel::Left);
-			}
-
-			if (hasHigherRes()) {
-				cv::resize(lfull, l, l.size(), 0.0, 0.0, interpolation_);
-				h_l.upload(hres, stream);
-			} else {
-				h_l = cv::cuda::GpuMat();
+				c->rectify(ltmp_, l, Channel::Left);
 			}
 		}
 
+		auto& f_left = frame.create<ftl::rgbd::VideoFrame>(Channel::Left);
+		cv::cuda::GpuMat& l_out = f_left.createGPU();
+		cv::Mat &l_host = f_left.setCPU();
+
 		l_out.upload(l, stream);
+		l.copyTo(l_host);
 
 		if (rcam_) {
-			//future_b.wait();
-			//if (!future_b.get()) return false;
 			if (!res_r) return false;
 		}
 

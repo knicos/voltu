@@ -77,9 +77,12 @@ void Camera::update(double delta) {
 
 			if (frame.has(Channel::Calibration)) {
 				const auto &cam = rgbdf.getLeft();
+				cv::Size s = rgbdf.getSize();
 				auto &jcam = mod->getJSON(StatisticsPanel::CAMERA_DETAILS);
-				jcam["Resolution"] = std::to_string(cam.width) + std::string("x") + std::to_string(cam.height);
+				jcam["D-Resolution"] = std::to_string(cam.width) + std::string("x") + std::to_string(cam.height);
+				jcam["C-Resolution"] = std::to_string(s.width) + std::string("x") + std::to_string(s.height);
 				jcam["Focal"] = cam.fx;
+				jcam["Baseline"] = cam.baseline;
 				jcam["Principle"] = std::to_string(int(cam.cx)) + std::string(",") + std::to_string(int(cam.cy));
 			}
 

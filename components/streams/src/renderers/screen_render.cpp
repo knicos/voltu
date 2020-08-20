@@ -88,6 +88,7 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 	my_id_ = frame_out.frameset();
 	auto sets = filter_->getLatestFrameSets();
 	bool data_only = host_->value("data_only", false);
+	bool blend_overlay = host_->value("blend_overlay", false);
 
 	if (sets.size() > 0) {
 		ftl::rgbd::Frame &rgbdframe = frame_out.cast<ftl::rgbd::Frame>();
@@ -140,10 +141,13 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 				pose.setIdentity();
 				if (s->hasChannel(Channel::Pose)) pose = s->cast<ftl::rgbd::Frame>().getPose();
 
-				if (!data_only) renderer_->submit(
-					s.get(),
-					ftl::codecs::Channels<0>(ftl::codecs::Channel::Colour),
-					pose);
+				if (!data_only) {
+					if (blend_overlay) {
+						renderer_->submit(s.get(), ftl::codecs::Channels<0>(Channel::Colour) + Channel::Overlay, pose);
+					} else {
+						renderer_->submit(s.get(), ftl::codecs::Channels<0>(Channel::Colour), pose);
+					}
+				}
 			}
 
 			if (!data_only) renderer_->render();
@@ -221,7 +225,8 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 				post_pipe_->append<ftl::operators::GTAnalysis>("gtanalyse");
 			}
 
-			post_pipe_->apply(rgbdframe, rgbdframe, 0);
+			post_pipe_->apply(rgbdframe, rgbdframe);
+			cudaSafeCall(cudaStreamSynchronize(rgbdframe.stream()));
 
 			if (host_->value("enable_touch", false)) {
 				ftl::render::collision2touch(rgbdframe, renderer_->getCollisions(), sets, my_id_, host_->value("touch_min", 0.01f), host_->value("touch_max", 0.05f));

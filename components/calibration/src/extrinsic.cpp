@@ -462,7 +462,16 @@ void ExtrinsicCalibration::triangulate(unsigned int c1, unsigned int c2) {
 	// implements least squares method described in H&Z p312
 	cv::triangulatePoints(P1, P2, pts1u, pts2u, out);
 	// scalePoints() converts to non-homogenous coordinates and estimates scale
-	scalePoints(points().getObject(0), out, pointsw);
+	LOG(INFO) << "new scale: " << scalePoints(points().getObject(0), out, pointsw);
+
+	/*for (int col = 0; col < out.cols; col++) {
+		CHECK_NE(out.at<double>(3, col), 0);
+		cv::Point3d p = cv::Point3d(out.at<double>(0, col),
+							out.at<double>(1, col),
+							out.at<double>(2, col))
+							/ out.at<double>(3, col);
+		pointsw.push_back(p);
+	}*/
 	points().setTriangulatedPoints(c1, c2, pointsw);
 }
 
@@ -723,7 +732,7 @@ double ExtrinsicCalibration::optimize() {
 			// TODO: desgin better check
 			if (cv::norm(absdiff(px, py, pz)) > threshold_bad_) {
 				n_points_bad++;
-				continue;
+				//continue;
 			}
 
 			ba.addPoint(vis, obs, p);
@@ -760,7 +769,8 @@ double ExtrinsicCalibration::optimize() {
 	for (const auto& t : prune_observations_) {
 		n_removed +=  ba.removeObservations(t);
 		if (float(n_removed)/float(n_points) > threhsold_warning_) {
-			LOG(WARNING) << "significant number of observations removed";
+			LOG(WARNING) << "significant number (" << n_removed << " of "
+						 <<  n_points << ") of observations removed";
 			break;
 		}
 		else {
@@ -772,12 +782,17 @@ double ExtrinsicCalibration::optimize() {
 	calib_optimized_.resize(calib_.size());
 	rmse_.resize(calib_.size());
 
+	auto points_optimized = ba.points();
+	double scale = optimizeScale(points_.getObject(0), points_optimized);
+	LOG(INFO) << "scale: " << scale;
+
 	for (unsigned int i = 0; i < cameras.size(); i++) {
 		rmse_[i] = ba.reprojectionError(i);
 		auto intr = cameras[i].intrinsic();
 		calib_optimized_[i] = calib_[i];
 		calib_optimized_[i].intrinsic.set(intr.matrix(), intr.distCoeffs.Mat(), intr.resolution);
 		calib_optimized_[i].extrinsic.set(cameras[i].rvec(), cameras[i].tvec());
+		calib_optimized_[i].extrinsic.tvec *= scale;
 	}
 
 	rmse_total_ = ba.reprojectionError();

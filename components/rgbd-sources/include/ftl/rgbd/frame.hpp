@@ -65,6 +65,7 @@ class VideoFrame {
 	const cv::Mat &getCPU() const;
 	const cv::cuda::GpuMat &getGPU() const;
 
+	/// gets cv::Mat for
 	cv::Mat &setCPU();
 	cv::cuda::GpuMat &setGPU();
 
@@ -94,6 +95,8 @@ class Frame : public ftl::data::Frame {
 	ftl::rgbd::Camera &setLeft();
 	ftl::rgbd::Camera &setRight();
 	Eigen::Matrix4d &setPose();
+
+	cv::Size getSize(ftl::codecs::Channel c=ftl::codecs::Channel::Left) const;
 
 	ftl::calibration::CalibrationData& setCalibration();
 	const ftl::calibration::CalibrationData& getCalibration() const;

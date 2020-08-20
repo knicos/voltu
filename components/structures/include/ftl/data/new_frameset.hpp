@@ -134,6 +134,8 @@ class FrameSet : public ftl::data::Frame {
 	 */
 	bool hasAnyChanged(ftl::codecs::Channel) const;
 
+	bool anyHasChannel(ftl::codecs::Channel) const;
+
 	private:
 	std::atomic<int> flags_;
 };

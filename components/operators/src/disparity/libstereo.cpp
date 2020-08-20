@@ -21,8 +21,8 @@ struct StereoDisparity::Impl {
 	StereoCensusSgm sgm;
 };
 
-StereoDisparity::StereoDisparity(ftl::Configurable* cfg) :
-		ftl::operators::Operator(cfg), impl_(nullptr) {
+StereoDisparity::StereoDisparity(ftl::operators::Graph *g, ftl::Configurable* cfg) :
+		ftl::operators::Operator(g, cfg), impl_(nullptr) {
 
 	init();
 }

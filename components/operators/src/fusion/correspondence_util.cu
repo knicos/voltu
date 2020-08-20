@@ -53,6 +53,8 @@ __global__ void show_cor_error_kernel(
 	if (x < colour.width() && y < colour.height()) {
 		short2 s1 = screen1.tex2D(x,y);
 
+		//colour(x,y) = make_uchar4(0,0,0,0);
+
 		if (s1.x >= 0 && s1.x < screen2.width() && s1.y < screen2.height()) {
 			short2 s2 = screen2.tex2D(s1.x, s1.y);
 
@@ -119,6 +121,8 @@ __global__ void show_depth_adjust_kernel(
 	if (x < colour.width() && y < colour.height()) {
 		float a = adjust.tex2D(x,y);
 		short2 s = screen.tex2D(x,y);
+
+		//colour(x,y) = make_uchar4(0,0,0,0);
 
 		if (s.x >= 0) {
 			float ncG = min(1.0f, fabsf(a)/scale);

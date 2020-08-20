@@ -7,7 +7,7 @@ namespace ftl {
 namespace cuda {
 
 void support_region(
-		ftl::cuda::TextureObject<uchar4> &colour,
+		const cv::cuda::GpuMat &colour,
 		ftl::cuda::TextureObject<uchar4> &region,
 		float tau, int v_max, int h_max, bool sym,
 		cudaStream_t stream);

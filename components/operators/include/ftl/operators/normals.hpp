@@ -12,7 +12,7 @@ namespace operators {
  */
 class Normals : public ftl::operators::Operator {
 	public:
-    explicit Normals(ftl::Configurable*);
+    Normals(ftl::operators::Graph *g, ftl::Configurable*);
     ~Normals();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -29,7 +29,7 @@ class Normals : public ftl::operators::Operator {
  */
 class NormalDot : public ftl::operators::Operator {
 	public:
-    explicit NormalDot(ftl::Configurable*);
+    NormalDot(ftl::operators::Graph *g, ftl::Configurable*);
     ~NormalDot();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -44,7 +44,7 @@ class NormalDot : public ftl::operators::Operator {
  */
 class SmoothNormals : public ftl::operators::Operator {
 	public:
-    explicit SmoothNormals(ftl::Configurable*);
+    SmoothNormals(ftl::operators::Graph *g, ftl::Configurable*);
     ~SmoothNormals();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

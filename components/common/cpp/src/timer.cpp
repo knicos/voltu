@@ -35,8 +35,8 @@ struct TimerJob {
 	std::atomic_bool active=false;
 	// TODO: (Nick) Implement richer forms of timer
 	//bool paused;
-	//int multiplier;
-	//int countdown;
+	int multiplier=0;		// Number of ticks before trigger
+	int counter=0;		// Current tick counter
 	std::string name;
 };
 
@@ -76,14 +76,21 @@ static void waitTimePoint() {
 		UNIQUE_LOCK(mtx, lk);
 		auto idle_job = jobs[kTimerIdle10].begin();
 		while (idle_job != jobs[kTimerIdle10].end() && msdelay >= 10 && sincelast != mspf) {
-			(*idle_job).active = true;
-			bool doremove = !(*idle_job).job.trigger(now);
+			auto &job = *idle_job;
 
-			if (doremove) {
-				idle_job = jobs[kTimerIdle10].erase(idle_job);
-				LOG(INFO) << "Timer job removed";
+			if (++job.counter >= job.multiplier) {
+				job.counter = 0;
+				job.active = true;
+				bool doremove = !job.job.trigger(now);
+
+				if (doremove) {
+					idle_job = jobs[kTimerIdle10].erase(idle_job);
+					LOG(INFO) << "Timer job removed";
+				} else {
+					(*idle_job++).active = false;
+				}
 			} else {
-				(*idle_job++).active = false;
+				++idle_job;
 			}
 			now = get_time();
 			msdelay = mspf - (now % mspf);
@@ -100,14 +107,21 @@ static void waitTimePoint() {
 		UNIQUE_LOCK(mtx, lk);
 		auto idle_job = jobs[kTimerIdle1].begin();
 		while (idle_job != jobs[kTimerIdle1].end() && msdelay >= 2 && sincelast != mspf) {
-			(*idle_job).active = true;
-			bool doremove = !(*idle_job).job.trigger(now);
+			auto &job = *idle_job;
 
-			if (doremove) {
-				idle_job = jobs[kTimerIdle1].erase(idle_job);
-				LOG(INFO) << "Timer job removed";
+			if (++job.counter >= job.multiplier) {
+				job.counter = 0;
+				job.active = true;
+				bool doremove = !job.job.trigger(now);
+
+				if (doremove) {
+					idle_job = jobs[kTimerIdle1].erase(idle_job);
+					LOG(INFO) << "Timer job removed";
+				} else {
+					(*idle_job++).active = false;
+				}
 			} else {
-				(*idle_job++).active = false;
+				++idle_job;
 			}
 			now = get_time();
 			msdelay = mspf - (now % mspf);
@@ -167,6 +181,32 @@ ftl::Handle ftl::timer::add(timerlevel_t l, const std::function<bool(int64_t ts)
 	auto &j = jobs[l].emplace_back();
 	j.id = newid;
 	j.name = "NoName";
+	ftl::Handle h = j.job.on(f);
+	return h;
+}
+
+ftl::Handle ftl::timer::add(timerlevel_t l, size_t multiplier, const std::function<bool(int64_t ts)> &f) {
+	if (l < 0 || l >= kTimerMAXLEVEL) return {};
+
+	UNIQUE_LOCK(mtx, lk);
+	int newid = last_id++;
+	auto &j = jobs[l].emplace_back();
+	j.id = newid;
+	j.name = "NoName";
+	j.multiplier = multiplier;
+	ftl::Handle h = j.job.on(f);
+	return h;
+}
+
+ftl::Handle ftl::timer::add(timerlevel_t l, double seconds, const std::function<bool(int64_t ts)> &f) {
+	if (l < 0 || l >= kTimerMAXLEVEL) return {};
+
+	UNIQUE_LOCK(mtx, lk);
+	int newid = last_id++;
+	auto &j = jobs[l].emplace_back();
+	j.id = newid;
+	j.name = "NoName";
+	j.multiplier = int(seconds*1000.0 / double(getInterval()));
 	ftl::Handle h = j.job.on(f);
 	return h;
 }

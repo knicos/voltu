@@ -8,7 +8,7 @@ namespace operators {
 
 class MultiViewMLS : public ftl::operators::Operator {
 	public:
-	explicit MultiViewMLS(ftl::Configurable*);
+	MultiViewMLS(ftl::operators::Graph *g, ftl::Configurable*);
 	~MultiViewMLS();
 
 	inline Operator::Type type() const override { return Operator::Type::ManyToMany; }

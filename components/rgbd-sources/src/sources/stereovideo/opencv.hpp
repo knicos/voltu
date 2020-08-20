@@ -20,13 +20,10 @@ class OpenCVDevice : public ftl::rgbd::detail::Device {
 	static std::vector<DeviceDetails> listDevices();
 
 	bool grab() override;
-	bool get(ftl::rgbd::Frame &frame, cv::cuda::GpuMat &l, cv::cuda::GpuMat &r, cv::cuda::GpuMat &h_l, cv::Mat &h_r, StereoRectification *c, cv::cuda::Stream &stream) override;
+	bool get(ftl::rgbd::Frame &frame, StereoRectification *c, cv::cuda::Stream &stream) override;
 
-	unsigned int width() const override { return dwidth_; }
-	unsigned int height() const override { return dheight_; }
-
-	unsigned int fullWidth() const override { return width_; }
-	unsigned int fullHeight() const override { return height_; }
+	unsigned int width() const override { return width_; }
+	unsigned int height() const override { return height_; }
 
 	double getTimestamp() const override;
 

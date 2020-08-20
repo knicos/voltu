@@ -12,7 +12,7 @@ namespace operators {
  */
 class ScanFieldFill : public ftl::operators::Operator {
 	public:
-    explicit ScanFieldFill(ftl::Configurable*);
+    ScanFieldFill(ftl::operators::Graph *g, ftl::Configurable*);
     ~ScanFieldFill();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
@@ -23,7 +23,7 @@ class ScanFieldFill : public ftl::operators::Operator {
 
 class CrossSupportFill : public ftl::operators::Operator {
 	public:
-    explicit CrossSupportFill(ftl::Configurable*);
+    CrossSupportFill(ftl::operators::Graph *g, ftl::Configurable*);
     ~CrossSupportFill();
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }

@@ -42,7 +42,7 @@ private:
 
 	int64_t capts_;
 
-	cv::Size color_size_;
+	//cv::Size color_size_;
 	cv::Size depth_size_;
 
 	ftl::operators::Graph *pipeline_input_=nullptr;
@@ -55,10 +55,8 @@ private:
 	bool do_update_params_ = false;
 	bool cap_status_ = false;
 
-	cv::cuda::Stream stream_;
-	cv::cuda::Stream stream2_;
-
 	cv::Mat mask_l_;
+	cudaStream_t stream_;
 
 	ftl::Handle calibration_change_;
 	std::string fname_calib_;

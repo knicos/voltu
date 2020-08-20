@@ -112,22 +112,10 @@ void IntrinsicCalibration::setChannel_(FrameSetPtr fs) {
 	cv::Size size;
 
 	if (state_->channel== Channel::Left) {
-		if(frame.has(Channel::LeftHighRes)) {
-			state_->channel_alt = Channel::LeftHighRes;
-			size = frame.get<cv::Mat>(state_->channel_alt).size();
-		}
-		else {
-			size = frame.get<cv::Mat>(state_->channel_alt).size();
-		}
+		size = frame.get<cv::Mat>(state_->channel_alt).size();
 	}
 	else if (state_->channel== Channel::Right) {
-		if (frame.has(Channel::RightHighRes)) {
-			state_->channel_alt = Channel::RightHighRes;
-			size = frame.get<cv::Mat>(Channel::LeftHighRes).size();
-		}
-		else {
-			size = frame.get<cv::Mat>(Channel::Left).size();
-		}
+		size = frame.get<cv::Mat>(Channel::Left).size();
 	}
 
 	try {

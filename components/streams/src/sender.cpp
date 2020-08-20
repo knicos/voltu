@@ -490,19 +490,12 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 	int encoder_number = 0;
 	while (offset < fs.frames.size()) {
 		Channel cc = c;
-		//if ((cc == Channel::Colour) && fs.firstFrame().hasChannel(Channel::ColourHighRes)) {
-		//	cc = Channel::ColourHighRes;
-		//}
-		
-		//if ((cc == Channel::Right) && fs.firstFrame().hasChannel(Channel::RightHighRes)) {
-		//	cc = Channel::RightHighRes;
-		//	fs.frames[offset].upload(cc);
-		//}
 
-		if (!fs.frames[offset].hasChannel(cc)) {
-			offset++;
-			continue;
-		}
+		// FIXME: Don't change tile layout when channel temporarily drops.
+		//if (!fs.frames[offset].hasChannel(cc)) {
+		//	offset++;
+		//	continue;
+		//}
 
 		StreamPacket spkt;
 		spkt.version = 5;
@@ -539,14 +532,11 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 			//}
 		}
 
-		int count = _generateTiles(fs, offset, cc, enc->stream(), is_stereo);
+		int count = (fs.frames.size() == 1) ? 1 : _generateTiles(fs, offset, cc, enc->stream(), is_stereo);
 		if (count <= 0) {
 			LOG(ERROR) << "Could not generate tiles.";
 			break;
 		}
-
-		//cudaSafeCall(cudaStreamSynchronize(enc->stream()));
-		//enc->stream().waitForCompletion();
 
 		if (enc) {
 			if (reset) enc->reset();
@@ -562,8 +552,15 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 				//if (static_cast<size_t>(fs.count) < fs.frames.size()) pkt.flags |= ftl::codecs::kFlagPartial;
 
 				// Choose correct region of interest into the surface.
-				cv::Rect roi = _generateROI(fs, cc, offset, is_stereo);
-				cv::cuda::GpuMat sroi = tile.surface(roi);
+				//cv::Rect roi = _generateROI(fs, cc, offset, is_stereo);
+				cv::cuda::GpuMat sroi;
+				
+				if (fs.frames.size() > 1) {
+					cv::Rect roi = _generateROI(fs, cc, offset, is_stereo);
+					sroi = tile.surface(roi);
+				} else {
+					sroi = fs.frames[0].get<cv::cuda::GpuMat>(cc);
+				}
 
 				FTL_Profile("Encoder",0.02);
 
@@ -637,8 +634,6 @@ void Sender::_encodeAudioChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 }
 
 void Sender::_encodeDataChannel(ftl::data::FrameSet &fs, Channel c, bool reset) {
-	int i=0;
-
 	// TODO: Pack all frames into a single packet
 	for (auto &f : fs.frames) {
 		StreamPacket spkt;
@@ -786,7 +781,7 @@ int Sender::_generateTiles(const ftl::rgbd::FrameSet &fs, int offset, Channel c,
 		} else {
 			cv::Rect roi((count % tx)*rwidth, (count / tx)*rheight, rwidth, rheight);
 			cv::cuda::GpuMat sroi = surface.surface(roi);
-			sroi.setTo(cv::Scalar(0));
+			sroi.setTo(cv::Scalar(0), stream);
 		}
 
 		++count;

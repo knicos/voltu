@@ -133,6 +133,58 @@ TEST_CASE( "Timer::add() Idle10 job" ) {
 	}
 }
 
+TEST_CASE( "Timer::add() Idle10 job periodic" ) {
+	SECTION( "Quick idle job" ) {
+		bool didrun = false;
+
+		ftl::timer::reset();
+
+		int count = 0;
+		auto rcc = ftl::timer::add(ftl::timer::kTimerIdle10, [&count](int64_t ts) {
+			++count;
+			return true;
+		});
+
+		auto rc = ftl::timer::add(ftl::timer::kTimerIdle10, size_t(20), [&didrun](int64_t ts) {
+			didrun = true;
+			ftl::timer::stop(false);
+			return true;
+		});
+
+		REQUIRE( (rc.id() >= 0) );
+
+		ftl::timer::start(true);
+		REQUIRE( didrun == true );
+		REQUIRE( count == 20 );
+	}
+}
+
+TEST_CASE( "Timer::add() Idle1 job periodic" ) {
+	SECTION( "Quick idle job" ) {
+		bool didrun = false;
+
+		ftl::timer::reset();
+
+		int count = 0;
+		auto rcc = ftl::timer::add(ftl::timer::kTimerIdle1, [&count](int64_t ts) {
+			++count;
+			return true;
+		});
+
+		auto rc = ftl::timer::add(ftl::timer::kTimerIdle1, size_t(20), [&didrun](int64_t ts) {
+			didrun = true;
+			ftl::timer::stop(false);
+			return true;
+		});
+
+		REQUIRE( (rc.id() >= 0) );
+
+		ftl::timer::start(true);
+		REQUIRE( didrun == true );
+		REQUIRE( count == 20 );
+	}
+}
+
 TEST_CASE( "Timer::add() Main job" ) {
 	SECTION( "Quick main job" ) {
 		bool didrun = false;

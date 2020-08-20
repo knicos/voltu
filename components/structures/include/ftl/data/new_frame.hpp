@@ -20,6 +20,8 @@
 #include <ftl/handle.hpp>
 #include <ftl/data/messages.hpp>
 
+#include <cuda_runtime.h>
+
 template<typename T> struct is_list : public std::false_type {};
 
 template<typename T>
@@ -630,6 +632,14 @@ class Frame {
 
 	inline FrameMode mode() const { return mode_; }
 
+	// ==== CUDA Functions =====================================================
+
+	cudaStream_t stream();
+
+	cudaEvent_t uploadEvent();
+
+	cudaEvent_t pipeEvent();
+
 	// ==== Wrapper functions ==================================================
 
 	void message(ftl::data::Message code, const std::string &msg);
@@ -681,6 +691,9 @@ class Frame {
 	FrameStatus status_;
 	FrameMode mode_ = FrameMode::PRIMARY;
 	uint64_t available_ = 0;
+	cudaStream_t stream_=0;
+	cudaEvent_t upload_event_=0;
+	cudaEvent_t pipe_event_=0;
 
 	inline void restart(int64_t ts) {
 		timestamp_ = ts;

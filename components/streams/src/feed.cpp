@@ -179,44 +179,26 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 
 			SHARED_LOCK(mtx_, lk);
 			if (pre_pipelines_.count(fs->frameset()) == 1) {
-				pipeline = pre_pipelines_[fs->frameset()]; //->apply(*fs, *fs, 0);
+				pipeline = pre_pipelines_[fs->frameset()];
 			}
 
 			lk.unlock();
 
-			if (pipeline) pipeline->apply(*fs, *fs, 0);
+			bool did_pipe = false;
 
-			lk.lock();
+			if (pipeline) {
+				bool did_pipe = pipeline->apply(*fs, *fs, [this,fs]() {
+					_dispatch(fs);
+				});
 
-			std::atomic_store(&latest_.at(fs->frameset()), fs);
-
-			if (fs->hasAnyChanged(Channel::Thumbnail)) {
-				_saveThumbnail(fs);
-			}
-
-			for (auto* filter : filters_) {
-				// TODO: smarter update (update only when changed) instead of
-				// filter->channels_available_ = fs->channels();
-
-				if (filter->sources().empty()) {
-					//filter->channels_available_ = fs->channels();
-					filter->handler_.triggerParallel(fs);
+				if (!did_pipe) {
+					LOG(WARNING) << "Feed Pipeline dropped";
+					ftl::pool.push([this,fs](int id) {
+						_dispatch(fs);
+					});
 				}
-				else {
-					// TODO: process partial/complete sets here (drop), that is
-					//       intersection filter->sources() and fs->sources() is
-					//       same as filter->sources().
-
-					// TODO: reverse map source ids required here?
-					for (const auto& src : filter->sources()) {
-						//if (fs->hasFrame(src)) {
-						if (fs->frameset() == src) {
-							//filter->channels_available_ = fs->channels();
-							filter->handler_.triggerParallel(fs);
-							break;
-						}
-					}
-				}
+			} else {
+				_dispatch(fs);
 			}
 
 			return true;
@@ -266,6 +248,41 @@ Feed::~Feed() {
 	for (auto &ls : streams_) {
 		for (auto *s : ls.second) {
 			delete s;
+		}
+	}
+}
+
+void Feed::_dispatch(const ftl::data::FrameSetPtr &fs) {
+	SHARED_LOCK(mtx_, lk);
+
+	std::atomic_store(&latest_.at(fs->frameset()), fs);
+
+	if (fs->hasAnyChanged(Channel::Thumbnail)) {
+		_saveThumbnail(fs);
+	}
+
+	for (auto* filter : filters_) {
+		// TODO: smarter update (update only when changed) instead of
+		// filter->channels_available_ = fs->channels();
+
+		if (filter->sources().empty()) {
+			//filter->channels_available_ = fs->channels();
+			filter->handler_.triggerParallel(fs);
+		}
+		else {
+			// TODO: process partial/complete sets here (drop), that is
+			//       intersection filter->sources() and fs->sources() is
+			//       same as filter->sources().
+
+			// TODO: reverse map source ids required here?
+			for (const auto& src : filter->sources()) {
+				//if (fs->hasFrame(src)) {
+				if (fs->frameset() == src) {
+					//filter->channels_available_ = fs->channels();
+					filter->handler_.triggerParallel(fs);
+					break;
+				}
+			}
 		}
 	}
 }
@@ -457,8 +474,6 @@ void Feed::_createPipeline(uint32_t fsid) {
 		p->append<ftl::operators::DepthChannel>("depth")->value("enabled", false);
 		p->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
 		p->append<ftl::operators::ColourChannels>("colour");  // Convert BGR to BGRA
-		p->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
-		p->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 		//p->append<ftl::operators::HFSmoother>("hfnoise");
 		p->append<ftl::operators::CrossSupport>("cross");
 		p->append<ftl::operators::PixelWeights>("weights");
@@ -468,8 +483,11 @@ void Feed::_createPipeline(uint32_t fsid) {
 		p->append<ftl::operators::BorderMask>("border_mask");
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
+		p->append<ftl::operators::DisplayMask>("display_mask")->value("enabled", false);
 		p->append<ftl::operators::Poser>("poser")->value("enabled", true);
 		p->append<ftl::operators::GTAnalysis>("gtanalyse");
+		p->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
+		p->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	}
 }
 
@@ -632,7 +650,7 @@ std::set<ftl::stream::SourceInfo> Feed::recentSources() {
 std::vector<std::string> Feed::availableDeviceSources() {
 	std::vector<std::string> results;
 
-	if (ftl::rgbd::Source::supports("device:pylon")) results.emplace_back("device:pylon");
+	//if (ftl::rgbd::Source::supports("device:pylon")) results.emplace_back("device:pylon");
 	if (ftl::rgbd::Source::supports("device:camera")) results.emplace_back("device:camera");
 	if (ftl::rgbd::Source::supports("device:stereo")) results.emplace_back("device:stereo");
 	if (ftl::rgbd::Source::supports("device:screen")) results.emplace_back("device:screen");

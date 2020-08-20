@@ -83,9 +83,7 @@ RecordOptions::RecordOptions(nanogui::Widget *parent, Camera* ctrl)
 			case Channel::Colour	:
 			case Channel::Colour2	:
 			case Channel::Depth		:
-			case Channel::Depth2	:
-			case Channel::ColourHighRes :
-			case Channel::Colour2HighRes : break;
+			case Channel::Depth2	: break;
 			default: continue;
 			}
 		}

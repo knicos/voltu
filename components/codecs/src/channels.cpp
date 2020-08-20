@@ -27,10 +27,10 @@ static const std::unordered_map<Channel,ChannelInfo> info = {
 	{Channel::Support2, {"Support2", CV_8UC4}},
 	{Channel::Segmentation, {"Segmentation", CV_8U}},
 	{Channel::Normals2, {"Normals Right", CV_32FC4}},
-	{Channel::ColourHighRes, {"Left High-res", CV_8UC4}},
+	{Channel::UNUSED1, {"Unused", CV_8UC4}},
 	{Channel::Disparity, {"Disparity", CV_16S}},
 	{Channel::Smoothing, {"Smoothing", CV_32F}},
-	{Channel::Colour2HighRes, {"Right High-res", CV_8UC4}},
+	{Channel::UNUSED2, {"Unused", CV_8UC4}},
 	{Channel::Overlay, {"Overlay", CV_8UC4}},
 	{Channel::GroundTruth, {"Ground Truth", CV_32F}},
 

@@ -6,6 +6,7 @@
 #include <opencv2/calib3d.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
+#include <ftl/profiler.hpp>
 #include <loguru.hpp>
 
 using ftl::operators::ArUco;
@@ -38,20 +39,12 @@ static Eigen::Matrix4d matrix(cv::Vec3d &rvec, cv::Vec3d &tvec) {
 	return r;
 }
 
-ArUco::ArUco(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
+ArUco::ArUco(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg) {
 	dictionary_ = cv::aruco::getPredefinedDictionary(cfg->value("dictionary", 0));
 	params_ = cv::aruco::DetectorParameters::create();
-
-	debug_ = cfg->value("debug", false);
-	//estimate_pose_ = cfg->value("estimate_pose", false);
-	//auto marker_size = cfg->get<float>("marker_size");
-	//if (!marker_size || (*marker_size <= 0.0f)) {
-	//	marker_size_ = 0.1f;
-	//	estimate_pose_ = false;
-	//}
-	//else {
-	//	marker_size_ = *marker_size;
-	//}
+	params_->cornerRefinementMethod = cv::aruco::CORNER_REFINE_CONTOUR;
+	params_->cornerRefinementMinAccuracy = 0.01;
+	params_->cornerRefinementMaxIterations = 20;
 
 	channel_in_ = Channel::Colour;
 	channel_out_ = Channel::Shapes3D;
@@ -61,88 +54,48 @@ ArUco::ArUco(ftl::Configurable *cfg) : ftl::operators::Operator(cfg) {
 	});
 }
 
-bool ArUco::apply(Frame &in, Frame &out, cudaStream_t stream) {
+bool ArUco::apply(Frame &in, Frame &out, cudaStream_t) {
 	if (!in.hasChannel(channel_in_)) { return false; }
 
-	Frame *inptr = &in;
-	Frame *outptr = &out;
-
 	estimate_pose_ = config()->value("estimate_pose", true);
-	debug_ = config()->value("debug", false);
-	marker_size_ = config()->value("marker_size",0.1f);
+	marker_size_ = config()->value("marker_size", 0.1f);
 
-	job_ = std::move(ftl::pool.push([this,inptr,outptr,stream](int id) {
-		Frame &in = *inptr;
-		Frame &out = *outptr;
+	std::vector<Vec3d> rvecs;
+	std::vector<Vec3d> tvecs;
+	std::vector<std::vector<cv::Point2f>> corners;
+	std::vector<int> ids;
 
-		auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-		//in.download(channel_in_);
+	{
+		FTL_Profile("ArUco", 0.02);
+		cv::cvtColor(in.get<cv::Mat>(channel_in_), tmp_, cv::COLOR_BGRA2GRAY);
 
-		//Mat im = in.get<Mat>(channel_in_);
-		// FIXME: Use internal stream here.
-		Mat im; // = in.fastDownload(channel_in_, cv::cuda::Stream::Null());
-		cv::cvtColor(in.get<cv::Mat>(channel_in_), im, cv::COLOR_BGRA2BGR);
+		const Mat K = in.getLeftCamera().getCameraMatrix();
+		const Mat dist;
 
-		Mat K = in.getLeftCamera().getCameraMatrix();
-		Mat dist = cv::Mat::zeros(cv::Size(5, 1), CV_64FC1);
-
-		std::vector<std::vector<cv::Point2f>> corners;
-		std::vector<int> ids;
-
-		cv::aruco::detectMarkers(	im, dictionary_,
-									corners, ids, params_, cv::noArray(), K);
-
-		std::vector<Vec3d> rvecs;
-		std::vector<Vec3d> tvecs;
+		cv::aruco::detectMarkers(tmp_, dictionary_,
+								corners, ids, params_, cv::noArray(), K, dist);
 
 		if (estimate_pose_) {
 			cv::aruco::estimatePoseSingleMarkers(corners, marker_size_, K, dist, rvecs, tvecs);
 		}
-
-		list<Shape3D> result;
-		if (out.hasChannel(channel_out_)) {
-			result = out.get<list<Shape3D>>(channel_out_);
-		}
-
-		for (size_t i = 0; i < rvecs.size(); i++) {
-			if (estimate_pose_) {
-				auto &t = result.emplace_back();
-				t.id = ids[i];
-				t.type = ftl::codecs::Shape3DType::ARUCO;
-				t.pose = (in.getPose() * matrix(rvecs[i], tvecs[i])).cast<float>();
-				t.size = Eigen::Vector3f(0.1f,0.1f,0.1f);
-				t.label = "Aruco";
-			}
-		}
-
-		out.create<list<Shape3D>>(channel_out_).list = result;
-
-		if (debug_) {
-			cv::aruco::drawDetectedMarkers(im, corners, ids);
-			if (estimate_pose_) {
-				for (size_t i = 0; i < rvecs.size(); i++) {
-						cv::aruco::drawAxis(im, K, dist, rvecs[i], tvecs[i], marker_size_);
-				}
-			}
-		}
-
-		// TODO: should be uploaded by operator which requires data on GPU
-		//in.upload(channel_in_);
-		if (debug_) {
-			//if (in.isGPU(channel_in_)) {
-				cv::cvtColor(im, im, cv::COLOR_BGR2BGRA);
-				out.set<cv::cuda::GpuMat>(channel_in_).upload(im);
-			//} else cv::cvtColor(im, in.get<cv::Mat>(channel_in_), cv::COLOR_BGR2BGRA);
-		}
-		return true;
-	}));
-
-	return true;
-}
-
-void ArUco::wait(cudaStream_t s) {
-	if (job_.valid()) {
-		job_.wait();
-		job_.get();
 	}
+
+	list<Shape3D> result;
+	if (out.hasChannel(channel_out_)) {
+		result = out.get<list<Shape3D>>(channel_out_);
+	}
+
+	for (size_t i = 0; i < rvecs.size(); i++) {
+		if (estimate_pose_) {
+			auto &t = result.emplace_back();
+			t.id = ids[i];
+			t.type = ftl::codecs::Shape3DType::ARUCO;
+			t.pose = (in.getPose() * matrix(rvecs[i], tvecs[i])).cast<float>();
+			t.size = Eigen::Vector3f(1.0f, 1.0f, 0.0f)*marker_size_;
+			t.label = "Aruco-" + std::to_string(ids[i]);
+		}
+	}
+
+	out.create<list<Shape3D>>(channel_out_).list = result;
+	return true;
 }

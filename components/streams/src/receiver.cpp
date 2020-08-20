@@ -247,6 +247,15 @@ namespace sgm {
 	}
 }
 
+void Receiver::_terminateVideoPacket(const StreamPacket &spkt, const Packet &pkt) {
+	auto &build = builder(spkt.streamID);
+	auto fs = build.get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
+	if (fs) {
+		fs->localTimestamp = spkt.localTimestamp;
+		_finishPacket(fs, spkt.frame_number);
+	}
+}
+
 void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	FTL_Profile("VideoPacket", 0.02);
 
@@ -257,6 +266,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	if (tx == 0 || ty == 0) {
 		LOG(ERROR) << "No Packets";
+		_terminateVideoPacket(spkt, pkt);
 		return;
 	}
 
@@ -268,6 +278,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	auto *decoder = ividstate.decoders[channum];
 	if (!decoder) {
 		LOG(ERROR) << "No frame decoder available";
+		_terminateVideoPacket(spkt, pkt);
 		return;
 	}
 
@@ -276,10 +287,12 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		FTL_Profile("Decode", 0.015);
 		if (!decoder->decode(pkt, surface)) {
 			LOG(ERROR) << "Decode failed on channel " << (int)spkt.channel;
+			_terminateVideoPacket(spkt, pkt);
 			return;
 		}
 	} catch (std::exception &e) {
 		LOG(ERROR) << "Decode failed for " << spkt.timestamp << ": " << e.what();
+		_terminateVideoPacket(spkt, pkt);
 		return;
 	}
 
@@ -288,6 +301,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	if (width == 0 || height == 0) {
 		LOG(ERROR) << "Invalid decoded size: " << surface.cols << "x" << surface.rows << " (" << tx << "," << ty << ")";
+		_terminateVideoPacket(spkt, pkt);
 		return;
 	}
 
@@ -295,6 +309,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	if (surface.type() != cvtype) {
 		LOG(ERROR) << "Invalid video format received";
+		_terminateVideoPacket(spkt, pkt);
 		return;
 	}
 
@@ -339,7 +354,15 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	}
 
 	// Must ensure all processing is finished before completing a frame.
-	cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
+	//cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
+
+	cudaSafeCall(cudaEventRecord(decoder->event(), decoder->stream()));
+	//for (int i=0; i<pkt.frame_count; ++i) {
+	//	cudaSafeCall(cudaStreamWaitEvent(fs->frames[spkt.frame_number+i].stream(), decoder->event(), 0));
+	//}
+
+	// For now, always add to frame 0 stream
+	cudaSafeCall(cudaStreamWaitEvent(fs->frames[0].stream(), decoder->event(), 0));
 
 	fs->localTimestamp = spkt.localTimestamp;
 

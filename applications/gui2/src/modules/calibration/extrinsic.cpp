@@ -73,16 +73,17 @@ void ExtrinsicCalibration::start(unsigned int fsid, std::vector<FrameID> sources
 		// stereo calibration
 		auto cl = CameraID(id.frameset(), id.source(), Channel::Left);
 		auto cr = CameraID(id.frameset(), id.source(), Channel::Right);
-		const auto& frame = (*fs_current_)[id.source()].cast<ftl::rgbd::Frame>();
-		auto sz = cv::Size((int) frame.getLeftCamera().width, (int) frame.getLeftCamera().height);
 		state_.cameras.push_back(cl);
 		state_.cameras.push_back(cr);
+
+		const auto& frame = (*fs_current_)[id.source()].cast<ftl::rgbd::Frame>();
+		// NOTE: assumes left size is the same as right size!
+		auto sz = frame.getSize();
 		auto calibl = getCalibration(cl);
 		calibl.intrinsic = CalibrationData::Intrinsic(calibl.intrinsic, sz);
+
 		auto calibr = getCalibration(cr);
 		calibr.intrinsic = CalibrationData::Intrinsic(calibr.intrinsic, sz);
-
-		// Scale intrinsics
 		state_.calib.addStereoCamera(calibl, calibr);
 
 		// Update rectification

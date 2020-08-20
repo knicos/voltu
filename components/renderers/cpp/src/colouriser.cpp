@@ -2,6 +2,7 @@
 #include "splatter_cuda.hpp"
 #include <ftl/cuda/colour_cuda.hpp>
 #include <ftl/cuda/normals.hpp>
+#include <ftl/operators/cuda/mask.hpp>
 
 #include <opencv2/cudaarithm.hpp>
 #include <opencv2/cudaimgproc.hpp>
@@ -119,9 +120,7 @@ TextureObject<uchar4> &Colouriser::colourise(ftl::rgbd::Frame &f, Channel c, cud
 	}
 
 	switch (c) {
-	case Channel::Overlay		: return f.createTexture<uchar4>(c);
-	case Channel::ColourHighRes	:
-	case Channel::RightHighRes	:
+	case Channel::Overlay		:
 	case Channel::Colour		:
 	case Channel::Colour2		: return _processColour(f,c,stream);
 	case Channel::GroundTruth	:

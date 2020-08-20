@@ -8,9 +8,12 @@
 #include <ftl/rgbd/frameset.hpp>
 #include <ftl/rgbd/source.hpp>
 #include <ftl/cuda_common.hpp>
+#include <ftl/operators/buffer.hpp>
 
 namespace ftl {
 namespace operators {
+
+class Graph;
 
 /**
  * An abstract frame operator interface. Any kind of filter that operates on a
@@ -22,7 +25,7 @@ namespace operators {
  */
 class Operator {
 	public:
-	explicit Operator(ftl::Configurable *cfg);
+	Operator(Graph *pgraph, ftl::Configurable *cfg);
 	virtual ~Operator();
 
 	enum class Type {
@@ -58,9 +61,12 @@ class Operator {
 
 	inline ftl::Configurable *config() const { return config_; }
 
+	inline Graph *graph() const { return graph_; }
+
 	private:
 	bool enabled_;
 	ftl::Configurable *config_;
+	Graph *graph_;
 };
 
 namespace detail {
@@ -68,7 +74,7 @@ namespace detail {
 struct ConstructionHelperBase {
 	explicit ConstructionHelperBase(ftl::Configurable *cfg) : config(cfg) {}
 	virtual ~ConstructionHelperBase() {}
-	virtual ftl::operators::Operator *make()=0;
+	virtual ftl::operators::Operator *make(Graph *g)=0;
 
 	ftl::Configurable *config;
 };
@@ -77,8 +83,8 @@ template <typename T>
 struct ConstructionHelper : public ConstructionHelperBase {
 	explicit ConstructionHelper(ftl::Configurable *cfg) : ConstructionHelperBase(cfg) {}
 	~ConstructionHelper() {}
-	ftl::operators::Operator *make() override {
-		return new T(config);
+	ftl::operators::Operator *make(Graph *g) override {
+		return new T(g, config);
 	}
 };
 
@@ -88,8 +94,8 @@ struct ConstructionHelper2 : public ConstructionHelperBase {
 		arguments_ = std::make_tuple(args...);
 	}
 	~ConstructionHelper2() {}
-	ftl::operators::Operator *make() override {
-		return new T(config, arguments_);
+	ftl::operators::Operator *make(Graph *g) override {
+		return new T(g, config, arguments_);
 	}
 
 	private:
@@ -119,11 +125,9 @@ class Graph : public ftl::Configurable {
 	template <typename T, typename... ARGS>
 	ftl::Configurable *append(const std::string &name, ARGS...);
 
-	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream=0);
-	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream=0);
-	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, cudaStream_t stream=0);
-
-	cudaStream_t getStream() const { return stream_; }
+	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, const std::function<void()> &cb=nullptr);
+	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, const std::function<void()> &cb=nullptr);
+	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, const std::function<void()> &cb=nullptr);
 
 	/**
 	 * Make sure all async operators have also completed. This is automatically
@@ -134,11 +138,20 @@ class Graph : public ftl::Configurable {
 	 */
 	bool waitAll(cudaStream_t);
 
+	inline cv::cuda::GpuMat &createBuffer(ftl::operators::Buffer b) { return createBuffer(b, 0); }
+	cv::cuda::GpuMat &createBuffer(ftl::operators::Buffer b, uint32_t fid);
+
+	cv::cuda::GpuMat &getBuffer(ftl::operators::Buffer b, uint32_t fid);
+
+	bool hasBuffer(ftl::operators::Buffer b, uint32_t fid) const;
+
 	private:
 	std::list<ftl::operators::detail::OperatorNode> operators_;
 	std::map<std::string, ftl::Configurable*> configs_;
-	cudaStream_t stream_;
 	std::atomic_flag busy_;
+	std::unordered_map<uint32_t,cv::cuda::GpuMat> buffers_;
+	std::unordered_set<uint32_t> valid_buffers_;
+	std::function<void()> callback_;
 
 	ftl::Configurable *_append(ftl::operators::detail::ConstructionHelperBase*);
 };

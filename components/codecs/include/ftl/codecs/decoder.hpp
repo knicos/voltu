@@ -33,17 +33,19 @@ void free(Decoder *&e);
  */
 class Decoder {
 	public:
-	Decoder() { cudaStreamCreate(&stream_); };
-	virtual ~Decoder() { cudaStreamDestroy(stream_); };
+	Decoder() { cudaStreamCreate(&stream_); cudaEventCreate(&event_); };
+	virtual ~Decoder() { cudaStreamDestroy(stream_); cudaEventDestroy(event_); };
 
 	virtual bool decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out)=0;
 
 	virtual bool accepts(const ftl::codecs::Packet &)=0;
 
 	cudaStream_t stream() { return stream_; }
+	cudaEvent_t event() { return event_; }
 
 	protected:
 	cudaStream_t stream_;
+	cudaEvent_t event_;
 };
 
 }
