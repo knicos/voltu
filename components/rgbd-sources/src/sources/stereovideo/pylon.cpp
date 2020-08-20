@@ -127,11 +127,12 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 	temperature_monitor_ = ftl::timer::add(ftl::timer::timerlevel_t::kTimerIdle1, 10.0, [this](int64_t ts) {
 		float temperature = (rcam_) ? std::max(lcam_->DeviceTemperature(), rcam_->DeviceTemperature()) : lcam_->DeviceTemperature();
 
-		LOG_IF(WARNING, temperature > 53.0)
-			<< "Camera temperature over 50C (value: " << temperature << ")";
+		// Note: this is core not housing temperature
+		LOG_IF(WARNING, temperature > 60.0)
+			<< "Camera temperature over 60C (value: " << temperature << ")";
 
 		// TODO: check actual temperature status.
-		if (temperature > 65.0) {
+		if (temperature > 70.0) {
 			LOG(FATAL) << "Cameras are overheating";
 		}
 
@@ -206,6 +207,7 @@ void PylonDevice::_configureCamera(CBaslerUniversalInstantCamera *cam) {
 		cam->LightSourcePreset.SetValue(Basler_UniversalCameraParams::LightSourcePreset_Tungsten2800K);  // White balance option
 		cam->BalanceWhiteAuto.SetValue(Basler_UniversalCameraParams::BalanceWhiteAuto_Once);
 		cam->GainAuto.SetValue(Basler_UniversalCameraParams::GainAuto_Once);
+		cam->DeviceTemperatureSelector.SetValue(Basler_UniversalCameraParams::DeviceTemperatureSelector_Coreboard);
 	}
 }
 
