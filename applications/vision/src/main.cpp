@@ -188,11 +188,11 @@ static void run(ftl::Configurable *root) {
 	root->on("quiet", quiet, false);
 
 	auto *pipeline = ftl::config::create<ftl::operators::Graph>(root, "pipeline");
+	pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	pipeline->append<ftl::operators::DetectAndTrack>("facedetection")->value("enabled", false);
 	pipeline->append<ftl::operators::DepthChannel>("depth");  // Ensure there is a depth channel
 	//pipeline->append<ftl::operators::ClipScene>("clipping")->value("enabled", false);
 	pipeline->restore("vision_pipeline", { "clipping" });
-	pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 
 	auto h = creator->onFrameSet([sender,outstream,&stats_count,&latency,&frames,&stats_time,pipeline,&encodable,&previous_encodable](const ftl::data::FrameSetPtr &fs) {
 
