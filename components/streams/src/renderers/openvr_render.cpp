@@ -329,6 +329,11 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 
 				if (headset_origin.size() > 0) {
 					ftl::operators::Poser::get(headset_origin, horigin);
+					double headset_offset = host_->value("headset_offset_z", 0.0);
+					// move z-axis by offset
+					Eigen::Vector3d offset =
+						horigin.block<3, 3>(0, 0)*Eigen::Vector3d(0.0, 0.0, headset_offset);
+					horigin.block<3, 1>(0, 3) -= offset;
 				}
 				Eigen::Matrix4d new_pose = horigin*viewPose.inverse();
 

@@ -64,14 +64,14 @@ struct __align__(16) Camera {
 	/**
 	 * Convert screen plus depth into camera coordinates.
 	 */
-	__host__ __device__ float3 screenToCam(int ux, int uy, float depth) const; 
+	__host__ __device__ float3 screenToCam(int ux, int uy, float depth) const;
 
 	//Eigen::Vector4f eigenScreenToCam(int ux, int uy, float depth) const;
 
 	/**
 	 * Convert screen plus depth into camera coordinates.
 	 */
-	__host__ __device__ float3 screenToCam(uint ux, uint uy, float depth) const; 
+	__host__ __device__ float3 screenToCam(uint ux, uint uy, float depth) const;
 
 	/**
 	 * Convert screen plus depth into camera coordinates.
@@ -86,8 +86,8 @@ struct __align__(16) Camera {
 	 * Make a camera struct from a configurable.
 	 */
 	static Camera from(ftl::Configurable*);
-	
-	cv::Mat getCameraMatrix() const;
+
+	cv::Mat getCameraMatrix(const cv::Size& sz={0, 0}) const;
 	#endif
 };
 
@@ -104,18 +104,18 @@ inline float3 ftl::rgbd::Camera::project<ftl::rgbd::Projection::EQUIRECTANGULAR>
     //inverse formula for spherical projection, reference Szeliski book "Computer Vision: Algorithms and Applications" p439.
     const float theta = atan2(ray3d.y,sqrt(ray3d.x*ray3d.x+ray3d.z*ray3d.z));
 	const float phi = atan2(ray3d.x, ray3d.z);
-	
+
 	const float pi = 3.14159265f;
 
     //get 2D point on equirectangular map
-    float x_sphere = (((phi*width)/pi+width)/2.0f); 
+    float x_sphere = (((phi*width)/pi+width)/2.0f);
     float y_sphere = (theta+ pi/2.0f)*height/pi;
 
     return make_float3(x_sphere,y_sphere, l);
 };
 
 template <> __device__ __host__
-inline float3 ftl::rgbd::Camera::unproject<ftl::rgbd::Projection::EQUIRECTANGULAR>(const float3 &equi) const {	
+inline float3 ftl::rgbd::Camera::unproject<ftl::rgbd::Projection::EQUIRECTANGULAR>(const float3 &equi) const {
 	const float pi = 3.14159265f;
 
 	float phi = (equi.x * 2.0f - float(width)) * pi / float(width);
@@ -131,7 +131,7 @@ inline float3 ftl::rgbd::Camera::unproject<ftl::rgbd::Projection::EQUIRECTANGULA
 template <> __device__ __host__
 inline float3 ftl::rgbd::Camera::project<ftl::rgbd::Projection::PERSPECTIVE>(const float3 &pos) const {
 	return make_float3(
-		static_cast<float>(pos.x*fx/pos.z - cx),			
+		static_cast<float>(pos.x*fx/pos.z - cx),
 		static_cast<float>(pos.y*fy/pos.z - cy),
 		pos.z
 	);
@@ -147,7 +147,7 @@ inline float3 ftl::rgbd::Camera::unproject<ftl::rgbd::Projection::PERSPECTIVE>(c
 template <> __device__ __host__
 inline float3 ftl::rgbd::Camera::project<ftl::rgbd::Projection::ORTHOGRAPHIC>(const float3 &pos) const {
 	return make_float3(
-		static_cast<float>(pos.x*fx - cx),			
+		static_cast<float>(pos.x*fx - cx),
 		static_cast<float>(pos.y*fy - cy),
 		pos.z
 	);
@@ -163,7 +163,7 @@ inline float3 ftl::rgbd::Camera::unproject<ftl::rgbd::Projection::ORTHOGRAPHIC>(
 template <> __device__ __host__
 inline float2 ftl::rgbd::Camera::camToScreen<float2>(const float3 &pos) const {
 	return make_float2(
-		static_cast<float>(pos.x*fx/pos.z - cx),			
+		static_cast<float>(pos.x*fx/pos.z - cx),
 		static_cast<float>(pos.y*fy/pos.z - cy)
 	);
 }

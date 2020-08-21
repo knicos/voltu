@@ -35,13 +35,18 @@ Camera Camera::from(ftl::Configurable *cfg) {
 	return r;
 }
 
-cv::Mat Camera::getCameraMatrix() const {
-	cv::Mat K = cv::Mat::eye(cv::Size(3, 3), CV_64FC1);
-	K.at<double>(0,0) = fx;
-	K.at<double>(0,2) = -cx;
-	K.at<double>(1,1) = fy;
-	K.at<double>(1,2) = -cy;
-	return K;
+cv::Mat Camera::getCameraMatrix(const cv::Size& sz) const {
+	if (sz == cv::Size{0, 0}) {
+		cv::Mat K = cv::Mat::eye(cv::Size(3, 3), CV_64FC1);
+		K.at<double>(0,0) = fx;
+		K.at<double>(0,2) = -cx;
+		K.at<double>(1,1) = fy;
+		K.at<double>(1,2) = -cy;
+		return K;
+	}
+	else {
+		return scaled(sz.width, sz.height).getCameraMatrix();
+	}
 }
 
 /*

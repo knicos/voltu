@@ -121,6 +121,7 @@ class ArUco : public ftl::operators::Operator {
 
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+	virtual void wait(cudaStream_t) override;
 
 	ftl::codecs::Channel channel_in_;
 	ftl::codecs::Channel channel_out_;
@@ -129,6 +130,7 @@ class ArUco : public ftl::operators::Operator {
 	bool estimate_pose_;
 	float marker_size_;
 	cv::Mat tmp_;
+	std::future<void> job_;
 
 	cv::Ptr<cv::aruco::Dictionary> dictionary_;
 	cv::Ptr<cv::aruco::DetectorParameters> params_;

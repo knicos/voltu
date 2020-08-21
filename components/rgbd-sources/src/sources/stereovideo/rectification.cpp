@@ -196,10 +196,10 @@ cv::Mat StereoRectification::cameraMatrix(Channel c) {
 	}
 	else {
 		if (c == Channel::Left) {
-			return calib_left_.intrinsic.matrix();
+			return CalibrationData::Intrinsic(calib_left_.intrinsic, image_resolution_).matrix();
 		}
 		else if (c == Channel::Right) {
-			return calib_right_.intrinsic.matrix();
+			return CalibrationData::Intrinsic(calib_right_.intrinsic, image_resolution_).matrix();
 		}
 	}
 	throw ftl::exception("Invalid channel, expected Left or Right");
