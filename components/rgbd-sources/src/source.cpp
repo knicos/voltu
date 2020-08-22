@@ -146,7 +146,8 @@ void Source::reset() {
 		"device_left",
 		"enable_touch",
 		"feed",
-		"pipeline"
+		"pipeline",
+		"pose"
 	});
 
 	uri.to_json(getConfig());

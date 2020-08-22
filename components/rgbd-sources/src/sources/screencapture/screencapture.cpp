@@ -12,6 +12,8 @@
 
 #include <opencv2/imgproc.hpp>
 
+#include <nlohmann/json.hpp>
+
 using ftl::rgbd::detail::ScreenCapture;
 using ftl::codecs::Channel;
 using cv::cuda::GpuMat;
@@ -178,7 +180,16 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 
 	float offsetz = host_->value("offset_z",0.0f);
 	//state_.setPose(matrix(cv::Vec3d(0.0, 3.14159, 0.0), cv::Vec3d(0.0,0.0,params_.maxDepth+offsetz)));
-	pose_ = matrix(cv::Vec3d(0.0, 3.14159, 0.0), cv::Vec3d(0.0,0.0,params_.maxDepth+offsetz));
+
+	if (host_->getConfig().contains("pose") && host_->getConfig()["pose"].is_array()) {
+		LOG(INFO) << "Loading saved screen pose.";
+		std::vector<double> d = host_->getConfig()["pose"].get<std::vector<double>>();
+		for (int i=0; i<16; ++i) {
+			pose_.data()[i] = d[i];
+		}
+	} else {
+		pose_ = matrix(cv::Vec3d(0.0, 3.14159, 0.0), cv::Vec3d(0.0,0.0,params_.maxDepth+offsetz));
+	}
 
 	host_->on("size", [this]() {
 		float offsetz = host_->value("offset_z",0.0f);
@@ -336,6 +347,17 @@ bool ScreenCapture::retrieve(ftl::rgbd::Frame &frame) {
 				cv::circle(img, cv::Point(primary_touch_.x, primary_touch_.y), 10, cv::Scalar(0,0,255), 3);
 			}
 		}
+	}
+
+	if (frame.changed(Channel::Pose)) {
+		LOG(INFO) << "Pose has been updated...";
+		Eigen::Matrix4d p = frame.getPose();
+		std::vector<double> d;
+		d.resize(16);
+		for (int i=0; i<16; ++i) {
+			d[i] = p.data()[i];
+		}
+		host_->getConfig()["pose"] = d;
 	}
 
 	if (do_update_params_) {
