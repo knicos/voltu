@@ -358,7 +358,8 @@ ftlError_t ftlNextFrame(ftlStream_t stream) {
 	try {
 		cudaSetDevice(0);
 		if (stream->pipelines) {
-			stream->pipelines->apply(*stream->video_fs, *stream->video_fs, 0);
+			stream->pipelines->apply(*stream->video_fs, *stream->video_fs);
+			// FIXME: Stream sync
 		}
 
 		for (auto &c : stream->video_fs->firstFrame().changed()) {
@@ -384,7 +385,8 @@ ftlError_t ftlDestroyStream(ftlStream_t stream) {
 			try {
 				cudaSetDevice(0);
 				if (stream->pipelines) {
-					stream->pipelines->apply(*stream->video_fs, *stream->video_fs, 0);
+					stream->pipelines->apply(*stream->video_fs, *stream->video_fs);
+					// FIXME: Stream sync
 				}
 				for (auto &c : stream->video_fs->firstFrame().changed()) {
 					stream->sender->post(*stream->video_fs, c.first);

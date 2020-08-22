@@ -126,8 +126,11 @@ class Graph : public ftl::Configurable {
 	ftl::Configurable *append(const std::string &name, ARGS...);
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, const std::function<void()> &cb=nullptr);
-	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, const std::function<void()> &cb=nullptr);
-	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, const std::function<void()> &cb=nullptr);
+
+	bool queue(const ftl::data::FrameSetPtr &fs, const std::function<void()> &cb);
+
+	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out);
+	//bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::Frame &out, const std::function<void()> &cb=nullptr);
 
 	/**
 	 * Make sure all async operators have also completed. This is automatically
@@ -152,8 +155,12 @@ class Graph : public ftl::Configurable {
 	std::unordered_map<uint32_t,cv::cuda::GpuMat> buffers_;
 	std::unordered_set<uint32_t> valid_buffers_;
 	std::function<void()> callback_;
+	std::list<std::pair<ftl::data::FrameSetPtr, std::function<void()>>> queue_;
+	MUTEX mtx_;
 
 	ftl::Configurable *_append(ftl::operators::detail::ConstructionHelperBase*);
+	void _processOne();
+	bool _apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out);
 };
 
 }

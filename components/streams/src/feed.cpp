@@ -187,7 +187,7 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 			bool did_pipe = false;
 
 			if (pipeline) {
-				bool did_pipe = pipeline->apply(*fs, *fs, [this,fs]() {
+				bool did_pipe = pipeline->queue(fs, [this,fs]() {
 					_dispatch(fs);
 				});
 

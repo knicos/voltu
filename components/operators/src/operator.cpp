@@ -68,20 +68,38 @@ bool Graph::hasBuffer(ftl::operators::Buffer b, uint32_t fid) const {
 	return valid_buffers_.count((uint32_t(b) << 8) + fid) > 0;
 }
 
-bool Graph::apply(FrameSet &in, FrameSet &out, const std::function<void()> &cb) {
+bool Graph::queue(const ftl::data::FrameSetPtr &fs, const std::function<void()> &cb) {
+	if (!value("enabled", true)) return true;
+	if (fs->frames.size() < 1) return true;
+
+	{
+		UNIQUE_LOCK(mtx_, lk);
+		if (queue_.size() > 3) {
+			LOG(ERROR) << "Pipeline queue exceeded";
+			return false;
+		}
+		queue_.emplace_back(fs, cb);
+	}
+
+	if (busy_.test_and_set()) {
+		LOG(INFO) << "Pipeline queued... " << queue_.size();
+		return true;
+	}
+
+	_processOne();
+	return true;
+}
+
+bool Graph::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out) {
 	if (!value("enabled", true)) return true;
 	if (in.frames.size() < 1) return true;
 
+	return _apply(in, out);
+}
+
+bool Graph::_apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out) {
 	auto stream_actual = in.frames[0].stream();
 	bool success = true;
-
-	if (in.frames.size() != out.frames.size()) return true;
-
-	if (busy_.test_and_set()) {
-		LOG(ERROR) << "Pipeline already in use: " << in.timestamp();
-		//if (cb) cb();
-		return false;
-	}
 
 	valid_buffers_.clear();
 
@@ -142,18 +160,51 @@ bool Graph::apply(FrameSet &in, FrameSet &out, const std::function<void()> &cb) 
 	}
 
 	success = waitAll(stream_actual) && success;
+	return success;
+}
+
+void Graph::_processOne() {
+
+	ftl::data::FrameSetPtr fs;
+	std::function<void()> cb;
+
+	{
+		UNIQUE_LOCK(mtx_, lk);
+		if(queue_.size() == 0) {
+			busy_.clear();
+			return;
+		}
+
+		fs = queue_.front().first;
+		cb = queue_.front().second;
+		queue_.pop_front();
+	}
+
+	auto &in = *fs;
+	auto &out = *fs;
+
+	auto stream_actual = in.frames[0].stream();
+
+	_apply(in, out);
 
 	if (cb) {
 		cudaCallback(stream_actual, [this,cb]() {
-			busy_.clear();
-			ftl::pool.push([cb](int id) { cb(); });
+			bool sched = false;
+			{
+				UNIQUE_LOCK(mtx_, lk);
+				if (queue_.size() == 0) busy_.clear();
+				else sched = true;
+			}
+			ftl::pool.push([this,cb,sched](int id) {
+				if (sched) _processOne();
+				cb();
+			});
 		});
 	} else {
-		//cudaSafeCall(cudaStreamSynchronize(stream_actual));
 		busy_.clear();
 	}
-
-	return true;
+	
+	return;
 }
 
 bool Graph::waitAll(cudaStream_t stream) {
