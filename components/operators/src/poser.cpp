@@ -114,7 +114,14 @@ bool Poser::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_
 			(*p).second.locked = config()->value("locked",false);
 
 			Eigen::Matrix4d pose = (*p).second.shape.pose.cast<double>();
-            in.cast<ftl::rgbd::Frame>().setPose() = (config()->value("inverse",false)) ? pose.inverse() : pose;
+
+			if (in.frames.size() == 1) {
+				auto response = in.frames[0].response();
+				auto &rgbdf = response.cast<ftl::rgbd::Frame>();
+				rgbdf.setPose() = (config()->value("inverse",false)) ? pose.inverse() : pose;
+			} else {
+            	in.cast<ftl::rgbd::Frame>().setPose() = (config()->value("inverse",false)) ? pose.inverse() : pose;
+			}
         } else {
             LOG(WARNING) << "Pose not found: " << pose_ident;
         }
