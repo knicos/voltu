@@ -37,10 +37,12 @@ Speaker::Speaker(nlohmann::json &config) : ftl::Configurable(config), buffer_(nu
 	#endif
 	volume_ = 1.0f;
 	active_ = false;
-	extra_delay_ = value("delay",0.0f);
+	extra_delay_ = value("delay",0.1f);
 	on("delay", [this]() {
-		extra_delay_ = value("delay",0.0f);
+		extra_delay_ = value("delay",0.1f);
+		setDelay(0);
 	});
+	setDelay(0);
 }
 
 Speaker::~Speaker() {
