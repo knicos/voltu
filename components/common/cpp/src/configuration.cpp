@@ -667,7 +667,7 @@ static void stripJSON(nlohmann::json &j) {
 			i = j.erase(i);
 			continue;
 		}
-        if ((*i).is_structured()) {
+        if ((*i).is_object()) {
             stripJSON(*i);
         }
 		++i;
