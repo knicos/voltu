@@ -216,7 +216,7 @@ static void run(ftl::Configurable *root) {
 
 		fs->set(ftl::data::FSFlag::AUTO_SEND);
 
-		bool did_pipe = pipeline->apply(*fs, *fs, [fs,&frames,&latency]() {
+		bool did_pipe = pipeline->queue(fs, [fs,&frames,&latency]() {
 			if (fs->hasAnyChanged(Channel::Depth)) fs->flush(Channel::Depth);
 			++frames;
 			latency += float(ftl::timer::get_time() - fs->timestamp());
