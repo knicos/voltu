@@ -125,7 +125,8 @@ cv::Size ftl::rgbd::Frame::getSize(ftl::codecs::Channel c) const {
 			return f.getCPU().size();
 		}
 	} else {
-		throw FTL_Error("Channel does not exists: " << int(c));
+		//throw FTL_Error("Channel does not exists: " << int(c));
+		return cv::Size(0,0);
 	}
 }
 

@@ -399,7 +399,7 @@ ftl::cuda::TextureObject<uchar4>& Camera::getFrame(ftl::codecs::Channel channel)
 	if (std::atomic_load(&current_fs_)) {
 		auto& frame = current_fs_->frames[frame_idx].cast<ftl::rgbd::Frame>();
 
-		current_frame_colour_ = frame.getTexture<uchar4>(Channel::Left);
+		if (frame.hasChannel(Channel::Left)) current_frame_colour_ = frame.getTexture<uchar4>(Channel::Left);
 
 		if (frame.hasChannel(channel)) {
 			current_frame_ = colouriser_->colourise(frame, channel, 0);

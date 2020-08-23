@@ -74,6 +74,8 @@ class Sender : public ftl::Configurable {
 	int add_iframes_;
 	unsigned int iframe_;
 	ftl::Handle handle_;
+	int64_t last_ts_=0;
+	int min_frame_interval_=0;
 
 	struct EncodingState {
 		uint8_t bitrate;

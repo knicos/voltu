@@ -29,6 +29,11 @@ Sender::Sender(nlohmann::json &config) : ftl::Configurable(config), stream_(null
 	iframe_ = 1;
 	add_iframes_ = value("iframes", 50);
 	timestamp_ = -1;
+	min_frame_interval_ = 1000 / value("max_fps", 30);
+
+	on("max_fps", [this]() {
+		min_frame_interval_ = 1000 / value("max_fps", 30);
+	});
 
 	on("iframes", [this]() {
 		add_iframes_ = value("iframes", 50);
@@ -293,6 +298,11 @@ void Sender::post(ftl::data::FrameSet &fs, ftl::codecs::Channel c, bool noencode
 			//}
 		}
 	}
+
+	if (fs.timestamp() > last_ts_ && fs.timestamp() < last_ts_ + min_frame_interval_) {
+		return;
+	}
+	last_ts_ = fs.timestamp();
 
 	// Don't transmit if noencode and needs encoding
 	if (needs_encoding && noencode) {
