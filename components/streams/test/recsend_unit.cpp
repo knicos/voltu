@@ -152,7 +152,7 @@ TEST_CASE( "Multi-thread stability testing" ) {
 
 	//ftl::pool.restart(4);
 
-	ftl::timer::setInterval(20);
+	ftl::timer::setInterval(40);
 	ftl::timer::start(false);
 
 	SECTION("One frame, two channel") {
@@ -169,7 +169,6 @@ TEST_CASE( "Multi-thread stability testing" ) {
 		int count = 0;
 		ftl::data::FrameSetPtr result = nullptr;
 		auto h = receiver->onFrameSet([&count,&result](const ftl::data::FrameSetPtr &fs) {
-			LOG(INFO) << "FS RECV: " << fs->timestamp();
 			count++;
 			if (result) REQUIRE( result->timestamp() <= fs->timestamp()-20 );
 			REQUIRE( fs->frames.size() == 1 );
@@ -218,7 +217,6 @@ TEST_CASE( "Multi-thread stability testing" ) {
 		int count = 0;
 		ftl::data::FrameSetPtr result = nullptr;
 		auto h = receiver->onFrameSet([&count,&result](const ftl::data::FrameSetPtr &fs) {
-			LOG(INFO) << "FS RECV: " << fs->timestamp();
 			count++;
 			if (result) {
 				REQUIRE( result->timestamp() <= fs->timestamp()-20 );
