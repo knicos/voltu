@@ -83,10 +83,13 @@ static void run(ftl::Configurable *root) {
 		pipeline->append<ftl::operators::ArUco>("aruco")->value("enabled", false);
 	});
 
+	bool has_file = false;
+
 	// Add sources here
 	if (root->getConfig().contains("sources")) {
 		for (const auto &s : root->getConfig()["sources"]) {
 			ftl::URI uri(s);
+			if (uri.getScheme() == ftl::URI::scheme_t::SCHEME_FILE) has_file = true;
 			uri.setAttribute("group", group_name);
 			feed->add(uri);
 		}
@@ -99,6 +102,7 @@ static void run(ftl::Configurable *root) {
 	for (auto &x : *paths) {
 		if (x != "") {
 			ftl::URI uri(x);
+			if (uri.getScheme() == ftl::URI::scheme_t::SCHEME_FILE) has_file = true;
 			uri.setAttribute("group", group_name);
 			feed->add(uri);
 		}
@@ -123,12 +127,16 @@ static void run(ftl::Configurable *root) {
 	feed->startStreaming(filter);
 
 	// Just do whatever jobs are available
-	while (ftl::running) {
-		auto f = ftl::pool.pop();
-		if (f) {
-			f(-1);
-		} else {
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	if (has_file) {
+		ftl::timer::start(true);
+	} else {
+		while (ftl::running) {
+			auto f = ftl::pool.pop();
+			if (f) {
+				f(-1);
+			} else {
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			}
 		}
 	}
 
