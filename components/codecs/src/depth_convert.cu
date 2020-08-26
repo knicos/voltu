@@ -172,7 +172,7 @@ __device__ inline float2 readChroma(const T* __restrict__ chroma, int pitch, uin
 
 template <typename T>
 __device__ inline float2 bilinChroma(const T* __restrict__ chroma, int pitch, uint x, uint y, const float2 &D, int dx, int dy, int width, int height) {
-	if (uint(x+dx) >= width || uint(y+dy) >= height/2) return D;
+	if (uint(x+dx) >= width || uint(y+dy) >= height) return D;
 
 	float2 A = readChroma(chroma, pitch, x+dx, y+dy);
 	float2 B = readChroma(chroma, pitch, x, y+dy);
