@@ -445,9 +445,10 @@ void Universe::_run() {
 					if (sock == INVALID_SOCKET) continue;
 
 					if (FD_ISSET(sock, &impl_->sfderror_)) {
-						s->socketError();
-						s->close();
-						continue;  // No point in reading data...
+						if (s->socketError()) {
+							s->close();
+							continue;  // No point in reading data...
+						}
 					}
 					//If message received from this client then deal with it
 					if (FD_ISSET(sock, &impl_->sfdread_)) {

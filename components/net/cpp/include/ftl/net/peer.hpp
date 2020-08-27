@@ -205,7 +205,7 @@ class Peer {
 	
 	protected:
 	void data();			// Process one message from socket
-	void socketError();		// Process one error from socket
+	bool socketError();		// Process one error from socket
 	void error(int e);
 	
 	bool _data();

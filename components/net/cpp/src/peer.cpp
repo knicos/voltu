@@ -401,7 +401,7 @@ void Peer::_badClose(bool retry) {
 	}
 }
 
-void Peer::socketError() {
+bool Peer::socketError() {
 	int err;
 #ifdef WIN32
 	int optlen = sizeof(err);
@@ -410,11 +410,14 @@ void Peer::socketError() {
 #endif
 	getsockopt(sock_, SOL_SOCKET, SO_ERROR, (char*)&err, &optlen);
 
+	if (err == 0) return false;
+
 	// Must close before log since log may try to send over net causing
 	// more socket errors...
 	_badClose();
 
-	if (err != 0) LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
+	LOG(ERROR) << "Socket: " << uri_ << " - error " << err;
+	return true;
 }
 
 void Peer::error(int e) {
