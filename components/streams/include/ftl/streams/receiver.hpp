@@ -37,6 +37,8 @@ class Receiver : public ftl::Configurable, public ftl::data::Generator {
 	 */
 	ftl::Handle onFrameSet(const ftl::data::FrameSetCallback &cb) override;
 
+	ftl::Handle onError(const std::function<bool(ftl::data::FrameID)> &cb) { return error_cb_.on(cb); }
+
 	ftl::streams::BaseBuilder &builder(uint32_t id);
 
 	void registerBuilder(const std::shared_ptr<ftl::streams::BaseBuilder> &b);
@@ -49,6 +51,7 @@ class Receiver : public ftl::Configurable, public ftl::data::Generator {
 	ftl::stream::Stream *stream_;
 	ftl::data::Pool *pool_;
 	ftl::SingletonHandler<const ftl::data::FrameSetPtr&> callback_;
+	ftl::Handler<ftl::data::FrameID> error_cb_;
 	std::unordered_map<uint32_t, std::shared_ptr<ftl::streams::BaseBuilder>> builders_;
 	std::unordered_map<uint32_t, ftl::Handle> handles_;
 	ftl::codecs::Channel second_channel_;
@@ -60,11 +63,10 @@ class Receiver : public ftl::Configurable, public ftl::data::Generator {
 	struct InternalVideoStates {
 		InternalVideoStates();
 
-		int64_t timestamp;
-		//ftl::rgbd::Frame frame;
+		int64_t timestamps[32];
 		ftl::codecs::Decoder* decoders[32];
 		cv::cuda::GpuMat surface[32];
-		MUTEX mutex;
+		RECURSIVE_MUTEX mutex;
 		ftl::codecs::Channels<0> completed;
 		int width=0;
 		int height=0;

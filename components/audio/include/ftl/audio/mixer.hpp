@@ -59,6 +59,7 @@ class FixedMixer : public ftl::audio::Buffer<T> {
 		Buffer<T>::reset();
 		write_position_ = 0;
 		read_position_ = 0;
+		for (auto &t : tracks_) t.reset();
 	}
 
 	inline int writePosition() const { return write_position_; }

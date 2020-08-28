@@ -38,12 +38,12 @@ class ScreenRender : public ftl::render::BaseSourceImpl {
 	ftl::operators::Graph *post_pipe_;
 	std::atomic_flag calibration_uptodate_;
 
-	struct AudioMixerMapping {
+	/*struct AudioMixerMapping {
 		int64_t last_timestamp=0;
 		int track=-1;
 	};
 
-	std::unordered_map<uint32_t, AudioMixerMapping> mixmap_;
+	std::unordered_map<uint32_t, AudioMixerMapping> mixmap_;*/
 };
 
 }

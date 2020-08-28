@@ -44,7 +44,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 		});
 		REQUIRE( reader->begin(false) );
 
-		reader->tick(100);
+		reader->tick(ftl::timer::get_time()+10);
 		reader->end();
 
 		//REQUIRE( tspkt.timestamp == 0 );
@@ -58,16 +58,17 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 
 		REQUIRE( writer->begin() );
 
-		REQUIRE( writer->post({4,0,0,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
-		REQUIRE( writer->post({4,0,1,1,ftl::codecs::Channel::Depth},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
-		REQUIRE( writer->post({4,0,2,1,ftl::codecs::Channel::Screen},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({5,10,0,1,ftl::codecs::Channel::Confidence},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({5,10,1,1,ftl::codecs::Channel::Depth},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
+		REQUIRE( writer->post({5,10,2,1,ftl::codecs::Channel::Screen},{ftl::codecs::codec_t::Any, 0, 0, 0, 0, {'f'}}) );
 
 		writer->end();
 
 		reader->set("filename", (std::filesystem::temp_directory_path() / "ftl_file_stream_test.ftl").string());
 
-		ftl::codecs::StreamPacket tspkt = {4,0,0,1,ftl::codecs::Channel::Colour};
-		int count = 0;
+		ftl::codecs::StreamPacket tspkt = {5,0,0,1,ftl::codecs::Channel::Colour};
+		std::atomic_int count = 0;
+		
 		auto h = reader->onPacket([&tspkt,&count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 			tspkt = spkt;
 			++count;
@@ -75,7 +76,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 		});
 		REQUIRE( reader->begin(false) );
 
-		reader->tick(100);
+		reader->tick(ftl::timer::get_time()+10);
 		reader->end();
 
 		REQUIRE( count == 3 );
@@ -108,7 +109,7 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 		});
 		REQUIRE( reader->begin(false) );
 
-		reader->tick(100);
+		reader->tick(ftl::timer::get_time()+ftl::timer::getInterval());
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		REQUIRE( count == 2 );
@@ -116,14 +117,14 @@ TEST_CASE("ftl::stream::File write and read", "[stream]") {
 		//auto itime = tspkt.timestamp;
 
 		count = 0;
-		reader->tick(101);
+		reader->tick(ftl::timer::get_time()+2*ftl::timer::getInterval());
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		REQUIRE( count == 2 );
 		//REQUIRE( tspkt.timestamp == itime+ftl::timer::getInterval() );
 
 		count = 0;
-		reader->tick(102);
+		reader->tick(ftl::timer::get_time()+3*ftl::timer::getInterval());
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		REQUIRE( count == 1 );

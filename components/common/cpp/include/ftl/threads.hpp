@@ -7,7 +7,7 @@
 
 #define POOL_SIZE 10
 
-#define DEBUG_MUTEX
+//#define DEBUG_MUTEX
 #define MUTEX_TIMEOUT 2
 
 #if defined DEBUG_MUTEX

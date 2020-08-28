@@ -26,6 +26,8 @@ __global__ void pixel_weight_kernel(
 	if (x < size.width && y < size.height) {
 		Mask mask(mask_out(x,y));
 
+		if (normals_out.isValid()) normals_out(x,y) = make_half4(0.0f);
+
 		const float d = depth.tex2D((int)x, (int)y);
 		// Multiples of pixel size at given depth
 		//const float threshold = (depthCoef / ((depthCoef / d) - (radius+disconDisparities-1))) - d;

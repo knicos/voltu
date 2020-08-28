@@ -80,6 +80,8 @@ static SOCKET tcpConnect(URI &uri, size_t ssize, size_t rsize) {
 	int flags =1; 
     if (setsockopt(csocket, IPPROTO_TCP, TCP_NODELAY, (const char *)&flags, sizeof(flags))) { LOG(ERROR) << "ERROR: setsocketopt(), TCP_NODELAY"; };
 
+	LOG(INFO) << "TcpConnect buffers: " << ssize << ", " << rsize;
+
 	int a = static_cast<int>(rsize);
 	if (setsockopt(csocket, SOL_SOCKET, SO_RCVBUF, (const char *)&a, sizeof(int)) == -1) {
 		fprintf(stderr, "Error setting socket opts: %s\n", strerror(errno));

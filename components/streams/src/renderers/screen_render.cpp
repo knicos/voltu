@@ -167,7 +167,7 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 					auto &f = s->frames[i];
 
 					// If audio is present, mix with the other frames
-					if (f.hasChannel(Channel::AudioStereo)) {
+					/*if (f.hasChannel(Channel::AudioStereo)) {
 						// Map a mixer track to this frame
 						auto &mixmap = mixmap_[f.id().id];
 						if (mixmap.track == -1) {
@@ -180,7 +180,7 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 							mixer_.write(mixmap.track, audio.data());
 							mixmap.last_timestamp = f.timestamp();
 						}
-					}
+					}*/
 
 					// Add pose as a camera shape
 					auto &shape = shapes.list.emplace_back();
@@ -198,16 +198,17 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 				}
 			}
 
-			mixer_.mix();
+			//mixer_.mix();
 
 			// Write mixed audio to frame.
-			if (mixer_.frames() > 0) {
-				auto &list = frame_out.create<std::list<ftl::audio::Audio>>(Channel::AudioStereo).list;
-				list.clear();
+			//if (feed_->mixer().frames() > 0) {
+				//LOG(INFO) << "Render copy of " << feed_->mixer().frames() << " audio frames";
+				//auto &list = frame_out.create<std::list<ftl::audio::Audio>>(Channel::AudioStereo).list;
+				//list.clear();
 
-				int fcount = mixer_.frames();
-				mixer_.read(list.emplace_front().data(), fcount);
-			}
+				//int fcount = mixer_.frames();
+				//mixer_.read(list.emplace_front().data(), fcount);
+			//}
 
 			// This waits for GPU also
 			if (!data_only) renderer_->end();

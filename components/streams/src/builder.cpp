@@ -392,7 +392,7 @@ std::shared_ptr<ftl::data::FrameSet> ForeignBuilder::_getFrameset() {
 	} else {
 		// Force complete of old frame
 		if (framesets_.size() >= completion_size_) {
-			LOG(WARNING) << "Forced completion: " << framesets_.back()->timestamp();
+			LOG(WARNING) << "Forced completion (" << framesets_.back()->frameset() << "): " << framesets_.back()->timestamp();
 			framesets_.back()->mask = 0xFF;
 		}
 

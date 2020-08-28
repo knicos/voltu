@@ -102,6 +102,8 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 		"recorder"
 	});
 
+	speaker_ = ftl::create<ftl::audio::Speaker>(this, "speaker");
+
 	pool_ = std::make_unique<ftl::data::Pool>(3,5);
 
 	stream_ = std::unique_ptr<ftl::stream::Muxer>
@@ -166,6 +168,14 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 		//std::unique_lock<std::mutex> lk(mtx_);
 	});
 
+	handle_rec_error_ = receiver_->onError([this](ftl::data::FrameID fid) {
+		LOG(WARNING) << "Receiver error: resetting";
+		stream_->reset();
+		speaker_->reset();
+		mixer_.reset();
+		return true;
+	});
+
 	handle_receiver_ = receiver_->onFrameSet(
 		[this](const ftl::data::FrameSetPtr& fs) {
 			if (value("drop_partial_framesets", false)) {
@@ -192,12 +202,15 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 				});
 
 				if (!did_pipe) {
-					LOG(WARNING) << "Feed Pipeline dropped";
+					LOG(WARNING) << "Feed Pipeline dropped (" << fs->frameset() << ")";
 					ftl::pool.push([this,fs](int id) {
 						_dispatch(fs);
 					});
 				}
+
+				_processAudio(fs);
 			} else {
+				_processAudio(fs);
 				_dispatch(fs);
 			}
 
@@ -245,11 +258,47 @@ Feed::~Feed() {
 
 	interceptor_.reset();
 	stream_.reset();
+
+	std::unordered_set<ftl::stream::Stream*> garbage;
+
 	for (auto &ls : streams_) {
 		for (auto *s : ls.second) {
-			delete s;
+			//delete s;
+			garbage.insert(s);
 		}
 	}
+
+	for (auto *s : garbage) {
+		delete s;
+	}
+
+	delete speaker_;
+}
+
+void Feed::_processAudio(const ftl::data::FrameSetPtr &fs) {
+	if (mixer_.frames() > 50) {
+		mixer_.reset();
+	}
+
+	for (auto &f : fs->frames) {
+		// If audio is present, mix with the other frames
+		if (f.hasChannel(Channel::AudioStereo)) {
+			// Map a mixer track to this frame
+			auto &mixmap = mixmap_[f.id().id];
+			if (mixmap.track == -1) {
+				mixmap.track = mixer_.add(f.name());
+			}
+
+			// Do mix but must not mix same frame multiple times
+			if (mixmap.last_timestamp != f.timestamp()) {
+				const auto &audio = f.get<std::list<ftl::audio::Audio>>(Channel::AudioStereo).front();
+				mixer_.write(mixmap.track, audio.data());
+				mixmap.last_timestamp = f.timestamp();
+			}
+		}
+	}
+
+	mixer_.mix();
 }
 
 void Feed::_dispatch(const ftl::data::FrameSetPtr &fs) {
@@ -446,13 +495,13 @@ ftl::operators::Graph* Feed::_addPipeline(uint32_t fsid) {
 
 	if (devices_.count(fsid)) {
 		pre_pipelines_[fsid] = ftl::config::create<ftl::operators::Graph>
-			(devices_[fsid], std::string("pipeline"));
+			(devices_[fsid], std::string("pipeline_")+std::to_string(fsid));
 	} else if (renderers_.count(fsid)) {
 		pre_pipelines_[fsid] = ftl::config::create<ftl::operators::Graph>
-			(renderers_[fsid], std::string("pipeline"));
+			(renderers_[fsid], std::string("pipeline")+std::to_string(fsid));
 	} else if (streams_.count(fsid)) {
 		pre_pipelines_[fsid] = ftl::config::create<ftl::operators::Graph>
-			(streams_[fsid].front(), std::string("pipeline"));
+			(streams_[fsid].front(), std::string("pipeline")+std::to_string(fsid));
 	}
 
 	//pre_pipelines_[fsid] = ftl::config::create<ftl::operators::Graph>
@@ -786,7 +835,21 @@ void Feed::add(uint32_t fsid, const std::string &uri, ftl::stream::Stream* strea
 
 	_createPipeline(fsid);
 
-	stream_->add(stream, fsid);
+	stream_->add(stream, fsid, [this,stream]() {
+		int fsid = 0;
+		{
+			UNIQUE_LOCK(mtx_, lk);
+			fsid = allocateFrameSetId("");
+			latest_[fsid] = nullptr;
+			streams_[fsid].push_back(stream);
+			_createPipeline(fsid);
+
+			stream_->begin();
+			stream_->select(fsid, {Channel::Colour}, true);
+		}
+		add_src_cb_.trigger(fsid);
+		return fsid;
+	});
 	stream_->begin();
 	stream_->select(fsid, {Channel::Colour}, true);
 }

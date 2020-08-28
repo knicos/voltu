@@ -50,7 +50,7 @@ bool File::_checkFile() {
 	LOG(INFO) << "FTL format version " << version_;
 
 	// Read some packets to identify frame rate.
-	int count = 10;
+	int count = 1000;
 	int64_t ts = -1000;
 	int min_ts_diff = 1000;
 	first_ts_ = 10000000000000ll;
@@ -66,9 +66,11 @@ bool File::_checkFile() {
 		auto &spkt = std::get<0>(data);
 		auto &pkt = std::get<1>(data);
 
+		auto &fsdata = framesets_[spkt.streamID];
+
 		codecs_found.emplace(pkt.codec);
 
-		if (spkt.timestamp < first_ts_) first_ts_ = spkt.timestamp;
+		if (fsdata.first_ts < 0) fsdata.first_ts = spkt.timestamp;
 
 		//LOG(INFO) << "TIMESTAMP: " << spkt.timestamp;
 
@@ -101,6 +103,9 @@ bool File::_checkFile() {
 	LOG(INFO) << " -- Codecs:" << codec_str;
 
 	interval_ = min_ts_diff;
+	for (auto &f : framesets_) {
+		f.second.interval = interval_;
+	}
 	return true;
 }
 
@@ -238,33 +243,52 @@ bool File::tick(int64_t ts) {
 		//UNIQUE_LOCK(data_mutex_, dlk);
 		if (data_.size() > 0) has_data = true;
 		
-		if (needs_endframe_) {
+		/*if (needs_endframe_) {
 			// Reset packet counts
 			for (auto &p : packet_counts_) p = 0;
-		}
+		}*/
 
-		size_t frame_count = 0;
+		size_t complete_count = 0;
 
 		for (auto i = data_.begin(); i != data_.end(); ) {
-			if (std::get<0>(*i).timestamp <= timestamp_) {
+			auto &fsdata = framesets_[std::get<0>(*i).streamID];
+			if (fsdata.timestamp == 0) fsdata.timestamp = std::get<0>(*i).timestamp;
+
+			// Limit to file framerate
+			if (std::get<0>(*i).timestamp > ts) {
+				break;
+			}
+
+			if (std::get<0>(*i).timestamp < fsdata.timestamp) {
+				LOG(WARNING) << "Received old packet: " << std::get<0>(*i).timestamp << " vs " << fsdata.timestamp << " ( channel = " << int(std::get<0>(*i).channel) << " )";
+				i = data_.erase(i);
+				continue;
+			}
+
+			if (std::get<0>(*i).timestamp <= fsdata.timestamp) {
 				auto &spkt = std::get<0>(*i);
 				auto &pkt = std::get<1>(*i);
 
+				//LOG(INFO) << "PACKET: " << spkt.timestamp << ", " << fsdata.timestamp << ", " << int(spkt.streamID) << ", " << int(spkt.channel);
+
+
 				++jobs_;
-				spkt.timestamp = ts;
+				//spkt.timestamp = ts;
 
-				if (spkt.channel == Channel::EndFrame) needs_endframe_ = false;
+				if (spkt.channel == Channel::EndFrame) {
+					fsdata.needs_endframe = false;
+				}
 
-				if (needs_endframe_) {
+				if (fsdata.needs_endframe) {
 					if (spkt.frame_number < 255) {
-						frame_count = std::max(frame_count, static_cast<size_t>(spkt.frame_number + pkt.frame_count));
-						while (packet_counts_.size() < frame_count) packet_counts_.push_back(0);
-						++packet_counts_[spkt.frame_number];
+						fsdata.frame_count = std::max(fsdata.frame_count, static_cast<size_t>(spkt.frame_number + pkt.frame_count));
+						while (fsdata.packet_counts.size() < fsdata.frame_count) fsdata.packet_counts.push_back(0);
+						++fsdata.packet_counts[spkt.frame_number];
 					} else {
 						// Add frameset packets to frame 0 counts
-						frame_count = std::max(frame_count, size_t(1));
-						while (packet_counts_.size() < frame_count) packet_counts_.push_back(0);
-						++packet_counts_[0];
+						fsdata.frame_count = std::max(fsdata.frame_count, size_t(1));
+						while (fsdata.packet_counts.size() < fsdata.frame_count) fsdata.packet_counts.push_back(0);
+						++fsdata.packet_counts[0];
 					}
 				}
 
@@ -290,11 +314,13 @@ bool File::tick(int64_t ts) {
 					--jobs_;
 				});
 			} else {
-				if (needs_endframe_) {
+				++complete_count;
+
+				if (fsdata.needs_endframe) {
 					// Send final frame packet.
 					StreamPacket spkt;
-					spkt.timestamp = ts;
-					spkt.streamID = 0;  // FIXME: Allow for non-zero framesets.
+					spkt.timestamp = fsdata.timestamp;
+					spkt.streamID = std::get<0>(*i).streamID;
 					spkt.flags = 0;
 					spkt.channel = Channel::EndFrame;
 
@@ -304,9 +330,10 @@ bool File::tick(int64_t ts) {
 					pkt.packet_count = 1;
 					pkt.frame_count = 1;
 
-					for (size_t i=0; i<frame_count; ++i) {
+					for (size_t i=0; i<fsdata.frame_count; ++i) {
 						spkt.frame_number = i;
-						pkt.packet_count = packet_counts_[i]+1;
+						pkt.packet_count = fsdata.packet_counts[i]+1;
+						fsdata.packet_counts[i] = 0;
 
 						try {
 							cb_.trigger(spkt, pkt);
@@ -316,14 +343,18 @@ bool File::tick(int64_t ts) {
 							LOG(ERROR) << "Exception in packet callback: " << e.what();
 						}
 					}
+				} else {
 				}
 
-				break;
+				fsdata.timestamp = std::get<0>(*i).timestamp; //fsdata.interval;
+				if (complete_count == framesets_.size()) break;
 			}
 		}
 	}
 
-	int64_t extended_ts = timestamp_ + 200;  // Buffer 200ms ahead
+	int64_t max_ts = 0;
+	for (auto &fsd : framesets_) max_ts = std::max(max_ts, (fsd.second.timestamp == 0) ? timestart_ : fsd.second.timestamp);
+	int64_t extended_ts = max_ts + 200;  // Buffer 200ms ahead
 
 	while ((active_ && istream_->good()) || buffer_in_.nonparsed_size() > 0u) {
 		UNIQUE_LOCK(data_mutex_, dlk);
@@ -337,9 +368,13 @@ bool File::tick(int64_t ts) {
 			break;
 		}
 
+		auto &fsdata = framesets_[std::get<0>(data).streamID];
+
+		if (fsdata.first_ts < 0) LOG(WARNING) << "Bad first timestamp";
+
 		// Adjust timestamp
 		// FIXME: A potential bug where multiple times are merged into one?
-		std::get<0>(data).timestamp = (((std::get<0>(data).timestamp) - first_ts_) / interval_) * interval_ + timestart_;
+		std::get<0>(data).timestamp = (((std::get<0>(data).timestamp) - fsdata.first_ts)) + timestart_;
 		std::get<0>(data).hint_capability = ((is_video_) ? 0 : ftl::codecs::kStreamCap_Static) | ftl::codecs::kStreamCap_Recorded;
 
 		// Maintain availability of channels.
@@ -371,15 +406,18 @@ bool File::tick(int64_t ts) {
 		}
 	}
 
-	if (has_data) timestamp_ += interval_;
+	//if (has_data) {
+	//	for (auto &fsd : framesets_) fsd.second.timestamp += interval_;
+	//}
 
 	if (data_.size() == 0 && value("looping", true)) {
 		buffer_in_.reset();
 		buffer_in_.remove_nonparsed_buffer();
 		_open();
 
-		timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
-		timestamp_ = timestart_;
+		timestart_ = ftl::timer::get_time(); // (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
+		//timestamp_ = timestart_;
+		for (auto &fsd : framesets_) fsd.second.timestamp = 0;
 		return true;
 	}
 
@@ -428,10 +466,11 @@ bool File::begin(bool dorun) {
 		_open();
 
 		// Capture current time to adjust timestamps
-		timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
+		timestart_ = ftl::timer::get_time(); //(ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
 		active_ = true;
 		//interval_ = 40;
-		timestamp_ = timestart_;
+		//timestamp_ = timestart_;
+		//for (auto &fsd : framesets_) fsd.second.timestamp = timestart_;
 
 		tick(timestart_); // Do some now!
 		if (dorun) run();
@@ -456,7 +495,9 @@ bool File::begin(bool dorun) {
 		timestart_ = ftl::timer::get_time();
 		active_ = true;
 		interval_ = ftl::timer::getInterval();
-		timestamp_ = timestart_;
+		//timestamp_ = timestart_;
+
+		//for (auto &fsd : framesets_) fsd.second.timestamp = timestart_;
 	}
 
 	return true;
@@ -491,7 +532,7 @@ bool File::end() {
 }
 
 void File::reset() {
-	UNIQUE_LOCK(mutex_, lk);
+	/*UNIQUE_LOCK(mutex_, lk);
 
 	// TODO: Find a better solution
 	while (jobs_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -502,7 +543,8 @@ void File::reset() {
 	_open();
 
 	timestart_ = (ftl::timer::get_time() / ftl::timer::getInterval()) * ftl::timer::getInterval();
-	timestamp_ = timestart_;
+	//timestamp_ = timestart_;
+	for (auto &fsd : framesets_) fsd.second.timestamp = timestart_;*/
 }
 
 bool File::active() {

@@ -34,7 +34,7 @@ class BaseSourceImpl {
 
 	protected:
 	ftl::render::Source *host_;
-	ftl::audio::StereoMixerF<100> mixer_;
+	ftl::audio::StereoMixerF<100> mixer_;  // TODO: Remove
 };
 
 }

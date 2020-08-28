@@ -116,8 +116,10 @@ void Receiver::_createDecoder(InternalVideoStates &frame, int chan, const ftl::c
 }
 
 Receiver::InternalVideoStates::InternalVideoStates() {
-	for (int i=0; i<32; ++i) decoders[i] = nullptr;
-	timestamp = -1;
+	for (int i=0; i<32; ++i) {
+		decoders[i] = nullptr;
+		timestamps[i] = 0;
+	}
 }
 
 Receiver::InternalVideoStates &Receiver::_getVideoFrame(const StreamPacket &spkt, int ix) {
@@ -125,7 +127,8 @@ Receiver::InternalVideoStates &Receiver::_getVideoFrame(const StreamPacket &spkt
 
 	UNIQUE_LOCK(mutex_, lk);
 	while (video_frames_[spkt.streamID].size() <= fn) {
-		video_frames_[spkt.streamID].push_back(new InternalVideoStates);
+		auto *ns = new InternalVideoStates;
+		video_frames_[spkt.streamID].push_back(ns);
 	}
 
 	auto &f = *video_frames_[spkt.streamID][fn];
@@ -270,6 +273,38 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 		return;
 	}
 
+	{
+		UNIQUE_LOCK(ividstate.mutex, lk);
+
+		/*if (ividstate.timestamps[int(spkt.channel)] != 0 && spkt.timestamp > ividstate.timestamps[int(spkt.channel)] + ividstate.interval) {
+			if (spkt.timestamp > ividstate.timestamps[int(spkt.channel)] + 3*ividstate.interval) {
+				LOG(ERROR) << "Multiple frame delays or drops, discarding totally";
+				ividstate.timestamps[int(spkt.channel)] = std::max(ividstate.timestamps[int(spkt.channel)], spkt.timestamp);
+				return;
+			} else if (spkt.timestamp > ividstate.timestamps[int(spkt.channel)] + 2*ividstate.interval) {
+				LOG(WARNING) << "Frame was dropped, do the todo item now: " << ividstate.interval << "," << spkt.timestamp << "," << ividstate.timestamps[int(spkt.channel)];
+				if (ividstate.todos[int(spkt.channel)].first.timestamp > ividstate.timestamps[int(spkt.channel)]) {
+					_processVideo(ividstate.todos[int(spkt.channel)].first, ividstate.todos[int(spkt.channel)].second);
+				}
+			} else {
+				LOG(WARNING) << "Future frame received early: " << (spkt.timestamp - ividstate.timestamps[int(spkt.channel)] + ividstate.interval);
+				ividstate.todos[int(spkt.channel)].first = spkt;
+				ividstate.todos[int(spkt.channel)].second = pkt;
+				return;
+			}
+		}*/
+		if (spkt.timestamp < ividstate.timestamps[int(spkt.channel)]) {
+			lk.unlock();
+			LOG(ERROR) << "Out-of-order decode";
+			_terminateVideoPacket(spkt, pkt);
+			error_cb_.trigger(ftl::data::FrameID(spkt.streamID, spkt.frame_number));
+			return;
+		}// else if (spkt.timestamp > ividstate.timestamps[int(spkt.channel)]) {
+		//	ividstate.interval = std::min(ividstate.interval, spkt.timestamp - ividstate.timestamps[int(spkt.channel)]);
+		//}
+		ividstate.timestamps[int(spkt.channel)] = std::max(ividstate.timestamps[int(spkt.channel)], spkt.timestamp);
+	}
+
 	cv::cuda::GpuMat surface;
 	//bool is_static = ividstate.decoders[channum] && (spkt.hint_capability & ftl::codecs::kStreamCap_Static);
 
@@ -315,58 +350,61 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 
 	// Get the frameset
 	auto &build = builder(spkt.streamID);
-	auto fs = build.get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
 
-	if (!fs) {
-		LOG(WARNING) << "Dropping a video frame";
-		return;
-	}
+	{
+		auto fs = build.get(spkt.timestamp, spkt.frame_number+pkt.frame_count-1);
 
-	auto cvstream = cv::cuda::StreamAccessor::wrapStream(decoder->stream());
-
-	// Mark a frameset as being partial
-	if (pkt.flags & ftl::codecs::kFlagPartial) {
-		fs->markPartial();
-	}
-
-	// Now split the tiles from surface into frames, doing colour conversions
-	// at the same time.
-	// Note: Done in reverse to allocate correct number of frames first time round
-	// FIXME: Don't do this copy for single tiles
-	for (int i=pkt.frame_count-1; i>=0; --i) {
-		//InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
-		auto &frame = fs->frames[spkt.frame_number+i];
-
-		//if (!frame.origin()) frame.setOrigin(&vidstate.state);
-
-		if (frame.hasChannel(spkt.channel)) {
-			LOG(WARNING) << "Previous frame not complete: " << spkt.timestamp;
+		if (!fs) {
+			LOG(WARNING) << "Dropping a video frame";
+			return;
 		}
 
-		// Add channel to frame and allocate memory if required
-		const cv::Size size = cv::Size(width, height);
-		auto &buf = frame.createChange<ftl::rgbd::VideoFrame>(spkt.channel, build.changeType(), pkt).createGPU();
-		buf.create(size, ftl::codecs::type(spkt.channel)); //(isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
+		auto cvstream = cv::cuda::StreamAccessor::wrapStream(decoder->stream());
 
-		cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
-		cv::cuda::GpuMat sroi = surface(roi);
-		sroi.copyTo(buf, cvstream);
+		// Mark a frameset as being partial
+		if (pkt.flags & ftl::codecs::kFlagPartial) {
+			fs->markPartial();
+		}
+
+		// Now split the tiles from surface into frames, doing colour conversions
+		// at the same time.
+		// Note: Done in reverse to allocate correct number of frames first time round
+		// FIXME: Don't do this copy for single tiles
+		for (int i=pkt.frame_count-1; i>=0; --i) {
+			//InternalVideoStates &vidstate = _getVideoFrame(spkt,i);
+			auto &frame = fs->frames[spkt.frame_number+i];
+
+			//if (!frame.origin()) frame.setOrigin(&vidstate.state);
+
+			if (frame.hasChannel(spkt.channel)) {
+				LOG(WARNING) << "Previous frame not complete: " << spkt.timestamp;
+			}
+
+			// Add channel to frame and allocate memory if required
+			const cv::Size size = cv::Size(width, height);
+			auto &buf = frame.createChange<ftl::rgbd::VideoFrame>(spkt.channel, build.changeType(), pkt).createGPU();
+			buf.create(size, ftl::codecs::type(spkt.channel)); //(isFloatChannel(rchan) ? CV_32FC1 : CV_8UC4));
+
+			cv::Rect roi((i % tx)*width, (i / tx)*height, width, height);
+			cv::cuda::GpuMat sroi = surface(roi);
+			sroi.copyTo(buf, cvstream);
+		}
+
+		// Must ensure all processing is finished before completing a frame.
+		//cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
+
+		cudaSafeCall(cudaEventRecord(decoder->event(), decoder->stream()));
+		//for (int i=0; i<pkt.frame_count; ++i) {
+		//	cudaSafeCall(cudaStreamWaitEvent(fs->frames[spkt.frame_number+i].stream(), decoder->event(), 0));
+		//}
+
+		// For now, always add to frame 0 stream
+		cudaSafeCall(cudaStreamWaitEvent(fs->frames[0].stream(), decoder->event(), 0));
+
+		fs->localTimestamp = spkt.localTimestamp;
+
+		_finishPacket(fs, spkt.frame_number);
 	}
-
-	// Must ensure all processing is finished before completing a frame.
-	//cudaSafeCall(cudaStreamSynchronize(decoder->stream()));
-
-	cudaSafeCall(cudaEventRecord(decoder->event(), decoder->stream()));
-	//for (int i=0; i<pkt.frame_count; ++i) {
-	//	cudaSafeCall(cudaStreamWaitEvent(fs->frames[spkt.frame_number+i].stream(), decoder->event(), 0));
-	//}
-
-	// For now, always add to frame 0 stream
-	cudaSafeCall(cudaStreamWaitEvent(fs->frames[0].stream(), decoder->event(), 0));
-
-	fs->localTimestamp = spkt.localTimestamp;
-
-	_finishPacket(fs, spkt.frame_number);
 }
 
 void Receiver::_finishPacket(ftl::streams::LockedFrameSet &fs, size_t fix) {

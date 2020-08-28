@@ -75,8 +75,16 @@ class File : public Stream {
 	ftl::Handle timer_;
 	bool is_video_;
 	bool save_data_;
-	bool needs_endframe_ = true;
-	std::vector<int> packet_counts_;
+
+	struct FramesetData {
+		size_t frame_count=0;
+		bool needs_endframe = true;
+		std::vector<int> packet_counts;
+		int64_t timestamp = 0;
+		int64_t first_ts=-1;
+		int interval=50;
+	};
+	std::unordered_map<int,FramesetData> framesets_;
 
 	//StreamCallback cb_;
 	MUTEX mutex_;

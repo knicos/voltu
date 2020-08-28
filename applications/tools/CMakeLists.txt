@@ -6,3 +6,4 @@
 
 add_subdirectory(middlebury_gen)
 add_subdirectory(simple_viewer)
+add_subdirectory(recorder)
