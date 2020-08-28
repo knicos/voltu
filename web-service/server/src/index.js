@@ -276,7 +276,7 @@ function checkStreams(peer) {
 	if (!peer.master) {
 		setTimeout(() => {
 			peer.rpc("list_streams", (streams) => {
-				console.log("STREAMS", streams);
+				//console.log("STREAMS", streams);
 				for (let i=0; i<streams.length; i++) {
 					//uri_to_peer[streams[i]] = peer;
 					let parsedURI = stringSplitter(streams[i])
@@ -288,7 +288,7 @@ function checkStreams(peer) {
 			});
 
 			peer.rpc("list_configurables", (cfgs) => {
-				console.log("CONFIGS", cfgs);
+				//console.log("CONFIGS", cfgs);
 				for (let i=0; i<cfgs.length; i++) {
 					if (!cfg_to_peer.hasOwnProperty(cfgs[i])) cfg_to_peer[cfgs[i]] = peer;
 				}
@@ -339,16 +339,20 @@ app.ws('/', (ws, req) => {
 	});
 
 	p.on("disconnect", (peer) => {
-		console.log("DISCONNECT");
+		console.log("DISCONNECT", peer);
 		// Remove all peer details and streams....
+
+		if (peer.status != 2) return;
 
 		let puris = peer_uris[peer.string_id];
 		if (puris) {
 			for (let i=0; i<puris.length; i++) {
 				console.log("Removing stream: ", puris[i]);
 				delete uri_to_peer[puris[i]];
-				delete stream_list[uri_data[puris[i]].uri];
-				delete uri_data[puris[i]];
+				if (uri_data.hasOwnProperty(puris[i])) {
+					delete stream_list[uri_data[puris[i]].uri];
+					delete uri_data[puris[i]];
+				}
 				//p.unbind(pu)
 			}
 			delete peer_uris[peer.string_id];
@@ -385,7 +389,7 @@ app.ws('/', (ws, req) => {
 		for (let c in cfg_to_peer) {
 			if (cfg_to_peer[c] !== p) result.push(c);
 		}
-		console.log("List Configs: ", result);
+		//console.log("List Configs: ", result);
 		return result;
 	});
 
