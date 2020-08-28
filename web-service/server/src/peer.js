@@ -69,8 +69,8 @@ function Peer(ws) {
 	}
 
 	let close = () => {
-		this.status = kDisconnected;
 		this._notify("disconnect", this);
+		this.status = kDisconnected;
 	}
 
 	let error = (e) => {
