@@ -144,13 +144,24 @@ void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
 	//LOG(INFO) << "Audio delay: " << buffer_.delay() << "s";
 }
 
+void Speaker::queue(int64_t ts, const ftl::audio::Audio &d) {
+	if (!buffer_) {
+		_open(960, 48000, 2);
+	}
+	if (!buffer_) return;
+
+	//LOG(INFO) << "Buffer Fullness (" << ts << "): " << buffer_->size() << " - " << audio.size();
+	buffer_->write(d.data());
+	//LOG(INFO) << "Audio delay: " << buffer_.delay() << "s";
+}
+
 void Speaker::setDelay(int64_t ms) {
 	ms -= latency_;
 	float d = static_cast<float>(ms) / 1000.0f + extra_delay_;
 	if (d < 0.0f) d = 0.001f;  // Clamp to 0 delay (not ideal to be exactly 0)
 	if (buffer_) {
 		buffer_->setDelay(d);
-		//LOG(INFO) << "Audio delay: " << buffer_->delay();
+		LOG(INFO) << "Audio delay: " << buffer_->delay();
 	}
 }
 

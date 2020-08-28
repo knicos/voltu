@@ -35,13 +35,13 @@ public:
 	ftl::net::Universe* net() const;
 	ftl::ctrl::Master* master() const { return master_.get(); }
 	ftl::stream::Feed* feed() const { return feed_.get(); }
-	ftl::audio::Speaker* speaker() const { return speaker_.get(); }
+	ftl::audio::Speaker* speaker() const { return speaker_; }
 
 private:
 	ftl::net::Universe* net_;
 	std::unique_ptr<ftl::stream::Feed> feed_;
 	std::unique_ptr<ftl::ctrl::Master> master_;
-	std::unique_ptr<ftl::audio::Speaker> speaker_;
+	ftl::audio::Speaker *speaker_;
 
 
 };

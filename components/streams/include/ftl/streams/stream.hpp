@@ -118,7 +118,7 @@ class Muxer : public Stream {
 	explicit Muxer(nlohmann::json &config);
 	virtual ~Muxer();
 
-	void add(Stream *, size_t fsid=0);
+	void add(Stream *, size_t fsid=0, const std::function<int()> &cb=nullptr);
 	void remove(Stream *);
 
 	//bool onPacket(const StreamCallback &) override;
@@ -136,9 +136,10 @@ class Muxer : public Stream {
 	private:
 	struct StreamEntry {
 		Stream *stream;
-		std::vector<int> maps;
+		std::unordered_map<int, std::vector<int>> maps;
 		uint32_t original_fsid = 0;
 		ftl::Handle handle;
+		std::vector<int> ids;
 	};
 
 	std::list<StreamEntry> streams_;

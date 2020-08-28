@@ -420,7 +420,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 					auto &f = s->frames[i];
 
 					// If audio is present, mix with the other frames
-					if (f.hasChannel(Channel::AudioStereo)) {
+					/*if (f.hasChannel(Channel::AudioStereo)) {
 						// Map a mixer track to this frame
 						auto &mixmap = mixmap_[f.id().id];
 						if (mixmap.track == -1) {
@@ -433,7 +433,7 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 							mixer_.write(mixmap.track, audio.data());
 							mixmap.last_timestamp = f.timestamp();
 						}
-					}
+					}*/
 
 					// Add pose as a camera shape
 					auto &shape = shapes.list.emplace_back();
@@ -496,16 +496,16 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 			//renderer2_->render();
 
 
-			mixer_.mix();
+			//mixer_.mix();
 
 			// Write mixed audio to frame.
-			if (mixer_.frames() > 0) {
+			/*if (mixer_.frames() > 0) {
 				auto &list = frame_out.create<std::list<ftl::audio::Audio>>(Channel::AudioStereo).list;
 				list.clear();
 
 				int fcount = mixer_.frames();
 				mixer_.read(list.emplace_front().data(), fcount);
-			}
+			}*/
 
 			// TODO: Blend option
 

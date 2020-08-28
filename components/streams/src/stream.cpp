@@ -86,16 +86,17 @@ Muxer::~Muxer() {
 }
 
 
-void Muxer::add(Stream *s, size_t fsid) {
+void Muxer::add(Stream *s, size_t fsid, const std::function<int()> &cb) {
 	UNIQUE_LOCK(mutex_,lk);
 	if (fsid < 0u || fsid >= ftl::stream::kMaxStreams) return;
 
 	auto &se = streams_.emplace_back();
 	//int i = streams_.size()-1;
 	se.stream = s;
+	se.ids.push_back(fsid);
 	ftl::stream::Muxer::StreamEntry *ptr = &se;
 
-	se.handle = std::move(s->onPacket([this,s,fsid,ptr](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	se.handle = std::move(s->onPacket([this,s,ptr,cb](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		//TODO: Allow input streams to have other streamIDs
 		// Same fsid means same streamIDs map together in the end
 
@@ -105,8 +106,27 @@ void Muxer::add(Stream *s, size_t fsid) {
 			ptr = &streams_[i];
 		}*/
 
+		if (!cb && spkt.streamID > 0) {
+			LOG(WARNING) << "Multiple framesets in stream";
+			return true;
+		}
+
+		if (ptr->ids.size() <= spkt.streamID) {
+			UNIQUE_LOCK(mutex_,lk);
+			if (ptr->ids.size() <= spkt.streamID) {
+				ptr->ids.resize(spkt.streamID + 1);
+				ptr->ids[spkt.streamID] = cb();
+			}
+		}
+
+		int fsid;
+		{
+			SHARED_LOCK(mutex_, lk);
+			fsid = ptr->ids[spkt.streamID];
+		}
+
 		ftl::codecs::StreamPacket spkt2 = spkt;
-		ptr->original_fsid = spkt.streamID;
+		ptr->original_fsid = spkt.streamID;  // FIXME: Multiple originals needed
 		spkt2.streamID = fsid;
 
 		if (spkt2.frame_number < 255) {
@@ -115,7 +135,7 @@ void Muxer::add(Stream *s, size_t fsid) {
 		}
 
 		_notify(spkt2, pkt);
-		s->select(spkt.streamID, selected(fsid));
+		s->select(spkt.streamID, selected(fsid), true);
 		return true;
 	}));
 }
@@ -161,7 +181,7 @@ bool Muxer::post(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packe
 		//LOG(INFO) << "POST " << spkt.frame_number;
 
 		ftl::codecs::StreamPacket spkt2 = spkt;
-		spkt2.streamID = se->original_fsid;
+		spkt2.streamID = se->original_fsid;  // FIXME: Multiple possible originals
 		spkt2.frame_number = ssid;
 		se->stream->select(spkt2.streamID, selected(spkt.frameSetID()));
 		return se->stream->post(spkt2, pkt);
@@ -202,25 +222,40 @@ void Muxer::reset() {
 
 int Muxer::_lookup(size_t fsid, ftl::stream::Muxer::StreamEntry *se, int ssid, int count) {
 	SHARED_LOCK(mutex_, lk);
-	//auto &se = streams_[sid];
-	if (static_cast<uint32_t>(ssid) >= se->maps.size()) {
+	
+	auto i = se->maps.find(fsid);
+	if (i == se->maps.end()) {
 		lk.unlock();
 		{
 			UNIQUE_LOCK(mutex_, lk2);
-			while (static_cast<uint32_t>(ssid) >= se->maps.size()) {
+			if (se->maps.count(fsid) == 0) {
+				se->maps[fsid] = {};
+			}
+			i = se->maps.find(fsid);
+		}
+		lk.lock();
+	}
+
+	auto &map = i->second;
+
+	if (static_cast<uint32_t>(ssid) >= map.size()) {
+		lk.unlock();
+		{
+			UNIQUE_LOCK(mutex_, lk2);
+			while (static_cast<uint32_t>(ssid) >= map.size()) {
 				int nid = nid_[fsid]++;
-				revmap_[fsid].push_back({se, static_cast<uint32_t>(se->maps.size())});
-				se->maps.push_back(nid);
+				revmap_[fsid].push_back({se, static_cast<uint32_t>(map.size())});
+				map.push_back(nid);
 				for (int i=1; i<count; ++i) {
 					int nid = nid_[fsid]++;
-					revmap_[fsid].push_back({se, static_cast<uint32_t>(se->maps.size())});
-					se->maps.push_back(nid);
+					revmap_[fsid].push_back({se, static_cast<uint32_t>(map.size())});
+					map.push_back(nid);
 				}
 			}
 		}
 		lk.lock();
 	}
-	return se->maps[ssid];
+	return map[ssid];
 }
 
 void Muxer::_notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {

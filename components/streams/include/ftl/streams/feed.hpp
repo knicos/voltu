@@ -9,6 +9,8 @@
 
 #include <ftl/rgbd/source.hpp>
 #include <ftl/data/framepool.hpp>
+#include <ftl/audio/mixer.hpp>
+#include <ftl/audio/speaker.hpp>
 
 #include <ftl/streams/stream.hpp>
 #include <ftl/streams/receiver.hpp>
@@ -138,6 +140,10 @@ public:
 	 */
 	void render();
 
+	inline ftl::audio::StereoMixerF<100> &mixer() { return mixer_; }
+
+	ftl::audio::Speaker *speaker() { return speaker_; }
+
 	void startRecording(Filter *, const std::string &filename);
 	void startStreaming(Filter *, const std::string &filename);
 	void startStreaming(Filter *);
@@ -178,6 +184,7 @@ private:
 	std::condition_variable cv_net_connect_;
 
 	ftl::net::Universe* const net_;
+	ftl::audio::Speaker *speaker_;
 	std::unique_ptr<ftl::data::Pool> pool_;
 	std::unique_ptr<ftl::stream::Intercept> interceptor_;
 	 // multiple streams to single fs
@@ -186,6 +193,7 @@ private:
 	 // streams to fs
 	std::unique_ptr<ftl::stream::Receiver> receiver_;
 	ftl::Handle handle_receiver_;
+	ftl::Handle handle_rec_error_;
 
 	// framesets to stream
 	std::unique_ptr<ftl::stream::Sender> sender_;
@@ -221,6 +229,14 @@ private:
 	uint32_t fs_counter_ = 0;
 	uint32_t file_counter_ = 0;
 
+	struct AudioMixerMapping {
+		int64_t last_timestamp=0;
+		int track=-1;
+	};
+
+	std::unordered_map<uint32_t, AudioMixerMapping> mixmap_;
+	ftl::audio::StereoMixerF<100> mixer_;
+
 	uint32_t allocateFrameSetId(const std::string &group);
 
 	void add(uint32_t fsid, const std::string &uri, ftl::stream::Stream *s);
@@ -236,6 +252,7 @@ private:
 	void _createPipeline(uint32_t fsid);
 	ftl::operators::Graph* _addPipeline(uint32_t fsid);
 	void _dispatch(const ftl::data::FrameSetPtr &fs);
+	void _processAudio(const ftl::data::FrameSetPtr &fs);
 
 	void _beginRecord(Filter *f);
 	void _stopRecording();

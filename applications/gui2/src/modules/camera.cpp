@@ -251,17 +251,26 @@ void Camera::activate(ftl::data::FrameID id) {
 	//std::mutex m;
 	//std::condition_variable cv;
 
+	io->speaker()->reset();
+	io->feed()->mixer().reset();
+
 	filter_ = io->feed()->filter(std::unordered_set<unsigned int>{id.frameset()}, {Channel::Left});
 	filter_->on(
-		[this, speaker = io->speaker()](ftl::data::FrameSetPtr fs){
+		[this, feed = io->feed(), speaker = io->speaker()](ftl::data::FrameSetPtr fs){
 			if (paused_) return true;
 
 			std::atomic_store(&current_fs_, fs);
 			std::atomic_store(&latest_, fs);
 
 			// Deal with audio
-			if (fs->frames[frame_idx].hasOwn(Channel::AudioStereo)) {
-				speaker->queue(fs->timestamp(), fs->frames[frame_idx]);
+			//if (fs->frames[frame_idx].hasOwn(Channel::AudioStereo)) {
+			//	speaker->queue(fs->timestamp(), fs->frames[frame_idx]);
+			//}
+
+			if (feed->mixer().frames() > 0) {
+				ftl::audio::Audio aframe;
+				feed->mixer().read(aframe.data(), feed->mixer().frames());
+				speaker->queue(fs->timestamp(), aframe);
 			}
 
 			// Need to notify GUI thread when first data comes
@@ -348,15 +357,7 @@ void Camera::toggleOverlay() {
 }
 
 ftl::audio::StereoMixerF<100> *Camera::mixer() {
-	if (mixer_) return mixer_;
-	if (movable_) {
-		auto *rend = io->feed()->getRenderer(frame_id_);
-		if (rend) {
-			mixer_ = &(rend->mixer());
-			return mixer_;
-		}
-	}
-	return nullptr;
+	return &io->feed()->mixer();
 }
 
 bool Camera::isRecording() {

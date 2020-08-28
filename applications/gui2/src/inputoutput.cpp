@@ -35,8 +35,7 @@ InputOutput::InputOutput(ftl::Configurable *root, ftl::net::Universe *net) :
 	feed_ = std::unique_ptr<ftl::stream::Feed>
 		(ftl::create<ftl::stream::Feed>(root, "feed", net));
 
-	speaker_ = std::unique_ptr<ftl::audio::Speaker>
-		(ftl::create<ftl::audio::Speaker>(root, "speaker"));
+	speaker_ = feed_->speaker();
 
 	//auto* f = feed_->filter({ftl::codecs::Channel::Colour, ftl::codecs::Channel::Depth});
 	//feed_->render(f, Eigen::Matrix4d::Identity());

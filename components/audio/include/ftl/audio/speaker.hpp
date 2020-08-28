@@ -19,10 +19,13 @@ class Speaker : public ftl::Configurable {
 	~Speaker();
 
 	void queue(int64_t ts, ftl::audio::Frame &fs);
+	void queue(int64_t ts, const ftl::audio::Audio &af);
 
 	void setDelay(int64_t ms);
 	void setVolume(float value);
 	float volume();
+
+	void reset() { if (buffer_) buffer_->reset(); }
 
 	private:
 	ftl::audio::Buffer<float> *buffer_;
