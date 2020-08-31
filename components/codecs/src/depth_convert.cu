@@ -162,25 +162,47 @@ struct T2 {
 };
 
 template <typename T>
-__device__ inline float2 readChroma(const T* __restrict__ chroma, int pitch, uint x, uint y) {
+__device__ inline ushort2 readChroma(const T* __restrict__ chroma, int pitch, uint x, uint y) {
 	T2<T> c = *(T2<T>*)(&chroma[(y/2)*pitch+x]);
 	return {
-		float(round8(c.x)) / 255.0f,
-		float(round8(c.y)) / 255.0f
+		ushort(round8(c.x)),
+		ushort(round8(c.y))
 	};
 }
 
-template <typename T>
-__device__ inline float2 bilinChroma(const T* __restrict__ chroma, int pitch, uint x, uint y, const float2 &D, int dx, int dy, int width, int height) {
-	if (uint(x+dx) >= width || uint(y+dy) >= height) return D;
+__device__ inline float2 norm_float(const ushort2 &v) {
+	return make_float2(float(v.x)/255.0f, float(v.y)/255.0f);
+}
 
-	float2 A = readChroma(chroma, pitch, x+dx, y+dy);
-	float2 B = readChroma(chroma, pitch, x, y+dy);
-	float2 C = readChroma(chroma, pitch, x+dx, y);
-	return {
-		0.0625f*A.x + 0.1875f*B.x + 0.1875f*C.x + 0.5625f*D.x,
-		0.0625f*A.y + 0.1875f*B.y + 0.1875f*C.y + 0.5625f*D.y
-	};
+template <typename T>
+__device__ inline float2 bilinChroma(const T* __restrict__ chroma, const T* __restrict__ luminance, int pitch, uchar L, uint x, uint y, const ushort2 &D, int dx, int dy, int width, int height, bool consistent) {
+	if (uint(x+dx) >= width || uint(y+dy) >= height) return {float(D.x)/255.0f, float(D.y)/255.0f};
+
+	float w = 0.0f;
+	float2 R = {0.0f,0.0f};
+
+	if (round8(luminance[(y+dy)*pitch+x+dx]) == L) {
+		R += 0.0625f * norm_float(readChroma(chroma, pitch, x+dx, y+dy));
+		w += 0.0625f;
+	}
+
+	if (round8(luminance[(y+dy)*pitch+x]) == L) {
+		R += 0.1875f * norm_float(readChroma(chroma, pitch, x, y+dy));
+		w += 0.1875f;
+	}
+
+	if (round8(luminance[(y)*pitch+x+dx]) == L) {
+		R += 0.1875f * norm_float(readChroma(chroma, pitch, x+dx, y));
+		w += 0.1875f;
+	}
+
+	if (consistent) {
+		R.x += 0.5625f * (float(D.x) / 255.0f);
+		R.y += 0.5625f * (float(D.y) / 255.0f);
+		w += 0.5625f;
+	}
+
+	return R / w;  // TODO: Check W isn't 0?
 }
 
 /**
@@ -195,51 +217,84 @@ __device__ inline float2 bilinChroma(const T* __restrict__ chroma, int pitch, ui
 
  // Video is assumed to be 10bit encoded, returning ushort instead of uchar.
  // 4:2:0 10bit
- template <typename T>
+ template <typename T, int THREADS_X, int THREADS_Y>
  __global__ void vuya_to_depth_kernel(cv::cuda::PtrStepSz<float> depth, const T* __restrict__ luminance, const T* __restrict__ chroma, int pitch, float maxdepth) {
-	const unsigned int x = (blockIdx.x*blockDim.x + threadIdx.x) * 2;
-	const unsigned int y = (blockIdx.y*blockDim.y + threadIdx.y) * 2;
+	__shared__ uchar4 lum_s[THREADS_Y+2][64];
+	__shared__ ushort2 chroma_s[THREADS_Y+2][64];
+	__shared__ int consistent_s[THREADS_Y+2][64];
 
-	if (x < depth.cols && y < depth.rows) {
-		const float L[4] = {
-			float(round8(luminance[y*pitch+x])),
-			float(round8(luminance[y*pitch+x+1])),
-			float(round8(luminance[(y+1)*pitch+x])),
-			float(round8(luminance[(y+1)*pitch+x+1]))
-		};
+	for (int i=threadIdx.x + threadIdx.y*THREADS_X; i<((THREADS_X+2))*((THREADS_Y+2)); i += THREADS_X*THREADS_Y) {
+		const int y = i/((THREADS_X+2));
+		const int x = i%((THREADS_X+2));
+		const int gx = (x + blockIdx.x*blockDim.x - 1)*2;
+		const int gy = (y + blockIdx.y*blockDim.y - 1)*2;
+
+		bool valid = (gx >= 0 && gy >= 0 && gx < depth.cols-1 && gy < depth.rows-1);
+
+		const ushort2 v1 = (valid) ? *(const ushort2*)(&luminance[gy*pitch+gx]) : make_ushort2(0,0);
+		const ushort2 v2 = (valid) ? *(const ushort2*)(&luminance[(gy+1)*pitch+gx]) : make_ushort2(0,0);
+		
+		short4 L = make_short4(
+			round8(v1.x),
+			round8(v1.y),
+			round8(v2.x),
+			round8(v2.y)
+		);
+
+		lum_s[y][x] = make_uchar4(L.x,L.y,L.z,L.w);
+		chroma_s[y][x] = (valid) ? readChroma(chroma, pitch, gx, gy) : make_ushort2(0,0);
 
 		bool consistent = true;
-		// TODO: Check second derivative to allow for non frontal planes.
-		if (fabs(L[0]-L[1]) > 2.0f) consistent = false;
-		if (fabs(L[0]-L[2]) > 2.0f) consistent = false;
-		if (fabs(L[3]-L[1]) > 2.0f) consistent = false;
-		if (fabs(L[3]-L[2]) > 2.0f) consistent = false;
+		if (abs(L.x-L.y) > 1.0f) consistent = false;
+		if (abs(L.x-L.z) > 1.0f) consistent = false;
+		if (abs(L.w-L.y) > 1.0f) consistent = false;
+		if (abs(L.w-L.z) > 1.0f) consistent = false;
+		consistent_s[y][x] = int(consistent);
+	}
 
-		//bool consistent = s_consistent[threadIdx.x+1 + (threadIdx.y+1)*(SIZE+2)];
+	__syncthreads();
 
-		// Only the top 8 bits contain any data
-		float2 H = readChroma(chroma, pitch, x, y);
+	const unsigned int x = (blockIdx.x*blockDim.x + threadIdx.x)*2;
+	const unsigned int y = (blockIdx.y*blockDim.y + threadIdx.y)*2;
 
-		float d[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	uchar4 L = lum_s[threadIdx.y+1][threadIdx.x+1];
+	const ushort2 H = chroma_s[threadIdx.y+1][threadIdx.x+1];
 
-		// TODO: Preload chroma? Following code is inefficient
-		// Note: the full version needs to also consider if the neighbour chroma
-		// block is consistent. However, since we always need to discard pixels
-		// at discontinuities anyway, we can just not care about it here. This
-		// significantly simplifies the situation.
+	float d[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
-		if (consistent) {
-			float2 H2;
-			H2 = bilinChroma(chroma, pitch, x, y, H, -2, -2, depth.cols, depth.rows);
-			d[0] = yuv2depth(L[0] / 255.0f, H2.x, H2.y) * maxdepth;
-			H2 = bilinChroma(chroma, pitch, x, y, H, 2, -2, depth.cols, depth.rows);
-			d[1] = yuv2depth(L[1] / 255.0f, H2.x, H2.y) * maxdepth;
-			H2 = bilinChroma(chroma, pitch, x, y, H, -2, 2, depth.cols, depth.rows);
-			d[2] = yuv2depth(L[2] / 255.0f, H2.x, H2.y) * maxdepth;
-			H2 = bilinChroma(chroma, pitch, x, y, H, 2, 2, depth.cols, depth.rows);
-			d[3] = yuv2depth(L[3] / 255.0f, H2.x, H2.y) * maxdepth;
-		}
+	float2 H2;
+	float w;
+	bool consistent = consistent_s[threadIdx.y+1][threadIdx.x+1];
 
+	w = 0.0f; H2 = {0.0f,0.0f};
+	if (consistent_s[threadIdx.y+1-1][threadIdx.x+1-1] && L.x == lum_s[threadIdx.y+1-1][threadIdx.x+1-1].w) { H2 += 0.0625f * norm_float(chroma_s[threadIdx.y+1-1][threadIdx.x+1-1]); w += 0.0625f; }
+	if (consistent_s[threadIdx.y+1-1][threadIdx.x+1] && L.x == lum_s[threadIdx.y+1-1][threadIdx.x+1].z) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1-1][threadIdx.x+1]); w += 0.1875f; }
+	if (consistent_s[threadIdx.y+1][threadIdx.x+1-1] && L.x == lum_s[threadIdx.y+1][threadIdx.x+1-1].y) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1][threadIdx.x+1-1]); w += 0.1875f; }
+	if (consistent) { H2 += 0.5625f * norm_float(H); w += 0.5625f; }
+	if (w > 0.0f) d[0] = yuv2depth(float(L.x) / 255.0f, H2.x/w, H2.y/w) * maxdepth;
+
+	w = 0.0f; H2 = {0.0f,0.0f};
+	if (consistent_s[threadIdx.y+1-1][threadIdx.x+1+1] && L.y == lum_s[threadIdx.y+1-1][threadIdx.x+1+1].z) { H2 += 0.0625f * norm_float(chroma_s[threadIdx.y+1-1][threadIdx.x+1+1]); w += 0.0625f; }
+	if (consistent_s[threadIdx.y+1-1][threadIdx.x+1] && L.y == lum_s[threadIdx.y+1-1][threadIdx.x+1].w) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1-1][threadIdx.x+1]); w += 0.1875f; }
+	if (consistent_s[threadIdx.y+1][threadIdx.x+1+1] && L.y == lum_s[threadIdx.y+1][threadIdx.x+1+1].x) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1][threadIdx.x+1+1]); w += 0.1875f; }
+	if (consistent) { H2 += 0.5625f * norm_float(H); w += 0.5625f; }
+	if (w > 0.0f) d[1] = yuv2depth(float(L.y) / 255.0f, H2.x/w, H2.y/w) * maxdepth;
+
+	w = 0.0f; H2 = {0.0f,0.0f};
+	if (consistent_s[threadIdx.y+1+1][threadIdx.x+1-1] && L.z == lum_s[threadIdx.y+1+1][threadIdx.x+1-1].y) { H2 += 0.0625f * norm_float(chroma_s[threadIdx.y+1+1][threadIdx.x+1-1]); w += 0.0625f; }
+	if (consistent_s[threadIdx.y+1+1][threadIdx.x+1] && L.z == lum_s[threadIdx.y+1+1][threadIdx.x+1].x) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1+1][threadIdx.x+1]); w += 0.1875f; }
+	if (consistent_s[threadIdx.y+1][threadIdx.x+1-1] && L.z == lum_s[threadIdx.y+1][threadIdx.x+1-1].w) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1][threadIdx.x+1-1]); w += 0.1875f; }
+	if (consistent) { H2 += 0.5625f * norm_float(H); w += 0.5625f; }
+	if (w > 0.0f) d[2] = yuv2depth(float(L.z) / 255.0f, H2.x/w, H2.y/w) * maxdepth;
+
+	w = 0.0f; H2 = {0.0f,0.0f};
+	if (consistent_s[threadIdx.y+1+1][threadIdx.x+1+1] && L.w == lum_s[threadIdx.y+1+1][threadIdx.x+1+1].x) { H2 += 0.0625f * norm_float(chroma_s[threadIdx.y+1+1][threadIdx.x+1+1]); w += 0.0625f; }
+	if (consistent_s[threadIdx.y+1+1][threadIdx.x+1] && L.w == lum_s[threadIdx.y+1+1][threadIdx.x+1].y) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1+1][threadIdx.x+1]); w += 0.1875f; }
+	if (consistent_s[threadIdx.y+1][threadIdx.x+1+1] && L.w == lum_s[threadIdx.y+1][threadIdx.x+1+1].z) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1][threadIdx.x+1+1]); w += 0.1875f; }
+	if (consistent_s[threadIdx.y+1][threadIdx.x+1]) { H2 += 0.5625f * norm_float(H); w += 0.5625f; }
+	if (w > 0.0f) d[3] = yuv2depth(float(L.w) / 255.0f, H2.x/w, H2.y/w) * maxdepth;
+
+	if (x < depth.cols && y < depth.rows) {
 		depth(y,x) = d[0];
 		depth(y,x+1) = d[1];
 		depth(y+1,x) = d[2];
@@ -254,7 +309,7 @@ void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv:
 	const dim3 gridSize((depth.cols/2 + THREADS_X - 1)/THREADS_X, (depth.rows/2 + THREADS_Y - 1)/THREADS_Y);
     const dim3 blockSize(THREADS_X, THREADS_Y);
 
-	vuya_to_depth_kernel<ushort><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, luminance.data, chroma.data, luminance.step/sizeof(ushort), maxdepth);
+	vuya_to_depth_kernel<ushort,THREADS_X,THREADS_Y><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, luminance.data, chroma.data, luminance.step/sizeof(ushort), maxdepth);
 	cudaSafeCall( cudaGetLastError() );
 }
 

@@ -227,6 +227,7 @@ Feed::~Feed() {
 	//ftl::saveJSON(FTL_LOCAL_CONFIG_ROOT "/feed.json", feed_config);
 
 	handle_receiver_.cancel();
+	handle_rec_error_.cancel();
 	handle_record_.cancel();
 	handle_sender_.cancel();
 	record_recv_handle_.cancel();
