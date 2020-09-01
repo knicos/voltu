@@ -42,9 +42,9 @@ struct NetImplDetail {
 //#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
 
 #define TCP_SEND_BUFFER_SIZE	(512*1024)
-#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024)
+#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024)  // Perhaps try 24K?
 #define WS_SEND_BUFFER_SIZE	(512*1024)
-#define WS_RECEIVE_BUFFER_SIZE	(512*1024)
+#define WS_RECEIVE_BUFFER_SIZE	(62*1024)
 
 callback_t ftl::net::Universe::cbid__ = 0;
 
@@ -109,8 +109,8 @@ size_t Universe::getSendBufferSize(ftl::URI::scheme_t s) {
 
 size_t Universe::getRecvBufferSize(ftl::URI::scheme_t s) {
 	return (s == ftl::URI::scheme_t::SCHEME_WS) ?
-			value("ws_recv_buffer",WS_SEND_BUFFER_SIZE) :
-			value("tcp_recv_buffer",TCP_SEND_BUFFER_SIZE);
+			value("ws_recv_buffer",WS_RECEIVE_BUFFER_SIZE) :
+			value("tcp_recv_buffer",TCP_RECEIVE_BUFFER_SIZE);
 }
 
 void Universe::start() {
