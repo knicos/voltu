@@ -84,6 +84,24 @@ static uint32_t make_id(const ftl::codecs::StreamPacket &spkt) {
 }
 
 
+struct StreamState {
+	int64_t first_ts = 100000000000000000ll;
+	std::list<std::pair<ftl::codecs::StreamPacket, ftl::codecs::Packet>> packets;
+	bool seen_key = false;
+	AVStream *stream = nullptr;
+
+	void insert(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		for (auto i = packets.begin(); i != packets.end(); ++i) {
+			if (i->first.timestamp > spkt.timestamp) {
+				packets.insert(i, std::make_pair(spkt, pkt));
+				return;
+			}
+		}
+		packets.push_back(std::make_pair(spkt, pkt));
+	}
+};
+
+
 int main(int argc, char **argv) {
     std::string filename;
 
@@ -114,11 +132,10 @@ int main(int argc, char **argv) {
 
 	AVOutputFormat *fmt;
 	AVFormatContext *oc;
-	AVStream *video_st[10] = {nullptr};
+	StreamState video_st[10];
 
 	int stream_count = 0;
 	std::unordered_map<uint32_t, int> mapping;
-	int64_t timestamps[10] = {1000000000000000ll};
 
 	// TODO: Remove in newer versions
 	av_register_all();
@@ -160,7 +177,7 @@ int main(int argc, char **argv) {
 
 	// TODO: In future, find a better way to discover number of streams...
 	// Read entire file to find all streams before reading again to write data
-	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&mapping,&stream_count,&timestamps](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&mapping,&stream_count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		if (spkt.channel != Channel::Colour && spkt.channel != Channel::Right) return;
 
         //if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
@@ -183,7 +200,7 @@ int main(int argc, char **argv) {
 					auto *dec = ftl::codecs::allocateDecoder(pkt);
 					if (!dec) return;
 
-					if (spkt.timestamp < timestamps[id]) timestamps[id] = spkt.timestamp;
+					if (spkt.timestamp < video_st[id].first_ts) video_st[id].first_ts = spkt.timestamp;
 
 					cv::cuda::GpuMat m;
 					dec->decode(pkt, m);
@@ -192,7 +209,7 @@ int main(int argc, char **argv) {
 					cam.width = m.cols;
 					cam.height = m.rows;
 					// Use decoder to get frame size...
-					video_st[id] = add_video_stream(oc, pkt, cam);
+					video_st[id].stream = add_video_stream(oc, pkt, cam);
 
 					ftl::codecs::free(dec);
 
@@ -218,9 +235,7 @@ int main(int argc, char **argv) {
 		LOG(ERROR) << "Failed to write stream header";
 	}
 
-	std::unordered_set<int> seen_key;
-
-    res = r.read(90000000000000, [&timestamps,&current_stream,&current_channel,&r,&video_st,oc,&seen_key,&mapping](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+    res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&mapping](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
         //if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         //if (spkt.frame_number == current_stream || current_stream == 255) {
 
@@ -234,32 +249,65 @@ int main(int argc, char **argv) {
 			if (i == mapping.end()) return;
 			int id = i->second;
 
-			if (!video_st[id]) return;
+			if (!video_st[id].stream) return;
 
 			bool keyframe = false;
 			if (pkt.codec == codec_t::HEVC) {
 				if (ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) {
-					seen_key.insert(id);
+					video_st[id].seen_key = true;
 					keyframe = true;
 				}
 			} else if (pkt.codec == codec_t::H264) {
 				if (ftl::codecs::h264::isIFrame(pkt.data.data(), pkt.data.size())) {
-					seen_key.insert(id);
+					video_st[id].seen_key = true;
 					keyframe = true;
 				}
 			}
-			if (seen_key.count(id) == 0) return;
+			if (!video_st[id].seen_key) return;
 
 			//if (spkt.timestamp > last_ts) framecount++;
 			//last_ts = spkt.timestamp;
 
-            AVPacket avpkt;
+			video_st[id].insert(spkt, pkt);
+
+			if (video_st[id].packets.size() > 5) {
+				auto &spkt = video_st[id].packets.front().first;
+				auto &pkt = video_st[id].packets.front().second;
+				AVPacket avpkt;
+				av_init_packet(&avpkt);
+				if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
+				//avpkt.pts = framecount*50; //spkt.timestamp - r.getStartTime();
+				avpkt.pts = spkt.timestamp - video_st[id].first_ts;
+				avpkt.dts = avpkt.pts;
+				avpkt.stream_index= video_st[id].stream->index;
+				avpkt.data= const_cast<uint8_t*>(pkt.data.data());
+				avpkt.size= pkt.data.size();
+				avpkt.duration = 1;
+
+				//LOG(INFO) << "write frame: " << avpkt.pts << "," << avpkt.stream_index << "," << avpkt.size;
+
+				/* write the compressed frame in the media file */
+				auto ret = av_write_frame(oc, &avpkt);
+				if (ret != 0) {
+					LOG(ERROR) << "Error writing frame: " << ret;
+				}
+
+				video_st[id].packets.pop_front();
+			}
+        //}
+    });
+
+	for (int i=0; i<10; ++i) {
+		while (video_st[i].packets.size() > 0) {
+			auto &spkt = video_st[i].packets.front().first;
+			auto &pkt = video_st[i].packets.front().second;
+			AVPacket avpkt;
 			av_init_packet(&avpkt);
-			if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
+			//if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
 			//avpkt.pts = framecount*50; //spkt.timestamp - r.getStartTime();
-			avpkt.pts = spkt.timestamp - timestamps[id];
+			avpkt.pts = spkt.timestamp - video_st[i].first_ts;
 			avpkt.dts = avpkt.pts;
-			avpkt.stream_index= video_st[id]->index;
+			avpkt.stream_index= video_st[i].stream->index;
 			avpkt.data= const_cast<uint8_t*>(pkt.data.data());
 			avpkt.size= pkt.data.size();
 			avpkt.duration = 1;
@@ -271,14 +319,16 @@ int main(int argc, char **argv) {
 			if (ret != 0) {
 				LOG(ERROR) << "Error writing frame: " << ret;
 			}
-        //}
-    });
+
+			video_st[i].packets.pop_front();	
+		}
+	}
 
 	av_write_trailer(oc);
 	//avcodec_close(video_st->codec);
 
 	for (int i=0; i<10; ++i) {
-		if (video_st[i]) av_free(video_st[i]);
+		if (video_st[i].stream) av_free(video_st[i].stream);
 	}
 
 	if (!(fmt->flags & AVFMT_NOFILE)) {
