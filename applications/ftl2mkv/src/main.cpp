@@ -79,6 +79,10 @@ static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet
     return st;
 }
 
+static uint32_t make_id(const ftl::codecs::StreamPacket &spkt) {
+	return (((spkt.streamID << 8) + spkt.frame_number) << 8) + int(spkt.channel);
+}
+
 
 int main(int argc, char **argv) {
     std::string filename;
@@ -110,7 +114,11 @@ int main(int argc, char **argv) {
 
 	AVOutputFormat *fmt;
 	AVFormatContext *oc;
-	AVStream *video_st[10][2] = {nullptr};
+	AVStream *video_st[10] = {nullptr};
+
+	int stream_count = 0;
+	std::unordered_map<uint32_t, int> mapping;
+	int64_t timestamps[10] = {1000000000000000ll};
 
 	// TODO: Remove in newer versions
 	av_register_all();
@@ -150,13 +158,13 @@ int main(int argc, char **argv) {
 
 	//bool stream_added[10] = {false};
 
-	int64_t first_ts = 10000000000000ll;
-
 	// TODO: In future, find a better way to discover number of streams...
 	// Read entire file to find all streams before reading again to write data
-	bool res = r.read(90000000000000, [&first_ts,&current_stream,&current_channel,&r,&video_st,oc](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-        if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
-        if (spkt.frame_number == current_stream || current_stream == 255) {
+	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&mapping,&stream_count,&timestamps](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		if (spkt.channel != Channel::Colour && spkt.channel != Channel::Right) return;
+
+        //if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
+        //if (spkt.frame_number == current_stream || current_stream == 255) {
 
             if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) {
                 return;
@@ -164,14 +172,18 @@ int main(int argc, char **argv) {
 
 			if (spkt.frame_number >= 10) return;  // TODO: Allow for more than 10
 
-			if (spkt.timestamp < first_ts) first_ts = spkt.timestamp;
+			//if (video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] == nullptr) {
+			if ((pkt.codec == codec_t::HEVC && ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) ||
+					(pkt.codec == codec_t::H264 && ftl::codecs::h264::isIFrame(pkt.data.data(), pkt.data.size()))) {
+				if (mapping.count(make_id(spkt)) == 0) {
+					int id = stream_count++;
 
-			if (video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] == nullptr) {
-				if ((pkt.codec == codec_t::HEVC && ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) ||
-						(pkt.codec == codec_t::H264 && ftl::codecs::h264::isIFrame(pkt.data.data(), pkt.data.size()))) {
+					if (id >= 10) return;				
 					
 					auto *dec = ftl::codecs::allocateDecoder(pkt);
 					if (!dec) return;
+
+					if (spkt.timestamp < timestamps[id]) timestamps[id] = spkt.timestamp;
 
 					cv::cuda::GpuMat m;
 					dec->decode(pkt, m);
@@ -180,12 +192,14 @@ int main(int argc, char **argv) {
 					cam.width = m.cols;
 					cam.height = m.rows;
 					// Use decoder to get frame size...
-					video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] = add_video_stream(oc, pkt, cam);
+					video_st[id] = add_video_stream(oc, pkt, cam);
 
 					ftl::codecs::free(dec);
+
+					mapping[make_id(spkt)] = id;
 				}
 			}
-		}
+		//}
 	});
 
 	r.end();
@@ -204,11 +218,11 @@ int main(int argc, char **argv) {
 		LOG(ERROR) << "Failed to write stream header";
 	}
 
-	bool seen_key[10] = {false};
+	std::unordered_set<int> seen_key;
 
-    res = r.read(90000000000000, [first_ts,&current_stream,&current_channel,&r,&video_st,oc,&seen_key](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-        if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
-        if (spkt.frame_number == current_stream || current_stream == 255) {
+    res = r.read(90000000000000, [&timestamps,&current_stream,&current_channel,&r,&video_st,oc,&seen_key,&mapping](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+        //if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
+        //if (spkt.frame_number == current_stream || current_stream == 255) {
 
             if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) {
                 return;
@@ -216,21 +230,25 @@ int main(int argc, char **argv) {
 
             //LOG(INFO) << "Reading packet: (" << (int)spkt.streamID << "," << (int)spkt.channel << ") " << (int)pkt.codec << ", " << (int)pkt.definition;
 
-			if (spkt.frame_number >= 10) return;  // TODO: Allow for more than 10
+			auto i = mapping.find(make_id(spkt));
+			if (i == mapping.end()) return;
+			int id = i->second;
+
+			if (!video_st[id]) return;
 
 			bool keyframe = false;
 			if (pkt.codec == codec_t::HEVC) {
 				if (ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) {
-					seen_key[spkt.frame_number] = true;
+					seen_key.insert(id);
 					keyframe = true;
 				}
 			} else if (pkt.codec == codec_t::H264) {
 				if (ftl::codecs::h264::isIFrame(pkt.data.data(), pkt.data.size())) {
-					seen_key[spkt.frame_number] = true;
+					seen_key.insert(id);
 					keyframe = true;
 				}
 			}
-			if (!seen_key[spkt.frame_number]) return;
+			if (seen_key.count(id) == 0) return;
 
 			//if (spkt.timestamp > last_ts) framecount++;
 			//last_ts = spkt.timestamp;
@@ -239,9 +257,9 @@ int main(int argc, char **argv) {
 			av_init_packet(&avpkt);
 			if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
 			//avpkt.pts = framecount*50; //spkt.timestamp - r.getStartTime();
-			avpkt.pts = spkt.timestamp - first_ts;
+			avpkt.pts = spkt.timestamp - timestamps[id];
 			avpkt.dts = avpkt.pts;
-			avpkt.stream_index= video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1]->index;
+			avpkt.stream_index= video_st[id]->index;
 			avpkt.data= const_cast<uint8_t*>(pkt.data.data());
 			avpkt.size= pkt.data.size();
 			avpkt.duration = 1;
@@ -253,15 +271,14 @@ int main(int argc, char **argv) {
 			if (ret != 0) {
 				LOG(ERROR) << "Error writing frame: " << ret;
 			}
-        }
+        //}
     });
 
 	av_write_trailer(oc);
 	//avcodec_close(video_st->codec);
 
 	for (int i=0; i<10; ++i) {
-		if (video_st[i][0]) av_free(video_st[i][0]);
-		if (video_st[i][1]) av_free(video_st[i][1]);
+		if (video_st[i]) av_free(video_st[i]);
 	}
 
 	if (!(fmt->flags & AVFMT_NOFILE)) {
