@@ -178,6 +178,7 @@ int main(int argc, char **argv) {
 	// TODO: In future, find a better way to discover number of streams...
 	// Read entire file to find all streams before reading again to write data
 	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&mapping,&stream_count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		if (current_stream != 255 && spkt.streamID != current_stream) return;
 		if (spkt.channel != Channel::Colour && spkt.channel != Channel::Right) return;
 
         //if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
