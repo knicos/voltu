@@ -5,6 +5,7 @@
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/codecs/hevc.hpp>
 #include <ftl/codecs/h264.hpp>
+#include <ftl/codecs/decoder.hpp>
 
 #include <fstream>
 
@@ -53,7 +54,7 @@ static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet
 	st->codecpar->format = AV_PIX_FMT_NV12;
 	st->codecpar->bit_rate = 4000000;
 
-	if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set(&st->metadata, "stereo_mode", "left_right", 0);
+	//if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set(&st->metadata, "stereo_mode", "left_right", 0);
 	//if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set(&oc->metadata, "stereo_mode", "1", 0);
 	//if (pkt.flags & ftl::codecs::kFlagStereo) av_dict_set_int(&st->metadata, "StereoMode", 1, 0);
 
@@ -154,11 +155,6 @@ int main(int argc, char **argv) {
 	// TODO: In future, find a better way to discover number of streams...
 	// Read entire file to find all streams before reading again to write data
 	bool res = r.read(90000000000000, [&first_ts,&current_stream,&current_channel,&r,&video_st,oc](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		// Extract calibration information to determine frame resolution
-		if (spkt.channel == ftl::codecs::Channel::Calibration) {
-			// FIXME: Implement this!!
-		}
-
         if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         if (spkt.frame_number == current_stream || current_stream == 255) {
 
@@ -171,7 +167,23 @@ int main(int argc, char **argv) {
 			if (spkt.timestamp < first_ts) first_ts = spkt.timestamp;
 
 			if (video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] == nullptr) {
-				video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] = add_video_stream(oc, pkt, {0});  // FIXME: Use real calib data
+				if ((pkt.codec == codec_t::HEVC && ftl::codecs::hevc::isIFrame(pkt.data.data(), pkt.data.size())) ||
+						(pkt.codec == codec_t::H264 && ftl::codecs::h264::isIFrame(pkt.data.data(), pkt.data.size()))) {
+					
+					auto *dec = ftl::codecs::allocateDecoder(pkt);
+					if (!dec) return;
+
+					cv::cuda::GpuMat m;
+					dec->decode(pkt, m);
+
+					ftl::rgbd::Camera cam;
+					cam.width = m.cols;
+					cam.height = m.rows;
+					// Use decoder to get frame size...
+					video_st[spkt.frame_number][(spkt.channel == Channel::Left) ? 0 : 1] = add_video_stream(oc, pkt, cam);
+
+					ftl::codecs::free(dec);
+				}
 			}
 		}
 	});
