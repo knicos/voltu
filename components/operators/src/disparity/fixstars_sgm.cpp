@@ -62,7 +62,7 @@ FixstarsSGM::FixstarsSGM(ftl::operators::Graph *g, ftl::Configurable* cfg) :
 	uniqueness_ = cfg->value("uniqueness", 0.95f);
 	P1_ = cfg->value("P1", 10);
 	P2_ = cfg->value("P2", 120);
-	max_disp_ = cfg->value("max_disp", 256);
+	max_disp_ = cfg->value("num_disp", 256);
 
 	if (uniqueness_ < 0.0 || uniqueness_ > 1.0) {
 		uniqueness_ = 1.0;
@@ -79,7 +79,7 @@ FixstarsSGM::FixstarsSGM(ftl::operators::Graph *g, ftl::Configurable* cfg) :
 		LOG(WARNING) << "Invalid value for P2, using value of P1 (" << P1_ << ")";
 	}
 
-	if (!(max_disp_ == 256 || max_disp_ == 128)) {
+	if (!(max_disp_ == 256 || max_disp_ == 128 || max_disp_ == 192)) {
 		max_disp_ = 256;
 		LOG(WARNING) << "Invalid value for max_disp, using default value (256)";
 	}
@@ -216,9 +216,9 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		weightsF_.convertTo(weights_, CV_8UC1, 255.0f, cvstream);
 
 		//if ((int)P2_map_.step != P2_map_.cols) LOG(ERROR) << "P2 map step error: " << P2_map_.cols << "," << P2_map_.step;
-		ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, (uint8_t*) weights_.data, weights_.step1(), stream);
+		ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, (uint8_t*) weights_.data, weights_.step1(), config()->value("min_disp", 60), stream);
 	} else {
-		ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, nullptr, 0, stream);
+		ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, nullptr, 0, config()->value("min_disp", 60), stream);
 	}
 
 	// GpuMat left_pixels(dispt_, cv::Rect(0, 0, max_disp_, dispt_.rows));
@@ -228,7 +228,7 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		ftl::cuda::merge_disparities(disp_int_, disp, stream);
 	}
 
-	cv::cuda::threshold(disp_int_, disp, 4096.0f, 0.0f, cv::THRESH_TOZERO_INV, cvstream);
+	cv::cuda::threshold(disp_int_, disp, 16383.0f, 0.0f, cv::THRESH_TOZERO_INV, cvstream);
 
 	if (config()->value("check_reprojection", false)) {
 		ftl::cuda::check_reprojection(disp, in.getTexture<uchar4>(Channel::Colour),

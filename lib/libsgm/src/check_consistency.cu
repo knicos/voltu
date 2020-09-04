@@ -19,7 +19,7 @@ limitations under the License.
 
 namespace {
 	template<typename SRC_T, typename DST_T>
-	__global__ void check_consistency_kernel(DST_T* d_leftDisp, const DST_T* d_rightDisp, const uint8_t* d_mask, int width, int height, int src_pitch, int dst_pitch, bool subpixel)  {
+	__global__ void check_consistency_kernel(DST_T* d_leftDisp, const DST_T* d_rightDisp, const uint8_t* d_mask, int width, int height, int src_pitch, int dst_pitch, bool subpixel, int min_disp)  {
 
 		const int j = blockIdx.x * blockDim.x + threadIdx.x;
 		const int i = blockIdx.y * blockDim.y + threadIdx.y;
@@ -28,6 +28,7 @@ namespace {
 
 		uint8_t mask = d_mask[i * src_pitch + j];
 		int d = d_leftDisp[i * dst_pitch + j];
+		int dout = d + (min_disp << sgm::StereoSGM::SUBPIXEL_SHIFT);
 		if (subpixel) {
 			d >>= sgm::StereoSGM::SUBPIXEL_SHIFT;
 		}
@@ -36,38 +37,39 @@ namespace {
 			int diff = abs(d_rightDisp[i * dst_pitch + k] - d);
 			if (mask != 0 || diff > 1) {
 				// masked or left-right inconsistent pixel -> invalid
-				d_leftDisp[i * dst_pitch + j] = (256 << (sgm::StereoSGM::SUBPIXEL_SHIFT+1));
+				dout = (1024 << (sgm::StereoSGM::SUBPIXEL_SHIFT));
 			}
 		}
+		d_leftDisp[i * dst_pitch + j] = dout;
 	}
 }
 
 namespace sgm {
 	namespace details {
 
-		void check_consistency(uint8_t* d_left_disp, const uint8_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel, cudaStream_t stream) {
+		void check_consistency(uint8_t* d_left_disp, const uint8_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel, int min_disp, cudaStream_t stream) {
 
 			const dim3 blocks(width / 16, height / 16);
 			const dim3 threads(16, 16);
 			if (depth_bits == 16) {
-				check_consistency_kernel<uint16_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint16_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel, min_disp);
 			}
 			else if (depth_bits == 8) {
-				check_consistency_kernel<uint8_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint8_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel, min_disp);
 			}
 
 			CudaKernelCheck();
 		}
 
-		void check_consistency(uint16_t* d_left_disp, const uint16_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel, cudaStream_t stream) {
+		void check_consistency(uint16_t* d_left_disp, const uint16_t* d_right_disp, const uint8_t* d_mask, int width, int height, int depth_bits, int src_pitch, int dst_pitch, bool subpixel, int min_disp, cudaStream_t stream) {
 
 			const dim3 blocks(width / 16, height / 16);
 			const dim3 threads(16, 16);
 			if (depth_bits == 16) {
-				check_consistency_kernel<uint16_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint16_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel, min_disp);
 			}
 			else if (depth_bits == 8) {
-				check_consistency_kernel<uint8_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel);
+				check_consistency_kernel<uint8_t> << < blocks, threads, 0, stream >> > (d_left_disp, d_right_disp, d_mask, width, height, src_pitch, dst_pitch, subpixel, min_disp);
 			}
 			
 			CudaKernelCheck();	

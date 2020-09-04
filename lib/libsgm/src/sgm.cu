@@ -57,6 +57,7 @@ public:
 		int weights_pitch,
 		float uniqueness,
 		bool subpixel,
+		int min_disp,
 		cudaStream_t stream)
 	{
 		m_census_left.enqueue(
@@ -70,11 +71,12 @@ public:
 			penalty1, penalty2,
 			src_pitch, // bug?
 			weights, weights_pitch,
+			min_disp,
 			stream);
 		m_winner_takes_all.enqueue(
 			dest_left, dest_right,
 			m_path_aggregation.get_output(),
-			width, height, dst_pitch, uniqueness, subpixel,
+			width, height, dst_pitch, uniqueness, subpixel, min_disp,
 			stream);
 	}
 
@@ -106,6 +108,7 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::execute(
 	int weights_pitch,
 	float uniqueness,
 	bool subpixel,
+	int min_disp,
 	cudaStream_t stream)
 {
 	m_impl->enqueue(
@@ -116,6 +119,7 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::execute(
 		penalty1, penalty2,
 		weights, weights_pitch,
 		uniqueness, subpixel,
+		min_disp,
 		stream);
 	//cudaStreamSynchronize(0);
 }
@@ -136,6 +140,7 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::enqueue(
 	int weights_pitch,
 	float uniqueness,
 	bool subpixel,
+	int min_disp,
 	cudaStream_t stream)
 {
 	m_impl->enqueue(
@@ -146,12 +151,14 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::enqueue(
 		penalty1, penalty2,
 		weights, weights_pitch,
 		uniqueness, subpixel,
+		min_disp,
 		stream);
 }
 
 
 template class SemiGlobalMatching<uint8_t,   64>;
 template class SemiGlobalMatching<uint8_t,  128>;
+template class SemiGlobalMatching<uint8_t,  192>;
 template class SemiGlobalMatching<uint8_t,  256>;
 template class SemiGlobalMatching<uint16_t,  64>;
 template class SemiGlobalMatching<uint16_t, 128>;

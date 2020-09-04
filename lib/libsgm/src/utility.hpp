@@ -190,6 +190,14 @@ __device__ inline void load_uint16_vector<4u>(uint32_t *dest, const uint16_t *pt
 }
 
 template <>
+__device__ inline void load_uint16_vector<6u>(uint32_t *dest, const uint16_t *ptr){
+	const auto uint32x3 = load_as<uint3>(ptr);
+	load_uint16_vector<2u>(dest + 0, reinterpret_cast<const uint16_t *>(&uint32x3.x));
+	load_uint16_vector<2u>(dest + 2, reinterpret_cast<const uint16_t *>(&uint32x3.y));
+	load_uint16_vector<2u>(dest + 4, reinterpret_cast<const uint16_t *>(&uint32x3.z));
+}
+
+template <>
 __device__ inline void load_uint16_vector<8u>(uint32_t *dest, const uint16_t *ptr){
 	const auto uint32x4 = load_as<uint4>(ptr);
 	load_uint16_vector<2u>(dest + 0, reinterpret_cast<const uint16_t *>(&uint32x4.x));
