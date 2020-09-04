@@ -79,6 +79,27 @@ static AVStream *add_video_stream(AVFormatContext *oc, const ftl::codecs::Packet
     return st;
 }
 
+static AVStream *add_audio_stream(AVFormatContext *oc, const ftl::codecs::Packet &pkt)
+{
+    //AVCodecContext *c;
+    AVStream *st;
+
+    st = avformat_new_stream(oc, 0);
+    if (!st) {
+        fprintf(stderr, "Could not alloc stream\n");
+        exit(1);
+    }
+
+	AVCodecID codec_id = AV_CODEC_ID_OPUS;
+	st->codecpar->codec_id = codec_id;
+	st->codecpar->codec_type = AVMEDIA_TYPE_AUDIO;
+	st->codecpar->channel_layout = 0;
+	st->codecpar->channels = 2;
+	st->codecpar->sample_rate = 48000;
+	st->codecpar->frame_size = 960;
+    return st;
+}
+
 static uint32_t make_id(const ftl::codecs::StreamPacket &spkt) {
 	return (((spkt.streamID << 8) + spkt.frame_number) << 8) + int(spkt.channel);
 }
@@ -89,6 +110,7 @@ struct StreamState {
 	std::list<std::pair<ftl::codecs::StreamPacket, ftl::codecs::Packet>> packets;
 	bool seen_key = false;
 	AVStream *stream = nullptr;
+	int64_t last_ts = 0;
 
 	void insert(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
 		for (auto i = packets.begin(); i != packets.end(); ++i) {
@@ -177,14 +199,14 @@ int main(int argc, char **argv) {
 
 	// TODO: In future, find a better way to discover number of streams...
 	// Read entire file to find all streams before reading again to write data
-	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&mapping,&stream_count](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
-		if (current_stream != 255 && spkt.streamID != current_stream) return;
-		if (spkt.channel != Channel::Colour && spkt.channel != Channel::Right) return;
+	bool res = r.read(90000000000000, [&current_stream,&current_channel,&r,&video_st,oc,&mapping,&stream_count,root](const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt) {
+		if (spkt.channel != Channel::Audio && current_stream != 255 && spkt.streamID != current_stream) return;
+		if (spkt.channel != Channel::Colour && spkt.channel != Channel::Right && spkt.channel != Channel::Audio) return;
 
         //if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         //if (spkt.frame_number == current_stream || current_stream == 255) {
 
-            if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) {
+            if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264 && pkt.codec != codec_t::OPUS) {
                 return;
             }
 
@@ -216,6 +238,20 @@ int main(int argc, char **argv) {
 
 					mapping[make_id(spkt)] = id;
 				}
+			} else if (pkt.codec == codec_t::OPUS) {
+				if (mapping.count(make_id(spkt)) == 0) {
+					int id = stream_count++;
+
+					if (id >= 10) return;				
+
+					if (spkt.timestamp < video_st[id].first_ts) video_st[id].first_ts = spkt.timestamp;
+
+					video_st[id].stream = add_audio_stream(oc, pkt);
+					video_st[id].seen_key = true;
+					video_st[id].last_ts = root->value("audio_delay", 1000);  // second delay?
+
+					mapping[make_id(spkt)] = id;
+				}
 			}
 		//}
 	});
@@ -240,7 +276,7 @@ int main(int argc, char **argv) {
         //if (spkt.channel != static_cast<ftl::codecs::Channel>(current_channel) && current_channel != -1) return;
         //if (spkt.frame_number == current_stream || current_stream == 255) {
 
-            if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264) {
+            if (pkt.codec != codec_t::HEVC && pkt.codec != codec_t::H264 && pkt.codec != codec_t::OPUS) {
                 return;
             }
 
@@ -274,24 +310,63 @@ int main(int argc, char **argv) {
 			if (video_st[id].packets.size() > 5) {
 				auto &spkt = video_st[id].packets.front().first;
 				auto &pkt = video_st[id].packets.front().second;
-				AVPacket avpkt;
-				av_init_packet(&avpkt);
-				if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
-				//avpkt.pts = framecount*50; //spkt.timestamp - r.getStartTime();
-				avpkt.pts = spkt.timestamp - video_st[id].first_ts;
-				avpkt.dts = avpkt.pts;
-				avpkt.stream_index= video_st[id].stream->index;
-				avpkt.data= const_cast<uint8_t*>(pkt.data.data());
-				avpkt.size= pkt.data.size();
-				avpkt.duration = 1;
+
+				if (pkt.codec == codec_t::OPUS) {
+					// Must unpack the audio
+
+					const unsigned char *inptr = pkt.data.data();
+					int count = 0;
+					int frames = 0;
+
+					for (size_t i=0; i<pkt.data.size(); ) {
+						AVPacket avpkt;
+						av_init_packet(&avpkt);
+						avpkt.stream_index= video_st[id].stream->index;
+
+						const short *len = (const short*)inptr;
+						if (*len == 0) break;
+						if (frames == 10) break;
+
+						inptr += 2;
+						i += (*len)+2;
+
+						avpkt.pts = video_st[id].last_ts;
+						avpkt.dts = avpkt.pts;
+						avpkt.data= const_cast<uint8_t*>(inptr);
+						avpkt.size= *len;
+						avpkt.duration = 20;
+						video_st[id].last_ts += avpkt.duration;
+
+						/* write the compressed frame in the media file */
+						auto ret = av_write_frame(oc, &avpkt);
+						if (ret != 0) {
+							LOG(ERROR) << "Error writing audio frame: " << ret;
+						}
+
+						inptr += *len;
+						++frames;
+					}
+				} else {
+					AVPacket avpkt;
+					av_init_packet(&avpkt);
+					avpkt.stream_index= video_st[id].stream->index;
+					if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
+					avpkt.pts = spkt.timestamp - video_st[id].first_ts;
+					avpkt.dts = avpkt.pts;
+					avpkt.data= const_cast<uint8_t*>(pkt.data.data());
+					avpkt.size= pkt.data.size();
+					avpkt.duration = 0;
+
+					/* write the compressed frame in the media file */
+					auto ret = av_write_frame(oc, &avpkt);
+					if (ret != 0) {
+						LOG(ERROR) << "Error writing video frame: " << ret;
+					}
+				}
 
 				//LOG(INFO) << "write frame: " << avpkt.pts << "," << avpkt.stream_index << "," << avpkt.size;
 
-				/* write the compressed frame in the media file */
-				auto ret = av_write_frame(oc, &avpkt);
-				if (ret != 0) {
-					LOG(ERROR) << "Error writing frame: " << ret;
-				}
+				
 
 				video_st[id].packets.pop_front();
 			}
@@ -300,25 +375,61 @@ int main(int argc, char **argv) {
 
 	for (int i=0; i<10; ++i) {
 		while (video_st[i].packets.size() > 0) {
+			int id = i;
 			auto &spkt = video_st[i].packets.front().first;
 			auto &pkt = video_st[i].packets.front().second;
-			AVPacket avpkt;
-			av_init_packet(&avpkt);
-			//if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
-			//avpkt.pts = framecount*50; //spkt.timestamp - r.getStartTime();
-			avpkt.pts = spkt.timestamp - video_st[i].first_ts;
-			avpkt.dts = avpkt.pts;
-			avpkt.stream_index= video_st[i].stream->index;
-			avpkt.data= const_cast<uint8_t*>(pkt.data.data());
-			avpkt.size= pkt.data.size();
-			avpkt.duration = 1;
 
-			//LOG(INFO) << "write frame: " << avpkt.pts << "," << avpkt.stream_index << "," << avpkt.size;
+			if (pkt.codec == codec_t::OPUS) {
+				// Must unpack the audio
 
-			/* write the compressed frame in the media file */
-			auto ret = av_write_frame(oc, &avpkt);
-			if (ret != 0) {
-				LOG(ERROR) << "Error writing frame: " << ret;
+				const unsigned char *inptr = pkt.data.data();
+				int count = 0;
+				int frames = 0;
+
+				for (size_t i=0; i<pkt.data.size(); ) {
+					AVPacket avpkt;
+					av_init_packet(&avpkt);
+					avpkt.stream_index= video_st[id].stream->index;
+
+					const short *len = (const short*)inptr;
+					if (*len == 0) break;
+					if (frames == 10) break;
+
+					inptr += 2;
+					i += (*len)+2;
+
+					avpkt.pts = video_st[id].last_ts;
+					avpkt.dts = avpkt.pts;
+					avpkt.data= const_cast<uint8_t*>(inptr);
+					avpkt.size= *len;
+					avpkt.duration = 20;
+					video_st[id].last_ts += avpkt.duration;
+
+					/* write the compressed frame in the media file */
+					auto ret = av_write_frame(oc, &avpkt);
+					if (ret != 0) {
+						LOG(ERROR) << "Error writing audio frame: " << ret;
+					}
+
+					inptr += *len;
+					++frames;
+				}
+			} else {
+				AVPacket avpkt;
+				av_init_packet(&avpkt);
+				avpkt.stream_index= video_st[id].stream->index;
+				//if (keyframe) avpkt.flags |= AV_PKT_FLAG_KEY;
+				avpkt.pts = spkt.timestamp - video_st[id].first_ts;
+				avpkt.dts = avpkt.pts;
+				avpkt.data= const_cast<uint8_t*>(pkt.data.data());
+				avpkt.size= pkt.data.size();
+				avpkt.duration = 0;
+
+				/* write the compressed frame in the media file */
+				auto ret = av_write_frame(oc, &avpkt);
+				if (ret != 0) {
+					LOG(ERROR) << "Error writing video frame: " << ret;
+				}
 			}
 
 			video_st[i].packets.pop_front();	
