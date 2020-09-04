@@ -51,6 +51,7 @@ public:
 		int p2_pitch,
 		const uint8_t* w,
 		int w_pitch,
+		int min_disp,
 		cudaStream_t stream);
 
 };

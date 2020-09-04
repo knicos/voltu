@@ -53,6 +53,7 @@ public:
 		int weights_pitch,
 		float uniqueness,
 		bool subpixel,
+		int min_disp,
 		cudaStream_t stream);
 
 	void enqueue(
@@ -70,6 +71,7 @@ public:
 		int weights_pitch,
 		float uniqueness,
 		bool subpixel,
+		int min_disp,
 		cudaStream_t stream);
 
 };

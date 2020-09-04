@@ -47,17 +47,17 @@ __device__ int unpack_index(uint32_t packed){
 	return packed & 0xffffu;
 }
 
-using ComputeDisparity = uint32_t(*)(uint32_t, uint32_t, uint16_t*);
+using ComputeDisparity = uint32_t(*)(uint32_t, int, uint32_t, uint16_t*);
 
-__device__ inline uint32_t compute_disparity_normal(uint32_t disp, uint32_t cost = 0, uint16_t* smem = nullptr)
+__device__ inline uint32_t compute_disparity_normal(uint32_t disp, int min_disp, uint32_t cost = 0, uint16_t* smem = nullptr)
 {
-	return disp;
+	return disp; // + min_disp;
 }
 
 template <size_t MAX_DISPARITY>
-__device__ inline uint32_t compute_disparity_subpixel(uint32_t disp, uint32_t cost, uint16_t* smem)
+__device__ inline uint32_t compute_disparity_subpixel(uint32_t disp, int min_disp, uint32_t cost, uint16_t* smem)
 {
-	int subp = disp;
+	int subp = disp; // + min_disp;
 	subp <<= sgm::StereoSGM::SUBPIXEL_SHIFT;
 	if (disp > 0 && disp < MAX_DISPARITY - 1) {
 		const int left = smem[disp - 1];
@@ -78,7 +78,8 @@ __global__ void winner_takes_all_kernel(
 	int width,
 	int height,
 	int pitch,
-	float uniqueness)
+	float uniqueness,
+	int min_disp)
 {
 	static const unsigned int ACCUMULATION_PER_THREAD = 16u;
 	static const unsigned int REDUCTION_PER_THREAD = MAX_DISPARITY / WARP_SIZE;
@@ -178,7 +179,7 @@ __global__ void winner_takes_all_kernel(
 					right_best[i] = min(right_best[i], recv);
 					if(d == MAX_DISPARITY - 1){
 						if(0 <= p){
-							right_dest[p] = compute_disparity_normal(unpack_index(right_best[i]));
+							right_dest[p] = compute_disparity_normal(unpack_index(right_best[i]), min_disp);
 						}
 						right_best[i] = 0xffffffffu;
 					}
@@ -195,7 +196,7 @@ __global__ void winner_takes_all_kernel(
 				}
 				uniq = subgroup_and<WARP_SIZE>(uniq, 0xffffffffu);
 				if(lane_id == 0){
-					left_dest[x] = uniq ? compute_disparity(bestDisp, bestCost, smem_cost_sum[warp_id][smem_x]) : 0;
+					left_dest[x] = uniq ? compute_disparity(bestDisp, min_disp, bestCost, smem_cost_sum[warp_id][smem_x]) : 0;
 				}
 			}
 		}
@@ -204,7 +205,7 @@ __global__ void winner_takes_all_kernel(
 		const unsigned int k = lane_id * REDUCTION_PER_THREAD + i;
 		const int p = static_cast<int>(((width - k) & ~(MAX_DISPARITY - 1)) + k);
 		if(p < width){
-			right_dest[p] = compute_disparity_normal(unpack_index(right_best[i]));
+			right_dest[p] = compute_disparity_normal(unpack_index(right_best[i]), min_disp);
 		}
 	}
 }
@@ -219,6 +220,7 @@ void enqueue_winner_takes_all(
 	int pitch,
 	float uniqueness,
 	bool subpixel,
+	int min_disp,
 	cudaStream_t stream)
 {
 	const int gdim =
@@ -226,10 +228,10 @@ void enqueue_winner_takes_all(
 	const int bdim = BLOCK_SIZE;
 	if (subpixel) {
 		winner_takes_all_kernel<MAX_DISPARITY, compute_disparity_subpixel<MAX_DISPARITY>><<<gdim, bdim, 0, stream>>>(
-			left_dest, right_dest, src, width, height, pitch, uniqueness);
+			left_dest, right_dest, src, width, height, pitch, uniqueness, min_disp);
 	} else {
 		winner_takes_all_kernel<MAX_DISPARITY, compute_disparity_normal><<<gdim, bdim, 0, stream>>>(
-			left_dest, right_dest, src, width, height, pitch, uniqueness);
+			left_dest, right_dest, src, width, height, pitch, uniqueness, min_disp);
 	}
 }
 
@@ -250,6 +252,7 @@ void WinnerTakesAll<MAX_DISPARITY>::enqueue(
 	int pitch,
 	float uniqueness,
 	bool subpixel,
+	int min_disp,
 	cudaStream_t stream)
 {
 	if(m_left_buffer.size() < static_cast<size_t>(pitch * height)){
@@ -267,6 +270,7 @@ void WinnerTakesAll<MAX_DISPARITY>::enqueue(
 		pitch,
 		uniqueness,
 		subpixel,
+		min_disp,
 		stream);
 }
 
@@ -280,6 +284,7 @@ void WinnerTakesAll<MAX_DISPARITY>::enqueue(
 	int pitch,
 	float uniqueness,
 	bool subpixel,
+	int min_disp,
 	cudaStream_t stream)
 {
 	enqueue_winner_takes_all<MAX_DISPARITY>(
@@ -291,12 +296,14 @@ void WinnerTakesAll<MAX_DISPARITY>::enqueue(
 		pitch,
 		uniqueness,
 		subpixel,
+		min_disp,
 		stream);
 }
 
 
 template class WinnerTakesAll< 64>;
 template class WinnerTakesAll<128>;
+template class WinnerTakesAll<192>;
 template class WinnerTakesAll<256>;
 
 }

@@ -31,9 +31,9 @@ struct DynamicProgramming {
 	static_assert(
 		DP_BLOCK_SIZE >= 2,
 		"DP_BLOCK_SIZE must be greater than or equal to 2");
-	static_assert(
+	/*static_assert(
 		(SUBGROUP_SIZE & (SUBGROUP_SIZE - 1)) == 0,
-		"SUBGROUP_SIZE must be a power of 2");
+		"SUBGROUP_SIZE must be a power of 2");*/
 
 	uint32_t last_min;
 	uint32_t dp[DP_BLOCK_SIZE];

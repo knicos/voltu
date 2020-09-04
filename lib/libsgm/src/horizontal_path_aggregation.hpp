@@ -34,6 +34,7 @@ void enqueue_aggregate_left2right_path(
 	int p2_pitch,
 	const uint8_t* w,
 	int w_pitch,
+	int min_disp,
 	cudaStream_t stream);
 
 template <unsigned int MAX_DISPARITY>
@@ -48,6 +49,7 @@ void enqueue_aggregate_right2left_path(
 	int p2_pitch,
 	const uint8_t* w,
 	int w_pitch,
+	int min_disp,
 	cudaStream_t stream);
 
 }
