@@ -168,7 +168,7 @@ void Camera::initiate_(ftl::data::Frame &frame) {
 			}
 		}
 
-		if (cap.count(Capability::VIRTUAL)) {
+		if (live_ && cap.count(Capability::VIRTUAL)) {
 			view = new ftl::gui2::CameraView3D(screen, this);
 		} else {
 			view = new ftl::gui2::CameraView(screen, this);
