@@ -77,6 +77,14 @@ Net::Net(nlohmann::json &config, ftl::net::Universe *net) : Stream(config), acti
 			static_cast<uint8_t>(std::max(0, std::min(255, value("bitrate", 64))));
 		tally_ = 0;
 	});
+
+	value("paused", false);
+	on("paused", [this]() {
+		paused_ = value("paused", false);
+		if (!paused_) {
+			reset();
+		}
+	});
 }
 
 Net::~Net() {
@@ -178,6 +186,7 @@ bool Net::begin() {
 		int64_t now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
 
 		if (!active_) return;
+		if (paused_) return;
 
 		StreamPacket spkt = spkt_raw;
 		spkt.localTimestamp = now - int64_t(ttimeoff);

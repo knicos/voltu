@@ -77,6 +77,7 @@ class Net : public Stream {
 	float required_bps_;
 	float actual_bps_;
 	bool abr_enabled_;
+	bool paused_ = false;
 
 	AdaptiveBitrate *abr_;
 
