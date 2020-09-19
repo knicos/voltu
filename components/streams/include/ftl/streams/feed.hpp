@@ -177,6 +177,8 @@ public:
 
 	void lowLatencyMode();
 
+	ftl::stream::Muxer *muxer() const { return stream_.get(); }
+
 private:
 	// public methods acquire lock if necessary, private methods assume locking
 	// managed by caller

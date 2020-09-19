@@ -225,6 +225,9 @@ bool File::tick(int64_t ts) {
 		return false;
 	}
 
+	// Skip if paused
+	if (value("paused", false)) return true;
+
 	#ifdef DEBUG_MUTEX
 	UNIQUE_LOCK(mutex_, lk);
 	#else

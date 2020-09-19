@@ -214,6 +214,11 @@ void Camera::setVolume(float v) {
 	return io->speaker()->setVolume(v);
 }
 
+void Camera::setPaused(bool set) {
+	paused_ = set;
+	io->feed()->muxer()->set("paused", set);
+}
+
 std::unordered_set<Channel> Camera::availableChannels() {
 	if (std::atomic_load(&latest_)) {
 		return latest_->frames[frame_idx].available();
@@ -257,8 +262,6 @@ void Camera::activate(ftl::data::FrameID id) {
 	filter_ = io->feed()->filter(std::unordered_set<unsigned int>{id.frameset()}, {Channel::Left});
 	filter_->on(
 		[this, feed = io->feed(), speaker = io->speaker()](ftl::data::FrameSetPtr fs){
-			if (paused_) return true;
-
 			std::atomic_store(&current_fs_, fs);
 			std::atomic_store(&latest_, fs);
 

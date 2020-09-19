@@ -21,8 +21,8 @@ public:
 
 	virtual void activate(ftl::data::FrameID id);
 	void setChannel(ftl::codecs::Channel c);
-	void setPaused(bool set) { paused_ = set; };
-	bool isPaused() { return paused_; }
+	void setPaused(bool set);
+	bool isPaused() const { return paused_; }
 
 	void toggleOverlay();
 

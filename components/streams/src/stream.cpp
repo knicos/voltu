@@ -1,4 +1,5 @@
 #include <ftl/streams/stream.hpp>
+#include <nlohmann/json.hpp>
 
 #define LOGURU_WITH_STREAMS 1
 #include <loguru.hpp>
@@ -75,7 +76,8 @@ void Stream::reset() {
 // ==== Muxer ==================================================================
 
 Muxer::Muxer(nlohmann::json &config) : Stream(config), nid_{0} {
-
+	value("paused", false);
+	_forward("paused");
 }
 
 Muxer::~Muxer() {
@@ -83,6 +85,16 @@ Muxer::~Muxer() {
 	for (auto &se : streams_) {
 		se.handle.cancel();
 	}
+}
+
+void Muxer::_forward(const std::string &name) {
+	on(name, [this,name]() {
+		auto val = getConfig()[name];
+		UNIQUE_LOCK(mutex_,lk);
+		for (auto &se : streams_) {
+			se.stream->set(name, val);
+		}
+	});
 }
 
 

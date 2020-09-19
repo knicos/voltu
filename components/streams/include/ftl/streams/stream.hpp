@@ -151,6 +151,7 @@ class Muxer : public Stream {
 
 	void _notify(const ftl::codecs::StreamPacket &spkt, const ftl::codecs::Packet &pkt);
 	int _lookup(size_t fsid, StreamEntry *se, int ssid, int count);
+	void _forward(const std::string &name);
 };
 
 /**
