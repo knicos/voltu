@@ -366,6 +366,8 @@ bool OpenVRRender::retrieve(ftl::data::Frame &frame_out) {
 		texture1_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 		texture2_.make(width, height, ftl::utility::GLTexture::Type::BGRA);
 
+		// FIXME: Using same buffer each frame results in race if previous frame is still being used
+		// eg. if recording the VR view then the recording can sometimes get the next frame instead.
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour) = texture1_.map(rgbdframe.stream());
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Colour2) = texture2_.map(rgbdframe.stream());
 		rgbdframe.create<cv::cuda::GpuMat>(Channel::Depth).create(height, width, CV_32F);
