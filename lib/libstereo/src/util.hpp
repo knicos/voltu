@@ -21,6 +21,15 @@ __device__ inline T warpMin(T e) {
 	return e;
 }
 
+template <typename T>
+__device__ inline T warpMax(T e) {
+	for (int i = WARP_SIZE/2; i > 0; i /= 2) {
+		const T other = __shfl_xor_sync(FULL_MASK, e, i, WARP_SIZE);
+		e = max(e, other);
+	}
+	return e;
+}
+
 #ifdef USE_GPU
 
 template <typename FUNCTOR>
@@ -28,6 +37,16 @@ __global__ void kernel2D(FUNCTOR f, ushort2 size) {
 	const ushort2 thread{ushort(threadIdx.x+blockIdx.x*blockDim.x), ushort(threadIdx.y+blockIdx.y*blockDim.y)};
 	const ushort2 stride{ushort(blockDim.x * gridDim.x), ushort(blockDim.y * gridDim.y)};
 	f(thread, stride, size);
+}
+
+template <typename FUNCTOR, int WARPS>
+__global__ void kernel2DWarpSM(FUNCTOR f, ushort2 size) {
+	const ushort2 thread{ushort(threadIdx.x+blockIdx.x*blockDim.x), ushort(threadIdx.y+blockIdx.y*blockDim.y)};
+	const ushort2 stride{ushort(blockDim.x * gridDim.x), ushort(blockDim.y * gridDim.y)};
+
+	__shared__ typename FUNCTOR::WarpSharedMemory sm[WARPS];
+
+	f(thread, stride, size, sm[threadIdx.y]);
 }
 
 template <typename FUNCTOR>
@@ -96,6 +115,27 @@ void parallel1DWarp(const FUNCTOR &f, int size, int size2) {
 		ushort2 tsize{ushort(size2), ushort(size)};
 		f2(thread, stride, tsize);
 	}
+#endif
+}
+
+template <typename FUNCTOR>
+void parallel1DWarpSM(const FUNCTOR &f, int size, int size2) {
+#if __cplusplus >= 201703L
+	//static_assert(std::is_invocable<FUNCTOR,int,int,int>::value, "Parallel1D requires a valid functor: void()(int,int,int)");
+	// Is this static_assert correct?
+	static_assert(std::is_invocable<FUNCTOR,ushort2,ushort2,ushort2>::value, "Parallel1D requires a valid functor: void()(ushort2,ushort2,ushort2)");
+#endif
+
+#ifdef USE_GPU
+	cudaSafeCall(cudaGetLastError());
+	const dim3 gridSize(1, (size+8-1) / 8);
+	const dim3 blockSize(32, 8);
+	ushort2 tsize{ushort(size2), ushort(size)};
+	kernel2DWarpSM<FUNCTOR, 8><<<gridSize, blockSize, 0, 0>>>(f,tsize);
+	cudaSafeCall(cudaGetLastError());
+	//cudaSafeCall(cudaDeviceSynchronize());
+#else
+
 #endif
 }
 

@@ -49,7 +49,8 @@ if (LIBSTEREO_SHARED)
                 src/algorithms/hwcensussgm.cu
                 src/algorithms/brefcensussgm.cu
                 src/algorithms/meancensussgm.cu
-                src/algorithms/hstablesgm.cu
+				src/algorithms/hstablesgm.cu
+				src/algorithms/clustersf.cu
                 #src/stereo_hier_census.cu
                 src/stereo_wcensussgm.cu
                 src/stereo_census_adaptive.cu
@@ -87,7 +88,8 @@ else()
                 src/algorithms/hwcensussgm.cu
                 src/algorithms/brefcensussgm.cu
                 src/algorithms/meancensussgm.cu
-                src/algorithms/hstablesgm.cu
+				src/algorithms/hstablesgm.cu
+				src/algorithms/clustersf.cu
                 #src/stereo_hier_census.cu
                 src/stereo_wcensussgm.cu
                 src/stereo_census_adaptive.cu

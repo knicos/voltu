@@ -240,6 +240,25 @@ private:
 	Impl *impl_;
 };
 
+/* Clustered Salient Features with focal point */
+class StereoCSF {
+public:
+	StereoCSF();
+	~StereoCSF();
+
+	void compute(cv::InputArray l, cv::InputArray r, cv::OutputArray disparity);
+	void setPrior(cv::InputArray disp) {};
+
+	struct Parameters {
+		bool debug = false;
+	};
+	Parameters params;
+
+private:
+	struct Impl;
+	Impl *impl_;
+};
+
 /**
  * STABLE Binary descriptor. This is a general implementation.
  *
