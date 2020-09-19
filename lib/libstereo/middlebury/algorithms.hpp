@@ -32,6 +32,15 @@ namespace Impl {
 		}
 	};
 
+	struct ClusterSF : public Algorithm {
+		ClusterSF() {  }
+
+		virtual void run(const MiddleburyData &data, cv::Mat &disparity) override {
+			StereoCSF stereo;
+			stereo.compute(data.imL, data.imR, disparity);
+		}
+	};
+
 	struct ECensusSGM : public Algorithm {
 		ECensusSGM() { P1 = 8.0f; P2 = 40.0f; }  // Tuned to total error 2.0
 
@@ -361,6 +370,8 @@ namespace Impl {
 
 static const std::map<std::string, Algorithm*> algorithms = {
 	{ "censussgm", new Impl::CensusSGM() },
+	{ "cluster", new Impl::ClusterSF() },
+	{ "mcensussgm", new Impl::MeanCensusSGM() },
 	{ "gctsgm", new Impl::GCTSgm() },
 
 /*	{ "mcensussgm", new Impl::MeanCensusSGM() },
