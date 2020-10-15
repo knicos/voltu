@@ -214,6 +214,8 @@ class Universe : public ftl::Configurable {
 
 	size_t getSendBufferSize(ftl::URI::scheme_t s);
 	size_t getRecvBufferSize(ftl::URI::scheme_t s);
+
+	static inline Universe *getInstance() { return instance_; }
 	
 	private:
 	void _run();
@@ -274,6 +276,7 @@ class Universe : public ftl::Configurable {
 	std::list<ErrHandler> on_error_;
 
 	static callback_t cbid__;
+	static Universe *instance_;
 
 	// std::map<std::string, std::vector<ftl::net::Peer*>> subscriptions_;
 };

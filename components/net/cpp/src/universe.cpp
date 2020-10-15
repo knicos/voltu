@@ -47,6 +47,7 @@ struct NetImplDetail {
 #define WS_RECEIVE_BUFFER_SIZE	(62*1024)
 
 callback_t ftl::net::Universe::cbid__ = 0;
+Universe *Universe::instance_ = nullptr;
 
 Universe::Universe() :
 		Configurable(),
@@ -94,6 +95,9 @@ Universe::Universe(nlohmann::json &config) :
 		}
 		return true;
 	});
+
+	if (instance_ != nullptr) LOG(FATAL) << "Multiple net instances";
+	instance_ = this;
 }
 
 Universe::~Universe() {

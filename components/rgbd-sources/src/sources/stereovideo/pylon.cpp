@@ -81,6 +81,8 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 		_configureCamera(lcam_);
 		if (rcam_) _configureCamera(rcam_);
 
+		value("gain", lcam_->Gain.GetValue());
+
 		lcam_->StartGrabbing( Pylon::GrabStrategy_OneByOne);
 		if (rcam_) rcam_->StartGrabbing( Pylon::GrabStrategy_OneByOne);
 
@@ -105,6 +107,11 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 	right_hm_ = cv::cuda::HostMem(fullheight_, fullwidth_, CV_8UC4);
 	//hres_hm_ = cv::cuda::HostMem(fullheight_, fullwidth_, CV_8UC4);
 	//rtmp_.create(fullheight_, fullwidth_, CV_8UC4);
+
+	//on("gain", [this]() {
+	//	lcam_->Gain.SetValue(value("gain",1.0));
+	//	rcam_->Gain.SetValue(value("gain",1.0));
+	//});
 
 	on("exposure", [this]() {
 		if (lcam_->GetDeviceInfo().GetModelName() != "Emulation") {
@@ -138,6 +145,26 @@ PylonDevice::PylonDevice(nlohmann::json &config)
 
 		return true;
 	});
+
+	auto *net = ftl::net::Universe::getInstance();
+	if (!net->isBound("pylon_gain")) {
+		net->bind("pylon_gain", [this]() {
+			return (lcam_) ? lcam_->Gain.GetValue() : 0.0;
+		});
+		net->bind("pylon_exposure", [this]() {
+			return (lcam_) ? lcam_->ExposureTime.GetValue() : 0.0;
+		});
+		net->bind("pylon_white", [this]() {
+			cv::Vec3d wb;
+			lcam_->BalanceRatioSelector.SetValue(Basler_UniversalCameraParams::BalanceRatioSelector_Blue);
+			wb[0] = lcam_->BalanceRatio.GetValue();
+			lcam_->BalanceRatioSelector.SetValue(Basler_UniversalCameraParams::BalanceRatioSelector_Green);
+			wb[1] = lcam_->BalanceRatio.GetValue();
+			lcam_->BalanceRatioSelector.SetValue(Basler_UniversalCameraParams::BalanceRatioSelector_Red);
+			wb[2] = lcam_->BalanceRatio.GetValue();
+			return wb;
+		});
+	}
 }
 
 PylonDevice::~PylonDevice() {
@@ -200,13 +227,42 @@ void PylonDevice::_configureCamera(CBaslerUniversalInstantCamera *cam) {
 		LOG(WARNING) << "Could not change pixel format";
 	}
 
+	auto *net = ftl::net::Universe::getInstance();
+	auto tm = ftl::timer::getTimeMaster();
+
 	if (cam->GetDeviceInfo().GetModelName() != "Emulation") {
 		// Emulated device throws exception with these
-		cam->ExposureTime.SetValue(value("exposure", 24000.0f));  // Exposure time in microseconds
+		if (tm) {
+			double expo = net->call<double>(*tm, "pylon_exposure");
+			cam->ExposureTime.SetValue(expo);
+			LOG(INFO) << "Pylon exposure from master = " << expo;
+		} else {
+			cam->ExposureTime.SetValue(value("exposure", 24000.0f));  // Exposure time in microseconds
+		}
+
 		cam->AutoTargetBrightness.SetValue(0.3);
 		cam->LightSourcePreset.SetValue(Basler_UniversalCameraParams::LightSourcePreset_Tungsten2800K);  // White balance option
-		cam->BalanceWhiteAuto.SetValue(Basler_UniversalCameraParams::BalanceWhiteAuto_Once);
-		cam->GainAuto.SetValue(Basler_UniversalCameraParams::GainAuto_Once);
+
+		if (tm) {
+			cv::Vec3d white = net->call<cv::Vec3d>(*tm, "pylon_white");
+			cam->BalanceRatioSelector.SetValue(Basler_UniversalCameraParams::BalanceRatioSelector_Blue);
+			cam->BalanceRatio.SetValue(white[0]);
+			cam->BalanceRatioSelector.SetValue(Basler_UniversalCameraParams::BalanceRatioSelector_Green);
+			cam->BalanceRatio.SetValue(white[1]);
+			cam->BalanceRatioSelector.SetValue(Basler_UniversalCameraParams::BalanceRatioSelector_Red);
+			cam->BalanceRatio.SetValue(white[2]);
+			LOG(INFO) << "Pylon WB from master = " << white;
+		} else {
+			cam->BalanceWhiteAuto.SetValue(Basler_UniversalCameraParams::BalanceWhiteAuto_Once);
+		}
+
+		if (tm) {
+			double gain = net->call<double>(*tm, "pylon_gain");
+			cam->Gain.SetValue(gain);
+			LOG(INFO) << "Pylon Gain from master = " << gain;
+		} else {
+			cam->GainAuto.SetValue(Basler_UniversalCameraParams::GainAuto_Once);
+		}
 		cam->DeviceTemperatureSelector.SetValue(Basler_UniversalCameraParams::DeviceTemperatureSelector_Coreboard);
 	}
 }
