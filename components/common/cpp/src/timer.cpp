@@ -1,5 +1,6 @@
 #include <ftl/timer.hpp>
 #include <ftl/threads.hpp>
+#include <ftl/uuid.hpp>
 #include <loguru.hpp>
 
 #include <vector>
@@ -28,6 +29,8 @@ static MUTEX mtx;
 static int last_id = 0;
 static bool clock_slave = true;
 static std::future<void> timer_future;
+static ftl::UUID time_master(0);
+static bool has_time_master = false;
 
 struct TimerJob {
 	int id=0;
@@ -41,6 +44,15 @@ struct TimerJob {
 };
 
 static list<TimerJob> jobs[kTimerMAXLEVEL];
+
+void ftl::timer::setTimeMaster(const ftl::UUID &m) {
+	has_time_master = true;
+	time_master = m;
+}
+
+std::optional<ftl::UUID> ftl::timer::getTimeMaster() {
+	return (has_time_master) ? time_master : std::optional<ftl::UUID>{};
+}
 
 int64_t ftl::timer::get_time() {
 	return time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count()+clock_adjust;

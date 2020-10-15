@@ -3,8 +3,11 @@
 
 #include <ftl/handle.hpp>
 #include <functional>
+#include <optional>
 
 namespace ftl {
+
+class UUID;
 
 /**
  * A single global timer mechanism to call functions with either high or low
@@ -113,6 +116,10 @@ size_t count(timerlevel_t);
  * Stop and clear all callbacks. Used for testing purposes.
  */
 void reset();
+
+void setTimeMaster(const ftl::UUID &m);
+
+std::optional<ftl::UUID> getTimeMaster();
 
 }
 }

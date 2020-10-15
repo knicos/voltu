@@ -88,6 +88,7 @@ static void run(ftl::Configurable *root) {
 	if (opt_time_master) {
 		time_peer = *opt_time_master;
 		LOG(INFO) << "Found a time master: " << time_peer.to_string();
+		ftl::timer::setTimeMaster(time_peer);
 	}
 	int sync_counter = 0;
 
