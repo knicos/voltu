@@ -200,8 +200,9 @@ bool CameraView3D::keyboardCharacterEvent(unsigned int codepoint) {
 }
 
 Eigen::Matrix4d CameraView3D::getUpdatedPose() {
-	float rrx = ((float)ry_ * 0.2f * delta_);
-	float rry = (float)rx_ * 0.2f * delta_;
+	float mspeed = ctrl_->value("mouse_speed", 0.2f);
+	float rrx = ((float)ry_ * mspeed * delta_);
+	float rry = (float)rx_ * mspeed * delta_;
 	float rrz = 0.0;
 
 	Eigen::Affine3d r = create_rotation_matrix(rrx, -rry, rrz);
