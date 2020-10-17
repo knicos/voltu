@@ -94,7 +94,10 @@ bool File::_checkFile() {
 	is_video_ = count < 9;
 
 	LOG(INFO) << " -- Frame rate = " << (1000 / min_ts_diff);
-	if (!is_video_) LOG(INFO) << " -- Static image";
+	if (!is_video_) {
+		LOG(INFO) << " -- Static image";
+		set("looping", false);
+	}
 
 	std::string codec_str = "";
 	for (auto c : codecs_found) {
@@ -327,6 +330,8 @@ bool File::tick(int64_t ts) {
 					spkt.flags = 0;
 					spkt.channel = Channel::EndFrame;
 
+					//LOG(INFO) << "Send EndFrame: " << spkt.timestamp << ", " << int(spkt.streamID);
+
 					Packet pkt;
 					pkt.bitrate = 255;
 					pkt.codec = ftl::codecs::codec_t::Invalid;
@@ -355,8 +360,8 @@ bool File::tick(int64_t ts) {
 		}
 	}
 
-	int64_t max_ts = 0;
-	for (auto &fsd : framesets_) max_ts = std::max(max_ts, (fsd.second.timestamp == 0) ? timestart_ : fsd.second.timestamp);
+	int64_t max_ts = std::numeric_limits<int64_t>::min();
+	for (auto &fsd : framesets_) max_ts = std::max(max_ts, (fsd.second.timestamp <= 0) ? timestart_ : fsd.second.timestamp);
 	int64_t extended_ts = max_ts + 200;  // Buffer 200ms ahead
 
 	while ((active_ && istream_->good()) || buffer_in_.nonparsed_size() > 0u) {
@@ -373,7 +378,7 @@ bool File::tick(int64_t ts) {
 
 		auto &fsdata = framesets_[std::get<0>(data).streamID];
 
-		if (fsdata.first_ts < 0) LOG(WARNING) << "Bad first timestamp";
+		if (fsdata.first_ts < 0) LOG(WARNING) << "Bad first timestamp " << fsdata.first_ts << ", " << std::get<0>(data).timestamp;
 
 		// Adjust timestamp
 		// FIXME: A potential bug where multiple times are merged into one?
@@ -386,7 +391,7 @@ bool File::tick(int64_t ts) {
 		// This should only occur for first few frames, generally otherwise
 		// the data buffer is already several frames ahead so is processed
 		// above. Hence, no need to bother parallelising this bit.
-		/*if (std::get<0>(data).timestamp <= timestamp_) {
+		/*if (!is_video_ && std::get<0>(data).timestamp <= timestamp_) {
 			std::get<0>(data).timestamp = ts;
 			//if (cb_) {
 				dlk.lock();
@@ -412,6 +417,44 @@ bool File::tick(int64_t ts) {
 	//if (has_data) {
 	//	for (auto &fsd : framesets_) fsd.second.timestamp += interval_;
 	//}
+
+	// Force send end frames for static files
+	if (data_.size() == 0 && !is_video_) {
+		for (auto &fsix : framesets_) {
+			auto &fsdata = fsix.second;
+			if (fsdata.needs_endframe) {
+				fsdata.needs_endframe = false;
+				// Send final frame packet.
+				StreamPacket spkt;
+				spkt.timestamp = fsdata.timestamp;
+				spkt.streamID = fsix.first;
+				spkt.flags = 0;
+				spkt.channel = Channel::EndFrame;
+
+				//LOG(INFO) << "Send EndFrame: " << spkt.timestamp << ", " << int(spkt.streamID);
+
+				Packet pkt;
+				pkt.bitrate = 255;
+				pkt.codec = ftl::codecs::codec_t::Invalid;
+				pkt.packet_count = 1;
+				pkt.frame_count = 1;
+
+				for (size_t i=0; i<fsdata.frame_count; ++i) {
+					spkt.frame_number = i;
+					pkt.packet_count = fsdata.packet_counts[i]+1;
+					fsdata.packet_counts[i] = 0;
+
+					try {
+						cb_.trigger(spkt, pkt);
+					} catch (const ftl::exception &e) {
+						LOG(ERROR) << "Exception in packet callback: " << e.what() << e.trace();
+					} catch (std::exception &e) {
+						LOG(ERROR) << "Exception in packet callback: " << e.what();
+					}
+				}
+			}
+		}
+	}
 
 	if (data_.size() == 0 && value("looping", true)) {
 		buffer_in_.reset();
