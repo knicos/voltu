@@ -134,7 +134,8 @@ __global__ void census_transform_kernel(
 		}
 	}
 
-	dest[x+y*width] = res;
+	// FIXME: Should use feature pitch, not width.
+	if (x < width && y < height) dest[x+y*width] = res;
 }
 
 template <typename T>
