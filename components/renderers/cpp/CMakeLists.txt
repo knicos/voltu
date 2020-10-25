@@ -12,6 +12,7 @@ add_library(ftlrender
 	src/overlay.cpp
 	src/gltexture.cpp
 	src/touch.cu
+	src/GLRender.cpp
 	#src/assimp_render.cpp
 	#src/assimp_scene.cpp
 )
