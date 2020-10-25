@@ -29,9 +29,11 @@ ScreenRender::ScreenRender(ftl::render::Source *host, ftl::stream::Feed *feed)
 		"name"
 	});*/
 
-	renderer_ = std::unique_ptr<ftl::render::CUDARender>(
-		ftl::create<ftl::render::CUDARender>(host_, "renderer")
-	);
+	//renderer_ = nullptr;
+	
+	/*std::unique_ptr<ftl::render::GLRender>(
+		ftl::create<ftl::render::GLRender>(host_, "renderer")
+	);*/
 
 	intrinsics_ = ftl::create<ftl::Configurable>(host_, "intrinsics");
 
@@ -39,10 +41,10 @@ ScreenRender::ScreenRender(ftl::render::Source *host, ftl::stream::Feed *feed)
 		calibration_uptodate_.clear();
 	});
 
-	renderer_->value("projection", 0);
+	/*renderer_->value("projection", 0);
 	renderer_->onAny({"projection"}, [this]() {
 		calibration_uptodate_.clear();
-	});
+	});*/
 
 	filter_ = nullptr;
 	std::string source = host_->value("source", std::string(""));
@@ -82,8 +84,44 @@ bool ScreenRender::capture(int64_t ts) {
 	return true;
 }
 
+void ScreenRender::_createGLRender() {
+	if (renderer_) renderer_.reset();
+
+	renderer_ = std::unique_ptr<ftl::render::GLRender>(
+		ftl::create<ftl::render::GLRender>(host_, "renderer")
+	);
+}
+
+void ScreenRender::_createCUDARender() {
+	if (renderer_) renderer_.reset();
+	
+	renderer_ = std::unique_ptr<ftl::render::CUDARender>(
+		ftl::create<ftl::render::CUDARender>(host_, "renderer")
+	);
+
+	renderer_->value("projection", 0);
+	renderer_->onAny({"projection"}, [this]() {
+		calibration_uptodate_.clear();
+	});
+}
+
+void ScreenRender::_checkRenderer() {
+	auto t = host_->value("renderer_type", std::string("CUDA"));
+
+	if (renderer_ && rendtype_ == t) return;
+
+	rendtype_ = t;
+	if (t == "GL") {
+		_createGLRender();
+	} else {
+		_createCUDARender();
+	}
+}
+
 bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 	//auto input = std::atomic_load(&input_);
+
+	_checkRenderer();
 
 	my_id_ = frame_out.frameset();
 	auto sets = filter_->getLatestFrameSets();
@@ -222,7 +260,7 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 			if (!post_pipe_) {
 				post_pipe_ = ftl::config::create<ftl::operators::Graph>(host(), "post_filters");
 				post_pipe_->append<ftl::operators::Poser>("poser");
-				post_pipe_->append<ftl::operators::FXAA>("fxaa");
+				//post_pipe_->append<ftl::operators::FXAA>("fxaa");
 				post_pipe_->append<ftl::operators::GTAnalysis>("gtanalyse");
 			}
 
@@ -230,7 +268,7 @@ bool ScreenRender::retrieve(ftl::data::Frame &frame_out) {
 			cudaSafeCall(cudaStreamSynchronize(rgbdframe.stream()));
 
 			if (host_->value("enable_touch", false)) {
-				ftl::render::collision2touch(rgbdframe, renderer_->getCollisions(), sets, my_id_, host_->value("touch_min", 0.01f), host_->value("touch_max", 0.05f));
+				//ftl::render::collision2touch(rgbdframe, renderer_->getCollisions(), sets, my_id_, host_->value("touch_min", 0.01f), host_->value("touch_max", 0.05f));
 			}
 		}
 

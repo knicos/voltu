@@ -57,14 +57,14 @@ void GLTexture::make(int width, int height, Type type) {
 		if (type_ == Type::BGRA) {
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
 		} else if (type_ == Type::Float) {
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, nullptr);
 		}
 		log_error();
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		log_error();
 
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -77,7 +77,7 @@ void GLTexture::make(int width, int height, Type type) {
 		// Allocate data for the buffer. 4-channel 8-bit image or 1-channel float
 		glBufferData(GL_PIXEL_UNPACK_BUFFER, stride_ * height * 4, NULL, GL_DYNAMIC_COPY);
 
-		cudaSafeCall(cudaGraphicsGLRegisterBuffer(&cuda_res_, glbuf_, cudaGraphicsRegisterFlagsWriteDiscard));
+		cudaSafeCall(cudaGraphicsGLRegisterBuffer(&cuda_res_, glbuf_, cudaGraphicsRegisterFlagsNone)); // cudaGraphicsRegisterFlagsWriteDiscard
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 		log_error();
 	}
@@ -175,13 +175,13 @@ void GLTexture::copyFrom(const cv::Mat &im, cudaStream_t stream) {
 
 void GLTexture::copyFrom(const cv::cuda::GpuMat &im, cudaStream_t stream) {
 
-	if (im.rows == 0 || im.cols == 0 || im.channels() != 4 || im.type() != CV_8UC4) {
+	if (im.rows == 0 || im.cols == 0 || !(im.type() == CV_8UC4 || im.type() == CV_32F)) {
 		LOG(ERROR) << __FILE__ << ":" << __LINE__ << ": " << "bad OpenCV format";
 		return;
 	}
 
 	auto cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
-	make(im.cols, im.rows, ftl::utility::GLTexture::Type::BGRA);
+	make(im.cols, im.rows, (im.type() == CV_32F) ? ftl::utility::GLTexture::Type::Float : ftl::utility::GLTexture::Type::BGRA);
 	auto dst = map(stream);
 	im.copyTo(dst, cvstream);
 	unmap(stream);

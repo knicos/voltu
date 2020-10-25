@@ -627,7 +627,10 @@ CameraView::CameraView(ftl::gui2::Screen* parent, ftl::gui2::Camera* ctrl) :
 	panel_ = new ftl::gui2::MediaPanel(screen(), ctrl, this);
 	tools_ = new ftl::gui2::ToolPanel(screen(), ctrl, this);
 
-	imview_->setFlipped(ctrl->isVR());
+	imview_->setFlipped(ctrl->isVR() || ctrl_->value("flip_image", false));
+	ctrl_->on("flip_image", [this](){
+		imview_->setFlipped(ctrl_->isVR() || ctrl_->value("flip_image", false));
+	});
 
 	auto *mod = ctrl_->screen->getModule<ftl::gui2::Statistics>();
 	if (ctrl_->isMovable()) {
