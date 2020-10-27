@@ -64,6 +64,7 @@ FixstarsSGM::FixstarsSGM(ftl::operators::Graph *g, ftl::Configurable* cfg) :
 	P1_ = cfg->value("P1", 10);
 	P2_ = cfg->value("P2", 120);
 	max_disp_ = cfg->value("num_disp", 256);
+	ct_shape_ = static_cast<sgm::CensusShape>(cfg->value("ct_shape", 2));
 
 	if (uniqueness_ < 0.0 || uniqueness_ > 1.0) {
 		uniqueness_ = 1.0;
@@ -118,6 +119,11 @@ FixstarsSGM::FixstarsSGM(ftl::operators::Graph *g, ftl::Configurable* cfg) :
 		}
 	});
 
+	cfg->on("ct_shape", [this, cfg]() {
+		ct_shape_ = static_cast<sgm::CensusShape>(cfg->value("ct_shape", 2));
+		updateParameters();
+	});
+
 	updateP2Parameters();
 
 	cfg->on("canny_low", [this, cfg]() {
@@ -159,7 +165,7 @@ bool FixstarsSGM::init() {
 bool FixstarsSGM::updateParameters() {
 	if (ssgm_ == nullptr) { return false; }
 	return this->ssgm_->updateParameters(
-		sgm::StereoSGM::Parameters(P1_, P2_, uniqueness_, true));
+		sgm::StereoSGM::Parameters(P1_, P2_, uniqueness_, true, ct_shape_));
 }
 
 bool FixstarsSGM::updateP2Parameters() {
