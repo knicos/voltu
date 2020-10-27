@@ -20,6 +20,7 @@ limitations under the License.
 #include <memory>
 #include <cstdint>
 #include "types.hpp"
+#include "libsgm_parameters.hpp"
 
 namespace sgm {
 
@@ -54,6 +55,7 @@ public:
 		float uniqueness,
 		bool subpixel,
 		int min_disp,
+		sgm::CensusShape ct_shape,
 		cudaStream_t stream);
 
 	void enqueue(
@@ -72,6 +74,7 @@ public:
 		float uniqueness,
 		bool subpixel,
 		int min_disp,
+		sgm::CensusShape ct_shape,
 		cudaStream_t stream);
 
 };

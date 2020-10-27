@@ -12,6 +12,7 @@
 
 #ifdef HAVE_LIBSGM
 #include <libsgm.h>
+#include <libsgm_parameters.hpp>
 #include <opencv2/cudaimgproc.hpp>
 #endif
 
@@ -85,6 +86,7 @@ class FixstarsSGM : public ftl::operators::Operator {
 	int max_disp_;
 	float uniqueness_;
 	bool use_P2_map_;
+	sgm::CensusShape ct_shape_;
 };
 #endif
 
