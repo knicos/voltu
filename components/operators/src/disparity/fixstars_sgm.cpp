@@ -2,6 +2,7 @@
 
 #include "ftl/operators/disparity.hpp"
 #include <ftl/operators/cuda/disparity.hpp>
+#include <ftl/utility/image_debug.hpp>
 
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudaarithm.hpp>
@@ -214,6 +215,8 @@ bool FixstarsSGM::apply(Frame &in, Frame &out, cudaStream_t stream) {
 		float minweight = std::min(1.0f, std::max(0.0f, config()->value("var_minweight", 0.5f)));
 		cv::cuda::normalize(weightsF_, weightsF_, minweight, 1.0, cv::NORM_MINMAX, -1, cv::noArray(), cvstream);
 		weightsF_.convertTo(weights_, CV_8UC1, 255.0f, cvstream);
+
+		//ftl::utility::show_image(weights_, "VarWeight", 0.5f, ftl::utility::ImageVisualisation::HEAT_MAPPED);
 
 		//if ((int)P2_map_.step != P2_map_.cols) LOG(ERROR) << "P2 map step error: " << P2_map_.cols << "," << P2_map_.step;
 		ssgm_->execute(lbw_.data, rbw_.data, disp_int_.data, P2_map_.data, (uint8_t*) weights_.data, weights_.step1(), config()->value("min_disp", 60), stream);

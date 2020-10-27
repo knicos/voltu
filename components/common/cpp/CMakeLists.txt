@@ -14,6 +14,7 @@ set(COMMONSRC
 	src/exception.cpp
 	src/file.cpp
 	src/utility/base64.cpp
+	src/utility/image_debug.cpp
 )
 
 check_function_exists(uriParseSingleUriA HAVE_URIPARSESINGLE)
