@@ -28,6 +28,7 @@ limitations under the License.
 
 #include <stdint.h>
 #include "libsgm_config.h"
+#include "libsgm_parameters.hpp"
 #include <cuda_runtime.h>
 
 #if defined(LIBSGM_SHARED)
@@ -71,7 +72,8 @@ namespace sgm {
 			int P2;
 			float uniqueness;
 			bool subpixel;
-			Parameters(int P1 = 10, int P2 = 120, float uniqueness = 0.95f, bool subpixel = false) : P1(P1), P2(P2), uniqueness(uniqueness), subpixel(subpixel) {}
+			CensusShape ct_shape;
+			Parameters(int P1 = 10, int P2 = 120, float uniqueness = 0.95f, bool subpixel = false, CensusShape ct_shape = CensusShape::CIRCLE_3) : P1(P1), P2(P2), uniqueness(uniqueness), subpixel(subpixel), ct_shape(ct_shape) {}
 		};
 
 		/**

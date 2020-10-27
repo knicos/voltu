@@ -19,6 +19,7 @@ limitations under the License.
 
 #include "device_buffer.hpp"
 #include "types.hpp"
+#include "libsgm_parameters.hpp"
 
 namespace sgm {
 
@@ -43,6 +44,7 @@ public:
 		int width,
 		int height,
 		int pitch,
+		sgm::CensusShape ct_shape,
 		cudaStream_t stream);
 
 };

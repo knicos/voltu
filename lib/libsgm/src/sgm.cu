@@ -58,12 +58,13 @@ public:
 		float uniqueness,
 		bool subpixel,
 		int min_disp,
+		sgm::CensusShape ct_shape,
 		cudaStream_t stream)
 	{
 		m_census_left.enqueue(
-			src_left, width, height, src_pitch, stream);
+			src_left, width, height, src_pitch, ct_shape, stream);
 		m_census_right.enqueue(
-			src_right, width, height, src_pitch, stream);
+			src_right, width, height, src_pitch, ct_shape, stream);
 		m_path_aggregation.enqueue(
 			m_census_left.get_output(),
 			m_census_right.get_output(),
@@ -109,6 +110,7 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::execute(
 	float uniqueness,
 	bool subpixel,
 	int min_disp,
+	sgm::CensusShape ct_shape,
 	cudaStream_t stream)
 {
 	m_impl->enqueue(
@@ -119,7 +121,7 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::execute(
 		penalty1, penalty2,
 		weights, weights_pitch,
 		uniqueness, subpixel,
-		min_disp,
+		min_disp, ct_shape,
 		stream);
 	//cudaStreamSynchronize(0);
 }
@@ -141,6 +143,7 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::enqueue(
 	float uniqueness,
 	bool subpixel,
 	int min_disp,
+	sgm::CensusShape ct_shape,
 	cudaStream_t stream)
 {
 	m_impl->enqueue(
@@ -151,7 +154,7 @@ void SemiGlobalMatching<T, MAX_DISPARITY>::enqueue(
 		penalty1, penalty2,
 		weights, weights_pitch,
 		uniqueness, subpixel,
-		min_disp,
+		min_disp, ct_shape,
 		stream);
 }
 
