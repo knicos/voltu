@@ -1,4 +1,5 @@
 */build
+**/build_cpp_sdk
 **/node_modules
 **/include/ftl/config.h
 **/src/config.cpp
