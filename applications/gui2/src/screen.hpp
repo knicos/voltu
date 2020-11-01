@@ -58,6 +58,9 @@ public:
 	template<typename T>
 	T* getModule();
 
+	template<typename T>
+	T* getModuleNoExcept();
+
 	// prever above template (explicit who manages delete)
 	// template<typename T>
 	// T* addModule(T* ptr) { return addModule_(ptr); }
@@ -147,6 +150,20 @@ T* Screen::getModule() {
 	}
 
 	throw ftl::exception("module not found");
+}
+
+template<typename T>
+T* Screen::getModuleNoExcept() {
+	static_assert(std::is_base_of<Module, T>::value);
+
+	for (auto& [name, ptr] : modules_) {
+		std::ignore = name;
+		if (typeid(*ptr) == typeid(T)) {
+			return dynamic_cast<T*>(ptr);
+		}
+	}
+
+	return nullptr;
 }
 
 template<typename T, typename ... Args>

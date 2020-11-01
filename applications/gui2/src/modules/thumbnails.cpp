@@ -1,4 +1,5 @@
 #include "thumbnails.hpp"
+#include "dev/developer.hpp"
 #include "../views/thumbnails.hpp"
 
 #include "camera.hpp"
@@ -71,6 +72,11 @@ std::vector<ftl::data::FrameSetPtr> ThumbnailsController::getFrameSets() {
 }
 
 void ThumbnailsController::show_camera(ftl::data::FrameID id) {
-	auto* camera = screen->getModule<ftl::gui2::Camera>();
-	camera->activate(id);
+	auto *dispdev = screen->getModuleNoExcept<ftl::gui2::DisparityDev>();
+	if (dispdev) {
+		dispdev->activate(id);
+	} else {
+		auto* camera = screen->getModule<ftl::gui2::Camera>();
+		camera->activate(id);
+	}
 }

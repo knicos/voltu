@@ -453,6 +453,7 @@ endif()
 # =============================================================================
 
 
+add_subdirectory(lib/cudatl)
 add_subdirectory(components/common/cpp)
 add_subdirectory(components/codecs)
 add_subdirectory(components/structures)
@@ -463,6 +464,7 @@ add_subdirectory(components/operators)
 add_subdirectory(components/streams)
 add_subdirectory(components/audio)
 add_subdirectory(components/calibration)
+add_subdirectory(components/disparity)
 #add_subdirectory(applications/groupview)
 #add_subdirectory(applications/player)
 #add_subdirectory(applications/recorder)
