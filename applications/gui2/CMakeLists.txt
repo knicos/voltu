@@ -36,6 +36,12 @@ add_gui_module("camera3d")
 add_gui_module("thumbnails")
 add_gui_module("addsource")
 
+list(APPEND GUI2SRC
+	src/modules/dev/developer.cpp
+	src/modules/dev/disparity.cpp
+	src/views/dev/disparityview.cpp
+	)
+
 if (WITH_CERES)
 	list(APPEND GUI2SRC
 		src/modules/calibration/calibration.cpp
@@ -72,6 +78,6 @@ target_include_directories(ftl-gui2 PUBLIC
 #endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-gui2 ftlcommon ftldata ftlctrl ftlrgbd ftlstreams ftlrender Threads::Threads ${OpenCV_LIBS} openvr ftlnet nanogui ${NANOGUI_EXTRA_LIBS} ceres nvidia-ml)
+target_link_libraries(ftl-gui2 ftlcommon ftldata ftlctrl ftlrgbd ftlstreams ftlrender ftldisparity Threads::Threads ${OpenCV_LIBS} openvr ftlnet nanogui ${NANOGUI_EXTRA_LIBS} ceres nvidia-ml)
 
 target_precompile_headers(ftl-gui2 REUSE_FROM ftldata)

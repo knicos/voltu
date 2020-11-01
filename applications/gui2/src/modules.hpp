@@ -9,3 +9,4 @@
 #include "modules/calibration/calibration.hpp"
 #endif
 #include "modules/addsource.hpp"
+#include "modules/dev/developer.hpp"

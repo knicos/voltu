@@ -78,8 +78,11 @@ FTLGui::FTLGui(int argc, char **argv) {
 #endif
 	auto *adder = loadModule<AddCtrl>("adder");
 
+	if (root_->value("dev",false)) loadModule<Developer>("developer");
+
 	for (int c = 1; c < argc; c++) {
 		std::string path(argv[c]);
+		if (path.size() > 0 && path[0] == '-') continue;
 		try {
 			io_->feed()->add(path);
 			LOG(INFO) << "Add: " << path;
