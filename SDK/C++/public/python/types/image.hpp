@@ -21,6 +21,7 @@ public:
     PYBIND11_TYPE_CASTER(voltu::ImageData, _("Image"));
 
     bool load(py::handle src, bool convert) {
+        // TODO: C++ api should copy or otherwise take (shared) ownership
         throw std::runtime_error("ImageData conversion python->c++ not supported");
         return true;
     }

@@ -37,7 +37,7 @@ public:
 
 	PY_API virtual void setPose(const Eigen::Matrix4f &) = 0;
 
-	PY_API virtual voltu::FramePtr getFrame() = 0;
+	PY_API PY_RV_LIFETIME_PARENT virtual voltu::FramePtr getFrame() = 0;
 
 	PY_API virtual voltu::PropertyPtr property(voltu::ObserverProperty) = 0;
 };

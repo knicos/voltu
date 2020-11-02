@@ -18,7 +18,7 @@ public:
 
 	PY_API PY_RV_LIFETIME_PARENT virtual voltu::PointCloudPtr getPointCloud(voltu::PointCloudFormat cloudfmt, voltu::PointFormat pointfmt) = 0;
 
-	virtual int64_t getTimestamp() = 0;
+	PY_API virtual int64_t getTimestamp() = 0;
 };
 
 typedef std::shared_ptr<Frame> FramePtr;
