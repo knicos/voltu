@@ -1,3 +1,6 @@
 [submodule "ext/nanogui"]
 	path = ext/nanogui
 	url = https://github.com/wjakob/nanogui.git
+[submodule "SDK/C++/public/ext/pybind11"]
+	path = SDK/C++/public/ext/pybind11
+	url = https://github.com/pybind/pybind11.git
