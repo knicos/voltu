@@ -5,7 +5,7 @@ using ftl::cuda::TextureObject;
 using ftl::cuda::warpSum;
 
 __device__ inline ftl::cuda::Collision pack_collision(int cx, int cy, int num, float cd) {
-    return ftl::cuda::Collision{(num << 24) | (cx << 12) | (cy), cd};
+    return ftl::cuda::Collision{((unsigned int)num << 24) | ((unsigned int)cx << 12) | ((unsigned int)cy), cd};
 }
 
  __global__ void touch_kernel(TextureObject<float> depth_in, TextureObject<float> depth_out, ftl::cuda::Collision *collisions, int max_collisions, float dist) {

@@ -309,7 +309,7 @@ void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv:
 	const dim3 gridSize((depth.cols/2 + THREADS_X - 1)/THREADS_X, (depth.rows/2 + THREADS_Y - 1)/THREADS_Y);
     const dim3 blockSize(THREADS_X, THREADS_Y);
 
-	vuya_to_depth_kernel<ushort,THREADS_X,THREADS_Y><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, luminance.data, chroma.data, luminance.step/sizeof(ushort), maxdepth);
+	vuya_to_depth_kernel<ushort,THREADS_X,THREADS_Y><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, luminance.data, chroma.data, int(luminance.step/sizeof(ushort)), maxdepth);
 	cudaSafeCall( cudaGetLastError() );
 }
 

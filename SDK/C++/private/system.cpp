@@ -23,10 +23,6 @@ EXTERN_DLL_EXPORT voltu::System* voltu_initialise()
 	{
 		return new SystemImpl();
 	}
-	else
-	{
-		throw voltu::exceptions::AlreadyInit();
-	}
 	return nullptr;
 }
 

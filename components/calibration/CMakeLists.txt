@@ -9,7 +9,12 @@ set(CALIBSRC
 
 if (WITH_CERES)
 	list(APPEND CALIBSRC src/optimize.cpp)
-	set_source_files_properties(src/optimize.cpp PROPERTIES COMPILE_FLAGS -O3)
+
+	if(WIN32)
+		set_source_files_properties(src/optimize.cpp PROPERTIES COMPILE_FLAGS /O2)
+	else()
+		set_source_files_properties(src/optimize.cpp PROPERTIES COMPILE_FLAGS -O3)
+	endif()
 endif()
 
 add_library(ftlcalibration ${CALIBSRC})
