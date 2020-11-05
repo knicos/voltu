@@ -35,6 +35,18 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 		cv::cuda::resize(temp_, weights_[i], d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
 	}
 
+	// 1) Optical flow of colour
+	// 2) Flow depth from model,
+	//    a) check local depth change consistency, generate a weighting
+	// 3) Generate smooth motion field
+	//    a) Remove outliers (median filter?)
+	//    b) Smooth outputs, perhaps using change consistency as weight?
+	// 4) Merge past with present using motion field
+	//    a) Visibility cull both directions
+	//    b) Local view feature weighted MLS
+	// 5) Now merge all view points
+	// 6) Store as a new model
+
 	if (config()->value("visibility_carving", true)) {
 		for (size_t i=0; i < in.frames.size(); ++i) {
 			if (!in.hasFrame(i)) continue;
