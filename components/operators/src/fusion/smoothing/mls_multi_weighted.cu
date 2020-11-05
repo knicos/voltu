@@ -70,12 +70,25 @@ __device__ inline float featureWeight(int f1, int f2) {
 	// points as an indication of miss-alignment. Both spatial distance and
 	// feature distance could be used to adjust parameters.
 
-	/*if (s.x >= 0 && s.x < camera_in.width && s.y >= 0 && s.y <= camera_in.height) {
+	// FIXME: For own image, need to do something different than the below.
+	// Otherwise smoothing factors become 0.
+
+	float spatial_smoothing = (depth_origin == depth_in) ? 0.005f : 0.03f; // 3cm default
+	float hf_intensity_smoothing = (depth_origin == depth_in) ? 100.0f : 50.0f;
+	float mean_smoothing = (depth_origin == depth_in) ? 100.0f : 100.0f;
+	if (depth_origin != depth_in && s.x >= 0 && s.x < camera_in.width && s.y >= 0 && s.y <= camera_in.height) {
 		// Get depth at exact reprojection point
 		const float d = depth_in[s.x+s.y*dpitch_i];
 		// Get feature at exact reprojection point
-		const uchar2 feature2 = feature_in[s.x+y+(s.y+v)*fpitch_i];
-	}*/
+		const uchar2 feature2 = feature_in[s.x+s.y*fpitch_i];
+		if (d > camera_in.minDepth && d < camera_in.maxDepth) {
+			spatial_smoothing = min(spatial_smoothing, smoothing * fabsf(camPos.z - d));
+		}
+		hf_intensity_smoothing = smoothing * fabsf(float(feature2.x) - float(feature1.x));
+		mean_smoothing = smoothing * fabsf(float(feature2.y) - float(feature1.y));
+	}
+
+	if (spatial_smoothing < 0.001f || hf_intensity_smoothing <= 1.0f || mean_smoothing <= 1.0f) return;
 
 
     // Neighbourhood
@@ -94,9 +107,9 @@ __device__ inline float featureWeight(int f1, int f2) {
 		// Rule: spatially close and feature close is strong
 		// Spatially far or feature far, then poor.
 		// So take the minimum, must be close and feature close to get good value
-		const float w_high_int = ftl::cuda::weighting(float(abs(int(feature1.x)-int(feature2.x))), fsmoothing);
-		const float w_mean_int = ftl::cuda::weighting(float(abs(int(feature1.y)-int(feature2.y))), 100.0f);
-		const float w_space = ftl::cuda::spatialWeighting(X,Xi,smoothing); 
+		const float w_high_int = ftl::cuda::weighting(float(abs(int(feature1.x)-int(feature2.x))), hf_intensity_smoothing);
+		const float w_mean_int = ftl::cuda::weighting(float(abs(int(feature1.y)-int(feature2.y))), mean_smoothing);
+		const float w_space = ftl::cuda::spatialWeighting(X,Xi,spatial_smoothing); 
 		// TODO: Distance from cam squared
 		// TODO: Angle from cam (dot of normal and ray)
 		const float w = (length(Ni) > 0.0f)

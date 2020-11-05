@@ -21,8 +21,8 @@ Fusion::~Fusion() {
 }
 
 bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) {
-	float mls_spatial = config()->value("mls_spatial", 0.01f);
-	float mls_feature = config()->value("mls_feature", 20.0f);
+	float mls_smoothing = config()->value("mls_smoothing", 2.0f);
+	//float mls_feature = config()->value("mls_feature", 20.0f);
 	int mls_iters = config()->value("mls_iterations", 2);
 
 	if (weights_.size() != in.frames.size()) weights_.resize(in.frames.size());
@@ -128,8 +128,8 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 				weights_[j],
 				f2.getLeft(),
 				pose2,
-				mls_spatial,
-				mls_feature,
+				mls_smoothing,
+				mls_smoothing,
 				stream
 			);
 		}
