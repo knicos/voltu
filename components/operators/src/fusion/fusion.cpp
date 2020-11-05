@@ -36,6 +36,9 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 
 		cv::cuda::cvtColor(col, temp_, cv::COLOR_BGRA2GRAY, 0, cvstream);
 		cv::cuda::resize(temp_, temp2_, d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
+
+		// TODO: Not the best since the mean is entirely lost here.
+		// Perhaps check mean also with greater smoothing value
 		ftl::cuda::mean_subtract(temp2_, weights_[i], 3, stream);
 	}
 

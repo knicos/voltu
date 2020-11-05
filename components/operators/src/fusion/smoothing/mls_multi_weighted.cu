@@ -53,11 +53,16 @@ __device__ inline float featureWeight(int f1, int f2) {
 	float d0 = depth_origin[x+y*dpitch_o];
 	if (d0 <= camera_origin.minDepth || d0 >= camera_origin.maxDepth) return;
 
-	const int feature1 = feature_origin[x+y*fpitch_o];
+	const uchar2 feature1 = feature_origin[x+y*fpitch_o];
 
 	float3 X = camera_origin.screenToCam((int)(x),(int)(y),d0);
 
 	int2 s = camera_in.camToScreen<int2>(o_2_in * X);
+
+	// TODO: Could dynamically adjust the smoothing factors depending upon the
+	// number of matches. Meaning, if lots of good local and feature matches
+	// then be less likely to include poorer matches. Conversely, if only poor
+	// non-local or feature distance matches, then increase search range.
 
     // Neighbourhood
     for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
@@ -69,16 +74,19 @@ __device__ inline float featureWeight(int f1, int f2) {
 		const float3 Xi = in_2_o * camera_in.screenToCam(s.x+u, s.y+v, d);
 		const float3 Ni = make_float3(normals_in[s.x+u+(s.y+v)*npitch_in]);
 
-		const int feature2 = feature_in[s.x+y+(s.y+v)*fpitch_i];
+		const uchar2 feature2 = feature_in[s.x+y+(s.y+v)*fpitch_i];
 
 		// Gauss approx weighting functions
 		// Rule: spatially close and feature close is strong
 		// Spatially far or feature far, then poor.
 		// So take the minimum, must be close and feature close to get good value
-		const float w_feat = ftl::cuda::weighting(float(abs(feature1-feature2)), fsmoothing);
+		const float w_high_int = ftl::cuda::weighting(float(abs(int(feature1.x)-int(feature2.x))), fsmoothing);
+		const float w_mean_int = ftl::cuda::weighting(float(abs(int(feature1.y)-int(feature2.y))), 100.0f);
 		const float w_space = ftl::cuda::spatialWeighting(X,Xi,smoothing); 
+		// TODO: Distance from cam squared
+		// TODO: Angle from cam (dot of normal and ray)
 		const float w = (length(Ni) > 0.0f)
-			? min(w_space, w_feat)
+			? min(w_space, min(w_high_int, w_mean_int))
 			: 0.0f;
 
 		aX += Xi*w;
@@ -208,8 +216,8 @@ void MLSMultiIntensity::gather(
 		normal_accum_.ptr<half4>(),
 		depth_prime_.ptr<float>(),
 		depth_src.ptr<float>(),
-		intensity_prime_.ptr<uchar>(),
-		intensity_src.ptr<uchar>(),
+		intensity_prime_.ptr<uchar2>(),
+		intensity_src.ptr<uchar2>(),
 		centroid_accum_.ptr<float4>(),
 		weight_accum_.ptr<float>(),
 		smoothing,
@@ -225,8 +233,8 @@ void MLSMultiIntensity::gather(
 		depth_prime_.step1(),
 		depth_src.step1(),
 		normals_src.step1()/4,
-		intensity_prime_.step1(),
-		intensity_src.step1()
+		intensity_prime_.step1()/2,
+		intensity_src.step1()/2
 	);
 	cudaSafeCall( cudaGetLastError() );
 }
@@ -268,8 +276,9 @@ void MLSMultiIntensity::adjust(
 template <int RADIUS>
 __global__ void mean_subtract_kernel(
 	const uchar* __restrict__ intensity,
-	uchar* __restrict__ contrast,
+	uchar2* __restrict__ contrast,
 	int pitch,
+	int cpitch,
 	int width,
 	int height
 ) {
@@ -288,7 +297,7 @@ __global__ void mean_subtract_kernel(
 		mean /= float((2*RADIUS+1)*(2*RADIUS+1));
 
 		float diff = float(intensity[x+y*pitch]) - mean;
-		contrast[x+y*pitch] = max(0, min(254, int(diff)+127));
+		contrast[x+y*pitch] = make_uchar2(max(0, min(254, int(diff)+127)), int(mean));
 	}
 }
 
@@ -304,12 +313,13 @@ void ftl::cuda::mean_subtract(
 	const dim3 gridSize((intensity.cols + THREADS_X - 1)/THREADS_X, (intensity.rows + THREADS_Y - 1)/THREADS_Y);
 	const dim3 blockSize(THREADS_X, THREADS_Y);
 
-	contrast.create(intensity.size(), CV_8U);
+	contrast.create(intensity.size(), CV_8UC2);
 
 	mean_subtract_kernel<3><<<gridSize, blockSize, 0, stream>>>(
 		intensity.ptr<uchar>(),
-		contrast.ptr<uchar>(),
+		contrast.ptr<uchar2>(),
 		intensity.step1(),
+		contrast.step1()/2,
 		intensity.cols,
 		intensity.rows
 	);
