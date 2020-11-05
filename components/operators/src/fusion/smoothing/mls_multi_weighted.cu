@@ -57,12 +57,26 @@ __device__ inline float featureWeight(int f1, int f2) {
 
 	float3 X = camera_origin.screenToCam((int)(x),(int)(y),d0);
 
-	int2 s = camera_in.camToScreen<int2>(o_2_in * X);
+	const float3 camPos = o_2_in * X;
+	const int2 s = camera_in.camToScreen<int2>(camPos);
 
 	// TODO: Could dynamically adjust the smoothing factors depending upon the
 	// number of matches. Meaning, if lots of good local and feature matches
 	// then be less likely to include poorer matches. Conversely, if only poor
 	// non-local or feature distance matches, then increase search range.
+
+	// Could also adapt smoothing parameters using variance or some other local
+	// image measures. Or by just considering distance of the central projected
+	// points as an indication of miss-alignment. Both spatial distance and
+	// feature distance could be used to adjust parameters.
+
+	/*if (s.x >= 0 && s.x < camera_in.width && s.y >= 0 && s.y <= camera_in.height) {
+		// Get depth at exact reprojection point
+		const float d = depth_in[s.x+s.y*dpitch_i];
+		// Get feature at exact reprojection point
+		const uchar2 feature2 = feature_in[s.x+y+(s.y+v)*fpitch_i];
+	}*/
+
 
     // Neighbourhood
     for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
@@ -74,7 +88,7 @@ __device__ inline float featureWeight(int f1, int f2) {
 		const float3 Xi = in_2_o * camera_in.screenToCam(s.x+u, s.y+v, d);
 		const float3 Ni = make_float3(normals_in[s.x+u+(s.y+v)*npitch_in]);
 
-		const uchar2 feature2 = feature_in[s.x+y+(s.y+v)*fpitch_i];
+		const uchar2 feature2 = feature_in[s.x+u+(s.y+v)*fpitch_i];
 
 		// Gauss approx weighting functions
 		// Rule: spatially close and feature close is strong
