@@ -1,4 +1,4 @@
-#include "smoothing_cuda.hpp"
+#include <ftl/operators/cuda/smoothing_cuda.hpp>
 
 #include <ftl/cuda/weighting.hpp>
 
@@ -7,98 +7,6 @@ using ftl::cuda::TextureObject;
 #define T_PER_BLOCK 8
 #define WARP_SIZE 32
 
-// ===== MLS Smooth ============================================================
-
-/*
- * Smooth depth map using Moving Least Squares
- */
- template <int SEARCH_RADIUS>
- __global__ void mls_smooth_kernel(
-		TextureObject<half4> normals_in,
-		TextureObject<half4> normals_out,
-        TextureObject<float> depth_in,        // Virtual depth map
-		TextureObject<float> depth_out,   // Accumulated output
-		float smoothing,
-        ftl::rgbd::Camera camera) {
-        
-    const int x = blockIdx.x*blockDim.x + threadIdx.x;
-    const int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-    if (x < 0 || y < 0 || x >= depth_in.width() || y >= depth_in.height()) return;
-
-	float3 aX = make_float3(0.0f,0.0f,0.0f);
-	float3 nX = make_float3(0.0f,0.0f,0.0f);
-    float contrib = 0.0f;
-
-	float d0 = depth_in.tex2D(x, y);
-	depth_out(x,y) = d0;
-	if (d0 < camera.minDepth || d0 > camera.maxDepth) return;
-	float3 X = camera.screenToCam((int)(x),(int)(y),d0);
-
-    // Neighbourhood
-    for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
-    for (int u=-SEARCH_RADIUS; u<=SEARCH_RADIUS; ++u) {
-		const float d = depth_in.tex2D(x+u, y+v);
-		if (d < camera.minDepth || d > camera.maxDepth) continue;
-
-		// Point and normal of neighbour
-		const float3 Xi = camera.screenToCam((int)(x)+u,(int)(y)+v,d);
-		const float3 Ni = make_float3(normals_in.tex2D((int)(x)+u, (int)(y)+v));
-
-		// Gauss approx weighting function using point distance
-		const float w = ftl::cuda::spatialWeighting(X,Xi,smoothing);
-
-		aX += Xi*w;
-		nX += Ni*w;
-		contrib += w;
-    }
-	}
-	
-	nX /= contrib;  // Weighted average normal
-	aX /= contrib;  // Weighted average point (centroid)
-
-	// Signed-Distance Field function
-	float fX = nX.x * (X.x - aX.x) + nX.y * (X.y - aX.y) + nX.z * (X.z - aX.z);
-
-	// Calculate new point using SDF function to adjust depth (and position)
-	X = X - nX * fX;
-	
-	//uint2 screen = camera.camToScreen<uint2>(X);
-
-    //if (screen.x < depth_out.width() && screen.y < depth_out.height()) {
-    //    depth_out(screen.x,screen.y) = X.z;
-	//}
-	depth_out(x,y) = X.z;
-	normals_out(x,y) = make_half4(nX / length(nX), 0.0f);
-}
-
-void ftl::cuda::mls_smooth(
-		ftl::cuda::TextureObject<half4> &normals_in,
-		ftl::cuda::TextureObject<half4> &normals_out,
-		ftl::cuda::TextureObject<float> &depth_in,
-		ftl::cuda::TextureObject<float> &depth_out,
-		float smoothing,
-		int radius,
-		const ftl::rgbd::Camera &camera,
-		cudaStream_t stream) {
-
-	const dim3 gridSize((depth_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
-
-	switch (radius) {
-		case 5: mls_smooth_kernel<5><<<gridSize, blockSize, 0, stream>>>(normals_in, normals_out, depth_in, depth_out, smoothing, camera); break;
-		case 4: mls_smooth_kernel<4><<<gridSize, blockSize, 0, stream>>>(normals_in, normals_out, depth_in, depth_out, smoothing, camera); break;
-		case 3: mls_smooth_kernel<3><<<gridSize, blockSize, 0, stream>>>(normals_in, normals_out, depth_in, depth_out, smoothing, camera); break;
-		case 2: mls_smooth_kernel<2><<<gridSize, blockSize, 0, stream>>>(normals_in, normals_out, depth_in, depth_out, smoothing, camera); break;
-		case 1: mls_smooth_kernel<1><<<gridSize, blockSize, 0, stream>>>(normals_in, normals_out, depth_in, depth_out, smoothing, camera); break;
-	}
-	cudaSafeCall( cudaGetLastError() );
-
-
-	#ifdef _DEBUG
-	cudaSafeCall(cudaDeviceSynchronize());
-	#endif
-}
 
 
 // ===== Colour MLS Smooth =====================================================

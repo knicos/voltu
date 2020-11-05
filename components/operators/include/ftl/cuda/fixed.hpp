@@ -3,7 +3,7 @@
 
 template <int FRAC>
 __device__ inline float fixed2float(short v) {
-    return v / (1 << FRAC);
+    return float(v) / float(1 << FRAC);
 }
 
 template <int FRAC>

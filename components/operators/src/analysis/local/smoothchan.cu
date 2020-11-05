@@ -1,4 +1,4 @@
-#include "smoothing_cuda.hpp"
+#include <ftl/operators/cuda/smoothing_cuda.hpp>
 
 #include <ftl/cuda/weighting.hpp>
 

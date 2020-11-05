@@ -2,6 +2,7 @@
 #include "splatter_cuda.hpp"
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
+#include <ftl/cuda/fixed.hpp>
 
 #include <ftl/cuda/weighting.hpp>
 
@@ -107,7 +108,7 @@ float getZAtCoordinate(const float3 &barycentricCoord, const float (&tri)[3]) {
  * being inside or outside (using bary centric coordinate method). If inside
  * then atomically write to the depth map.
  */
-__device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const Parameters &params, TextureObject<int> &depth_out) {
+__device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const Parameters &params, int* depth_out, int out_pitch4) {
 	const int minX = min(v[0].x, min(v[1].x, v[2].x));
 	const int minY = min(v[0].y, min(v[1].y, v[2].y));
 	const int maxX = max(v[0].x, max(v[1].x, v[2].x));
@@ -124,7 +125,7 @@ __device__ void drawTriangle(const float (&d)[3], const short2 (&v)[3], const Pa
 
 				if (sx < params.camera.width && sx >= 0 && sy < params.camera.height && sy >= 0 && isBarycentricCoordInBounds(baryCentricCoordinate)) {
 					float new_depth = getZAtCoordinate(baryCentricCoordinate, d);
-					atomicMin(&depth_out(sx,sy), int(new_depth*100000.0f));
+					atomicMin(&depth_out[sx+sy*out_pitch4], int(new_depth*100000.0f));
 				}
 			}
 		}
@@ -145,11 +146,11 @@ __device__ inline bool isValidTriangle(const short2 (&v)[3]) {
  * which verticies to load.
  */
 template <int A, int B>
-__device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const TextureObject<float> &depth_in, const TextureObject<short2> &screen) {
-    d[1] = depth_in.tex2D(x+A,y);
-    d[2] = depth_in.tex2D(x,y+B);
-    v[1] = screen.tex2D(x+A,y);
-	v[2] = screen.tex2D(x,y+B);
+__device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const short* __restrict__ depth_in, const short2* __restrict__ screen, int pitch4, int pitch2) {
+    d[1] = fixed2float<10>(depth_in[y*pitch2+x+A]);
+    d[2] = fixed2float<10>(depth_in[(y+B)*pitch2+x]);
+    v[1] = screen[y*pitch4+x+A];
+	v[2] = screen[(y+B)*pitch4+x];
 	return isValidTriangle(v);
 }
 
@@ -157,37 +158,44 @@ __device__ bool loadTriangle(int x, int y, float (&d)[3], short2 (&v)[3], const 
  * Convert source screen position to output screen coordinates.
  */
  __global__ void triangle_render_kernel(
-        TextureObject<float> depth_in,
-        TextureObject<int> depth_out,
-		TextureObject<short2> screen, Parameters params) {
+        const short* __restrict__ depth_in,
+        int* depth_out,
+		const short2* __restrict__ screen,
+		int width, int height, int pitch2, int pitch4, int out_pitch4, Parameters params) {
+
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if (x >= 1 && x < depth_in.width()-1 && y >= 1 && y < depth_in.height()-1) {
+    if (x >= 1 && x < width-1 && y >= 1 && y < height-1) {
 		float d[3];
-		d[0] = depth_in.tex2D(x,y);
+		d[0] = fixed2float<10>(depth_in[y*pitch2+x]);
 
 		short2 v[3];
-		v[0] = screen.tex2D(x,y);
+		v[0] = screen[y*pitch4+x];
 
 		if (v[0].x < 30000) {
 			// Calculate discontinuity threshold.
 			//const float threshold = (params.depthCoef / ((params.depthCoef / d[0]) - params.disconDisparities)) - d[0];
 
 			// Draw (optionally) 4 triangles as a diamond pattern around the central point.
-			if (loadTriangle<1,1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
-			if (loadTriangle<1,-1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
-			if (loadTriangle<-1,1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
-			if (loadTriangle<-1,-1>(x, y, d, v, depth_in, screen)) drawTriangle(d, v, params, depth_out);
+			if (loadTriangle<1,1>(x, y, d, v, depth_in, screen, pitch4, pitch2)) drawTriangle(d, v, params, depth_out, out_pitch4);
+			if (loadTriangle<1,-1>(x, y, d, v, depth_in, screen, pitch4, pitch2)) drawTriangle(d, v, params, depth_out, out_pitch4);
+			if (loadTriangle<-1,1>(x, y, d, v, depth_in, screen, pitch4, pitch2)) drawTriangle(d, v, params, depth_out, out_pitch4);
+			if (loadTriangle<-1,-1>(x, y, d, v, depth_in, screen, pitch4, pitch2)) drawTriangle(d, v, params, depth_out, out_pitch4);
 		}
 	}
 }
 
-void ftl::cuda::triangle_render1(TextureObject<float> &depth_in, TextureObject<int> &depth_out, TextureObject<short2> &screen, const Parameters &params, cudaStream_t stream) {
-    const dim3 gridSize((depth_in.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth_in.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+void ftl::cuda::triangle_render1(const cv::cuda::GpuMat &depth_in, cv::cuda::GpuMat &depth_out, const cv::cuda::GpuMat &screen, const Parameters &params, cudaStream_t stream) {
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
 
-	triangle_render_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in, depth_out, screen, params);
+	const dim3 gridSize((depth_in.cols + THREADS_X - 1)/THREADS_X, (depth_in.rows + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+	
+	depth_out.create(params.camera.height, params.camera.width, CV_32S);
+
+	triangle_render_kernel<<<gridSize, blockSize, 0, stream>>>(depth_in.ptr<short>(), depth_out.ptr<int>(), screen.ptr<short2>(), depth_in.cols, depth_in.rows, depth_in.step1(), screen.step1()/2, depth_out.step1(), params);
     cudaSafeCall( cudaGetLastError() );
 }
 
@@ -202,7 +210,8 @@ __global__ void merge_convert_kernel(
 
 	if (x < 0 || x >= depth_in.width() || y < 0 || y >= depth_in.height()) return;
 
-	float a = float(depth_in.tex2D(x,y))*alpha;
+	int d = depth_in.tex2D(x,y);
+	float a = float(d)*alpha;
 	float b = depth_out.tex2D(x,y);
 	depth_out(x,y) = min(a,b);
 }

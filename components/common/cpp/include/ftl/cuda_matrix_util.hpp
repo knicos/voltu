@@ -750,7 +750,7 @@ public:
 	}
 
 	//! returns the 3x3 part of the matrix
-	inline __device__ __host__ float3x3 getFloat3x3() {
+	inline __device__ __host__ float3x3 getFloat3x3() const {
 		float3x3 ret;
 		ret.m11 = m11;	ret.m12 = m12;	ret.m13 = m13;
 		ret.m21 = m21;	ret.m22 = m22;	ret.m23 = m23;
@@ -1086,7 +1086,7 @@ public:
 
 
 	//! returns the 3x3 part of the matrix
-	inline __device__ __host__ float3x3 getFloat3x3() {
+	inline __device__ __host__ float3x3 getFloat3x3() const {
 		float3x3 ret;
 		ret.m11 = m11;	ret.m12 = m12;	ret.m13 = m13;
 		ret.m21 = m21;	ret.m22 = m22;	ret.m23 = m23;

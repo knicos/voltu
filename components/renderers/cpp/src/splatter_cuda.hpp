@@ -7,26 +7,26 @@
 namespace ftl {
 namespace cuda {
 	void screen_coord(
-		ftl::cuda::TextureObject<float> &depth,
-		ftl::cuda::TextureObject<float> &depth_out,
-		ftl::cuda::TextureObject<short2> &screen_out,
+		const cv::cuda::GpuMat &depth,
+		cv::cuda::GpuMat &depth_out,
+		cv::cuda::GpuMat &screen_out,
 		const ftl::render::Parameters &params,
 		const float4x4 &pose,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
 
 	void screen_coord(
-		ftl::cuda::TextureObject<float> &depth_out,
-		ftl::cuda::TextureObject<short2> &screen_out,
+		cv::cuda::GpuMat &depth_out,
+		cv::cuda::GpuMat &screen_out,
 		const ftl::render::Parameters &params,
 		const float4x4 &pose,
 		const ftl::rgbd::Camera &camera,
 		cudaStream_t stream);
 
 	void triangle_render1(
-		ftl::cuda::TextureObject<float> &depth_in,
-		ftl::cuda::TextureObject<int> &depth_out,
-		ftl::cuda::TextureObject<short2> &screen,
+		const cv::cuda::GpuMat &depth_in,  // short
+		cv::cuda::GpuMat &depth_out, // int
+		const cv::cuda::GpuMat &screen, // short2
 		const ftl::render::Parameters &params,
 		cudaStream_t stream);
 
@@ -169,6 +169,15 @@ namespace cuda {
         ftl::cuda::TextureObject<int> &d1,
 		ftl::cuda::TextureObject<float> &d2,
         float factor, cudaStream_t stream);
+
+	void reverse_verify(
+		cv::cuda::GpuMat &depth_in,
+		const cv::cuda::GpuMat &depth_original,
+		const float4x4 &transformR,
+		const float4x4 &transform,
+		const ftl::rgbd::Camera &vintrin,
+		const ftl::rgbd::Camera &ointrin,
+		cudaStream_t stream);
 
 	void fix_bad_colour(
 		ftl::cuda::TextureObject<float> &depth,

@@ -58,9 +58,13 @@ class CUDARender : public ftl::render::FSRenderer {
 	ftl::cuda::TextureObject<float4> accum_;		// 2 is number of channels can render together
 	ftl::cuda::TextureObject<int> contrib_;
 	//ftl::cuda::TextureObject<half4> normals_;
+	cv::cuda::GpuMat colour_scale_;
+	cv::cuda::GpuMat mls_contrib_;
+	cv::cuda::GpuMat mls_centroid_;
+	cv::cuda::GpuMat mls_normals_;
 
-	std::list<ftl::cuda::TextureObject<short2>*> screen_buffers_;
-	std::list<ftl::cuda::TextureObject<float>*> depth_buffers_;
+	std::list<cv::cuda::GpuMat*> screen_buffers_;
+	std::list<cv::cuda::GpuMat*> depth_buffers_;
 	ftl::cuda::TextureObject<float> depth_out_;
 
 	ftl::cuda::Collision *collisions_;
@@ -118,8 +122,8 @@ class CUDARender : public ftl::render::FSRenderer {
 	bool _alreadySeen() const { return last_frame_ == scene_->timestamp(); }
 	void _adjustDepthThresholds(const ftl::rgbd::Camera &fcam);
 
-	ftl::cuda::TextureObject<float> &_getDepthBuffer(const cv::Size &);
-	ftl::cuda::TextureObject<short2> &_getScreenBuffer(const cv::Size &);
+	cv::cuda::GpuMat &_getDepthBuffer(const cv::Size &);
+	cv::cuda::GpuMat &_getScreenBuffer(const cv::Size &);
 
 	inline ftl::codecs::Channel _getDepthChannel() const { return (out_chan_ == ftl::codecs::Channel::Colour) ? ftl::codecs::Channel::Depth : ftl::codecs::Channel::Depth2; }
 	inline ftl::codecs::Channel _getNormalsChannel() const { return (out_chan_ == ftl::codecs::Channel::Colour) ? ftl::codecs::Channel::Normals : ftl::codecs::Channel::Normals2; }
