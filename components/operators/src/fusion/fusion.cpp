@@ -3,6 +3,8 @@
 #include <ftl/utility/matrix_conversion.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
+#include <ftl/utility/image_debug.hpp>
+
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudawarping.hpp>
 
@@ -19,7 +21,8 @@ Fusion::~Fusion() {
 }
 
 bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) {
-	float mls_smoothing = config()->value("mls_smoothing", 0.01f);
+	float mls_spatial = config()->value("mls_spatial", 0.01f);
+	float mls_feature = config()->value("mls_feature", 20.0f);
 	int mls_iters = config()->value("mls_iterations", 2);
 
 	if (weights_.size() != in.frames.size()) weights_.resize(in.frames.size());
@@ -32,8 +35,11 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 		const GpuMat &d = in.frames[i].get<GpuMat>(Channel::Depth);
 
 		cv::cuda::cvtColor(col, temp_, cv::COLOR_BGRA2GRAY, 0, cvstream);
-		cv::cuda::resize(temp_, weights_[i], d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
+		cv::cuda::resize(temp_, temp2_, d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
+		ftl::cuda::mean_subtract(temp2_, weights_[i], 3, stream);
 	}
+
+	//if (weights_.size() > 0) ftl::utility::show_image(weights_[0], "MeanSub", 1.0f, ftl::utility::ImageVisualisation::RAW_GRAY);
 
 	// 1) Optical flow of colour
 	// 2) Flow depth from model,
@@ -119,7 +125,8 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 				weights_[j],
 				f2.getLeft(),
 				pose2,
-				mls_smoothing,
+				mls_spatial,
+				mls_feature,
 				stream
 			);
 		}

@@ -21,6 +21,7 @@ class Fusion : public ftl::operators::Operator {
 	ftl::cuda::MLSMultiIntensity mls_;
 	std::vector<cv::cuda::GpuMat> weights_;
 	cv::cuda::GpuMat temp_;
+	cv::cuda::GpuMat temp2_;
 };
 
 }

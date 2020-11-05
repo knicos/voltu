@@ -49,6 +49,7 @@ public:
 		const ftl::rgbd::Camera &cam_src,
 		const float4x4 &pose_src,
 		float smoothing,
+		float fsmoothing,
 		cudaStream_t stream
 	);
 
@@ -69,6 +70,13 @@ private:
 	cv::cuda::GpuMat centroid_accum_;
 	cv::cuda::GpuMat weight_accum_;
 };
+
+void mean_subtract(
+	const cv::cuda::GpuMat &intensity,
+	cv::cuda::GpuMat &contrast,
+	int radius,
+	cudaStream_t stream
+);
 
 }
 }

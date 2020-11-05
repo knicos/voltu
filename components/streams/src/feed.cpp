@@ -204,9 +204,9 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 
 				if (!did_pipe) {
 					LOG(WARNING) << "Feed Pipeline dropped (" << fs->frameset() << ")";
-					ftl::pool.push([this,fs](int id) {
-						_dispatch(fs);
-					});
+					//ftl::pool.push([this,fs](int id) {
+					//	_dispatch(fs);
+					//});
 				}
 
 				_processAudio(fs);

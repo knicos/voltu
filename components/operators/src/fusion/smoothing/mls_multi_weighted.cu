@@ -9,7 +9,7 @@ using cv::cuda::GpuMat;
 
 __device__ inline float featureWeight(int f1, int f2) {
 	const float w = (1.0f-(float(abs(f1 - f2)) / 255.0f));
-	return w*w;
+	return w*w*w;
 }
 
 /*
@@ -26,6 +26,7 @@ __device__ inline float featureWeight(int f1, int f2) {
 	float4* __restrict__ centroid_out,
 	float* __restrict__ contrib_out,
 	float smoothing,
+	float fsmoothing,
 	float4x4 o_2_in,
 	float4x4 in_2_o,
 	float3x3 in_2_o33,
@@ -70,9 +71,14 @@ __device__ inline float featureWeight(int f1, int f2) {
 
 		const int feature2 = feature_in[s.x+y+(s.y+v)*fpitch_i];
 
-		// Gauss approx weighting function using point distance
+		// Gauss approx weighting functions
+		// Rule: spatially close and feature close is strong
+		// Spatially far or feature far, then poor.
+		// So take the minimum, must be close and feature close to get good value
+		const float w_feat = ftl::cuda::weighting(float(abs(feature1-feature2)), fsmoothing);
+		const float w_space = ftl::cuda::spatialWeighting(X,Xi,smoothing); 
 		const float w = (length(Ni) > 0.0f)
-			? ftl::cuda::spatialWeighting(X,Xi,smoothing) * featureWeight(feature1, feature2)
+			? min(w_space, w_feat)
 			: 0.0f;
 
 		aX += Xi*w;
@@ -180,6 +186,7 @@ void MLSMultiIntensity::gather(
 	const ftl::rgbd::Camera &cam_src,
 	const float4x4 &pose_src,
 	float smoothing,
+	float fsmoothing,
 	cudaStream_t stream)
 {
 	static constexpr int THREADS_X = 8;
@@ -206,6 +213,7 @@ void MLSMultiIntensity::gather(
 		centroid_accum_.ptr<float4>(),
 		weight_accum_.ptr<float>(),
 		smoothing,
+		fsmoothing,
 		o_2_in,
 		in_2_o,
 		in_2_o33,
@@ -251,6 +259,59 @@ void MLSMultiIntensity::adjust(
 		weight_accum_.step1(),
 		normals_out.step1()/4,
 		depth_prime_.step1()
+	);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// =============================================================================
+
+template <int RADIUS>
+__global__ void mean_subtract_kernel(
+	const uchar* __restrict__ intensity,
+	uchar* __restrict__ contrast,
+	int pitch,
+	int width,
+	int height
+) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x >= RADIUS && y >= RADIUS && x < width-RADIUS && y < height-RADIUS) {
+		float mean = 0.0f;
+
+		for (int v=-RADIUS; v<=RADIUS; ++v) {
+		for (int u=-RADIUS; u<=RADIUS; ++u) {
+			mean += float(intensity[x+u+(y+v)*pitch]);
+		}
+		}
+
+		mean /= float((2*RADIUS+1)*(2*RADIUS+1));
+
+		float diff = float(intensity[x+y*pitch]) - mean;
+		contrast[x+y*pitch] = max(0, min(254, int(diff)+127));
+	}
+}
+
+void ftl::cuda::mean_subtract(
+	const cv::cuda::GpuMat &intensity,
+	cv::cuda::GpuMat &contrast,
+	int radius,
+	cudaStream_t stream
+) {
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize((intensity.cols + THREADS_X - 1)/THREADS_X, (intensity.rows + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	contrast.create(intensity.size(), CV_8U);
+
+	mean_subtract_kernel<3><<<gridSize, blockSize, 0, stream>>>(
+		intensity.ptr<uchar>(),
+		contrast.ptr<uchar>(),
+		intensity.step1(),
+		intensity.cols,
+		intensity.rows
 	);
 	cudaSafeCall( cudaGetLastError() );
 }
