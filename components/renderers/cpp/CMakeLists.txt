@@ -28,7 +28,7 @@ target_include_directories(ftlrender PUBLIC
 	$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/ext/nanogui/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
-target_link_libraries(ftlrender ftlrgbd ftlcommon Eigen3::Eigen Threads::Threads nanogui ${NANOGUI_EXTRA_LIBS} ${OpenCV_LIBS})
+target_link_libraries(ftlrender ftlrgbd ftlcommon cudatl Eigen3::Eigen Threads::Threads nanogui ${NANOGUI_EXTRA_LIBS} ${OpenCV_LIBS})
 
 target_precompile_headers(ftlrender REUSE_FROM ftldata)
 

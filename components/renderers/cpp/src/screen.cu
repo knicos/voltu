@@ -2,6 +2,7 @@
 #include "splatter_cuda.hpp"
 #include <ftl/rgbd/camera.hpp>
 #include <ftl/cuda_common.hpp>
+#include <cudatl/fixed.hpp>
 
 using ftl::rgbd::Camera;
 using ftl::cuda::TextureObject;
@@ -34,29 +35,23 @@ __device__ inline uint2 convertToScreen<ViewPortMode::Stretch>(const Parameters 
 	return make_uint2(params.viewport.map(params.camera, params.camera.camToScreen<float2>(camPos)));
 }
 
-/*template <>
-__device__ inline uint2 convertToScreen<ViewPortMode::Warping>(const Parameters &params, const float3 &camPos) {
-	float2 pt =  params.camera.camToScreen<float2>(camPos); //params.viewport.map(params.camera, params.camera.camToScreen<float2>(camPos));
-	const float coeff = 1.0f / (params.viewport.warpMatrix.entries[6] * pt.x + params.viewport.warpMatrix.entries[7] * pt.y + params.viewport.warpMatrix.entries[8]);
-	const float xcoo = coeff * (params.viewport.warpMatrix.entries[0] * pt.x + params.viewport.warpMatrix.entries[1] * pt.y + params.viewport.warpMatrix.entries[2]);
-	const float ycoo = coeff * (params.viewport.warpMatrix.entries[3] * pt.x + params.viewport.warpMatrix.entries[4] * pt.y + params.viewport.warpMatrix.entries[5]);
-	return make_uint2(xcoo, ycoo);
-}*/
-
 /*
  * Convert source screen position to output screen coordinates.
  */
  template <ftl::render::ViewPortMode VPMODE, Projection PROJECT>
- __global__ void screen_coord_kernel(TextureObject<float> depth,
-        TextureObject<float> depth_out,
-		TextureObject<short2> screen_out, Parameters params, float4x4 pose, Camera camera) {
+ __global__ void screen_coord_kernel(
+	const float* __restrict__ depth,
+	short* __restrict__ depth_out,
+	short2* __restrict__ screen_out,
+    int pitch4, int pitch2, Parameters params, float4x4 pose, Camera camera)
+{
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	if (x >= 0 && y >= 0 && x < depth.width() && y < depth.height()) {
+	if (x >= 0 && y >= 0 && x < camera.width && y < camera.height) {
 		//uint2 screenPos = make_uint2(30000,30000);
 
-		const float d = depth.tex2D(x, y);
+		const float d = depth[y*pitch4+x];
 
 		// Find the virtual screen position of current point
 		const float3 camPos =  (d > camera.minDepth && d < camera.maxDepth) ? pose * camera.screenToCam(x,y,d) : make_float3(0.0f,0.0f,0.0f);
@@ -69,34 +64,42 @@ __device__ inline uint2 convertToScreen<ViewPortMode::Warping>(const Parameters 
 				screenPos.x >= params.camera.width ||
 				screenPos.y >= params.camera.height)
 			screenPos = make_float3(30000,30000,0);
-		screen_out(x,y) = make_short2(screenPos.x, screenPos.y);
-		depth_out(x,y) = screenPos.z;
+
+		screen_out[y*pitch4+x] = make_short2(screenPos.x, screenPos.y);
+		depth_out[y*pitch2+x] = cudatl::float2fixed<10>(screenPos.z);
 	}
 }
 
-void ftl::cuda::screen_coord(TextureObject<float> &depth, TextureObject<float> &depth_out,
-		TextureObject<short2> &screen_out, const Parameters &params,
+void ftl::cuda::screen_coord(const cv::cuda::GpuMat &depth, cv::cuda::GpuMat &depth_out,
+		cv::cuda::GpuMat &screen_out, const Parameters &params,
 		const float4x4 &pose, const Camera &camera, cudaStream_t stream) {
-    const dim3 gridSize((depth.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
+
+    const dim3 gridSize((depth.cols + THREADS_X - 1)/THREADS_X, (depth.rows + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+	
+	depth_out.create(depth.size(), CV_16S);
+	screen_out.create(depth.size(), CV_16SC2);
 
 	if (params.projection == Projection::PERSPECTIVE) {
 		switch (params.viewPortMode) {
-		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
+		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
+		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::PERSPECTIVE><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
 		}
 	} else if (params.projection == Projection::EQUIRECTANGULAR) {
 		switch (params.viewPortMode) {
-		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
+		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
+		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::EQUIRECTANGULAR><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
 		}
 	} else if (params.projection == Projection::ORTHOGRAPHIC) {
 		switch (params.viewPortMode) {
-		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
-		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth, depth_out, screen_out, params, pose, camera); break;
+		case ViewPortMode::Disabled: screen_coord_kernel<ViewPortMode::Disabled, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
+		case ViewPortMode::Clipping: screen_coord_kernel<ViewPortMode::Clipping, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
+		case ViewPortMode::Stretch: screen_coord_kernel<ViewPortMode::Stretch, Projection::ORTHOGRAPHIC><<<gridSize, blockSize, 0, stream>>>(depth.ptr<float>(), depth_out.ptr<short>(), screen_out.ptr<short2>(), depth.step1(), depth_out.step1(), params, pose, camera); break;
 		}
 	}
 	cudaSafeCall( cudaGetLastError() );
@@ -109,12 +112,16 @@ void ftl::cuda::screen_coord(TextureObject<float> &depth, TextureObject<float> &
  * Convert source screen position to output screen coordinates. Assumes a
  * constant depth of 1m instead of using a depth channel input.
  */
- __global__ void screen_coord_kernel(TextureObject<float> depth_out,
-		TextureObject<short2> screen_out, Camera vcamera, float4x4 pose, Camera camera) {
+ __global__ void screen_coord_kernel(
+	 	short* __restrict__ depth_out,
+		short2* __restrict__ screen_out,
+		int pitch4, int pitch2,
+		Camera vcamera, float4x4 pose, Camera camera) {
+
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
 	const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	if (x >= 0 && y >= 0 && x < depth_out.width() && y < depth_out.height()) {
+	if (x >= 0 && y >= 0 && x < camera.width && y < camera.height) {
 		//uint2 screenPos = make_uint2(30000,30000);
 		const float d = camera.maxDepth;
 
@@ -128,15 +135,21 @@ void ftl::cuda::screen_coord(TextureObject<float> &depth, TextureObject<float> &
 				screenPos.y >= vcamera.height)
 			screenPos = make_uint2(30000,30000);
 
-		screen_out(x,y) = make_short2(screenPos.x, screenPos.y);
-		depth_out(x,y) = camPos.z;
+		screen_out[y*pitch4+x] = make_short2(screenPos.x, screenPos.y);
+		depth_out[y*pitch2+x] = cudatl::float2fixed<10>(camPos.z);
 	}
 }
 
-void ftl::cuda::screen_coord(TextureObject<float> &depth_out, TextureObject<short2> &screen_out, const Parameters &params, const float4x4 &pose, const Camera &camera, cudaStream_t stream) {
-	const dim3 gridSize((screen_out.width() + T_PER_BLOCK - 1)/T_PER_BLOCK, (screen_out.height() + T_PER_BLOCK - 1)/T_PER_BLOCK);
-	const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+void ftl::cuda::screen_coord(cv::cuda::GpuMat &depth_out, cv::cuda::GpuMat &screen_out, const Parameters &params, const float4x4 &pose, const Camera &camera, cudaStream_t stream) {
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
 
-	screen_coord_kernel<<<gridSize, blockSize, 0, stream>>>(depth_out, screen_out, params.camera, pose, camera);
+    const dim3 gridSize((camera.width + THREADS_X - 1)/THREADS_X, (camera.height + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	depth_out.create(camera.height, camera.width, CV_16S);
+	screen_out.create(camera.height, camera.width, CV_16SC2);
+
+	screen_coord_kernel<<<gridSize, blockSize, 0, stream>>>(depth_out.ptr<short>(), screen_out.ptr<short2>(), screen_out.step1()/2, depth_out.step1(), params.camera, pose, camera);
 	cudaSafeCall( cudaGetLastError() );
 }

@@ -1,5 +1,6 @@
 #include <ftl/operators/smoothing.hpp>
-#include "smoothing_cuda.hpp"
+#include <ftl/operators/cuda/smoothing_cuda.hpp>
+#include <ftl/operators/cuda/mls_cuda.hpp>
 
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
@@ -163,10 +164,10 @@ bool SimpleMLS::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t 
 	// FIXME: Assume in and out are the same frame.
 	for (int i=0; i<iters; ++i) {
 		ftl::cuda::mls_smooth(
-			in.createTexture<half4>(Channel::Normals),
-			temp.createTexture<half4>(Channel::Normals, ftl::rgbd::Format<half4>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
-			in.createTexture<float>(Channel::Depth),
-			temp.createTexture<float>(Channel::Depth, ftl::rgbd::Format<float>(in.get<cv::cuda::GpuMat>(Channel::Depth).size())),
+			in.get<GpuMat>(Channel::Normals),
+			temp.create<GpuMat>(Channel::Normals),
+			in.get<GpuMat>(Channel::Depth),
+			temp.create<GpuMat>(Channel::Depth),
 			thresh,
 			radius,
 			in.getLeftCamera(),

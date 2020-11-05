@@ -6,6 +6,8 @@
 #include <ftl/operators/cuda/mask.hpp>
 #include <ftl/render/colouriser.hpp>
 #include <ftl/cuda/transform.hpp>
+#include <ftl/operators/cuda/mls_cuda.hpp>
+#include <ftl/utility/image_debug.hpp>
 
 #include <ftl/cuda/colour_cuda.hpp>
 
@@ -218,20 +220,20 @@ void CUDARender::_adjustDepthThresholds(const ftl::rgbd::Camera &fcam) {
 	params_.depthCoef = fcam.baseline*fcam.fx;
 }
 
-ftl::cuda::TextureObject<float> &CUDARender::_getDepthBuffer(const cv::Size &size) {
+cv::cuda::GpuMat &CUDARender::_getDepthBuffer(const cv::Size &size) {
 	for (auto *b : depth_buffers_) {
-		if (b->width() == static_cast<size_t>(size.width) && b->height() == static_cast<size_t>(size.height)) return *b;
+		if (b->cols == static_cast<size_t>(size.width) && b->rows == static_cast<size_t>(size.height)) return *b;
 	}
-	auto *nb = new ftl::cuda::TextureObject<float>(size.width, size.height);
+	auto *nb = new cv::cuda::GpuMat(size, CV_16S);
 	depth_buffers_.push_back(nb);
 	return *nb;
 }
 
-ftl::cuda::TextureObject<short2> &CUDARender::_getScreenBuffer(const cv::Size &size) {
+cv::cuda::GpuMat &CUDARender::_getScreenBuffer(const cv::Size &size) {
 	for (auto *b : screen_buffers_) {
-		if (b->width() == static_cast<size_t>(size.width) && b->height() == static_cast<size_t>(size.height)) return *b;
+		if (b->cols == static_cast<size_t>(size.width) && b->rows == static_cast<size_t>(size.height)) return *b;
 	}
-	auto *nb = new ftl::cuda::TextureObject<short2>(size.width, size.height);
+	auto *nb = new cv::cuda::GpuMat(size, CV_16SC2);
 	screen_buffers_.push_back(nb);
 	return *nb;
 }
@@ -241,17 +243,19 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 
 	bool do_blend = value("mesh_blend", false);
 	float blend_alpha = value("blend_alpha", 0.02f);
-	if (do_blend) {
-		temp_.set<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-		temp_.set<GpuMat>(Channel::Weights).setTo(cv::Scalar(0.0f), cvstream);
-	} else {
+	//if (do_blend) {
+	//	temp_.set<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+	//	temp_.set<GpuMat>(Channel::Weights).setTo(cv::Scalar(0.0f), cvstream);
+	//} else {
 		temp_.set<GpuMat>(Channel::Depth2).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-	}
+	//}
 
 	int valid_count = 0;
 
 	// FIXME: Is it possible to remember previously if there should be depth?
 	bool use_depth = scene_->anyHasChannel(Channel::Depth) || scene_->anyHasChannel(Channel::GroundTruth);
+
+	//if (!colour_scale_.empty()) ftl::utility::show_image(colour_scale_, "CScale", 1.0f, ftl::utility::ImageVisualisation::HEAT_MAPPED);
 
 	// For each source depth map
 	for (size_t i=0; i < scene_->frames.size(); ++i) {
@@ -284,14 +288,14 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		if (use_depth) {
 			if (f.hasChannel(Channel::Depth)) {
 				ftl::cuda::screen_coord(
-					f.createTexture<float>(Channel::Depth),
+					f.get<cv::cuda::GpuMat>(Channel::Depth),
 					depthbuffer,
 					screenbuffer,
 					params_, transform, f.getLeftCamera(), stream
 				);
 			} else if (f.hasChannel(Channel::GroundTruth)) {
 				ftl::cuda::screen_coord(
-					f.createTexture<float>(Channel::GroundTruth),
+					f.get<cv::cuda::GpuMat>(Channel::GroundTruth),
 					depthbuffer,
 					screenbuffer,
 					params_, transform, f.getLeftCamera(), stream
@@ -307,16 +311,16 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		}
 
 		// Must reset depth channel if blending
-		if (do_blend) {
-			temp_.set<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
-		}
+		//if (do_blend) {
+		//	temp_.set<GpuMat>(Channel::Depth).setTo(cv::Scalar(0x7FFFFFFF), cvstream);
+		//}
 
 		depth_out_.to_gpumat().setTo(cv::Scalar(1000.0f), cvstream);
 
 		// Decide on and render triangles around each point
 		ftl::cuda::triangle_render1(
 			depthbuffer,
-			temp_.createTexture<int>((do_blend) ? Channel::Depth : Channel::Depth2),
+			temp_.create<cv::cuda::GpuMat>((do_blend) ? Channel::Depth : Channel::Depth2),
 			screenbuffer,
 			params_, stream
 		);
@@ -324,7 +328,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		// TODO: Reproject here
 		// And merge based upon weight adjusted distances
 
-		if (do_blend) {
+		/*if (do_blend) {
 			// Blend this sources mesh with previous meshes
 			ftl::cuda::mesh_blender(
 				temp_.getTexture<int>(Channel::Depth),
@@ -338,7 +342,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 				blend_alpha,
 				stream
 			);
-		}
+		}*/
 	}
 
 	if (valid_count == 0) return;
@@ -346,7 +350,7 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 	// Convert from int depth to float depth
 	//temp_.get<GpuMat>(Channel::Depth2).convertTo(out.get<GpuMat>(Channel::Depth), CV_32F, 1.0f / 100000.0f, cvstream);
 
-	if (do_blend) {
+	/*if (do_blend) {
 		ftl::cuda::dibr_normalise(
 			//out.getTexture<float>(_getDepthChannel()),
 			//out.getTexture<float>(_getDepthChannel()),
@@ -355,23 +359,69 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 			temp_.getTexture<float>(Channel::Weights),
 			stream_
 		);
-	} else {
+	} else {*/
 		//ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), out.createTexture<float>(_getDepthChannel()), 1.0f / 100000.0f, stream_);
-		ftl::cuda::merge_convert_depth(temp_.getTexture<int>(Channel::Depth2), depth_out_, 1.0f / 100000.0f, stream_);
-	}
+		ftl::cuda::merge_convert_depth(temp_.createTexture<int>(Channel::Depth2), depth_out_, 1.0f / 100000.0f, stream_);
+	//}
 
 	// Now merge new render to any existing frameset render, detecting collisions
 	ftl::cuda::touch_merge(depth_out_, out.createTexture<float>(_getDepthChannel()), collisions_, 1024, touch_dist_, stream_);
 
-	//filters_->filter(out, src, stream);
+	// Generate actual depth map using MLS with mesh as estimate
+	float mls_smoothing = value("mls_smooth", 0.05f);
+	int mls_iter = value("mls_iter", 3);
+	int mls_radius = value("mls_radius", 0);
 
-	// Generate normals for final virtual image
-	ftl::cuda::normals(
+	if (mls_radius == 0) {
+		ftl::cuda::normals(
+			out.createTexture<half4>(_getNormalsChannel()),
+			out.getTexture<float>(_getDepthChannel()),
+			params_.camera, stream_);
+	} else {
+		ftl::cuda::normals(
+			temp_.createTexture<half4>(Channel::Normals),
+			out.getTexture<float>(_getDepthChannel()),
+			params_.camera, stream_);
+
+		ftl::cuda::mls_smooth(
+			temp_.get<cv::cuda::GpuMat>(Channel::Normals),
+			out.create<cv::cuda::GpuMat>(_getNormalsChannel()),
+			out.get<cv::cuda::GpuMat>(_getDepthChannel()),
+			//out.getTexture<float>(_getDepthChannel()),
+			value("mls_smooth", 0.01f),
+			value("mls_radius", 2),
+			params_.camera,
+			stream_
+		);
+
+		/*ftl::cuda::mls_smooth(
+			out.createTexture<half4>(_getNormalsChannel()),
+			temp_.createTexture<half4>(Channel::Normals),
+			out.getTexture<float>(_getDepthChannel()),
+			//out.getTexture<float>(_getDepthChannel()),
+			value("mls_smooth", 0.01f),
+			value("mls_radius", 2),
+			params_.camera,
+			stream_
+		);
+
+		ftl::cuda::mls_smooth(
+			temp_.createTexture<half4>(Channel::Normals),
+			out.createTexture<half4>(_getNormalsChannel()),
+			out.getTexture<float>(_getDepthChannel()),
+			//out.getTexture<float>(_getDepthChannel()),
+			value("mls_smooth", 0.01f),
+			value("mls_radius", 2),
+			params_.camera,
+			stream_
+		);*/
+	}
+
+	ftl::cuda::transform_normals(
 		out.createTexture<half4>(_getNormalsChannel()),
-		temp_.createTexture<half4>(Channel::Normals),
-		out.getTexture<float>(_getDepthChannel()),
-		value("normal_radius", 1), value("normal_smoothing", 0.02f),
-		params_.camera, pose_.getFloat3x3(), poseInverse_.getFloat3x3(), stream_);
+		poseInverse_.getFloat3x3(),
+		stream_
+	);
 }
 
 void CUDARender::_allocateChannels(ftl::rgbd::Frame &out, ftl::codecs::Channel chan) {

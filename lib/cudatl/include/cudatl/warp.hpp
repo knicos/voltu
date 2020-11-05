@@ -5,14 +5,17 @@
 
 #define __cuda__ __host__ __device__
 
-namespace cudatl {
+namespace cudatl
+{
 
 static constexpr int WARP_SIZE = 32;
 static constexpr unsigned int FULL_MASK = 0xFFFFFFFF;
 
 template <typename T>
-__device__ inline T warpMin(T e) {
-	for (int i = WARP_SIZE/2; i > 0; i /= 2) {
+__device__ inline T warpMin(T e)
+{
+	for (int i = WARP_SIZE/2; i > 0; i /= 2)
+	{
 		const T other = __shfl_xor_sync(FULL_MASK, e, i, WARP_SIZE);
 		e = min(e, other);
 	}
@@ -20,8 +23,10 @@ __device__ inline T warpMin(T e) {
 }
 
 template <typename T>
-__device__ inline T warpMax(T e) {
-	for (int i = WARP_SIZE/2; i > 0; i /= 2) {
+__device__ inline T warpMax(T e)
+{
+	for (int i = WARP_SIZE/2; i > 0; i /= 2)
+	{
 		const T other = __shfl_xor_sync(FULL_MASK, e, i, WARP_SIZE);
 		e = max(e, other);
 	}
@@ -29,8 +34,10 @@ __device__ inline T warpMax(T e) {
 }
 
 template <typename T>
-__device__ inline T warpSum(T e) {
-	for (int i = WARP_SIZE/2; i > 0; i /= 2) {
+__device__ inline T warpSum(T e)
+{
+	for (int i = WARP_SIZE/2; i > 0; i /= 2)
+	{
 		const T other = __shfl_xor_sync(FULL_MASK, e, i, WARP_SIZE);
 		e += other;
 	}
@@ -43,9 +50,11 @@ __device__ inline T warpSum(T e) {
  * TODO: This could be more efficient, perhaps with _shfl_XXX
  */
 template <typename T>
-inline __device__ int warpScan(volatile T *s_Data, int tix, T threshold) {
+inline __device__ int warpScan(volatile T *s_Data, int tix, T threshold)
+{
 	const int thread = tix%32;
-	for (uint offset = 1; offset < WARP_SIZE; offset <<= 1) {
+	for (uint offset = 1; offset < WARP_SIZE; offset <<= 1)
+	{
 		__syncwarp();
 		const uint t = (thread >= offset) ? s_Data[thread] + s_Data[thread - offset] : s_Data[thread];
 		__syncwarp();

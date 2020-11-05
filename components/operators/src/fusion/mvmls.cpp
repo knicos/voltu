@@ -1,5 +1,5 @@
 #include <ftl/operators/mvmls.hpp>
-#include "smoothing_cuda.hpp"
+#include <ftl/operators/cuda/smoothing_cuda.hpp>
 #include <ftl/utility/matrix_conversion.hpp>
 #include "mvmls_cuda.hpp"
 #include <ftl/cuda/normals.hpp>

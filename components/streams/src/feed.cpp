@@ -15,6 +15,7 @@
 #include <ftl/operators/detectandtrack.hpp>
 #include <ftl/operators/weighting.hpp>
 #include <ftl/operators/mvmls.hpp>
+#include <ftl/operators/fusion.hpp>
 #include <ftl/operators/clipping.hpp>
 #include <ftl/operators/poser.hpp>
 #include <ftl/operators/gt_analysis.hpp>
@@ -533,6 +534,7 @@ void Feed::_createPipeline(uint32_t fsid) {
 		p->append<ftl::operators::BorderMask>("border_mask");
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
+		p->append<ftl::operators::Fusion>("fusion")->value("enabled", false);
 		p->append<ftl::operators::DisplayMask>("display_mask")->value("enabled", false);
 		p->append<ftl::operators::Poser>("poser")->value("enabled", true);
 		p->append<ftl::operators::GTAnalysis>("gtanalyse");

@@ -4,9 +4,11 @@
 #include <cuda_runtime.hpp>
 #include <string>
 
-namespace cudatl {
+namespace cudatl
+{
 
-inline safeCall(cudaError_t e) {
+inline safeCall(cudaError_t e)
+{
 	if (e != cudaSuccess) throw new std::exception(std::string("Cuda Error "+std::to_string(int(e))));
 }
 

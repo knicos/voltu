@@ -7,16 +7,6 @@
 namespace ftl {
 namespace cuda {
 
-void mls_smooth(
-		ftl::cuda::TextureObject<half4> &normals_in,
-		ftl::cuda::TextureObject<half4> &normals_out,
-		ftl::cuda::TextureObject<float> &depth_in,
-		ftl::cuda::TextureObject<float> &depth_out,
-		float smoothing,
-		int radius,
-		const ftl::rgbd::Camera &camera,
-		cudaStream_t stream);
-
 void colour_mls_smooth(
 		ftl::cuda::TextureObject<half4> &normals_in,
 		ftl::cuda::TextureObject<half4> &normals_out,
