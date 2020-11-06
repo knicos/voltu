@@ -37,7 +37,11 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	if (tmp2_.type() == CV_8UC3) {
 		cv::cvtColor(tmp2_, tmp_, cv::COLOR_RGB2BGRA);
 	} else {
-		tmp_ = tmp2_;
+		if (pkt.flags & ftl::codecs::kFlagFlipRGB) {
+			cv::cvtColor(tmp2_, tmp_, cv::COLOR_RGBA2BGRA);
+		} else {
+			tmp_ = tmp2_;
+		}
 	}
 
 	// Apply colour correction to chunk
