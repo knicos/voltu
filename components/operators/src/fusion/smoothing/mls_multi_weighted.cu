@@ -57,9 +57,13 @@ __device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
 
     if (x < 0 || y < 0 || x >= camera_origin.width || y >= camera_origin.height) return;
 
-	float3 nX = make_float3(normals_out[y*npitch_out+x]);
-	float3 aX = make_float3(centroid_out[y*cpitch_out+x]);
-    float contrib = contrib_out[y*wpitch_out+x];
+	//float3 nX = make_float3(normals_out[y*npitch_out+x]);
+	//float3 aX = make_float3(centroid_out[y*cpitch_out+x]);
+	//float contrib = contrib_out[y*wpitch_out+x];
+	
+	float3 nX = make_float3(0.0f, 0.0f, 0.0f);
+	float3 aX = make_float3(0.0f, 0.0f, 0.0f);
+	float contrib = 0.0f;
 
 	float d0 = depth_origin[x+y*dpitch_o];
 	if (d0 <= camera_origin.minDepth || d0 >= camera_origin.maxDepth) return;
@@ -166,9 +170,9 @@ __device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
 	float l = 1.0f - sqrt(symx*symx+symy*symy);
 	l = l*l;
 
-	normals_out[y*npitch_out+x] = make_half4(nX*l, 0.0f);
-	centroid_out[y*cpitch_out+x] = make_float4(aX*l, 0.0f);
-	contrib_out[y*wpitch_out+x] = contrib*l;
+	normals_out[y*npitch_out+x] = make_half4(make_float3(normals_out[y*npitch_out+x]) + nX*l, 0.0f);
+	centroid_out[y*cpitch_out+x] = make_float4(make_float3(centroid_out[y*cpitch_out+x]) + aX*l, 0.0f);
+	contrib_out[y*wpitch_out+x] = contrib_out[y*wpitch_out+x] + contrib*l;
 }
 
 /**
