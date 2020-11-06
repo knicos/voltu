@@ -12,6 +12,17 @@ __device__ inline float featureWeight(int f1, int f2) {
 	return w*w*w;
 }
 
+__device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
+	float l = 0.0f;
+	const float dx = Xi.x-X.x;
+	l += 2.0f*dx*dx;
+	const float dy = Xi.y-X.y;
+	l += 2.0f*dy*dy;
+	const float dz = Xi.z-X.z;
+	l += dz*dz;
+	return sqrt(l);
+}
+
 /*
  * Gather points for Moving Least Squares, from each source image
  */
@@ -55,10 +66,16 @@ __device__ inline float featureWeight(int f1, int f2) {
 
 	const uchar2 feature1 = feature_origin[x+y*fpitch_o];
 
+	// TODO: Could the origin depth actually be averaged with depth in other
+	// image? So as to not bias towards the original view?
+
 	float3 X = camera_origin.screenToCam((int)(x),(int)(y),d0);
 
 	const float3 camPos = o_2_in * X;
 	const int2 s = camera_in.camToScreen<int2>(camPos);
+
+	// Move point off of original surface
+	//X = camera_origin.screenToCam((int)(x),(int)(y),d0-0.005f);
 
 	// TODO: Could dynamically adjust the smoothing factors depending upon the
 	// number of matches. Meaning, if lots of good local and feature matches
@@ -85,11 +102,21 @@ __device__ inline float featureWeight(int f1, int f2) {
 			spatial_smoothing = min(spatial_smoothing, smoothing * fabsf(camPos.z - d));
 		}
 		hf_intensity_smoothing = smoothing * fabsf(float(feature2.x) - float(feature1.x));
-		mean_smoothing = smoothing * fabsf(float(feature2.y) - float(feature1.y));
+		//mean_smoothing = smoothing * fabsf(float(feature2.y) - float(feature1.y));
+
+		// Make start point the average of the two sources...
+		const float3 reversePos = in_2_o * camera_in.screenToCam(s.x, s.y, d);
+		X = X + (reversePos) / 2.0f;
 	}
 
-	if (spatial_smoothing < 0.001f || hf_intensity_smoothing <= 1.0f || mean_smoothing <= 1.0f) return;
+	// Make sure there is a minimum smoothing value
+	spatial_smoothing = max(0.01f, spatial_smoothing);
+	hf_intensity_smoothing = max(5.0f, hf_intensity_smoothing);
+	//mean_smoothing = max(10.0f, mean_smoothing);
 
+	// Check for neighbourhood symmetry and use to weight overall contribution
+	float symx = 0.0f;
+	float symy = 0.0f;
 
     // Neighbourhood
     for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
@@ -109,12 +136,22 @@ __device__ inline float featureWeight(int f1, int f2) {
 		// So take the minimum, must be close and feature close to get good value
 		const float w_high_int = ftl::cuda::weighting(float(abs(int(feature1.x)-int(feature2.x))), hf_intensity_smoothing);
 		const float w_mean_int = ftl::cuda::weighting(float(abs(int(feature1.y)-int(feature2.y))), mean_smoothing);
-		const float w_space = ftl::cuda::spatialWeighting(X,Xi,spatial_smoothing); 
+		const float w_space = ftl::cuda::spatialWeighting(X,Xi,spatial_smoothing);
+		//const float w_space = ftl::cuda::weighting(biasedLength(Xi,X),spatial_smoothing);
 		// TODO: Distance from cam squared
 		// TODO: Angle from cam (dot of normal and ray)
+		//const float w_lateral = ftl::cuda::weighting(sqrt(Xi.x*X.x + Xi.y*X.y), float(SEARCH_RADIUS)*camera_origin.fx/Xi.z);
 		const float w = (length(Ni) > 0.0f)
-			? min(w_space, min(w_high_int, w_mean_int))
+			?w_space * w_high_int * w_mean_int // min(w_space, min(w_high_int, w_mean_int))
 			: 0.0f;
+
+		// Mark as a symmetry contribution
+		if (w > 0.0f) {
+			if (u < 0) symx -= 1.0f;
+			else if (u > 0) symx += 1.0f;
+			if (v < 0) symy -= 1.0f;
+			else if (v > 0) symy += 1.0f;
+		}
 
 		aX += Xi*w;
 		nX += (in_2_o33 * Ni)*w;
@@ -122,9 +159,16 @@ __device__ inline float featureWeight(int f1, int f2) {
     }
 	}
 
-	normals_out[y*npitch_out+x] = make_half4(nX, 0.0f);
-	centroid_out[y*cpitch_out+x] = make_float4(aX, 0.0f);
-	contrib_out[y*wpitch_out+x] = contrib;
+	// Perfect symmetry means symx and symy == 0, therefore actual length can
+	// be measure of asymmetry, so when inverted it can be used to weight result
+	symx = fabsf(symx) / float(SEARCH_RADIUS);
+	symy = fabsf(symy) / float(SEARCH_RADIUS);
+	float l = 1.0f - sqrt(symx*symx+symy*symy);
+	l = l*l;
+
+	normals_out[y*npitch_out+x] = make_half4(nX*l, 0.0f);
+	centroid_out[y*cpitch_out+x] = make_float4(aX*l, 0.0f);
+	contrib_out[y*wpitch_out+x] = contrib*l;
 }
 
 /**
@@ -152,7 +196,7 @@ __device__ inline float featureWeight(int f1, int f2) {
 		float contrib = contrib_out[y*wpitch+x];
 
 		//depth[x+y*dpitch] = X.z;
-		normals_out[x+y*npitch] = make_half4(0.0f, 0.0f, 0.0f, 0.0f);
+		//normals_out[x+y*npitch] = make_half4(0.0f, 0.0f, 0.0f, 0.0f);
 
 		float d0 = depth[x+y*dpitch];
 		//depth[x+y*dpitch] = 0.0f;
