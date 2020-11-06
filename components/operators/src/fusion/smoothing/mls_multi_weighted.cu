@@ -146,7 +146,7 @@ __device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
 		// TODO: Angle from cam (dot of normal and ray)
 		//const float w_lateral = ftl::cuda::weighting(sqrt(Xi.x*X.x + Xi.y*X.y), float(SEARCH_RADIUS)*camera_origin.fx/Xi.z);
 		const float w = (length(Ni) > 0.0f)
-			?w_space * w_high_int * w_mean_int // min(w_space, min(w_high_int, w_mean_int))
+			? min(w_space, min(w_high_int, w_mean_int))  //w_space * w_high_int * w_mean_int //
 			: 0.0f;
 
 		// Mark as a symmetry contribution

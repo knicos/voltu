@@ -409,7 +409,7 @@ void ftl::cuda::normals_dot(ftl::cuda::TextureObject<float> &output,
 
 //==============================================================================
 
-__global__ void vis_normals_kernel(ftl::cuda::TextureObject<half4> norm,
+/*__global__ void vis_normals_kernel(ftl::cuda::TextureObject<half4> norm,
         ftl::cuda::TextureObject<uchar4> output,
         float3 direction, uchar4 diffuse, uchar4 ambient) {
     const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -431,6 +431,42 @@ __global__ void vis_normals_kernel(ftl::cuda::TextureObject<half4> norm,
 				min(255.0f, diffuse.x*d + ambient.x),
 				min(255.0f, diffuse.y*d + ambient.y),
 				min(255.0f, diffuse.z*d + ambient.z), ambient.w);
+		}
+	}
+}*/
+
+__global__ void vis_normals_kernel(ftl::cuda::TextureObject<half4> norm,
+	ftl::cuda::TextureObject<uchar4> output,
+	float3 direction, uchar4 diffuse, uchar4 ambient
+) {
+	const unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	const unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if(x < norm.width() && y < norm.height()) {
+		output(x,y) = make_uchar4(ambient.x,ambient.y,ambient.z,0);
+
+		//float3 ray = direction;
+		//ray = ray / length(ray);
+		float3 n = make_float3(norm.tex2D((int)x,(int)y));
+		float l = length(n);
+
+		if (l != 0) {
+			n /= l;
+
+			const float b = (n.z + 1.0f) * 0.5f * 255.0f;
+			const float g = (n.y + 1.0f) * 0.5f * 255.0f;
+			const float r = (n.x + 1.0f) * 0.5f * 255.0f;
+
+			//const float d = max(dot(ray, n), 0.0f);
+			/*output(x,y) = make_uchar4(
+				min(255.0f, diffuse.x*d + ambient.x),
+				min(255.0f, diffuse.y*d + ambient.y),
+				min(255.0f, diffuse.z*d + ambient.z), ambient.w);*/
+
+			output(x,y) = make_uchar4(
+				min(255.0f, b + ambient.x),
+				min(255.0f, g + ambient.y),
+				min(255.0f, r + ambient.z), ambient.w);
 		}
 	}
 }
