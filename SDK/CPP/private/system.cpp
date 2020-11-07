@@ -50,6 +50,9 @@ SystemImpl::~SystemImpl()
 	delete feed_;
 	delete net_;
 	delete root_;
+
+	// FIXME: Check this actually works, can it be restarted? Pool issues?
+	g_isinit = false;
 }
 
 voltu::Version SystemImpl::getVersion() const

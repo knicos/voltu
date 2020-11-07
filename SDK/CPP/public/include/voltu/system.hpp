@@ -40,7 +40,12 @@ public:
 	virtual ~System() = default;
 	
 	/**
-	 * @brief Get the semantic version information.
+	 * @brief Get the runtime version information.
+	 * 
+	 * This method gets the VolTu version of the runtime shared library, which
+	 * may not be the same as the version of the SDK here.
+	 * 
+	 * @see voltu.hpp
 	 * 
 	 * @return Always returns semantic versioning structure.
 	 */

@@ -50,6 +50,7 @@ static void unloadLibrary(Library lib)
 
 static std::string locateLibrary()
 {
+	// TODO: Use full paths and find correct versions
 #if defined(WIN32)
 	return "voltu.dll";
 #else
@@ -76,13 +77,14 @@ std::shared_ptr<voltu::System> voltu::instance()
 
 			if (!instance)
 			{
-				throw voltu::exceptions::LibraryLoadFailed();
+				throw voltu::exceptions::RuntimeAlreadyInUse();
 			}
 
+			// FIXME: Perhaps use a C method instead for safety?
 			auto ver = instance->getVersion();
 			if (ver.major != VOLTU_VERSION_MAJOR || ver.minor != VOLTU_VERSION_MINOR)
 			{
-				throw voltu::exceptions::LibraryVersionMismatch();
+				throw voltu::exceptions::RuntimeVersionMismatch();
 			}
 
 			return instance;
