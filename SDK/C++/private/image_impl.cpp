@@ -30,6 +30,10 @@ voltu::ImageData ImageImpl::getHost()
 	{
 		r.format = voltu::ImageFormat::kFloat32;
 	}
+	else if (m.type() == CV_16FC4)
+	{
+		r.format = voltu::ImageFormat::kFloat16_4;
+	}
 
 	return r;
 }
@@ -51,6 +55,10 @@ voltu::ImageData ImageImpl::getDevice()
 	{
 		r.format = voltu::ImageFormat::kFloat32;
 	}
+	else if (m.type() == CV_16FC4)
+	{
+		r.format = voltu::ImageFormat::kFloat16_4;
+	}
 
 	return r;
 }
@@ -66,6 +74,7 @@ voltu::Channel ImageImpl::getChannel()
 	{
 	case ftl::codecs::Channel::Colour		: return voltu::Channel::kColour;
 	case ftl::codecs::Channel::Depth		: return voltu::Channel::kDepth;
+	case ftl::codecs::Channel::Normals		: return voltu::Channel::kNormals;
 	default: return voltu::Channel::kInvalid;
 	}
 }

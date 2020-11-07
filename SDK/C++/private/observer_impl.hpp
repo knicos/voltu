@@ -17,7 +17,7 @@ class ObserverImpl : public voltu::Observer
 public:
 	explicit ObserverImpl(ftl::Configurable *base);
 
-	~ObserverImpl();
+	~ObserverImpl() override;
 
 	void setResolution(uint32_t w, uint32_t h) override;
 

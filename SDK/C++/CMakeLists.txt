@@ -6,6 +6,9 @@ add_library(voltu SHARED
 	private/image_impl.cpp
 	private/observer_impl.cpp
 	private/pointcloud_impl.cpp
+	private/pipeline_impl.cpp
+	private/operator_impl.cpp
+	private/property_impl.cpp
 )
 
 target_include_directories(voltu

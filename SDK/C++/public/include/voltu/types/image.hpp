@@ -15,7 +15,8 @@ enum class ImageFormat
 {
 	kInvalid = 0,
 	kFloat32 = 1,
-	kBGRA8 = 2
+	kBGRA8 = 2,
+	kFloat16_4 = 3
 };
 
 PY_NO_SHARED_PTR struct ImageData
@@ -30,6 +31,8 @@ PY_NO_SHARED_PTR struct ImageData
 class Image
 {
 public:
+	virtual ~Image() = default;
+
 	PY_API PY_RV_LIFETIME_PARENT virtual ImageData getHost() = 0;
 
 	virtual ImageData getDevice() = 0;

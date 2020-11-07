@@ -13,6 +13,8 @@ class RoomImpl : public voltu::Room
 {
 public:
 	explicit RoomImpl(ftl::stream::Feed*);
+	
+	~RoomImpl() override;
 
 	bool waitNextFrame(int64_t) override;
 

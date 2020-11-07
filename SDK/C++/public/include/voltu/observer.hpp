@@ -25,6 +25,8 @@ enum class ObserverProperty
 class Observer
 {
 public:
+	virtual ~Observer() = default;
+	
 	PY_API virtual void setResolution(uint32_t w, uint32_t h) = 0;
 
 	PY_API virtual void setFocalLength(uint32_t f) = 0;
@@ -40,6 +42,8 @@ public:
 	PY_API PY_RV_LIFETIME_PARENT virtual voltu::FramePtr getFrame() = 0;
 
 	PY_API virtual voltu::PropertyPtr property(voltu::ObserverProperty) = 0;
+
+	//PY_API virtual voltu::PropertyPtr property(const std::string &name) = 0;
 };
 
 typedef std::shared_ptr<Observer> ObserverPtr;

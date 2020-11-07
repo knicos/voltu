@@ -174,6 +174,7 @@ bool File::readPacket(std::tuple<ftl::codecs::StreamPacket,ftl::codecs::Packet> 
 
 				auto &spkt = std::get<0>(data);
 				auto &spktv4 = std::get<0>(datav4);
+				spkt.version = 4;
 				spkt.streamID = spktv4.streamID;
 				spkt.channel = spktv4.channel;
 				spkt.frame_number = spktv4.frame_number;
@@ -213,7 +214,7 @@ void File::_patchPackets(ftl::codecs::StreamPacket &spkt, ftl::codecs::Packet &p
 		if (codec == ftl::codecs::codec_t::HEVC) pkt.codec = ftl::codecs::codec_t::HEVC_LOSSLESS;
 	}
 
-	spkt.version = 5;
+	spkt.version = ftl::codecs::kCurrentFTLVersion;
 
 	// Fix for flags corruption
 	if (pkt.data.size() == 0) {

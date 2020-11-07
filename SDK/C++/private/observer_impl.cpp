@@ -9,9 +9,10 @@ using voltu::internal::ObserverImpl;
 using ftl::rgbd::Capability;
 
 ObserverImpl::ObserverImpl(ftl::Configurable *base)
+ : id_(254)  // FIXME: Allocate this
 {
 	pool_ = new ftl::data::Pool(2,5);
-	rend_ = ftl::create<ftl::render::CUDARender>(base, "camN");
+	rend_ = ftl::create<ftl::render::CUDARender>(base, "camN");  // FIXME: Generate name properly
 
 	intrinsics_.fx = 700.0f;
 	intrinsics_.fy = 700.0f;
@@ -28,7 +29,9 @@ ObserverImpl::ObserverImpl(ftl::Configurable *base)
 
 ObserverImpl::~ObserverImpl()
 {
-
+	frameset_.reset();
+	delete rend_;
+	delete pool_;
 }
 
 void ObserverImpl::setResolution(uint32_t w, uint32_t h)

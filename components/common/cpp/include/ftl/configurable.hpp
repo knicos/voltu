@@ -67,6 +67,11 @@ class Configurable {
 
 	std::string getID() { return *get<std::string>("$id"); }
 
+	template <typename T>
+	inline bool is(const std::string &name) { return false; }
+
+	bool has(const std::string &name) const;
+
 	/**
 	 * Get a configuration property, but return a default if not found.
 	 */
@@ -190,6 +195,20 @@ extern template void ftl::Configurable::set<const char*>(const std::string &name
 extern template void ftl::Configurable::set<std::string>(const std::string &name, std::string value);
 extern template void ftl::Configurable::set<std::vector<std::string>>(const std::string &name, std::vector<std::string> value);
 extern template void ftl::Configurable::set<nlohmann::json>(const std::string &name, nlohmann::json value);
+
+template <> bool ftl::Configurable::is<float>(const std::string &name);
+template <> bool ftl::Configurable::is<int>(const std::string &name);
+template <> bool ftl::Configurable::is<unsigned int>(const std::string &name);
+template <> bool ftl::Configurable::is<std::string>(const std::string &name);
+template <> bool ftl::Configurable::is<bool>(const std::string &name);
+template <> bool ftl::Configurable::is<double>(const std::string &name);
+
+extern template bool ftl::Configurable::is<float>(const std::string &name);
+extern template bool ftl::Configurable::is<int>(const std::string &name);
+extern template bool ftl::Configurable::is<unsigned int>(const std::string &name);
+extern template bool ftl::Configurable::is<std::string>(const std::string &name);
+extern template bool ftl::Configurable::is<bool>(const std::string &name);
+extern template bool ftl::Configurable::is<double>(const std::string &name);
 
 template <typename T, typename... ARGS>
 T *ftl::Configurable::create(const std::string &name, ARGS ...args) {

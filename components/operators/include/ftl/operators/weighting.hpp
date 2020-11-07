@@ -29,6 +29,8 @@ class PixelWeights : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 class CullWeight : public ftl::operators::Operator {
@@ -40,6 +42,8 @@ class CullWeight : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 class DegradeWeight : public ftl::operators::Operator {
@@ -50,6 +54,8 @@ class DegradeWeight : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 };
 

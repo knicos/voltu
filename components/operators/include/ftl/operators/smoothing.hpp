@@ -21,6 +21,8 @@ class HFSmoother : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	private:
 	cv::cuda::GpuMat temp_;
 	//ftl::rgbd::Frame frames_[4];
@@ -42,6 +44,8 @@ class SmoothChannel : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	private:
 	ftl::cuda::TextureObject<uchar4> temp_[6];
 };
@@ -60,6 +64,8 @@ class SimpleMLS : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	private:
 	ftl::data::Frame temp_;
 };
@@ -76,6 +82,8 @@ class ColourMLS : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 	private:
 	ftl::data::Frame temp_;
@@ -120,6 +128,8 @@ class AggreMLS : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	private:
 	ftl::cuda::TextureObject<float4> centroid_horiz_;
 	ftl::cuda::TextureObject<float4> centroid_vert_;
@@ -143,6 +153,8 @@ class AdaptiveMLS : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 	private:
 	ftl::data::Frame temp_;

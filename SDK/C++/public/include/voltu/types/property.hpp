@@ -2,6 +2,7 @@
 
 #include "../defines.hpp"
 #include <memory>
+#include <string>
 
 namespace voltu
 {
@@ -9,6 +10,8 @@ namespace voltu
 class Property
 {
 public:
+	virtual ~Property() = default;
+
 	PY_API virtual void setInt(int) = 0;
 
 	PY_API virtual void setFloat(float) = 0;
