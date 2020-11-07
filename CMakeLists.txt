@@ -477,7 +477,7 @@ if (WITH_SDK)
 	if (NOT WIN32)
 		add_subdirectory(SDK/C)
 	endif()
-	add_subdirectory(SDK/C++)
+	add_subdirectory(SDK/CPP)
 endif()
 
 if (HAVE_AVFORMAT)
