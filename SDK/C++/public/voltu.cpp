@@ -1,3 +1,9 @@
+/**
+ * @file voltu.cpp
+ * @copyright Copyright (c) 2020 Nicolas Pope, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <voltu/initialise.hpp>
 #include <voltu/types/errors.hpp>
 #include <voltu/voltu.hpp>

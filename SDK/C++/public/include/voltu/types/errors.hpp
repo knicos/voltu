@@ -1,3 +1,9 @@
+/**
+ * @file errors.hpp
+ * @copyright Copyright (c) 2020 Nicolas Pope, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 #include <exception>
@@ -30,7 +36,7 @@ VOLTU_EXCEPTION(LibraryVersionMismatch, Exception, "Wrong version of library fou
 VOLTU_EXCEPTION(BadSourceURI, Exception, "Bad source URI");
 VOLTU_EXCEPTION(InvalidFrameObject, Exception, "Invalid Frame object");
 VOLTU_EXCEPTION(InternalRenderError, Exception, "Internal renderer error");
-VOLTU_EXCEPTION(InvalidProperty, Exception, "Unknown property enum");
+VOLTU_EXCEPTION(InvalidRoomId, Exception, "Room identifier does not exist");
 VOLTU_EXCEPTION(PropertyUnavailable, Exception, "Property currently not available");
 VOLTU_EXCEPTION(BadPropertyName, Exception, "Not a valid property name");
 VOLTU_EXCEPTION(BadPropertyType, Exception, "Incorrect property data type");

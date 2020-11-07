@@ -1,3 +1,9 @@
+/**
+ * @file operator.hpp
+ * @copyright Copyright (c) 2020 Nicolas Pope, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 #include <voltu/types/property.hpp>

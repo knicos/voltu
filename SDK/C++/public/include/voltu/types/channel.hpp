@@ -1,3 +1,9 @@
+/**
+ * @file channel.hpp
+ * @copyright Copyright (c) 2020 Nicolas Pope, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 namespace voltu {

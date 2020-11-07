@@ -166,7 +166,7 @@ voltu::FramePtr ObserverImpl::getFrame()
 
 voltu::PropertyPtr ObserverImpl::property(voltu::ObserverProperty)
 {
-	throw voltu::exceptions::InvalidProperty();
+	throw voltu::exceptions::NotImplemented();
 }
 
 std::shared_ptr<ftl::data::FrameSet> ObserverImpl::_makeFrameSet()

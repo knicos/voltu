@@ -1,3 +1,9 @@
+/**
+ * @file voltu_cv.cpp
+ * @copyright Copyright (c) 2020 Nicolas Pope, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <voltu/opencv.hpp>
 #include <voltu/types/errors.hpp>
 

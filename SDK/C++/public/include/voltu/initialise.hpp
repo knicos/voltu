@@ -1,3 +1,9 @@
+/**
+ * @file initialise.hpp
+ * @copyright Copyright (c) 2020 Nicolas Pope, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 #include <memory>
 #include <voltu/system.hpp>

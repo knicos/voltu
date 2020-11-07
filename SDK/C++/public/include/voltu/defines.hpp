@@ -1,3 +1,9 @@
+/**
+ * @file system.hpp
+ * @copyright Copyright (c) 2020 Sebastian Hahta, MIT License
+ * @author Sebastian Hahta
+ */
+
 #pragma once
 
 #ifndef PY_API
