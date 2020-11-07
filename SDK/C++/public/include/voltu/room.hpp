@@ -60,6 +60,7 @@ public:
 	 * 2) If `timeout` < 0 then it blocks without timeout.
 	 * 3) If `timeout` > 0 then it blocks for maximum `timeout` milliseconds.
 	 * 
+	 * @note
 	 * Note that for composite rooms with multiple physical rooms, a new
 	 * frame occurs whenever any of the physical rooms provides a new frame,
 	 * even if other rooms do not.
@@ -88,6 +89,7 @@ public:
 	 * marks the data as seen, and therefore causes a subsequent call to
 	 * `waitNextFrame` to block until more data arrives.
 	 * 
+	 * @note
 	 * Each call to `getFrame` can return a different smart pointer for the same
 	 * frame data, this is valid. The room object must remain in existence for
 	 * as long as any frame objects are held.

@@ -49,6 +49,8 @@ bool PipelineImpl::waitCompletion(int timeout)
 
 voltu::OperatorPtr PipelineImpl::appendOperator(voltu::OperatorId id)
 {
+	if (static_cast<int>(id) <= 0) throw voltu::exceptions::BadParameterValue();
+	
 	switch (id)
 	{
 	case voltu::OperatorId::kFusion			: return std::make_shared<voltu::internal::OperatorImpl>(graph_->append<ftl::operators::Fusion>("fusion"));
