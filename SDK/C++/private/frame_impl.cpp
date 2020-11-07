@@ -24,6 +24,7 @@ std::list<voltu::ImagePtr> FrameImpl::getImageSet(voltu::Channel c)
 	{
 	case voltu::Channel::kColour	: channel = ftl::codecs::Channel::Colour; break;
 	case voltu::Channel::kDepth		: channel = ftl::codecs::Channel::Depth; break;
+	case voltu::Channel::kNormals	: channel = ftl::codecs::Channel::Normals; break;
 	default: throw voltu::exceptions::BadImageChannel();
 	}
 
@@ -47,6 +48,25 @@ std::list<voltu::ImagePtr> FrameImpl::getImageSet(voltu::Channel c)
 voltu::PointCloudPtr FrameImpl::getPointCloud(voltu::PointCloudFormat cloudfmt, voltu::PointFormat pointfmt)
 {
 	return nullptr;
+}
+
+std::vector<std::string> FrameImpl::getMessages()
+{
+	std::vector<std::string> msgs;
+
+	for (const auto &fs : framesets_)
+	{
+		for (const auto &f : fs->frames)
+		{
+			if (f.hasChannel(ftl::codecs::Channel::Messages))
+			{
+				const auto &m = f.get<std::vector<std::string>>(ftl::codecs::Channel::Messages);
+				msgs.insert(msgs.end(), m.begin(), m.end());
+			}
+		}
+	}
+
+	return msgs;
 }
 
 void FrameImpl::pushFrameSet(const std::shared_ptr<ftl::data::FrameSet> &fs)

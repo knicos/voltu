@@ -19,6 +19,8 @@ class FXAA : public ftl::operators::Operator {
 
     bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 }

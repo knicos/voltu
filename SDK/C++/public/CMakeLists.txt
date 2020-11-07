@@ -62,6 +62,11 @@ add_executable(voltu_basic_virtual_cam
 )
 target_link_libraries(voltu_basic_virtual_cam voltu_sdk)
 
+add_executable(voltu_fusion_evaluator
+	samples/fusion_evaluator/main.cpp
+)
+target_link_libraries(voltu_fusion_evaluator voltu_sdk)
+
 if (WITH_PYTHON)
 	add_subdirectory(ext/pybind11)
 	add_subdirectory(python)

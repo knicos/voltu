@@ -19,6 +19,8 @@ typedef unsigned int RoomId;
 class Room
 {
 public:
+	virtual ~Room() = default;
+	
 	PY_API virtual bool waitNextFrame(int64_t) = 0;
 
 	PY_API inline bool hasNextFrame() { return waitNextFrame(0); };

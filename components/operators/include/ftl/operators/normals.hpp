@@ -19,6 +19,8 @@ class Normals : public ftl::operators::Operator {
 
     bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 /**
@@ -36,6 +38,8 @@ class NormalDot : public ftl::operators::Operator {
 
     bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 /**
@@ -50,6 +54,8 @@ class SmoothNormals : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
     bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 	private:
 	ftl::cuda::TextureObject<half4> temp_;

@@ -2,6 +2,7 @@
 #include "feed_impl.hpp"
 #include "room_impl.hpp"
 #include "observer_impl.hpp"
+#include "pipeline_impl.hpp"
 #include <voltu/voltu.hpp>
 #include <voltu/types/errors.hpp>
 #include <ftl/timer.hpp>
@@ -44,7 +45,11 @@ SystemImpl::SystemImpl()
 SystemImpl::~SystemImpl()
 {
 	ftl::timer::stop(true);
+	net_->shutdown();
 	ftl::pool.stop(true);
+	delete feed_;
+	delete net_;
+	delete root_;
 }
 
 voltu::Version SystemImpl::getVersion() const
@@ -61,7 +66,7 @@ voltu::FeedPtr SystemImpl::open(const std::string& uri)
 	try
 	{
 		uint32_t fsid = feed_->add(uri);
-		return std::make_shared<voltu::internal::FeedImpl>(feed_, fsid);
+		return std::make_shared<voltu::internal::InputFeedImpl>(feed_, fsid);
 	}
 	catch(const std::exception &e)
 	{
@@ -87,4 +92,14 @@ voltu::RoomPtr SystemImpl::getRoom(voltu::RoomId id)
 voltu::ObserverPtr SystemImpl::createObserver()
 {
 	return std::make_shared<voltu::internal::ObserverImpl>(root_);
+}
+
+voltu::FeedPtr SystemImpl::createFeed(const std::string &uri)
+{
+	return std::make_shared<voltu::internal::OutputFeedImpl>(feed_, uri);
+}
+
+voltu::PipelinePtr SystemImpl::createPipeline()
+{
+	return std::make_shared<voltu::internal::PipelineImpl>(root_);
 }

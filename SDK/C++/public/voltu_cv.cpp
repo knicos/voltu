@@ -1,4 +1,5 @@
 #include <voltu/opencv.hpp>
+#include <voltu/types/errors.hpp>
 
 #include <opencv2/imgproc.hpp>
 
@@ -14,6 +15,10 @@ void voltu::cv::convert(voltu::ImagePtr img, ::cv::Mat &mat)
 	{
 		mat = ::cv::Mat(data.height, data.width, CV_32FC1, data.data);
 	}
+	else if (data.format == voltu::ImageFormat::kFloat16_4)
+	{
+		mat = ::cv::Mat(data.height, data.width, CV_16FC4, data.data);
+	}
 	else
 	{
 		mat = ::cv::Mat();
@@ -22,7 +27,7 @@ void voltu::cv::convert(voltu::ImagePtr img, ::cv::Mat &mat)
 
 void voltu::cv::convert(voltu::ImagePtr img, ::cv::cuda::GpuMat &mat)
 {
-
+	throw voltu::exceptions::NotImplemented();
 }
 
 void voltu::cv::visualise(voltu::ImagePtr img, ::cv::Mat &mat)
@@ -46,5 +51,14 @@ void voltu::cv::visualise(voltu::ImagePtr img, ::cv::Mat &mat)
 		//#else
 		::cv::applyColorMap(tmp, mat, ::cv::COLORMAP_INFERNO);
 		//#endif
+	}
+	else if (data.format == voltu::ImageFormat::kFloat16_4)
+	{
+		::cv::Mat tmp;
+		voltu::cv::convert(img, tmp);
+		tmp.convertTo(tmp, CV_32FC4);
+		tmp += 1.0f;
+		tmp *= 127.0f;
+		tmp.convertTo(mat, CV_8UC4);
 	}
 }

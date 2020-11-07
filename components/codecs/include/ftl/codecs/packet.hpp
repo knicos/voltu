@@ -13,12 +13,14 @@ namespace codecs {
 static constexpr uint8_t kAllFrames = 255;
 static constexpr uint8_t kAllFramesets = 255;
 
+static constexpr uint8_t kCurrentFTLVersion = 5;
+
 /**
  * First bytes of our file format.
  */
 struct Header {
 	const char magic[4] = {'F','T','L','F'};
-	uint8_t version = 5;
+	uint8_t version = kCurrentFTLVersion;
 };
 
 /**
@@ -56,7 +58,7 @@ static constexpr unsigned int kStreamCap_NewConnection = 0x04;
 
 /** V4 packets have no stream flags field */
 struct StreamPacketV4 {
-	int version;			// FTL version, Not encoded into stream
+	int version=4;			// FTL version, Not encoded into stream
 
 	int64_t timestamp;
 	uint8_t streamID;  		// Source number [or v4 frameset id]
@@ -81,7 +83,7 @@ struct StreamPacketV4 {
  * or included before a frame packet structure.
  */
 struct StreamPacket {
-	int version;			// FTL version, Not encoded into stream
+	int version = kCurrentFTLVersion;	// FTL version, Not encoded into stream
 
 	int64_t timestamp;
 	uint8_t streamID;  		// Source number [or v4 frameset id]

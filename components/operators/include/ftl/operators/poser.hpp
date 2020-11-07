@@ -24,6 +24,8 @@ class Poser : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	static bool get(const std::string &name, Eigen::Matrix4d &pose);
 	static bool get(const std::string &name, ftl::codecs::Shape3D &shape);
 	static std::list<ftl::codecs::Shape3D*> getAll(int32_t fsid);

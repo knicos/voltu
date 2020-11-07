@@ -19,6 +19,8 @@ class ClipScene : public ftl::operators::Operator {
 
     bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 }

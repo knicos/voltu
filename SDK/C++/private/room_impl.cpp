@@ -11,6 +11,11 @@ RoomImpl::RoomImpl(ftl::stream::Feed* feed)
 
 }
 
+RoomImpl::~RoomImpl()
+{
+	if (filter_) filter_->remove();
+}
+
 bool RoomImpl::waitNextFrame(int64_t timeout)
 {
 	if (!filter_)

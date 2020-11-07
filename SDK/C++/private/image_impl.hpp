@@ -12,7 +12,7 @@ class ImageImpl : public voltu::Image
 {
 public:
 	ImageImpl(const ftl::rgbd::Frame&, ftl::codecs::Channel c);
-	~ImageImpl();
+	~ImageImpl() override;
 
 	voltu::ImageData getHost() override;
 

@@ -14,11 +14,13 @@ class FrameImpl : public voltu::Frame
 {
 public:
 	FrameImpl();
-	~FrameImpl();
+	~FrameImpl() override;
 
 	std::list<voltu::ImagePtr> getImageSet(voltu::Channel) override;
 
 	voltu::PointCloudPtr getPointCloud(voltu::PointCloudFormat cloudfmt, voltu::PointFormat pointfmt) override;
+
+	std::vector<std::string> getMessages() override;
 
 	int64_t getTimestamp() override;
 

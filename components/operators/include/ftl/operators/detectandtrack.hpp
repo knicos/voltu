@@ -48,6 +48,8 @@ class DetectAndTrack : public ftl::operators::Operator {
 
 	void wait(cudaStream_t) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	protected:
 	bool init();
 
@@ -125,6 +127,8 @@ class ArUco : public ftl::operators::Operator {
 
 	ftl::codecs::Channel channel_in_;
 	ftl::codecs::Channel channel_out_;
+
+	static void configuration(ftl::Configurable*) {}
 
 	private:
 	bool estimate_pose_;

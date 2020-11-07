@@ -14,7 +14,7 @@ class SystemImpl : public voltu::System
 {
 public:
 	SystemImpl();
-	~SystemImpl();
+	~SystemImpl() override;
 
 	voltu::Version getVersion() const override;
 
@@ -27,6 +27,10 @@ public:
 	std::list<voltu::RoomId> listRooms() override;
 
 	voltu::RoomPtr getRoom(voltu::RoomId) override;
+
+	voltu::FeedPtr createFeed(const std::string &uri) override;
+
+	voltu::PipelinePtr createPipeline() override;
 
 private:
 	ftl::Configurable* root_;
