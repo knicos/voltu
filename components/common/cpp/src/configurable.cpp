@@ -121,6 +121,40 @@ template void ftl::Configurable::set<std::string>(const std::string &name, std::
 template void ftl::Configurable::set<std::vector<std::string>>(const std::string &name, std::vector<std::string> value);
 template void ftl::Configurable::set<nlohmann::json>(const std::string &name, nlohmann::json value);
 
+template <>
+bool ftl::Configurable::is<float>(const std::string &name) {
+	return getConfig()[name].is_number_float();
+}
+
+template <>
+bool ftl::Configurable::is<int>(const std::string &name) {
+	return getConfig()[name].is_number_integer();
+}
+
+template <>
+bool ftl::Configurable::is<unsigned int>(const std::string &name) {
+	return getConfig()[name].is_number_unsigned();
+}
+
+template <>
+bool ftl::Configurable::is<std::string>(const std::string &name) {
+	return getConfig()[name].is_string();
+}
+
+template <>
+bool ftl::Configurable::is<bool>(const std::string &name) {
+	return getConfig()[name].is_boolean();
+}
+
+template <>
+bool ftl::Configurable::is<double>(const std::string &name) {
+	return getConfig()[name].is_number_float();
+}
+
+bool ftl::Configurable::has(const std::string &name) const {
+	return (config_) ? config_->contains(name) : false;
+}
+
 void Configurable::required(const char *f, const std::vector<std::tuple<std::string, std::string, std::string>> &r) {
 	bool diderror = false;
 	for (auto i : r) {

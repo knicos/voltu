@@ -29,6 +29,8 @@ public:
 
 	bool isMemoryHeavy() const override { return true; }
 
+	static void configuration(ftl::Configurable*) {}
+
 private:
 	bool init();
 
@@ -53,6 +55,8 @@ class FixstarsSGM : public ftl::operators::Operator {
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
 	bool isMemoryHeavy() const override { return true; }
+
+	static void configuration(ftl::Configurable*) {}
 
 	private:
 	bool init();
@@ -99,6 +103,8 @@ class DisparityBilateralFilter : public::ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	private:
 	cv::Ptr<cv::cuda::DisparityBilateralFilter> filter_;
 	cv::cuda::GpuMat disp_int_;
@@ -121,6 +127,8 @@ class DisparityToDepth : public ftl::operators::Operator {
 	~DisparityToDepth() {};
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 };
 
 /**
@@ -137,6 +145,8 @@ class DepthChannel : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 	private:
 	ftl::operators::Graph *pipe_;
@@ -159,6 +169,8 @@ class OpticalFlowTemporalSmoothing : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 	private:
 	void _init(ftl::Configurable* cfg);

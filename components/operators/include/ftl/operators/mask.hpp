@@ -21,6 +21,8 @@ class DiscontinuityMask : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 /**
@@ -34,6 +36,8 @@ class BorderMask : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 };
 
@@ -49,6 +53,8 @@ class DisplayMask : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 };
 
 /**
@@ -62,6 +68,8 @@ class CullDiscontinuity : public ftl::operators::Operator {
 	inline Operator::Type type() const override { return Operator::Type::OneToOne; }
 
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
+
+	static void configuration(ftl::Configurable*) {}
 
 };
 

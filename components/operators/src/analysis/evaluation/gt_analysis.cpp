@@ -9,6 +9,11 @@ GTAnalysis::GTAnalysis(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::
 	cudaMalloc(&output_, sizeof(ftl::cuda::GTAnalysisData));
 }
 
+void GTAnalysis::configuration(ftl::Configurable *cfg) {
+	cfg->value("use_disparity", true);
+	cfg->value("show_colour", false);
+}
+
 GTAnalysis::~GTAnalysis() {
 	cudaFree(output_);
 }

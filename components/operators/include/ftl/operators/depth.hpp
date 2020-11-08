@@ -18,6 +18,8 @@ class DepthBilateralFilter : public::ftl::operators::Operator {
 	inline ftl::operators::Operator::Type type() const override { return ftl::operators::Operator::Type::OneToOne; }
 	bool apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t stream) override;
 
+	static void configuration(ftl::Configurable*) {}
+
 	private:
 	cv::cuda::GpuMat disp_int_;
 	cv::cuda::GpuMat disp_int_result_;

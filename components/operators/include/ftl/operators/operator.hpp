@@ -81,7 +81,7 @@ struct ConstructionHelperBase {
 
 template <typename T>
 struct ConstructionHelper : public ConstructionHelperBase {
-	explicit ConstructionHelper(ftl::Configurable *cfg) : ConstructionHelperBase(cfg) {}
+	explicit ConstructionHelper(ftl::Configurable *cfg) : ConstructionHelperBase(cfg) { T::configuration(cfg); }
 	~ConstructionHelper() {}
 	ftl::operators::Operator *make(Graph *g) override {
 		return new T(g, config);
@@ -92,6 +92,7 @@ template <typename T, typename... ARGS>
 struct ConstructionHelper2 : public ConstructionHelperBase {
 	explicit ConstructionHelper2(ftl::Configurable *cfg, ARGS... args) : ConstructionHelperBase(cfg) {
 		arguments_ = std::make_tuple(args...);
+		T::configuration(cfg);
 	}
 	~ConstructionHelper2() {}
 	ftl::operators::Operator *make(Graph *g) override {
