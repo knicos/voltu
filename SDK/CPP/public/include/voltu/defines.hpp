@@ -1,5 +1,5 @@
 /**
- * @file system.hpp
+ * @file defines.hpp
  * @copyright Copyright (c) 2020 Sebastian Hahta, MIT License
  * @author Sebastian Hahta
  */
@@ -20,3 +20,15 @@
 /// Lifetime of the return value is tied to the lifetime of a parent object
 #define PY_RV_LIFETIME_PARENT
 #endif
+
+#ifndef PY_SINGLETON
+/// Singleton instance, members exported to module. Requires creating the
+/// instance in PyModule constructor.
+#define PY_SINGLETON
+#endif
+
+#ifndef PY_SINGLETON_OBJECT
+/// Export as singleton instance instead of exporting members to module
+#define PY_SINGLETON_OBJECT
+#endif
+

@@ -5,13 +5,13 @@ project (voltu_sdk VERSION 0.0.1)
 include(GNUInstallDirs)
 
 option(WITH_OPENCV "Build with OpenCV wrapper" ON)
-option(WITH_PYTHON "Build Python module" OFF)
+option(WITH_PYTHON "Build Python module" ON)
 
-find_package( Eigen3 REQUIRED NO_MODULE )
-find_package( Threads REQUIRED )
+find_package(Eigen3 REQUIRED NO_MODULE)
+find_package(Threads REQUIRED)
 
 if (WITH_OPENCV)
-	find_package( OpenCV REQUIRED )
+	find_package(OpenCV REQUIRED)
 endif()
 
 if(WIN32)
@@ -68,7 +68,30 @@ add_executable(voltu_fusion_evaluator
 )
 target_link_libraries(voltu_fusion_evaluator voltu_sdk)
 
+find_package (Python COMPONENTS Development.Module Interpreter)
+
+function(find_python_module module)
+	string(TOUPPER ${module} module_upper)
+	if(NOT PY_${module_upper})
+		execute_process(COMMAND "${Python_EXECUTABLE}" "-c"
+			"import ${module}; print(${module}.__file__.rstrip('__init__.py'))"
+			RESULT_VARIABLE _${module}_status
+			OUTPUT_VARIABLE _${module}_location
+			ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+		if(NOT _${module}_status)
+			set(PY_${module_upper} ${_${module}_location} CACHE STRING
+				"Location of Python module ${module}")
+		endif(NOT _${module}_status)
+	endif(NOT PY_${module_upper})
+	find_package_handle_standard_args(PY_${module} DEFAULT_MSG PY_${module_upper})
+endfunction(find_python_module)
+
 if (WITH_PYTHON)
-	add_subdirectory(ext/pybind11)
-	add_subdirectory(python)
+	find_python_module(ply)
+	if (Python_FOUND AND PY_PLY)
+		add_subdirectory(ext/pybind11)
+		add_subdirectory(python)
+	else()
+		message(WARNING "Python dependencies not found, Python module is not built")
+	endif()
 endif()

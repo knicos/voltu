@@ -16,7 +16,7 @@ RoomImpl::~RoomImpl()
 	if (filter_) filter_->remove();
 }
 
-bool RoomImpl::waitNextFrame(int64_t timeout)
+bool RoomImpl::waitNextFrame(int64_t timeout, bool except)
 {
 	if (!filter_)
 	{
@@ -40,10 +40,15 @@ bool RoomImpl::waitNextFrame(int64_t timeout)
 				return last_read_ < last_seen_;
 			});
 
+			if (except && last_read_ >= last_seen_)
+			{
+				throw voltu::exceptions::Timeout();
+			}
 			return last_read_ < last_seen_;
 		}
 		else if (timeout == 0)
 		{
+			if (except) throw voltu::exceptions::Timeout();
 			return false;
 		}
 		else
