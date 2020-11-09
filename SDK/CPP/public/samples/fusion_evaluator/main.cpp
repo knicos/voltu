@@ -16,8 +16,11 @@ int main(int argc, char **argv)
 {
 	bool do_fusion = true;
 	bool do_eval = true;
+	bool do_carving = false;
+	bool show_changes = false;
 	int frameno = 0;
 	int sourceno = 0;
+	int iters = 2;
 	voltu::Channel display_channel = voltu::Channel::kColour;
 	std::list<std::string> paths;
 
@@ -39,10 +42,19 @@ int main(int argc, char **argv)
 			{
 				display_channel = voltu::Channel::kDepth;
 			}
+			else if (s.second == "\"corrections\"")
+			{
+				display_channel = voltu::Channel::kColour;
+				show_changes = true;
+			}
 		}
 		else if (s.first == "--no-eval")
 		{
 			do_eval = false;
+		}
+		else if (s.first == "--carving")
+		{
+			do_carving = true;
 		}
 		else if (s.first == "--frame")
 		{
@@ -51,6 +63,10 @@ int main(int argc, char **argv)
 		else if (s.first == "--source")
 		{
 			sourceno = std::stoi(s.second);
+		}
+		else if (s.first == "--iterations")
+		{
+			iters = std::stoi(s.second);
 		}
 		else if (s.first[0] != '-')
 		{
@@ -62,11 +78,7 @@ int main(int argc, char **argv)
 
 	for (const auto &p : paths)
 	{
-		if (!vtu->open(p))
-		{
-			cout << "Could not open source" << endl;
-			return -1;
-		}
+		vtu->open(p);
 	}
 
 	while (vtu->listRooms().size() == 0)
@@ -76,11 +88,6 @@ int main(int argc, char **argv)
 	}
 
 	auto room = vtu->getRoom(vtu->listRooms().front());
-	if (!room)
-	{
-		cout << "Could not get room" << endl;
-		return -1;
-	}
 
 	for (int i=0; i<frameno; ++i)
 	{
@@ -95,16 +102,13 @@ int main(int argc, char **argv)
 
 	op1->property("enabled")->setBool(do_fusion);
 	op2->property("enabled")->setBool(do_eval);
-	op2->property("show_colour")->setBool(false);
-	op1->property("show_changes")->setBool(true);
-	op1->property("visibility_carving")->setBool(false);
+	op2->property("show_colour")->setBool(!show_changes);
+	op1->property("show_changes")->setBool(show_changes);
+	op1->property("visibility_carving")->setBool(do_carving);
+	op1->property("mls_iterations")->setInt(iters);
 
 	pipe->submit(frame);
-	if (!pipe->waitCompletion(3000))
-	{
-		cout << "Pipeline timeout" << endl;
-		return -1;
-	}
+	pipe->waitCompletion(3000);
 
 	auto imgset = frame->getImageSet(display_channel);
 
