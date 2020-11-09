@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 
 	for (int i=0; i<frameno; ++i)
 	{
-		room->waitNextFrame(5000);
+		room->waitNextFrame(5000, true);
 		room->getFrame();
 	}
 	auto frame = room->getFrame();
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 	op1->property("mls_iterations")->setInt(iters);
 
 	pipe->submit(frame);
-	pipe->waitCompletion(3000);
+	pipe->waitCompletion(3000, true);
 
 	auto imgset = frame->getImageSet(display_channel);
 

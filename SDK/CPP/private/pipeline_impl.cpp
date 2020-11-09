@@ -42,10 +42,12 @@ void PipelineImpl::submit(const voltu::FramePtr &frame)
 	}
 }
 
-bool PipelineImpl::waitCompletion(int timeout)
+bool PipelineImpl::waitCompletion(int timeout, bool except)
 {
 	int count = timeout / 5;
 	while (!ready_ && --count >= 0) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+
+	if (!ready_) throw voltu::exceptions::Timeout();
 	return ready_;
 }
 
