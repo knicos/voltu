@@ -1,6 +1,7 @@
 
 #include "module.hpp"
 
+#include <voltu/voltu.hpp>
 #include <voltu/initialise.hpp>
 #include <voltu/types/errors.hpp>
 
@@ -15,6 +16,7 @@ void py_exceptions(pybind11::module& m) {
 }
 
 PYBIND11_MODULE(voltu, m) {
+	m.attr("version") = py::make_tuple(VOLTU_VERSION_MAJOR, VOLTU_VERSION_MINOR, VOLTU_VERSION_PATCH);
 	py_exceptions(m);
 	py_automatic_bindings(m);
 }

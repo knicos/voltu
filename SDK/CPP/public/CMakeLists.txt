@@ -6,9 +6,14 @@ include(GNUInstallDirs)
 
 option(WITH_OPENCV "Build with OpenCV wrapper" ON)
 option(WITH_PYTHON "Build Python module" OFF)
+option(WITH_TESTS "Enable unit tests" ON)
 
 find_package( Eigen3 REQUIRED NO_MODULE )
 find_package( Threads REQUIRED )
+
+if (WITH_TESTS)
+	enable_testing()
+endif()
 
 if (WITH_OPENCV)
 	find_package( OpenCV REQUIRED )

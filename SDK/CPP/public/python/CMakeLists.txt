@@ -32,13 +32,6 @@ target_include_directories(voltu_sdk_py PRIVATE .)
 target_link_libraries(voltu_sdk_py PUBLIC voltu_sdk)
 set_target_properties(voltu_sdk_py PROPERTIES OUTPUT_NAME voltu)
 
-enable_testing()
-find_package(Python3 COMPONENTS Interpreter)
-
-function(add_python_test TEST_NAME TEST_SCRIPT)
-    add_test(NAME ${TEST_NAME}
-        COMMAND Python3::Interpreter -m unittest ${TEST_SCRIPT}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-endfunction()
-
-add_python_test(test_load tests/test_load.py)
+if (WITH_TESTS)
+    add_subdirectory(tests)
+endif()
