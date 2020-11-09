@@ -50,9 +50,9 @@ voltu::PointCloudPtr FrameImpl::getPointCloud(voltu::PointCloudFormat cloudfmt, 
 	return nullptr;
 }
 
-std::vector<std::string> FrameImpl::getMessages()
+std::vector<std::vector<std::string>> FrameImpl::getMessages()
 {
-	std::vector<std::string> msgs;
+	std::vector<std::vector<std::string>> allmsgs;
 
 	for (const auto &fs : framesets_)
 	{
@@ -61,12 +61,13 @@ std::vector<std::string> FrameImpl::getMessages()
 			if (f.hasChannel(ftl::codecs::Channel::Messages))
 			{
 				const auto &m = f.get<std::vector<std::string>>(ftl::codecs::Channel::Messages);
+				auto &msgs = allmsgs.emplace_back();
 				msgs.insert(msgs.end(), m.begin(), m.end());
 			}
 		}
 	}
 
-	return msgs;
+	return allmsgs;
 }
 
 void FrameImpl::pushFrameSet(const std::shared_ptr<ftl::data::FrameSet> &fs)

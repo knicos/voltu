@@ -113,6 +113,8 @@ bool GTAnalysis::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 			);
 		}
 
+		cudaStreamSynchronize(stream);
+
 		cudaMemcpy(&err, output_, sizeof(err), cudaMemcpyDeviceToHost);
 		msgs.push_back(" ");
 		if (use_disp) 	{ report(msgs, err, o, npixels, "px", 1.0); }

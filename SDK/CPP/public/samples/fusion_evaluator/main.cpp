@@ -102,10 +102,12 @@ int main(int argc, char **argv)
 		break;
 	}
 
-	std::vector<std::string> msgs = frame->getMessages();
-	for (const auto &s : msgs)
-	{
-		cout << s << endl;
+	std::vector<std::vector<std::string>> msgs = frame->getMessages();
+	if (msgs.size() > 0) {
+		for (const auto &s : msgs[0])
+		{
+			cout << s << endl;
+		}
 	}
 
 	cv::waitKey(-1);
