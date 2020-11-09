@@ -49,8 +49,12 @@ void voltu::cv::visualise(voltu::ImagePtr img, ::cv::Mat &mat)
 		::cv::Mat tmp;
 		voltu::cv::convert(img, tmp);
 
-		::cv::normalize(tmp, tmp, 0, 255, ::cv::NORM_MINMAX);
-		tmp.convertTo(tmp, CV_8U);
+		float maxdepth = 8.0f;  // TODO: Get from intrinsics
+
+		//::cv::normalize(tmp, tmp, 0, 255, ::cv::NORM_MINMAX);
+		tmp.convertTo(tmp, CV_8U, 255.0f / maxdepth);
+		::cv::Mat mask = tmp > 0;
+		::cv::subtract(::cv::Scalar(255), tmp, tmp, mask);
 		
 		//#if OPENCV_VERSION >= 40102
 		//cv::applyColorMap(tmp, mat, cv::COLORMAP_TURBO);

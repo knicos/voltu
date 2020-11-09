@@ -16,6 +16,8 @@ int main(int argc, char **argv)
 {
 	bool do_fusion = true;
 	bool do_eval = true;
+	int frameno = 0;
+	int sourceno = 0;
 	voltu::Channel display_channel = voltu::Channel::kColour;
 	std::list<std::string> paths;
 
@@ -23,22 +25,32 @@ int main(int argc, char **argv)
 
 	for (const auto &s : opts)
 	{
-		cout << "ARGS " << s.first << " " << s.second << endl; 
 		if (s.first == "--no-fusion")
 		{
 			do_fusion = false;
 		}
 		else if (s.first == "--display")
 		{
-			cout << "DISPLAY = " << s.second << endl;
 			if (s.second == "\"normals\"")
 			{
 				display_channel = voltu::Channel::kNormals;
+			}
+			else if (s.second == "\"depth\"")
+			{
+				display_channel = voltu::Channel::kDepth;
 			}
 		}
 		else if (s.first == "--no-eval")
 		{
 			do_eval = false;
+		}
+		else if (s.first == "--frame")
+		{
+			frameno = std::stoi(s.second);
+		}
+		else if (s.first == "--source")
+		{
+			sourceno = std::stoi(s.second);
 		}
 		else if (s.first[0] != '-')
 		{
@@ -70,7 +82,11 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	//room->waitNextFrame(5000);
+	for (int i=0; i<frameno; ++i)
+	{
+		room->waitNextFrame(5000);
+		room->getFrame();
+	}
 	auto frame = room->getFrame();
 
 	auto pipe = vtu->createPipeline();
@@ -96,8 +112,10 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	int srccount = 0;
 	for (auto img : imgset)
 	{
+		if (srccount++ < sourceno) continue;
 		cv::Mat m;
 		voltu::cv::visualise(img, m);
 		cv::imshow(string("Image-") + img->getName(), m);

@@ -38,6 +38,9 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
+
+		if (!in.frames[i].hasChannel(Channel::Colour) || !in.frames[i].hasChannel(Channel::Depth)) continue;
+
 		const GpuMat &col = in.frames[i].get<GpuMat>(Channel::Colour);
 		const GpuMat &d = in.frames[i].get<GpuMat>(Channel::Depth);
 
@@ -71,11 +74,15 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 		for (size_t i=0; i < in.frames.size(); ++i) {
 			if (!in.hasFrame(i)) continue;
 
+			if (!in.frames[i].hasChannel(Channel::Colour) || !in.frames[i].hasChannel(Channel::Depth)) continue;
+
 			auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 
 			for (size_t j=0; j < in.frames.size(); ++j) {
 				if (i == j) continue;
 				if (!in.hasFrame(j)) continue;
+
+				if (!in.frames[j].hasChannel(Channel::Colour) || !in.frames[j].hasChannel(Channel::Depth)) continue;
 
 				auto &ref = in.frames[j].cast<ftl::rgbd::Frame>();
 
@@ -101,6 +108,7 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 	for (int iters=0; iters < mls_iters; ++iters) {
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
+		if (!in.frames[i].hasChannel(Channel::Normals) || !in.frames[i].hasChannel(Channel::Depth)) continue;
 
 		auto &f1 = in.frames[i].cast<ftl::rgbd::Frame>();
 
@@ -120,6 +128,7 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 		for (size_t j=0; j<in.frames.size(); ++j) {
 			if (!in.hasFrame(j)) continue;
 			//if (i == j) continue;
+			if (!in.frames[j].hasChannel(Channel::Normals) || !in.frames[j].hasChannel(Channel::Depth)) continue;
 
 			//LOG(INFO) << "Running phase1";
 
