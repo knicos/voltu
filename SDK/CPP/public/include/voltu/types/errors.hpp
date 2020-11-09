@@ -47,6 +47,7 @@ VOLTU_EXCEPTION(NotImplemented, Exception, "Functionality not implemented");
 VOLTU_EXCEPTION(ReadOnly, Exception, "Read only, write not allowed");
 VOLTU_EXCEPTION(WriteOnly, Exception, "Write only, read not allowed");
 VOLTU_EXCEPTION(IncompatibleOperation, Exception, "The input data and operator are incompatible");
+VOLTU_EXCEPTION(Timeout, Exception, "Request timed out");
 
 }
 }

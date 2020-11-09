@@ -87,6 +87,11 @@ std::list<voltu::RoomId> SystemImpl::listRooms()
 
 voltu::RoomPtr SystemImpl::getRoom(voltu::RoomId id)
 {
+	if (feed_->getURI(id).size() == 0)
+	{
+		throw voltu::exceptions::InvalidRoomId();
+	}
+
 	auto s = std::make_shared<voltu::internal::RoomImpl>(feed_);
 	s->addFrameSet(id);
 	return s;

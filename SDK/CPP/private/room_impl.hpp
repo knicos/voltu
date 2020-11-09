@@ -16,7 +16,7 @@ public:
 	
 	~RoomImpl() override;
 
-	bool waitNextFrame(int64_t) override;
+	bool waitNextFrame(int64_t, bool except) override;
 
 	voltu::FramePtr getFrame() override;
 
