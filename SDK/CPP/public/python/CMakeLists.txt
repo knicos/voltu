@@ -18,7 +18,7 @@ add_custom_command(
             ${CMAKE_CURRENT_SOURCE_DIR}/../include
             ${SDK_AUTO_HEADERS}
 
-    DEPENDS voltu_sdk
+    DEPENDS voltu_sdk gen.py
 )
 
 pybind11_add_module(voltu_sdk_py MODULE

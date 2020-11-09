@@ -1,16 +1,19 @@
 import unittest
 import os
-import voltu
 
 class LoadLibrary(unittest.TestCase):
 
-    def test_get_instance(self):
-        self.assertIsNotNone(voltu.instance())
-        # second call to instance() returns None; should
-        # return same instance instead?
-        # self.assertIsNotNone(voltu.instance())
+    def test_import(self):
+        import voltu
+
+    def test_import_twice(self):
+        # verify that System instance is created just once
+        import voltu
+        import voltu
+        self.assertIsNotNone(voltu.System)
 
     def test_version(self):
+        import voltu
         major, minor, patch = voltu.version
 
 if __name__ == '__main__':
