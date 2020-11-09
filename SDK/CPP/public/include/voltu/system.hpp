@@ -20,7 +20,7 @@ namespace voltu
 /**
  * @brief Voltu semantic versioning information.
  */
-struct Version
+PY_NO_SHARED_PTR struct Version
 {
 	int major;  ///< API Incompatible change
 	int minor;	///< Possible binary incompatible, extensions

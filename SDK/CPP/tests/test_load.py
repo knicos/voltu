@@ -7,7 +7,8 @@ class LoadLibrary(unittest.TestCase):
         import voltu
 
     def test_import_twice(self):
-        # verify that System instance is created just once
+        # verify that System instance is created just once, even if module
+        # imported multiple times
         import voltu
         import voltu
         self.assertIsNotNone(voltu.System)

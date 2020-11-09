@@ -35,11 +35,17 @@ target_include_directories(voltu
 
 target_link_libraries(voltu ftlcommon ftldata ftlctrl ftlrgbd ftlstreams ftlrender Threads::Threads ${OpenCV_LIBS} openvr ftlnet nanogui ${NANOGUI_EXTRA_LIBS} ceres nvidia-ml)
 
+set(SDK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+
 ExternalProject_Add(
 	voltu_sdk
 	SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/public"
-	BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/sdk"
+	BINARY_DIR ${SDK_BINARY_DIR}
 	INSTALL_COMMAND ""
 	BUILD_ALWAYS true
 	CMAKE_ARGS -DOpenCV_DIR=${OpenCV_DIR}
 )
+
+if (BUILD_TESTS)
+	add_subdirectory(tests)
+endif()
