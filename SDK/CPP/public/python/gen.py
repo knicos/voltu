@@ -37,7 +37,6 @@ def read_line(file, lineno):
             if i == lineno:
                 return line
 
-
 def get_loc_msg(data):
     return "({0}:{1})".format(data["filename"], data["line_number"])
 
@@ -53,6 +52,9 @@ def print_err(msg, loc=None):
 
 def include_in_api(data):
     return "PY_API" in data["debug"]
+
+def no_shared_ptr_cls(clsdata):
+    return (clsdata["declaration_method"] == "struct") or ("PY_NO_SHARED_PTR" in clsdata["debug"])
 
 def create_enum_bindigs(enum, parent=[], pybind_handle="", export_values=False):
     name_full = parent + [enum["name"]]
@@ -144,27 +146,28 @@ def create_function_bindings(func, parent=[], pybind_handle=None, bind_to_single
 
     return cpp
 
-def create_class_bindings(cls, parent=[], pybind_handle=""):
+def create_class_bindings(clsdata, parent=[], pybind_handle=""):
     """ Create bindings for a class """
 
-    cls_name = cls["name"]
-    full_name = parent + [cls_name]
+    clsdata_name = clsdata["name"]
+    full_name = parent + [clsdata_name]
     cpp = []
 
-    if "PY_NO_SHARED_PTR" not in cls["debug"]:
-        cls_cpp = "py::class_<{name}, std::shared_ptr<{name}>>({handle}, \"{name}\")"
-    else:
+    if no_shared_ptr_cls(clsdata):
         cls_cpp = "py::class_<{name}>({handle}, \"{name}\")"
-    cpp.append(cls_cpp.format(handle=pybind_handle, name=cls_name))
+    else:
+        cls_cpp = "py::class_<{name}, std::shared_ptr<{name}>>({handle}, \"{name}\")"
 
-    if cls["declaration_method"] == "struct":
+    cpp.append(cls_cpp.format(handle=pybind_handle, name=clsdata_name))
+
+    if clsdata["declaration_method"] == "struct":
         cpp.append(".def(py::init<>())")
 
-    for method in cls["methods"]["public"]:
+    for method in clsdata["methods"]["public"]:
         if include_in_api(method):
             cpp.append("." + create_function_bindings(method, full_name))
 
-    for field in cls["properties"]["public"]:
+    for field in clsdata["properties"]["public"]:
         if field["constant"]:
             field_cpp = ".def_property_readonly(\"{name}\", &{cpp_name})"
         else:
@@ -175,7 +178,7 @@ def create_class_bindings(cls, parent=[], pybind_handle=""):
 
     return "\n\t\t".join(cpp)
 
-def create_singleton_bindings(instance_ptr, cls, parent=[], pybind_handle="", export=False):
+def create_singleton_bindings(instance_ptr, clsdata, parent=[], pybind_handle="", export=False):
     """ Singleton class bindings, either creates a singleton instance or
     exports functions directly to module. Singleton pointer available with
     instance_ptr, which should be class member of PyModule.
@@ -183,14 +186,14 @@ def create_singleton_bindings(instance_ptr, cls, parent=[], pybind_handle="", ex
     if not export:
         # use usual bindings and export as attribute to pybind handle
         return "\n\t".join([
-            create_class_bindings(cls, parent, pybind_handle) + ";",
-            "{0}.attr(\"{1}\") = {2};".format(pybind_handle, cls["name"], instance_ptr)
+            create_class_bindings(clsdata, parent, pybind_handle) + ";",
+            "{0}.attr(\"{1}\") = {2};".format(pybind_handle, clsdata["name"], instance_ptr)
         ])
 
     else:
         # use C++ lambdas to wrap all methods
         cpp = []
-        for func in cls["methods"]["public"]:
+        for func in clsdata["methods"]["public"]:
             if not include_in_api(func):
                 continue
 

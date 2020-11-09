@@ -16,10 +16,9 @@ build. Several (empty) macros are used in headers to annoate Python API details.
  * PY_API function/method is to be included in Python API
  * PY_NO_SHARED_PTR shared_ptr<> is not used with instances of this class.
    See [pybind11 documentation](https://pybind11.readthedocs.io/en/latest/advanced/smart_ptrs.html?#std-shared-ptr)
-   for techncal details.
+   for techncal details. Shared pointers are not used for structs.
  * PY_RV_LIFETIME_PARENT lifetime of method's return valued is tied to
-   lifetime of parent objects (this). (
-   [return_value_policy::reference_internal](https://pybind11.readthedocs.io/en/latest/advanced/functions.html#return-value-policies)
+   lifetime of parent objects (this). ([return_value_policy::reference_internal](https://pybind11.readthedocs.io/en/latest/advanced/functions.html#return-value-policies)
    is set for this method)
  * PY_SINGLETON Singleton class, methods are exported to to module scope.
  * PY_SINGLETON_OBJECT Singleton instance is accessible as module attribute.
