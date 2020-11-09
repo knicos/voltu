@@ -6,6 +6,8 @@
 #include <ftl/operators/fusion.hpp>
 #include <ftl/operators/gt_analysis.hpp>
 
+#include <loguru.hpp>
+
 using voltu::internal::PipelineImpl;
 
 PipelineImpl::PipelineImpl(ftl::Configurable *root)
@@ -28,7 +30,7 @@ void PipelineImpl::submit(const voltu::FramePtr &frame)
 
 	const auto &sets = fimp->getInternalFrameSets();
 
-	if (sets.size() > 1) throw voltu::exceptions::IncompatibleOperation();
+	if (sets.size() > 1 || sets.size() == 0) throw voltu::exceptions::IncompatibleOperation();
 
 	for (const auto &fs : sets)
 	{

@@ -12,6 +12,13 @@ using ftl::operators::Fusion;
 using ftl::codecs::Channel;
 using cv::cuda::GpuMat;
 
+void Fusion::configuration(ftl::Configurable *cfg) {
+	cfg->value("enabled", true);
+	cfg->value("mls_smoothing", 2.0f);
+	cfg->value("mls_iterations", 2);
+	cfg->value("visibility_carving", true);
+}
+
 Fusion::Fusion(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), mls_(3) {
 
 }
@@ -35,7 +42,11 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 		const GpuMat &d = in.frames[i].get<GpuMat>(Channel::Depth);
 
 		cv::cuda::cvtColor(col, temp_, cv::COLOR_BGRA2GRAY, 0, cvstream);
-		cv::cuda::resize(temp_, temp2_, d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
+		if (temp_.size() != d.size()) {
+			cv::cuda::resize(temp_, temp2_, d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
+		} else {
+			temp2_ = temp_;
+		}
 
 		// TODO: Not the best since the mean is entirely lost here.
 		// Perhaps check mean also with greater smoothing value

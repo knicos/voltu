@@ -95,6 +95,7 @@ __global__ void reverse_check_kernel(
 			// TODO: Threshold comes from depth error characteristics
 			// If the value is significantly further then carve. Depth error
 			// is not always easy to calculate, depends on source.
+			// FIXME: Use length between 3D points, not depth
 			if (!(d2 < ointrin.maxDepth && d2 - campos.z > d2*d2*err_coef)) {
 				match = fabsf(campos.z - d2) < d2*d2*err_coef; break;
 			}

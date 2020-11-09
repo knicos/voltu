@@ -1,6 +1,8 @@
 #include <ftl/operators/gt_analysis.hpp>
 #include <ftl/operators/cuda/gt.hpp>
 
+#include <opencv2/core/cuda_stream_accessor.hpp>
+
 using ftl::operators::GTAnalysis;
 using ftl::codecs::Channel;
 using std::string;
@@ -10,6 +12,7 @@ GTAnalysis::GTAnalysis(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::
 }
 
 void GTAnalysis::configuration(ftl::Configurable *cfg) {
+	cfg->value("enabled", true);
 	cfg->value("use_disparity", true);
 	cfg->value("show_colour", false);
 }
@@ -71,6 +74,14 @@ bool GTAnalysis::apply(ftl::rgbd::Frame &in, ftl::rgbd::Frame &out, cudaStream_t
 	auto &dmat = in.get<cv::cuda::GpuMat>(Channel::Depth);
 	const float npixels = dmat.rows * dmat.cols;
 	ftl::cuda::GTAnalysisData err;
+
+	if (!in.hasChannel(Channel::Mask)) {
+		cv::cuda::Stream cvstream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+		auto &m = in.create<cv::cuda::GpuMat>(Channel::Mask);
+		m.create(dmat.size(), CV_8UC1);
+		m.setTo(cv::Scalar(0), cvstream);
+	}
 
 	for (const auto &o : (use_disp ? options_disparity : options_depth)) {
 		if (config()->value("show_colour", false)) {

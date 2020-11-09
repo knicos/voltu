@@ -4,6 +4,8 @@
 #include <thread>
 #include <chrono>
 
+#include "../common/cmd_args.hpp"
+
 #include <opencv2/highgui.hpp>
 
 using std::cout;
@@ -12,19 +14,51 @@ using std::string;
 
 int main(int argc, char **argv)
 {
-	if (argc != 2) return -1;
+	bool do_fusion = true;
+	bool do_eval = true;
+	voltu::Channel display_channel = voltu::Channel::kColour;
+	std::list<std::string> paths;
+
+	auto opts = read_options(&argv, &argc);
+
+	for (const auto &s : opts)
+	{
+		if (s.first == "--no-fusion")
+		{
+			do_fusion = false;
+		}
+		else if (s.first == "--display")
+		{
+			if (s.second == "normals")
+			{
+				display_channel = voltu::Channel::kNormals;
+			}
+		}
+		else if (s.first == "--no-eval")
+		{
+			do_eval = false;
+		}
+		else if (s.first[0] != '-')
+		{
+			paths.push_back(s.first);
+		}
+	}
 
 	auto vtu = voltu::instance();
 
-	if (!vtu->open(argv[1]))
+	for (const auto &p : paths)
 	{
-		cout << "Could not open source" << endl;
-		return -1;
+		if (!vtu->open(p))
+		{
+			cout << "Could not open source" << endl;
+			return -1;
+		}
 	}
 
 	while (vtu->listRooms().size() == 0)
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		cout << "Wait room..." << endl;
 	}
 
 	auto room = vtu->getRoom(vtu->listRooms().front());
@@ -34,18 +68,31 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	//room->waitNextFrame(5000);
 	auto frame = room->getFrame();
 
 	auto pipe = vtu->createPipeline();
 	auto op1 = pipe->appendOperator(voltu::OperatorId::kFusion);
 	auto op2 = pipe->appendOperator(voltu::OperatorId::kGTEvaluator);
 
+	op1->property("enabled")->setBool(do_fusion);
+	op2->property("enabled")->setBool(do_eval);
 	op2->property("show_colour")->setBool(true);
 
 	pipe->submit(frame);
-	pipe->waitCompletion(1000);
+	if (!pipe->waitCompletion(3000))
+	{
+		cout << "Pipeline timeout" << endl;
+		return -1;
+	}
 
-	auto imgset = frame->getImageSet(voltu::Channel::kColour);
+	auto imgset = frame->getImageSet(display_channel);
+
+	if (imgset.size() == 0)
+	{
+		cout << "No images!" << endl;
+		return -1;
+	}
 
 	for (auto img : imgset)
 	{

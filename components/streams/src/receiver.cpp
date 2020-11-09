@@ -343,7 +343,7 @@ void Receiver::_processVideo(const StreamPacket &spkt, const Packet &pkt) {
 	int cvtype = ftl::codecs::type(spkt.channel);
 
 	if (surface.type() != cvtype) {
-		LOG(ERROR) << "Invalid video format received";
+		LOG(ERROR) << "Invalid video format received: " << cvtype << " for " << (int)spkt.channel;
 		_terminateVideoPacket(spkt, pkt);
 		return;
 	}

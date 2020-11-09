@@ -372,7 +372,7 @@ __global__ void mean_subtract_kernel(
 		mean /= float((2*RADIUS+1)*(2*RADIUS+1));
 
 		float diff = float(intensity[x+y*pitch]) - mean;
-		contrast[x+y*pitch] = make_uchar2(max(0, min(254, int(diff)+127)), int(mean));
+		contrast[x+y*cpitch] = make_uchar2(max(0, min(254, int(diff)+127)), int(mean));
 	}
 }
 

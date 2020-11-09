@@ -71,7 +71,7 @@ cv::cuda::GpuMat &VideoFrame::createGPU(const ftl::rgbd::FormatBase &f) {
 }
 
 const cv::Mat &VideoFrame::getCPU() const {
-	if (!validhost) {
+	if (!validhost && !gpu.empty()) {
 		// TODO: Use stream and page locked mem.
 		gpu.download(host);
 		validhost = true;
