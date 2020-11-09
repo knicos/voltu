@@ -23,13 +23,15 @@ int main(int argc, char **argv)
 
 	for (const auto &s : opts)
 	{
+		cout << "ARGS " << s.first << " " << s.second << endl; 
 		if (s.first == "--no-fusion")
 		{
 			do_fusion = false;
 		}
 		else if (s.first == "--display")
 		{
-			if (s.second == "normals")
+			cout << "DISPLAY = " << s.second << endl;
+			if (s.second == "\"normals\"")
 			{
 				display_channel = voltu::Channel::kNormals;
 			}

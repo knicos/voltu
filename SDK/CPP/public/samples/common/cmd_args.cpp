@@ -20,10 +20,10 @@ std::map<std::string, std::string> read_options(char ***argv, int *argc)
 #else
 			if (std::isdigit(val[0]) || val == "true" || val == "false" || val == "null") {
 #endif
-				opts[cmd.substr(0, p-2)] = val;
+				opts[cmd.substr(0, p)] = val;
 			} else {
 				if (val[0] == '\\') opts[cmd.substr(2, p-2)] = val;
-				else opts[cmd.substr(0, p-2)] = "\""+val+"\"";
+				else opts[cmd.substr(0, p)] = "\""+val+"\"";
 			}
 		}
 
