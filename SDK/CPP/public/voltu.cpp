@@ -18,6 +18,7 @@
 #include <unistd.h>
 #endif
 
+#include <cstdlib>
 #include <iostream>
 
 static bool g_init = false;
@@ -54,7 +55,8 @@ static void unloadLibrary(Library lib)
 #endif
 }
 
-static bool is_file(const std::string &path) {
+static bool is_file(const std::string &path)
+{
 #ifdef WIN32
 	WIN32_FIND_DATA ffd;
 	HANDLE hFind = FindFirstFile(path.c_str(), &ffd);
@@ -64,9 +66,12 @@ static bool is_file(const std::string &path) {
 	return true;
 #else
 	struct stat s;
-	if (::stat(path.c_str(), &s) == 0) {
+	if (::stat(path.c_str(), &s) == 0)
+	{
 		return true;
-	} else {
+	}
+	else
+	{
 		return false;
 	}
 #endif
@@ -80,13 +85,20 @@ static std::string locateLibrary()
 #else
 	std::string name = "libvoltu.so";
 	std::string vname = name + std::string(".") + std::to_string(VOLTU_VERSION_MAJOR) + std::string(".") + std::to_string(VOLTU_VERSION_MINOR);
+
+	if (const char* env_p = std::getenv("VOLTU_RUNTIME"))
+	{
+		if (is_file(env_p)) return env_p;
+	}
+
+	// FIXME: Should eventually not have these...
 	if (is_file(std::string("./") + vname)) return std::string("./") + vname;
-	else if (is_file(std::string("./") + name)) return std::string("./") + name;
+	//else if (is_file(std::string("./") + name)) return std::string("./") + name;
 	else if (is_file(std::string("../") + vname)) return std::string("../") + vname;
-	else if (is_file(std::string("../") + name)) return std::string("../") + name;
+	/*else if (is_file(std::string("../") + name)) return std::string("../") + name;
 	else if (is_file(std::string("/usr/local/lib/") + vname)) return std::string("/usr/local/lib/") + vname;
-	else if (is_file(std::string("/usr/local/lib/") + name)) return std::string("/usr/local/lib/") + name;
-	return name;
+	else if (is_file(std::string("/usr/local/lib/") + name)) return std::string("/usr/local/lib/") + name;*/
+	return vname;
 #endif
 }
 
