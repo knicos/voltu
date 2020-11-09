@@ -59,6 +59,13 @@ public:
 		cudaStream_t stream
 	);
 
+	void adjust(
+		cv::cuda::GpuMat &depth_out,
+		cv::cuda::GpuMat &normals_out,
+		cv::cuda::GpuMat &colour_out,
+		cudaStream_t stream
+	);
+
 private:
 	cv::cuda::GpuMat depth_prime_;
 	cv::cuda::GpuMat intensity_prime_;

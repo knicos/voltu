@@ -17,6 +17,7 @@ void Fusion::configuration(ftl::Configurable *cfg) {
 	cfg->value("mls_smoothing", 2.0f);
 	cfg->value("mls_iterations", 2);
 	cfg->value("visibility_carving", true);
+	cfg->value("show_changes", false);
 }
 
 Fusion::Fusion(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), mls_(3) {
@@ -31,6 +32,7 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 	float mls_smoothing = config()->value("mls_smoothing", 2.0f);
 	//float mls_feature = config()->value("mls_feature", 20.0f);
 	int mls_iters = config()->value("mls_iterations", 2);
+	bool show_changes = config()->value("show_changes", false);
 
 	if (weights_.size() != in.frames.size()) weights_.resize(in.frames.size());
 
@@ -154,11 +156,20 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 			);
 		}
 
-		mls_.adjust(
-			f1.create<GpuMat>(Channel::Depth),
-			f1.create<GpuMat>(Channel::Normals),
-			stream
-		);
+		if (show_changes) {
+			mls_.adjust(
+				f1.create<GpuMat>(Channel::Depth),
+				f1.create<GpuMat>(Channel::Normals),
+				f1.create<GpuMat>(Channel::Colour),
+				stream
+			);
+		} else {
+			mls_.adjust(
+				f1.create<GpuMat>(Channel::Depth),
+				f1.create<GpuMat>(Channel::Normals),
+				stream
+			);
+		}
 	}
 	}
 

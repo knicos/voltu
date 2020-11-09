@@ -114,8 +114,8 @@ __device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
 	}
 
 	// Make sure there is a minimum smoothing value
-	spatial_smoothing = max(0.01f, spatial_smoothing);
-	hf_intensity_smoothing = max(5.0f, hf_intensity_smoothing);
+	spatial_smoothing = max(0.05f, spatial_smoothing);
+	hf_intensity_smoothing = max(50.0f, hf_intensity_smoothing);
 	//mean_smoothing = max(10.0f, mean_smoothing);
 
 	// Check for neighbourhood symmetry and use to weight overall contribution
@@ -184,12 +184,14 @@ __device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
 	const float* __restrict__ contrib_out,
 	half4* __restrict__ normals_out,
 	float* __restrict__ depth,
+	uchar4* __restrict__ colour,
 	ftl::rgbd::Camera camera,
 	int npitch_in,
 	int cpitch_in,
 	int wpitch,
 	int npitch,
-	int dpitch
+	int dpitch,
+	int cpitch
 ) {
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -218,6 +220,20 @@ __device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
 
 		depth[x+y*dpitch] = X.z;
 		normals_out[x+y*npitch] = make_half4(nX / length(nX), 0.0f);
+
+		if (colour) {
+			int2 s = camera.camToScreen<int2>(X);
+			float pd = min(1.0f, max(0.0f, X.z-d0) / 0.002f);
+			float nd = min(1.0f, -min(0.0f, X.z-d0) / 0.002f);
+			colour[x+y*cpitch] = (abs(s.x - x) > 1 || abs(s.y - y) > 1)
+			? make_uchar4(0,255,0,255)
+			: make_uchar4(
+				255.0f - pd*255.0f,
+				255.0f - pd*255.0f - nd*255.0f,
+				255.0f - nd*255.0f,
+				255.0f
+			);
+		}
 	}
 }
 
@@ -336,12 +352,49 @@ void MLSMultiIntensity::adjust(
 		weight_accum_.ptr<float>(),
 		normals_out.ptr<half4>(),
 		depth_prime_.ptr<float>(),
+		nullptr,
 		cam_prime_,
 		normal_accum_.step1()/4,
 		centroid_accum_.step1()/4,
 		weight_accum_.step1(),
 		normals_out.step1()/4,
-		depth_prime_.step1()
+		depth_prime_.step1(),
+		0
+	);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+void MLSMultiIntensity::adjust(
+	GpuMat &depth_out,
+	GpuMat &normals_out,
+	GpuMat &colour_out,
+	cudaStream_t stream)
+{
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize((depth_prime_.cols + THREADS_X - 1)/THREADS_X, (depth_prime_.rows + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	normals_out.create(depth_prime_.size(), CV_16FC4);
+	depth_out.create(depth_prime_.size(), CV_32F);
+
+	// FIXME: Depth prime assumed to be same as depth out
+
+	mls_reduce_kernel_2<<<gridSize, blockSize, 0, stream>>>(
+		centroid_accum_.ptr<float4>(),
+		normal_accum_.ptr<half4>(),
+		weight_accum_.ptr<float>(),
+		normals_out.ptr<half4>(),
+		depth_prime_.ptr<float>(),
+		colour_out.ptr<uchar4>(),
+		cam_prime_,
+		normal_accum_.step1()/4,
+		centroid_accum_.step1()/4,
+		weight_accum_.step1(),
+		normals_out.step1()/4,
+		depth_prime_.step1(),
+		colour_out.step1()/4
 	);
 	cudaSafeCall( cudaGetLastError() );
 }

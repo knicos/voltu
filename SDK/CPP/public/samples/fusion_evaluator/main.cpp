@@ -95,7 +95,9 @@ int main(int argc, char **argv)
 
 	op1->property("enabled")->setBool(do_fusion);
 	op2->property("enabled")->setBool(do_eval);
-	op2->property("show_colour")->setBool(true);
+	op2->property("show_colour")->setBool(false);
+	op1->property("show_changes")->setBool(true);
+	op1->property("visibility_carving")->setBool(false);
 
 	pipe->submit(frame);
 	if (!pipe->waitCompletion(3000))
