@@ -11,6 +11,24 @@ add_library(voltu SHARED
 	private/property_impl.cpp
 )
 
+file(READ "public/include/voltu/voltu.hpp" VOLVER)
+
+string(REGEX MATCH "VOLTU_VERSION_MAJOR ([0-9]*)" _ ${VOLVER})
+set(VOLTU_MAJOR ${CMAKE_MATCH_1})
+
+string(REGEX MATCH "VOLTU_VERSION_MINOR ([0-9]*)" _ ${VOLVER})
+set(VOLTU_MINOR ${CMAKE_MATCH_1})
+
+string(REGEX MATCH "VOLTU_VERSION_PATCH ([0-9]*)" _ ${VOLVER})
+set(VOLTU_PATCH ${CMAKE_MATCH_1})
+
+message("VolTu SDK version: ${VOLTU_MAJOR}.${VOLTU_MINOR}.${VOLTU_PATCH}")
+
+set_target_properties( voltu  PROPERTIES
+	VERSION "${VOLTU_MAJOR}.${VOLTU_MINOR}"
+	SOVERSION "${VOLTU_MAJOR}.${VOLTU_MINOR}"
+)
+
 target_include_directories(voltu
 	PUBLIC public/include
 	PRIVATE src)
