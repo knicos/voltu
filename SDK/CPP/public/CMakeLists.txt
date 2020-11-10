@@ -30,14 +30,15 @@ else()
 endif()
 
 set(VOLTU_SRCS
-	voltu.cpp
+	src/voltu.cpp
+	src/types/intrinsics.cpp
 )
 
 set(OPTIONAL_DEPENDENCIES)
 
 if (WITH_OPENCV)
 	list(APPEND OPTIONAL_DEPENDENCIES ${OpenCV_LIBS})
-	list(APPEND VOLTU_SRCS voltu_cv.cpp)
+	list(APPEND VOLTU_SRCS src/voltu_cv.cpp)
 	set(CMAKE_REQUIRED_INCLUDES ${OpenCV_INCLUDE_DIRS})
 endif()
 

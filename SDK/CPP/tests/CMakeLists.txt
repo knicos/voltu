@@ -13,3 +13,4 @@ function(add_python_test TEST_NAME TEST_SCRIPT)
 endfunction()
 
 add_python_test(Py_TestLoad test_load.py)
+add_python_test(Py_TestIntrinsics test_intrinsics.py)

@@ -39,7 +39,7 @@ build. Several (empty) macros are used in headers to annoate Python API details.
 ## Not supported (yet) in automatic binding generation:
  * Nested classes
  * Static members
- * Constructors
+ * Constructors for non-POD structs.
  * Automatic documentation (Doxygen)
  * Generator does not verify that shared_ptr<> is used consistently/correctly
  * Member variables of singleton classes

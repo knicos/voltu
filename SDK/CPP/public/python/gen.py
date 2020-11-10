@@ -50,11 +50,46 @@ def print_err(msg, loc=None):
         msg += " " + get_loc_msg(loc)
     print("gen.py error: %s" % msg, file=sys.stderr)
 
+# Helpers ======================================================================
+
+def is_singleton_class(ccls):
+    # covers both cases PY_SINGLETON and PY_SINGLETON_OBJECT
+    return "PY_SINGLETON" in ccls["debug"]
+
+def is_member_of_singleton_class(func):
+    if func["parent"] is None:
+        return False
+
+    return is_singleton_class(func["parent"])
+
 def include_in_api(data):
     return "PY_API" in data["debug"]
 
 def no_shared_ptr_cls(clsdata):
     return (clsdata["declaration_method"] == "struct") or ("PY_NO_SHARED_PTR" in clsdata["debug"])
+
+def rv_bind_lifetime_to_parent(func):
+    if "PY_RV_LIFETIME_PARENT" in func["debug"]:
+        if func["parent"] is None:
+            print_err("PY_RV_LIFETIME_PARENT can not be used for function or singleton", func)
+            sys.exit(2) # generated code most likely wrong and unsafe (crash/UB)
+            return False
+
+        if is_member_of_singleton_class(func):
+            print_warn(("Return value of %s lifetime bound to parent, but " +
+                        "parent is singleton of %s. This is possibly an " +
+                        "error (lifetime of the return value is the lifetime " +
+                        "of the program).") %
+                        (func["name"], func["parent"]["name"]))
+
+        return True
+
+    return False
+
+def is_struct(clsdata):
+    return clsdata["declaration_method"] == "struct"
+
+# Code generation ==============================================================
 
 def create_enum_bindigs(enum, parent=[], pybind_handle="", export_values=False):
     name_full = parent + [enum["name"]]
@@ -75,6 +110,35 @@ def create_enum_bindigs(enum, parent=[], pybind_handle="", export_values=False):
         cpp.append("\t.export_values()")
 
     return "\n\t".join(cpp)
+
+def create_struct_ctor(struct):
+    types = []
+    args = []
+    ctors = ["def(py::init<>())"]
+
+    for item in struct["properties"]["public"]:
+        types.append(item["type"])
+        arg = "py::arg(\"%s\")" % item["name"]
+        has_defaults = False
+
+        if "default" in item:
+            has_defaults = True
+            arg += "=%s" % item["default"]
+
+        args.append(arg)
+
+    if len(struct["inherits"]) > 0 or has_defaults:
+        # NOTE: Structs which inherit another struct require managing state,
+        #       as base class possibly defines its own members from base
+        #       class(es). Move everything to class?
+        # NOTE: Non-POD structs which do not inherit base class but set default
+        #       values can be supported by generating lambda which assigns
+        #       the values.
+        print_warn("Only aggregate initialization supported for structs")
+        return ctors
+
+    ctors.append("def(py::init<%s>(), %s)" % (", ".join(types), ", ".join(args)))
+    return ctors
 
 def process_func_args(func):
     args = []
@@ -133,11 +197,7 @@ def create_function_bindings(func, parent=[], pybind_handle=None, bind_to_single
 
     args += process_func_args(func)
 
-    if "PY_RV_LIFETIME_PARENT" in func["debug"]:
-        if func["parent"] is None or bind_to_singleton is not None:
-            print_err("PY_RV_LIFETIME_PARENT used for function or singleton", func)
-            raise ValueError()
-
+    if rv_bind_lifetime_to_parent(func):
         args.append("py::return_value_policy::reference_internal")
 
     cpp = "def({0})".format(", ".join(args))
@@ -160,8 +220,8 @@ def create_class_bindings(clsdata, parent=[], pybind_handle=""):
 
     cpp.append(cls_cpp.format(handle=pybind_handle, name=clsdata_name))
 
-    if clsdata["declaration_method"] == "struct":
-        cpp.append(".def(py::init<>())")
+    if is_struct(clsdata):
+        cpp += ["." + ctor for ctor in create_struct_ctor(clsdata)]
 
     for method in clsdata["methods"]["public"]:
         if include_in_api(method):
@@ -172,6 +232,7 @@ def create_class_bindings(clsdata, parent=[], pybind_handle=""):
             field_cpp = ".def_property_readonly(\"{name}\", &{cpp_name})"
         else:
             field_cpp = ".def_readwrite(\"{name}\", &{cpp_name})"
+
         field_name = field["name"]
         field_name_cpp = "::".join(full_name + [field_name])
         cpp.append(field_cpp.format(name=field_name, cpp_name=field_name_cpp))
