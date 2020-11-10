@@ -25,6 +25,8 @@ struct Intrinsics
 
 	/** Projection matrix */
 	PY_API Eigen::Matrix3d matrix();
+	/** Size (width, height) */
+	PY_API Eigen::Vector2i size();
 };
 
 /** Stereo camera intrinsic parameters.

@@ -13,10 +13,12 @@ class Intrinsics(unittest.TestCase):
         fy = 3.0
         cx = 4.0
         cy = 5.0
+        w = 6
+        h = 7
 
         intr = voltu.Intrinsics(
-            width = 6,
-            height = 7,
+            width = w,
+            height = h,
             focal_x = fx,
             focal_y = fy,
             principle_x = -cx,
@@ -30,3 +32,8 @@ class Intrinsics(unittest.TestCase):
         ])
 
         self.assertTrue(np.array_equal(intr.matrix(), K))
+
+        w_, h_ = intr.size()
+        self.assertEqual(w_, w)
+        self.assertEqual(h_, h)
+        self.assertTrue(np.array_equal((w, h), intr.size()))

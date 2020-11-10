@@ -8,3 +8,7 @@ Eigen::Matrix3d voltu::Intrinsics::matrix() {
 					0.0,			0.0,			 1.0;
 	return K;
 }
+
+Eigen::Vector2i voltu::Intrinsics::size() {
+	return { width, height };
+}
