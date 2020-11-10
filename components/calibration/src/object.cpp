@@ -42,8 +42,9 @@ int ArUCoObject::detect(cv::InputArray im, std::vector<cv::Point2d>& result, con
 	std::vector<std::vector<cv::Point2f>> corners;
 	std::vector<int> ids;
 	cv::Mat im_gray;
-	// OpenCV bug: detectMarkers consumes all available memory when any
-	// distortion parameters are passes
+	// OpenCV bug: detectMarkers() consumes all available memory with
+	// when CORNER_REFINE_CONTOUR is used with camera parameters
+	// https://github.com/opencv/opencv_contrib/issues/2738
 	const cv::Mat d;
 	if (im.size() == cv::Size(0, 0)) {
 		return -1;
