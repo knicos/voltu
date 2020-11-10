@@ -70,7 +70,7 @@ public:
 	 * @param timeout Millisecond timeout, or 0 or -1.
 	 * @return True if a new unseen frame is available.
 	 */
-	PY_API virtual bool waitNextFrame(int64_t timeout) = 0;
+	PY_API virtual bool waitNextFrame(int64_t timeout, bool except=false) = 0;
 
 	/**
 	 * @brief Check if a new frame is available.
