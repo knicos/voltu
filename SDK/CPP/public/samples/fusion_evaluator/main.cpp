@@ -130,7 +130,7 @@ int main(int argc, char **argv)
 
 	std::vector<std::vector<std::string>> msgs = frame->getMessages();
 	if (msgs.size() > 0) {
-		for (const auto &s : msgs[0])
+		for (const auto &s : msgs[sourceno])
 		{
 			cout << s << endl;
 		}
