@@ -15,9 +15,9 @@ FrameImpl::~FrameImpl()
 
 }
 
-std::list<voltu::ImagePtr> FrameImpl::getImageSet(voltu::Channel c)
+std::vector<voltu::ImagePtr> FrameImpl::getImageSet(voltu::Channel c)
 {
-	std::list<voltu::ImagePtr> result;
+	std::vector<voltu::ImagePtr> result;
 	ftl::codecs::Channel channel = ftl::codecs::Channel::Colour;
 
 	switch (c)

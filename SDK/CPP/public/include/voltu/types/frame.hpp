@@ -22,7 +22,7 @@ class Frame
 public:
 	virtual ~Frame() = default;
 	
-	PY_API PY_RV_LIFETIME_PARENT virtual std::list<voltu::ImagePtr> getImageSet(voltu::Channel channel) = 0;
+	PY_API PY_RV_LIFETIME_PARENT virtual std::vector<voltu::ImagePtr> getImageSet(voltu::Channel channel) = 0;
 
 	PY_API PY_RV_LIFETIME_PARENT virtual voltu::PointCloudPtr getPointCloud(voltu::PointCloudFormat cloudfmt, voltu::PointFormat pointfmt) = 0;
 

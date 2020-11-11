@@ -107,6 +107,10 @@ int main(int argc, char **argv)
 	op1->property("visibility_carving")->setBool(do_carving);
 	op1->property("mls_iterations")->setInt(iters);
 
+	cv::Mat old_depth;
+	auto oldimgset = frame->getImageSet(voltu::Channel::kDepth);
+	voltu::opencv::toGpuMat(oldimgset[sourceno]).download(old_depth);
+
 	pipe->submit(frame);
 	pipe->waitCompletion(3000, true);
 
@@ -123,7 +127,8 @@ int main(int argc, char **argv)
 	{
 		if (srccount++ < sourceno) continue;
 		cv::Mat m;
-		voltu::cv::visualise(img, m);
+		voltu::opencv::toGpuMat(img).download(m);
+		voltu::opencv::visualise(img, m);
 		cv::imshow(string("Image-") + img->getName(), m);
 		break;
 	}

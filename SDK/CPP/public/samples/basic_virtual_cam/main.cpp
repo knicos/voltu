@@ -69,7 +69,7 @@ int main(int argc, char **argv)
 		for (auto img : imgset)
 		{
 			cv::Mat m;
-			voltu::cv::convert(img, m);
+			voltu::opencv::convert(img, m);
 			cv::imshow(string("Camera-") + img->getName(), m);
 		}
 
