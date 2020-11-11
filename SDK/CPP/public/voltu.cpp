@@ -25,13 +25,14 @@
 #include <cstdlib>
 #include <iostream>
 
+typedef void* Library;
+
 static bool g_init = false;
+static Library handle = nullptr;
 
 #ifdef WITH_OPENCV
 voltu::GpuUtilities voltu::gpu;
 #endif
-
-typedef void* Library;
 
 static Library loadLibrary(const char *file)
 {
@@ -116,7 +117,7 @@ std::shared_ptr<voltu::System> voltu::instance()
 	
 	std::string name = locateLibrary();
 	std::cout << "Loading VolTu Runtime: " << name << std::endl;
-	Library handle = loadLibrary(name.c_str());
+	handle = loadLibrary(name.c_str());
 
 	if (handle)
 	{
@@ -165,4 +166,10 @@ std::shared_ptr<voltu::System> voltu::instance()
 	}
 
 	return nullptr;
+}
+
+void voltu::release()
+{
+	// TODO: Call a finalise function
+	if (handle) unloadLibrary(handle);
 }

@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	auto vtu = voltu::instance();
+	voltu::Voltu vtu;
 
 	for (const auto &p : paths)
 	{

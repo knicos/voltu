@@ -15,3 +15,23 @@
 
 #include <voltu/system.hpp>
 #include <voltu/initialise.hpp>
+
+namespace voltu
+{
+
+class Voltu
+{
+public:
+	inline Voltu() : instance_(voltu::instance()) {}
+	inline ~Voltu() { instance_.reset(); voltu::release(); }
+
+	inline voltu::System* operator->()
+	{
+		return instance_.get();
+	}
+
+private:
+	std::shared_ptr<voltu::System> instance_;
+};
+
+}
