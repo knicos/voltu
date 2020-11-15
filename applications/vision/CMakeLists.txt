@@ -9,19 +9,19 @@ set(CVNODESRC
 	#src/middlebury.cpp
 )
 
-add_executable(ftl-vision ${CVNODESRC})
-install(TARGETS ftl-vision DESTINATION bin COMPONENT vision)
+add_executable(voltu-vision ${CVNODESRC})
+install(TARGETS voltu-vision RUNTIME COMPONENT vision)
 
-target_include_directories(ftl-vision PUBLIC
+target_include_directories(voltu-vision PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
 
 if (CUDA_FOUND)
-set_property(TARGET ftl-vision PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
+set_property(TARGET voltu-vision PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-vision ftlrgbd ftlcommon ftlstreams ftlctrl ${OpenCV_LIBS} ${CUDA_LIBRARIES} ftlnet ftlaudio)
+target_link_libraries(voltu-vision ftlrgbd ftlcommon ftlstreams ftlctrl ${OpenCV_LIBS} ${CUDA_LIBRARIES} ftlnet ftlaudio)
 
-target_precompile_headers(ftl-vision REUSE_FROM ftldata)
+target_precompile_headers(voltu-vision REUSE_FROM ftldata)

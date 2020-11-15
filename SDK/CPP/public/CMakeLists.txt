@@ -52,6 +52,9 @@ target_include_directories(voltu_sdk
 	PUBLIC include)
 target_link_libraries(voltu_sdk ${OS_LIBS} Threads::Threads ${OPTIONAL_DEPENDENCIES} Eigen3::Eigen)
 
+install(TARGETS voltu_sdk ARCHIVE)
+install(DIRECTORY include/voltu DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 add_executable(voltu_basic_test
 	samples/basic_test/main.cpp
 )

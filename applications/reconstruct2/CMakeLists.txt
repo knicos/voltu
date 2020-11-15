@@ -6,7 +6,7 @@ set(REPSRC
 	src/main.cpp
 )
 
-add_executable(ftl-reconstruct2 ${REPSRC})
+add_executable(voltu-fusion ${REPSRC})
 
 #target_include_directories(ftl-reconstruct PUBLIC
 #	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -14,8 +14,10 @@ add_executable(ftl-reconstruct2 ${REPSRC})
 #	PRIVATE src)
 
 if (CUDA_FOUND)
-set_property(TARGET ftl-reconstruct2 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+set_property(TARGET voltu-fusion PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-reconstruct2 ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet ftlrender ftloperators ftlstreams ftlaudio)
+target_link_libraries(voltu-fusion ftlcommon ftlrgbd Threads::Threads ${OpenCV_LIBS} ftlctrl ftlnet ftlrender ftloperators ftlstreams ftlaudio)
+
+install(TARGETS voltu-fusion RUNTIME COMPONENT reconstruct)

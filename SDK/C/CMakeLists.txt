@@ -19,9 +19,9 @@ endif()
 
 target_link_libraries(ftl-dev ftlcommon ftlcodecs ftlrgbd ftlstreams Threads::Threads ${OpenCV_LIBS} ftlnet)
 
-install(TARGETS ftl-dev
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-	PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+#install(TARGETS ftl-dev
+#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#	PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 	
 add_subdirectory(examples/image_write)
 add_subdirectory(examples/video_write)

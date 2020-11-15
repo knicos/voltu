@@ -65,9 +65,9 @@ add_definitions(${NANOGUI_EXTRA_DEFS})
 # On top of adding the path to nanogui/include, you may need extras
 include_directories(${NANOGUI_EXTRA_INCS})
 
-add_executable(ftl-gui2 ${GUI2SRC})
+add_executable(voltu-ui ${GUI2SRC})
 
-target_include_directories(ftl-gui2 PUBLIC
+target_include_directories(voltu-ui PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/ext/nanogui/include>
 	$<INSTALL_INTERFACE:include>
@@ -78,6 +78,8 @@ target_include_directories(ftl-gui2 PUBLIC
 #endif()
 
 #target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ftl-gui2 ftlcommon ftldata ftlctrl ftlrgbd ftlstreams ftlrender ftldisparity Threads::Threads ${OpenCV_LIBS} openvr ftlnet nanogui ${NANOGUI_EXTRA_LIBS} ceres nvidia-ml)
+target_link_libraries(voltu-ui ftlcommon ftldata ftlctrl ftlrgbd ftlstreams ftlrender ftldisparity Threads::Threads ${OpenCV_LIBS} openvr ftlnet nanogui ${NANOGUI_EXTRA_LIBS} ceres nvidia-ml)
 
-target_precompile_headers(ftl-gui2 REUSE_FROM ftldata)
+target_precompile_headers(voltu-ui REUSE_FROM ftldata)
+
+install(TARGETS voltu-ui RUNTIME COMPONENT gui)

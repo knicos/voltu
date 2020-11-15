@@ -37,14 +37,23 @@ target_link_libraries(voltu ftlcommon ftldata ftlctrl ftlrgbd ftlstreams ftlrend
 
 set(SDK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/sdk")
 
+if (WIN32)
+	install(TARGETS voltu RUNTIME COMPONENT runtime)
+else()
+	install(TARGETS voltu LIBRARY COMPONENT runtime)
+endif()
+
+set(voltu_sdk_DESTDIR ${CMAKE_CURRENT_BINARY_DIR}/lib/voltu_sdk_install)
+
 ExternalProject_Add(
 	voltu_sdk
 	SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/public"
 	BINARY_DIR ${SDK_BINARY_DIR}
-	INSTALL_COMMAND ""
 	BUILD_ALWAYS true
-	CMAKE_ARGS -DOpenCV_DIR=${OpenCV_DIR} -DWITH_PYTHON=True
+	CMAKE_ARGS -DOpenCV_DIR=${OpenCV_DIR} -DWITH_PYTHON=True -DCMAKE_INSTALL_PREFIX=${voltu_sdk_DESTDIR}
 )
+
+install(DIRECTORY ${voltu_sdk_DESTDIR}/ DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 if (BUILD_TESTS)
 	add_subdirectory(tests)
