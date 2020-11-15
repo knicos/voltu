@@ -44,6 +44,10 @@ endif()
 
 add_library(voltu_sdk STATIC ${VOLTU_SRCS})
 
+if (WITH_OPENCV)
+	target_compile_definitions(voltu_sdk PUBLIC WITH_OPENCV)
+endif()
+
 target_include_directories(voltu_sdk
 	PUBLIC include)
 target_link_libraries(voltu_sdk ${OS_LIBS} Threads::Threads ${OPTIONAL_DEPENDENCIES} Eigen3::Eigen)
@@ -65,6 +69,7 @@ target_link_libraries(voltu_basic_virtual_cam voltu_sdk)
 
 add_executable(voltu_fusion_evaluator
 	samples/fusion_evaluator/main.cpp
+	samples/common/cmd_args.cpp
 )
 target_link_libraries(voltu_fusion_evaluator voltu_sdk)
 

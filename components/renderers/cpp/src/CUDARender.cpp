@@ -417,6 +417,8 @@ void CUDARender::_mesh(ftl::rgbd::Frame &out, const Eigen::Matrix4d &t, cudaStre
 		);*/
 	}
 
+	//out.createTexture<half4>(_getNormalsChannel());
+
 	ftl::cuda::transform_normals(
 		out.createTexture<half4>(_getNormalsChannel()),
 		poseInverse_.getFloat3x3(),

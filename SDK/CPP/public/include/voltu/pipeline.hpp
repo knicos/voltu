@@ -64,7 +64,7 @@ public:
 	 * @param timeout Millisecond timeout, or 0 for non-blocking check.
 	 * @return True if completed
 	 */
-	PY_API virtual bool waitCompletion(int timeout) = 0;
+	PY_API virtual bool waitCompletion(int timeout, bool except=false) = 0;
 
 	/**
 	 * @brief Add an operator to this pipeline.

@@ -43,4 +43,6 @@ namespace voltu
 	 * @return Singleton VolTu runtime instance.
 	 */
 	std::shared_ptr<voltu::System> instance();
+
+	void release();
 }

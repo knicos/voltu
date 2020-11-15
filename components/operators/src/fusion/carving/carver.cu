@@ -74,8 +74,7 @@ __global__ void reverse_check_kernel(
 
 	float d = depth_in[y*pitch4+x];
 
-	// TODO: Externally provide the error coefficient
-	const float err_coef = 0.0005f; //depthErrorCoef(ointrin);
+	const float err_coef = depthErrorCoef(ointrin);
 
 	int ox = 0;
 	int oy = 0;
@@ -95,6 +94,7 @@ __global__ void reverse_check_kernel(
 			// TODO: Threshold comes from depth error characteristics
 			// If the value is significantly further then carve. Depth error
 			// is not always easy to calculate, depends on source.
+			// FIXME: Use length between 3D points, not depth?
 			if (!(d2 < ointrin.maxDepth && d2 - campos.z > d2*d2*err_coef)) {
 				match = fabsf(campos.z - d2) < d2*d2*err_coef; break;
 			}

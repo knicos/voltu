@@ -20,7 +20,7 @@ bool RoomImpl::waitNextFrame(int64_t timeout, bool except)
 {
 	if (!filter_)
 	{
-		filter_ = feed_->filter(fsids_, {ftl::codecs::Channel::Colour, ftl::codecs::Channel::Depth});
+		filter_ = feed_->filter(fsids_, {ftl::codecs::Channel::Colour, ftl::codecs::Channel::Depth, ftl::codecs::Channel::GroundTruth});
 		filter_->on([this](const std::shared_ptr<ftl::data::FrameSet> &fs)
 		{
 			UNIQUE_LOCK(mutex_, lk);
@@ -36,7 +36,7 @@ bool RoomImpl::waitNextFrame(int64_t timeout, bool except)
 	{
 		if (timeout > 0)
 		{
-			cv_.wait_for(lk, std::chrono::seconds(timeout), [this] {
+			cv_.wait_for(lk, std::chrono::milliseconds(timeout), [this] {
 				return last_read_ < last_seen_;
 			});
 

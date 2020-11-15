@@ -22,11 +22,11 @@ class Frame
 public:
 	virtual ~Frame() = default;
 	
-	PY_API PY_RV_LIFETIME_PARENT virtual std::list<voltu::ImagePtr> getImageSet(voltu::Channel channel) = 0;
+	PY_API PY_RV_LIFETIME_PARENT virtual std::vector<voltu::ImagePtr> getImageSet(voltu::Channel channel) = 0;
 
 	PY_API PY_RV_LIFETIME_PARENT virtual voltu::PointCloudPtr getPointCloud(voltu::PointCloudFormat cloudfmt, voltu::PointFormat pointfmt) = 0;
 
-	PY_API virtual std::vector<std::string> getMessages() = 0;
+	PY_API virtual std::vector<std::vector<std::string>> getMessages() = 0;
 
 	PY_API virtual int64_t getTimestamp() = 0;
 };

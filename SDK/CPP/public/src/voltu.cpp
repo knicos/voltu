@@ -8,6 +8,10 @@
 #include <voltu/types/errors.hpp>
 #include <voltu/voltu.hpp>
 
+#ifdef WITH_OPENCV
+#include <voltu/opencv.hpp>
+#endif
+
 #if defined(WIN32)
 #include <windows.h>
 #pragma comment(lib, "User32.lib")
@@ -21,9 +25,14 @@
 #include <cstdlib>
 #include <iostream>
 
-static bool g_init = false;
-
 typedef void* Library;
+
+static bool g_init = false;
+static Library handle = nullptr;
+
+#ifdef WITH_OPENCV
+voltu::GpuUtilities voltu::gpu;
+#endif
 
 static Library loadLibrary(const char *file)
 {
@@ -108,7 +117,7 @@ std::shared_ptr<voltu::System> voltu::instance()
 	
 	std::string name = locateLibrary();
 	std::cout << "Loading VolTu Runtime: " << name << std::endl;
-	Library handle = loadLibrary(name.c_str());
+	handle = loadLibrary(name.c_str());
 
 	if (handle)
 	{
@@ -132,6 +141,18 @@ std::shared_ptr<voltu::System> voltu::instance()
 				throw voltu::exceptions::RuntimeVersionMismatch();
 			}
 
+#ifdef WITH_OPENCV
+			auto gpuinit = (voltu::GpuUtilities* (*)())getFunction(handle, "voltu_utilities_gpu");
+			if (gpuinit)
+			{
+				gpu = *gpuinit();
+			}
+			else
+			{
+				//throw voltu::exceptions::LibraryLoadFailed();	
+			}
+#endif
+
 			return instance;
 		}
 		else
@@ -145,4 +166,10 @@ std::shared_ptr<voltu::System> voltu::instance()
 	}
 
 	return nullptr;
+}
+
+void voltu::release()
+{
+	// TODO: Call a finalise function
+	if (handle) unloadLibrary(handle);
 }

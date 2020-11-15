@@ -9,7 +9,7 @@
 
 #include <opencv2/imgproc.hpp>
 
-void voltu::cv::convert(voltu::ImagePtr img, ::cv::Mat &mat)
+void voltu::opencv::convert(voltu::ImagePtr img, ::cv::Mat &mat)
 {
 	voltu::ImageData data = img->getHost();
 
@@ -31,26 +31,51 @@ void voltu::cv::convert(voltu::ImagePtr img, ::cv::Mat &mat)
 	}
 }
 
-void voltu::cv::convert(voltu::ImagePtr img, ::cv::cuda::GpuMat &mat)
+void voltu::opencv::convert(voltu::ImagePtr img, ::cv::cuda::GpuMat &mat)
 {
+	mat = voltu::opencv::toGpuMat(img);
+}
+
+cv::cuda::GpuMat voltu::opencv::toGpuMat(voltu::ImagePtr img)
+{
+	voltu::ImageData data = img->getDevice();
+
+	if (data.format == voltu::ImageFormat::kBGRA8)
+	{
+
+	}
+	else if (data.format == voltu::ImageFormat::kFloat32)
+	{
+		return ::cv::cuda::GpuMat(
+			data.height,
+			data.width,
+			CV_32F,
+			data.data
+		);
+	}
+
 	throw voltu::exceptions::NotImplemented();
 }
 
-void voltu::cv::visualise(voltu::ImagePtr img, ::cv::Mat &mat)
+void voltu::opencv::visualise(voltu::ImagePtr img, ::cv::Mat &mat)
 {
 	voltu::ImageData data = img->getHost();
 
 	if (data.format == voltu::ImageFormat::kBGRA8)
 	{
-		voltu::cv::convert(img, mat);
+		voltu::opencv::convert(img, mat);
 	}
 	else if (data.format == voltu::ImageFormat::kFloat32)
 	{
 		::cv::Mat tmp;
-		voltu::cv::convert(img, tmp);
+		voltu::opencv::convert(img, tmp);
 
-		::cv::normalize(tmp, tmp, 0, 255, ::cv::NORM_MINMAX);
-		tmp.convertTo(tmp, CV_8U);
+		float maxdepth = 8.0f;  // TODO: Get from intrinsics
+
+		//::cv::normalize(tmp, tmp, 0, 255, ::cv::NORM_MINMAX);
+		tmp.convertTo(tmp, CV_8U, 255.0f / maxdepth);
+		::cv::Mat mask = tmp > 0;
+		::cv::subtract(::cv::Scalar(255), tmp, tmp, mask);
 		
 		//#if OPENCV_VERSION >= 40102
 		//cv::applyColorMap(tmp, mat, cv::COLORMAP_TURBO);
@@ -61,7 +86,7 @@ void voltu::cv::visualise(voltu::ImagePtr img, ::cv::Mat &mat)
 	else if (data.format == voltu::ImageFormat::kFloat16_4)
 	{
 		::cv::Mat tmp;
-		voltu::cv::convert(img, tmp);
+		voltu::opencv::convert(img, tmp);
 		tmp.convertTo(tmp, CV_32FC4);
 		tmp += 1.0f;
 		tmp *= 127.0f;

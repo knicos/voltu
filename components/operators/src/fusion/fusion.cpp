@@ -3,12 +3,22 @@
 #include <ftl/utility/matrix_conversion.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
+#include <ftl/utility/image_debug.hpp>
+
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudawarping.hpp>
 
 using ftl::operators::Fusion;
 using ftl::codecs::Channel;
 using cv::cuda::GpuMat;
+
+void Fusion::configuration(ftl::Configurable *cfg) {
+	cfg->value("enabled", true);
+	cfg->value("mls_smoothing", 2.0f);
+	cfg->value("mls_iterations", 2);
+	cfg->value("visibility_carving", true);
+	cfg->value("show_changes", false);
+}
 
 Fusion::Fusion(ftl::operators::Graph *g, ftl::Configurable *cfg) : ftl::operators::Operator(g, cfg), mls_(3) {
 
@@ -19,8 +29,10 @@ Fusion::~Fusion() {
 }
 
 bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) {
-	float mls_smoothing = config()->value("mls_smoothing", 0.01f);
+	float mls_smoothing = config()->value("mls_smoothing", 2.0f);
+	//float mls_feature = config()->value("mls_feature", 20.0f);
 	int mls_iters = config()->value("mls_iterations", 2);
+	bool show_changes = config()->value("show_changes", false);
 
 	if (weights_.size() != in.frames.size()) weights_.resize(in.frames.size());
 
@@ -28,22 +40,51 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
+
+		if (!in.frames[i].hasChannel(Channel::Colour) || !in.frames[i].hasChannel(Channel::Depth)) continue;
+
 		const GpuMat &col = in.frames[i].get<GpuMat>(Channel::Colour);
 		const GpuMat &d = in.frames[i].get<GpuMat>(Channel::Depth);
 
 		cv::cuda::cvtColor(col, temp_, cv::COLOR_BGRA2GRAY, 0, cvstream);
-		cv::cuda::resize(temp_, weights_[i], d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
+		if (temp_.size() != d.size()) {
+			cv::cuda::resize(temp_, temp2_, d.size(), 0, 0, cv::INTER_LINEAR, cvstream);
+		} else {
+			temp2_ = temp_;
+		}
+
+		// TODO: Not the best since the mean is entirely lost here.
+		// Perhaps check mean also with greater smoothing value
+		ftl::cuda::mean_subtract(temp2_, weights_[i], 3, stream);
 	}
+
+	//if (weights_.size() > 0) ftl::utility::show_image(weights_[0], "MeanSub", 1.0f, ftl::utility::ImageVisualisation::RAW_GRAY);
+
+	// 1) Optical flow of colour
+	// 2) Flow depth from model,
+	//    a) check local depth change consistency, generate a weighting
+	// 3) Generate smooth motion field
+	//    a) Remove outliers (median filter?)
+	//    b) Smooth outputs, perhaps using change consistency as weight?
+	// 4) Merge past with present using motion field
+	//    a) Visibility cull both directions
+	//    b) Local view feature weighted MLS
+	// 5) Now merge all view points
+	// 6) Store as a new model
 
 	if (config()->value("visibility_carving", true)) {
 		for (size_t i=0; i < in.frames.size(); ++i) {
 			if (!in.hasFrame(i)) continue;
+
+			if (!in.frames[i].hasChannel(Channel::Colour) || !in.frames[i].hasChannel(Channel::Depth)) continue;
 
 			auto &f = in.frames[i].cast<ftl::rgbd::Frame>();
 
 			for (size_t j=0; j < in.frames.size(); ++j) {
 				if (i == j) continue;
 				if (!in.hasFrame(j)) continue;
+
+				if (!in.frames[j].hasChannel(Channel::Colour) || !in.frames[j].hasChannel(Channel::Depth)) continue;
 
 				auto &ref = in.frames[j].cast<ftl::rgbd::Frame>();
 
@@ -69,6 +110,7 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 	for (int iters=0; iters < mls_iters; ++iters) {
 	for (size_t i=0; i<in.frames.size(); ++i) {
 		if (!in.hasFrame(i)) continue;
+		if (!in.frames[i].hasChannel(Channel::Normals) || !in.frames[i].hasChannel(Channel::Depth)) continue;
 
 		auto &f1 = in.frames[i].cast<ftl::rgbd::Frame>();
 
@@ -88,6 +130,7 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 		for (size_t j=0; j<in.frames.size(); ++j) {
 			if (!in.hasFrame(j)) continue;
 			//if (i == j) continue;
+			if (!in.frames[j].hasChannel(Channel::Normals) || !in.frames[j].hasChannel(Channel::Depth)) continue;
 
 			//LOG(INFO) << "Running phase1";
 
@@ -108,15 +151,25 @@ bool Fusion::apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream
 				f2.getLeft(),
 				pose2,
 				mls_smoothing,
+				mls_smoothing,
 				stream
 			);
 		}
 
-		mls_.adjust(
-			f1.create<GpuMat>(Channel::Depth),
-			f1.create<GpuMat>(Channel::Normals),
-			stream
-		);
+		if (show_changes) {
+			mls_.adjust(
+				f1.create<GpuMat>(Channel::Depth),
+				f1.create<GpuMat>(Channel::Normals),
+				f1.create<GpuMat>(Channel::Colour),
+				stream
+			);
+		} else {
+			mls_.adjust(
+				f1.create<GpuMat>(Channel::Depth),
+				f1.create<GpuMat>(Channel::Normals),
+				stream
+			);
+		}
 	}
 	}
 

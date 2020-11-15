@@ -16,11 +16,11 @@ public:
 	FrameImpl();
 	~FrameImpl() override;
 
-	std::list<voltu::ImagePtr> getImageSet(voltu::Channel) override;
+	std::vector<voltu::ImagePtr> getImageSet(voltu::Channel) override;
 
 	voltu::PointCloudPtr getPointCloud(voltu::PointCloudFormat cloudfmt, voltu::PointFormat pointfmt) override;
 
-	std::vector<std::string> getMessages() override;
+	std::vector<std::vector<std::string>> getMessages() override;
 
 	int64_t getTimestamp() override;
 

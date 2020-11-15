@@ -78,7 +78,7 @@ public:
 	 * Identifiers (URIs), with some non-standard additions. A few examples
 	 * are:
 	 * * `file:///home/user/file.ftl`
-	 * * `tcp://localhost:9001/*`
+	 * * `tcp://localhost:9001/`
 	 * * `ftl://my.stream.name/room1`
 	 * * `ws://ftlab.utu.fi/lab/`
 	 * * `./file.ftl`

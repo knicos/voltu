@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 		for (auto img : imgset)
 		{
 			cv::Mat m;
-			voltu::cv::visualise(img, m);
+			voltu::opencv::visualise(img, m);
 			cv::imshow(string("Image-") + img->getName(), m);
 		}
 

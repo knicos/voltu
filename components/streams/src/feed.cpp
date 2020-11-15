@@ -204,9 +204,9 @@ Feed::Feed(nlohmann::json &config, ftl::net::Universe*net) :
 
 				if (!did_pipe) {
 					LOG(WARNING) << "Feed Pipeline dropped (" << fs->frameset() << ")";
-					ftl::pool.push([this,fs](int id) {
-						_dispatch(fs);
-					});
+					//ftl::pool.push([this,fs](int id) {
+					//	_dispatch(fs);
+					//});
 				}
 
 				_processAudio(fs);
@@ -534,7 +534,7 @@ void Feed::_createPipeline(uint32_t fsid) {
 		p->append<ftl::operators::BorderMask>("border_mask");
 		p->append<ftl::operators::CullDiscontinuity>("remove_discontinuity");
 		p->append<ftl::operators::MultiViewMLS>("mvmls")->value("enabled", false);
-		p->append<ftl::operators::Fusion>("fusion")->value("enabled", false);
+		p->append<ftl::operators::Fusion>("fusion")->set("enabled", false);
 		p->append<ftl::operators::DisplayMask>("display_mask")->value("enabled", false);
 		p->append<ftl::operators::Poser>("poser")->value("enabled", true);
 		p->append<ftl::operators::GTAnalysis>("gtanalyse");
@@ -1115,8 +1115,12 @@ std::string Feed::getSourceURI(ftl::data::FrameID id) {
 
 std::vector<unsigned int> Feed::listFrameSets() {
 	SHARED_LOCK(mtx_, lk);
+
+	cudaDeviceSynchronize();
+	cudaSafeCall( cudaGetLastError() );
+
 	std::vector<unsigned int> result;
-	result.reserve(fsid_lookup_.size());
+	result.reserve(latest_.size());
 	for (const auto [k, fs] : latest_) {
 		if (fs) {
 			result.push_back(k);

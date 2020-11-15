@@ -36,6 +36,8 @@ bool OpenCVDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 
 	if (tmp2_.type() == CV_8UC3) {
 		cv::cvtColor(tmp2_, tmp_, cv::COLOR_RGB2BGRA);
+	} else if (tmp2_.type() == CV_8U) {
+		tmp_ = tmp2_;
 	} else {
 		if (pkt.flags & ftl::codecs::kFlagFlipRGB) {
 			cv::cvtColor(tmp2_, tmp_, cv::COLOR_RGBA2BGRA);

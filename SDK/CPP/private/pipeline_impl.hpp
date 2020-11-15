@@ -16,7 +16,7 @@ public:
 
 	void submit(const voltu::FramePtr &frame) override;
 
-	bool waitCompletion(int timeout) override;
+	bool waitCompletion(int timeout, bool except) override;
 
 	voltu::OperatorPtr appendOperator(voltu::OperatorId id) override;
 

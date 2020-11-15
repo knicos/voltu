@@ -17,12 +17,13 @@ class Fusion : public ftl::operators::Operator {
 
 	bool apply(ftl::rgbd::FrameSet &in, ftl::rgbd::FrameSet &out, cudaStream_t stream) override;
 
-	static void configuration(ftl::Configurable*) {}
+	static void configuration(ftl::Configurable*);
 
 	private:
 	ftl::cuda::MLSMultiIntensity mls_;
 	std::vector<cv::cuda::GpuMat> weights_;
 	cv::cuda::GpuMat temp_;
+	cv::cuda::GpuMat temp2_;
 };
 
 }

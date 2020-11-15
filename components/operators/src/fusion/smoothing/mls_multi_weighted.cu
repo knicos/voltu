@@ -9,7 +9,18 @@ using cv::cuda::GpuMat;
 
 __device__ inline float featureWeight(int f1, int f2) {
 	const float w = (1.0f-(float(abs(f1 - f2)) / 255.0f));
-	return w*w;
+	return w*w*w;
+}
+
+__device__ inline float biasedLength(const float3 &Xi, const float3 &X) {
+	float l = 0.0f;
+	const float dx = Xi.x-X.x;
+	l += 2.0f*dx*dx;
+	const float dy = Xi.y-X.y;
+	l += 2.0f*dy*dy;
+	const float dz = Xi.z-X.z;
+	l += dz*dz;
+	return sqrt(l);
 }
 
 /*
@@ -26,6 +37,7 @@ __device__ inline float featureWeight(int f1, int f2) {
 	float4* __restrict__ centroid_out,
 	float* __restrict__ contrib_out,
 	float smoothing,
+	float fsmoothing,
 	float4x4 o_2_in,
 	float4x4 in_2_o,
 	float3x3 in_2_o33,
@@ -45,18 +57,70 @@ __device__ inline float featureWeight(int f1, int f2) {
 
     if (x < 0 || y < 0 || x >= camera_origin.width || y >= camera_origin.height) return;
 
-	float3 nX = make_float3(normals_out[y*npitch_out+x]);
-	float3 aX = make_float3(centroid_out[y*cpitch_out+x]);
-    float contrib = contrib_out[y*wpitch_out+x];
+	//float3 nX = make_float3(normals_out[y*npitch_out+x]);
+	//float3 aX = make_float3(centroid_out[y*cpitch_out+x]);
+	//float contrib = contrib_out[y*wpitch_out+x];
+	
+	float3 nX = make_float3(0.0f, 0.0f, 0.0f);
+	float3 aX = make_float3(0.0f, 0.0f, 0.0f);
+	float contrib = 0.0f;
 
 	float d0 = depth_origin[x+y*dpitch_o];
 	if (d0 <= camera_origin.minDepth || d0 >= camera_origin.maxDepth) return;
 
-	const int feature1 = feature_origin[x+y*fpitch_o];
+	const uchar2 feature1 = feature_origin[x+y*fpitch_o];
+
+	// TODO: Could the origin depth actually be averaged with depth in other
+	// image? So as to not bias towards the original view?
 
 	float3 X = camera_origin.screenToCam((int)(x),(int)(y),d0);
 
-	int2 s = camera_in.camToScreen<int2>(o_2_in * X);
+	const float3 camPos = o_2_in * X;
+	const int2 s = camera_in.camToScreen<int2>(camPos);
+
+	// Move point off of original surface
+	//X = camera_origin.screenToCam((int)(x),(int)(y),d0-0.005f);
+
+	// TODO: Could dynamically adjust the smoothing factors depending upon the
+	// number of matches. Meaning, if lots of good local and feature matches
+	// then be less likely to include poorer matches. Conversely, if only poor
+	// non-local or feature distance matches, then increase search range.
+
+	// Could also adapt smoothing parameters using variance or some other local
+	// image measures. Or by just considering distance of the central projected
+	// points as an indication of miss-alignment. Both spatial distance and
+	// feature distance could be used to adjust parameters.
+
+	// FIXME: For own image, need to do something different than the below.
+	// Otherwise smoothing factors become 0.
+
+	float spatial_smoothing = (depth_origin == depth_in) ? 0.005f : 0.03f; // 3cm default
+	float hf_intensity_smoothing = (depth_origin == depth_in) ? 100.0f : 50.0f;
+	float mean_smoothing = (depth_origin == depth_in) ? 100.0f : 100.0f;
+	if (depth_origin != depth_in && s.x >= 0 && s.x < camera_in.width && s.y >= 0 && s.y <= camera_in.height) {
+		// Get depth at exact reprojection point
+		const float d = depth_in[s.x+s.y*dpitch_i];
+		// Get feature at exact reprojection point
+		const uchar2 feature2 = feature_in[s.x+s.y*fpitch_i];
+		if (d > camera_in.minDepth && d < camera_in.maxDepth) {
+			spatial_smoothing = min(spatial_smoothing, smoothing * fabsf(camPos.z - d));
+		}
+		hf_intensity_smoothing = smoothing * fabsf(float(feature2.x) - float(feature1.x));
+		//mean_smoothing = smoothing * fabsf(float(feature2.y) - float(feature1.y));
+
+		// Make start point the average of the two sources...
+		const float3 reversePos = in_2_o * camera_in.screenToCam(s.x, s.y, d);
+		X = X + (reversePos) / 2.0f;
+	}
+
+	// Make sure there is a minimum smoothing value
+	spatial_smoothing = max(0.05f, spatial_smoothing);
+	hf_intensity_smoothing = max(50.0f, hf_intensity_smoothing);
+	//mean_smoothing = max(10.0f, mean_smoothing);
+
+	// Check for neighbourhood symmetry and use to weight overall contribution
+	float symx = 0.0f;
+	float symy = 0.0f;
 
     // Neighbourhood
     for (int v=-SEARCH_RADIUS; v<=SEARCH_RADIUS; ++v) {
@@ -68,12 +132,30 @@ __device__ inline float featureWeight(int f1, int f2) {
 		const float3 Xi = in_2_o * camera_in.screenToCam(s.x+u, s.y+v, d);
 		const float3 Ni = make_float3(normals_in[s.x+u+(s.y+v)*npitch_in]);
 
-		const int feature2 = feature_in[s.x+y+(s.y+v)*fpitch_i];
+		const uchar2 feature2 = feature_in[s.x+u+(s.y+v)*fpitch_i];
 
-		// Gauss approx weighting function using point distance
+		// Gauss approx weighting functions
+		// Rule: spatially close and feature close is strong
+		// Spatially far or feature far, then poor.
+		// So take the minimum, must be close and feature close to get good value
+		const float w_high_int = ftl::cuda::weighting(float(abs(int(feature1.x)-int(feature2.x))), hf_intensity_smoothing);
+		const float w_mean_int = ftl::cuda::weighting(float(abs(int(feature1.y)-int(feature2.y))), mean_smoothing);
+		const float w_space = ftl::cuda::spatialWeighting(X,Xi,spatial_smoothing);
+		//const float w_space = ftl::cuda::weighting(biasedLength(Xi,X),spatial_smoothing);
+		// TODO: Distance from cam squared
+		// TODO: Angle from cam (dot of normal and ray)
+		//const float w_lateral = ftl::cuda::weighting(sqrt(Xi.x*X.x + Xi.y*X.y), float(SEARCH_RADIUS)*camera_origin.fx/Xi.z);
 		const float w = (length(Ni) > 0.0f)
-			? ftl::cuda::spatialWeighting(X,Xi,smoothing) * featureWeight(feature1, feature2)
+			? min(w_space, min(w_high_int, w_mean_int))  //w_space * w_high_int * w_mean_int //
 			: 0.0f;
+
+		// Mark as a symmetry contribution
+		if (w > 0.0f) {
+			if (u < 0) symx -= 1.0f;
+			else if (u > 0) symx += 1.0f;
+			if (v < 0) symy -= 1.0f;
+			else if (v > 0) symy += 1.0f;
+		}
 
 		aX += Xi*w;
 		nX += (in_2_o33 * Ni)*w;
@@ -81,9 +163,16 @@ __device__ inline float featureWeight(int f1, int f2) {
     }
 	}
 
-	normals_out[y*npitch_out+x] = make_half4(nX, 0.0f);
-	centroid_out[y*cpitch_out+x] = make_float4(aX, 0.0f);
-	contrib_out[y*wpitch_out+x] = contrib;
+	// Perfect symmetry means symx and symy == 0, therefore actual length can
+	// be measure of asymmetry, so when inverted it can be used to weight result
+	symx = fabsf(symx) / float(SEARCH_RADIUS);
+	symy = fabsf(symy) / float(SEARCH_RADIUS);
+	float l = 1.0f - sqrt(symx*symx+symy*symy);
+	l = l*l;
+
+	normals_out[y*npitch_out+x] = make_half4(make_float3(normals_out[y*npitch_out+x]) + nX*l, 0.0f);
+	centroid_out[y*cpitch_out+x] = make_float4(make_float3(centroid_out[y*cpitch_out+x]) + aX*l, 0.0f);
+	contrib_out[y*wpitch_out+x] = contrib_out[y*wpitch_out+x] + contrib*l;
 }
 
 /**
@@ -95,12 +184,14 @@ __device__ inline float featureWeight(int f1, int f2) {
 	const float* __restrict__ contrib_out,
 	half4* __restrict__ normals_out,
 	float* __restrict__ depth,
+	uchar4* __restrict__ colour,
 	ftl::rgbd::Camera camera,
 	int npitch_in,
 	int cpitch_in,
 	int wpitch,
 	int npitch,
-	int dpitch
+	int dpitch,
+	int cpitch
 ) {
 	const int x = blockIdx.x*blockDim.x + threadIdx.x;
     const int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -111,7 +202,7 @@ __device__ inline float featureWeight(int f1, int f2) {
 		float contrib = contrib_out[y*wpitch+x];
 
 		//depth[x+y*dpitch] = X.z;
-		normals_out[x+y*npitch] = make_half4(0.0f, 0.0f, 0.0f, 0.0f);
+		//normals_out[x+y*npitch] = make_half4(0.0f, 0.0f, 0.0f, 0.0f);
 
 		float d0 = depth[x+y*dpitch];
 		//depth[x+y*dpitch] = 0.0f;
@@ -129,6 +220,20 @@ __device__ inline float featureWeight(int f1, int f2) {
 
 		depth[x+y*dpitch] = X.z;
 		normals_out[x+y*npitch] = make_half4(nX / length(nX), 0.0f);
+
+		if (colour) {
+			int2 s = camera.camToScreen<int2>(X);
+			float pd = min(1.0f, max(0.0f, X.z-d0) / 0.002f);
+			float nd = min(1.0f, -min(0.0f, X.z-d0) / 0.002f);
+			colour[x+y*cpitch] = (abs(s.x - x) > 1 || abs(s.y - y) > 1)
+			? make_uchar4(0,255,0,255)
+			: make_uchar4(
+				255.0f - pd*255.0f,
+				255.0f - pd*255.0f - nd*255.0f,
+				255.0f - nd*255.0f,
+				255.0f
+			);
+		}
 	}
 }
 
@@ -180,6 +285,7 @@ void MLSMultiIntensity::gather(
 	const ftl::rgbd::Camera &cam_src,
 	const float4x4 &pose_src,
 	float smoothing,
+	float fsmoothing,
 	cudaStream_t stream)
 {
 	static constexpr int THREADS_X = 8;
@@ -201,11 +307,12 @@ void MLSMultiIntensity::gather(
 		normal_accum_.ptr<half4>(),
 		depth_prime_.ptr<float>(),
 		depth_src.ptr<float>(),
-		intensity_prime_.ptr<uchar>(),
-		intensity_src.ptr<uchar>(),
+		intensity_prime_.ptr<uchar2>(),
+		intensity_src.ptr<uchar2>(),
 		centroid_accum_.ptr<float4>(),
 		weight_accum_.ptr<float>(),
 		smoothing,
+		fsmoothing,
 		o_2_in,
 		in_2_o,
 		in_2_o33,
@@ -217,8 +324,8 @@ void MLSMultiIntensity::gather(
 		depth_prime_.step1(),
 		depth_src.step1(),
 		normals_src.step1()/4,
-		intensity_prime_.step1(),
-		intensity_src.step1()
+		intensity_prime_.step1()/2,
+		intensity_src.step1()/2
 	);
 	cudaSafeCall( cudaGetLastError() );
 }
@@ -245,12 +352,104 @@ void MLSMultiIntensity::adjust(
 		weight_accum_.ptr<float>(),
 		normals_out.ptr<half4>(),
 		depth_prime_.ptr<float>(),
+		nullptr,
 		cam_prime_,
 		normal_accum_.step1()/4,
 		centroid_accum_.step1()/4,
 		weight_accum_.step1(),
 		normals_out.step1()/4,
-		depth_prime_.step1()
+		depth_prime_.step1(),
+		0
+	);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+void MLSMultiIntensity::adjust(
+	GpuMat &depth_out,
+	GpuMat &normals_out,
+	GpuMat &colour_out,
+	cudaStream_t stream)
+{
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize((depth_prime_.cols + THREADS_X - 1)/THREADS_X, (depth_prime_.rows + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	normals_out.create(depth_prime_.size(), CV_16FC4);
+	depth_out.create(depth_prime_.size(), CV_32F);
+
+	// FIXME: Depth prime assumed to be same as depth out
+
+	mls_reduce_kernel_2<<<gridSize, blockSize, 0, stream>>>(
+		centroid_accum_.ptr<float4>(),
+		normal_accum_.ptr<half4>(),
+		weight_accum_.ptr<float>(),
+		normals_out.ptr<half4>(),
+		depth_prime_.ptr<float>(),
+		colour_out.ptr<uchar4>(),
+		cam_prime_,
+		normal_accum_.step1()/4,
+		centroid_accum_.step1()/4,
+		weight_accum_.step1(),
+		normals_out.step1()/4,
+		depth_prime_.step1(),
+		colour_out.step1()/4
+	);
+	cudaSafeCall( cudaGetLastError() );
+}
+
+// =============================================================================
+
+template <int RADIUS>
+__global__ void mean_subtract_kernel(
+	const uchar* __restrict__ intensity,
+	uchar2* __restrict__ contrast,
+	int pitch,
+	int cpitch,
+	int width,
+	int height
+) {
+	const int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if (x >= RADIUS && y >= RADIUS && x < width-RADIUS && y < height-RADIUS) {
+		float mean = 0.0f;
+
+		for (int v=-RADIUS; v<=RADIUS; ++v) {
+		for (int u=-RADIUS; u<=RADIUS; ++u) {
+			mean += float(intensity[x+u+(y+v)*pitch]);
+		}
+		}
+
+		mean /= float((2*RADIUS+1)*(2*RADIUS+1));
+
+		float diff = float(intensity[x+y*pitch]) - mean;
+		contrast[x+y*cpitch] = make_uchar2(max(0, min(254, int(diff)+127)), int(mean));
+	}
+}
+
+void ftl::cuda::mean_subtract(
+	const cv::cuda::GpuMat &intensity,
+	cv::cuda::GpuMat &contrast,
+	int radius,
+	cudaStream_t stream
+) {
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize((intensity.cols + THREADS_X - 1)/THREADS_X, (intensity.rows + THREADS_Y - 1)/THREADS_Y);
+	const dim3 blockSize(THREADS_X, THREADS_Y);
+
+	contrast.create(intensity.size(), CV_8UC2);
+
+	mean_subtract_kernel<3><<<gridSize, blockSize, 0, stream>>>(
+		intensity.ptr<uchar>(),
+		contrast.ptr<uchar2>(),
+		intensity.step1(),
+		contrast.step1()/2,
+		intensity.cols,
+		intensity.rows
 	);
 	cudaSafeCall( cudaGetLastError() );
 }
