@@ -61,8 +61,8 @@ webserver-deploy:
     - devenv ftl.utu.fi.sln /build Release
     - rmdir /q /s "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
     - mkdir "%DEPLOY_DIR%/%CI_COMMIT_REF_SLUG%"
-    - 'copy "applications\vision\Release\ftl-vision.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
-    - 'copy "applications\gui2\Release\ftl-gui2.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
+    - 'copy "applications\vision\Release\voltu-vision.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
+    - 'copy "applications\gui2\Release\voltu-ui.exe" "%DEPLOY_DIR%\%CI_COMMIT_REF_SLUG%"'
 
 windows-vision:
   except:
