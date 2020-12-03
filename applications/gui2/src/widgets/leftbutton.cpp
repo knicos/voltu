@@ -1,3 +1,9 @@
+/**
+ * @file leftbutton.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #include "leftbutton.hpp"
 #include <nanogui/button.h>
 #include <nanogui/theme.h>

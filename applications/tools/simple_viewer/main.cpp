@@ -47,7 +47,6 @@ using std::vector;
 using ftl::config::json_t;
 using ftl::codecs::Channel;
 using ftl::codecs::codec_t;
-using ftl::codecs::definition_t;
 
 using json = nlohmann::json;
 using std::this_thread::sleep_for;

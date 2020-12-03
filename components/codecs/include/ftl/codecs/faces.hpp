@@ -1,3 +1,9 @@
+/**
+ * @file faces.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_FACE_HPP_
 #define _FTL_CODECS_FACE_HPP_
 
@@ -7,10 +13,10 @@
 
 namespace ftl {
 namespace codecs {
+
+/** Face data item for Faces channel. */
 struct Face {
 	Face() {};
-	//Face(const int &id, const cv::Vec3d &rvec, const cv::Vec3d &tvec) :
-	//	id(id), rvec(rvec), tvec(tvec) {}
 
 	int id;
 	cv::Rect2d box;
@@ -19,7 +25,7 @@ struct Face {
 	MSGPACK_DEFINE_ARRAY(id, box, depth);
 };
 
-}
-}
+}  // namespace codecs
+}  // namespace ftl
 
-#endif
+#endif  // _FTL_CODECS_FACE_HPP_

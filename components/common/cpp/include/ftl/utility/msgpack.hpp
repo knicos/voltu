@@ -1,3 +1,11 @@
+/**
+ * @file msgpack.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
+/* Extend msgpack for OpenCV and Eigen types */
+
 #ifndef _FTL_MSGPACK_HPP_
 #define _FTL_MSGPACK_HPP_
 

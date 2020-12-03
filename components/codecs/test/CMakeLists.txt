@@ -1,7 +1,6 @@
 ### OpenCV Codec Unit ################################################################
 add_executable(opencv_codec_unit
 $<TARGET_OBJECTS:CatchTest>
-	../src/bitrates.cpp
 	../src/encoder.cpp
 	../src/opencv_encoder.cpp
 	../src/opencv_decoder.cpp
@@ -18,10 +17,7 @@ add_test(OpenCVCodecUnitTest opencv_codec_unit)
 ### Nvidia Codec Unit ################################################################
 add_executable(nvidia_codec_unit
 $<TARGET_OBJECTS:CatchTest>
-	../src/bitrates.cpp
 	../src/encoder.cpp
-	#../src/nvpipe_encoder.cpp
-	#../src/nvpipe_decoder.cpp
 	$<TARGET_OBJECTS:NvidiaCodec>
 	../src/depth_convert.cu
 	./nvidia_codec_unit.cpp
@@ -43,6 +39,9 @@ set_property(TARGET nvidia_codec_unit PROPERTY CUDA_ARCHITECTURES OFF)
 
 
 add_test(NvidiaCodecUnitTest nvidia_codec_unit)
+
+
+# REMOVED as these are deprecated
 
 ### Reader Writer Unit ################################################################
 #add_executable(rw_unit

@@ -1,9 +1,13 @@
+/**
+ * @file configurable.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 #ifndef _FTL_CONFIGURABLE_HPP_
 #define _FTL_CONFIGURABLE_HPP_
 
-//#define LOGURU_REPLACE_GLOG 1
-//#include <loguru.hpp>
 #include <ftl/exception.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
@@ -16,7 +20,7 @@
 
 #define REQUIRED(...) required(__func__, __VA_ARGS__)
 
-// TODO: Find a better place for this
+// TODO: Find a better place for this or use std version
 #define UNUSED(A) (void)(A)
 
 namespace ftl {
@@ -24,6 +28,7 @@ namespace ftl {
 class Configurable;
 
 namespace config {
+/** unused */
 struct Event {
 	Configurable *entity;
 	std::string name;
@@ -162,16 +167,11 @@ class Configurable {
 	void _trigger(const std::string &name);
 };
 
-/*template <>
-void Configurable::set<const std::string&>(const std::string &name, const std::string &value) {
-	config_[name] = value;
-	if (name == "uri") __changeURI(value, this);
-	_trigger(name);
-}*/
-
 }
 
 #include <ftl/configuration.hpp>
+
+/* Optimised compile by externally compiling these specific templates. */
 
 extern template float ftl::Configurable::value<float>(const std::string &name, const float &def);
 extern template bool ftl::Configurable::value<bool>(const std::string &name, const bool &def);

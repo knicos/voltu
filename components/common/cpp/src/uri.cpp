@@ -1,3 +1,9 @@
+/**
+ * @file uri.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/uri.hpp>
 #include <nlohmann/json.hpp>
 // #include <filesystem>  TODO When available

@@ -15,10 +15,8 @@ using ftl::codecs::StreamPacket;
 using ftl::codecs::Packet;
 using ftl::codecs::Channels;
 using ftl::codecs::Channel;
-using ftl::codecs::definition_t;
 using ftl::codecs::device_t;
 using ftl::codecs::codec_t;
-using ftl::codecs::format_t;
 using ftl::stream::injectCalibration;
 using ftl::stream::injectPose;
 using ftl::stream::injectConfig;
@@ -519,8 +517,7 @@ void Sender::_encodeVideoChannel(ftl::data::FrameSet &fs, Channel c, bool reset)
 
 		ftl::codecs::Encoder *enc = tile.encoder[encoder_number];
 		if (!enc) {
-			enc = ftl::codecs::allocateEncoder(
-				definition_t::HD1080, device, codec);
+			enc = ftl::codecs::allocateEncoder(device, codec);
 			tile.encoder[encoder_number] = enc;
 		}
 

@@ -1,3 +1,9 @@
+/**
+ * @file configuration.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 #include <ftl/config.h>
@@ -58,7 +64,6 @@ json_t config;
 };
 
 using ftl::config::config;
-//using ftl::config::root_config;
 
 static Configurable *rootCFG = nullptr;
 
@@ -66,6 +71,7 @@ bool ftl::running = true;
 int ftl::exit_code = 0;
 std::string ftl::branch_name = FTL_BRANCH;
 
+// TODO: Use std::filesystem
 bool ftl::is_directory(const std::string &path) {
 #ifdef WIN32
 	DWORD attrib = GetFileAttributesA(path.c_str());
@@ -375,22 +381,15 @@ bool ftl::config::update(const std::string &puri, const json_t &value) {
 	string tail = "";
 	string head = "";
 	string uri = preprocessURI(puri);
-	//size_t last_hash = uri.find_last_of('/');
-	//if (last_hash != string::npos) {
-		size_t last = uri.find_last_of('/');
-		if (last != string::npos) {
-			tail = uri.substr(last+1);
-			head = uri.substr(0, last);
-		} else {
-		//	tail = uri.substr(last_hash+1);
-		//	head = uri.substr(0, last_hash);
-			LOG(WARNING) << "Expected a URI path: " << uri;
-			return false;
-		}
-	//} else {
-	//	LOG(WARNING) << "Expected a # in an update URI: " << uri;
-	//	return false;
-	//}
+	size_t last = uri.find_last_of('/');
+
+	if (last != string::npos) {
+		tail = uri.substr(last+1);
+		head = uri.substr(0, last);
+	} else {
+		LOG(WARNING) << "Expected a URI path: " << uri;
+		return false;
+	}
 
 	Configurable *cfg = find(head);
 
@@ -453,7 +452,7 @@ json_t &ftl::config::get(const std::string &puri) {
 json_t &ftl::config::resolve(const std::string &puri, bool eager) {
 	string uri_str = puri;
 
-	// TODO(Nick) Must support alternative root (last $id)
+	// TODO: (Nick) Must support alternative root (last $id)
 	if (uri_str.at(0) == '#') {
 		string id_str = config["$id"].get<string>();
 		if (id_str.find('#') != string::npos) {
@@ -549,12 +548,7 @@ static bool findConfiguration(const string &file, const vector<string> &paths) {
 		}
 	}
 
-	if (found) {
-		//_indexConfig(config);
-		return true;
-	} else {
-		return false;
-	}
+	return found;
 }
 
 /**
@@ -608,19 +602,6 @@ static void process_options(Configurable *root, const map<string, string> &opts)
 		}
 
 		try {
-			/* //auto ptr = nlohmann::json::json_pointer("/"+opt.first);
-			auto ptr = ftl::config::resolve(*root->get<string>("$id") + string("/") + opt.first);
-
-			LOG(INFO) << "PARAM RES TO " << (*root->get<string>("$id") + string("/") + opt.first);
-
-			auto v = nlohmann::json::parse(opt.second);
-			std::string type = ptr.type_name();
-			if (type != "null" && v.type_name() != type) {
-				LOG(ERROR) << "Incorrect type for argument " << opt.first << " - expected '" << type << "', got '" << v.type_name() << "'";
-				continue;
-			}
-			ptr.swap(v);*/
-
 			auto v = nlohmann::json::parse(opt.second);
 			ftl::config::update(*root->get<string>("$id") + string("/") + opt.first, v);
 		} catch(...) {
@@ -735,22 +716,16 @@ std::vector<nlohmann::json*> ftl::config::_createArray(ftl::Configurable *parent
 			if (entity.is_object()) {
 				if (!entity["$id"].is_string()) {
 					std::string id_str = *parent->get<std::string>("$id");
-					//if (id_str.find('#') != std::string::npos) {
-						entity["$id"] = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
-					//} else {
-					//	entity["$id"] = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
-					//}
+				
+					entity["$id"] = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
 				}
 
 				result.push_back(&entity);
 			} else if (entity.is_null()) {
 				// Must create the object from scratch...
 				std::string id_str = *parent->get<std::string>("$id");
-				//if (id_str.find('#') != std::string::npos) {
-					id_str = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
-				//} else {
-				//	id_str = id_str + std::string("#") + name + std::string("/") + std::to_string(i);
-				//}
+				id_str = id_str + std::string("/") + name + std::string("/") + std::to_string(i);
+				
 				parent->getConfig()[name] = {
 					// cppcheck-suppress constStatement
 					{"$id", id_str}
@@ -762,7 +737,7 @@ std::vector<nlohmann::json*> ftl::config::_createArray(ftl::Configurable *parent
 			i++;
 		}
 	} else {
-		//LOG(WARNING) << "Expected an array for '" << name << "' in " << parent->getID();
+		
 	}
 
 	return result;
@@ -776,22 +751,15 @@ nlohmann::json &ftl::config::_create(ftl::Configurable *parent, const std::strin
 	if (entity.is_object()) {
 		if (!entity["$id"].is_string()) {
 			std::string id_str = *parent->get<std::string>("$id");
-			//if (id_str.find('#') != std::string::npos) {
-				entity["$id"] = id_str + std::string("/") + name;
-			//} else {
-			//	entity["$id"] = id_str + std::string("#") + name;
-			//}
+			entity["$id"] = id_str + std::string("/") + name;
 		}
 
 		return entity;
 	} else if (entity.is_null()) {
 		// Must create the object from scratch...
 		std::string id_str = *parent->get<std::string>("$id");
-		//if (id_str.find('#') != std::string::npos) {
-			id_str = id_str + std::string("/") + name;
-		//} else {
-		//	id_str = id_str + std::string("#") + name;
-		//}
+		id_str = id_str + std::string("/") + name;
+		
 		parent->getConfig()[name] = {
 			// cppcheck-suppress constStatement
 			{"$id", id_str}
@@ -920,10 +888,6 @@ Configurable *ftl::config::configure(int argc, char **argv, const std::string &r
 
 	int pool_size = int(rootcfg->value("thread_pool_factor", 2.0f)*float(std::thread::hardware_concurrency()));
 	if (pool_size != ftl::pool.size()) ftl::pool.resize(pool_size);
-
-
-	//LOG(INFO) << "CONFIG: " << config["vision_default"];
-	//CHECK_EQ( &config, config_index["ftl://utu.fi"] );
 
 	return rootcfg;
 }

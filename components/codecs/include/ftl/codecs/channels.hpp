@@ -1,3 +1,9 @@
+/**
+ * @file channels.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_RGBD_CHANNELS_HPP_
 #define _FTL_RGBD_CHANNELS_HPP_
 
@@ -7,7 +13,11 @@
 namespace ftl {
 namespace codecs {
 
+// TODO: (nick) Move Channel enum to data component.
+
+/** Frame channel identifier. */
 enum struct Channel : int {
+	/* Video Channels */
 	None			= -1,
 	Colour			= 0,	// 8UC3 or 8UC4
 	Left			= 0,
@@ -16,7 +26,7 @@ enum struct Channel : int {
 	Colour2			= 2,
 	Depth2			= 3,
 	Deviation		= 4,
-	Screen			= 4,
+	Screen			= 4,	// 16SC2
 	Normals			= 5,	// 16FC4
 	Weights			= 6,	// short
 	Confidence		= 7,	// 32F
@@ -38,14 +48,16 @@ enum struct Channel : int {
 	Overlay			= 21,   // 8UC4
 	GroundTruth		= 22,	// 32F
 
+	/* Audio Channels */
 	AudioMono		= 32,	// Deprecated, will always be stereo
 	AudioStereo		= 33,
 	Audio			= 33,
 
+	/* Special data channels */
 	Configuration	= 64,	// JSON Data
 	Settings1		= 65,
 	Calibration		= 65,	// Camera Parameters Object
-	Pose			= 66,	// Eigen::Matrix4d
+	Pose			= 66,	// Eigen::Matrix4d, camera transform
 	Settings2		= 67,
 	Calibration2	= 67,	// Right camera parameters
 	Index           = 68,
@@ -56,6 +68,7 @@ enum struct Channel : int {
 	CalibrationData = 73,	// Just for stereo intrinsics/extrinsics etc
 	Thumbnail		= 74,	// Small JPG thumbnail, sometimes updated
 
+	/* Custom / user data channels */
 	Data			= 2048,	// Do not use
 	EndFrame		= 2048, // Signify the last packet
 	Faces			= 2049, // Data about detected faces
@@ -70,11 +83,15 @@ inline bool isVideo(Channel c) { return (int)c < 32; };
 inline bool isAudio(Channel c) { return (int)c >= 32 && (int)c < 64; };
 inline bool isData(Channel c) { return (int)c >= 64; };
 
+/** Obtain a string name for channel. */
 std::string name(Channel c);
+
+/** Obtain OpenCV type for channel. */
 int type(Channel c);
 
+/** @deprecated */
 template <int BASE=0>
-class Channels {
+class Channels {  // TODO: Add [[deprecated]]
 	public:
 
 	class iterator {
@@ -153,6 +170,7 @@ inline Channels<BASE> Channels<BASE>::All() {
 static const Channels kNoChannels;
 static const Channels kAllChannels(0xFFFFFFFFu);
 
+/** @deprecated */
 inline bool isFloatChannel(ftl::codecs::Channel chan) {
 	switch (chan) {
 	case Channel::GroundTruth:
@@ -170,15 +188,5 @@ inline bool isFloatChannel(ftl::codecs::Channel chan) {
 }
 
 MSGPACK_ADD_ENUM(ftl::codecs::Channel);
-
-/*template <int BASE=0>
-inline ftl::codecs::Channels<BASE> operator|(ftl::codecs::Channel a, ftl::codecs::Channel b) {
-	return ftl::codecs::Channels<BASE>(a) | b;
-}
-
-template <int BASE=0>
-inline ftl::codecs::Channels<BASE> operator+(ftl::codecs::Channel a, ftl::codecs::Channel b) {
-	return ftl::codecs::Channels<BASE>(a) | b;
-}*/
 
 #endif  // _FTL_RGBD_CHANNELS_HPP_

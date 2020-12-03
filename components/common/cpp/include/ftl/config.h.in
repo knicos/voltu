@@ -1,3 +1,11 @@
+/**
+ * @file config.h
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * 
+ * To be CMake processed
+ */
+
 #ifndef __FTL_CONFIG_H__
 #define __FTL_CONFIG_H__
 

@@ -1,3 +1,9 @@
+/**
+ * @file modules.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #pragma once
 
 #include "modules/thumbnails.hpp"

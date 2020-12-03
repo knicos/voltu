@@ -1,3 +1,9 @@
+/**
+ * @file image_debug.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/utility/image_debug.hpp>
 
 #include <opencv2/core.hpp>

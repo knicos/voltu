@@ -1,4 +1,10 @@
-//#define _GNU_SOURCE
+/**
+ * @file ice.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
+
 #include <ftl/net/ice.hpp>
 #include <ftl/net/stun.hpp>
 #include <ftl/uri.hpp>

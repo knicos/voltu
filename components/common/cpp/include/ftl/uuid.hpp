@@ -1,3 +1,9 @@
+/**
+ * @file uuid.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_UUID_HPP_
 #define _FTL_UUID_HPP_
 

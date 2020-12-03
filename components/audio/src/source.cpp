@@ -1,3 +1,9 @@
+/**
+ * @file source.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/audio/source.hpp>
 #include <ftl/audio/audio.hpp>
 #include <ftl/audio/portaudio.hpp>
@@ -12,9 +18,7 @@ using ftl::codecs::Channel;
 
 #ifdef HAVE_PORTAUDIO
 
-//static double ltime = 0.0;
-
-/* Portaudio callback to receive audio data. */
+/* Portaudio callback to receive audio data. Interrupt handler. */
 template <typename BUFFER>
 static int pa_source_callback(const void *input, void *output,
         unsigned long frameCount, const PaStreamCallbackTimeInfo *timeInfo,
@@ -136,7 +140,6 @@ Source::Source(nlohmann::json &config) : ftl::Configurable(config), buffer_(null
 	settings_.channels = channels;
 	settings_.sample_rate = 48000;
 	settings_.frame_size = 960;
-	//state_.setLeft(settings);
 
 	LOG(INFO) << "Microphone ready.";
 
@@ -179,9 +182,6 @@ bool Source::capture(int64_t ts) {
 }
 
 bool Source::retrieve(ftl::data::Frame &frame) {
-	// Remove one interval since the audio starts from the last frame
-		//frameset_.timestamp = ts - ftl::timer::getInterval() + latency_;
-
     if (to_read_ < 1 || !buffer_) return true;
 	auto alist = frame.create<std::list<Audio>>((buffer_->channels() == 2) ? Channel::AudioStereo : Channel::AudioMono);
 	Audio aframe;

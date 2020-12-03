@@ -1,3 +1,9 @@
+/**
+ * @file writer.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_WRITER_HPP_
 #define _FTL_CODECS_WRITER_HPP_
 
@@ -11,6 +17,12 @@
 namespace ftl {
 namespace codecs {
 
+/**
+ * Generate FTL file from packet data.
+ * 
+ * @see ftl::stream::File
+ * @deprecated
+ */
 class Writer {
 	public:
 	explicit Writer(std::ostream &);

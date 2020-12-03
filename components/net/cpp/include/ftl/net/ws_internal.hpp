@@ -1,3 +1,9 @@
+/**
+ * @file ws_internal.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_NET_WS_INTERNAL_HPP_
 #define _FTL_NET_WS_INTERNAL_HPP_
 

@@ -1,3 +1,9 @@
+/**
+ * @file reader.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <loguru.hpp>
 #include <ftl/codecs/reader.hpp>
 #include <ftl/timer.hpp>
@@ -18,10 +24,12 @@ Reader::~Reader() {
 }
 
 bool Reader::begin() {
+	// Verify header code
 	ftl::codecs::Header h;
 	(*stream_).read((char*)&h, sizeof(h));
 	if (h.magic[0] != 'F' || h.magic[1] != 'T' || h.magic[2] != 'L' || h.magic[3] != 'F') return false;
 
+	// Header is larger from version 2 onwards...
 	if (h.version >= 2) {
 		ftl::codecs::IndexHeader ih;
 		(*stream_).read((char*)&ih, sizeof(ih));
@@ -36,22 +44,6 @@ bool Reader::begin() {
 
 	return true;
 }
-
-/*static void printMsgpack(msgpack::object &obj) {
-	switch (obj.type) {
-	case msgpack::type::NIL: return;
-	case msgpack::type::BOOLEAN: LOG(INFO) << "BOOL " << obj.as<bool>(); return;
-	case msgpack::type::POSITIVE_INTEGER:
-	case msgpack::type::NEGATIVE_INTEGER: LOG(INFO) << "INT " << obj.as<int>(); return;
-	case msgpack::type::FLOAT32: LOG(INFO) << "FLOAT " << obj.as<float>(); return;
-	case msgpack::type::FLOAT64: LOG(INFO) << "DOUBLE " << obj.as<double>(); return;
-	case msgpack::type::STR: LOG(INFO) << "STRING " << obj.as<std::string>(); return;
-	case msgpack::type::BIN: return;
-	case msgpack::type::EXT: return;
-	case msgpack::type::ARRAY: LOG(INFO) << "ARRAY: "; return;
-	case msgpack::type::MAP: LOG(INFO) << "MAP: "; return;
-	}
-}*/
 
 bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &f) {
 	#ifdef DEBUG_MUTEX
@@ -94,8 +86,6 @@ bool Reader::read(int64_t ts, const std::function<void(const ftl::codecs::Stream
 
 		//std::tuple<StreamPacket,Packet> data;
 		msgpack::object obj = msg.get();
-
-		//printMsgpack(obj);
 
 		try {
 			obj.convert(data_.emplace_back());

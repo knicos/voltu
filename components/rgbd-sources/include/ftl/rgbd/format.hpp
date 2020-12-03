@@ -28,11 +28,6 @@ struct Format : public ftl::rgbd::FormatBase {
 	Format(size_t w, size_t h) : FormatBase(
 			w, h, ftl::traits::OpenCVType<T>::value) {}
 
-	explicit Format(ftl::codecs::definition_t d) : FormatBase(
-			ftl::codecs::getWidth(d),
-			ftl::codecs::getHeight(d),
-			ftl::traits::OpenCVType<T>::value) {}
-
 	explicit Format(const cv::Size &s) : FormatBase(
 			s.width,
 			s.height,

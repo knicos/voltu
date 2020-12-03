@@ -1,3 +1,9 @@
+/**
+ * @file statistics.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #pragma once
 
 #include <nanogui/widget.h>

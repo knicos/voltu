@@ -1,3 +1,9 @@
+/**
+ * @file screen.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #include <nanogui/opengl.h>
 #include <nanogui/glutil.h>
 #include <nanogui/screen.h>

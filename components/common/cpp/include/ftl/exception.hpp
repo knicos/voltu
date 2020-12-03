@@ -1,3 +1,9 @@
+/**
+ * @file exception.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_EXCEPTION_HPP_
 #define _FTL_EXCEPTION_HPP_
 
@@ -32,6 +38,9 @@ private:
 	Formatter & operator = (Formatter &);
 };
 
+/**
+ * Main FTL internal exception class. Use via Macro below.
+ */
 class exception : public std::exception
 {
 	public:

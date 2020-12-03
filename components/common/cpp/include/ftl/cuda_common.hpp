@@ -1,3 +1,9 @@
+/**
+ * @file cuda_common.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CUDA_COMMON_HPP_
 #define _FTL_CUDA_COMMON_HPP_
 

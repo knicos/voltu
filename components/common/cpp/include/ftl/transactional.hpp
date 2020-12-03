@@ -1,3 +1,9 @@
+/**
+ * @file transactional.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_TRANSACTIONAL_HPP_
 #define _FTL_TRANSACTIONAL_HPP_
 
@@ -9,6 +15,8 @@ namespace ftl {
  * Use RAII style transactional objects with shared locking. This wraps an
  * object with a lock and provides a release notification mechanism to allow
  * completion code.
+ * 
+ * Used by ftl::stream::Receiver and Builder.
  */
 template <typename T>
 class Transactional {

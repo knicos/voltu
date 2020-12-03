@@ -1,3 +1,9 @@
+/**
+ * @file frameset.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_AUDIO_FRAMESET_HPP_
 #define _FTL_AUDIO_FRAMESET_HPP_
 

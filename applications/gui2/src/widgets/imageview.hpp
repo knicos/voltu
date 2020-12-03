@@ -1,3 +1,9 @@
+/**
+ * @file imageview.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 /*
 	nanogui/imageview.h -- Widget used to display images.
 

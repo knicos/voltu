@@ -1,3 +1,10 @@
+/**
+ * @file thumbnails.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ * @author Nicolas Pope
+ */
+
 #include "thumbnails.hpp"
 #include "../modules/thumbnails.hpp"
 #include <ftl/utility/gltexture.hpp>

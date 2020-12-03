@@ -1,3 +1,10 @@
+/**
+ * @file config.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * @author Sebastian Hahta
+ */
+
 #pragma once
 
 #include <nanogui/window.h>

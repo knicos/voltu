@@ -1,3 +1,10 @@
+/**
+ * @file config.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * @author Iiro Rastas
+ * @author Sebastian Hahta
+ */
 
 #include <loguru.hpp>
 

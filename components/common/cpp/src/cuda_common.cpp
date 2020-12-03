@@ -1,3 +1,9 @@
+/**
+ * @file cuda_common.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 #include <ftl/cuda_common.hpp>
@@ -62,7 +68,6 @@ static void _cudaCallback(void *ud) {
 	delete cb;
 }
 
-// TODO: Move this to a common location
 void cudaCallback(cudaStream_t stream, const std::function<void()> &cb) {
 	cudaSafeCall(cudaLaunchHostFunc(stream, _cudaCallback, (void*)(new std::function<void()>(cb))));
 }

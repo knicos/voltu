@@ -1,3 +1,9 @@
+/**
+ * @file profiler.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/profiler.hpp>
 #include <ftl/timer.hpp>
 #include <loguru.hpp>

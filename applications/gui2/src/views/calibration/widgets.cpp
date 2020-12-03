@@ -1,3 +1,9 @@
+/**
+ * @file widgets.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #include "widgets.hpp"
 
 #include <nanogui/label.h>

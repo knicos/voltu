@@ -1,3 +1,9 @@
+/**
+ * @file popupbutton.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 /*
 	src/popupbutton.cpp -- Button which launches a popup widget
 

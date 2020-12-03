@@ -1,3 +1,11 @@
+/**
+ * @file cuda_buffer.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * 
+ * UNUSED currently
+ */
+
 #ifndef _FTL_CUDA_BUFFER_HPP_
 #define _FTL_CUDA_BUFFER_HPP_
 

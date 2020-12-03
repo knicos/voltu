@@ -1,3 +1,9 @@
+/**
+ * @file reader.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_READER_HPP_
 #define _FTL_CODECS_READER_HPP_
 
@@ -12,6 +18,13 @@
 namespace ftl {
 namespace codecs {
 
+/**
+ * FTL file reader. Deprecated so use ftl::stream::File instead. It reads
+ * `StreamPacket` and `Packet` structures sequentially from the file.
+ * 
+ * @see ftl::stream::File
+ * @deprecated
+ */
 class Reader {
 	public:
 	explicit Reader(std::istream &);
@@ -24,8 +37,12 @@ class Reader {
 	 * otherwise (end-of-file). Timestamps are in local (clock adjusted) time
 	 * and the timestamps stored in the file are aligned to the time when open
 	 * was called.
+	 * 
+	 * @param ts Milliseconds timestamp, read all packets up to this point
+	 * @param cb Callback for each read packet.
+	 * @return true if there are more packets to read.
 	 */
-	bool read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &);
+	bool read(int64_t ts, const std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)> &cb);
 
 	/**
 	 * An alternative version of read where packet events are generated for
@@ -57,7 +74,7 @@ class Reader {
 	std::vector<std::function<void(const ftl::codecs::StreamPacket &, ftl::codecs::Packet &)>> handlers_;
 };
 
-}
-}
+}  // namespace codecs
+}  // namespace ftl
 
 #endif  // _FTL_CODECS_READER_HPP_

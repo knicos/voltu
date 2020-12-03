@@ -1,8 +1,13 @@
+/**
+ * @file encoder.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_ENCODER_HPP_
 #define _FTL_CODECS_ENCODER_HPP_
 
 #include <ftl/cuda_util.hpp>
-//#include <opencv2/core/mat.hpp>
 #include <opencv2/core/cuda.hpp>
 
 #include <ftl/codecs/codecs.hpp>
@@ -11,10 +16,15 @@
 namespace ftl {
 namespace codecs {
 
+/// Default 10Mb encoded data buffer size.
 static const unsigned int kVideoBufferSize = 10*1024*1024;
 
 class Encoder;
 
+/**
+ * Given the resource limitations with respect to encoding, it is useful to
+ * know or choose which resource is being or to be used.
+ */
 enum class device_t {
 	Any = 0,
 	Hardware,
@@ -32,7 +42,6 @@ enum class device_t {
  * high quality encoders are available.
  */
 Encoder *allocateEncoder(
-		ftl::codecs::definition_t maxdef=ftl::codecs::definition_t::HD1080,
 		ftl::codecs::device_t dev=ftl::codecs::device_t::Any,
 		ftl::codecs::codec_t codec=ftl::codecs::codec_t::Any);
 
@@ -47,14 +56,11 @@ void free(Encoder *&e);
  */
 class Encoder {
 	public:
-	friend Encoder *allocateEncoder(ftl::codecs::definition_t,
-			ftl::codecs::device_t, ftl::codecs::codec_t);
+	friend Encoder *allocateEncoder(ftl::codecs::device_t, ftl::codecs::codec_t);
 	friend void free(Encoder *&);
 
 	public:
-	Encoder(ftl::codecs::definition_t maxdef,
-			ftl::codecs::definition_t mindef,
-			ftl::codecs::device_t dev);
+	explicit Encoder(ftl::codecs::device_t dev);
 	virtual ~Encoder();
 
 	/**
@@ -71,8 +77,15 @@ class Encoder {
 	 */
 	virtual bool encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)=0;
 
+	/**
+	 * Use to reset encoder. This will force an i-frame and should be used
+	 * if new viewers connect or the contents change.
+	 */
 	virtual void reset() {}
 
+	/**
+	 * @return true if codec is supported by this encoder.
+	 */
 	virtual bool supports(ftl::codecs::codec_t codec)=0;
 
 	inline ftl::codecs::device_t device() const { return device_; };
@@ -81,13 +94,11 @@ class Encoder {
 
 	protected:
 	bool available;
-	const ftl::codecs::definition_t max_definition;
-	const ftl::codecs::definition_t min_definition;
 	const ftl::codecs::device_t device_;
 	cv::cuda::Stream stream_;
 };
 
-}
-}
+}  // namespace codecs
+}  // namespace ftl
 
 #endif  // _FTL_CODECS_ENCODER_HPP_

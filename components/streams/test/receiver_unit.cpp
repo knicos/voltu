@@ -9,7 +9,6 @@
 
 #include <loguru.hpp>
 
-using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 using ftl::stream::Receiver;
 using ftl::rgbd::Frame;
@@ -112,7 +111,7 @@ TEST_CASE( "Receiver generating onFrameSet" ) {
 	receiver->setStream(&stream);
 	receiver->set("frameset_buffer_size", 0);
 
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
@@ -326,7 +325,7 @@ TEST_CASE( "Receiver sync bugs" ) {
 	receiver->setStream(&stream);
 	receiver->set("frameset_buffer_size", 0);
 
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;
@@ -415,7 +414,7 @@ TEST_CASE( "Receiver non zero buffer" ) {
 	receiver->setStream(&stream);
 	receiver->set("frameset_buffer_size", 1);
 
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 
 	ftl::codecs::Packet pkt;
 	pkt.codec = codec_t::Any;

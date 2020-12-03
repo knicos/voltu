@@ -1,3 +1,9 @@
+/**
+ * @file encoder.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/encoder.hpp>
 #include <ftl/threads.hpp>
 
@@ -7,7 +13,6 @@
 #include <loguru.hpp>
 
 using ftl::codecs::Encoder;
-using ftl::codecs::definition_t;
 using ftl::codecs::device_t;
 using ftl::codecs::codec_t;
 
@@ -29,8 +34,7 @@ using namespace ftl::codecs::internal;
 
 static MUTEX mutex;
 
-Encoder *ftl::codecs::allocateEncoder(ftl::codecs::definition_t maxdef,
-		ftl::codecs::device_t dev, ftl::codecs::codec_t codec) {
+Encoder *ftl::codecs::allocateEncoder(ftl::codecs::device_t dev, ftl::codecs::codec_t codec) {
 	UNIQUE_LOCK(mutex, lk);
 	if (!has_been_init) init_encoders();
 
@@ -38,7 +42,6 @@ Encoder *ftl::codecs::allocateEncoder(ftl::codecs::definition_t maxdef,
 		auto *e = *i;
 		if (!e->available) continue;
 		if (dev != device_t::Any && dev != e->device_) continue;
-		if (maxdef != definition_t::Any && (maxdef < e->max_definition || maxdef > e->min_definition)) continue;
 		if (codec != codec_t::Any && !e->supports(codec)) continue;
 		
 		e->available = false;
@@ -56,8 +59,8 @@ void ftl::codecs::free(Encoder *&enc) {
 	enc = nullptr;
 }
 
-Encoder::Encoder(definition_t maxdef, definition_t mindef, device_t dev) :
-		available(true), max_definition(maxdef), min_definition(mindef), device_(dev) {
+Encoder::Encoder(device_t dev) :
+		available(true), device_(dev) {
 
 }
 

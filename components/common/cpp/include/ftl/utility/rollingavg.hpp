@@ -1,3 +1,9 @@
+/**
+ * @file rollingavg.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_ROLLING_AVERAGE_HPP_
 #define _FTL_ROLLING_AVERAGE_HPP_
 
@@ -9,6 +15,8 @@ namespace utility {
  * average over. This is a fast version which may possibily have issues with
  * floating point errors, however these should average out as well. A more
  * accurate version would be much slower.
+ * 
+ * Unused?
  */
 template <typename T, size_t SIZE>
 struct RollingAvg {

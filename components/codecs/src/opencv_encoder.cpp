@@ -1,3 +1,9 @@
+/**
+ * @file opencv_encoder.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/opencv_encoder.hpp>
 
 #include <opencv2/opencv.hpp>
@@ -5,13 +11,11 @@
 #include <loguru.hpp>
 #include <vector>
 
-using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 using ftl::codecs::OpenCVEncoder;
 using std::vector;
 
-OpenCVEncoder::OpenCVEncoder(ftl::codecs::definition_t maxdef,
-			ftl::codecs::definition_t mindef) : Encoder(maxdef, mindef, ftl::codecs::device_t::OpenCV) {
+OpenCVEncoder::OpenCVEncoder() : Encoder(ftl::codecs::device_t::OpenCV) {
 	jobs_ = 0;
 }
 
@@ -44,45 +48,16 @@ bool OpenCVEncoder::encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt)
 		tmp_.convertTo(tmp_, CV_16U, 1000.0f);
 	}
 
-	//for (int i=0; i<chunk_count_; ++i) {
-		// Add chunk job to thread pool
-		//ftl::pool.push([this,i,cb,is_colour,bitrate](int id) {
-			//ftl::codecs::Packet pkt;
-			//pkt.bitrate = 0;
-			//pkt.frame_count = 1;
-			//pkt.definition = current_definition_;
-			//pkt.codec = (is_colour) ? codec_t::JPG : codec_t::PNG;
-
-			try {
-				_encodeBlock(tmp_, pkt);
-			} catch(...) {
-				LOG(ERROR) << "OpenCV encode block exception: ";
-			}
-
-			//std::unique_lock<std::mutex> lk(job_mtx_);
-			//--jobs_;
-			//if (jobs_ == 0) job_cv_.notify_one();
-		//});
-	//}
-
-	//std::unique_lock<std::mutex> lk(job_mtx_);
-	//job_cv_.wait_for(lk, std::chrono::seconds(20), [this]{ return jobs_ == 0; });
-	//if (jobs_ != 0) {
-	//	LOG(FATAL) << "Deadlock detected (" << jobs_ << ")";
-	//}
+	try {
+		_encodeBlock(tmp_, pkt);
+	} catch(...) {
+		LOG(ERROR) << "OpenCV encode block exception: ";
+	}
 
 	return true;
 }
 
 bool OpenCVEncoder::_encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt) {
-	//int chunk_width = in.cols / 1;
-	//int chunk_height = in.rows / 1;
-
-	// Build chunk heads
-	//int cx = 0; //(pkt.block_number % chunk_dim_) * chunk_width;
-	//int cy = 0; //(pkt.block_number / chunk_dim_) * chunk_height;
-	//cv::Rect roi(cx,cy,chunk_width,chunk_height);
-
 	cv::Mat chunkHead = in;
 
 	if (pkt.codec == codec_t::PNG) {

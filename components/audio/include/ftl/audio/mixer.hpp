@@ -1,3 +1,9 @@
+/**
+ * @file mixer.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_AUDIO_MIXER_HPP_
 #define _FTL_AUDIO_MIXER_HPP_
 
@@ -8,8 +14,6 @@
 
 namespace ftl {
 namespace audio {
-
-//static constexpr int kBufferCount = 100;
 
 /**
  * A fast circular buffer to capture, play and manipulate audio data.
@@ -137,18 +141,6 @@ void FixedMixer<T,CHAN,FRAME,SIZE>::read(std::vector<T> &out, int count) {
 		ptr += FRAME*CHAN;
 	}
 }
-
-/*template <typename T, int CHAN, int FRAME, int SIZE>
-void FixedMixer<T,CHAN,FRAME,SIZE>::resize(int t) {
-	if (track_num_ == t) return;
-	
-	track_num_ = t;
-	tracks_.reserve(t);
-	while (static_cast<int>(tracks_.size()) < t) {
-		auto &tr = tracks_.emplace_back();
-		tr.setWritePosition(write_position_);
-	}
-}*/
 
 template <typename T, int CHAN, int FRAME, int SIZE>
 int FixedMixer<T,CHAN,FRAME,SIZE>::add(const std::string &name) {

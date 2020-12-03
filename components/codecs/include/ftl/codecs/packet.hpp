@@ -1,3 +1,9 @@
+/**
+ * @file packet.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_PACKET_HPP_
 #define _FTL_CODECS_PACKET_HPP_
 
@@ -115,7 +121,7 @@ struct PacketPair {
 	const Packet &pkt;
 };
 
-}
-}
+}  // namespace codecs
+}  // namespace ftl
 
 #endif  // _FTL_CODECS_PACKET_HPP_

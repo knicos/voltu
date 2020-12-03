@@ -1,3 +1,9 @@
+/**
+ * @file file.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #ifndef _FTL_FILES_HPP_
 #define _FTL_FILES_HPP_
 

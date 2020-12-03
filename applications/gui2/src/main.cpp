@@ -1,3 +1,10 @@
+/**
+ * @file main.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ * @author Nicolas Pope
+ */
+
 #include <memory>
 
 #include <loguru.hpp>

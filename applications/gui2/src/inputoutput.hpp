@@ -1,3 +1,10 @@
+/**
+ * @file inputoutput.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 #include <memory>

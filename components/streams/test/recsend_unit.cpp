@@ -8,7 +8,6 @@
 
 #include <loguru.hpp>
 
-using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 using ftl::stream::Receiver;
 using ftl::stream::Sender;

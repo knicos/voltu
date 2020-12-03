@@ -1,3 +1,9 @@
+/**
+ * @file touch.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_TOUCH_HPP_
 #define _FTL_CODECS_TOUCH_HPP_
 
@@ -14,6 +20,10 @@ enum class TouchType {
 	COLLISION=16
 };
 
+/**
+ * Data item for touch channel. Represents screen touch or 3D collision data.
+ * Currently experimental and incomplete.
+ */
 struct Touch {
 	Touch() {};
 
@@ -27,8 +37,8 @@ struct Touch {
 	MSGPACK_DEFINE(id, type, strength, x, y, d);
 };
 
-}
-}
+}  // namespace codecs
+}  // namespace ftl
 
 MSGPACK_ADD_ENUM(ftl::codecs::TouchType);
 

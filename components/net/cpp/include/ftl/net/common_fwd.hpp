@@ -1,18 +1,13 @@
+/**
+ * @file common_fwd.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_NET_COMMON_FORWARD_HPP_
 #define _FTL_NET_COMMON_FORWARD_HPP_
 
 #ifndef WIN32
-
-/*#include <unistd.h>
-#include <sys/poll.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#define SOCKET_ERROR -1*/
-
 #define INVALID_SOCKET -1
 #define SOCKET int
 

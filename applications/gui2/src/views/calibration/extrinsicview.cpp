@@ -1,3 +1,9 @@
+/**
+ * @file extrinsicview.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #include "extrinsicview.hpp"
 #include "visualization.hpp"
 #include "widgets.hpp"

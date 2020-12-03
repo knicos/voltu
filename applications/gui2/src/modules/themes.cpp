@@ -1,3 +1,10 @@
+/**
+ * @file themes.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * @author Sebastian Hahta
+ */
+
 #include "themes.hpp"
 #include "nanogui/theme.h"
 #include "../screen.hpp"

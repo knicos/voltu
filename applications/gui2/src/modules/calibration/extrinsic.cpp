@@ -1,3 +1,8 @@
+/**
+ * @file extrinsic.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
 
 #include "calibration.hpp"
 #include "../../screen.hpp"

@@ -1,3 +1,9 @@
+/**
+ * @file dispatcher.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_NET_DISPATCHER_HPP_
 #define _FTL_NET_DISPATCHER_HPP_
 
@@ -58,18 +64,31 @@ namespace internal {
 
 namespace net {
 
+/**
+ * Allows binding and dispatching of RPC calls. Uses type traits to generate
+ * dispatch functions from the type of the binding function (return and
+ * arguments). Used by ftl::net::Peer and Universe.
+ */
 class Dispatcher {
 	public:
 	explicit Dispatcher(Dispatcher *parent=nullptr) : parent_(parent) {
-		// FIXME threading and funcs_; hack use large size
+		// FIXME: threading and funcs_; hack use large size
 		funcs_.reserve(1024);
 	}
 
-	//void dispatch(Peer &, const std::string &msg);
+	/**
+	 * Primary method by which a peer dispatches a msgpack object that this
+	 * class then decodes to find correct handler and types.
+	 */
 	void dispatch(Peer &, const msgpack::object &msg);
 
 	// Without peer object =====================================================
 
+	/**
+	 * Associate a C++ function woth a string name. Use type traits of that
+	 * function to build a dispatch function that knows how to decode msgpack.
+	 * This is the no arguments and no result case.
+	 */
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::void_result const &,
@@ -84,6 +103,11 @@ class Dispatcher {
 		    }));
 	}
 
+	/**
+	 * Associate a C++ function woth a string name. Use type traits of that
+	 * function to build a dispatch function that knows how to decode msgpack.
+	 * This is the arguments but no result case.
+	 */
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::void_result const &,
@@ -104,6 +128,11 @@ class Dispatcher {
 		    }));
 	}
 
+	/**
+	 * Associate a C++ function woth a string name. Use type traits of that
+	 * function to build a dispatch function that knows how to decode msgpack.
+	 * This is the no arguments but with result case.
+	 */
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::nonvoid_result const &,
@@ -121,6 +150,11 @@ class Dispatcher {
 		}));
 	}
 
+	/**
+	 * Associate a C++ function woth a string name. Use type traits of that
+	 * function to build a dispatch function that knows how to decode msgpack.
+	 * This is the with arguments and with result case.
+	 */
 	template <typename F>
 	void bind(std::string const &name, F func,
 		                  ftl::internal::tags::nonvoid_result const &,
@@ -218,6 +252,9 @@ class Dispatcher {
 
 	//==========================================================================
 
+	/**
+	 * Remove a previous bound function by name.
+	 */
 	void unbind(const std::string &name) {
 		auto i = funcs_.find(name);
 		if (i != funcs_.end()) {
@@ -225,9 +262,19 @@ class Dispatcher {
 		}
 	}
 
+	/**
+	 * @return All bound function names.
+	 */
 	std::vector<std::string> getBindings() const;
 
+	/**
+	 * @param name Function name.
+	 * @return True if the given name is bound to a function.
+	 */
 	bool isBound(const std::string &name) const;
+
+
+	//==== Types ===============================================================
 
 	using adaptor_type = std::function<std::unique_ptr<msgpack::object_handle>(
         ftl::net::Peer &, msgpack::object const &)>;

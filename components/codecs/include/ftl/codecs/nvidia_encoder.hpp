@@ -1,17 +1,26 @@
+/**
+ * @file nvidia_encoder.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_NVIDIA_ENCODER_HPP_
 #define _FTL_CODECS_NVIDIA_ENCODER_HPP_
 
 #include <ftl/codecs/encoder.hpp>
 
-class NvEncoderCuda;
+class NvEncoderCuda;  // From Nvidia Video SDK
 
 namespace ftl {
 namespace codecs {
 
+/**
+ * Uses Nvidia hardware encoder. Utilises Nvidia Video SDK 9.1.23 and supports
+ * H.264 and HEVC.
+ */
 class NvidiaEncoder : public ftl::codecs::Encoder {
 	public:
-	NvidiaEncoder(ftl::codecs::definition_t maxdef,
-			ftl::codecs::definition_t mindef);
+	NvidiaEncoder();
 	~NvidiaEncoder();
 
 	bool encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) override;
@@ -46,7 +55,6 @@ class NvidiaEncoder : public ftl::codecs::Encoder {
 	int64_t frame_count_ = 0;
 
 	bool _createEncoder(const cv::cuda::GpuMat &in, const ftl::codecs::Packet &pkt);
-	ftl::codecs::definition_t _verifiedDefinition(ftl::codecs::definition_t def, const cv::cuda::GpuMat &in);
 	uint64_t _encode(uint8_t* dst, uint64_t dstSize, bool forceIFrame);
 };
 

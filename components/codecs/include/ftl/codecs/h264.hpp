@@ -1,3 +1,9 @@
+/**
+ * @file h264.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_H264_HPP_
 #define _FTL_CODECS_H264_HPP_
 
@@ -63,8 +69,8 @@ inline bool isIFrame(const unsigned char *data, size_t size) {
 	return getNALType(data, size) == NALType::SPS;
 }
 
-}
-}
-}
+}  // namespace h264
+}  // namespace codecs
+}  // namespace ftl
 
 #endif  // _FTL_CODECS_H264_HPP_

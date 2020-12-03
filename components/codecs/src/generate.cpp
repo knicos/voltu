@@ -1,3 +1,9 @@
+/**
+ * @file generate.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/encoder.hpp>
 #include <ftl/codecs/opencv_encoder.hpp>
 #include <ftl/configurable.hpp>
@@ -19,19 +25,21 @@ void fin_encoders() {
     for (auto *s : encoders) delete s;
 }
 
+/* Encoders are a limited resource so precreate a limited number of them. */
 void init_encoders() {
-    encoders.push_back(new ftl::codecs::NvidiaEncoder(definition_t::UHD4k, definition_t::HD720));
-    encoders.push_back(new ftl::codecs::NvidiaEncoder(definition_t::UHD4k, definition_t::HD720));
+	// Nvidia GeForce drivers are limited to 2
+    encoders.push_back(new ftl::codecs::NvidiaEncoder);
+    encoders.push_back(new ftl::codecs::NvidiaEncoder);
 
-    encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
-    encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
-	encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
-	encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
-	encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::HD1080, definition_t::HD720));
-    encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::SD576, definition_t::LD360));
-    encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::SD576, definition_t::LD360));
-	encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::SD576, definition_t::LD360));
-    encoders.push_back(new ftl::codecs::OpenCVEncoder(definition_t::SD576, definition_t::LD360));
+    encoders.push_back(new ftl::codecs::OpenCVEncoder);
+    encoders.push_back(new ftl::codecs::OpenCVEncoder);
+	encoders.push_back(new ftl::codecs::OpenCVEncoder);
+	encoders.push_back(new ftl::codecs::OpenCVEncoder);
+	encoders.push_back(new ftl::codecs::OpenCVEncoder);
+    encoders.push_back(new ftl::codecs::OpenCVEncoder);
+    encoders.push_back(new ftl::codecs::OpenCVEncoder);
+	encoders.push_back(new ftl::codecs::OpenCVEncoder);
+    encoders.push_back(new ftl::codecs::OpenCVEncoder);
 
     has_been_init = true;
 
