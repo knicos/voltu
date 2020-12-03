@@ -6,9 +6,7 @@
 
 #include <opencv2/cudaarithm.hpp>
 
-using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
-using ftl::codecs::format_t;
 
 ctpl::thread_pool ftl::pool(4);
 
@@ -26,7 +24,7 @@ namespace ftl {
 
 
 TEST_CASE( "NvidiaEncoder::encode() - A valid colour image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	cv::cuda::GpuMat m(cv::Size(1920,1080), CV_8UC4, cv::Scalar(0,0,0,0));
 
 	ftl::codecs::Packet pkt;
@@ -87,7 +85,7 @@ TEST_CASE( "NvidiaEncoder::encode() - A valid colour image" ) {
 }
 
 TEST_CASE( "NvidiaEncoder::encode() - A tiled colour image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	cv::cuda::GpuMat m(cv::Size(2560,720), CV_8UC4, cv::Scalar(0,0,0,0));
 
 	SECTION("auto codec and definition, 2x1 frames") {
@@ -108,7 +106,7 @@ TEST_CASE( "NvidiaEncoder::encode() - A tiled colour image" ) {
 }
 
 TEST_CASE( "NvidiaEncoder::encode() - A valid lossless float image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	cv::cuda::GpuMat m(cv::Size(1280,720), CV_32F, cv::Scalar(0.0f));
 
 	SECTION("auto codec and definition, single frame") {
@@ -143,7 +141,7 @@ TEST_CASE( "NvidiaEncoder::encode() - A valid lossless float image" ) {
 }
 
 TEST_CASE( "NvidiaEncoder::encode() - A valid lossy float image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	cv::cuda::GpuMat m(cv::Size(1280,720), CV_32F, cv::Scalar(0.0f));
 
 	SECTION("auto codec and definition, single frame") {
@@ -164,7 +162,7 @@ TEST_CASE( "NvidiaEncoder::encode() - A valid lossy float image" ) {
 }
 
 TEST_CASE( "NvidiaEncoder::encode() - A tiled lossy float image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	cv::cuda::GpuMat m(cv::Size(2560,720), CV_32F, cv::Scalar(0));
 
 	SECTION("auto codec and definition, 2x1 frame") {
@@ -185,7 +183,7 @@ TEST_CASE( "NvidiaEncoder::encode() - A tiled lossy float image" ) {
 }
 
 TEST_CASE( "NvidiaEncoder::encode() - A large tiled lossy float image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	cv::cuda::GpuMat m(cv::Size(5120,1440), CV_32F, cv::Scalar(0));
 
 	SECTION("auto codec and definition, 4x2 frame") {
@@ -206,7 +204,7 @@ TEST_CASE( "NvidiaEncoder::encode() - A large tiled lossy float image" ) {
 }
 
 TEST_CASE( "NvidiaDecoder::decode() - A colour test image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	ftl::codecs::NvidiaDecoder decoder;
 
 	cv::cuda::GpuMat in;
@@ -233,7 +231,7 @@ TEST_CASE( "NvidiaDecoder::decode() - A colour test image" ) {
 }
 
 TEST_CASE( "NvidiaDecoder::decode() - A tiled colour image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	ftl::codecs::NvidiaDecoder decoder;
 
 	cv::cuda::GpuMat in;
@@ -260,7 +258,7 @@ TEST_CASE( "NvidiaDecoder::decode() - A tiled colour image" ) {
 }
 
 TEST_CASE( "NvidiaDecoder::decode() - A lossless depth image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	ftl::codecs::NvidiaDecoder decoder;
 
 	cv::cuda::GpuMat in;
@@ -285,7 +283,7 @@ TEST_CASE( "NvidiaDecoder::decode() - A lossless depth image" ) {
 }
 
 TEST_CASE( "NvidiaDecoder::decode() - A lossy depth image" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	ftl::codecs::NvidiaDecoder decoder;
 
 	cv::cuda::GpuMat in;
@@ -310,7 +308,7 @@ TEST_CASE( "NvidiaDecoder::decode() - A lossy depth image" ) {
 }
 
 TEST_CASE( "NvidiaDecoder::decode() - corrupted packet" ) {
-	ftl::codecs::NvidiaEncoder encoder(definition_t::HD1080, definition_t::SD480);
+	ftl::codecs::NvidiaEncoder encoder;
 	ftl::codecs::NvidiaDecoder decoder;
 
 	cv::cuda::GpuMat in;

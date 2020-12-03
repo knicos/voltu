@@ -1,3 +1,9 @@
+/**
+ * @file thumbnails.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #include "thumbnails.hpp"
 #include "dev/developer.hpp"
 #include "../views/thumbnails.hpp"

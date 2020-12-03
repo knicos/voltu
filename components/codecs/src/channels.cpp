@@ -1,3 +1,9 @@
+/**
+ * @file channels.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/channels.hpp>
 #include <unordered_map>
 #include <opencv2/opencv.hpp>
@@ -9,6 +15,7 @@ struct ChannelInfo {
 	int type;
 };
 
+/* Name and type lookup table for channels */
 static const std::unordered_map<Channel,ChannelInfo> info = {
     {Channel::Colour, {"Left", CV_8UC4}},
 	{Channel::Depth, {"Depth", CV_32F}},

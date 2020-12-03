@@ -1,3 +1,9 @@
+/**
+ * @file net_configurable.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Iiro Rastas
+ */
+
 #pragma once
 #ifndef _FTL_NETCONFIGURABLE_HPP_
 #define _FTL_NETCONFIGURABLE_HPP_

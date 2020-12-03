@@ -1,3 +1,9 @@
+/**
+ * @file cuda_util.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 #ifndef _CUDA_UTIL_

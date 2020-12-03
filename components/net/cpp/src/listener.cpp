@@ -1,4 +1,9 @@
-//#define GLOG_NO_ABBREVIATED_SEVERITIES
+/**
+ * @file listener.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <loguru.hpp>
 
 #include <ftl/uri.hpp>
@@ -116,22 +121,7 @@ Listener::~Listener() {
 }
 
 void Listener::connection(shared_ptr<Peer> &s) {
-	/*Handshake hs1;
-	hs1.magic = ftl::net::MAGIC;
-	memset(hs1.id, 0, 16);
-	
-	if (default_proto_) {
-		s->setProtocol(default_proto_);
-		hs1.proto_size = default_proto_->id().size();
-		s->send(FTL_PROTOCOL_HS1, hs1, default_proto_->id());
-	} else {
-		s->setProtocol(NULL);
-		hs1.proto_size = 0;
-		s->send(FTL_PROTOCOL_HS1, hs1);
-	}
-	
-	LOG(INFO) << "Handshake initiated with " << s->getURI();
-	for (auto h : handler_connect_) h(s);*/
+
 }
 
 void Listener::close() {

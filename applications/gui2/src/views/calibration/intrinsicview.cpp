@@ -1,3 +1,9 @@
+/**
+ * @file intrinsicview.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #include <sstream>
 
 #include "visualization.hpp"

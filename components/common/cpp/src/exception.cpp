@@ -1,3 +1,9 @@
+/**
+ * @file exception.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/exception.hpp>
 
 #define LOGURU_REPLACE_GLOG 1

@@ -1,3 +1,9 @@
+/**
+ * @file addsource.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include "addsource.hpp"
 #include "../modules/addsource.hpp"
 

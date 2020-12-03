@@ -1,3 +1,11 @@
+/**
+ * @file nvidia_encoder.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
+// Some of this file is inspired by or taken from the defunct NvPipe library
+
 #include <ftl/codecs/nvidia_encoder.hpp>
 #include <loguru.hpp>
 #include <ftl/timer.hpp>
@@ -14,10 +22,7 @@
 #include "NvEncoder/NvEncoderCuda.h"
 
 using ftl::codecs::NvidiaEncoder;
-using ftl::codecs::bitrate_t;
 using ftl::codecs::codec_t;
-using ftl::codecs::definition_t;
-using ftl::codecs::format_t;
 using ftl::codecs::Packet;
 using ftl::codecs::kFlagFloat;
 using ftl::codecs::kFlagFlipRGB;
@@ -60,8 +65,7 @@ static inline std::string EncErrorCodeToString(NVENCSTATUS code)
     return "Unknown error code";
 }
 
-NvidiaEncoder::NvidiaEncoder(definition_t maxdef,
-			definition_t mindef) : Encoder(maxdef, mindef, ftl::codecs::device_t::NVIDIA) {
+NvidiaEncoder::NvidiaEncoder() : Encoder(ftl::codecs::device_t::NVIDIA) {
 	nvenc_ = nullptr;
 	was_reset_ = false;
 }

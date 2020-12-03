@@ -1,3 +1,9 @@
+/**
+ * @file listener.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_NET_LISTENER_HPP_
 #define _FTL_NET_LISTENER_HPP_
 
@@ -11,11 +17,24 @@
 namespace ftl {
 namespace net {
 
-class Protocol;
+class Protocol;  ///< Unused?
 
+/**
+ * Listener for new peer connections on specified port.
+ */
 class Listener {
 	public:
+	/**
+	 * Use a URI to specify interface address, port and protocol.
+	 * 
+	 * Example:
+	 *  * tcp://localhost:9000
+	 */
 	explicit Listener(const char *uri);
+
+	/**
+	 * Use already provided Socket to listen on.
+	 */
 	explicit Listener(SOCKET sfd) : descriptor_(sfd), default_proto_(nullptr) {}
 	virtual ~Listener();
 	
@@ -23,9 +42,17 @@ class Listener {
 	void close();
 	SOCKET _socket() { return descriptor_; }
 	
+	/** @deprecated */
 	void setProtocol(Protocol *p) { default_proto_ = p; }
 	
+	/**
+	 * Unused
+	 */
 	void connection(std::shared_ptr<Peer> &s);
+
+	/**
+	 * Unused
+	 */
 	void onConnection(connecthandler_t h) { handler_connect_.push_back(h); };
 
 	inline int port() const { return port_; }

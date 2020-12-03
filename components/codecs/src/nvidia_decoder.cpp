@@ -1,3 +1,9 @@
+/**
+ * @file nvidia_decoder.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/nvidia_decoder.hpp>
 #include <ftl/codecs/nvidia_encoder.hpp>
 #include <ftl/exception.hpp>
@@ -124,16 +130,6 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	bool islossless = ((pkt.codec == ftl::codecs::codec_t::HEVC || pkt.codec == ftl::codecs::codec_t::H264) && is_float_frame &&
 		!(pkt.flags & 0x2)) || pkt.codec == ftl::codecs::codec_t::HEVC_LOSSLESS || pkt.codec == ftl::codecs::codec_t::H264_LOSSLESS; 
 
-	/*if (is_float_frame && out.type() != CV_32F) {
-		LOG(ERROR) << "Invalid buffer for float frame";
-		return false;
-	}
-
-	if (!is_float_frame && out.type() != CV_8UC4) {
-		LOG(ERROR) << "Invalid buffer for lossy colour frame: " << out.type();
-		return false;
-	}*/
-
 	_create(pkt);
 
 	is_float_channel_ = is_float_frame;
@@ -150,8 +146,6 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 	if (pkt.flags & ftl::codecs::kFlagMultiple) {
 		const unsigned char *ptr = pkt.data.data();
 		const unsigned char *eptr = ptr+pkt.data.size();
-
-		//LOG(WARNING) << "Decode of multiple frames";
 
 		while (ptr < eptr) {
 			int size = readValue<int>(&ptr);
@@ -177,11 +171,6 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 
 	width_ = nv_decoder_->GetWidth();
 	height_ = nv_decoder_->GetHeight();
-
-	/*if (out.cols != ((is_float_frame && islossless) ? width_/2 : width_) || out.rows != height_) {
-		LOG(ERROR) << "Decoded frame not same size as buffer: " << width_ << "x" << height_ << " -> " << out.cols << "x" << out.rows;
-		return false;
-	}*/
 
 	// OpenCV GpuMat for YCbCr 4:2:0
 	cv::cuda::GpuMat surface;
@@ -217,8 +206,6 @@ bool NvidiaDecoder::decode(const ftl::codecs::Packet &pkt, cv::cuda::GpuMat &out
 			Nv12ToColor32<RGBA32>(decodedPtr, width_, out.data, static_cast<int>(out.step1()), width_, height_, 0, stream_);
 		}
 	}
-
-	//stream_.waitForCompletion();
 
 	return true;
 }

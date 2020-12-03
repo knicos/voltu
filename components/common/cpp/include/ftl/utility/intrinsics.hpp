@@ -1,8 +1,15 @@
+/**
+ * @file intrinsics.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_UTILITY_INTRINSICS_HPP_
 #define _FTL_UTILITY_INTRINSICS_HPP_
 
 namespace ftl {
 
+/** Count number of set bits in 64bit unsigned int. */
 inline unsigned int popcount(uint64_t bits) {
 	#if defined(_MSC_VER)
 		return __popcnt64(bits);
@@ -18,6 +25,7 @@ inline unsigned int popcount(uint64_t bits) {
 	#endif
 }
 
+/** Count number o set bits in 32bit unsigned int */
 inline unsigned int popcount(uint32_t bits) {
 	#if defined(_MSC_VER)
 		return __popcnt(bits);

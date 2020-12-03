@@ -1,3 +1,9 @@
+/**
+ * @file hevc.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_HEVC_HPP_
 #define _FTL_CODECS_HEVC_HPP_
 
@@ -109,8 +115,8 @@ inline bool isIFrame(const unsigned char *data, size_t size) {
 	return getNALType(data, size) == NALType::VPS;
 }
 
-}
-}
-}
+}  // namespace hevc
+}  // namespace codecs
+}  // namespace ftl
 
 #endif  // _FTL_CODECS_HEVC_HPP_

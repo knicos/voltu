@@ -1,8 +1,12 @@
+/**
+ * @file depth_convert.cu
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/depth_convert_cuda.hpp>
 #include "../Utils/ColorSpace.h"
 #include <opencv2/core/cuda_stream_accessor.hpp>
-
-#define T_PER_BLOCK 8
 
 // Encoding
 
@@ -22,10 +26,12 @@ __device__ inline float clampC(float v, float t=255.0f) {
  *
  */
 
-  // Assumes 8 bit output channels and 14bit depth
+  // Assumes 8 (256) bit output channels and 14bit (16384) depth
   static constexpr float P = (2.0f * 256.0f) / 16384.0f;
 
+  /* Convert single float to L Ha Hb. */
  __device__ inline float3 depth2yuv(float depth, float maxdepth) {
+	 // Normalise
 	float d = max(0.0f,depth);
 	if (d >= maxdepth) d = 0.0f;
 	float L = d / maxdepth;
@@ -51,20 +57,23 @@ __global__ void depth_to_vuya_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda:
 }
 
 void ftl::cuda::depth_to_vuya(const cv::cuda::PtrStepSz<float> &depth, const cv::cuda::PtrStepSz<uchar4> &rgba, float maxdepth, cv::cuda::Stream &stream) {
-	const dim3 gridSize((depth.cols + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.rows + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize((depth.cols + THREADS_X - 1)/THREADS_X, (depth.rows + THREADS_Y - 1)/THREADS_Y);
+    const dim3 blockSize(THREADS_X, THREADS_Y);
 
 	depth_to_vuya_kernel<<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, rgba, maxdepth);
 	cudaSafeCall( cudaGetLastError() );
 }
 
-// Planar 10bit version
-
+/* Planar 10bit version */
 __global__ void depth_to_nv12_10_kernel(cv::cuda::PtrStepSz<float> depth, ushort* luminance, ushort* chroma, int pitch, float maxdepth) {
 	const unsigned int x = (blockIdx.x*blockDim.x + threadIdx.x) * 2;
 	const unsigned int y = (blockIdx.y*blockDim.y + threadIdx.y) * 2;
 
 	if (x < depth.cols && y < depth.rows) {
+		// Process all 4 pixels at same time, due to 4:2:0 format
 		float3 yuv1 = depth2yuv(depth(y,x), maxdepth);
 		float3 yuv2 = depth2yuv(depth(y,x+1), maxdepth);
 		float3 yuv3 = depth2yuv(depth(y+1,x), maxdepth);
@@ -75,6 +84,7 @@ __global__ void depth_to_nv12_10_kernel(cv::cuda::PtrStepSz<float> depth, ushort
 		float Ha = (yuv1.y+yuv2.y+yuv3.y+yuv4.y) / 4.0f * 255.0f;
 		float Hb = (yuv1.z+yuv2.z+yuv3.z+yuv4.z) / 4.0f * 255.0f;
 		
+		// Use upper 8 bits only for luma
 		luminance[y*pitch+x] = ushort(yuv1.x*255.0f) << 8;
 		luminance[y*pitch+x+1] = ushort(yuv2.x*255.0f) << 8;
 		luminance[(y+1)*pitch+x] = ushort(yuv3.x*255.0f) << 8;
@@ -86,8 +96,11 @@ __global__ void depth_to_nv12_10_kernel(cv::cuda::PtrStepSz<float> depth, ushort
 }
 
 void ftl::cuda::depth_to_nv12_10(const cv::cuda::PtrStepSz<float> &depth, ushort* luminance, ushort* chroma, int pitch, float maxdepth, cv::cuda::Stream &stream) {
-	const dim3 gridSize((depth.cols/2 + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.rows/2 + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	static constexpr int THREADS_X = 8;  // TODO: (nick) tune
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize((depth.cols/2 + THREADS_X - 1)/THREADS_X, (depth.rows/2 + THREADS_Y - 1)/THREADS_Y);
+    const dim3 blockSize(THREADS_X, THREADS_Y);
 
 	depth_to_nv12_10_kernel<<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, luminance, chroma, pitch, maxdepth);
 	cudaSafeCall( cudaGetLastError() );
@@ -113,6 +126,7 @@ void ftl::cuda::depth_to_nv12_10(const cv::cuda::PtrStepSz<float> &depth, ushort
 
  __device__ inline uchar round8(uchar v) { return v; }
 
+ /* Convert single L Ha Hb to float depth */
  __device__ inline float yuv2depth(float L, float Ha, float Hb) {
 	const float p = P;
         
@@ -125,7 +139,7 @@ void ftl::cuda::depth_to_nv12_10(const cv::cuda::PtrStepSz<float> &depth, ushort
 	if (m == 2) s = (p/2.0f)*(1.0f - Ha);
 	if (m == 3) s = (p/2.0f)*(1.0f - Hb);
 
-	return (L0+s);
+	return (L0+s);  // Not denormalised!
  }
 
  // Video is assumed to be 10bit encoded, returning ushort instead of uchar.
@@ -146,21 +160,26 @@ __global__ void vuya_to_depth_kernel(cv::cuda::PtrStepSz<float> depth, cv::cuda:
 }
 
 void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv::cuda::PtrStepSz<ushort4> &rgba, float maxdepth, cv::cuda::Stream &stream) {
-	const dim3 gridSize((depth.cols + T_PER_BLOCK - 1)/T_PER_BLOCK, (depth.rows + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
+	static constexpr int THREADS_X = 8;
+	static constexpr int THREADS_Y = 8;
+
+	const dim3 gridSize((depth.cols + THREADS_X - 1)/THREADS_X, (depth.rows + THREADS_Y - 1)/THREADS_Y);
+    const dim3 blockSize(THREADS_X, THREADS_Y);
 
 	vuya_to_depth_kernel<<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(depth, rgba, maxdepth);
 	cudaSafeCall( cudaGetLastError() );
 }
 
-// ==== Planar version =========================================================
+// ==== Planar 4:2:0 version ===================================================
 
+// Typed pair to combine memory read
 template <typename T>
 struct T2 {
 	T x;
 	T y;
 };
 
+/* Read both chroma values together. */
 template <typename T>
 __device__ inline ushort2 readChroma(const T* __restrict__ chroma, int pitch, uint x, uint y) {
 	T2<T> c = *(T2<T>*)(&chroma[(y/2)*pitch+x]);
@@ -174,6 +193,14 @@ __device__ inline float2 norm_float(const ushort2 &v) {
 	return make_float2(float(v.x)/255.0f, float(v.y)/255.0f);
 }
 
+/*
+ * Interpolate the chroma, but only if the luminance is the same. This smooths
+ * the decoded output but without crossing discontinuities. If luma values are
+ * themselves inconsistent then the data is marked invalid as it has been
+ * corrupted by the compression.
+ *
+ * Unused, has been rewritten into kernel directly.
+ */
 template <typename T>
 __device__ inline float2 bilinChroma(const T* __restrict__ chroma, const T* __restrict__ luminance, int pitch, uchar L, uint x, uint y, const ushort2 &D, int dx, int dy, int width, int height, bool consistent) {
 	if (uint(x+dx) >= width || uint(y+dy) >= height) return {float(D.x)/255.0f, float(D.y)/255.0f};
@@ -196,6 +223,7 @@ __device__ inline float2 bilinChroma(const T* __restrict__ chroma, const T* __re
 		w += 0.1875f;
 	}
 
+	// TODO: (nick) Find way to correct data rather than discard it.
 	if (consistent) {
 		R.x += 0.5625f * (float(D.x) / 255.0f);
 		R.y += 0.5625f * (float(D.y) / 255.0f);
@@ -266,6 +294,10 @@ __device__ inline float2 bilinChroma(const T* __restrict__ chroma, const T* __re
 	float w;
 	bool consistent = consistent_s[threadIdx.y+1][threadIdx.x+1];
 
+	// Do a bilinear interpolation of chroma, combined with a luma consistency
+	// check to not smooth over boundaries, and to remove inconsistent values
+	// that can be assumed to have been corrupted by the compression.
+
 	w = 0.0f; H2 = {0.0f,0.0f};
 	if (consistent_s[threadIdx.y+1-1][threadIdx.x+1-1] && L.x == lum_s[threadIdx.y+1-1][threadIdx.x+1-1].w) { H2 += 0.0625f * norm_float(chroma_s[threadIdx.y+1-1][threadIdx.x+1-1]); w += 0.0625f; }
 	if (consistent_s[threadIdx.y+1-1][threadIdx.x+1] && L.x == lum_s[threadIdx.y+1-1][threadIdx.x+1].z) { H2 += 0.1875f * norm_float(chroma_s[threadIdx.y+1-1][threadIdx.x+1]); w += 0.1875f; }
@@ -313,105 +345,15 @@ void ftl::cuda::vuya_to_depth(const cv::cuda::PtrStepSz<float> &depth, const cv:
 	cudaSafeCall( cudaGetLastError() );
 }
 
-// ==== Decode filters =========================================================
-
- // Video is assumed to be 10bit encoded, returning ushort instead of uchar.
- template <int RADIUS>
- __global__ void discon_y_kernel(cv::cuda::PtrStepSz<ushort4> vuya) {
-	const int x = blockIdx.x*blockDim.x + threadIdx.x;
-	const int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-	if (x >= RADIUS && x < vuya.cols-RADIUS && y >= RADIUS && y < vuya.rows-RADIUS) {
-        ushort4 in = vuya(y,x);
-        ushort inY = round8(in.z);
-        bool isdiscon = false;
-
-        #pragma unroll
-        for (int v=-1; v<=1; ++v) {
-            #pragma unroll
-            for (int u=-1; u<=1; ++u) {
-                ushort inn = round8(vuya(y+v,x+u).z);
-                isdiscon |= (abs(int(inY)-int(inn)) > 1);
-            }
-        }
-
-		if (isdiscon) vuya(y,x).w = 1;
-		/*if (isdiscon) {
-			#pragma unroll
-			for (int v=-RADIUS; v<=RADIUS; ++v) {
-				#pragma unroll
-				for (int u=-RADIUS; u<=RADIUS; ++u) {
-					vuya(y+v,x+u).w = 1;
-				}
-			}
-		}*/
-	}
-}
-
- // Video is assumed to be 10bit encoded, returning ushort instead of uchar.
- template <int RADIUS>
- __global__ void smooth_y_kernel(cv::cuda::PtrStepSz<ushort4> vuya) {
-	const int x = blockIdx.x*blockDim.x + threadIdx.x;
-	const int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-	if (x >= RADIUS && y >= RADIUS && x < vuya.cols-RADIUS-1 && y < vuya.rows-RADIUS-1) {
-        ushort4 in = vuya(y,x);
-		ushort best = in.z;
-		float mcost = 1.e10f;
-
-		// 1) In small radius, is there a discontinuity?
-		
-		if (in.w == 1) {
-			//vuya(y,x).z = 30000;
-			//return;
-
-			#pragma unroll
-			for (int v=-RADIUS; v<=RADIUS; ++v) {
-				#pragma unroll
-				for (int u=-RADIUS; u<=RADIUS; ++u) {
-					ushort4 inn = vuya(y+v,x+u);
-					if (inn.w == 0) {
-						float err = fabsf(float(in.z) - float(inn.z));
-						float cost = err*err; //err*err*dist;
-						if (mcost > cost) {
-							mcost = cost;
-							best = inn.z;
-						}
-						//minerr = min(minerr, err);
-						//if (err == minerr) best = inn.z;
-						//miny = min(miny, inn.z);
-						//sumY += float(in.z);
-						//weights += 1.0f;
-					}
-				}
-			}
-
-			//printf("Min error: %d\n",minerr);
-		
-			vuya(y,x).z = best; //ushort(sumY / weights);
-		}
-        
-		// 2) If yes, use minimum Y value
-		// This acts only to remove discon values... instead a correction is needed
-		// Weight based on distance from discon and difference from current value
-		//     - points further from discon are more reliable
-		//     - most similar Y is likely to be correct depth.
-		//     - either use Y with strongest weight or do weighted average.
-        //if (isdiscon) in.z = maxy;
-        //if (isdiscon) vuya(y,x) = in;
-	}
-}
 
 void ftl::cuda::smooth_y(const cv::cuda::PtrStepSz<ushort4> &rgba, cv::cuda::Stream &stream) {
-	const dim3 gridSize((rgba.cols + T_PER_BLOCK - 1)/T_PER_BLOCK, (rgba.rows + T_PER_BLOCK - 1)/T_PER_BLOCK);
-    const dim3 blockSize(T_PER_BLOCK, T_PER_BLOCK);
-
-    discon_y_kernel<1><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(rgba);
-	smooth_y_kernel<6><<<gridSize, blockSize, 0, cv::cuda::StreamAccessor::getStream(stream)>>>(rgba);
-	cudaSafeCall( cudaGetLastError() );
+	// REMOVED!!
 }
 
 // ==== Colour conversions =====================================================
+
+// Some of the following comes from the defunct NvPipe library. It has been
+// modified by us.
 
 __constant__ float matYuv2Rgb[3][3];
 __constant__ float matRgb2Yuv[3][3];
@@ -450,23 +392,6 @@ static void SetMatYuv2Rgb(int iMatrix) {
     }
     cudaMemcpyToSymbol(matYuv2Rgb, mat, sizeof(mat));
 }
-
-/*static void SetMatRgb2Yuv(int iMatrix) {
-    float wr, wb;
-    int black, white, max;
-    GetConstants(iMatrix, wr, wb, black, white, max);
-    float mat[3][3] = {
-        wr, 1.0f - wb - wr, wb,
-        -0.5f * wr / (1.0f - wb), -0.5f * (1 - wb - wr) / (1.0f - wb), 0.5f,
-        0.5f, -0.5f * (1.0f - wb - wr) / (1.0f - wr), -0.5f * wb / (1.0f - wr),
-    };
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            mat[i][j] = (float)(1.0 * (white - black) / max * mat[i][j]);
-        }
-    }
-    cudaMemcpyToSymbol(matRgb2Yuv, mat, sizeof(mat));
-}*/
 
 template<class T>
 __device__ static T Clamp(T x, T lower, T upper) {

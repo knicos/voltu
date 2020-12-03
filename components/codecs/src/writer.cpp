@@ -1,3 +1,9 @@
+/**
+ * @file writer.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/writer.hpp>
 #include <ftl/timer.hpp>
 #include <loguru.hpp>
@@ -14,7 +20,6 @@ Writer::~Writer() {
 
 bool Writer::begin() {
 	ftl::codecs::Header h;
-	//h.version = 2;
 	(*stream_).write((const char*)&h, sizeof(h));
 
 	ftl::codecs::IndexHeader ih;

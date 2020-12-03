@@ -1,8 +1,9 @@
-/*
- * Copyright 2019 Nicolas Pope.
+/**
+ * @file ws_internal.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
  */
 
-//#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <loguru.hpp>
 
 #include <cstring>

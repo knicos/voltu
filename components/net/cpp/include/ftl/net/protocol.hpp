@@ -1,3 +1,11 @@
+/**
+ * @file protocol.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * 
+ * Unused?
+ */
+
 #ifndef _FTL_NET_PROTOCOL_HPP_
 #define _FTL_NET_PROTOCOL_HPP_
 

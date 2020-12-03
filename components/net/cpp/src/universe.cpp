@@ -1,3 +1,9 @@
+/**
+ * @file universe.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/net/universe.hpp>
 #include <ftl/timer.hpp>
 #include <chrono>
@@ -38,9 +44,7 @@ struct NetImplDetail {
 }
 }
 
-//#define TCP_SEND_BUFFER_SIZE	(512*1024)
-//#define TCP_RECEIVE_BUFFER_SIZE	(1024*1024*1)
-
+// Defaults, should be changed in config
 #define TCP_SEND_BUFFER_SIZE	(512*1024)
 #define TCP_RECEIVE_BUFFER_SIZE	(1024*1024)  // Perhaps try 24K?
 #define WS_SEND_BUFFER_SIZE	(512*1024)
@@ -71,8 +75,6 @@ Universe::Universe(nlohmann::json &config) :
 		this_peer(ftl::net::this_peer),
 		impl_(new ftl::net::NetImplDetail),
 		phase_(0),
-		//send_size_(value("tcp_send_buffer",TCP_SEND_BUFFER_SIZE)),
-		//recv_size_(value("tcp_recv_buffer",TCP_RECEIVE_BUFFER_SIZE)),
 		periodic_time_(value("periodics", 1.0)),
 		reconnect_attempts_(value("reconnect_attempts",50)),
 		thread_(Universe::__start, this) {

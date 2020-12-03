@@ -1,3 +1,9 @@
+/**
+ * @file inputoutput.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #include <loguru.hpp>
 #include <nlohmann/json.hpp>
 #include <ftl/codecs/shapes.hpp>

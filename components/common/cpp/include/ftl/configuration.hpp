@@ -1,11 +1,14 @@
+/**
+ * @file configuration.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 #ifndef _FTL_COMMON_CONFIGURATION_HPP_
 #define _FTL_COMMON_CONFIGURATION_HPP_
 
-//#define LOGURU_REPLACE_GLOG 1
-//#include <loguru.hpp>
 #include <nlohmann/json_fwd.hpp>
-//#include <ftl/configurable.hpp>
 #include <string>
 #include <vector>
 #include <optional>
@@ -13,9 +16,9 @@
 
 namespace ftl {
 
-extern bool running;
-extern int exit_code;
-extern std::string branch_name;
+extern bool running;				///< Set to false to bring the system down
+extern int exit_code;				///< Specify exit code to eventually use
+extern std::string branch_name;		///< Print out desired git branch name to use at restart
 
 class Configurable;
 
@@ -38,6 +41,11 @@ std::optional<std::string> locateFile(const std::string &name);
 
 std::map<std::string, std::string> read_options(char ***argv, int *argc);
 
+/**
+ * Called first to set up the entire system.
+ * 
+ * @param root The initial key in the config file to use as root config.
+ */
 Configurable *configure(int argc, char **argv, const std::string &root, const std::unordered_set<std::string> &restoreable={});
 
 Configurable *configure(json_t &);
@@ -165,6 +173,8 @@ using config::configure;
 }  // namespace ftl
 
 #include <ftl/configurable.hpp>
+
+// ==== Impl ===================================================================
 
 extern template std::optional<float> ftl::config::getJSON<float>(nlohmann::json *config, const std::string &name);
 extern template std::optional<int> ftl::config::getJSON<int>(nlohmann::json *config, const std::string &name);

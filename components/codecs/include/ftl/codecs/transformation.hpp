@@ -1,3 +1,9 @@
+/**
+ * @file transformation.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #pragma once
 #ifndef _FTL_TRANSFORMATION_HPP_
 #define _FTL_TRANSFORMATION_HPP_

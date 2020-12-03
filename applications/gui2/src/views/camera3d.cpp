@@ -1,3 +1,9 @@
+/**
+ * @file camera3d.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include "camera3d.hpp"
 #include "../modules/camera.hpp"
 

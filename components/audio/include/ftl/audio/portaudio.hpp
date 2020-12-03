@@ -1,3 +1,9 @@
+/**
+ * @file portaudio.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_AUDIO_PORTAUDIO_HPP_
 #define _FTL_AUDIO_PORTAUDIO_HPP_
 

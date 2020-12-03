@@ -126,10 +126,7 @@ ScreenCapture::ScreenCapture(ftl::rgbd::Source *host)
 	full_height_ = s.window_attributes.height;
 	offset_x_ = host_->value("offset_x",0);
 	offset_y_ = host_->value("offset_y",0);
-
-	// Choose a correct aspect ratio
-	int awidth = ftl::codecs::getWidth(ftl::codecs::findDefinition(full_height_));
-	params_.width = awidth;
+	params_.width = full_width_;
 	params_.height = full_height_;
 
 	LOG(INFO) << "Screen capture: " << params_.width << "x" << params_.height;

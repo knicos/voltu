@@ -1,4 +1,9 @@
-//#define GLOG_NO_ABBREVIATED_SEVERITIES
+/**
+ * @file peer.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <loguru.hpp>
 #include <ctpl_stl.h>
 
@@ -222,8 +227,6 @@ Peer::Peer(SOCKET s, Universe *u, Dispatcher *d) : sock_(s), can_reconnect_(fals
 		});
 
 		bind("__ping__", [this]() {
-			//auto now = std::chrono::high_resolution_clock::now();
-			//return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
 			return ftl::timer::get_time();
 		});
 
@@ -300,8 +303,6 @@ Peer::Peer(const char *pUri, Universe *u, Dispatcher *d) : can_reconnect_(true),
 		});
 
 		bind("__ping__", [this]() {
-			//auto now = std::chrono::high_resolution_clock::now();
-			//return std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
 			return ftl::timer::get_time();
 		});
 	}
@@ -389,9 +390,6 @@ void Peer::_badClose(bool retry) {
 		closesocket(sock_);
 		#endif
 		sock_ = INVALID_SOCKET;
-		
-		//auto i = find(sockets.begin(),sockets.end(),this);
-		//sockets.erase(i);
 
 		universe_->_notifyDisconnect(this);
 		status_ = kDisconnected;
@@ -428,11 +426,7 @@ void Peer::error(int e) {
 
 void Peer::data() {
 	{
-		//auto start = std::chrono::high_resolution_clock::now();
-		//int64_t startts = std::chrono::time_point_cast<std::chrono::milliseconds>(start).time_since_epoch().count();
 		UNIQUE_LOCK(recv_mtx_,lk);
-
-		//LOG(INFO) << "Pool size: " << ftl::pool.q_size();
 
 		int rc=0;
 
@@ -447,15 +441,6 @@ void Peer::data() {
 		auto buf = recv_buf_.buffer();
 		lk.unlock();
 
-		/*#ifndef WIN32
-		int n;
-		unsigned int m = sizeof(n);
-		getsockopt(sock_,SOL_SOCKET,SO_RCVBUF,(void *)&n, &m);
-
-		int pending;
-		ioctl(sock_, SIOCINQ, &pending);
-		if (pending > 100000) LOG(INFO) << "Buffer usage: " << float(pending) / float(n);
-		#endif*/
 		rc = ftl::net::internal::recv(sock_, buf, cap, 0);
 
 		if (rc >= cap-1) {
@@ -473,10 +458,6 @@ void Peer::data() {
 		
 		lk.lock();
 		recv_buf_.buffer_consumed(rc);
-
-		//auto end = std::chrono::high_resolution_clock::now();
-		//int64_t endts = std::chrono::time_point_cast<std::chrono::milliseconds>(end).time_since_epoch().count();
-		//if (endts - startts > 50) LOG(ERROR) << "Excessive delay";
 
 		if (is_waiting_) {
 			is_waiting_ = false;
@@ -649,14 +630,6 @@ bool Peer::waitConnection() {
 	return status_ == kConnected;
 }
 
-/*void Peer::onConnect(const std::function<void(Peer&)> &f) {
-	if (status_ == kConnected) {
-		f(*this);
-	} else {
-		open_handlers_.push_back(f);
-	}
-}*/
-
 void Peer::_connected() {
 	status_ = kConnected;
 
@@ -683,8 +656,6 @@ int Peer::_send() {
 		if (sendvec[0].iov_len != 0) {
 			LOG(FATAL) << "CORRUPTION in websocket header buffer";
 		}
-
-		//LOG(INFO) << "SEND SIZE = " << len;
 		
 		// Pack correct websocket header into buffer
 		int rc = ws_prepare(wsheader_type::BINARY_FRAME, false, len, buf, 20);
@@ -706,7 +677,6 @@ int Peer::_send() {
 		}
 
 		DWORD bytessent;
-		//c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
 		c = ftl::net::internal::writev(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent);
 #else
 		c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());
@@ -725,7 +695,6 @@ int Peer::_send() {
 		}
 
 		DWORD bytessent;
-		//c = WSASend(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent, 0, NULL, NULL);
 		c = ftl::net::internal::writev(sock_, wsabuf.data(), static_cast<DWORD>(send_size), (LPDWORD)&bytessent);
 #else
 		c = ftl::net::internal::writev(sock_, send_buf_.vector(), (int)send_buf_.vector_size());

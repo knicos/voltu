@@ -1,3 +1,9 @@
+/**
+ * @file portaudio.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/audio/portaudio.hpp>
 #include <ftl/config.h>
 #include <ftl/threads.hpp>

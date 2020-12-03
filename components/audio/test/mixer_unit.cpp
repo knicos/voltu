@@ -1,3 +1,9 @@
+/**
+ * @file mixer_unit.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include "catch.hpp"
 #include <ftl/audio/mixer.hpp>
 

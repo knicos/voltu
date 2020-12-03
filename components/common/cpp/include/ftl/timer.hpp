@@ -1,3 +1,9 @@
+/**
+ * @file timer.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_COMMON_TIMER_HPP_
 #define _FTL_COMMON_TIMER_HPP_
 

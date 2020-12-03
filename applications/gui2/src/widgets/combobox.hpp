@@ -1,3 +1,9 @@
+/**
+ * @file combobox.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 /*
 	Modification: Inherits from ftl::gui2::PopupButton
 

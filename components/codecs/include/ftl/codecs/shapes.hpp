@@ -1,3 +1,9 @@
+/**
+ * @file shapes.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_SHAPES_HPP_
 #define _FTL_CODECS_SHAPES_HPP_
 
@@ -21,6 +27,10 @@ enum class Shape3DType {
 	CURSOR
 };
 
+/**
+ * Shape data item for Shapes3D channel. Used for various tracking, bounding and
+ * general 3D positional data.
+ */
 struct Shape3D {
 	int id;
 	Shape3DType type;
@@ -31,8 +41,8 @@ struct Shape3D {
 	MSGPACK_DEFINE_ARRAY(id, type, size, pose, label);
 };
 
-}
-}
+}  // namespace codecs
+}  // namespace ftl
 
 MSGPACK_ADD_ENUM(ftl::codecs::Shape3DType);
 

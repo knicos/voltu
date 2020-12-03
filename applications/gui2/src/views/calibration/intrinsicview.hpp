@@ -1,3 +1,9 @@
+/**
+ * @file intrinsicview.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 #pragma once
 
 #include "../../modules/calibration/calibration.hpp"

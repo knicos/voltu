@@ -1,3 +1,11 @@
+/**
+ * @file p2p.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * 
+ * Old file, unused.
+ */
+
 #ifndef _FTL_NET_P2P_HPP_
 #define _FTL_NET_P2P_HPP_
 

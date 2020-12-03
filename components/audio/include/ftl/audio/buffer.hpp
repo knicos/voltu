@@ -1,3 +1,9 @@
+/**
+ * @file buffer.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_AUDIO_BUFFER_HPP_
 #define _FTL_AUDIO_BUFFER_HPP_
 
@@ -5,12 +11,15 @@
 #include <cmath>
 #include <Eigen/Eigen>
 
-//#define LOGURU_REPLACE_GLOG 1
-//#include <loguru.hpp>
-
 namespace ftl {
 namespace audio {
 
+/**
+ * Generic audio frame buffer abstract class. Classes implementing this allow
+ * asynchronous read and write of audio frames with an adjustable delay to
+ * change the amount of data being buffered. If writes cannot keep up with
+ * reads, or are bursty in nature, then more buffering is required.
+ */
 template <typename T>
 class Buffer {
 	public:
@@ -19,13 +28,25 @@ class Buffer {
 	Buffer(int channels, int framesize, int rate) : rate_(rate), cur_delay_(0.0f), req_delay_(0.0f), channels_(channels), frame_size_(framesize) {}
 	virtual ~Buffer() {}
 
+	/** Write one or more audio frames. */
 	virtual void write(const std::vector<T> &in)=0;
+
+	/** Read a given number of audio frames. */
 	virtual void read(std::vector<T> &out, int)=0;
 
+	/** Either 1 for mono, or 2 for stereo. */
 	inline int channels() const { return channels_; }
+
+	/** Number of samples per frame. */
 	inline int frameSize() const { return frame_size_; }
+
+	/** Number of samples per second. */
 	inline int sampleRate() const { return rate_; }
 
+	/**
+	 * Change the buffering delay.
+	 * @param d Seconds
+	 */
 	void setDelay(float d) {
 		req_delay_ = d  * static_cast<float>(rate_);
 		// Big jumps should be instant
@@ -35,6 +56,7 @@ class Buffer {
 		}
 	}
 
+	/** Get the current buffering delay in seconds. */
 	float delay() const { return cur_delay_ / static_cast<float>(rate_); }
 
 	inline void setGain(float g) { gain_ = g; }
@@ -75,6 +97,9 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 
 	inline int maxFrames() const { return SIZE; }
 
+	/**
+	 * Fast safe single frame write. Used by audio interrupt.
+	 */
 	inline void writeFrame(const T *d) {
 		const T *in = d;
 		T *out = data_[(write_position_++) % SIZE];
@@ -82,11 +107,11 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 		if (write_position_ > 5 && read_position_ < 0) read_position_ = 0;
 	}
 
+	/**
+	 * Fast safe single frame read. Used by audio interrupt.
+	 */
 	inline void readFrame(T *d) {
 		T* __restrict out = d;
-		//if ((size_t(out) & 0x1f) == 0) out_alignment_ = 32;
-		//else if ((size_t(out) & 0xf) == 0) out_alignment_ = 16;
-		//else if ((size_t(out) & 0x7) == 0) out_alignment_ = 8;
 
 		if (read_position_ < 0 || read_position_ >= write_position_-1) {
 			for (size_t i=0; i<CHAN*FRAME; ++i) *out++ = 0;
@@ -119,6 +144,9 @@ class FixedBuffer : public ftl::audio::Buffer<T> {
 
 	void read(std::vector<T> &out, int frames) override;
 
+	/**
+	 * Clear all buffer data.
+	 */
 	void reset() override {
 		Buffer<T>::reset();
 		write_position_ = 0; //int(this->cur_delay_);
@@ -161,17 +189,8 @@ void FixedBuffer<T,CHAN,FRAME,SIZE>::write(const std::vector<T> &in) {
 		for (int c=0; c<CHAN; ++c) *ptr++ = fracIndex<T,CHAN>(in, i, c);
 
 		const float d = 0.6f*clamp((this->req_delay_ - this->cur_delay_) / static_cast<float>(this->rate_), 0.5f);
-		i += 1.0f - d;  // FIXME: Is this correct? Seems to function but perhaps not ideal
-		//LOG(INFO) << "D " << this->req_delay_ << " - " << this->cur_delay_;
-
-		/*if (d > 0.0f) {	// Increase delay = oversample with increment < 1.0
-			//i += 1.0f * (1.0f - d);
-			i += 1.0f - d;
-		} else {		// Decrease delay = undersample with increment > 1.0
-			//i += 1.0f / (1.0f + d);
-			i += 1.0f - d;
-		}*/
-		this->cur_delay_ += d; //* static_cast<float>(this->rate_);
+		i += 1.0f - d;
+		this->cur_delay_ += d;
 
 		offset_+= CHAN;
 		if (offset_ == CHAN*FRAME) {

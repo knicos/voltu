@@ -1,5 +1,4 @@
 add_library(BaseCodec OBJECT
-	src/bitrates.cpp
 	src/encoder.cpp
 	src/decoder.cpp
 	src/generate.cpp
@@ -64,7 +63,6 @@ target_include_directories(ftlcodecs PUBLIC
 	$<INSTALL_INTERFACE:include>
 	PRIVATE src)
 
-#target_include_directories(cv-node PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(ftlcodecs ftlcommon ${OpenCV_LIBS} ${CUDA_LIBRARIES} Eigen3::Eigen nvcuvid cuda)
 
 target_precompile_headers(ftlcodecs REUSE_FROM ftlcommon)

@@ -1,3 +1,9 @@
+/**
+ * @file timer.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/timer.hpp>
 #include <ftl/threads.hpp>
 #include <ftl/uuid.hpp>
@@ -75,8 +81,6 @@ static void waitTimePoint() {
 	if (hprec_ && sincelast > mspf) LOG(WARNING) << "Frame " << "(" << (target-last_frame) << ") dropped by " << (sincelast-mspf) << "ms";
 
 	// Use sleep_for for larger delays
-	
-	//LOG(INFO) << "Required Delay: " << (now / 40) << " = " << msdelay;
 	while (msdelay >= 35 && sincelast != mspf) {
 		sleep_for(milliseconds(10));
 		now = get_time();
@@ -108,12 +112,6 @@ static void waitTimePoint() {
 			msdelay = mspf - (now % mspf);
 		}
 	}
-
-	/*while (msdelay >= 10 && sincelast != mspf) {
-		sleep_for(milliseconds(5));
-		now = get_time();
-		msdelay = mspf - (now % mspf);
-	}*/
 
 	if (msdelay >= 2 && sincelast != mspf) {
 		UNIQUE_LOCK(mtx, lk);

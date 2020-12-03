@@ -1,3 +1,9 @@
+/**
+ * @file frame.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 #ifndef _FTL_AUDIO_FRAME_HPP_
 #define _FTL_AUDIO_FRAME_HPP_

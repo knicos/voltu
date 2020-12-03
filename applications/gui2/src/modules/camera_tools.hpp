@@ -1,3 +1,9 @@
+/**
+ * @file camera_tools.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_GUI_CAMERA_TOOLS_HPP_
 #define _FTL_GUI_CAMERA_TOOLS_HPP_
 

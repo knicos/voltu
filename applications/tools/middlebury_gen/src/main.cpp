@@ -15,7 +15,6 @@
 #include <loguru.hpp>
 
 using ftl::codecs::Channel;
-using ftl::codecs::definition_t;
 using ftl::codecs::codec_t;
 using std::string;
 
@@ -221,7 +220,7 @@ int main(int argc, char **argv) {
 
 	ftl::operators::DisparityToDepth disp2depth(nullptr, ftl::create<ftl::Configurable>(root, "disparity"));
 
-	ftl::codecs::OpenCVEncoder encoder(ftl::codecs::definition_t::Any, ftl::codecs::definition_t::Any);
+	ftl::codecs::OpenCVEncoder encoder;
 
 	int i=0;
 	for (auto &x : paths.items()) {
@@ -260,24 +259,13 @@ int main(int argc, char **argv) {
 			cv::resize(c1, c1, cv::Size(int(aspect*float(height)),height));
 			cv::resize(c2, c2, cv::Size(int(aspect*float(height)),height));
 
-			int original_width = c1.cols;
-			int desired_width = ftl::codecs::getWidth(ftl::codecs::findDefinition(height));
-			int border_size = (desired_width - c1.cols) / 2;
-			cv::copyMakeBorder(c1, c1, 0, 0, border_size, desired_width - border_size - c1.cols, cv::BORDER_CONSTANT, cv::Scalar(0));
-			cv::copyMakeBorder(c2, c2, 0, 0, border_size, desired_width - border_size - c2.cols, cv::BORDER_CONSTANT, cv::Scalar(0));
-			cv::copyMakeBorder(disp, disp, 0, 0, border_size, desired_width - border_size - disp.cols, cv::BORDER_CONSTANT, cv::Scalar(0));
-
 			// TODO: Adjust principle points (cx)
 
 			LOG(INFO) << "Disparity scaling: " << scaling;
 			LOG(INFO) << "Depth range: " << intrin1.minDepth << " to " << intrin1.maxDepth;
 			LOG(INFO) << "Resolution: " << c1.cols << "x" << c1.rows;
 			disp.convertTo(disp, CV_32F, scaling);
-
-			intrin1 = intrin1.scaled(original_width, c1.rows);
-			intrin2 = intrin2.scaled(original_width, c2.rows);
-			intrin1.cx -= border_size;
-			intrin2.cx -= border_size;
+			
 			intrin1.width = c1.cols;
 			intrin2.width = c2.cols;
 

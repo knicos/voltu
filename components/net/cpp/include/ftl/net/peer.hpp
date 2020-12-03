@@ -1,3 +1,9 @@
+/**
+ * @file peer.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_NET_PEER_HPP_
 #define _FTL_NET_PEER_HPP_
 
@@ -10,7 +16,6 @@
 #include <ftl/net/common_fwd.hpp>
 #include <ftl/exception.hpp>
 
-//#define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <ftl/net/protocol.hpp>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/uri.hpp>
@@ -50,12 +55,6 @@ struct caller : virtual_caller {
 	void operator()(msgpack::object &o) { T r = o.as<T>(); f_(r); };
 	std::function<void(const T&)> f_;
 };
-
-//typedef std::tuple<const char*,size_t> array;
-/*struct compress{};
-struct encrypt{};
-struct decompress{};
-struct decrypt{};*/
 
 /**
  * A single socket connection object, to be constructed using the connect()

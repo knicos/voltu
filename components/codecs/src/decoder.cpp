@@ -1,3 +1,9 @@
+/**
+ * @file decoder.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/codecs/decoder.hpp>
 
 #include <ftl/codecs/opencv_decoder.hpp>
@@ -8,6 +14,7 @@ using ftl::codecs::codec_t;
 using std::string;
 using std::to_string;
 
+/* Debug utility function to print stream packets */
 ftl::codecs::StreamPacket::operator std::string() const {
 	return string("[\n  timestamp=") + to_string(timestamp) + string(",\n  frameset=") +
 		to_string(streamID) + string(",\n  frame=") + to_string(frame_number) +
@@ -15,6 +22,7 @@ ftl::codecs::StreamPacket::operator std::string() const {
 }
 
 Decoder *ftl::codecs::allocateDecoder(const ftl::codecs::Packet &pkt) {
+	// TODO: (nick) Add other decoder libraries and codecs.
 	switch(pkt.codec) {
 	case codec_t::JPG		:
 	case codec_t::PNG		: return new ftl::codecs::OpenCVDecoder;
@@ -26,9 +34,6 @@ Decoder *ftl::codecs::allocateDecoder(const ftl::codecs::Packet &pkt) {
 	}
 }
 
-/**
- * Release a decoder to be reused by some other stream.
- */
 void ftl::codecs::free(Decoder *&e) {
 	delete e;
 	e = nullptr;

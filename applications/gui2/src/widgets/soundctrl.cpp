@@ -1,3 +1,10 @@
+/**
+ * @file soundctrl.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ * @author Nicolas Pope
+ */
+
 #include <nanogui/layout.h>
 #include <nanogui/label.h>
 #include <nanogui/slider.h>

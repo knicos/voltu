@@ -1,3 +1,9 @@
+/**
+ * @file combobox.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
 /*
 	src/combobox.cpp -- simple combo box widget based on a popup button
 

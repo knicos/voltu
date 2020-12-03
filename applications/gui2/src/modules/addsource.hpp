@@ -1,3 +1,9 @@
+/**
+ * @file addsource.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 #include "../module.hpp"

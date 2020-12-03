@@ -1,7 +1,12 @@
+/**
+ * @file decoder.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_DECODER_HPP_
 #define _FTL_CODECS_DECODER_HPP_
 
-//#include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
 

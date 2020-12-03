@@ -1,3 +1,9 @@
+/**
+ * @file opencv_encoder.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_CODECS_OPENCV_ENCODER_HPP_
 #define _FTL_CODECS_OPENCV_ENCODER_HPP_
 
@@ -16,8 +22,7 @@ namespace codecs {
  */
 class OpenCVEncoder : public ftl::codecs::Encoder {
     public:
-    OpenCVEncoder(ftl::codecs::definition_t maxdef,
-			ftl::codecs::definition_t mindef);
+    OpenCVEncoder();
     ~OpenCVEncoder();
 
 	bool encode(const cv::cuda::GpuMat &in, ftl::codecs::Packet &pkt) override;
@@ -29,7 +34,6 @@ class OpenCVEncoder : public ftl::codecs::Encoder {
 	private:
 	int chunk_count_;
 	int chunk_dim_;
-	ftl::codecs::definition_t current_definition_;
 	std::atomic<int> jobs_;
 	std::mutex job_mtx_;
 	std::condition_variable job_cv_;
@@ -38,7 +42,7 @@ class OpenCVEncoder : public ftl::codecs::Encoder {
 	bool _encodeBlock(const cv::Mat &in, ftl::codecs::Packet &pkt);
 };
 
-}
-}
+}  // namespace codecs
+}  // namespace ftl
 
 #endif  // _FTL_CODECS_OPENCV_ENCODER_HPP_

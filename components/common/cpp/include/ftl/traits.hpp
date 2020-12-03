@@ -1,3 +1,9 @@
+/**
+ * @file traits.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_TRAITS_HPP_
 #define _FTL_TRAITS_HPP_
 
@@ -7,6 +13,8 @@
 
 namespace ftl {
 namespace traits {
+
+// TODO: Use OpenCV provided traits?
 
 template <typename T>
 struct AlwaysFalse : std::false_type {};

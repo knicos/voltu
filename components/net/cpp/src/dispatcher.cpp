@@ -1,4 +1,9 @@
-//#define GLOG_NO_ABBREVIATED_SEVERITIES
+/**
+ * @file dispatcher.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <loguru.hpp>
 #include <ftl/net/dispatcher.hpp>
 #include <ftl/net/peer.hpp>
@@ -10,23 +15,6 @@ using ftl::net::Dispatcher;
 using std::vector;
 using std::string;
 using std::optional;
-
-/*static std::string hexStr(const std::string &s)
-{
-	const char *data = s.data();
-	int len = s.size();
-    std::stringstream ss;
-    ss << std::hex;
-    for(int i=0;i<len;++i)
-        ss << std::setw(2) << std::setfill('0') << (int)data[i];
-    return ss.str();
-}*/
-
-//void ftl::net::Dispatcher::dispatch(Peer &s, const std::string &msg) {
-	//std::cout << "Received dispatch : " << hexStr(msg) << std::endl;
-//    auto unpacked = msgpack::unpack(msg.data(), msg.size());
-//    dispatch(s, unpacked.get());
-//}
 
 vector<string> Dispatcher::getBindings() const {
 	vector<string> res;
@@ -78,17 +66,9 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 		    try {
 		        auto result = (*func)(s, args); //->get();
 		        s._sendResponse(id, name, result->get());
-		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(),result->get());
-				std::stringstream buf;
-				msgpack::pack(buf, res_obj);			
-				s.send("__return__", buf.str());*/
 			} catch (const std::exception &e) {
 				//throw;
 				LOG(ERROR) << "Exception when attempting to call RPC (" << e.what() << ")";
-		        /*response_t res_obj = std::make_tuple(1,id,msgpack::object(e.what()),msgpack::object());
-				std::stringstream buf;
-				msgpack::pack(buf, res_obj);			
-				s.send("__return__", buf.str());*/
 			}
 		} else {
 			LOG(WARNING) << "No binding found for " << name;
@@ -128,7 +108,6 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
     auto &&args = std::get<2>(the_call);
 
     auto binding = _locateHandler(name);
-	//LOG(INFO) << "NOTIFICATION " << name << "() <- " << s.getURI();
 
     if (binding) {
         try {

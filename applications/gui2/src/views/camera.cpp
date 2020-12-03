@@ -1,3 +1,10 @@
+/**
+ * @file camera.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * @author Sebastian Hahta
+ */
+
 #include <nanogui/screen.h>
 #include <nanogui/layout.h>
 #include <nanogui/button.h>

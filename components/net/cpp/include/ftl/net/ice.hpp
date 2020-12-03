@@ -1,3 +1,12 @@
+/**
+ * @file ice.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ * 
+ * @deprecated
+ * Unused.
+ */
+
 #ifndef _FTL_NET_ICE_HPP_
 #define _FTL_NET_ICE_HPP_
 

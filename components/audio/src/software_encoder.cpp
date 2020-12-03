@@ -1,3 +1,9 @@
+/**
+ * @file software_encoder.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/audio/software_encoder.hpp>
 #include <ftl/config.h>
 
@@ -13,7 +19,7 @@ struct OpusMSEncoder {};
 using ftl::audio::SoftwareEncoder;
 using ftl::codecs::codec_t;
 
-#define FRAME_SIZE 960
+#define FRAME_SIZE 960  // Currently fixed system wide
 #define MAX_PACKET_SIZE (3*2*FRAME_SIZE)
 
 SoftwareEncoder::SoftwareEncoder() : ftl::audio::Encoder(), opus_encoder_(nullptr), cur_stereo_(false), cur_bitrate_(0) {
@@ -44,10 +50,13 @@ bool SoftwareEncoder::encode(const std::vector<float> &in, ftl::codecs::Packet &
 bool SoftwareEncoder::_createOpus(ftl::codecs::Packet &pkt) {
 	#ifdef HAVE_OPUS
 	bool stereo = pkt.flags & ftl::codecs::kFlagStereo;
+
+	// If existing encoder matches, just use that
 	if (opus_encoder_ && stereo == cur_stereo_) return true;
 
 	cur_stereo_ = stereo;
 
+	// Existing encoder is wrong so destroy it first
 	if (opus_encoder_) {
 		opus_multistream_encoder_destroy(opus_encoder_);
 		opus_encoder_ = nullptr;
@@ -93,16 +102,13 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<float> &in, ftl::codecs::Pac
 
 	unsigned char *outptr = pkt.data.data()+insize;
 
-	//LOG(INFO) << "Encode " << (in.size() / (channels*FRAME_SIZE)) << " audio frames";
-
 	for (unsigned int i=0; i<in.size(); i+=channels*FRAME_SIZE) {
 		short *len = (short*)outptr;
 		outptr += 2;
 		int nbBytes = opus_multistream_encode_float(opus_encoder_, &in.data()[i], FRAME_SIZE, outptr, MAX_PACKET_SIZE);
 		if (nbBytes <= 0) return false;
 
-		//if (nbBytes > 32000) LOG(WARNING) << "Packet exceeds size limit";
-
+		// Two bytes used to store encoded frame size in bytes
 		*len = nbBytes;
 
 		count += nbBytes+2;
@@ -111,7 +117,6 @@ bool SoftwareEncoder::_encodeOpus(const std::vector<float> &in, ftl::codecs::Pac
 	}
 
 	pkt.data.resize(insize+count);
-	//LOG(INFO) << "Opus Encode = " << pkt.data.size() << ", " << frames;
 	return true;
 
 	#else

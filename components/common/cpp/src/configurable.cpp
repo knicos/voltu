@@ -1,3 +1,9 @@
+/**
+ * @file configurable.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru.hpp>
 #include <ftl/configurable.hpp>
@@ -21,10 +27,6 @@ Configurable::Configurable(nlohmann::json &config) : config_(&config) {
 	if (!config.is_object()) {
 		LOG(FATAL) << "Configurable json is not an object: " << config;
 	}
-
-	/*if (!config.contains("$id")) {
-		config["$id"] = "ftl://utu.fi";
-	}*/
 
 	ftl::config::registerConfigurable(this);
 }

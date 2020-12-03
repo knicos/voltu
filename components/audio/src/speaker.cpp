@@ -1,3 +1,9 @@
+/**
+ * @file speaker.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/audio/speaker.hpp>
 #include <ftl/audio/audio.hpp>
 #include <ftl/audio/portaudio.hpp>
@@ -92,7 +98,6 @@ void Speaker::_open(int fsize, int sample, int channels) {
 	outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
 	outputParameters.hostApiSpecificStreamInfo = NULL;
 
-	//LOG(INFO) << "OUTPUT LATENCY: " << outputParameters.suggestedLatency;
 	latency_ = int64_t(outputParameters.suggestedLatency * 1000.0);
 
 	auto err = Pa_OpenStream(
@@ -137,11 +142,9 @@ void Speaker::queue(int64_t ts, ftl::audio::Frame &frame) {
 	}
 	if (!buffer_) return;
 
-	//LOG(INFO) << "Buffer Fullness (" << ts << "): " << buffer_->size() << " - " << audio.size();
 	for (const auto &d : audio) {
 		buffer_->write(d.data());
 	}
-	//LOG(INFO) << "Audio delay: " << buffer_.delay() << "s";
 }
 
 void Speaker::queue(int64_t ts, const ftl::audio::Audio &d) {
@@ -150,9 +153,7 @@ void Speaker::queue(int64_t ts, const ftl::audio::Audio &d) {
 	}
 	if (!buffer_) return;
 
-	//LOG(INFO) << "Buffer Fullness (" << ts << "): " << buffer_->size() << " - " << audio.size();
 	buffer_->write(d.data());
-	//LOG(INFO) << "Audio delay: " << buffer_.delay() << "s";
 }
 
 void Speaker::setDelay(int64_t ms) {

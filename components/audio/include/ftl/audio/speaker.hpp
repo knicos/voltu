@@ -1,3 +1,9 @@
+/**
+ * @file speaker.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #ifndef _FTL_AUDIO_SPEAKER_HPP_
 #define _FTL_AUDIO_SPEAKER_HPP_
 
@@ -13,11 +19,17 @@
 namespace ftl {
 namespace audio {
 
+/**
+ * Take data frames, extract the audio data and send to a hardware or other
+ * speaker device. Received audio frames are buffered by this class and so this
+ * class provides some control of the buffering process also.
+ */
 class Speaker : public ftl::Configurable {
 	public:
 	explicit Speaker(nlohmann::json &config);
 	~Speaker();
 
+	/** Append new audio frames to internal buffer. */
 	void queue(int64_t ts, ftl::audio::Frame &fs);
 	void queue(int64_t ts, const ftl::audio::Audio &af);
 

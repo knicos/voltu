@@ -1,7 +1,7 @@
-/*
- * Copyright 2019 Nicolas Pope. All rights reserved.
- *
- * See LICENSE.
+/**
+ * @file main.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
  */
 
 #define LOGURU_WITH_STREAMS 1
@@ -20,7 +20,6 @@
 #include <ftl/rgbd.hpp>
 #include <ftl/data/framepool.hpp>
 #include <ftl/streams/builder.hpp>
-//#include <ftl/middlebury.hpp>
 #include <ftl/net/universe.hpp>
 #include <ftl/master.hpp>
 #include <nlohmann/json.hpp>
