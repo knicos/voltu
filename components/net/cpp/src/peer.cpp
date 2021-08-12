@@ -647,10 +647,18 @@ int Peer::_send() {
 		const iovec *sendvec = send_buf_.vector();
 		size_t size = send_buf_.vector_size();
 		char buf[20];
+
+		const uint8_t masking_key[4] = { 0x12, 0x34, 0x56, 0x78 }; // TODO: Move
 		
-		// Calculate total size of message
+		// Calculate total size of message and mask it.
 		for (size_t i=1; i < size; i++) {
-			len += sendvec[i].iov_len;
+			const size_t mlen = sendvec[i].iov_len;
+			char *buf = (char*)sendvec[i].iov_base;
+			// TODO: Make this more efficient.
+			for (size_t j = 0; j != mlen; ++j) {
+                buf[j] ^= masking_key[(len + j)&0x3];
+            }
+			len += mlen;
 		}
 
 		if (sendvec[0].iov_len != 0) {
@@ -658,7 +666,7 @@ int Peer::_send() {
 		}
 		
 		// Pack correct websocket header into buffer
-		int rc = ws_prepare(wsheader_type::BINARY_FRAME, false, len, buf, 20);
+		int rc = ws_prepare(wsheader_type::BINARY_FRAME, true, len, buf, 20);
 		if (rc == -1) return -1;
 		
 		// Patch the first io vector to be ws header
